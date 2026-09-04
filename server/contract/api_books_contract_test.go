@@ -15,42 +15,42 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// patchBook sends a PATCH to a book and asserts the status it must answer with.
+// PatchBook sends a PATCH to a book and asserts the status it must answer with.
 // The body is JSON in every case, so the tests below read as the field-level
 // contract they are.
-func patchBook(t *testing.T, env *apiTestEnv, bookID, body string, wantStatus int) *httptest.ResponseRecorder {
+func PatchBook(t *testing.T, env *Env, bookID, body string, wantStatus int) *httptest.ResponseRecorder {
 	t.Helper()
 
-	rec := env.patch(bookURL(bookID), strings.NewReader(body))
-	assertStatus(t, rec, wantStatus)
+	rec := env.Patch(BookURL(bookID), strings.NewReader(body))
+	AssertStatus(t, rec, wantStatus)
 	return rec
 }
 
 // patchBookOK patches a book, asserts it succeeded, and returns the updated book
 // the response carries.
-func patchBookOK(t *testing.T, env *apiTestEnv, bookID, body string) server.Book {
+func patchBookOK(t *testing.T, env *Env, bookID, body string) server.Book {
 	t.Helper()
 
-	return decodeJSON[server.Book](t, patchBook(t, env, bookID, body, http.StatusOK))
+	return DecodeJSON[server.Book](t, PatchBook(t, env, bookID, body, http.StatusOK))
 }
 
 func TestAPIGetBooksContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	rec := env.get(booksURL())
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	if got := decodeJSON[[]server.Book](t, rec); len(got) != 0 {
+	rec := env.Get(BooksURL())
+	AssertStatus(t, rec, http.StatusOK)
+	AssertJSONContentType(t, rec)
+	if got := DecodeJSON[[]server.Book](t, rec); len(got) != 0 {
 		t.Fatalf("empty library returned %d books", len(got))
 	}
 
-	alpha := importTextBook(t, env, "Alpha Tale", "/fiction/adventure", "alpha.txt", "alpha body")
-	_ = importTextBook(t, env, "Beta Notes", "/notes", "beta.txt", "beta body")
+	alpha := ImportTextBook(t, env, "Alpha Tale", "/fiction/adventure", "alpha.txt", "alpha body")
+	_ = ImportTextBook(t, env, "Beta Notes", "/notes", "beta.txt", "beta body")
 
 	patchBookOK(t, env, alpha.Meta.ID,
 		`{"authors":["Ada"],"tags":["contract","api"],"language":"en","comment":"needle comment"}`)
 
-	books := getJSON[[]server.Book](t, env, booksURL())
+	books := GetJSON[[]server.Book](t, env, BooksURL())
 	if len(books) != 2 {
 		t.Fatalf("list returned %d books, want 2", len(books))
 	}
@@ -79,18 +79,18 @@ func TestAPIGetBooksContract(t *testing.T) {
 }
 
 func TestAPIGetBooksCharCountContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	_ = importTextBook(t, env, "Char Count Me", "", "charcount.txt", "alpha body")
+	env := New(t)
+	_ = ImportTextBook(t, env, "Char Count Me", "", "charcount.txt", "alpha body")
 
 	// Without include=char_count, the field must not appear in the response at all.
-	rec := env.get(booksURL())
-	assertStatus(t, rec, http.StatusOK)
+	rec := env.Get(BooksURL())
+	AssertStatus(t, rec, http.StatusOK)
 	if strings.Contains(rec.Body.String(), "char_count") {
 		t.Fatalf("response without include=char_count must not contain char_count field: %s", rec.Body.String())
 	}
 
 	// With include=char_count, every book carries a positive char_count.
-	books := getJSON[[]server.Book](t, env, booksURL()+"?include=char_count")
+	books := GetJSON[[]server.Book](t, env, BooksURL()+"?include=char_count")
 	if len(books) != 1 {
 		t.Fatalf("list returned %d books, want 1", len(books))
 	}
@@ -104,29 +104,29 @@ func TestAPIGetBooksCharCountContract(t *testing.T) {
 // leave the cached count correct. A stale entry can only be seen from the
 // listing, which is what this reads back after each write.
 func TestAPIGetBooksCharCountFollowsSourceWritesContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Rewritten", "", "rewrite.txt", "alpha body")
+	env := New(t)
+	created := ImportTextBook(t, env, "Rewritten", "", "rewrite.txt", "alpha body")
 	bookID := created.Meta.ID
 
 	const rewritten = "alpha body, extended"
 	wantRewritten := utf8.RuneCountInString(rewritten)
 
-	rec := env.patchContent(sourceURL(bookID, created.Meta.CurrentSource, "content"),
-		plainTextContentType, strings.NewReader(rewritten))
-	assertStatus(t, rec, http.StatusNoContent)
+	rec := env.PatchContent(SourceURL(bookID, created.Meta.CurrentSource, "content"),
+		PlainTextContentType, strings.NewReader(rewritten))
+	AssertStatus(t, rec, http.StatusNoContent)
 	if got := charCountByBookID(t, env)[bookID]; got != wantRewritten {
 		t.Fatalf("char_count after rewriting the current source = %d, want %d", got, wantRewritten)
 	}
 
 	// A second source changes the count only once it is the current one.
-	empty := createBookSource(t, env, bookID)
-	assertStatus(t, env.put(sourceURL(bookID, empty, "current"), nil), http.StatusNoContent)
+	empty := CreateBookSource(t, env, bookID)
+	AssertStatus(t, env.Put(SourceURL(bookID, empty, "current"), nil), http.StatusNoContent)
 	if got := charCountByBookID(t, env)[bookID]; got != 0 {
 		t.Fatalf("char_count of an empty current source = %d, want 0", got)
 	}
 
 	// Deleting the current source hands the pointer back to the text.
-	assertStatus(t, env.delete(sourceURL(bookID, empty)), http.StatusNoContent)
+	AssertStatus(t, env.Delete(SourceURL(bookID, empty)), http.StatusNoContent)
 	if got := charCountByBookID(t, env)[bookID]; got != wantRewritten {
 		t.Fatalf("char_count after deleting the current source = %d, want %d", got, wantRewritten)
 	}
@@ -135,12 +135,12 @@ func TestAPIGetBooksCharCountFollowsSourceWritesContract(t *testing.T) {
 	// clearSourceCharCount reproduces - and the listing must report the result
 	// straight away rather than at the next walk of the shelf.
 	clearSourceCharCount(t, env, bookID)
-	assertStatus(t, env.post(scansURL(), nil), http.StatusOK)
+	AssertStatus(t, env.Post(ScansURL(), nil), http.StatusOK)
 	if got := charCountByBookID(t, env)[bookID]; got != 0 {
 		t.Fatalf("char_count of a cleared source = %d, want 0", got)
 	}
 
-	assertStatus(t, env.post(sourceURL(bookID, currentSourceOf(t, env, bookID), "refresh"), nil), http.StatusOK)
+	AssertStatus(t, env.Post(SourceURL(bookID, CurrentSourceOf(t, env, bookID), "refresh"), nil), http.StatusOK)
 	if got := charCountByBookID(t, env)[bookID]; got != wantRewritten {
 		t.Fatalf("char_count after the refresh route = %d, want %d", got, wantRewritten)
 	}
@@ -152,8 +152,8 @@ func TestAPIGetBooksCharCountFollowsSourceWritesContract(t *testing.T) {
 // stays a file its owner can edit by hand and read back unchanged, and nothing
 // on disk drifts from the EPUB it came from.
 func TestAPIBookCommentIsStoredVerbatimContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Described", "", "described.txt", "body")
+	env := New(t)
+	created := ImportTextBook(t, env, "Described", "", "described.txt", "body")
 
 	const description = "<p>第一段</p>\n\n**粗體** 與 <script>alert(1)</script>\n\n- 項目"
 	body, err := json.Marshal(map[string]string{"comment": description})
@@ -164,11 +164,11 @@ func TestAPIBookCommentIsStoredVerbatimContract(t *testing.T) {
 	if updated := patchBookOK(t, env, created.Meta.ID, string(body)); updated.Meta.Comments != description {
 		t.Fatalf("PATCH answered comment %q, want %q", updated.Meta.Comments, description)
 	}
-	if fetched := getJSON[server.Book](t, env, bookURL(created.Meta.ID)); fetched.Meta.Comments != description {
+	if fetched := GetJSON[server.Book](t, env, BookURL(created.Meta.ID)); fetched.Meta.Comments != description {
 		t.Fatalf("GET answered comment %q, want %q", fetched.Meta.Comments, description)
 	}
 
-	raw, err := os.ReadFile(env.bookMetaPath(t, created.Meta.ID))
+	raw, err := os.ReadFile(env.BookMetaPath(t, created.Meta.ID))
 	if err != nil {
 		t.Fatalf("read book.json: %v", err)
 	}
@@ -182,14 +182,14 @@ func TestAPIBookCommentIsStoredVerbatimContract(t *testing.T) {
 }
 
 func TestAPIUpdateBookContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Patch Me", "old/folder", "patch.txt", "body")
+	env := New(t)
+	created := ImportTextBook(t, env, "Patch Me", "old/folder", "patch.txt", "body")
 
-	rec := patchBook(t, env, created.Meta.ID,
+	rec := PatchBook(t, env, created.Meta.ID,
 		`{"title":"Patched","authors":["Author A","Author B"],"tags":["tag1"],"language":"zh-Hant","comment":"updated comment","star":5,"folder":["new","folder"]}`,
 		http.StatusOK)
-	assertJSONContentType(t, rec)
-	updated := decodeJSON[server.Book](t, rec)
+	AssertJSONContentType(t, rec)
+	updated := DecodeJSON[server.Book](t, rec)
 	if updated.Meta.Title != "Patched" || updated.Meta.Comments != "updated comment" || updated.Meta.Language != "zh-Hant" || updated.Meta.Star != 5 {
 		t.Fatalf("metadata was not updated: %#v", updated.Meta)
 	}
@@ -207,7 +207,7 @@ func TestAPIUpdateBookContract(t *testing.T) {
 		`{"star":6}`,
 		`{"language":"!!!not-a-tag"}`,
 	} {
-		patchBook(t, env, created.Meta.ID, body, http.StatusBadRequest)
+		PatchBook(t, env, created.Meta.ID, body, http.StatusBadRequest)
 	}
 }
 
@@ -215,35 +215,35 @@ func TestAPIUpdateBookContract(t *testing.T) {
 // import can only guess it from a file extension. This is the correction path:
 // switching it is metadata-only, so the book's content is never rewritten.
 func TestAPIUpdateBookFormatContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Format Book", "", "format.txt", "# Notes\n\nhello")
+	env := New(t)
+	created := ImportTextBook(t, env, "Format Book", "", "format.txt", "# Notes\n\nhello")
 	bookID := created.Meta.ID
 
 	if created.Meta.Format != "txt" {
 		t.Fatalf("imported format = %q, want txt", created.Meta.Format)
 	}
 
-	rec := env.get(bookURL(bookID, "content"))
-	assertStatus(t, rec, http.StatusOK)
+	rec := env.Get(BookURL(bookID, "content"))
+	AssertStatus(t, rec, http.StatusOK)
 	contentBefore := rec.Body.String()
 
 	if updated := patchBookOK(t, env, bookID, `{"format":"md"}`); updated.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md in the PATCH response", updated.Meta.Format)
 	}
 
-	if fetched := getJSON[server.Book](t, env, bookURL(bookID)); fetched.Meta.Format != "md" {
+	if fetched := GetJSON[server.Book](t, env, BookURL(bookID)); fetched.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md after GET", fetched.Meta.Format)
 	}
 
 	// Switching the format must not touch the text it describes.
-	rec = env.get(bookURL(bookID, "content"))
-	assertStatus(t, rec, http.StatusOK)
+	rec = env.Get(BookURL(bookID, "content"))
+	AssertStatus(t, rec, http.StatusOK)
 	if got := rec.Body.String(); got != contentBefore {
 		t.Fatalf("content = %q, want it unchanged at %q", got, contentBefore)
 	}
 
 	// A format this build cannot render is a client error, and the stored value survives it.
-	patchBook(t, env, bookID, `{"format":"epub"}`, http.StatusBadRequest)
+	PatchBook(t, env, bookID, `{"format":"epub"}`, http.StatusBadRequest)
 
 	untouched := patchBookOK(t, env, bookID, `{"title":"Format Book Renamed"}`)
 	if untouched.Meta.Format != "md" {
@@ -257,8 +257,8 @@ func TestAPIUpdateBookFormatContract(t *testing.T) {
 }
 
 func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Identifiers Book", "identifiers/folder", "identifiers.txt", "body")
+	env := New(t)
+	created := ImportTextBook(t, env, "Identifiers Book", "identifiers/folder", "identifiers.txt", "body")
 	bookID := created.Meta.ID
 
 	// Setting identifiers is reflected in the PATCH response and a subsequent GET.
@@ -267,7 +267,7 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 		t.Fatalf("identifiers not set in PATCH response: %#v", updated.Meta.Identifiers)
 	}
 
-	fetched := getJSON[server.Book](t, env, bookURL(bookID))
+	fetched := GetJSON[server.Book](t, env, BookURL(bookID))
 	if fetched.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || fetched.Meta.Identifiers["douban"] != "123" {
 		t.Fatalf("identifiers not set after GET: %#v", fetched.Meta.Identifiers)
 	}
@@ -297,17 +297,17 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	}
 
 	// An identifiers map with an empty key is rejected.
-	patchBook(t, env, bookID, `{"identifiers":{"":"x"}}`, http.StatusBadRequest)
+	PatchBook(t, env, bookID, `{"identifiers":{"":"x"}}`, http.StatusBadRequest)
 }
 
 // removeSourceFolder deletes a source's folder behind the API's back, which is
 // how a shelf edited by hand or by a sync tool ends up with a current_source
 // pointing at nothing. Removing the folder rather than rewriting book.json keeps
 // the book metadata's own staleness checks out of the picture.
-func removeSourceFolder(t *testing.T, env *apiTestEnv, bookID, sourceID string) {
+func removeSourceFolder(t *testing.T, env *Env, bookID, sourceID string) {
 	t.Helper()
 
-	bookDir := filepath.Dir(env.bookMetaPath(t, bookID))
+	bookDir := filepath.Dir(env.BookMetaPath(t, bookID))
 	if err := os.RemoveAll(filepath.Join(bookDir, shelf.SourcesFolder, sourceID)); err != nil {
 		t.Fatalf("remove source folder: %v", err)
 	}
@@ -318,26 +318,26 @@ func removeSourceFolder(t *testing.T, env *apiTestEnv, bookID, sourceID string) 
 // its text, from the newest source it does have. The reads must not repair
 // book.json, because the filesystem stays the source of truth.
 func TestAPIDanglingCurrentSourceFallsBackOnRead(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Dangling Current Source", "", "dangle.txt", "surviving body")
+	env := New(t)
+	created := ImportTextBook(t, env, "Dangling Current Source", "", "dangle.txt", "surviving body")
 	survivingID := created.Meta.CurrentSource
 
-	danglingID := createBookSource(t, env, created.Meta.ID)
-	rec := env.put(sourceURL(created.Meta.ID, danglingID, "current"), nil)
-	assertStatus(t, rec, http.StatusNoContent)
+	danglingID := CreateBookSource(t, env, created.Meta.ID)
+	rec := env.Put(SourceURL(created.Meta.ID, danglingID, "current"), nil)
+	AssertStatus(t, rec, http.StatusNoContent)
 
 	removeSourceFolder(t, env, created.Meta.ID, danglingID)
 
-	content := env.get(bookURL(created.Meta.ID, "content"))
-	assertStatus(t, content, http.StatusOK)
+	content := env.Get(BookURL(created.Meta.ID, "content"))
+	AssertStatus(t, content, http.StatusOK)
 	if body := content.Body.String(); !strings.Contains(body, "surviving body") {
 		t.Fatalf("content = %q, want the surviving source's text", body)
 	}
 
-	if got := currentSourceOf(t, env, created.Meta.ID); got != danglingID {
+	if got := CurrentSourceOf(t, env, created.Meta.ID); got != danglingID {
 		t.Fatalf("current_source = %q, want reads to leave it at %q", got, danglingID)
 	}
-	if ids := sourceIDs(t, env, created.Meta.ID); !slices.Equal(ids, []string{survivingID}) {
+	if ids := SourceIDs(t, env, created.Meta.ID); !slices.Equal(ids, []string{survivingID}) {
 		t.Fatalf("sources = %#v, want only %q", ids, survivingID)
 	}
 }
@@ -346,14 +346,14 @@ func TestAPIDanglingCurrentSourceFallsBackOnRead(t *testing.T) {
 // book with nothing to read is a missing source, not a server fault, so the
 // content routes answer 404 rather than 500.
 func TestAPIBookWithoutAnySourceReturns404(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Sourceless Book", "", "gone.txt", "body")
+	env := New(t)
+	created := ImportTextBook(t, env, "Sourceless Book", "", "gone.txt", "body")
 
 	removeSourceFolder(t, env, created.Meta.ID, created.Meta.CurrentSource)
 
-	assertStatus(t, env.get(bookURL(created.Meta.ID, "content")), http.StatusNotFound)
+	AssertStatus(t, env.Get(BookURL(created.Meta.ID, "content")), http.StatusNotFound)
 
 	// The book itself is still perfectly readable, which is what keeps its
 	// detail page working while the shelf is in this state.
-	assertStatus(t, env.get(bookURL(created.Meta.ID)), http.StatusOK)
+	AssertStatus(t, env.Get(BookURL(created.Meta.ID)), http.StatusOK)
 }

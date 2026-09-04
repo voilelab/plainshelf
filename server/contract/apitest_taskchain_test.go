@@ -14,17 +14,17 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// taskChainSubmitResponse is the body every endpoint that starts background work
+// TaskChainSubmitResponse is the body every endpoint that starts background work
 // answers with: the chain the client should poll.
-type taskChainSubmitResponse struct {
+type TaskChainSubmitResponse struct {
 	TaskChainID string `json:"taskchain_id"`
 }
 
-// submitTaskChain posts to an endpoint that starts background work and asserts
+// SubmitTaskChain posts to an endpoint that starts background work and asserts
 // the status the caller expects. 202 and 409 both name a chain — a conflict
 // points at the one already running — so both are decoded and required to carry
 // an ID. Any other status is a rejected request with no chain to report.
-func submitTaskChain(t *testing.T, env *apiTestEnv, url string, body []byte, wantStatus int) taskChainSubmitResponse {
+func SubmitTaskChain(t *testing.T, env *Env, url string, body []byte, wantStatus int) TaskChainSubmitResponse {
 	t.Helper()
 
 	var reader io.Reader
@@ -32,28 +32,28 @@ func submitTaskChain(t *testing.T, env *apiTestEnv, url string, body []byte, wan
 		reader = bytes.NewReader(body)
 	}
 
-	rec := env.post(url, reader)
-	assertStatus(t, rec, wantStatus)
+	rec := env.Post(url, reader)
+	AssertStatus(t, rec, wantStatus)
 	if wantStatus != http.StatusAccepted && wantStatus != http.StatusConflict {
-		return taskChainSubmitResponse{}
+		return TaskChainSubmitResponse{}
 	}
-	assertJSONContentType(t, rec)
+	AssertJSONContentType(t, rec)
 
-	resp := decodeJSON[taskChainSubmitResponse](t, rec)
+	resp := DecodeJSON[TaskChainSubmitResponse](t, rec)
 	if resp.TaskChainID == "" {
 		t.Fatalf("response is missing taskchain_id: %s", rec.Body.String())
 	}
 	return resp
 }
 
-// waitForTaskChain polls the task chain endpoint until the chain reaches a
+// WaitForTaskChain polls the task chain endpoint until the chain reaches a
 // terminal status, mirroring what the trash page does.
-func waitForTaskChain(t *testing.T, env *apiTestEnv, taskChainID string) server.TaskChain {
+func WaitForTaskChain(t *testing.T, env *Env, taskChainID string) server.TaskChain {
 	t.Helper()
 
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		chain := getJSON[server.TaskChain](t, env, taskChainURL(taskChainID))
+		chain := GetJSON[server.TaskChain](t, env, TaskChainURL(taskChainID))
 
 		switch chain.Status {
 		case "completed", "partially_completed", "failed":
@@ -67,13 +67,13 @@ func waitForTaskChain(t *testing.T, env *apiTestEnv, taskChainID string) server.
 	}
 }
 
-// assertDuplicateChainConflict pins the contract every endpoint that starts one
+// AssertDuplicateChainConflict pins the contract every endpoint that starts one
 // shelf-wide chain shares: while a chain is in flight a second request is
 // answered 409 naming that same chain instead of queueing a redundant one.
 // submit posts to the endpoint under test and asserts the status it is handed.
 // The chain is left finished, and its response returned, so a caller whose
 // endpoint can be asked again afterwards can assert it gets a fresh chain.
-func assertDuplicateChainConflict(t *testing.T, env *apiTestEnv, submit func(wantStatus int) taskChainSubmitResponse) taskChainSubmitResponse {
+func AssertDuplicateChainConflict(t *testing.T, env *Env, submit func(wantStatus int) TaskChainSubmitResponse) TaskChainSubmitResponse {
 	t.Helper()
 
 	// Block the worker so the first chain stays queued, and therefore
@@ -86,15 +86,15 @@ func assertDuplicateChainConflict(t *testing.T, env *apiTestEnv, submit func(wan
 	}
 
 	release()
-	waitForTaskChain(t, env, first.TaskChainID)
+	WaitForTaskChain(t, env, first.TaskChainID)
 	return first
 }
 
-func taskChainURL(taskChainID string) string {
+func TaskChainURL(taskChainID string) string {
 	return "/api/taskchains/" + taskChainID
 }
 
-func taskChainCancelURL(taskChainID string) string {
+func TaskChainCancelURL(taskChainID string) string {
 	return "/api/taskchains/" + taskChainID + "/cancel"
 }
 
@@ -146,11 +146,11 @@ func (t *gateTask) Status() taskutil.Status { return taskutil.StatusRunning }
 
 // blockWorker occupies the single worker goroutine so that chains submitted
 // afterwards stay queued. The returned function releases it.
-func blockWorker(t *testing.T, env *apiTestEnv) func() {
+func blockWorker(t *testing.T, env *Env) func() {
 	t.Helper()
 
 	gate := &gateTask{started: make(chan struct{}), release: make(chan struct{})}
-	if _, err := env.app.TaskChains().Submit(&taskutil.TaskChain{
+	if _, err := env.App.TaskChains().Submit(&taskutil.TaskChain{
 		Name:  "gate_chain",
 		Tasks: []taskutil.Task{gate},
 	}); err != nil {

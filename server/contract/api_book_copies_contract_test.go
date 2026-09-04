@@ -10,8 +10,8 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func bookCopiesURL(bookID string) string {
-	return bookURL(bookID, "copies")
+func BookCopiesURL(bookID string) string {
+	return BookURL(bookID, "copies")
 }
 
 // POST .../books/{id}/copies answers with the copy: a fresh id and the folder it
@@ -23,17 +23,17 @@ func bookCopiesURL(bookID string) string {
 func TestAPIBookCopyInPlaceContract(t *testing.T) {
 	for name, body := range map[string]string{"empty object": "{}", "no body": ""} {
 		t.Run(name, func(t *testing.T) {
-			env := newAPITestEnv(t)
-			original := importTextBook(t, env, "Copy Me", "fiction", "copyme.txt", "body")
+			env := New(t)
+			original := ImportTextBook(t, env, "Copy Me", "fiction", "copyme.txt", "body")
 
 			var reader io.Reader
 			if body != "" {
 				reader = strings.NewReader(body)
 			}
-			rec := env.post(bookCopiesURL(original.Meta.ID), reader)
-			assertStatus(t, rec, http.StatusCreated)
-			assertJSONContentType(t, rec)
-			copied := decodeJSON[server.Book](t, rec)
+			rec := env.Post(BookCopiesURL(original.Meta.ID), reader)
+			AssertStatus(t, rec, http.StatusCreated)
+			AssertJSONContentType(t, rec)
+			copied := DecodeJSON[server.Book](t, rec)
 
 			if copied.Meta.ID == "" || copied.Meta.ID == original.Meta.ID {
 				t.Fatalf("copy id = %q, want a fresh id distinct from %q", copied.Meta.ID, original.Meta.ID)
@@ -45,7 +45,7 @@ func TestAPIBookCopyInPlaceContract(t *testing.T) {
 				t.Errorf("copy title = %q, want %q", copied.Meta.Title, "Copy Me")
 			}
 
-			books := getJSON[[]server.Book](t, env, booksURL())
+			books := GetJSON[[]server.Book](t, env, BooksURL())
 			if len(books) != 2 {
 				t.Fatalf("books listed = %d, want the original and its copy", len(books))
 			}
@@ -55,12 +55,12 @@ func TestAPIBookCopyInPlaceContract(t *testing.T) {
 
 // A copy can name a destination folder in the body and lands there.
 func TestAPIBookCopyToFolderContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	original := importTextBook(t, env, "Relocate", "origin", "relocate.txt", "body")
+	env := New(t)
+	original := ImportTextBook(t, env, "Relocate", "origin", "relocate.txt", "body")
 
-	rec := env.post(bookCopiesURL(original.Meta.ID), strings.NewReader(`{"folder":["archive","2026"]}`))
-	assertStatus(t, rec, http.StatusCreated)
-	copied := decodeJSON[server.Book](t, rec)
+	rec := env.Post(BookCopiesURL(original.Meta.ID), strings.NewReader(`{"folder":["archive","2026"]}`))
+	AssertStatus(t, rec, http.StatusCreated)
+	copied := DecodeJSON[server.Book](t, rec)
 
 	if !copied.Folder.Equal(shelf.FolderPath{"archive", "2026"}) {
 		t.Errorf("copy folder = %v, want [archive 2026]", copied.Folder)
@@ -72,17 +72,17 @@ func TestAPIBookCopyToFolderContract(t *testing.T) {
 
 // Copying an unknown book is a 404, even with an otherwise valid body.
 func TestAPIBookCopyMissingContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	rec := env.post(bookCopiesURL("missing-book"), strings.NewReader("{}"))
-	assertStatus(t, rec, http.StatusNotFound)
+	rec := env.Post(BookCopiesURL("missing-book"), strings.NewReader("{}"))
+	AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // An invalid destination folder is rejected with 400 before anything is copied.
 func TestAPIBookCopyInvalidFolderContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	original := importTextBook(t, env, "Bad Target", "", "bad.txt", "body")
+	env := New(t)
+	original := ImportTextBook(t, env, "Bad Target", "", "bad.txt", "body")
 
-	rec := env.post(bookCopiesURL(original.Meta.ID), strings.NewReader(`{"folder":[".."]}`))
-	assertStatus(t, rec, http.StatusBadRequest)
+	rec := env.Post(BookCopiesURL(original.Meta.ID), strings.NewReader(`{"folder":[".."]}`))
+	AssertStatus(t, rec, http.StatusBadRequest)
 }

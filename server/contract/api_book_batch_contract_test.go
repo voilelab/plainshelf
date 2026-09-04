@@ -6,31 +6,31 @@ import (
 	"testing"
 )
 
-func bookBatchURL() string {
-	return shelfURL("book-batches")
+func BookBatchURL() string {
+	return ShelfURL("book-batches")
 }
 
-func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int) taskChainSubmitResponse {
+func submitBookBatch(t *testing.T, env *Env, payload any, wantStatus int) TaskChainSubmitResponse {
 	t.Helper()
 
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal batch request: %v", err)
 	}
-	return submitTaskChain(t, env, bookBatchURL(), body, wantStatus)
+	return SubmitTaskChain(t, env, BookBatchURL(), body, wantStatus)
 }
 
 func TestAPIBookBatchMoveContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	first := importTextBook(t, env, "First", "source", "first.txt", "one")
-	second := importTextBook(t, env, "Second", "source", "second.txt", "two")
+	env := New(t)
+	first := ImportTextBook(t, env, "First", "source", "first.txt", "one")
+	second := ImportTextBook(t, env, "Second", "source", "second.txt", "two")
 
 	accepted := submitBookBatch(t, env, map[string]any{
 		"operation":     "move",
 		"book_ids":      []string{first.Meta.ID, second.Meta.ID, first.Meta.ID},
 		"target_folder": []string{"target"},
 	}, http.StatusAccepted)
-	chain := waitForTaskChain(t, env, accepted.TaskChainID)
+	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "completed" || chain.Percentage != 100 {
 		t.Fatalf("chain = %+v, want completed at 100%%", chain)
 	}
@@ -49,7 +49,7 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 	}
 
 	for _, id := range []string{first.Meta.ID, second.Meta.ID} {
-		shelfData, exists := env.app.ShelfManager().GetShelf(defaultShelfID)
+		shelfData, exists := env.App.ShelfManager().GetShelf(DefaultShelfID)
 		if !exists {
 			t.Fatal("default shelf disappeared")
 		}
@@ -64,14 +64,14 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 }
 
 func TestAPIBookBatchPartialFailureContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	book := importTextBook(t, env, "Keep", "", "keep.txt", "body")
+	env := New(t)
+	book := ImportTextBook(t, env, "Keep", "", "keep.txt", "body")
 
 	accepted := submitBookBatch(t, env, map[string]any{
 		"operation": "trash",
 		"book_ids":  []string{book.Meta.ID, "missing-book"},
 	}, http.StatusAccepted)
-	chain := waitForTaskChain(t, env, accepted.TaskChainID)
+	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "partially_completed" || chain.Percentage != 100 {
 		t.Fatalf("chain = %+v, want partially_completed at 100%%", chain)
 	}
@@ -91,7 +91,7 @@ func TestAPIBookBatchPartialFailureContract(t *testing.T) {
 }
 
 func TestAPIBookBatchValidationContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
 	tooMany := make([]string, 200+1)
 	for i := range tooMany {
@@ -118,11 +118,11 @@ func TestAPIBookBatchValidationContract(t *testing.T) {
 }
 
 func TestAPIBookBatchDuplicateRunningChainContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	book := importTextBook(t, env, "Queued", "", "queued.txt", "body")
+	env := New(t)
+	book := ImportTextBook(t, env, "Queued", "", "queued.txt", "body")
 
 	payload := map[string]any{"operation": "trash", "book_ids": []string{book.Meta.ID}}
-	assertDuplicateChainConflict(t, env, func(wantStatus int) taskChainSubmitResponse {
+	AssertDuplicateChainConflict(t, env, func(wantStatus int) TaskChainSubmitResponse {
 		return submitBookBatch(t, env, payload, wantStatus)
 	})
 }

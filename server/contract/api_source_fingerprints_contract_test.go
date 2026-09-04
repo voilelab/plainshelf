@@ -11,8 +11,8 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func sourceFingerprintsURL() string {
-	return shelfURL("source-fingerprints")
+func SourceFingerprintsURL() string {
+	return ShelfURL("source-fingerprints")
 }
 
 // backdateSources ages a book's source files by an hour.
@@ -22,10 +22,10 @@ func sourceFingerprintsURL() string {
 // describes. A book imported by the test is exactly that file, so without this
 // the second run would re-read every source it just read - the property these
 // tests are here to check.
-func backdateSources(t *testing.T, env *apiTestEnv, bookID string) {
+func backdateSources(t *testing.T, env *Env, bookID string) {
 	t.Helper()
 
-	sourcesDir := filepath.Join(filepath.Dir(env.bookMetaPath(t, bookID)), shelf.SourcesFolder)
+	sourcesDir := filepath.Join(filepath.Dir(env.BookMetaPath(t, bookID)), shelf.SourcesFolder)
 	entries, err := os.ReadDir(sourcesDir)
 	if err != nil {
 		t.Fatalf("read sources dir: %v", err)
@@ -43,30 +43,30 @@ func backdateSources(t *testing.T, env *apiTestEnv, bookID string) {
 	}
 }
 
-func fingerprintSources(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {
+func fingerprintSources(t *testing.T, env *Env, wantStatus int) TaskChainSubmitResponse {
 	t.Helper()
-	return submitTaskChain(t, env, sourceFingerprintsURL(), nil, wantStatus)
+	return SubmitTaskChain(t, env, SourceFingerprintsURL(), nil, wantStatus)
 }
 
-func forceFingerprintSources(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {
+func forceFingerprintSources(t *testing.T, env *Env, wantStatus int) TaskChainSubmitResponse {
 	t.Helper()
-	return submitTaskChain(t, env, sourceFingerprintsURL()+"?force=true", nil, wantStatus)
+	return SubmitTaskChain(t, env, SourceFingerprintsURL()+"?force=true", nil, wantStatus)
 }
 
-func runFingerprintSources(t *testing.T, env *apiTestEnv) task.FingerprintSourcesResult {
+func runFingerprintSources(t *testing.T, env *Env) task.FingerprintSourcesResult {
 	t.Helper()
 	return awaitFingerprintSources(t, env, fingerprintSources(t, env, http.StatusAccepted))
 }
 
-func runForceFingerprintSources(t *testing.T, env *apiTestEnv) task.FingerprintSourcesResult {
+func runForceFingerprintSources(t *testing.T, env *Env) task.FingerprintSourcesResult {
 	t.Helper()
 	return awaitFingerprintSources(t, env, forceFingerprintSources(t, env, http.StatusAccepted))
 }
 
-func awaitFingerprintSources(t *testing.T, env *apiTestEnv, accepted taskChainSubmitResponse) task.FingerprintSourcesResult {
+func awaitFingerprintSources(t *testing.T, env *Env, accepted TaskChainSubmitResponse) task.FingerprintSourcesResult {
 	t.Helper()
 
-	chain := waitForTaskChain(t, env, accepted.TaskChainID)
+	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
 
 	if chain.Status != "completed" {
 		t.Fatalf("chain status = %q, want completed: %+v", chain.Status, chain)
@@ -82,10 +82,10 @@ func awaitFingerprintSources(t *testing.T, env *apiTestEnv, accepted taskChainSu
 }
 
 func TestAPIFingerprintSourcesContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	dune := importTextBook(t, env, "Dune", "", "dune.txt", "the spice must flow")
-	solaris := importTextBook(t, env, "Solaris", "", "solaris.txt", "the ocean thinks in shapes")
+	dune := ImportTextBook(t, env, "Dune", "", "dune.txt", "the spice must flow")
+	solaris := ImportTextBook(t, env, "Solaris", "", "solaris.txt", "the ocean thinks in shapes")
 	backdateSources(t, env, dune.Meta.ID)
 	backdateSources(t, env, solaris.Meta.ID)
 
@@ -104,7 +104,7 @@ func TestAPIFingerprintSourcesContract(t *testing.T) {
 		t.Errorf("second run = %+v, want two stat hits and no reads", second)
 	}
 
-	ubik := importTextBook(t, env, "Ubik", "", "ubik.txt", "the coin-operated door")
+	ubik := ImportTextBook(t, env, "Ubik", "", "ubik.txt", "the coin-operated door")
 	backdateSources(t, env, ubik.Meta.ID)
 
 	third := runFingerprintSources(t, env)
@@ -118,10 +118,10 @@ func TestAPIFingerprintSourcesContract(t *testing.T) {
 // the fingerprints without touching the files. Without force the same second run
 // reads nothing.
 func TestAPIFingerprintSourcesForceRebuildsContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	dune := importTextBook(t, env, "Dune", "", "dune.txt", "the spice must flow")
-	solaris := importTextBook(t, env, "Solaris", "", "solaris.txt", "the ocean thinks in shapes")
+	dune := ImportTextBook(t, env, "Dune", "", "dune.txt", "the spice must flow")
+	solaris := ImportTextBook(t, env, "Solaris", "", "solaris.txt", "the ocean thinks in shapes")
 	backdateSources(t, env, dune.Meta.ID)
 	backdateSources(t, env, solaris.Meta.ID)
 
@@ -143,16 +143,16 @@ func TestAPIFingerprintSourcesForceRebuildsContract(t *testing.T) {
 // A force value that is not a boolean is a bad request, not a silent incremental
 // run: the caller asked for a rebuild and has to be told the flag was not read.
 func TestAPIFingerprintSourcesRejectsBadForceContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	rec := env.post(sourceFingerprintsURL()+"?force=maybe", nil)
-	assertStatus(t, rec, http.StatusBadRequest)
+	rec := env.Post(SourceFingerprintsURL()+"?force=maybe", nil)
+	AssertStatus(t, rec, http.StatusBadRequest)
 }
 
 // An empty shelf still completes, so the UI can report "up to date" instead of
 // an error.
 func TestAPIFingerprintSourcesWithNothingToDoContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
 	if result := runFingerprintSources(t, env); result.Books != 0 || result.Sources != 0 {
 		t.Errorf("result = %+v, want an empty sweep", result)
@@ -162,15 +162,15 @@ func TestAPIFingerprintSourcesWithNothingToDoContract(t *testing.T) {
 // One unreadable source is reported and skipped; the rest of the shelf is
 // still fingerprinted and the chain still finishes.
 func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	broken := importTextBook(t, env, "Truncated", "", "truncated.txt", "gone by the time it is read")
-	intact := importTextBook(t, env, "Intact", "", "intact.txt", "still here")
+	broken := ImportTextBook(t, env, "Truncated", "", "truncated.txt", "gone by the time it is read")
+	intact := ImportTextBook(t, env, "Intact", "", "intact.txt", "still here")
 	backdateSources(t, env, intact.Meta.ID)
 
 	// The source folder and its meta.json stay, so the source is still listed
 	// and only the content read fails - what a half-finished copy looks like.
-	sourcesDir := filepath.Join(filepath.Dir(env.bookMetaPath(t, broken.Meta.ID)), shelf.SourcesFolder)
+	sourcesDir := filepath.Join(filepath.Dir(env.BookMetaPath(t, broken.Meta.ID)), shelf.SourcesFolder)
 	entries, err := os.ReadDir(sourcesDir)
 	if err != nil {
 		t.Fatalf("read sources dir: %v", err)
@@ -185,7 +185,7 @@ func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
 	}
 
 	accepted := fingerprintSources(t, env, http.StatusAccepted)
-	chain := waitForTaskChain(t, env, accepted.TaskChainID)
+	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
 
 	if chain.Status != "partially_completed" {
 		t.Fatalf("chain status = %q, want partially_completed: %+v", chain.Status, chain)
@@ -209,9 +209,9 @@ func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
 // A second request while a sweep is still in flight must point the client at
 // the existing chain instead of queueing a redundant one.
 func TestAPIFingerprintSourcesConflictReportsRunningChainContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	first := assertDuplicateChainConflict(t, env, func(wantStatus int) taskChainSubmitResponse {
+	first := AssertDuplicateChainConflict(t, env, func(wantStatus int) TaskChainSubmitResponse {
 		return fingerprintSources(t, env, wantStatus)
 	})
 

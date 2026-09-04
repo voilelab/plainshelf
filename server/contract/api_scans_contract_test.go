@@ -13,8 +13,8 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func scansURL() string {
-	return shelfURL("scans")
+func ScansURL() string {
+	return ShelfURL("scans")
 }
 
 // writeBookIntoShelf drops a book package straight into books/, the way copying
@@ -41,18 +41,18 @@ func writeBookIntoShelf(t *testing.T, libRoot, dirName, bookID, title string) {
 }
 
 func TestAPIRescanShelfContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	importTextBook(t, env, "Already Here", "Fiction", "here.txt", "Some content.")
+	env := New(t)
+	ImportTextBook(t, env, "Already Here", "Fiction", "here.txt", "Some content.")
 
 	// Added the way a user does when they ask why the book has not appeared:
 	// from outside PlainShelf, with no request to tell the server about it.
-	writeBookIntoShelf(t, env.libRoot, "dropped-in", "drop1nkb", "Dropped In")
+	writeBookIntoShelf(t, env.LibRoot, "dropped-in", "drop1nkb", "Dropped In")
 
-	rec := env.post(scansURL(), nil)
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
+	rec := env.Post(ScansURL(), nil)
+	AssertStatus(t, rec, http.StatusOK)
+	AssertJSONContentType(t, rec)
 
-	scan := decodeJSON[server.ScanResponse](t, rec)
+	scan := DecodeJSON[server.ScanResponse](t, rec)
 	if scan.ScanID == "" {
 		t.Error("scan_id is empty")
 	}
@@ -68,21 +68,21 @@ func TestAPIRescanShelfContract(t *testing.T) {
 	}
 
 	// The counts are only worth reporting if the listing agrees with them.
-	books := getJSON[[]server.Book](t, env, booksURL())
+	books := GetJSON[[]server.Book](t, env, BooksURL())
 	if len(books) != 2 {
 		t.Fatalf("books after the rescan = %d, want the externally added book to be listed", len(books))
 	}
 }
 
 // A rescan reads the shelf and writes nothing to it, so read-only mode has no
-// reason to refuse it — unlike every other POST, which assertMutationGated
+// reason to refuse it — unlike every other POST, which AssertMutationGated
 // pins as refused.
 func TestAPIRescanShelfIsAllowedInReadOnlyModeContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	env.setReadOnly(t, true)
+	env := New(t)
+	env.SetReadOnly(t, true)
 
-	rec := env.post(scansURL(), nil)
-	assertStatus(t, rec, http.StatusOK)
+	rec := env.Post(ScansURL(), nil)
+	AssertStatus(t, rec, http.StatusOK)
 }
 
 // The token gate draws the same exemption: a rescan is a read, so protect_read
@@ -90,23 +90,23 @@ func TestAPIRescanShelfIsAllowedInReadOnlyModeContract(t *testing.T) {
 // with protect_read off -- the docs promise reading needs no token, and the
 // "refresh the book list" button is a read the user can see.
 func TestAPIRescanShelfNeedsNoTokenWithoutProtectReadContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	rec := env.doRaw(httptest.NewRequest(http.MethodPost, scansURL(), nil))
-	assertStatus(t, rec, http.StatusOK)
+	rec := env.DoRaw(httptest.NewRequest(http.MethodPost, ScansURL(), nil))
+	AssertStatus(t, rec, http.StatusOK)
 }
 
 // With protect_read on, reads need a token and the rescan is one of them.
 func TestAPIRescanShelfRequiresTheTokenUnderProtectReadContract(t *testing.T) {
-	security := localTokenSecurity()
+	security := LocalTokenSecurity()
 	security.ProtectRead = true
-	env := newAPITestEnv(t, withSecurity(security))
+	env := New(t, WithSecurity(security))
 
-	rec := env.doRaw(httptest.NewRequest(http.MethodPost, scansURL(), nil))
-	assertStatus(t, rec, http.StatusUnauthorized)
+	rec := env.DoRaw(httptest.NewRequest(http.MethodPost, ScansURL(), nil))
+	AssertStatus(t, rec, http.StatusUnauthorized)
 
-	rec = env.post(scansURL(), nil)
-	assertStatus(t, rec, http.StatusOK)
+	rec = env.Post(ScansURL(), nil)
+	AssertStatus(t, rec, http.StatusOK)
 }
 
 // Dropping the token requirement does not drop the CSRF one: local_token is
@@ -114,15 +114,15 @@ func TestAPIRescanShelfRequiresTheTokenUnderProtectReadContract(t *testing.T) {
 // never listed is still refused. A request with no Origin at all is not a
 // browser -- the Android client's native HTTP bridge sends none.
 func TestAPIRescanShelfRefusesAnUnknownOriginWithoutATokenContract(t *testing.T) {
-	env := newAPITestEnv(t, withSecurity(localTokenSecurity()))
+	env := New(t, WithSecurity(LocalTokenSecurity()))
 
-	req := httptest.NewRequest(http.MethodPost, scansURL(), nil)
+	req := httptest.NewRequest(http.MethodPost, ScansURL(), nil)
 	req.Header.Set("Origin", "http://evil.example")
-	assertStatus(t, env.doRaw(req), http.StatusForbidden)
+	AssertStatus(t, env.DoRaw(req), http.StatusForbidden)
 
-	req = httptest.NewRequest(http.MethodPost, scansURL(), nil)
+	req = httptest.NewRequest(http.MethodPost, ScansURL(), nil)
 	req.Header.Set("Origin", "http://localhost:20000")
-	assertStatus(t, env.doRaw(req), http.StatusOK)
+	AssertStatus(t, env.DoRaw(req), http.StatusOK)
 }
 
 // Both exemptions - no token needed, allowed in read-only mode - are matched on
@@ -130,31 +130,31 @@ func TestAPIRescanShelfRefusesAnUnknownOriginWithoutATokenContract(t *testing.T)
 // path that happens to end in /scans.
 func TestAPIScanExemptionsAreLimitedToTheScanRouteContract(t *testing.T) {
 	urls := []string{
-		shelfURL("scans", "extra"),
-		shelfURL("book-cache-exports"),
+		ShelfURL("scans", "extra"),
+		ShelfURL("book-cache-exports"),
 		"/api/shelves//scans",
 		"/api/scans",
 	}
 
 	t.Run("token gate", func(t *testing.T) {
-		env := newAPITestEnv(t)
+		env := New(t)
 
 		for _, url := range urls {
 			t.Run(url, func(t *testing.T) {
-				// doRaw sends the request as-is, without the token do() attaches.
-				rec := env.doRaw(httptest.NewRequest(http.MethodPost, url, nil))
-				assertStatus(t, rec, http.StatusUnauthorized)
+				// DoRaw sends the request as-is, without the token Do() attaches.
+				rec := env.DoRaw(httptest.NewRequest(http.MethodPost, url, nil))
+				AssertStatus(t, rec, http.StatusUnauthorized)
 			})
 		}
 	})
 
 	t.Run("read-only gate", func(t *testing.T) {
-		env := newAPITestEnv(t)
-		env.setReadOnly(t, true)
+		env := New(t)
+		env.SetReadOnly(t, true)
 
 		for _, url := range urls {
 			t.Run(url, func(t *testing.T) {
-				assertStatus(t, env.post(url, nil), http.StatusForbidden)
+				AssertStatus(t, env.Post(url, nil), http.StatusForbidden)
 			})
 		}
 	})
@@ -164,22 +164,22 @@ func TestAPIScanExemptionsAreLimitedToTheScanRouteContract(t *testing.T) {
 // than 409 so the client can tell "you are too fast" from "someone else is
 // walking this shelf right now".
 func TestAPIRescanShelfRateLimitContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
 	// The burst is the shelf package's own, so this walks up to the refusal
 	// rather than encoding a count the server contract does not own. The bound
 	// only keeps a broken limiter from looping forever.
 	var rec *httptest.ResponseRecorder
 	for range 100 {
-		rec = env.post(scansURL(), nil)
+		rec = env.Post(ScansURL(), nil)
 		if rec.Code != http.StatusOK {
 			break
 		}
 	}
 
-	assertStatus(t, rec, http.StatusTooManyRequests)
+	AssertStatus(t, rec, http.StatusTooManyRequests)
 
-	limited := decodeJSON[server.ScanRateLimitResponse](t, rec)
+	limited := DecodeJSON[server.ScanRateLimitResponse](t, rec)
 	if limited.RetryAfterSeconds < 1 {
 		t.Errorf("retry_after_seconds = %d, want at least 1", limited.RetryAfterSeconds)
 	}

@@ -12,43 +12,43 @@ import (
 	"github.com/voilelab/plainshelf/internal/testutil"
 )
 
-func settingURL(key string) string {
+func SettingURL(key string) string {
 	return "/api/setting/" + key
 }
 
 // settingValue reads a setting and returns the "value" the endpoint wraps it in.
 // The response is decoded generically so the wrapper's field name is pinned too.
-func settingValue[T any](t *testing.T, env *apiTestEnv, key string) T {
+func settingValue[T any](t *testing.T, env *Env, key string) T {
 	t.Helper()
 
-	rec := env.get(settingURL(key))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
+	rec := env.Get(SettingURL(key))
+	AssertStatus(t, rec, http.StatusOK)
+	AssertJSONContentType(t, rec)
 
-	value, _ := decodeJSON[map[string]any](t, rec)["value"].(T)
+	value, _ := DecodeJSON[map[string]any](t, rec)["value"].(T)
 	return value
 }
 
 // setSetting stores a setting value, asserting the status the endpoint must
 // answer with — 204 for an accepted value, 400 for a rejected one.
-func setSetting(t *testing.T, env *apiTestEnv, key, body string, wantStatus int) {
+func setSetting(t *testing.T, env *Env, key, body string, wantStatus int) {
 	t.Helper()
 
-	rec := env.post(settingURL(key), strings.NewReader(body))
-	assertStatus(t, rec, wantStatus)
+	rec := env.Post(SettingURL(key), strings.NewReader(body))
+	AssertStatus(t, rec, wantStatus)
 }
 
 // deleteSetting clears a stored setting, which reverts it to the built-in or
 // configured default.
-func deleteSetting(t *testing.T, env *apiTestEnv, key string) {
+func deleteSetting(t *testing.T, env *Env, key string) {
 	t.Helper()
 
-	rec := env.delete(settingURL(key))
-	assertStatus(t, rec, http.StatusNoContent)
+	rec := env.Delete(SettingURL(key))
+	AssertStatus(t, rec, http.StatusNoContent)
 }
 
 func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 	const key = "epub_import_strategy"
 
 	// The built-in default applies when nothing is configured.
@@ -68,7 +68,7 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 		t.Fatalf("preset after set = %q, want plain", preset)
 	}
 
-	imported := importFileBook(t, env, "uses-default.epub", "application/epub+zip", string(testutil.BuildTestEPUB(t)))
+	imported := ImportFileBook(t, env, "uses-default.epub", "application/epub+zip", string(testutil.BuildTestEPUB(t)))
 	if imported.Meta.Format != "txt" {
 		t.Fatalf("format = %q, want txt from the configured default", imported.Meta.Format)
 	}
@@ -93,7 +93,7 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 }
 
 func TestAPISettingCoverToJPGContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 	const key = "cover_to_jpg"
 
 	// The default value reflects AppConf, which is false in the test env.
@@ -124,7 +124,7 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 // file to edit: without this route a user has no way to turn deletion off.
 func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 	logDir := t.TempDir()
-	env := newAPITestEnv(t, withAppLogDir(logDir, "app"))
+	env := New(t, WithAppLogDir(logDir, "app"))
 	const key = "log_retention_days"
 
 	// Nothing stored and nothing configured: the built-in window applies.
@@ -133,20 +133,20 @@ func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 	}
 
 	// Zero is the meaningful end of the range: it is how deletion is turned off.
-	for _, want := range []int{0, 7, maxLogRetentionDays} {
+	for _, want := range []int{0, 7, MaxLogRetentionDays} {
 		setSetting(t, env, key, strconv.Itoa(want), http.StatusNoContent)
 		if got := settingValue[float64](t, env, key); int(got) != want {
 			t.Fatalf("log_retention_days after set = %v, want %d", got, want)
 		}
 	}
 
-	for _, body := range []string{"-1", strconv.Itoa(maxLogRetentionDays + 1), "1.5", `"30"`, "not json"} {
+	for _, body := range []string{"-1", strconv.Itoa(MaxLogRetentionDays + 1), "1.5", `"30"`, "not json"} {
 		setSetting(t, env, key, body, http.StatusBadRequest)
 	}
 
 	// The rejected values left the last accepted one in place.
-	if got := settingValue[float64](t, env, key); int(got) != maxLogRetentionDays {
-		t.Fatalf("log_retention_days after rejected writes = %v, want %d", got, maxLogRetentionDays)
+	if got := settingValue[float64](t, env, key); int(got) != MaxLogRetentionDays {
+		t.Fatalf("log_retention_days after rejected writes = %v, want %d", got, MaxLogRetentionDays)
 	}
 
 	deleteSetting(t, env, key)
@@ -160,15 +160,15 @@ func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 // have to restart the server before the running writers stop deleting.
 func TestAPISettingLogRetentionAppliesWithoutRestart(t *testing.T) {
 	logDir := t.TempDir()
-	env := newAPITestEnv(t, withAppLogDir(logDir, "app"))
+	env := New(t, WithAppLogDir(logDir, "app"))
 
 	setSetting(t, env, "log_retention_days", "0", http.StatusNoContent)
 
 	// The app logger is the writer the running server actually holds.
-	writer := logutil.NewDailyFileWriter(env.app.Conf().Logger.LogFile)
+	writer := logutil.NewDailyFileWriter(env.App.Conf().Logger.LogFile)
 	t.Cleanup(func() { _ = writer.Close() })
 
-	writeLogFile(t, filepath.Join(logDir, "app-2000-01-01.log"), "ancient")
+	WriteLogFile(t, filepath.Join(logDir, "app-2000-01-01.log"), "ancient")
 	if _, err := writer.Write([]byte("{}\n")); err != nil {
 		t.Fatalf("Write: %v", err)
 	}

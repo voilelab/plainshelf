@@ -35,12 +35,12 @@ type fingerprintStatusResponse struct {
 	} `json:"algo"`
 }
 
-func similarURL() string {
-	return shelfURL("books", "similar")
+func SimilarURL() string {
+	return ShelfURL("books", "similar")
 }
 
-func fingerprintStatusURL() string {
-	return shelfURL("fingerprints", "status")
+func FingerprintStatusURL() string {
+	return ShelfURL("fingerprints", "status")
 }
 
 // sharedProse is long enough to yield many distinct 5-gram shingles, so two
@@ -63,11 +63,11 @@ func sortedPair(a, b string) (string, string) {
 // Two books that share most of their text surface as one similar pair; a third,
 // unrelated book does not pair with either at the default floor.
 func TestAPISimilarBooksContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	left := importTextBook(t, env, "Left", "", "left.txt", sharedProse+"and a unique closing passage belonging only to the left book")
-	right := importTextBook(t, env, "Right", "", "right.txt", sharedProse+"and a different closing passage belonging only to the right book")
-	stranger := importTextBook(t, env, "Stranger", "", "stranger.txt",
+	left := ImportTextBook(t, env, "Left", "", "left.txt", sharedProse+"and a unique closing passage belonging only to the left book")
+	right := ImportTextBook(t, env, "Right", "", "right.txt", sharedProse+"and a different closing passage belonging only to the right book")
+	stranger := ImportTextBook(t, env, "Stranger", "", "stranger.txt",
 		"utterly unrelated vocabulary weaving mercury zephyr quartz lantern across every improbable clause")
 
 	for _, book := range []string{left.Meta.ID, right.Meta.ID, stranger.Meta.ID} {
@@ -75,7 +75,7 @@ func TestAPISimilarBooksContract(t *testing.T) {
 	}
 	runFingerprintSources(t, env)
 
-	pairs := getJSON[[]similarPairResponse](t, env, similarURL())
+	pairs := GetJSON[[]similarPairResponse](t, env, SimilarURL())
 	if len(pairs) != 1 {
 		t.Fatalf("got %d pairs, want exactly the left/right pair: %+v", len(pairs), pairs)
 	}
@@ -102,17 +102,17 @@ func TestAPISimilarBooksContract(t *testing.T) {
 // The result count only grows as the floor widens: a stricter floor is always a
 // subset of a looser one, which is what lets the page switch tiers in memory.
 func TestAPISimilarBooksFloorContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	left := importTextBook(t, env, "Left", "", "left.txt", sharedProse+"unique left tail")
-	right := importTextBook(t, env, "Right", "", "right.txt", sharedProse+"unique right tail")
+	left := ImportTextBook(t, env, "Left", "", "left.txt", sharedProse+"unique left tail")
+	right := ImportTextBook(t, env, "Right", "", "right.txt", sharedProse+"unique right tail")
 	for _, book := range []string{left.Meta.ID, right.Meta.ID} {
 		backdateSources(t, env, book)
 	}
 	runFingerprintSources(t, env)
 
-	wide := getJSON[[]similarPairResponse](t, env, similarURL()+"?floor=0")
-	narrow := getJSON[[]similarPairResponse](t, env, similarURL()+"?floor=1")
+	wide := GetJSON[[]similarPairResponse](t, env, SimilarURL()+"?floor=0")
+	narrow := GetJSON[[]similarPairResponse](t, env, SimilarURL()+"?floor=1")
 	if len(narrow) > len(wide) {
 		t.Errorf("floor=1 returned %d pairs, more than floor=0's %d", len(narrow), len(wide))
 	}
@@ -120,7 +120,7 @@ func TestAPISimilarBooksFloorContract(t *testing.T) {
 	// A floor that is not a number in [0, 1] is a client error, not a silent
 	// default.
 	for _, bad := range []string{"abc", "2", "-0.5"} {
-		if rec := env.get(similarURL() + "?floor=" + bad); rec.Code != http.StatusBadRequest {
+		if rec := env.Get(SimilarURL() + "?floor=" + bad); rec.Code != http.StatusBadRequest {
 			t.Errorf("floor=%s gave status %d, want 400", bad, rec.Code)
 		}
 	}
@@ -129,12 +129,12 @@ func TestAPISimilarBooksFloorContract(t *testing.T) {
 // Before anything is fingerprinted every book is missing; after the task runs,
 // none is. The endpoint reports the algorithm the count was taken under.
 func TestAPIFingerprintStatusContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	first := importTextBook(t, env, "First", "", "first.txt", "the spice must flow")
-	second := importTextBook(t, env, "Second", "", "second.txt", "the ocean thinks in shapes")
+	first := ImportTextBook(t, env, "First", "", "first.txt", "the spice must flow")
+	second := ImportTextBook(t, env, "Second", "", "second.txt", "the ocean thinks in shapes")
 
-	before := getJSON[fingerprintStatusResponse](t, env, fingerprintStatusURL())
+	before := GetJSON[fingerprintStatusResponse](t, env, FingerprintStatusURL())
 	if before.Total != 2 || before.Fingerprinted != 0 || before.Missing != 2 {
 		t.Errorf("before = %+v, want two books all missing", before)
 	}
@@ -150,7 +150,7 @@ func TestAPIFingerprintStatusContract(t *testing.T) {
 	}
 	runFingerprintSources(t, env)
 
-	after := getJSON[fingerprintStatusResponse](t, env, fingerprintStatusURL())
+	after := GetJSON[fingerprintStatusResponse](t, env, FingerprintStatusURL())
 	if after.Total != 2 || after.Fingerprinted != 2 || after.Missing != 0 {
 		t.Errorf("after = %+v, want both books fingerprinted", after)
 	}

@@ -10,31 +10,31 @@ import (
 	"github.com/voilelab/plainshelf/server/task"
 )
 
-func trashBooksURL(elem ...string) string {
-	return shelfURL(append([]string{"trash", "books"}, elem...)...)
+func TrashBooksURL(elem ...string) string {
+	return ShelfURL(append([]string{"trash", "books"}, elem...)...)
 }
 
-func emptyTrashURL() string {
-	return shelfURL("trash", "empty")
+func EmptyTrashURL() string {
+	return ShelfURL("trash", "empty")
 }
 
-func emptyTrash(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {
+func EmptyTrash(t *testing.T, env *Env, wantStatus int) TaskChainSubmitResponse {
 	t.Helper()
-	return submitTaskChain(t, env, emptyTrashURL(), nil, wantStatus)
+	return SubmitTaskChain(t, env, EmptyTrashURL(), nil, wantStatus)
 }
 
 func TestAPITrashLifecycleContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Trash API", "origin/folder", "trash.txt", "body")
+	env := New(t)
+	created := ImportTextBook(t, env, "Trash API", "origin/folder", "trash.txt", "body")
 
-	rec := env.post(bookURL(created.Meta.ID, "trash"), nil)
-	assertStatus(t, rec, http.StatusNoContent)
+	rec := env.Post(BookURL(created.Meta.ID, "trash"), nil)
+	AssertStatus(t, rec, http.StatusNoContent)
 
-	if books := getJSON[[]server.Book](t, env, booksURL()); len(books) != 0 {
+	if books := GetJSON[[]server.Book](t, env, BooksURL()); len(books) != 0 {
 		t.Fatalf("active books after trash = %d, want 0", len(books))
 	}
 
-	trashed := getJSON[[]map[string]any](t, env, trashBooksURL())
+	trashed := GetJSON[[]map[string]any](t, env, TrashBooksURL())
 	if len(trashed) != 1 {
 		t.Fatalf("trashed books = %d, want 1", len(trashed))
 	}
@@ -42,33 +42,33 @@ func TestAPITrashLifecycleContract(t *testing.T) {
 		t.Fatalf("trashed id = %q, want %q", id, created.Meta.ID)
 	}
 
-	rec = env.post(trashBooksURL(created.Meta.ID, "restore"), nil)
-	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.Post(TrashBooksURL(created.Meta.ID, "restore"), nil)
+	AssertStatus(t, rec, http.StatusNoContent)
 
-	if books := getJSON[[]server.Book](t, env, booksURL()); len(books) != 1 {
+	if books := GetJSON[[]server.Book](t, env, BooksURL()); len(books) != 1 {
 		t.Fatalf("active books after restore = %d, want 1", len(books))
 	}
 
-	rec = env.delete(bookURL(created.Meta.ID))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.delete(trashBooksURL(created.Meta.ID))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.post(trashBooksURL(created.Meta.ID, "restore"), nil)
-	assertStatus(t, rec, http.StatusNotFound)
+	rec = env.Delete(BookURL(created.Meta.ID))
+	AssertStatus(t, rec, http.StatusNoContent)
+	rec = env.Delete(TrashBooksURL(created.Meta.ID))
+	AssertStatus(t, rec, http.StatusNoContent)
+	rec = env.Post(TrashBooksURL(created.Meta.ID, "restore"), nil)
+	AssertStatus(t, rec, http.StatusNotFound)
 }
 
 func TestAPIEmptyTrashContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
 	for _, title := range []string{"First", "Second"} {
-		created := importTextBook(t, env, title, "", title+".txt", "body")
-		rec := env.post(bookURL(created.Meta.ID, "trash"), nil)
-		assertStatus(t, rec, http.StatusNoContent)
+		created := ImportTextBook(t, env, title, "", title+".txt", "body")
+		rec := env.Post(BookURL(created.Meta.ID, "trash"), nil)
+		AssertStatus(t, rec, http.StatusNoContent)
 	}
 
-	accepted := emptyTrash(t, env, http.StatusAccepted)
+	accepted := EmptyTrash(t, env, http.StatusAccepted)
 
-	chain := waitForTaskChain(t, env, accepted.TaskChainID)
+	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "completed" {
 		t.Fatalf("chain status = %q, want completed: %+v", chain.Status, chain)
 	}
@@ -79,17 +79,17 @@ func TestAPIEmptyTrashContract(t *testing.T) {
 		t.Errorf("name = %q, want %q", chain.Name, task.EmptyTrashTaskName)
 	}
 
-	if trashed := getJSON[[]map[string]any](t, env, trashBooksURL()); len(trashed) != 0 {
+	if trashed := GetJSON[[]map[string]any](t, env, TrashBooksURL()); len(trashed) != 0 {
 		t.Errorf("trashed books after empty = %d, want 0", len(trashed))
 	}
 }
 
 func TestAPIEmptyTrashOnEmptyTrashContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	accepted := emptyTrash(t, env, http.StatusAccepted)
+	accepted := EmptyTrash(t, env, http.StatusAccepted)
 
-	chain := waitForTaskChain(t, env, accepted.TaskChainID)
+	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "completed" {
 		t.Errorf("chain status = %q, want completed for an already empty trash", chain.Status)
 	}
@@ -101,14 +101,14 @@ func TestAPIEmptyTrashOnEmptyTrashContract(t *testing.T) {
 // A second request while a sweep is still in flight must point the client at
 // the existing chain instead of queueing a redundant one.
 func TestAPIEmptyTrashConflictReportsRunningChainContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	first := assertDuplicateChainConflict(t, env, func(wantStatus int) taskChainSubmitResponse {
-		return emptyTrash(t, env, wantStatus)
+	first := AssertDuplicateChainConflict(t, env, func(wantStatus int) TaskChainSubmitResponse {
+		return EmptyTrash(t, env, wantStatus)
 	})
 
 	// Once the sweep has finished, a fresh request is accepted again.
-	if next := emptyTrash(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
+	if next := EmptyTrash(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
 		t.Errorf("expected a new chain after the previous one finished")
 	}
 }
@@ -118,28 +118,28 @@ func TestAPIEmptyTrashConflictReportsRunningChainContract(t *testing.T) {
 // TestAPITrashLifecycleContract. One env serves both routes: each trashes its
 // own book, so they never observe each other's effect.
 func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
 	routes := map[string]func(bookID string) *http.Request{
 		"DELETE /books/{book_id}": func(bookID string) *http.Request {
-			return httptest.NewRequest(http.MethodDelete, bookURL(bookID), nil)
+			return httptest.NewRequest(http.MethodDelete, BookURL(bookID), nil)
 		},
 		"POST /books/{book_id}/trash": func(bookID string) *http.Request {
-			return httptest.NewRequest(http.MethodPost, bookURL(bookID, "trash"), nil)
+			return httptest.NewRequest(http.MethodPost, BookURL(bookID, "trash"), nil)
 		},
 	}
 
 	for name, build := range routes {
 		t.Run(name, func(t *testing.T) {
-			book := importTextBook(t, env, "Trash Me", "", "trash-me.txt", "body")
+			book := ImportTextBook(t, env, "Trash Me", "", "trash-me.txt", "body")
 			bookID := book.Meta.ID
 
-			assertStatus(t, env.do(build(bookID)), http.StatusNoContent)
+			AssertStatus(t, env.Do(build(bookID)), http.StatusNoContent)
 
-			assertStatus(t, env.get(bookURL(bookID)), http.StatusNotFound)
+			AssertStatus(t, env.Get(BookURL(bookID)), http.StatusNotFound)
 
 			// Recoverable, which is what makes both routes a trash operation.
-			trashed := getJSON[[]server.TrashedBook](t, env, shelfURL("trash", "books"))
+			trashed := GetJSON[[]server.TrashedBook](t, env, ShelfURL("trash", "books"))
 			if !slices.ContainsFunc(trashed, func(b server.TrashedBook) bool { return b.ID == bookID }) {
 				t.Fatalf("trash = %+v, want it to contain the trashed book %s", trashed, bookID)
 			}
@@ -148,20 +148,20 @@ func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
 }
 
 func TestAPIDeleteAndTrashRoutesAgreeOnUnknownBookContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
 	requests := map[string]*http.Request{
 		"DELETE /books/{book_id}": httptest.NewRequest(http.MethodDelete,
-			bookURL("no_such_book"), nil),
+			BookURL("no_such_book"), nil),
 		"POST /books/{book_id}/trash": httptest.NewRequest(http.MethodPost,
-			bookURL("no_such_book", "trash"), nil),
+			BookURL("no_such_book", "trash"), nil),
 	}
 
 	for name, req := range requests {
 		t.Run(name, func(t *testing.T) {
-			rec := env.do(req)
+			rec := env.Do(req)
 
-			assertErrorEnvelope(t, rec, http.StatusNotFound,
+			AssertErrorEnvelope(t, rec, http.StatusNotFound,
 				"BOOK_NOT_FOUND", "book not found")
 		})
 	}

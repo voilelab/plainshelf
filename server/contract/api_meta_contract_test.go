@@ -18,25 +18,25 @@ type versionResponse struct {
 // regression the shared response-shape table cannot see: {} and {"version":""}
 // both carry the right status, content type and trailing newline.
 func TestAPIVersionContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	env := New(t)
 
-	if resp := getJSON[versionResponse](t, env, "/api/version"); resp.Version == "" {
+	if resp := GetJSON[versionResponse](t, env, "/api/version"); resp.Version == "" {
 		t.Fatalf("version is empty, want a non-empty value")
 	}
 }
 
 func TestAPIReadOnlyModeContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	env.setReadOnly(t, true)
+	env := New(t)
+	env.SetReadOnly(t, true)
 
-	if mode := getJSON[modeResponse](t, env, "/api/mode"); !mode.ReadOnly {
+	if mode := GetJSON[modeResponse](t, env, "/api/mode"); !mode.ReadOnly {
 		t.Fatalf("read_only = false, want true")
 	}
 
 	// Read-only mode refuses writes while leaving reads alone.
-	rec := env.post(shelfURL("folders", "blocked"), nil)
-	assertStatus(t, rec, http.StatusForbidden)
+	rec := env.Post(ShelfURL("folders", "blocked"), nil)
+	AssertStatus(t, rec, http.StatusForbidden)
 
-	rec = env.get(shelfURL("folders"))
-	assertStatus(t, rec, http.StatusOK)
+	rec = env.Get(ShelfURL("folders"))
+	AssertStatus(t, rec, http.StatusOK)
 }

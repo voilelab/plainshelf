@@ -89,18 +89,18 @@ func assertTreeUnchanged(t *testing.T, before, after map[string]fileState) {
 // A read-only server opens every shelf read-only, including one added after
 // startup through the desktop "add shelf" flow.
 func TestReadOnlyServerOpensEveryShelfReadOnly(t *testing.T) {
-	env := newAPITestEnv(t, withReadOnlyServer())
+	env := New(t, WithReadOnlyServer())
 
-	shelfData, ok := env.app.ShelfManager().GetShelf(defaultShelfID)
+	shelfData, ok := env.App.ShelfManager().GetShelf(DefaultShelfID)
 	if !ok {
-		t.Fatalf("%s missing", defaultShelfID)
+		t.Fatalf("%s missing", DefaultShelfID)
 	}
 	if !shelfData.ReadOnly() {
 		t.Error("configured shelf ReadOnly() = false, want the app-wide read_only to reach it")
 	}
 
 	addedRoot := t.TempDir()
-	if err := env.app.AddShelf(shelf.ShelfConfWithID{
+	if err := env.App.AddShelf(shelf.ShelfConfWithID{
 		ID:        "added_later",
 		Name:      "Added Later",
 		ShelfConf: shelf.ShelfConf{LibRoot: addedRoot},
@@ -108,7 +108,7 @@ func TestReadOnlyServerOpensEveryShelfReadOnly(t *testing.T) {
 		t.Fatalf("AddShelf: %v", err)
 	}
 
-	added, ok := env.app.ShelfManager().GetShelf("added_later")
+	added, ok := env.App.ShelfManager().GetShelf("added_later")
 	if !ok {
 		t.Fatal("added_later missing from the shelf manager")
 	}
@@ -133,32 +133,32 @@ func TestReadOnlyServerLeavesTheShelfUntouched(t *testing.T) {
 	// Seed the shelf with a writable server, in a subtest so its app is closed —
 	// and has flushed its own exported cache — before the snapshot is taken.
 	t.Run("seed", func(t *testing.T) {
-		env := newAPITestEnv(t, withLibRoot(libRoot))
-		importTextBook(t, env, "Untouched Book", "Fiction", "untouched.txt", "Some content.")
+		env := New(t, WithLibRoot(libRoot))
+		ImportTextBook(t, env, "Untouched Book", "Fiction", "untouched.txt", "Some content.")
 
 		// Force the export rather than waiting out the interval, so the file the
 		// read-only run must not rewrite or prune is already on disk.
-		assertStatus(t, env.post(bookCacheExportURL(), nil), http.StatusOK)
+		AssertStatus(t, env.Post(BookCacheExportURL(), nil), http.StatusOK)
 	})
 
 	before := snapshotTree(t, libRoot)
 
 	t.Run("read", func(t *testing.T) {
-		env := newAPITestEnv(t, withLibRoot(libRoot), withReadOnlyServer())
+		env := New(t, WithLibRoot(libRoot), WithReadOnlyServer())
 
-		rec := env.get(booksURL())
-		assertStatus(t, rec, http.StatusOK)
-		books := decodeJSON[[]server.Book](t, rec)
+		rec := env.Get(BooksURL())
+		AssertStatus(t, rec, http.StatusOK)
+		books := DecodeJSON[[]server.Book](t, rec)
 		if len(books) != 1 {
 			t.Fatalf("listed %d books, want the seeded one", len(books))
 		}
 
-		assertStatus(t, env.get(bookURL(books[0].Meta.ID)), http.StatusOK)
-		assertStatus(t, env.get(bookURL(books[0].Meta.ID, "content")), http.StatusOK)
+		AssertStatus(t, env.Get(BookURL(books[0].Meta.ID)), http.StatusOK)
+		AssertStatus(t, env.Get(BookURL(books[0].Meta.ID, "content")), http.StatusOK)
 
 		// A rescan is a read despite its method, so read-only mode lets it
 		// through. It is the one POST that does, and it must stay one.
-		assertStatus(t, env.post(shelfURL("scans"), nil), http.StatusOK)
+		AssertStatus(t, env.Post(ShelfURL("scans"), nil), http.StatusOK)
 
 		// The book cache export runs on a timer as well as on demand; give the
 		// interval configured for contract tests time to come round.
@@ -173,7 +173,7 @@ func TestReadOnlyServerLeavesTheShelfUntouched(t *testing.T) {
 func TestReadOnlyServerDoesNotCreateTheShelf(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "missing-shelf")
 
-	app, err := server.NewApp(apiAppConf(t, withLibRoot(libRoot), withReadOnlyServer()))
+	app, err := server.NewApp(AppConf(t, WithLibRoot(libRoot), WithReadOnlyServer()))
 	if err == nil {
 		app.Close()
 		t.Fatal("NewApp succeeded on a missing lib_root, want a failure rather than a created shelf")
@@ -185,34 +185,34 @@ func TestReadOnlyServerDoesNotCreateTheShelf(t *testing.T) {
 
 // A shelf opened with read_only serves reads normally.
 func TestAPIReadOnlyShelfServesReadsContract(t *testing.T) {
-	env := newAPITestEnv(t, withReadOnlyShelf())
+	env := New(t, WithReadOnlyShelf())
 
-	assertStatus(t, env.get(booksURL()), http.StatusOK)
-	assertStatus(t, env.get(shelfURL("folders")), http.StatusOK)
-	assertStatus(t, env.get(shelfURL("trash", "books")), http.StatusOK)
+	AssertStatus(t, env.Get(BooksURL()), http.StatusOK)
+	AssertStatus(t, env.Get(ShelfURL("folders")), http.StatusOK)
+	AssertStatus(t, env.Get(ShelfURL("trash", "books")), http.StatusOK)
 
 	// A rescan walks the shelf and rebuilds the in-memory cache without writing
 	// anything, so it is a read even though it is a POST.
-	assertStatus(t, env.post(shelfURL("scans"), nil), http.StatusOK)
+	AssertStatus(t, env.Post(ShelfURL("scans"), nil), http.StatusOK)
 }
 
 // Every write against a read-only shelf is refused with 409, including the ones
 // that would otherwise queue a background chain and answer 202 — a caller that
 // got 202 would have to read a task report to learn the work never happened.
 func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
-	env := newAPITestEnv(t, withReadOnlyShelf())
+	env := New(t, WithReadOnlyShelf())
 
 	tests := []struct {
 		name string
 		url  string
 		body string
 	}{
-		{name: "book batch", url: shelfURL("book-batches"),
+		{name: "book batch", url: ShelfURL("book-batches"),
 			body: `{"operation":"trash","book_ids":["book-0001"]}`},
-		{name: "content stat refresh", url: shelfURL("content-stat-refreshes")},
-		{name: "source fingerprints", url: shelfURL("source-fingerprints")},
-		{name: "empty trash", url: shelfURL("trash", "empty")},
-		{name: "book cache export", url: bookCacheExportURL()},
+		{name: "content stat refresh", url: ShelfURL("content-stat-refreshes")},
+		{name: "source fingerprints", url: ShelfURL("source-fingerprints")},
+		{name: "empty trash", url: ShelfURL("trash", "empty")},
+		{name: "book cache export", url: BookCacheExportURL()},
 	}
 
 	for _, tc := range tests {
@@ -222,14 +222,14 @@ func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
 				body = strings.NewReader(tc.body)
 			}
 
-			rec := env.post(tc.url, body)
+			rec := env.Post(tc.url, body)
 
 			// 409 is also how an endpoint reports a chain already in flight, and
 			// that answer carries the chain's ID. Nothing was queued here, so the
 			// two must be told apart by body shape rather than by status: a
 			// client that reads taskchain_id off this refusal gets nothing and
 			// polls it.
-			assertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
+			AssertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
 				"shelf is opened read-only; this PlainShelf instance cannot modify it")
 			if strings.Contains(rec.Body.String(), "taskchain_id") {
 				t.Errorf("body = %s, want a refusal rather than a queued chain", rec.Body.String())
@@ -240,7 +240,7 @@ func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
 	// The synchronous write path reaches the shelf itself, so this 409 arrives
 	// from fsutil.ErrReadOnly through the error table rather than from the
 	// handler's own gate.
-	rec := postBookImport(t, env, bookUpload("book.txt", plainTextContentType, "text"))
-	assertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
+	rec := PostBookImport(t, env, BookUpload("book.txt", PlainTextContentType, "text"))
+	AssertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
 		"shelf is opened read-only; this PlainShelf instance cannot modify it")
 }
