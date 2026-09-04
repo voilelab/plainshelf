@@ -407,3 +407,35 @@ func TestNSFWSurvivesAMetadataWrite(t *testing.T) {
 		t.Error("nsfw was lost by a later metadata write")
 	}
 }
+
+// Case-insensitive matching has to mean what Unicode means by it, not what
+// lowercasing happens to do. Both halves of this are a folder rule silently
+// missed — a book that should have been marked quietly is not — so both are
+// pinned:
+//
+//   - Greek final sigma: "Σ" lowercases to "σ" and "ς" lowercases to itself, so
+//     lowercase keys alone give one letter two spellings that never meet;
+//   - Turkish dotted capital I: Unicode's simple case folding leaves "İ" alone,
+//     so folding alone loses a match that lowercasing gets right.
+func TestNSFWFolderPathCaseFolding(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		rule  string
+		below []string
+		want  bool
+	}{
+		{"capital sigma rule, final sigma folder", "ΣΕΙΡΑΣ", []string{"σειρας"}, true},
+		{"final sigma rule, capital sigma folder", "σειρας", []string{"ΣΕΙΡΑΣ"}, true},
+		{"turkish dotted capital", "İstanbul", []string{"istanbul"}, true},
+		{"turkish lowercase", "istanbul", []string{"İstanbul"}, true},
+		{"ascii", "Fiction", []string{"FICTION"}, true},
+		{"a different word still does not match", "Fiction", []string{"Fictional"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rules := shelfutil.NewNSFWRules([]shelfutil.NSFWFolder{{Path: tc.rule}})
+			if got := rules.IsNSFWFolder(tc.below); got != tc.want {
+				t.Errorf("rule %q against folder %v = %v, want %v", tc.rule, tc.below, got, tc.want)
+			}
+		})
+	}
+}

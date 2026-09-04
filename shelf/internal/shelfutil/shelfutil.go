@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -169,9 +170,9 @@ func (r IgnoreRules) Names() []string {
 // appears, while "the folder I keep adult books in" is one place in one tree.
 type NSFWFolder struct {
 	// Path is the folder path under books/ as it was written, "/"-separated -
-	// "Fiction/Adult". Matching folds case and ignores leading, trailing and
-	// repeated separators, so a share exported over SMB or a path copied out of
-	// a file manager still matches.
+	// "Fiction/Adult". Matching folds case (see foldSegment) and ignores
+	// leading, trailing and repeated separators, so a share exported over SMB or
+	// a path copied out of a file manager still matches.
 	Path string
 
 	// Reason is a short phrase completing "marked because ...". It may be empty
@@ -190,9 +191,9 @@ type NSFWFolder struct {
 // re-parsing shelf.json for each of a thousand books is the cost this exists to
 // avoid.
 type NSFWRules struct {
-	// byPath is keyed by the normalized, folded path. It is never written after
-	// NewNSFWRules returns, so an NSFWRules can be copied and read from several
-	// goroutines.
+	// byPath is keyed by the normalized, case-folded path (see foldSegment). It
+	// is never written after NewNSFWRules returns, so an NSFWRules can be copied
+	// and read from several goroutines.
 	byPath map[string]NSFWFolder
 }
 
@@ -232,7 +233,7 @@ func (r NSFWRules) MatchNSFWFolder(folders []string) (reason string, marked bool
 		if key.Len() > 0 {
 			key.WriteByte('/')
 		}
-		key.WriteString(strings.ToLower(segment))
+		key.WriteString(foldSegment(segment))
 		if folder, ok := r.byPath[key.String()]; ok {
 			match, marked = folder, true
 		}
@@ -284,12 +285,49 @@ func normalizeFolderPath(folderPath string) (string, error) {
 		if err := ValidateFolderSegment(segment); err != nil {
 			return "", util.Errorf("invalid folder path %q: %w", folderPath, err)
 		}
-		folded = append(folded, strings.ToLower(segment))
+		folded = append(folded, foldSegment(segment))
 	}
 	if len(folded) == 0 {
 		return "", util.Errorf("folder path %q names no folder", folderPath)
 	}
 	return strings.Join(folded, "/"), nil
+}
+
+// foldSegment returns the form of one path segment that two spellings differing
+// only in case share, so a folded segment can be a map key rather than a
+// comparison.
+//
+// Lowercasing alone is not that form. Greek final sigma is the case that shows
+// it: "Σ" lowercases to "σ" while "ς" lowercases to itself, so two spellings of
+// one letter get two keys and a folder rule is silently missed - which here
+// means a book that should have been marked quietly is not. Unicode's simple
+// case folding alone is not it either: it deliberately leaves "İ" alone, so a
+// Turkish folder would stop matching its lowercase spelling, which lowercasing
+// gets right today.
+//
+// Doing both catches both. Folding after lowering only ever merges spellings
+// that Unicode already calls the same letter, so it cannot mark a folder the
+// user did not name, and the direction it errs in - merging - is the
+// conservative one for this rule.
+//
+// IgnoreRules above still keys on the lowercase name alone. That is shipped
+// behavior deciding which directories a shelf skips, so changing it belongs to
+// its own change rather than to this one.
+func foldSegment(segment string) string {
+	return strings.Map(func(r rune) rune { return minFold(unicode.ToLower(r)) }, segment)
+}
+
+// minFold returns the smallest rune Unicode's simple case folding considers
+// equal to r, which gives every rune in one folding orbit the same
+// representative.
+func minFold(r rune) rune {
+	smallest := r
+	for folded := unicode.SimpleFold(r); folded != r; folded = unicode.SimpleFold(folded) {
+		if folded < smallest {
+			smallest = folded
+		}
+	}
+	return smallest
 }
 
 var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
