@@ -64,7 +64,9 @@ app_conf:
 
 For the cache behavior behind these settings, see [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md).
 
-The important fields for SMB shelves are:
+Every shelf key, with its type and default, is in the
+[Configuration reference](reference/configuration.md#shelves). The ones that
+matter for an SMB shelf are:
 
 | Field | Purpose | SMB guidance |
 |---|---|---|

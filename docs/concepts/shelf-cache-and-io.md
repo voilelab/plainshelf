@@ -135,6 +135,10 @@ The defaults suit small and medium local shelves. Reach for these when a large
 shelf makes startup or browsing cost noticeable disk activity, or when the shelf
 sits on a network mount.
 
+This section explains what each option does to the scan. For its type, its exact
+default and the rest of the config file around it, see the
+[Configuration reference](../reference/configuration.md#shelves).
+
 !!! note "Shorter intervals reduce latency, not a consistency guarantee"
     Every interval here is a polling period, so shortening one only narrows how
     long an external change can go unnoticed. It never makes an outside change

@@ -17,7 +17,9 @@ adds a web interface, desktop integration, and an experimental Android client.
 1. [Install a release](installation.md) with Homebrew, a server archive, or Docker.
 2. [Start a library](getting-started.md) and import a TXT, Markdown or EPUB book.
 3. Configure a [local shelf](configuring-local-shelf.md), or review the
-   best-effort [SMB setup](configuring-smb-shelf.md).
+   best-effort [SMB setup](configuring-smb-shelf.md). Every key the config file
+   accepts is listed in the
+   [Configuration reference](reference/configuration.md).
 4. Review [EPUB Import](epub-import.md) for how EPUB files are converted.
 5. Review [Logs](logs.md) for reading the application log and for how long it
    is kept.
