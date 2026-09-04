@@ -1,6 +1,8 @@
 # Data Model
 
-PlainShelf is **filesystem-first**: the shelf directory on disk is the source of truth, and the server reads and writes it directly. There is no separate database.
+PlainShelf is **filesystem-first**: the shelf directory on disk is the source of
+truth, and the server reads and writes it directly. There is no separate
+database.
 
 ---
 
@@ -45,13 +47,16 @@ to the built-in defaults.
 
 Before changing this layout — renaming, adding, or removing a top-level
 directory, or how book folders are named or nested — read [Shelf layout changes
-are not versioned](data-format-versioning.md#shelf-layout-changes-are-not-versioned):
+are not
+versioned](data-format-versioning.md#shelf-layout-changes-are-not-versioned):
 the shelf carries no top-level version marker, and that page gives the test for
 what counts as a layout change and how one is expected to be detected.
 
 ### `books/`
 
-Source of truth. This directory contains all user-owned data: book metadata, text files, cover images, and other long-lived files. Books can be nested under [folders](folders.md) by placing them inside sub-directories.
+Source of truth. This directory contains all user-owned data: book metadata,
+text files, cover images, and other long-lived files. Books can be nested under
+[folders](folders.md) by placing them inside sub-directories.
 
 ### `trash/`
 
@@ -117,15 +122,41 @@ is genuinely disposable, `app/`, is the one you would least mind seeing.
 
 ### `app/`
 
-Runtime state used by the server: file lock, temporary files, and an exported book listing. All of it is rebuildable and none of it is user data — the server recreates it on the next startup.
+Runtime state used by the server: file lock, temporary files, and an exported
+book listing. All of it is rebuildable and none of it is user data — the server
+recreates it on the next startup.
 
-`book-cache-{writer-id}.json` is a copy of the shelf's book listing, kept so that a client reading the shelf over a slow or request-metered connection — the Android app opening a shelf from pCloud — does not have to walk it book by book. Each installation writes its own file, named after an ID generated on first start, so several machines sharing a shelf do not overwrite each other; a file no installation has refreshed for 30 days is removed. Deleting them is safe: they are rebuilt, and a client that finds none simply scans instead. See [Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache).
+`book-cache-{writer-id}.json` is a copy of the shelf's book listing, kept so
+that a client reading the shelf over a slow or request-metered connection — the
+Android app opening a shelf from pCloud — does not have to walk it book by book.
+Each installation writes its own file, named after an ID generated on first
+start, so several machines sharing a shelf do not overwrite each other; a file
+no installation has refreshed for 30 days is removed. Deleting them is safe:
+they are rebuilt, and a client that finds none simply scans instead. See [Shelf
+cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache).
 
-`scan-cache.json` records the modification time of each directory under `books/` alongside the entries found there, so a scan can skip listing the folders that have not changed since the last one. It is validated against the real modification times every time it is used, so a stale or foreign copy costs a slower scan and nothing else. Deleting it is safe; the next scan writes a new one.
+`scan-cache.json` records the modification time of each directory under `books/`
+alongside the entries found there, so a scan can skip listing the folders that
+have not changed since the last one. It is validated against the real
+modification times every time it is used, so a stale or foreign copy costs a
+slower scan and nothing else. Deleting it is safe; the next scan writes a new
+one.
 
-`fingerprint-cache.json` stores the content fingerprints behind the [Similar Books](../finding-similar-books.md) page, so that page does not have to re-read every book each time you open it. Unlike the exported book cache there is one shared file, not one per installation — a fingerprint is a pure function of a source's content, so every machine computes the same value and they merge into the one file. It is the largest thing under `app/`, growing with your library at roughly 1.5 KB per source, so on a big shelf it reaches a few megabytes and you will notice it in a backup. Deleting it is safe: the next time you build fingerprints, the ones that are gone are simply read and computed again. It is also discarded and rebuilt whenever the similarity algorithm changes — see [Data Format Versioning](data-format-versioning.md#fingerprint-cache).
+`fingerprint-cache.json` stores the content fingerprints behind the [Similar
+Books](../finding-similar-books.md) page, so that page does not have to re-read
+every book each time you open it. Unlike the exported book cache there is one
+shared file, not one per installation — a fingerprint is a pure function of a
+source's content, so every machine computes the same value and they merge into
+the one file. It is the largest thing under `app/`, growing with your library at
+roughly 1.5 KB per source, so on a big shelf it reaches a few megabytes and you
+will notice it in a backup. Deleting it is safe: the next time you build
+fingerprints, the ones that are gone are simply read and computed again. It is
+also discarded and rebuilt whenever the similarity algorithm changes — see [Data
+Format Versioning](data-format-versioning.md#fingerprint-cache).
 
-Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is reading-time history from before it moved onto each device; nothing reads it any more and it can be deleted.
+Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is
+reading-time history from before it moved onto each device; nothing reads it any
+more and it can be deleted.
 
 ### `shelf.json`
 
@@ -160,9 +191,9 @@ field the shelf skips the defaults, and with `"ignored_dirs": []` it skips
 nothing but hidden directories, which are a rule rather than a name and are
 never listed here.
 
-PlainShelf only ever reads this file. Nothing rewrites it, so your formatting and
-key order survive, and the settings are read when the shelf is opened: edit the
-file and restart the server (or reopen the shelf in the desktop app) for the
+PlainShelf only ever reads this file. Nothing rewrites it, so your formatting
+and key order survive, and the settings are read when the shelf is opened: edit
+the file and restart the server (or reopen the shelf in the desktop app) for the
 change to take effect.
 
 An entry that cannot name a directory is skipped rather than fatal — one
@@ -194,7 +225,8 @@ The standalone reader writes into the desktop app's `reading_progress.json` so a
 book read there shows the same position in the desktop library. Because the
 reader has no real shelf, it stores progress under a synthetic `book` shelf key,
 which the desktop app projects onto the book's real shelf by stable book ID; see
-[Reading state is not part of the shelf](architecture.md#reading-state-is-not-part-of-the-shelf).
+[Reading state is not part of the
+shelf](architecture.md#reading-state-is-not-part-of-the-shelf).
 
 ---
 
@@ -249,8 +281,9 @@ Sources made before source-level format metadata remain legacy sources. Their
 stored `split_config` is no longer interpreted: such a source reads as
 `book.json.format` says, which is one plain-text section unless the book is
 Markdown. To give one chapters again, convert it in the source editor, which
-writes a new schema v1 source and leaves the legacy original intact — see
-[Data format versioning](data-format-versioning.md#giving-a-legacy-source-chapters-again).
+writes a new schema v1 source and leaves the legacy original intact — see [Data
+format
+versioning](data-format-versioning.md#giving-a-legacy-source-chapters-again).
 
 ### Adding and removing sources
 
@@ -265,11 +298,11 @@ source before the folder is removed, so the pointer is never left naming
 something that is gone. Deleting any other source does not touch `book.json` at
 all.
 
-The shelf is also edited by hand and by sync tools, so `current_source` can still
-end up naming a source that no longer exists. Reads tolerate this: the server
-serves the newest source the book does have and logs a warning. It does **not**
-rewrite `book.json` — the filesystem stays the source of truth, and only an
-explicit write may change it. A book with no source at all is reported as a
+The shelf is also edited by hand and by sync tools, so `current_source` can
+still end up naming a source that no longer exists. Reads tolerate this: the
+server serves the newest source the book does have and logs a warning. It does
+**not** rewrite `book.json` — the filesystem stays the source of truth, and only
+an explicit write may change it. A book with no source at all is reported as a
 missing source, not a server error.
 
 ### Source notes
@@ -361,23 +394,24 @@ afterwards. This means you can rename a book's title, or move the book to a
 different folder, without breaking reading progress, bookmarks, or any external
 references.
 
-The ID is a version 4 UUID, such as
-`9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d`. It carries no information about the book:
-122 bits of randomness is what keeps two books apart, so a book you add on one
-machine cannot collide with one another machine added to the same shared shelf,
-or one you copied in with a file manager, even though neither side can see the
-other's book yet. PlainShelf still checks the shelf and its trash for the drawn
-ID before using it, but that check is insurance, not the guarantee.
+The ID is a version 4 UUID, such as `9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d`. It
+carries no information about the book: 122 bits of randomness is what keeps two
+books apart, so a book you add on one machine cannot collide with one another
+machine added to the same shared shelf, or one you copied in with a file
+manager, even though neither side can see the other's book yet. PlainShelf still
+checks the shelf and its trash for the drawn ID before using it, but that check
+is insurance, not the guarantee.
 
 Shelves written by earlier versions carry other forms: an 8-character hex ID,
-some with a `-1`-style suffix, derived from the folder path and title at creation
-time, or a 16-character word of `a`–`z` and `2`–`7`. Those are kept exactly as
-they are — nothing is renumbered, and old and new IDs work side by side in the
-same shelf. An ID that looks derived never was reproducible in practice, because
-it was only ever computed once; the random form makes that plain.
+some with a `-1`-style suffix, derived from the folder path and title at
+creation time, or a 16-character word of `a`–`z` and `2`–`7`. Those are kept
+exactly as they are — nothing is renumbered, and old and new IDs work side by
+side in the same shelf. An ID that looks derived never was reproducible in
+practice, because it was only ever computed once; the random form makes that
+plain.
 
-Copying or moving a book to a **different shelf** applies the same principle from
-two directions. A **move** keeps the ID: it is the same book, now living on
+Copying or moving a book to a **different shelf** applies the same principle
+from two directions. A **move** keeps the ID: it is the same book, now living on
 another shelf, so reading progress and any external reference to it carry over
 unbroken. The move publishes the book on the destination in full before removing
 it from the source, so an interruption never loses it from both — at worst it
@@ -392,4 +426,11 @@ reason a copy made within one shelf gets a new ID.
 
 ## Backing up a shelf
 
-Because it is all plain files, the shelf can be inspected with any file manager or text editor and copied with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a folder holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty folders](../backup-and-restore.md#git-does-not-back-up-empty-folders), and [Backup and Restore](../backup-and-restore.md) for what a complete backup covers.
+Because it is all plain files, the shelf can be inspected with any file manager
+or text editor and copied with `cp -a` or `rsync`. Committing it to Git is *not*
+an equivalent option: Git does not track empty directories, so a folder holding
+no book is not in the commit and is not there after a checkout. See [Git does
+not back up empty
+folders](../backup-and-restore.md#git-does-not-back-up-empty-folders), and
+[Backup and Restore](../backup-and-restore.md) for what a complete backup
+covers.
