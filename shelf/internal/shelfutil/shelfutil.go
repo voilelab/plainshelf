@@ -161,6 +161,137 @@ func (r IgnoreRules) Names() []string {
 	return names
 }
 
+// NSFWFolder is one folder subtree under books/ this shelf marks as NSFW, and
+// why.
+//
+// It is a path rather than a name, unlike IgnoredDir: a directory a filesystem
+// creates carries the same name at every level and is skipped wherever it
+// appears, while "the folder I keep adult books in" is one place in one tree.
+type NSFWFolder struct {
+	// Path is the folder path under books/ as it was written, "/"-separated -
+	// "Fiction/Adult". Matching folds case and ignores leading, trailing and
+	// repeated separators, so a share exported over SMB or a path copied out of
+	// a file manager still matches.
+	Path string
+
+	// Reason is a short phrase completing "marked because ...". It may be empty
+	// for a folder a user listed without explaining.
+	Reason string
+}
+
+// NSFWRules is which folder subtrees under books/ one shelf marks as NSFW. The
+// zero value marks nothing, which is what a shelf that has said nothing gets:
+// there is no built-in list here, because only the user knows what their own
+// folders hold.
+//
+// A rule marks its folder and every folder below it, so a book is NSFW when any
+// prefix of its folder path is listed. The prefixes are normalized once, when
+// the shelf is opened, because a listing asks this question once per book and
+// re-parsing shelf.json for each of a thousand books is the cost this exists to
+// avoid.
+type NSFWRules struct {
+	// byPath is keyed by the normalized, folded path. It is never written after
+	// NewNSFWRules returns, so an NSFWRules can be copied and read from several
+	// goroutines.
+	byPath map[string]NSFWFolder
+}
+
+// NewNSFWRules builds the rules for a shelf that marks these folder subtrees.
+// Paths are matched without regard to case and an entry whose path is unusable
+// is dropped; reporting a bad entry is the caller's job, because only the caller
+// knows where to report it - see ValidateNSFWFolderPath.
+func NewNSFWRules(folders []NSFWFolder) NSFWRules {
+	byPath := make(map[string]NSFWFolder, len(folders))
+	for _, folder := range folders {
+		key, err := normalizeFolderPath(folder.Path)
+		if err != nil {
+			continue
+		}
+		byPath[key] = folder
+	}
+	if len(byPath) == 0 {
+		return NSFWRules{}
+	}
+	return NSFWRules{byPath: byPath}
+}
+
+// MatchNSFWFolder reports whether a book's folder path lies in a marked subtree,
+// and why. The reason is what a caller shows the user; an empty reason means the
+// folder is marked and nobody said why.
+//
+// The nearest enclosing rule wins, so a subfolder listed with its own reason
+// explains itself rather than reporting its parent's.
+func (r NSFWRules) MatchNSFWFolder(folders []string) (reason string, marked bool) {
+	if len(r.byPath) == 0 {
+		return "", false
+	}
+
+	var key strings.Builder
+	var match NSFWFolder
+	for _, segment := range folders {
+		if key.Len() > 0 {
+			key.WriteByte('/')
+		}
+		key.WriteString(strings.ToLower(segment))
+		if folder, ok := r.byPath[key.String()]; ok {
+			match, marked = folder, true
+		}
+	}
+	return match.Reason, marked
+}
+
+// IsNSFWFolder reports whether a book's folder path lies in a marked subtree,
+// for callers that have no use for the reason.
+func (r NSFWRules) IsNSFWFolder(folders []string) bool {
+	_, marked := r.MatchNSFWFolder(folders)
+	return marked
+}
+
+// Paths returns the configured paths as written, sorted, for logging.
+func (r NSFWRules) Paths() []string {
+	paths := make([]string, 0, len(r.byPath))
+	for _, folder := range r.byPath {
+		paths = append(paths, folder.Path)
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+// ValidateNSFWFolderPath reports whether a path names a folder subtree under
+// books/. It accepts what NewNSFWRules keeps, so a caller can validate an entry
+// and say what was wrong with it before the rules silently drop it.
+func ValidateNSFWFolderPath(folderPath string) error {
+	_, err := normalizeFolderPath(folderPath)
+	return err
+}
+
+// normalizeFolderPath turns a written folder path into the folded key the rules
+// are stored under.
+//
+// Empty segments are dropped rather than rejected, which is what makes a leading
+// slash, a trailing slash and a doubled separator all name the same folder: a
+// path is a location, and three spellings of one location that behaved
+// differently would be a trap rather than a rule. A path with no segment at all
+// is refused, because "" would mark the whole shelf and is far more likely to be
+// an empty field than a decision.
+func normalizeFolderPath(folderPath string) (string, error) {
+	segments := strings.Split(folderPath, "/")
+	folded := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		if segment == "" {
+			continue
+		}
+		if err := ValidateFolderSegment(segment); err != nil {
+			return "", util.Errorf("invalid folder path %q: %w", folderPath, err)
+		}
+		folded = append(folded, strings.ToLower(segment))
+	}
+	if len(folded) == 0 {
+		return "", util.Errorf("folder path %q names no folder", folderPath)
+	}
+	return strings.Join(folded, "/"), nil
+}
+
 var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
 
 // ValidateBCP47 reports whether lang is empty or a well-formed BCP 47 tag.

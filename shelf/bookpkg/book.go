@@ -129,9 +129,21 @@ type BookMeta struct {
 	Language    string            `json:"language"`
 	Comments    string            `json:"comments"`
 	Star        int               `json:"star"`
-	CreatedAt   util.JSONTime     `json:"created_at,omitzero"`
-	UpdatedAt   util.JSONTime     `json:"updated_at,omitzero"`
-	PublishedAt util.JSONDate     `json:"published_at,omitzero"`
+
+	// NSFW marks this one book as adult content. It is additive and omitted
+	// when false, so a shelf that marks nothing writes exactly the book.json it
+	// wrote before, and an older build reads the file as it always did.
+	//
+	// It can only add: a shelf may also mark a whole folder subtree in
+	// shelf.json, and false here does not take a book out of one. The shelf owns
+	// that rule - a book package read on its own knows nothing about the folder
+	// it sits in - so this field is the book's own half of the answer and
+	// Shelf.IsBookNSFW is the answer.
+	NSFW bool `json:"nsfw,omitzero"`
+
+	CreatedAt   util.JSONTime `json:"created_at,omitzero"`
+	UpdatedAt   util.JSONTime `json:"updated_at,omitzero"`
+	PublishedAt util.JSONDate `json:"published_at,omitzero"`
 
 	// User should not modify CurrentSource directly, it is managed by shelf internally,
 	// and can be updated via SetCurrentSource method

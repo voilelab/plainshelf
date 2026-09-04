@@ -44,6 +44,10 @@
     {
       "name": "v1-frozen-at-1.0.0-rc1",
       "covers": "The frozen baseline: a book.json carrying every field schema v1 defines and a source meta.json carrying every field its schema v1 defines, both read at the values 1.0.0-rc1 froze. Its shelf tree is append-only from that release on."
+    },
+    {
+      "name": "nsfw-marked",
+      "covers": "A shelf.json carrying only a content.nsfw_folders block, and a book.json carrying nsfw: true and nsfw: false. Both are additive: the walk, the folder list and every other field read exactly as they would without them, and a shelf.json with no scan section still skips the built-in directories."
     }
   ]
 }

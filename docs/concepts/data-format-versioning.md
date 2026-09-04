@@ -65,6 +65,7 @@ schema v1, the first key in that file records the format version:
 | `language` | BCP-47 language tag |
 | `comments` | Free-form notes |
 | `star` | Rating, 0–5 |
+| `nsfw` | Marks this one book as adult content. Optional and omitted when `false`, so most `book.json` files do not carry it. It can only add: a shelf may also mark a whole folder in [`shelf.json`](data-model.md#shelfjson), and `false` here does not take a book out of a marked folder. See [Marking a folder as adult content](folders.md#marking-a-folder-as-adult-content) |
 | `created_at` | Creation timestamp (RFC 3339) |
 | `updated_at` | Last modification timestamp (RFC 3339) |
 | `published_at` | Publication date (`YYYY-MM-DD`) |
@@ -295,6 +296,10 @@ narrow and checkable statement rather than a general intention:
 - **A new field is always an optional addition.** It may be absent, and a build
   that does not know it still reads the file correctly. No existing field
   changes meaning or type, none is removed, and none becomes required.
+  `book.json`'s [`nsfw`](#bookjson-schema-v1) is the first field added under this
+  rule: it is written only when `true`, so a shelf that marks nothing carries the
+  same bytes it carried at the freeze, and a build predating it reads every other
+  field exactly as before.
 - **`schema_version` is not raised again.** Raising it is exactly what a
   breaking change would need, and there is no longer such a change to make, so
   `book.json` stays at schema v1, source `meta.json` at schema v1, and
@@ -316,7 +321,12 @@ recognize is gone the next time it writes that file: a key you added by hand and
 a key a newer build wrote alike. What counts as "next time" differs per file:
 
 - `book.json` is rewritten by any change to the book — its metadata, its cover,
-  its current source.
+  its current source. This is where `nsfw` is lost: a build that predates the
+  field drops it the first time it writes that book, and the book stops being
+  marked. That is accepted rather than worked around — the alternative would be
+  passthrough, which none of these files does — and it is one more reason to
+  mark a whole folder in
+  [`shelf.json`](data-model.md#shelfjson), which no build rewrites at all.
 - Source `meta.json` is rewritten by any change to that source: editing its
   comment, replacing its content, or a background hash repair.
   [`split_config`](#giving-a-legacy-source-chapters-again) is the worked
@@ -642,6 +652,11 @@ one, rather than local scratch state a single implementation keeps to itself.
 
 The server and desktop app export the file so that a client reading the shelf
 *directly*, without a server in between, does not have to walk it book by book.
+It is also where such a client learns which books are
+[adult content](folders.md#marking-a-folder-as-adult-content): each entry carries
+the finished `nsfw` answer, because that reader does not apply `shelf.json`'s
+folder rules itself. Being a cache, the field is an ordinary addition — nothing
+here is frozen, and a reader that does not know it simply does not read it.
 The Android app opening a shelf from pCloud is the client it exists for.
 [Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache)
 describes what the file holds and when it is written; this section adds only

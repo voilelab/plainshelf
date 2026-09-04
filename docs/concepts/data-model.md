@@ -177,6 +177,11 @@ client reading it from pCloud — applies the same rules.
       { "name": "Thumbs" },
       { "name": "@Snapshot", "reason": "Synology snapshot directory" }
     ]
+  },
+  "content": {
+    "nsfw_folders": [
+      { "path": "Fiction/成人", "reason": "adult shelf" }
+    ]
   }
 }
 ```
@@ -185,6 +190,7 @@ client reading it from pCloud — applies the same rules.
 |---|---|
 | `schema_version` | Format version of this file. `1` is the only one this build writes about; a file declaring a higher one is still read, and the fields this build understands still apply |
 | `scan.ignored_dirs` | The directories under `books/` this shelf skips, **replacing** the [defaults](folders.md#ignored-directories). Each entry is an object: `{"name": …}`, or `{"name": …, "reason": …}` to record why. A `name` is one directory name — not a path and not a pattern — matched without regard to case, and the reason is shown when a folder of that name is refused |
+| `content.nsfw_folders` | The folders under `books/` this shelf marks as adult content, each marking itself and everything below it. Each entry is an object: `{"path": …}`, or `{"path": …, "reason": …}`. A `path` is a folder path under `books/` — `Fiction/成人` — matched without regard to case and without regard to leading, trailing or doubled `/`. There is no default list to replace: absent and empty both mean this shelf marks nothing. See [Marking a folder as adult content](folders.md#marking-a-folder-as-adult-content) |
 
 Leaving `ignored_dirs` out is not the same as giving an empty list: without the
 field the shelf skips the defaults, and with `"ignored_dirs": []` it skips
@@ -196,11 +202,12 @@ and key order survive, and the settings are read when the shelf is opened: edit
 the file and restart the server (or reopen the shelf in the desktop app) for the
 change to take effect.
 
-An entry that cannot name a directory is skipped rather than fatal — one
-containing a `/`, or one that is not a name at all — and the rest of the file
-still applies. A file that cannot be read as a single JSON object at all, or one
-larger than 1 MiB, leaves the defaults in place; so does a key this build does
-not know. The server log says what was dropped and why, and warns when your list
+An entry that cannot name a directory or a folder is skipped rather than fatal —
+one containing a `/` where a name is expected, one whose path names no folder at
+all, or one written as a bare string rather than an object — and the rest of the
+file still applies. A file that cannot be read as a single JSON object at all,
+or one larger than 1 MiB, leaves the defaults in place; so does a key this build
+does not know. The server log says what was dropped and why, and warns when your list
 leaves out a default such as `@eaDir`, because that is how a library grows a
 duplicate folder tree.
 
