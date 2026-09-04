@@ -47,7 +47,12 @@ var (
 	ErrUnsupportedSourceSchemaVersion = bookpkg.ErrUnsupportedSourceSchemaVersion
 	ErrAssetNotFound                  = bookpkg.ErrAssetNotFound
 	ErrInvalidAssetName               = bookpkg.ErrInvalidAssetName
+	ErrMalformedMetadata              = bookpkg.ErrMalformedMetadata
 )
+
+// MalformedMetadataError travels with the sentinel above: the shelf raises it
+// for trash.json, and the API turns it into a message naming the file.
+type MalformedMetadataError = bookpkg.MalformedMetadataError
 
 // IsSupportedImageExt reports whether an extension names an image a source can
 // keep as an asset.

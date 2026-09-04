@@ -263,7 +263,7 @@ func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 
 	var meta SourceMeta
 	if err := json.UnmarshalRead(metaFile, &meta); err != nil {
-		return nil, util.Errorf("%w", err)
+		return nil, util.Errorf("%w", malformedMetadata(metaPath, err))
 	}
 
 	return &Source{

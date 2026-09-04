@@ -316,13 +316,50 @@ breaking change, not data that 1.0 guarantees to migrate.
   [What is versioned today](#what-is-versioned-today). A file that gains
   user-data versioning later gets these promises from then on, not
   retroactively.
-- Hand-edited `book.json` files are read on a best-effort basis. Malformed JSON
-  makes that book unopenable; the error is logged with the file path.
+- Hand-edited `book.json` files are read on a best-effort basis. Malformed JSON —
+  which includes a duplicated key and invalid UTF-8, not only a missing brace —
+  makes that book unopenable; the error names the file and the key at fault. See
+  [How the file is parsed](#how-the-file-is-parsed).
 
 ### Hand-editing `book.json`
 
 `book.json` is a plain file and nothing stops you from opening it in an editor.
-What decides whether an edit lasts is whether PlainShelf knows the field.
+Two things decide what happens to your edit: whether the file still parses, and
+whether PlainShelf knows the field.
+
+#### How the file is parsed
+
+PlainShelf reads its metadata files strictly, and says so rather than guessing:
+
+- **Field names are matched exactly, including case.** `"Title"` is not
+  `"title"` — it is a key PlainShelf does not know, so the title you typed is
+  not read, and the key itself is dropped by the next write to that book (see
+  below). The same goes for `"Star"`, `"AUTHORS"`, and every other variant. There
+  is no fuzzy matching and no auto-correction: check the spelling against the
+  [schema table](#bookjson-schema-v1).
+- **A key written twice is refused.** `"title"` appearing two times does not
+  quietly resolve to the last one; the file is rejected and the book will not
+  open until you delete one of them.
+- **Invalid UTF-8 is refused.** Save the file as UTF-8. An editor that wrote
+  Big5 or Shift-JIS bytes into it makes the book unopenable.
+- **Anything after the closing brace is refused.** A half-finished edit that
+  leaves a second object, or stray text, behind is not read as the first object
+  plus junk.
+
+A file that fails any of these makes that one book unopenable. It does not stop
+the rest of the shelf from loading: the other books list as usual, and the error
+names the file and the key at fault — `books/Dune.bookpkg/book.json: duplicate
+object member name "title"` — in the log, and in the message PlainShelf answers
+with when you act on that book.
+
+The same rules apply to a source's `meta.json`, to `trash.json`, and to
+[`shelf.json`](folders.md) — except that a `shelf.json` PlainShelf cannot read
+is reported and then ignored, leaving the built-in defaults in place, rather than
+stopping anything. The caches under `app/` are the exception in the other
+direction: they are rebuildable, so an unreadable one is silently discarded and
+recomputed.
+
+#### What survives a write
 
 **Any top-level key outside the schema is gone after the next write to that
 book.** Add `"series": "The Tale of Genji"` or `"douban_id": "1770782"` next to

@@ -104,7 +104,13 @@ neither answer is currently wrong:
   pCloud reader indexes it like any other asset;
 - choosing between several usable caches: the pCloud client picks by the
   listing's modification time (`pickNewestBookCache`), which the Go side has no
-  counterpart for because it only ever writes its own.
+  counterpart for because it only ever writes its own;
+- a file broken by hand: the Go side reads `book.json`, `meta.json`,
+  `trash.json` and `shelf.json` with `encoding/json/v2`, which refuses a
+  duplicate member and invalid UTF-8, while the pCloud reader uses `JSON.parse`,
+  where the last member wins and undecodable bytes have already become U+FFFD.
+  A case here would have to record one reading, and there is no reading both
+  produce.
 
 Fixtures for those belong in the unit tests on either side, where the intended
 difference can be stated. If one of them is ever unified, move it here.
