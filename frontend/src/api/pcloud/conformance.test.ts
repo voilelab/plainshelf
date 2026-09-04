@@ -39,7 +39,7 @@ import type { PCloudItem } from './types';
  */
 
 /** The expected.json shape this harness understands (schema_version in manifest.json). */
-const DATASET_VERSION = 1;
+const DATASET_VERSION = 2;
 
 const DATASET_ROOT = fileURLToPath(new URL('../../../../shelf/testdata/conformance/', import.meta.url));
 
@@ -55,7 +55,13 @@ interface Manifest {
 
 interface ExpectedSource {
   id: string;
+  schema_version: number;
+  created_at: string;
+  comment: string;
+  format: string;
+  md5_hash: string;
   has_content: boolean;
+  line_count: number;
   char_count: number;
   assets: string[];
 }
@@ -68,7 +74,13 @@ interface ExpectedBook {
   format: string;
   authors: string[];
   tags: string[];
+  identifiers: Record<string, string>;
+  language: string;
+  comments: string;
   star: number;
+  created_at: string;
+  updated_at: string;
+  published_at: string;
   cover: string;
   cover_present: boolean;
   schema_version_on_disk: number;
@@ -172,21 +184,36 @@ function readCase(shelfDir: string): ExpectedReading {
       format: meta.format ?? '',
       authors: meta.authors ?? [],
       tags: meta.tags ?? [],
+      identifiers: meta.identifiers ?? {},
+      language: meta.language ?? '',
+      comments: meta.comments ?? '',
       star: meta.star ?? 0,
+      created_at: meta.created_at ?? '',
+      updated_at: meta.updated_at ?? '',
+      published_at: meta.published_at ?? '',
       cover: meta.cover ?? '',
       cover_present: findCoverFile(pkg, meta) !== undefined,
       schema_version_on_disk: meta.schema_version ?? 0,
       read_only: isSchemaNewerThanSupported(meta),
       current_source_field: meta.current_source ?? '',
       current_source: findCurrentSource(pkg, meta)?.id ?? null,
-      sources: pkg.sources.map((source) => ({
-        id: source.id,
-        has_content: source.content !== undefined,
-        char_count: source.meta
-          ? (toSourceMeta(readListedJson(contents, source.meta), source.id).char_count ?? 0)
-          : 0,
-        assets: Object.keys(source.assets).sort()
-      }))
+      sources: pkg.sources.map((source) => {
+        const sourceMeta = source.meta
+          ? toSourceMeta(readListedJson(contents, source.meta), source.id)
+          : undefined;
+        return {
+          id: source.id,
+          schema_version: sourceMeta?.schema_version ?? 0,
+          created_at: sourceMeta?.created_at ?? '',
+          comment: sourceMeta?.comment ?? '',
+          format: sourceMeta?.format ?? '',
+          md5_hash: sourceMeta?.md5_hash ?? '',
+          has_content: source.content !== undefined,
+          line_count: sourceMeta?.line_count ?? 0,
+          char_count: sourceMeta?.char_count ?? 0,
+          assets: Object.keys(source.assets).sort()
+        };
+      })
     });
   }
   books.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));

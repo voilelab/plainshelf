@@ -307,18 +307,30 @@ use safe — see
 
 #### Unknown fields are not covered
 
-`book.json` does not pass unknown fields through. PlainShelf reads it into the
-fixed set of fields in [the table above](#bookjson-schema-v1) and rewrites the
-whole file from them, so a top-level key it does not recognize is gone the next
-time it writes that book — a key you added by hand and a key a newer build wrote
-alike.
+None of the three files passes unknown fields through. PlainShelf reads each
+into a fixed set of fields — `book.json` into [the table
+above](#bookjson-schema-v1), source `meta.json` and `trash.json` into their own
+— and rewrites the whole file from those fields, so a top-level key it does not
+recognize is gone the next time it writes that file: a key you added by hand and
+a key a newer build wrote alike. What counts as "next time" differs per file:
+
+- `book.json` is rewritten by any change to the book — its metadata, its cover,
+  its current source.
+- Source `meta.json` is rewritten by any change to that source: editing its
+  comment, replacing its content, or a background hash repair.
+  [`split_config`](#giving-a-legacy-source-chapters-again) is the worked
+  example — a field PlainShelf itself once wrote, now dropped like any other
+  key it does not know.
+- `trash.json` is written once, when the book is moved to the trash, and never
+  by listing or restoring it. A key added to an existing record therefore
+  survives until that book is trashed again.
 
 This is the commitment most easily read as its opposite. The freeze says
 PlainShelf will not break the fields *it* defines; it does not say a field of
-your own survives. `book.json` is not a place to keep data PlainShelf does not
-know about. Passthrough for such fields would itself be an optional addition,
-so nothing here rules it out later — but until it exists, assume the file holds
-only what the table above lists.
+your own survives. None of these files is a place to keep data PlainShelf does
+not know about. Passthrough for such fields would itself be an optional
+addition, so nothing here rules it out later — but until it exists, assume each
+file holds only the fields this page documents.
 
 #### What we promise
 
@@ -353,7 +365,8 @@ only what the table above lists.
 #### What we do not promise
 
 - **Top-level keys PlainShelf does not recognize are removed the next time it
-  writes that book** — see
+  writes that file** — in `book.json`, source `meta.json` and `trash.json`
+  alike; see
   [Unknown fields are not covered](#unknown-fields-are-not-covered) above. That
   is why editing such a book from an older build loses the values only a newer
   one knows about: run one version against a shelf, or upgrade both. A read-only

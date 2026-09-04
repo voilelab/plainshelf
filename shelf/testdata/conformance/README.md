@@ -47,13 +47,14 @@ observations both can make, in the shape both can produce:
 | `folders` | `collectExportFolders` | `collectFolders` |
 | `books[].path` | `Book.FolderPath` | `bookPackagePath` |
 | `books[].folders` | `BookListing.Folders` | `BookPackageRef.folders` |
-| `books[].id`, `title`, `format`, `authors`, `tags`, `star`, `cover` | `Book.GetMeta` | `parseBookJson` |
+| `books[].id`, `title`, `format`, `authors`, `tags`, `identifiers`, `language`, `comments`, `star`, `created_at`, `updated_at`, `published_at`, `cover` | `Book.GetMeta` | `parseBookJson` |
 | `books[].cover_present` | `Book.OpenCover` | `findCoverFile` |
 | `books[].schema_version_on_disk` | `readBookMeta` | `BookJson.schema_version` |
 | `books[].read_only` | `Book.EnsureWritable` | `isSchemaNewerThanSupported` |
 | `books[].current_source_field` | `Book.CurrentSource` | `BookJson.current_source` |
 | `books[].current_source` | `Book.ResolveCurrentSource` | `findCurrentSource` |
-| `books[].sources[]` | `Book.ListSource`, `Source.GetMeta` | `BookSourceRef` |
+| `books[].sources[]` | `Book.ListSource` | `BookSourceRef` |
+| `books[].sources[].schema_version`, `created_at`, `comment`, `format`, `md5_hash`, `line_count`, `char_count` | `Source.GetMeta` | `toSourceMeta` |
 | `books[].sources[].assets` | `Source.AssetPath` / `OpenAsset` | `BookSourceRef.assets` |
 | `book_caches[]` | `Shelf.readBookCacheFile` | `parseBookCacheFile` |
 
@@ -75,6 +76,19 @@ Conventions that keep the two comparable:
   visible as the two differing.
 - `usable` in `book_caches` means the file parses as a cache *this build* can
   read; an unusable one costs a full scan and is never an error.
+- An absent value is recorded as `""`, `0`, `[]` or `{}` rather than `null`,
+  since one side reads a JSON member into a zero value and the other into
+  `undefined`, and neither difference is a disagreement about the file.
+- Timestamps are recorded exactly as PlainShelf writes them: `created_at` and
+  `updated_at` in RFC 3339 (`2026-03-15T08:30:00Z`), `published_at` as a date
+  (`2026-03-15`). Go parses these into a `time.Time` and writes them back,
+  while the pCloud reader keeps the string it found, so the two agree on the
+  canonical spelling and only on that. A fixture written any other way — an
+  offset instead of `Z`, or a full timestamp in `published_at` — would fail as
+  a disagreement without either reader being wrong; write the canonical form.
+- A source `format` other than `txt` or `md` is likewise not a shared reading:
+  the Go side keeps the string, the pCloud reader drops it to `undefined`. No
+  fixture carries one.
 
 ## The shelf trees are append-only from `1.0.0-rc`
 

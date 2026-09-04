@@ -11,7 +11,13 @@
       "format": "",
       "authors": [],
       "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
       "star": 0,
+      "created_at": "",
+      "updated_at": "",
+      "published_at": "",
       "cover": "cover.png",
       "cover_present": true,
       "schema_version_on_disk": 0,
@@ -21,7 +27,13 @@
       "sources": [
         {
           "id": "20250102-030405",
+          "schema_version": 0,
+          "created_at": "2025-01-02T03:04:05Z",
+          "comment": "",
+          "format": "",
+          "md5_hash": "",
           "has_content": true,
+          "line_count": 0,
           "char_count": 0,
           "assets": []
         }
