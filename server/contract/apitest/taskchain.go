@@ -1,4 +1,4 @@
-package contract_test
+package apitest
 
 import (
 	"bytes"
@@ -90,18 +90,10 @@ func AssertDuplicateChainConflict(t *testing.T, env *Env, submit func(wantStatus
 	return first
 }
 
-func TaskChainURL(taskChainID string) string {
-	return "/api/taskchains/" + taskChainID
-}
-
-func TaskChainCancelURL(taskChainID string) string {
-	return "/api/taskchains/" + taskChainID + "/cancel"
-}
-
-// taskResult decodes the single task's result through JSON, which is the shape a
+// TaskResult decodes the single task's result through JSON, which is the shape a
 // client sees. Decoding into map[string]any therefore pins the wire field names,
 // while decoding into the task's own result type reads them back conveniently.
-func taskResult[T any](t *testing.T, chain server.TaskChain) T {
+func TaskResult[T any](t *testing.T, chain server.TaskChain) T {
 	t.Helper()
 
 	if len(chain.Tasks) != 1 {

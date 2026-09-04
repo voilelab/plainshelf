@@ -1,4 +1,4 @@
-package contract_test
+package apitest
 
 import (
 	"bytes"

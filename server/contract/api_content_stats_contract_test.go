@@ -7,21 +7,19 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/server/task"
 	"github.com/voilelab/plainshelf/shelf"
 )
-
-func ContentStatsURL() string {
-	return ShelfURL("content-stat-refreshes")
-}
 
 // clearSourceCharCount rewrites a book's current source meta.json with a zero
 // character count, reproducing the on-disk state of a book whose count was
 // never computed. Once the shelf has been walked again the API omits
 // char_count for it, which is exactly what the maintenance page reports as an
 // unknown count.
-func clearSourceCharCount(t *testing.T, env *Env, bookID string) {
+func clearSourceCharCount(t *testing.T, env *apitest.Env, bookID string) {
 	t.Helper()
 
 	bookDir := filepath.Dir(env.BookMetaPath(t, bookID))
@@ -55,11 +53,11 @@ func clearSourceCharCount(t *testing.T, env *Env, bookID string) {
 	}
 }
 
-func charCountByBookID(t *testing.T, env *Env) map[string]int {
+func charCountByBookID(t *testing.T, env *apitest.Env) map[string]int {
 	t.Helper()
 
 	counts := make(map[string]int)
-	for _, book := range GetJSON[[]server.Book](t, env, BooksURL()+"?include=char_count") {
+	for _, book := range apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL()+"?include=char_count") {
 		if book.Meta == nil {
 			continue
 		}
@@ -68,16 +66,16 @@ func charCountByBookID(t *testing.T, env *Env) map[string]int {
 	return counts
 }
 
-func refreshContentStats(t *testing.T, env *Env, wantStatus int) TaskChainSubmitResponse {
+func refreshContentStats(t *testing.T, env *apitest.Env, wantStatus int) apitest.TaskChainSubmitResponse {
 	t.Helper()
-	return SubmitTaskChain(t, env, ContentStatsURL(), nil, wantStatus)
+	return apitest.SubmitTaskChain(t, env, apitest.ContentStatsURL(), nil, wantStatus)
 }
 
 func TestAPIRefreshContentStatsContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
-	stale := ImportTextBook(t, env, "Stale Stats", "", "stale.txt", "alpha body")
-	fresh := ImportTextBook(t, env, "Fresh Stats", "", "fresh.txt", "beta body")
+	stale := apitest.ImportTextBook(t, env, "Stale Stats", "", "stale.txt", "alpha body")
+	fresh := apitest.ImportTextBook(t, env, "Fresh Stats", "", "fresh.txt", "beta body")
 
 	want := charCountByBookID(t, env)[stale.Meta.ID]
 	if want == 0 {
@@ -89,14 +87,14 @@ func TestAPIRefreshContentStatsContract(t *testing.T) {
 	// The listing reports counts held in the book cache, so an edit made
 	// straight on disk reaches it through a walk of the shelf - the rescan a
 	// user runs after changing a shelf from outside PlainShelf.
-	AssertStatus(t, env.Post(ScansURL(), nil), http.StatusOK)
+	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
 
 	if got := charCountByBookID(t, env)[stale.Meta.ID]; got != 0 {
 		t.Fatalf("char_count after clearing = %d, want 0", got)
 	}
 
 	accepted := refreshContentStats(t, env, http.StatusAccepted)
-	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
+	chain := apitest.WaitForTaskChain(t, env, accepted.TaskChainID)
 
 	if chain.Status != "completed" {
 		t.Fatalf("chain status = %q, want completed: %+v", chain.Status, chain)
@@ -108,7 +106,7 @@ func TestAPIRefreshContentStatsContract(t *testing.T) {
 		t.Errorf("name = %q, want %q", chain.Name, task.RefreshContentStatsTaskName)
 	}
 
-	result := taskResult[task.RefreshContentStatsResult](t, chain)
+	result := apitest.TaskResult[task.RefreshContentStatsResult](t, chain)
 	if result.Total != 1 || result.Refreshed != 1 || len(result.Failures) != 0 {
 		t.Errorf("result = %+v, want total 1, refreshed 1, no failures", result)
 	}
@@ -125,11 +123,11 @@ func TestAPIRefreshContentStatsContract(t *testing.T) {
 // Nothing to recompute still completes, so the UI can report "up to date"
 // instead of an error.
 func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
-	env := New(t)
-	_ = ImportTextBook(t, env, "Already Counted", "", "counted.txt", "alpha body")
+	env := apitest.New(t)
+	_ = apitest.ImportTextBook(t, env, "Already Counted", "", "counted.txt", "alpha body")
 
 	accepted := refreshContentStats(t, env, http.StatusAccepted)
-	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
+	chain := apitest.WaitForTaskChain(t, env, accepted.TaskChainID)
 
 	if chain.Status != "completed" {
 		t.Errorf("chain status = %q, want completed", chain.Status)
@@ -137,7 +135,7 @@ func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
 	if chain.Percentage != 100 {
 		t.Errorf("percentage = %v, want 100", chain.Percentage)
 	}
-	if result := taskResult[task.RefreshContentStatsResult](t, chain); result.Total != 0 || result.Refreshed != 0 {
+	if result := apitest.TaskResult[task.RefreshContentStatsResult](t, chain); result.Total != 0 || result.Refreshed != 0 {
 		t.Errorf("result = %+v, want an empty sweep", result)
 	}
 }
@@ -145,9 +143,9 @@ func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
 // A second request while a sweep is still in flight must point the client at
 // the existing chain instead of queueing a redundant one.
 func TestAPIRefreshContentStatsConflictReportsRunningChainContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
-	first := AssertDuplicateChainConflict(t, env, func(wantStatus int) TaskChainSubmitResponse {
+	first := apitest.AssertDuplicateChainConflict(t, env, func(wantStatus int) apitest.TaskChainSubmitResponse {
 		return refreshContentStats(t, env, wantStatus)
 	})
 

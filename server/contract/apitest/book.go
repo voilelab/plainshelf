@@ -1,4 +1,4 @@
-package contract_test
+package apitest
 
 import (
 	"bytes"
@@ -23,34 +23,6 @@ import (
 // The URL builders below assemble the routes the tests share. They keep the
 // repeated /api/shelves/<id> prefix in one place while leaving each route's own
 // shape spelled out at the call site, since that shape is what is under test.
-
-func ShelfIDURL(shelfID string, elem ...string) string {
-	return strings.Join(append([]string{"/api/shelves", shelfID}, elem...), "/")
-}
-
-// ShelfURL addresses the single shelf the contract tests configure.
-func ShelfURL(elem ...string) string {
-	return ShelfIDURL(DefaultShelfID, elem...)
-}
-
-func BooksURL() string {
-	return ShelfURL("books")
-}
-
-func BookURL(bookID string, elem ...string) string {
-	return ShelfURL(append([]string{"books", bookID}, elem...)...)
-}
-
-func SourceURL(bookID, sourceID string, elem ...string) string {
-	return BookURL(bookID, append([]string{"sources", sourceID}, elem...)...)
-}
-
-// AssetURL addresses one file under a source's assets/ directory. The name is
-// used verbatim so a test can address an already-escaped or otherwise unusual
-// name and see what the route does with it.
-func AssetURL(bookID, sourceID, name string) string {
-	return SourceURL(bookID, sourceID, "assets") + "/" + name
-}
 
 // FormUpload is a multipart request body: text fields in the given order,
 // followed by at most one file part. Every multipart request in these tests goes
@@ -267,4 +239,15 @@ func (env *Env) WriteSourceAsset(t *testing.T, bookID, sourceID, name string, da
 	if err := os.WriteFile(filepath.Join(assetDir, name), data, 0644); err != nil {
 		t.Fatalf("WriteFile(%q): %v", name, err)
 	}
+}
+
+// PatchBook sends a PATCH to a book and asserts the status it must answer with.
+// The body is JSON in every case, so a caller reads as the field-level contract
+// it is pinning.
+func PatchBook(t *testing.T, env *Env, bookID, body string, wantStatus int) *httptest.ResponseRecorder {
+	t.Helper()
+
+	rec := env.Patch(BookURL(bookID), strings.NewReader(body))
+	AssertStatus(t, rec, wantStatus)
+	return rec
 }

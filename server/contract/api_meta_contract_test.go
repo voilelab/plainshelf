@@ -3,6 +3,8 @@ package contract_test
 import (
 	"net/http"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
 type modeResponse struct {
@@ -18,25 +20,25 @@ type versionResponse struct {
 // regression the shared response-shape table cannot see: {} and {"version":""}
 // both carry the right status, content type and trailing newline.
 func TestAPIVersionContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
-	if resp := GetJSON[versionResponse](t, env, "/api/version"); resp.Version == "" {
+	if resp := apitest.GetJSON[versionResponse](t, env, "/api/version"); resp.Version == "" {
 		t.Fatalf("version is empty, want a non-empty value")
 	}
 }
 
 func TestAPIReadOnlyModeContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 	env.SetReadOnly(t, true)
 
-	if mode := GetJSON[modeResponse](t, env, "/api/mode"); !mode.ReadOnly {
+	if mode := apitest.GetJSON[modeResponse](t, env, "/api/mode"); !mode.ReadOnly {
 		t.Fatalf("read_only = false, want true")
 	}
 
 	// Read-only mode refuses writes while leaving reads alone.
-	rec := env.Post(ShelfURL("folders", "blocked"), nil)
-	AssertStatus(t, rec, http.StatusForbidden)
+	rec := env.Post(apitest.ShelfURL("folders", "blocked"), nil)
+	apitest.AssertStatus(t, rec, http.StatusForbidden)
 
-	rec = env.Get(ShelfURL("folders"))
-	AssertStatus(t, rec, http.StatusOK)
+	rec = env.Get(apitest.ShelfURL("folders"))
+	apitest.AssertStatus(t, rec, http.StatusOK)
 }

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
 // requestIDConfusables are the characters a request ID must never contain. The
@@ -39,10 +41,10 @@ func assertRequestIDShape(t *testing.T, id string) {
 // screen that looks wrong without erroring has something to quote too, which is
 // the whole reason the ID is per request rather than per error.
 func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	seen := map[string]struct{}{}
-	for _, url := range []string{"/api/version", "/api/shelves", ShelfURL("books"), BookURL("no_such_book")} {
+	for _, url := range []string{"/api/version", "/api/shelves", apitest.ShelfURL("books"), apitest.BookURL("no_such_book")} {
 		rec := env.Get(url)
 
 		id := rec.Header().Get("X-Request-Id")
@@ -62,14 +64,14 @@ func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
 // number. A second identifier for the same request would mean the developer has
 // to know which of the two the user copied.
 func TestAPIErrorEnvelopeIncidentIsTheRequestIDContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	// A refusal the table names, which is the case a per-error incident ID
 	// would have left without a number to quote.
-	rec := env.Request(http.MethodDelete, BookURL("no_such_book"), nil)
-	AssertErrorEnvelope(t, rec, http.StatusNotFound, "BOOK_NOT_FOUND", "book not found")
+	rec := env.Request(http.MethodDelete, apitest.BookURL("no_such_book"), nil)
+	apitest.AssertErrorEnvelope(t, rec, http.StatusNotFound, "BOOK_NOT_FOUND", "book not found")
 
-	got := DecodeJSON[ErrorEnvelope](t, rec)
+	got := apitest.DecodeJSON[apitest.ErrorEnvelope](t, rec)
 	header := rec.Header().Get("X-Request-Id")
 	if got.Error.Incident == "" {
 		t.Fatalf("incident is empty; the user has nothing to report (body: %s)", rec.Body.String())
@@ -86,12 +88,12 @@ func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	libRoot := t.TempDir()
 
-	env := New(t, WithLibRoot(libRoot), WithAppLogFile(appLogFile))
-	book := ImportTextBook(t, env, "Incident Book", "", "incident.txt", "body")
+	env := apitest.New(t, apitest.WithLibRoot(libRoot), apitest.WithAppLogFile(appLogFile))
+	book := apitest.ImportTextBook(t, env, "Incident Book", "", "incident.txt", "body")
 
-	sources := GetJSON[[]struct {
+	sources := apitest.GetJSON[[]struct {
 		ID string `json:"id"`
-	}](t, env, BookURL(book.Meta.ID, "sources"))
+	}](t, env, apitest.BookURL(book.Meta.ID, "sources"))
 	if len(sources) != 1 {
 		t.Fatalf("sources = %d, want 1", len(sources))
 	}
@@ -107,11 +109,11 @@ func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
 		t.Fatalf("replace source file with a directory: %v", err)
 	}
 
-	contentURL := SourceURL(book.Meta.ID, sources[0].ID, "content")
-	rec := env.PatchContent(contentURL, PlainTextContentType, strings.NewReader("replacement"))
-	AssertStatus(t, rec, http.StatusInternalServerError)
+	contentURL := apitest.SourceURL(book.Meta.ID, sources[0].ID, "content")
+	rec := env.PatchContent(contentURL, apitest.PlainTextContentType, strings.NewReader("replacement"))
+	apitest.AssertStatus(t, rec, http.StatusInternalServerError)
 
-	incident := DecodeJSON[ErrorEnvelope](t, rec).Error.Incident
+	incident := apitest.DecodeJSON[apitest.ErrorEnvelope](t, rec).Error.Incident
 	if incident == "" {
 		t.Fatalf("incident is empty, so the 500 cannot be traced (body: %s)", rec.Body.String())
 	}
@@ -121,7 +123,7 @@ func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
 		"code":     "INTERNAL",
 		"method":   http.MethodPatch,
 		"path":     contentURL,
-		"shelf_id": DefaultShelfID,
+		"shelf_id": apitest.DefaultShelfID,
 	} {
 		if got, _ := entry[field].(string); got != want {
 			t.Errorf("log %s = %q, want %q (entry: %v)", field, got, want, entry)
@@ -167,17 +169,17 @@ func findLogEntryByRequestID(t *testing.T, logFile, requestID, msg string) map[s
 // operator's existing log tooling reads them by name.
 func TestAPIRequestLogLineCarriesTheRequestIDContract(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
-	env := New(t, WithAppLogFile(appLogFile))
+	env := apitest.New(t, apitest.WithAppLogFile(appLogFile))
 
-	rec := env.Get(ShelfURL("books"))
-	AssertStatus(t, rec, http.StatusOK)
+	rec := env.Get(apitest.ShelfURL("books"))
+	apitest.AssertStatus(t, rec, http.StatusOK)
 
 	requestID := rec.Header().Get("X-Request-Id")
 	entry := findLogEntryByRequestID(t, appLogFile, requestID, "app handler")
 
 	for field, want := range map[string]string{
 		"method": http.MethodGet,
-		"path":   ShelfURL("books"),
+		"path":   apitest.ShelfURL("books"),
 	} {
 		if got, _ := entry[field].(string); got != want {
 			t.Errorf("log %s = %q, want %q (entry: %v)", field, got, want, entry)
@@ -193,7 +195,7 @@ func TestAPIRequestLogLineCarriesTheRequestIDContract(t *testing.T) {
 // else could connect the two: the user never sees the chain ID.
 func TestAPIBackgroundTaskFailureLogsTheSubmittingRequestIDContract(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
-	env := New(t, WithAppLogFile(appLogFile))
+	env := apitest.New(t, apitest.WithAppLogFile(appLogFile))
 
 	body, err := json.Marshal(map[string]any{
 		"operation": "trash",
@@ -203,16 +205,16 @@ func TestAPIBackgroundTaskFailureLogsTheSubmittingRequestIDContract(t *testing.T
 		t.Fatalf("marshal batch request: %v", err)
 	}
 
-	rec := env.Post(BookBatchURL(), bytes.NewReader(body))
-	AssertStatus(t, rec, http.StatusAccepted)
+	rec := env.Post(apitest.BookBatchURL(), bytes.NewReader(body))
+	apitest.AssertStatus(t, rec, http.StatusAccepted)
 
 	requestID := rec.Header().Get("X-Request-Id")
 	if requestID == "" {
 		t.Fatal("the 202 that queued the chain carries no X-Request-Id")
 	}
 
-	accepted := DecodeJSON[TaskChainSubmitResponse](t, rec)
-	chain := WaitForTaskChain(t, env, accepted.TaskChainID)
+	accepted := apitest.DecodeJSON[apitest.TaskChainSubmitResponse](t, rec)
+	chain := apitest.WaitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "failed" && chain.Status != "partially_completed" {
 		t.Fatalf("chain status = %q, want the batch to have failed its only item", chain.Status)
 	}

@@ -8,47 +8,45 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/testutil"
 )
 
-func SettingURL(key string) string {
-	return "/api/setting/" + key
-}
-
 // settingValue reads a setting and returns the "value" the endpoint wraps it in.
 // The response is decoded generically so the wrapper's field name is pinned too.
-func settingValue[T any](t *testing.T, env *Env, key string) T {
+func settingValue[T any](t *testing.T, env *apitest.Env, key string) T {
 	t.Helper()
 
-	rec := env.Get(SettingURL(key))
-	AssertStatus(t, rec, http.StatusOK)
-	AssertJSONContentType(t, rec)
+	rec := env.Get(apitest.SettingURL(key))
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	apitest.AssertJSONContentType(t, rec)
 
-	value, _ := DecodeJSON[map[string]any](t, rec)["value"].(T)
+	value, _ := apitest.DecodeJSON[map[string]any](t, rec)["value"].(T)
 	return value
 }
 
 // setSetting stores a setting value, asserting the status the endpoint must
 // answer with — 204 for an accepted value, 400 for a rejected one.
-func setSetting(t *testing.T, env *Env, key, body string, wantStatus int) {
+func setSetting(t *testing.T, env *apitest.Env, key, body string, wantStatus int) {
 	t.Helper()
 
-	rec := env.Post(SettingURL(key), strings.NewReader(body))
-	AssertStatus(t, rec, wantStatus)
+	rec := env.Post(apitest.SettingURL(key), strings.NewReader(body))
+	apitest.AssertStatus(t, rec, wantStatus)
 }
 
 // deleteSetting clears a stored setting, which reverts it to the built-in or
 // configured default.
-func deleteSetting(t *testing.T, env *Env, key string) {
+func deleteSetting(t *testing.T, env *apitest.Env, key string) {
 	t.Helper()
 
-	rec := env.Delete(SettingURL(key))
-	AssertStatus(t, rec, http.StatusNoContent)
+	rec := env.Delete(apitest.SettingURL(key))
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 }
 
 func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 	const key = "epub_import_strategy"
 
 	// The built-in default applies when nothing is configured.
@@ -68,7 +66,7 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 		t.Fatalf("preset after set = %q, want plain", preset)
 	}
 
-	imported := ImportFileBook(t, env, "uses-default.epub", "application/epub+zip", string(testutil.BuildTestEPUB(t)))
+	imported := apitest.ImportFileBook(t, env, "uses-default.epub", "application/epub+zip", string(testutil.BuildTestEPUB(t)))
 	if imported.Meta.Format != "txt" {
 		t.Fatalf("format = %q, want txt from the configured default", imported.Meta.Format)
 	}
@@ -93,10 +91,10 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 }
 
 func TestAPISettingCoverToJPGContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 	const key = "cover_to_jpg"
 
-	// The default value reflects AppConf, which is false in the test env.
+	// The default value reflects apitest.AppConf, which is false in the test env.
 	if got := settingValue[bool](t, env, key); got {
 		t.Fatalf("default cover_to_jpg = %v, want false", got)
 	}
@@ -111,11 +109,11 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 	// A value that is not a boolean is rejected.
 	setSetting(t, env, key, "maybe", http.StatusBadRequest)
 
-	// Deleting a stored value resets it to the AppConf default (false).
+	// Deleting a stored value resets it to the apitest.AppConf default (false).
 	setSetting(t, env, key, "true", http.StatusNoContent)
 	deleteSetting(t, env, key)
 	if got := settingValue[bool](t, env, key); got {
-		t.Fatalf("cover_to_jpg after delete = %v, want false (AppConf default)", got)
+		t.Fatalf("cover_to_jpg after delete = %v, want false (apitest.AppConf default)", got)
 	}
 }
 
@@ -124,7 +122,7 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 // file to edit: without this route a user has no way to turn deletion off.
 func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 	logDir := t.TempDir()
-	env := New(t, WithAppLogDir(logDir, "app"))
+	env := apitest.New(t, apitest.WithAppLogDir(logDir, "app"))
 	const key = "log_retention_days"
 
 	// Nothing stored and nothing configured: the built-in window applies.
@@ -133,20 +131,20 @@ func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 	}
 
 	// Zero is the meaningful end of the range: it is how deletion is turned off.
-	for _, want := range []int{0, 7, MaxLogRetentionDays} {
+	for _, want := range []int{0, 7, apitest.MaxLogRetentionDays} {
 		setSetting(t, env, key, strconv.Itoa(want), http.StatusNoContent)
 		if got := settingValue[float64](t, env, key); int(got) != want {
 			t.Fatalf("log_retention_days after set = %v, want %d", got, want)
 		}
 	}
 
-	for _, body := range []string{"-1", strconv.Itoa(MaxLogRetentionDays + 1), "1.5", `"30"`, "not json"} {
+	for _, body := range []string{"-1", strconv.Itoa(apitest.MaxLogRetentionDays + 1), "1.5", `"30"`, "not json"} {
 		setSetting(t, env, key, body, http.StatusBadRequest)
 	}
 
 	// The rejected values left the last accepted one in place.
-	if got := settingValue[float64](t, env, key); int(got) != MaxLogRetentionDays {
-		t.Fatalf("log_retention_days after rejected writes = %v, want %d", got, MaxLogRetentionDays)
+	if got := settingValue[float64](t, env, key); int(got) != apitest.MaxLogRetentionDays {
+		t.Fatalf("log_retention_days after rejected writes = %v, want %d", got, apitest.MaxLogRetentionDays)
 	}
 
 	deleteSetting(t, env, key)
@@ -160,7 +158,7 @@ func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 // have to restart the server before the running writers stop deleting.
 func TestAPISettingLogRetentionAppliesWithoutRestart(t *testing.T) {
 	logDir := t.TempDir()
-	env := New(t, WithAppLogDir(logDir, "app"))
+	env := apitest.New(t, apitest.WithAppLogDir(logDir, "app"))
 
 	setSetting(t, env, "log_retention_days", "0", http.StatusNoContent)
 
@@ -168,7 +166,7 @@ func TestAPISettingLogRetentionAppliesWithoutRestart(t *testing.T) {
 	writer := logutil.NewDailyFileWriter(env.App.Conf().Logger.LogFile)
 	t.Cleanup(func() { _ = writer.Close() })
 
-	WriteLogFile(t, filepath.Join(logDir, "app-2000-01-01.log"), "ancient")
+	apitest.WriteLogFile(t, filepath.Join(logDir, "app-2000-01-01.log"), "ancient")
 	if _, err := writer.Write([]byte("{}\n")); err != nil {
 		t.Fatalf("Write: %v", err)
 	}

@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
 // Every shelf-scoped route resolves its shelf through the same helper, so an
@@ -12,31 +14,31 @@ import (
 // caller that got 202 for a shelf that does not exist would poll a chain that
 // never ran.
 func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	requests := []struct {
 		method string
 		path   string
 	}{
-		{http.MethodGet, ShelfIDURL("missing_shelf", "books")},
-		{http.MethodGet, ShelfIDURL("missing_shelf", "status")},
-		{http.MethodGet, ShelfIDURL("missing_shelf", "folders")},
-		{http.MethodGet, ShelfIDURL("missing_shelf", "trash", "books")},
-		{http.MethodGet, ShelfIDURL("missing_shelf", "books", "duplicate")},
-		{http.MethodGet, ShelfIDURL("missing_shelf", "books", "similar")},
-		{http.MethodGet, ShelfIDURL("missing_shelf", "fingerprints", "status")},
-		{http.MethodPost, ShelfIDURL("missing_shelf", "scans")},
-		{http.MethodPost, ShelfIDURL("missing_shelf", "book-cache-exports")},
-		{http.MethodPost, ShelfIDURL("missing_shelf", "content-stat-refreshes")},
-		{http.MethodPost, ShelfIDURL("missing_shelf", "source-fingerprints")},
-		{http.MethodPost, ShelfIDURL("missing_shelf", "trash", "empty")},
+		{http.MethodGet, apitest.ShelfIDURL("missing_shelf", "books")},
+		{http.MethodGet, apitest.ShelfIDURL("missing_shelf", "status")},
+		{http.MethodGet, apitest.ShelfIDURL("missing_shelf", "folders")},
+		{http.MethodGet, apitest.ShelfIDURL("missing_shelf", "trash", "books")},
+		{http.MethodGet, apitest.ShelfIDURL("missing_shelf", "books", "duplicate")},
+		{http.MethodGet, apitest.ShelfIDURL("missing_shelf", "books", "similar")},
+		{http.MethodGet, apitest.ShelfIDURL("missing_shelf", "fingerprints", "status")},
+		{http.MethodPost, apitest.ShelfIDURL("missing_shelf", "scans")},
+		{http.MethodPost, apitest.ShelfIDURL("missing_shelf", "book-cache-exports")},
+		{http.MethodPost, apitest.ShelfIDURL("missing_shelf", "content-stat-refreshes")},
+		{http.MethodPost, apitest.ShelfIDURL("missing_shelf", "source-fingerprints")},
+		{http.MethodPost, apitest.ShelfIDURL("missing_shelf", "trash", "empty")},
 	}
 
 	for _, tc := range requests {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
 			rec := env.Request(tc.method, tc.path, nil)
 
-			AssertStatus(t, rec, http.StatusNotFound)
+			apitest.AssertStatus(t, rec, http.StatusNotFound)
 			if got := strings.TrimSpace(rec.Body.String()); got != "shelf not found" {
 				t.Fatalf("body = %q, want %q", got, "shelf not found")
 			}
@@ -45,13 +47,13 @@ func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
 }
 
 func TestAPIJSONResponsesShareOneShapeContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	paths := []string{
 		"/api/mode",
 		"/api/version",
 		"/api/shelves",
-		BooksURL(),
+		apitest.BooksURL(),
 		"/api/setting/epub_import_strategy",
 	}
 
@@ -59,8 +61,8 @@ func TestAPIJSONResponsesShareOneShapeContract(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			rec := env.Get(path)
 
-			AssertStatus(t, rec, http.StatusOK)
-			AssertJSONContentType(t, rec)
+			apitest.AssertStatus(t, rec, http.StatusOK)
+			apitest.AssertJSONContentType(t, rec)
 
 			// A client reading the body line-wise would block without the newline.
 			if body := rec.Body.String(); !strings.HasSuffix(body, "\n") {

@@ -7,14 +7,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
 // Every refusal writeErr answers carries the same JSON envelope, so a client
 // can read one shape rather than parsing prose. The code is the stable half:
 // the message may be reworded, the code may not.
 func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
-	env := New(t)
-	book := ImportTextBook(t, env, "Envelope Book", "", "envelope.txt", "body")
+	env := apitest.New(t)
+	book := apitest.ImportTextBook(t, env, "Envelope Book", "", "envelope.txt", "body")
 
 	tests := []struct {
 		name         string
@@ -27,7 +29,7 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 		{
 			name:    "unknown book",
 			method:  http.MethodDelete,
-			path:    BookURL("no_such_book"),
+			path:    apitest.BookURL("no_such_book"),
 			status:  http.StatusNotFound,
 			code:    "BOOK_NOT_FOUND",
 			message: "book not found",
@@ -35,7 +37,7 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 		{
 			name:    "unknown source",
 			method:  http.MethodDelete,
-			path:    SourceURL(book.Meta.ID, "no_such_source"),
+			path:    apitest.SourceURL(book.Meta.ID, "no_such_source"),
 			status:  http.StatusNotFound,
 			code:    "SOURCE_NOT_FOUND",
 			message: "source not found",
@@ -43,7 +45,7 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 		{
 			name:    "unknown trashed book",
 			method:  http.MethodPost,
-			path:    ShelfURL("trash", "books", "no_such_book", "restore"),
+			path:    apitest.ShelfURL("trash", "books", "no_such_book", "restore"),
 			status:  http.StatusNotFound,
 			code:    "TRASHED_BOOK_NOT_FOUND",
 			message: "trashed book not found",
@@ -51,7 +53,7 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 		{
 			name:    "star out of range",
 			method:  http.MethodPatch,
-			path:    BookURL(book.Meta.ID),
+			path:    apitest.BookURL(book.Meta.ID),
 			body:    `{"star":9}`,
 			status:  http.StatusBadRequest,
 			code:    "INVALID_STAR",
@@ -60,7 +62,7 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 		{
 			name:    "invalid folder name",
 			method:  http.MethodPost,
-			path:    ShelfURL("folders", "bad%2F..%2Fesc"),
+			path:    apitest.ShelfURL("folders", "bad%2F..%2Fesc"),
 			status:  http.StatusBadRequest,
 			code:    "INVALID_FOLDER",
 			message: "invalid folder name",
@@ -71,7 +73,7 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := env.Request(tt.method, tt.path, strings.NewReader(tt.body))
 
-			AssertErrorEnvelope(t, rec, tt.status, tt.code, tt.message)
+			apitest.AssertErrorEnvelope(t, rec, tt.status, tt.code, tt.message)
 
 			// A client reading the body line-wise would block without it, the
 			// same reason the success bodies carry one.
@@ -85,11 +87,11 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 // A refusal the shelf itself raises keeps its Retry-After alongside the
 // envelope: the code says what happened, the header says when to come back.
 func TestAPIReadOnlyShelfRefusalCarriesItsCodeContract(t *testing.T) {
-	env := New(t, WithReadOnlyShelf())
+	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
-	rec := env.Post(ShelfURL("folders", "new-folder"), nil)
+	rec := env.Post(apitest.ShelfURL("folders", "new-folder"), nil)
 
-	AssertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
+	apitest.AssertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
 		"shelf is opened read-only; this PlainShelf instance cannot modify it")
 }
 
@@ -105,12 +107,12 @@ func TestAPIInternalErrorBodyWithholdsTheCauseContract(t *testing.T) {
 		t.Fatalf("create shelf root: %v", err)
 	}
 
-	env := New(t, WithLibRoot(libRoot))
-	book := ImportTextBook(t, env, "secret-manuscript", "", "secret-manuscript.txt", "body")
+	env := apitest.New(t, apitest.WithLibRoot(libRoot))
+	book := apitest.ImportTextBook(t, env, "secret-manuscript", "", "secret-manuscript.txt", "body")
 
-	sources := GetJSON[[]struct {
+	sources := apitest.GetJSON[[]struct {
 		ID string `json:"id"`
-	}](t, env, BookURL(book.Meta.ID, "sources"))
+	}](t, env, apitest.BookURL(book.Meta.ID, "sources"))
 	if len(sources) != 1 {
 		t.Fatalf("sources = %d, want 1", len(sources))
 	}
@@ -127,10 +129,10 @@ func TestAPIInternalErrorBodyWithholdsTheCauseContract(t *testing.T) {
 		t.Fatalf("replace source file with a directory: %v", err)
 	}
 
-	rec := env.PatchContent(SourceURL(book.Meta.ID, sources[0].ID, "content"),
-		PlainTextContentType, strings.NewReader("replacement"))
+	rec := env.PatchContent(apitest.SourceURL(book.Meta.ID, sources[0].ID, "content"),
+		apitest.PlainTextContentType, strings.NewReader("replacement"))
 
-	AssertErrorEnvelope(t, rec, http.StatusInternalServerError, "INTERNAL",
+	apitest.AssertErrorEnvelope(t, rec, http.StatusInternalServerError, "INTERNAL",
 		"failed to update book source content")
 
 	body := rec.Body.String()

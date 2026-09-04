@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/server"
 )
@@ -22,7 +24,7 @@ func (t *contractTask) Description() string           { return "deleted 1 of 2 b
 func (t *contractTask) Percentage() float64           { return 50 }
 func (t *contractTask) Status() taskutil.Status       { return taskutil.StatusRunning }
 
-func submitContractChain(t *testing.T, env *Env) *taskutil.TaskChain {
+func submitContractChain(t *testing.T, env *apitest.Env) *taskutil.TaskChain {
 	t.Helper()
 
 	chain, err := env.App.TaskChains().Submit(&taskutil.TaskChain{
@@ -38,14 +40,14 @@ func submitContractChain(t *testing.T, env *Env) *taskutil.TaskChain {
 }
 
 func TestAPIGetTaskChainContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 	chain := submitContractChain(t, env)
 
-	rec := env.Get(TaskChainURL(chain.ID))
-	AssertStatus(t, rec, http.StatusOK)
-	AssertJSONContentType(t, rec)
+	rec := env.Get(apitest.TaskChainURL(chain.ID))
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	apitest.AssertJSONContentType(t, rec)
 
-	resp := DecodeJSON[server.TaskChain](t, rec)
+	resp := apitest.DecodeJSON[server.TaskChain](t, rec)
 	if resp.ID != chain.ID {
 		t.Errorf("id = %q, want %q", resp.ID, chain.ID)
 	}
@@ -71,7 +73,7 @@ func TestAPIGetTaskChainContract(t *testing.T) {
 	// The same response decoded as a map pins the wire field names. Decoding
 	// into the Go struct alone would pass no matter how the JSON tags change.
 	t.Run("schema", func(t *testing.T) {
-		payload := DecodeJSON[map[string]any](t, rec)
+		payload := apitest.DecodeJSON[map[string]any](t, rec)
 		for _, key := range []string{"id", "name", "title", "description", "status", "percentage", "created_at", "tasks"} {
 			if _, ok := payload[key]; !ok {
 				t.Errorf("response is missing the %q field: %v", key, payload)
@@ -100,10 +102,10 @@ func TestAPIGetTaskChainContract(t *testing.T) {
 }
 
 func TestAPIGetTaskChainNotFoundContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
-	rec := env.Get(TaskChainURL("does-not-exist"))
-	AssertStatus(t, rec, http.StatusNotFound)
+	rec := env.Get(apitest.TaskChainURL("does-not-exist"))
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // cancelSignalTask runs until its context is cancelled, then settles failed. It
@@ -145,26 +147,26 @@ func (t *cancelSignalTask) Status() taskutil.Status {
 // same local_token boundary as every other mutating request: without a token it
 // is rejected before it can reach a chain.
 func TestAPICancelTaskChainRequiresTokenContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	// DoRaw sends the request without the token Do() would attach.
-	rec := env.DoRaw(httptest.NewRequest(http.MethodPost, TaskChainCancelURL("any-id"), nil))
-	AssertStatus(t, rec, http.StatusUnauthorized)
+	rec := env.DoRaw(httptest.NewRequest(http.MethodPost, apitest.TaskChainCancelURL("any-id"), nil))
+	apitest.AssertStatus(t, rec, http.StatusUnauthorized)
 }
 
 // TestAPICancelTaskChainReadOnlyContract pins the decision recorded on the
 // ticket: cancel is a mutating method and read-only mode refuses it, the same as
 // the transfer that would have started the chain.
 func TestAPICancelTaskChainReadOnlyContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 	env.SetReadOnly(t, true)
 
-	rec := env.Post(TaskChainCancelURL("any-id"), nil)
-	AssertStatus(t, rec, http.StatusForbidden)
+	rec := env.Post(apitest.TaskChainCancelURL("any-id"), nil)
+	apitest.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 func TestAPICancelTaskChainStopsRunningChainContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	task := &cancelSignalTask{started: make(chan struct{})}
 	chain, err := env.App.TaskChains().Submit(&taskutil.TaskChain{
@@ -176,34 +178,34 @@ func TestAPICancelTaskChainStopsRunningChainContract(t *testing.T) {
 	}
 
 	<-task.started
-	rec := env.Post(TaskChainCancelURL(chain.ID), nil)
-	AssertStatus(t, rec, http.StatusOK)
-	AssertJSONContentType(t, rec)
+	rec := env.Post(apitest.TaskChainCancelURL(chain.ID), nil)
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	apitest.AssertJSONContentType(t, rec)
 
-	resp := DecodeJSON[server.TaskChain](t, rec)
+	resp := apitest.DecodeJSON[server.TaskChain](t, rec)
 	if resp.ID != chain.ID {
 		t.Errorf("id = %q, want %q", resp.ID, chain.ID)
 	}
 
 	// The chain settles into a terminal status once the cancel reaches the task.
-	settled := WaitForTaskChain(t, env, chain.ID)
+	settled := apitest.WaitForTaskChain(t, env, chain.ID)
 	if settled.Status != "failed" {
 		t.Errorf("status after cancel = %q, want failed", settled.Status)
 	}
 }
 
 func TestAPICancelTaskChainNotFoundContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
-	rec := env.Post(TaskChainCancelURL("does-not-exist"), nil)
-	AssertStatus(t, rec, http.StatusNotFound)
+	rec := env.Post(apitest.TaskChainCancelURL("does-not-exist"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // TestAPICancelTaskChainTerminalIsNoOpContract cancels a chain that has already
 // finished: the endpoint answers 200 with the settled state rather than an error,
 // and the status is unchanged.
 func TestAPICancelTaskChainTerminalIsNoOpContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 	chain := submitContractChain(t, env)
 
 	// submitContractChain's task reports running forever, so drive a terminal
@@ -215,14 +217,14 @@ func TestAPICancelTaskChainTerminalIsNoOpContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Submit done chain: %v", err)
 	}
-	settled := WaitForTaskChain(t, env, done.ID)
+	settled := apitest.WaitForTaskChain(t, env, done.ID)
 	if settled.Status != "completed" {
 		t.Fatalf("precondition: done chain status = %q, want completed", settled.Status)
 	}
 
-	rec := env.Post(TaskChainCancelURL(done.ID), nil)
-	AssertStatus(t, rec, http.StatusOK)
-	resp := DecodeJSON[server.TaskChain](t, rec)
+	rec := env.Post(apitest.TaskChainCancelURL(done.ID), nil)
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	resp := apitest.DecodeJSON[server.TaskChain](t, rec)
 	if resp.Status != "completed" {
 		t.Errorf("status after cancelling a finished chain = %q, want completed", resp.Status)
 	}

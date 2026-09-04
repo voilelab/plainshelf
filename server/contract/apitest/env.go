@@ -1,4 +1,4 @@
-package contract_test
+package apitest
 
 import (
 	"io"
@@ -304,4 +304,47 @@ func (env *Env) GetWailsLike(url string) *wailsLikeRecorder {
 	rec := newWailsLikeRecorder()
 	env.handler.ServeHTTP(rec, env.withToken(httptest.NewRequest(http.MethodGet, url, nil)))
 	return rec
+}
+
+// SecondShelfID names the extra shelf WithSecondShelf adds alongside
+// DefaultShelfID. Only the cross-shelf transfer tests configure two shelves.
+const SecondShelfID = "second_shelf"
+
+// WithSecondShelf adds a writable second shelf on libRoot, the destination a
+// transfer copies or moves a book into.
+func WithSecondShelf(libRoot string) Option {
+	return func(conf *server.AppConf) {
+		conf.Shelves = append(conf.Shelves, &shelf.ShelfConfWithID{
+			ID: SecondShelfID,
+			ShelfConf: shelf.ShelfConf{
+				LibRoot:           libRoot,
+				BookCacheInterval: "1s",
+			},
+		})
+	}
+}
+
+// WithReadOnlySecondShelf adds the second shelf opened read-only, so a transfer
+// into it is refused the same way any write to a read-only shelf is.
+func WithReadOnlySecondShelf(libRoot string) Option {
+	return func(conf *server.AppConf) {
+		conf.Shelves = append(conf.Shelves, &shelf.ShelfConfWithID{
+			ID: SecondShelfID,
+			ShelfConf: shelf.ShelfConf{
+				LibRoot:           libRoot,
+				BookCacheInterval: "1s",
+				ReadOnly:          true,
+			},
+		})
+	}
+}
+
+// LocalTokenSecurity is the configuration these tests share: the local-token
+// mode a desktop client runs under, with one allowed browser origin.
+func LocalTokenSecurity() *server.SecurityConf {
+	return &server.SecurityConf{
+		Mode:                        server.SecurityModeLocalToken,
+		AllowMissingOriginWithToken: new(true),
+		AllowedOrigins:              []string{"http://localhost:20000"},
+	}
 }

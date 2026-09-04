@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/server"
 )
 
@@ -11,12 +13,12 @@ import (
 // write affordances a read-only shelf has no use for rather than offering them
 // and answering 409 when one is pressed.
 func TestAPIShelvesReportPerShelfReadOnlyContract(t *testing.T) {
-	env := New(t, WithReadOnlySecondShelf(t.TempDir()))
+	env := apitest.New(t, apitest.WithReadOnlySecondShelf(t.TempDir()))
 
 	rec := env.Get("/api/shelves")
-	AssertStatus(t, rec, http.StatusOK)
+	apitest.AssertStatus(t, rec, http.StatusOK)
 
-	shelves := DecodeJSON[[]server.ShelfInfo](t, rec)
+	shelves := apitest.DecodeJSON[[]server.ShelfInfo](t, rec)
 	if len(shelves) != 2 {
 		t.Fatalf("shelves = %d, want 2", len(shelves))
 	}
@@ -26,11 +28,11 @@ func TestAPIShelvesReportPerShelfReadOnlyContract(t *testing.T) {
 		readOnlyByID[info.ID] = info.ReadOnly
 	}
 
-	if readOnlyByID[DefaultShelfID] {
-		t.Errorf("shelf %q read_only = true, want false", DefaultShelfID)
+	if readOnlyByID[apitest.DefaultShelfID] {
+		t.Errorf("shelf %q read_only = true, want false", apitest.DefaultShelfID)
 	}
-	if !readOnlyByID[SecondShelfID] {
-		t.Errorf("shelf %q read_only = false, want true", SecondShelfID)
+	if !readOnlyByID[apitest.SecondShelfID] {
+		t.Errorf("shelf %q read_only = false, want true", apitest.SecondShelfID)
 	}
 }
 
@@ -38,12 +40,12 @@ func TestAPIShelvesReportPerShelfReadOnlyContract(t *testing.T) {
 // every listed shelf reports it. The client needs that: the two settings differ
 // in scope, not in what they forbid on the shelf they cover.
 func TestAPIShelvesReportServerReadOnlyContract(t *testing.T) {
-	env := New(t, WithReadOnlyServer())
+	env := apitest.New(t, apitest.WithReadOnlyServer())
 
 	rec := env.Get("/api/shelves")
-	AssertStatus(t, rec, http.StatusOK)
+	apitest.AssertStatus(t, rec, http.StatusOK)
 
-	shelves := DecodeJSON[[]server.ShelfInfo](t, rec)
+	shelves := apitest.DecodeJSON[[]server.ShelfInfo](t, rec)
 	if len(shelves) == 0 {
 		t.Fatal("shelves is empty, want at least one")
 	}
@@ -58,9 +60,9 @@ func TestAPIShelvesReportServerReadOnlyContract(t *testing.T) {
 // read-only does not make the server read-only, so /api/mode still answers for
 // the app as a whole.
 func TestAPIReadOnlyShelfLeavesServerModeContract(t *testing.T) {
-	env := New(t, WithReadOnlyShelf())
+	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
-	mode := GetJSON[map[string]any](t, env, "/api/mode")
+	mode := apitest.GetJSON[map[string]any](t, env, "/api/mode")
 	if got, want := mode["read_only"], any(false); got != want {
 		t.Errorf("/api/mode read_only = %v, want %v", got, want)
 	}

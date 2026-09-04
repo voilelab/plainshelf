@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/internal/testutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -44,15 +46,15 @@ func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			env := New(t)
-			imported := ImportFileBook(t, env, "book.epub", "application/epub+zip", string(tt.archive))
+			env := apitest.New(t)
+			imported := apitest.ImportFileBook(t, env, "book.epub", "application/epub+zip", string(tt.archive))
 
 			if imported.Meta == nil || imported.Meta.CurrentSource == "" {
 				t.Fatal("imported book has no current source")
 			}
 
-			source := GetJSON[shelf.SourceMeta](t, env,
-				SourceURL(imported.Meta.ID, imported.Meta.CurrentSource))
+			source := apitest.GetJSON[shelf.SourceMeta](t, env,
+				apitest.SourceURL(imported.Meta.ID, imported.Meta.CurrentSource))
 			if source.Comment != tt.want {
 				t.Errorf("source comment = %q, want %q", source.Comment, tt.want)
 			}
@@ -65,8 +67,8 @@ func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
 // exercises storage, conversion and serving together; each side alone can pass
 // while the names they agree on have drifted apart.
 func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
-	env := New(t)
-	imported := ImportFileBook(t, env, "book.epub", "application/epub+zip",
+	env := apitest.New(t)
+	imported := apitest.ImportFileBook(t, env, "book.epub", "application/epub+zip",
 		string(testutil.BuildIllustratedTestEPUB(t)))
 
 	if imported.Meta == nil || imported.Meta.CurrentSource == "" {
@@ -74,8 +76,8 @@ func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
 	}
 	bookID, sourceID := imported.Meta.ID, imported.Meta.CurrentSource
 
-	rec := env.Get(SourceURL(bookID, sourceID, "content"))
-	AssertStatus(t, rec, http.StatusOK)
+	rec := env.Get(apitest.SourceURL(bookID, sourceID, "content"))
+	apitest.AssertStatus(t, rec, http.StatusOK)
 	content := rec.Body.String()
 
 	// Both plates are stored, numbered in the order the spine reached them.
@@ -85,8 +87,8 @@ func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
 			t.Fatalf("converted text does not contain %q:\n%s", link, content)
 		}
 
-		rec = env.Get(AssetURL(bookID, sourceID, name))
-		AssertStatus(t, rec, http.StatusOK)
+		rec = env.Get(apitest.AssetURL(bookID, sourceID, name))
+		apitest.AssertStatus(t, rec, http.StatusOK)
 		if got := rec.Header().Get("Content-Type"); got != "image/png" {
 			t.Errorf("asset %s Content-Type = %q, want image/png", name, got)
 		}
@@ -106,23 +108,23 @@ func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
 // own must still store no illustrations. The unit-level half of this is
 // TestImportEPUBPerRequestStrategyInheritsKeepImages in package server.
 func TestAPIImportEPUBHonoursKeepImagesOffContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	rec := env.Post("/api/setting/epub_import_strategy",
 		strings.NewReader(`{"preset":"markdown","include_description":true,"keep_images":false}`))
-	AssertStatus(t, rec, http.StatusNoContent)
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
-	imported := ImportEPUBWithStrategy(t, env, "book.epub",
+	imported := apitest.ImportEPUBWithStrategy(t, env, "book.epub",
 		string(testutil.BuildIllustratedTestEPUB(t)),
 		`{"preset":"markdown","include_description":true}`)
 
 	bookID, sourceID := imported.Meta.ID, imported.Meta.CurrentSource
 
-	rec = env.Get(SourceURL(bookID, sourceID, "content"))
-	AssertStatus(t, rec, http.StatusOK)
+	rec = env.Get(apitest.SourceURL(bookID, sourceID, "content"))
+	apitest.AssertStatus(t, rec, http.StatusOK)
 	if strings.Contains(rec.Body.String(), "![") {
 		t.Fatalf("images were stored despite keep_images=false:\n%s", rec.Body.String())
 	}
 
-	AssertStatus(t, env.Get(AssetURL(bookID, sourceID, "img-0001.png")), http.StatusNotFound)
+	apitest.AssertStatus(t, env.Get(apitest.AssetURL(bookID, sourceID, "img-0001.png")), http.StatusNotFound)
 }

@@ -10,13 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
-
-func BookCacheExportURL() string {
-	return ShelfURL("book-cache-exports")
-}
 
 // readExportedBookCache returns the single book cache file the app wrote into
 // the shelf's app folder. Its name carries the installation's writer ID, which
@@ -56,14 +54,14 @@ func readExportedBookCache(t *testing.T, libRoot string) shelf.BookCacheFile {
 }
 
 func TestAPIExportBookCacheContract(t *testing.T) {
-	env := New(t)
-	book := ImportTextBook(t, env, "Exported Book", "Fiction", "exported.txt", "Some content.")
+	env := apitest.New(t)
+	book := apitest.ImportTextBook(t, env, "Exported Book", "Fiction", "exported.txt", "Some content.")
 
-	rec := env.Post(BookCacheExportURL(), nil)
-	AssertStatus(t, rec, http.StatusOK)
-	AssertJSONContentType(t, rec)
+	rec := env.Post(apitest.BookCacheExportURL(), nil)
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	apitest.AssertJSONContentType(t, rec)
 
-	resp := DecodeJSON[server.BookCacheExportResponse](t, rec)
+	resp := apitest.DecodeJSON[server.BookCacheExportResponse](t, rec)
 	if resp.Timestamp <= 0 {
 		t.Fatalf("timestamp = %d, want the Unix time of the walk", resp.Timestamp)
 	}
@@ -105,7 +103,7 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 	libRoot := t.TempDir()
 
 	newRun := func() string {
-		app, err := server.NewApp(AppConf(t, WithLibRoot(libRoot), WithStorePath(storePath)))
+		app, err := server.NewApp(apitest.AppConf(t, apitest.WithLibRoot(libRoot), apitest.WithStorePath(storePath)))
 		if err != nil {
 			t.Fatalf("NewApp: %v", err)
 		}
@@ -115,9 +113,9 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 			}
 		}()
 
-		shelfData, ok := app.ShelfManager().GetShelf(DefaultShelfID)
+		shelfData, ok := app.ShelfManager().GetShelf(apitest.DefaultShelfID)
 		if !ok {
-			t.Fatalf("%s missing", DefaultShelfID)
+			t.Fatalf("%s missing", apitest.DefaultShelfID)
 		}
 		if err := shelfData.WaitReady(t.Context()); err != nil {
 			t.Fatalf("WaitReady: %v", err)
@@ -141,7 +139,7 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 // installation's writer ID too. Without it the new shelf exports nothing and
 // its manual export fails until the app is restarted.
 func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	// Wait a moment for the initial book cache export to finish.
 	time.Sleep(2 * time.Second)
@@ -165,8 +163,8 @@ func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
 		t.Fatalf("WaitReady: %v", err)
 	}
 
-	rec := env.Post(ShelfIDURL("added_later", "book-cache-exports"), nil)
-	AssertStatus(t, rec, http.StatusOK)
+	rec := env.Post(apitest.ShelfIDURL("added_later", "book-cache-exports"), nil)
+	apitest.AssertStatus(t, rec, http.StatusOK)
 
 	added := readExportedBookCache(t, addedRoot)
 	if added.WriterID != startupWriterID {

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/server"
 )
 
@@ -34,15 +36,15 @@ func assertStaticSecurityHeaders(t *testing.T, rec *httptest.ResponseRecorder, w
 // check, and an unknown-API 404 alike -- the point of the header is that no
 // response is exempt.
 func TestSecurityHeadersOnEveryResponseContract(t *testing.T) {
-	env := New(t, WithSecurity(LocalTokenSecurity()))
+	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	cases := []struct {
 		name string
 		rec  *httptest.ResponseRecorder
 	}{
 		{"spa index", env.Get("/")},
-		{"api read", env.Get(BooksURL())},
-		{"api mutation", env.Post(SettingPath, strings.NewReader(mutationBody))},
+		{"api read", env.Get(apitest.BooksURL())},
+		{"api mutation", env.Post(apitest.SettingPath, strings.NewReader(mutationBody))},
 		{"health", env.Get("/health")},
 		{"unknown api", env.Get("/api/does-not-exist")},
 		{"static asset 404", env.Get("/assets/missing.js")},
@@ -58,10 +60,10 @@ func TestSecurityHeadersOnEveryResponseContract(t *testing.T) {
 // headers do not depend on the token gate: they are just as present when the
 // API security mode is none, because they defend the browser, not the API.
 func TestSecurityHeadersWithSecurityDisabledContract(t *testing.T) {
-	env := New(t, WithSecurity(&server.SecurityConf{Mode: server.SecurityModeNone}))
+	env := apitest.New(t, apitest.WithSecurity(&server.SecurityConf{Mode: server.SecurityModeNone}))
 
 	assertStaticSecurityHeaders(t, env.Get("/"), "spa index (security none)")
-	assertStaticSecurityHeaders(t, env.Get(BooksURL()), "api read (security none)")
+	assertStaticSecurityHeaders(t, env.Get(apitest.BooksURL()), "api read (security none)")
 }
 
 var cspScriptSrcRE = regexp.MustCompile(`script-src ([^;]*)`)
@@ -71,10 +73,10 @@ var cspScriptSrcRE = regexp.MustCompile(`script-src ([^;]*)`)
 // keeping script-src free of 'unsafe-inline' by nonce-ing the one inline
 // bootstrap script instead.
 func TestContentSecurityPolicyOnIndexContract(t *testing.T) {
-	env := New(t, WithSecurity(LocalTokenSecurity()))
+	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	rec := env.Get("/")
-	AssertStatus(t, rec, http.StatusOK)
+	apitest.AssertStatus(t, rec, http.StatusOK)
 
 	csp := rec.Header().Get("Content-Security-Policy")
 	if csp == "" {
@@ -115,11 +117,11 @@ var (
 // the one inline script the app needs is exactly the one the policy admits.
 // A fresh request must mint a fresh nonce.
 func TestBootstrapScriptCarriesCSPNonceContract(t *testing.T) {
-	env := New(t, WithSecurity(LocalTokenSecurity()))
+	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	headerNonce := func() string {
 		rec := env.Get("/")
-		AssertStatus(t, rec, http.StatusOK)
+		apitest.AssertStatus(t, rec, http.StatusOK)
 
 		header := cspNonceRE.FindStringSubmatch(rec.Header().Get("Content-Security-Policy"))
 		if header == nil {

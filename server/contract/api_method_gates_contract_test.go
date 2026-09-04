@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
 // Two gates decide whether a request is a write: the token requirement in
@@ -25,10 +27,10 @@ var nonMutatingMethods = []string{
 
 // The read-only gate runs before routing, so the path only has to be under
 // /api/ for the token gate to also apply to it.
-var methodGateTestPath = ShelfURL("folders", "blocked")
+var methodGateTestPath = apitest.ShelfURL("folders", "blocked")
 
 func TestAPIReadOnlyModeRejectsExactlyTheMutatingMethodsContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 	env.SetReadOnly(t, true)
 
 	for _, method := range mutatingMethods {
@@ -53,7 +55,7 @@ func TestAPIReadOnlyModeRejectsExactlyTheMutatingMethodsContract(t *testing.T) {
 }
 
 func TestAPITokenIsRequiredForExactlyTheMutatingMethodsContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	// DoRaw sends the request as-is, without the token Do() would attach.
 	for _, method := range mutatingMethods {
@@ -82,10 +84,10 @@ func TestAPITokenIsRequiredForExactlyTheMutatingMethodsContract(t *testing.T) {
 // is a route nobody proved is gated, which is easier to notice in one list than
 // in the absence of a test somewhere else.
 func TestAPIMutatingRoutesAreGatedContract(t *testing.T) {
-	env := New(t, WithSecondShelf(t.TempDir()))
-	book := ImportTextBook(t, env, "Gated", "fiction", "gated.txt", "body")
+	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
+	book := apitest.ImportTextBook(t, env, "Gated", "fiction", "gated.txt", "body")
 	bookID := book.Meta.ID
-	assetPath := AssetURL(bookID, env.CurrentSourceID(t, bookID), "img-0001.png")
+	assetPath := apitest.AssetURL(bookID, env.CurrentSourceID(t, bookID), "img-0001.png")
 
 	cases := []struct {
 		name   string
@@ -93,24 +95,24 @@ func TestAPIMutatingRoutesAreGatedContract(t *testing.T) {
 		url    string
 		body   []byte
 	}{
-		{"book batch", http.MethodPost, BookBatchURL(),
+		{"book batch", http.MethodPost, apitest.BookBatchURL(),
 			[]byte(`{"operation":"trash","book_ids":["book"]}`)},
-		{"book cache export", http.MethodPost, BookCacheExportURL(), nil},
-		{"book copy", http.MethodPost, BookCopiesURL(bookID), []byte("{}")},
-		{"book transfer", http.MethodPost, BookTransfersURL(bookID),
-			[]byte(`{"mode":"copy","target_shelf":"` + SecondShelfID + `"}`)},
-		{"content stat refresh", http.MethodPost, ContentStatsURL(), nil},
-		{"folder transfer", http.MethodPost, FolderTransfersURL(),
-			[]byte(`{"mode":"copy","source_folder":["fiction"],"target_shelf":"` + SecondShelfID + `","target_folder":["imported"]}`)},
-		{"source fingerprints", http.MethodPost, SourceFingerprintsURL(), nil},
-		{"empty trash", http.MethodPost, EmptyTrashURL(), nil},
+		{"book cache export", http.MethodPost, apitest.BookCacheExportURL(), nil},
+		{"book copy", http.MethodPost, apitest.BookCopiesURL(bookID), []byte("{}")},
+		{"book transfer", http.MethodPost, apitest.BookTransfersURL(bookID),
+			[]byte(`{"mode":"copy","target_shelf":"` + apitest.SecondShelfID + `"}`)},
+		{"content stat refresh", http.MethodPost, apitest.ContentStatsURL(), nil},
+		{"folder transfer", http.MethodPost, apitest.FolderTransfersURL(),
+			[]byte(`{"mode":"copy","source_folder":["fiction"],"target_shelf":"` + apitest.SecondShelfID + `","target_folder":["imported"]}`)},
+		{"source fingerprints", http.MethodPost, apitest.SourceFingerprintsURL(), nil},
+		{"empty trash", http.MethodPost, apitest.EmptyTrashURL(), nil},
 		{"asset write", http.MethodPut, assetPath, []byte("x")},
 		{"asset delete", http.MethodDelete, assetPath, nil},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			AssertMutationGated(t, env, tc.method, tc.url, tc.body)
+			apitest.AssertMutationGated(t, env, tc.method, tc.url, tc.body)
 		})
 	}
 }

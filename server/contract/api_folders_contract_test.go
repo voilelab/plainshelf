@@ -7,39 +7,41 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/server"
 )
 
 func TestAPIFolderMoveAndRenameContract(t *testing.T) {
-	env := New(t)
-	created := ImportTextBook(t, env, "Folder Ops", "alpha/beta", "folder.txt", "body")
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Folder Ops", "alpha/beta", "folder.txt", "body")
 
-	rec := env.Post(ShelfURL("folders", "gamma"), nil)
-	AssertStatus(t, rec, http.StatusNoContent)
+	rec := env.Post(apitest.ShelfURL("folders", "gamma"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.Post(ShelfURL("folder-moves"), strings.NewReader(`{"folder":["alpha","beta"],"target_folder":["gamma"]}`))
-	AssertStatus(t, rec, http.StatusNoContent)
+	rec = env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(`{"folder":["alpha","beta"],"target_folder":["gamma"]}`))
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.Patch(ShelfURL("folders", "gamma", "beta"), strings.NewReader(`{"name":"renamed"}`))
-	AssertStatus(t, rec, http.StatusNoContent)
+	rec = env.Patch(apitest.ShelfURL("folders", "gamma", "beta"), strings.NewReader(`{"name":"renamed"}`))
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
-	got := GetJSON[server.Book](t, env, BookURL(created.Meta.ID))
+	got := apitest.GetJSON[server.Book](t, env, apitest.BookURL(created.Meta.ID))
 	if strings.Join(got.Folder, "/") != "gamma/renamed" {
 		t.Fatalf("folder = %#v, want gamma/renamed", got.Folder)
 	}
 
 	// Moving onto a folder that does not exist is a conflict, and a name that is
 	// not a single path segment is a client error.
-	rec = env.Post(ShelfURL("folder-moves"), strings.NewReader(`{"folder":["gamma","renamed"],"target_folder":["missing"]}`))
-	AssertStatus(t, rec, http.StatusConflict)
+	rec = env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(`{"folder":["gamma","renamed"],"target_folder":["missing"]}`))
+	apitest.AssertStatus(t, rec, http.StatusConflict)
 
-	rec = env.Patch(ShelfURL("folders", "gamma", "renamed"), strings.NewReader(`{"name":"bad/name"}`))
-	AssertStatus(t, rec, http.StatusBadRequest)
+	rec = env.Patch(apitest.ShelfURL("folders", "gamma", "renamed"), strings.NewReader(`{"name":"bad/name"}`))
+	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 
 func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
-	env := New(t)
-	book := ImportTextBook(t, env, "Folder Book", "keep", "folder.txt", "body")
+	env := apitest.New(t)
+	book := apitest.ImportTextBook(t, env, "Folder Book", "keep", "folder.txt", "body")
 
 	tests := []struct {
 		name         string
@@ -49,18 +51,18 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 		{
 			name:   "create folder",
 			method: http.MethodPost,
-			path:   ShelfURL("folders", "bad%2F..%2Fesc"),
+			path:   apitest.ShelfURL("folders", "bad%2F..%2Fesc"),
 		},
 		{
 			name:   "move folder",
 			method: http.MethodPost,
-			path:   ShelfURL("folder-moves"),
+			path:   apitest.ShelfURL("folder-moves"),
 			body:   `{"folder":[".."],"target_folder":["beta"]}`,
 		},
 		{
 			name:   "move book to folder",
 			method: http.MethodPatch,
-			path:   BookURL(book.Meta.ID),
+			path:   apitest.BookURL(book.Meta.ID),
 			body:   `{"folder":[".."]}`,
 		},
 		{
@@ -68,7 +70,7 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 			// reject a bad one on the same terms.
 			name:   "create book in folder",
 			method: http.MethodPost,
-			path:   BooksURL(),
+			path:   apitest.BooksURL(),
 			body:   `{"title":"X","folder":[".."]}`,
 		},
 	}
@@ -77,7 +79,7 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := env.Request(tt.method, tt.path, strings.NewReader(tt.body))
 
-			AssertErrorEnvelope(t, rec, http.StatusBadRequest,
+			apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest,
 				"INVALID_FOLDER", "invalid folder name")
 		})
 	}
@@ -86,33 +88,33 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 // The folder routes answer outcomes the error table cannot name as a conflict.
 // Routing them through the table must not turn those into 500s.
 func TestAPIFolderConflictsStillAnswerConflictContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
 	for _, folder := range []string{"alpha", "beta"} {
-		AssertStatus(t, env.Post(ShelfURL("folders", folder), nil), http.StatusNoContent)
+		apitest.AssertStatus(t, env.Post(apitest.ShelfURL("folders", folder), nil), http.StatusNoContent)
 	}
 
 	t.Run("rename onto an existing folder", func(t *testing.T) {
-		rec := env.Patch(ShelfURL("folders", "alpha"), strings.NewReader(`{"name":"beta"}`))
-		AssertStatus(t, rec, http.StatusConflict)
+		rec := env.Patch(apitest.ShelfURL("folders", "alpha"), strings.NewReader(`{"name":"beta"}`))
+		apitest.AssertStatus(t, rec, http.StatusConflict)
 	})
 
 	t.Run("move a folder under itself", func(t *testing.T) {
-		rec := env.Post(ShelfURL("folder-moves"),
+		rec := env.Post(apitest.ShelfURL("folder-moves"),
 			strings.NewReader(`{"folder":["alpha"],"target_folder":["alpha"]}`))
-		AssertStatus(t, rec, http.StatusConflict)
+		apitest.AssertStatus(t, rec, http.StatusConflict)
 	})
 }
 
 // Importing places the book in a folder as well, so a bad one must be refused
 // the same way rather than reported as an import failure.
 func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
-	env := New(t)
+	env := apitest.New(t)
 
-	rec := PostBookImport(t, env,
-		BookUpload("import.txt", PlainTextContentType, "body", [2]string{"folder", ".."}))
+	rec := apitest.PostBookImport(t, env,
+		apitest.BookUpload("import.txt", apitest.PlainTextContentType, "body", [2]string{"folder", ".."}))
 
-	AssertErrorEnvelope(t, rec, http.StatusBadRequest,
+	apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest,
 		"INVALID_FOLDER", "invalid folder name")
 }
 
@@ -121,8 +123,8 @@ func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
 // then never listed again. The shelf error already explains it, so the API must
 // carry that reason out instead of flattening every rejection into one message.
 func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
-	env := New(t)
-	book := ImportTextBook(t, env, "Ignored Folder Book", "keep", "folder.txt", "body")
+	env := apitest.New(t)
+	book := apitest.ImportTextBook(t, env, "Ignored Folder Book", "keep", "folder.txt", "body")
 
 	ignored := []struct {
 		name         string
@@ -132,18 +134,18 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 		{
 			name:   "create folder",
 			method: http.MethodPost,
-			path:   ShelfURL("folders", "%40eaDir"),
+			path:   apitest.ShelfURL("folders", "%40eaDir"),
 		},
 		{
 			name:   "create book in folder",
 			method: http.MethodPost,
-			path:   BooksURL(),
+			path:   apitest.BooksURL(),
 			body:   `{"title":"X","folder":[".backup"]}`,
 		},
 		{
 			name:   "move book to folder",
 			method: http.MethodPatch,
-			path:   BookURL(book.Meta.ID),
+			path:   apitest.BookURL(book.Meta.ID),
 			body:   `{"folder":["lost+found"]}`,
 		},
 	}
@@ -152,8 +154,8 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := env.Request(tt.method, tt.path, strings.NewReader(tt.body))
 
-			AssertStatus(t, rec, http.StatusBadRequest)
-			got := DecodeJSON[ErrorEnvelope](t, rec).Error
+			apitest.AssertStatus(t, rec, http.StatusBadRequest)
+			got := apitest.DecodeJSON[apitest.ErrorEnvelope](t, rec).Error
 			if got.Code != "IGNORED_FOLDER_NAME" {
 				t.Fatalf("error code = %q, want %q", got.Code, "IGNORED_FOLDER_NAME")
 			}
@@ -171,9 +173,9 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 	// A folder that is invalid for any other reason keeps the general message,
 	// so the specific entry must not swallow the table's existing one.
 	t.Run("other invalid folder keeps the general message", func(t *testing.T) {
-		rec := env.Post(ShelfURL("folders", "bad%2F..%2Fesc"), nil)
+		rec := env.Post(apitest.ShelfURL("folders", "bad%2F..%2Fesc"), nil)
 
-		AssertErrorEnvelope(t, rec, http.StatusBadRequest,
+		apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest,
 			"INVALID_FOLDER", "invalid folder name")
 	})
 }
@@ -189,12 +191,12 @@ func TestAPIConfiguredIgnoredFolderNameCarriesTheShelfsReasonContract(t *testing
 		t.Fatalf("write shelf.json: %v", err)
 	}
 
-	env := New(t, WithLibRoot(libRoot))
+	env := apitest.New(t, apitest.WithLibRoot(libRoot))
 
-	rec := env.Post(ShelfURL("folders", "%40Snapshot"), nil)
+	rec := env.Post(apitest.ShelfURL("folders", "%40Snapshot"), nil)
 
-	AssertStatus(t, rec, http.StatusBadRequest)
-	got := DecodeJSON[ErrorEnvelope](t, rec).Error.Message
+	apitest.AssertStatus(t, rec, http.StatusBadRequest)
+	got := apitest.DecodeJSON[apitest.ErrorEnvelope](t, rec).Error.Message
 	for _, want := range []string{"@Snapshot", "Synology snapshot directory"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("message = %q, want it to contain %q", got, want)

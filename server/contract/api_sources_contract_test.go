@@ -6,50 +6,23 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/contract/apitest"
+
 	"github.com/voilelab/plainshelf/server"
 )
 
-// CreateBookSource creates an empty source on a book and returns its ID, which is
-// how these tests get a second source to delete or activate.
-func CreateBookSource(t *testing.T, env *Env, bookID string) string {
-	t.Helper()
-
-	rec := env.Post(BookURL(bookID, "sources"), nil)
-	AssertStatus(t, rec, http.StatusOK)
-	AssertJSONContentType(t, rec)
-
-	created := DecodeJSON[map[string]any](t, rec)
-	sourceID, _ := created["id"].(string)
-	if sourceID == "" {
-		t.Fatalf("expected non-empty source id in response, got %#v", created)
-	}
-	return sourceID
-}
-
-// SourceIDs lists the IDs the sources endpoint reports for a book.
-func SourceIDs(t *testing.T, env *Env, bookID string) []string {
-	t.Helper()
-
-	var ids []string
-	for _, source := range GetJSON[[]map[string]any](t, env, BookURL(bookID, "sources")) {
-		id, _ := source["id"].(string)
-		ids = append(ids, id)
-	}
-	return ids
-}
-
 func TestAPICreateBookSourceContract(t *testing.T) {
-	env := New(t)
-	created := ImportTextBook(t, env, "Source Book", "", "src.txt", "content")
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Source Book", "", "src.txt", "content")
 
 	// Creating a source on a nonexistent book should return 404.
-	rec := env.Post(BookURL("no-such-book", "sources"), nil)
-	AssertStatus(t, rec, http.StatusNotFound)
+	rec := env.Post(apitest.BookURL("no-such-book", "sources"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
 
 	// Creating a source returns 200 with the new source metadata, and the new
 	// source appears in the list.
-	newSourceID := CreateBookSource(t, env, created.Meta.ID)
-	if ids := SourceIDs(t, env, created.Meta.ID); !slices.Contains(ids, newSourceID) {
+	newSourceID := apitest.CreateBookSource(t, env, created.Meta.ID)
+	if ids := apitest.SourceIDs(t, env, created.Meta.ID); !slices.Contains(ids, newSourceID) {
 		t.Fatalf("newly created source %q not found in list: %#v", newSourceID, ids)
 	}
 
@@ -57,10 +30,10 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 	// multipart data through WebKit's custom-scheme handler. Creation and
 	// optional activation still happen atomically in one request.
 	derivedBody := `{"content":"# Book\n\n## One\nBody 🍥","format":"md","comment":"derived in contract test","set_current":true}`
-	rec = env.RequestTyped(http.MethodPost, BookURL(created.Meta.ID, "sources"),
+	rec = env.RequestTyped(http.MethodPost, apitest.BookURL(created.Meta.ID, "sources"),
 		"application/json; charset=utf-8", strings.NewReader(derivedBody))
-	AssertStatus(t, rec, http.StatusOK)
-	derived := DecodeJSON[map[string]any](t, rec)
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	derived := apitest.DecodeJSON[map[string]any](t, rec)
 	derivedID, _ := derived["id"].(string)
 	if derived["format"] != "md" || derived["schema_version"] != float64(1) {
 		t.Fatalf("derived source metadata = %#v, want schema 1 Markdown", derived)
@@ -69,15 +42,15 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 		t.Fatalf("derived source comment = %#v", derived["comment"])
 	}
 
-	contentRec := env.Get(SourceURL(created.Meta.ID, derivedID, "content"))
-	AssertStatus(t, contentRec, http.StatusOK)
+	contentRec := env.Get(apitest.SourceURL(created.Meta.ID, derivedID, "content"))
+	apitest.AssertStatus(t, contentRec, http.StatusOK)
 	if got := contentRec.Body.String(); got != "# Book\n\n## One\nBody 🍥" {
 		t.Fatalf("derived source content = %q", got)
 	}
 
 	// Keep accepting multipart requests from clients released before the JSON
 	// transport was introduced.
-	legacyUpload := FormUpload{
+	legacyUpload := apitest.FormUpload{
 		Fields: [][2]string{
 			{"format", "txt"},
 			{"comment", "legacy multipart client"},
@@ -87,52 +60,52 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 		ContentType: "application/octet-stream",
 		Content:     "legacy body",
 	}
-	rec = env.Do(legacyUpload.Request(t, http.MethodPost, BookURL(created.Meta.ID, "sources")))
-	AssertStatus(t, rec, http.StatusOK)
+	rec = env.Do(legacyUpload.Request(t, http.MethodPost, apitest.BookURL(created.Meta.ID, "sources")))
+	apitest.AssertStatus(t, rec, http.StatusOK)
 
-	activated := GetJSON[server.Book](t, env, BookURL(created.Meta.ID))
+	activated := apitest.GetJSON[server.Book](t, env, apitest.BookURL(created.Meta.ID))
 	if activated.Meta == nil || activated.Meta.CurrentSource != derivedID || activated.Meta.Format != "md" {
 		t.Fatalf("activated book = %#v, want current derived Markdown source", activated.Meta)
 	}
 }
 
 func TestAPIDeleteBookSourceContract(t *testing.T) {
-	env := New(t)
-	created := ImportTextBook(t, env, "Delete Source Book", "", "del.txt", "content")
-	newSourceID := CreateBookSource(t, env, created.Meta.ID)
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Delete Source Book", "", "del.txt", "content")
+	newSourceID := apitest.CreateBookSource(t, env, created.Meta.ID)
 
 	// Deleting the source should succeed, and it should leave the list.
-	rec := env.Delete(SourceURL(created.Meta.ID, newSourceID))
-	AssertStatus(t, rec, http.StatusNoContent)
-	if ids := SourceIDs(t, env, created.Meta.ID); slices.Contains(ids, newSourceID) {
+	rec := env.Delete(apitest.SourceURL(created.Meta.ID, newSourceID))
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
+	if ids := apitest.SourceIDs(t, env, created.Meta.ID); slices.Contains(ids, newSourceID) {
 		t.Fatalf("deleted source %q still present in list", newSourceID)
 	}
 
 	// Deleting a nonexistent source, or a source of a nonexistent book, is a 404.
-	rec = env.Delete(SourceURL(created.Meta.ID, "nonexistent-source"))
-	AssertStatus(t, rec, http.StatusNotFound)
-	rec = env.Delete(SourceURL("no-such-book", newSourceID))
-	AssertStatus(t, rec, http.StatusNotFound)
+	rec = env.Delete(apitest.SourceURL(created.Meta.ID, "nonexistent-source"))
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
+	rec = env.Delete(apitest.SourceURL("no-such-book", newSourceID))
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // TestAPIDeleteBookSourceCommentContract pins the one thing a client may do to
 // an import note: remove it. The note is generated by the importer or a
 // conversion, so the API offers deletion and no rewrite.
 func TestAPIDeleteBookSourceCommentContract(t *testing.T) {
-	env := New(t)
-	created := ImportTextBook(t, env, "Comment Source Book", "", "note.txt", "content")
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Comment Source Book", "", "note.txt", "content")
 
 	body := `{"content":"noted","format":"txt","comment":"Regex chapter conversion of 20260523-234949"}`
-	rec := env.RequestTyped(http.MethodPost, BookURL(created.Meta.ID, "sources"),
+	rec := env.RequestTyped(http.MethodPost, apitest.BookURL(created.Meta.ID, "sources"),
 		"application/json; charset=utf-8", strings.NewReader(body))
-	AssertStatus(t, rec, http.StatusOK)
-	sourceID, _ := DecodeJSON[map[string]any](t, rec)["id"].(string)
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	sourceID, _ := apitest.DecodeJSON[map[string]any](t, rec)["id"].(string)
 
-	rec = env.Delete(SourceURL(created.Meta.ID, sourceID, "comment"))
-	AssertStatus(t, rec, http.StatusNoContent)
+	rec = env.Delete(apitest.SourceURL(created.Meta.ID, sourceID, "comment"))
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
 	// The note is gone from the source, and nothing else about it moved.
-	meta := GetJSON[map[string]any](t, env, SourceURL(created.Meta.ID, sourceID))
+	meta := apitest.GetJSON[map[string]any](t, env, apitest.SourceURL(created.Meta.ID, sourceID))
 	if meta["comment"] != "" {
 		t.Fatalf("comment after delete = %#v, want empty", meta["comment"])
 	}
@@ -145,45 +118,45 @@ func TestAPIDeleteBookSourceCommentContract(t *testing.T) {
 
 	// Deleting a note that is already gone is the same no-op success, so a
 	// client that retries does not have to tell the two cases apart.
-	AssertStatus(t, env.Delete(SourceURL(created.Meta.ID, sourceID, "comment")), http.StatusNoContent)
+	apitest.AssertStatus(t, env.Delete(apitest.SourceURL(created.Meta.ID, sourceID, "comment")), http.StatusNoContent)
 
 	// A nonexistent source, or a nonexistent book, is a 404.
-	AssertStatus(t, env.Delete(SourceURL(created.Meta.ID, "nonexistent-source", "comment")), http.StatusNotFound)
-	AssertStatus(t, env.Delete(SourceURL("no-such-book", sourceID, "comment")), http.StatusNotFound)
+	apitest.AssertStatus(t, env.Delete(apitest.SourceURL(created.Meta.ID, "nonexistent-source", "comment")), http.StatusNotFound)
+	apitest.AssertStatus(t, env.Delete(apitest.SourceURL("no-such-book", sourceID, "comment")), http.StatusNotFound)
 }
 
 func TestAPISetCurrentBookSourceContract(t *testing.T) {
-	env := New(t)
-	created := ImportTextBook(t, env, "Set Current Source Book", "", "src.txt", "content")
-	newSourceID := CreateBookSource(t, env, created.Meta.ID)
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Set Current Source Book", "", "src.txt", "content")
+	newSourceID := apitest.CreateBookSource(t, env, created.Meta.ID)
 
 	// Setting the current source should succeed.
-	rec := env.Put(SourceURL(created.Meta.ID, newSourceID, "current"), nil)
-	AssertStatus(t, rec, http.StatusNoContent)
+	rec := env.Put(apitest.SourceURL(created.Meta.ID, newSourceID, "current"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
 	// The book should reflect the new current source.
-	bookData := GetJSON[map[string]any](t, env, BookURL(created.Meta.ID))
+	bookData := apitest.GetJSON[map[string]any](t, env, apitest.BookURL(created.Meta.ID))
 	meta, _ := bookData["meta"].(map[string]any)
 	if currentSource, _ := meta["current_source"].(string); currentSource != newSourceID {
 		t.Fatalf("expected current_source %q, got %q", newSourceID, currentSource)
 	}
 
 	// A nonexistent source, or a nonexistent book, is a 404.
-	rec = env.Put(SourceURL(created.Meta.ID, "nonexistent-source", "current"), nil)
-	AssertStatus(t, rec, http.StatusNotFound)
-	rec = env.Put(SourceURL("no-such-book", newSourceID, "current"), nil)
-	AssertStatus(t, rec, http.StatusNotFound)
+	rec = env.Put(apitest.SourceURL(created.Meta.ID, "nonexistent-source", "current"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
+	rec = env.Put(apitest.SourceURL("no-such-book", newSourceID, "current"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 func TestAPIRefreshBookSourceMetaContract(t *testing.T) {
-	env := New(t)
-	created := ImportTextBook(t, env, "Refresh Source", "", "refresh.txt", "line one\nline two\nline three")
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Refresh Source", "", "refresh.txt", "line one\nline two\nline three")
 	sourceID := created.Meta.CurrentSource
 
-	rec := env.Post(SourceURL(created.Meta.ID, sourceID, "refresh"), nil)
-	AssertStatus(t, rec, http.StatusOK)
-	AssertJSONContentType(t, rec)
-	meta := DecodeJSON[map[string]any](t, rec)
+	rec := env.Post(apitest.SourceURL(created.Meta.ID, sourceID, "refresh"), nil)
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	apitest.AssertJSONContentType(t, rec)
+	meta := apitest.DecodeJSON[map[string]any](t, rec)
 	if id, _ := meta["id"].(string); id != sourceID {
 		t.Fatalf("refreshed source id = %q, want %q", id, sourceID)
 	}
@@ -195,72 +168,60 @@ func TestAPIRefreshBookSourceMetaContract(t *testing.T) {
 	}
 
 	// Refreshing a nonexistent source, or a source of a nonexistent book, is a 404.
-	rec = env.Post(SourceURL(created.Meta.ID, "nonexistent", "refresh"), nil)
-	AssertStatus(t, rec, http.StatusNotFound)
-	rec = env.Post(SourceURL("no-such-book", sourceID, "refresh"), nil)
-	AssertStatus(t, rec, http.StatusNotFound)
-}
-
-// CurrentSourceOf reports the pointer the book endpoint publishes, which is what
-// a client reads back after a source is deleted.
-func CurrentSourceOf(t *testing.T, env *Env, bookID string) string {
-	t.Helper()
-
-	book := GetJSON[server.Book](t, env, BookURL(bookID))
-	if book.Meta == nil {
-		t.Fatalf("book %s carried no meta", bookID)
-	}
-	return book.Meta.CurrentSource
+	rec = env.Post(apitest.SourceURL(created.Meta.ID, "nonexistent", "refresh"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
+	rec = env.Post(apitest.SourceURL("no-such-book", sourceID, "refresh"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // TestAPIDeleteCurrentBookSourceContract pins the promise that deleting the
 // active source leaves a readable book: the pointer moves to a source that
 // exists instead of being left dangling, which used to fail every read.
 func TestAPIDeleteCurrentBookSourceContract(t *testing.T) {
-	env := New(t)
-	created := ImportTextBook(t, env, "Delete Current Source", "", "cur.txt", "imported body")
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Delete Current Source", "", "cur.txt", "imported body")
 	importedID := created.Meta.CurrentSource
 
-	newSourceID := CreateBookSource(t, env, created.Meta.ID)
-	rec := env.Put(SourceURL(created.Meta.ID, newSourceID, "current"), nil)
-	AssertStatus(t, rec, http.StatusNoContent)
+	newSourceID := apitest.CreateBookSource(t, env, created.Meta.ID)
+	rec := env.Put(apitest.SourceURL(created.Meta.ID, newSourceID, "current"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.Delete(SourceURL(created.Meta.ID, newSourceID))
-	AssertStatus(t, rec, http.StatusNoContent)
+	rec = env.Delete(apitest.SourceURL(created.Meta.ID, newSourceID))
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
-	if got := CurrentSourceOf(t, env, created.Meta.ID); got != importedID {
+	if got := apitest.CurrentSourceOf(t, env, created.Meta.ID); got != importedID {
 		t.Fatalf("current_source = %q, want the surviving source %q", got, importedID)
 	}
-	if ids := SourceIDs(t, env, created.Meta.ID); !slices.Equal(ids, []string{importedID}) {
+	if ids := apitest.SourceIDs(t, env, created.Meta.ID); !slices.Equal(ids, []string{importedID}) {
 		t.Fatalf("sources = %#v, want only %q", ids, importedID)
 	}
-	AssertStatus(t, env.Get(BookURL(created.Meta.ID, "content")), http.StatusOK)
+	apitest.AssertStatus(t, env.Get(apitest.BookURL(created.Meta.ID, "content")), http.StatusOK)
 }
 
 // TestAPIDeleteLastBookSourceContract pins the other half: a book always keeps
 // at least one source, so deleting the only one leaves an empty replacement
 // rather than a book with nothing to read.
 func TestAPIDeleteLastBookSourceContract(t *testing.T) {
-	env := New(t)
-	created := ImportTextBook(t, env, "Delete Last Source", "", "last.txt", "imported body")
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Delete Last Source", "", "last.txt", "imported body")
 	importedID := created.Meta.CurrentSource
 
-	rec := env.Delete(SourceURL(created.Meta.ID, importedID))
-	AssertStatus(t, rec, http.StatusNoContent)
+	rec := env.Delete(apitest.SourceURL(created.Meta.ID, importedID))
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
-	ids := SourceIDs(t, env, created.Meta.ID)
+	ids := apitest.SourceIDs(t, env, created.Meta.ID)
 	if len(ids) != 1 {
 		t.Fatalf("sources = %#v, want exactly the empty replacement", ids)
 	}
 	if ids[0] == importedID {
 		t.Fatalf("replacement reused the deleted source ID %q", importedID)
 	}
-	if got := CurrentSourceOf(t, env, created.Meta.ID); got != ids[0] {
+	if got := apitest.CurrentSourceOf(t, env, created.Meta.ID); got != ids[0] {
 		t.Fatalf("current_source = %q, want the replacement %q", got, ids[0])
 	}
 
-	content := env.Get(BookURL(created.Meta.ID, "content"))
-	AssertStatus(t, content, http.StatusOK)
+	content := env.Get(apitest.BookURL(created.Meta.ID, "content"))
+	apitest.AssertStatus(t, content, http.StatusOK)
 	if body := content.Body.String(); body != "" {
 		t.Fatalf("content = %q, want the replacement to be empty", body)
 	}
