@@ -31,7 +31,9 @@ docker run --rm \
     exposed port: any client that can reach the port may `GET /` and read the
     token straight out of the served page, then write. Do not expose
     `0.0.0.0:20000` to untrusted networks unless you put a real boundary
-    (reverse proxy auth or a VPN edge) in front of the container.
+    (reverse proxy auth or a VPN edge) in front of the container. [Deployment
+    and threat model](../deployment-and-threat-model.md) covers which
+    deployments that leaves.
 
 !!! warning "`mode: none` on a non-loopback address"
     With `app_conf.security.mode: "none"`, the API answers every request —

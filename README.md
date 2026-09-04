@@ -35,11 +35,10 @@ multi-user accounts, cloud sync, public sharing, and plugins are outside the
 current scope. The Android client can read a shelf held on pCloud, but that is a
 read-only storage backend, not sync: nothing is written back.
 
-EPUB is supported at import time only: the text is extracted and stored as a
-normal plain-text or Markdown book, and the original `.epub` is not kept.
-By default a Markdown import keeps embedded illustrations in
-`sources/{source-id}/assets/`, linked where they appeared; the ones the shelf
-cannot store are dropped and counted.
+EPUB is an import format, not a storage format: the text is extracted and stored
+as an ordinary plain-text or Markdown book, and the original `.epub` is not kept.
+[EPUB Import](docs/epub-import.md) covers what survives the conversion, including
+the illustrations a Markdown import keeps.
 
 ## Install
 
