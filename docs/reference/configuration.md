@@ -231,19 +231,19 @@ all take the same shape. Each is an independent logger with its own destination.
 |---|---|---|---|
 | `type` | string | `stderr` | `stderr`, `stdout`, `none` (discard), `filename` (one file, appended forever) or `filename_rotate` (one file per day). Any other value fails startup. |
 | `filename` | string | none | The file to append to. Used only by `type: filename`. |
-| `dir` | string | none (required by `filename_rotate`) | Directory holding the rotated files, created if missing. Used only by `type: filename_rotate`, which needs it: see the warning below. |
+| `dir` | string | none (required by `filename_rotate`) | Directory holding the rotated files, created if missing. Used only by `type: filename_rotate`, which needs it: leaving it empty fails startup, because there is no working directory the log files could safely default into. |
 | `prefix` | string | `log` | Name prefix of the rotated files, which are `{prefix}-YYYY-MM-DD.log`. Used only by `type: filename_rotate`. |
 | `retention_days` | int | `30` | Delete rotated files older than this many days. `0` keeps every file forever; a negative value fails startup. Used only by `type: filename_rotate`. |
 
 Only `filename` and `filename_rotate` produce files the **Logs** page can list
 and read; `stderr`, `stdout` and `none` leave it with nothing to show.
 
-!!! warning "`filename_rotate` without `dir` loses every log line"
+!!! warning "`filename_rotate` without `dir` fails startup"
     The rotating writer creates its directory before opening the day's file, and
-    creating the empty path fails. Startup still succeeds — nothing validates
-    the log destination, and a logger has nowhere to report that it cannot
-    write — so the server runs normally and writes no log at all. Both shipped
-    example configs set `dir`; if you write your own, set it too.
+    creating the empty path fails — silently, because a logger has nowhere to
+    report that it cannot write. So the server refuses to start instead, with
+    `missing log dir: filename_rotate requires dir`. Both shipped example
+    configs set `dir`; if you write your own, set it too.
 
 Deletion happens at rotation — the first log line written on a new day — so an
 idle or stopped server deletes nothing. Nothing else ever removes these files.
