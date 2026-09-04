@@ -28,14 +28,14 @@ so an edit that leaves both unchanged is not noticed by that check — and neith
 is a change to a cover or a source file, which does not move `book.json` at all.
 A full scan on a shelf a PlainShelf server reads is different: it reopens every
 `book.json` outright rather than trusting its stat, so **Update book list**,
-which forces one, does pick these up. A client that reads a shelf directly is
-the exception — it keeps its own metadata cache keyed on size and modification
-time, so even an update reuses the stale copy; the pCloud client below is the
-one such reader today. What the button cannot do is make a server-read change
-appear before it is pressed — that is the timer limit above, so between scans
-cached state derived from a book can stay stale even while the changed file
-itself is served correctly. The cover and source contents are not themselves
-cached.
+which forces one, does pick these up. A client that reads a shelf directly is the
+exception — it keeps its own metadata cache keyed on size and modification time,
+so even an update reuses the stale copy; the pCloud client below is the one such
+reader today.
+
+What the button cannot do is find such an edit before you press it. Until then
+the stale reading stands, even though the file itself is served correctly when
+something asks for it — covers and source text are read from disk, never cached.
 
 On a single desktop machine those two limits are the whole story. The setups
 below each add something to them.

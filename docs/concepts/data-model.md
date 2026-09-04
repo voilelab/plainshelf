@@ -337,8 +337,8 @@ high-latency or metered mobile connection actually pays for — unpacking and
 storing each figure as it goes so an image-heavy book never holds them all in
 memory at once. When the server is too old to offer that bundle, or the bundled
 request fails, the download falls back to fetching each image on its own. A book
-downloaded before this existed keeps working and shows alt text where its
-pictures would be; downloading it again stores them.
+downloaded by a build that stored no illustrations keeps working and shows alt
+text where its pictures would be; downloading it again stores them.
 
 The bundle is a read-only endpoint beside the per-image one — a source's
 `assets.zip`, taking an optional list of file names so the client packs only

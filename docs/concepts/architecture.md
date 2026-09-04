@@ -170,7 +170,7 @@ folded in by projection; progress recorded in the desktop app does not appear
 there because it never carried that book's real shelf id. Nothing here is written
 into the shelf; reading progress stays device-local convenience state.
 
-Two more details the diagram cannot show:
+The diagram cannot show either of these:
 
 - **Mutations are queued.** Every change is a read-modify-write chained behind
   the previous one. Without that, opening the reader while a reading-time tick

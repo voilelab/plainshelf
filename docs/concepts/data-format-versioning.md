@@ -97,7 +97,7 @@ Open the same shelf again with a build old enough to still expect `.trash/` and
 the trashed books, now under `trash/`, drop out of that build's trash view until
 they are moved back by hand.
 
-This has two consequences worth knowing:
+Which means:
 
 - A shelf can sit half-upgraded indefinitely. Some books carry
   `schema_version`, others do not, and that is a perfectly normal state.
@@ -685,9 +685,9 @@ more than it saves.
 #### `shelf.json` is not that manifest
 
 A shelf may carry a [`shelf.json`](data-model.md#shelfjson) at its root, and it
-is worth being explicit that this does not reverse the decision above. It holds
-settings the user wrote — currently which directories the scanners skip — and
-nothing else reads it as a statement about the shelf's shape:
+does not reverse the decision above. It holds settings the user wrote —
+currently which directories the scanners skip — and nothing else reads it as a
+statement about the shelf's shape:
 
 - It is optional, and a shelf without one is not an older shelf. Absent means
   "the defaults", not "an earlier layout".
@@ -702,8 +702,7 @@ above; the presence of a settings file at the shelf root is not that argument.
 
 ### What this costs
 
-Presence detection instead of a manifest is not free, and the cost is stated
-plainly here so the next layout change is made with eyes open:
+Presence detection instead of a manifest is not free:
 
 - **A shelf's layout generation is not readable from its data.** You cannot open
   a shelf and learn which layout it is on; you infer it from which directories
@@ -727,14 +726,8 @@ changelog entry describing its cross-version effect, as the `.trash/` → `trash
 rename does. If that frequency ever rises enough that the bespoke conditions
 become a burden, revisit this decision — an `app/`-external manifest is the escape
 hatch — but that is a future call made on evidence, and taking it would not
-retrofit any existing shelf.
-
-### This changes no existing behavior
-
-This is a written policy, not a code change. The `.trash/` → `trash/` presence
-detection keeps working exactly as it does now; no existing shelf's migration
-path moves, and no shelf gains or needs a layout marker. A shelf with no such
-marker is not a shelf waiting to be upgraded — it is the only kind there is.
+retrofit any existing shelf. A shelf carrying no layout marker is not one waiting
+to be upgraded; it is the only kind there is.
 
 ---
 

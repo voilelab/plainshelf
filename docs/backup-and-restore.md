@@ -362,8 +362,8 @@ read-only](concepts/shelf-cache-and-io.md#opening-a-shelf-read-only).
 ## Reading progress, history, and time
 
 Since v0.9.0 these three records live on the device that did the reading, not on
-the server. That is what makes them invisible to every server-side backup, so it
-is worth knowing exactly where they are:
+the server. That is what makes them invisible to every server-side backup, so
+here is exactly where they are:
 
 | Client | Where | Notes |
 |---|---|---|
@@ -371,7 +371,7 @@ is worth knowing exactly where they are:
 | Desktop | `reading_progress.json`, `read_history.json`, `reading_stats.json` in the app data directory | Deliberately files, not WebView storage, so clearing WebView data does not take them. |
 | Android | On-device, per book | Not covered by a shelf backup. |
 
-Two consequences:
+What follows from that:
 
 - **An origin is a scheme, host, and port.** The browser scopes storage to the
   origin the UI was served from, and PlainShelf keys each record by the shelf

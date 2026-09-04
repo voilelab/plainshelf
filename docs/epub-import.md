@@ -43,10 +43,9 @@ Illustrations are stored beside the converted text as `img-0001.png`,
 ```
 
 They are kept for the Markdown layout only. Plain text has no image syntax, so
-that layout drops them as it always did. An image used in several chapters is
-stored once.
+that layout drops them. An image used in several chapters is stored once.
 
-Not every illustration can be kept. These are dropped and counted as before:
+Not every illustration can be kept. These are dropped, and counted:
 
 - formats the shelf does not serve — anything that is not `.jpg`, `.jpeg`,
   `.png`, `.webp`, or `.gif`, **including SVG**;
