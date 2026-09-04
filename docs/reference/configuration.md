@@ -47,20 +47,28 @@ its own block names.
 
 ## `server_conf`
 
-The HTTP listener. All three keys are required — an empty duration is a parse
-error, not a default.
+The HTTP listener. Both timeouts are required: an empty duration is a parse
+error, not a default, and the server refuses to start.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
-| `addr` | string | none (required) | Listen address, `host:port`. Keep it on loopback (`127.0.0.1:20000`) unless a real access boundary fronts the server. |
+| `addr` | string | `:80`, on every interface | Listen address, `host:port`. Always set it, and keep it on loopback (`127.0.0.1:20000`) unless a real access boundary fronts the server — see the warning below. |
 | `read_timeout` | duration | none (required) | Maximum time to read a request, including its body. Bounds how long a slow upload may hold a connection. |
 | `write_timeout` | duration | none (required) | Maximum time to write a response. Raise it (e.g. `300s`) when large books are served over a slow mount, or transfers are cut off mid-response. |
 
 Durations use Go syntax: `60s`, `5m`, `1h30m`.
 
-`addr` is also read by the security check: if it is not a loopback address,
-`app_conf.security.mode` must be set explicitly. See
+`addr` is also read by the security check: it must be a loopback address unless
+`app_conf.security.mode` is set explicitly. See
 [Deployment and threat model](../deployment-and-threat-model.md).
+
+!!! warning "An omitted `addr` is not a startup error"
+    Leaving `addr` out does not fail. The Go HTTP server falls back to `:http`,
+    so PlainShelf binds **port 80 on every interface** — the widest exposure
+    there is. The loopback requirement above does not catch it either: an
+    explicit `security.mode` satisfies that check whatever `addr` says, and an
+    empty `addr` is not a loopback address, so the two together let the
+    omission through. Set `addr` explicitly in every config file.
 
 ```yaml
 server_conf:
@@ -223,12 +231,19 @@ all take the same shape. Each is an independent logger with its own destination.
 |---|---|---|---|
 | `type` | string | `stderr` | `stderr`, `stdout`, `none` (discard), `filename` (one file, appended forever) or `filename_rotate` (one file per day). Any other value fails startup. |
 | `filename` | string | none | The file to append to. Used only by `type: filename`. |
-| `dir` | string | working directory | Directory holding the rotated files. Used only by `type: filename_rotate`. |
+| `dir` | string | none (required by `filename_rotate`) | Directory holding the rotated files, created if missing. Used only by `type: filename_rotate`, which needs it: see the warning below. |
 | `prefix` | string | `log` | Name prefix of the rotated files, which are `{prefix}-YYYY-MM-DD.log`. Used only by `type: filename_rotate`. |
 | `retention_days` | int | `30` | Delete rotated files older than this many days. `0` keeps every file forever; a negative value fails startup. Used only by `type: filename_rotate`. |
 
 Only `filename` and `filename_rotate` produce files the **Logs** page can list
 and read; `stderr`, `stdout` and `none` leave it with nothing to show.
+
+!!! warning "`filename_rotate` without `dir` loses every log line"
+    The rotating writer creates its directory before opening the day's file, and
+    creating the empty path fails. Startup still succeeds — nothing validates
+    the log destination, and a logger has nowhere to report that it cannot
+    write — so the server runs normally and writes no log at all. Both shipped
+    example configs set `dir`; if you write your own, set it too.
 
 Deletion happens at rotation — the first log line written on a new day — so an
 idle or stopped server deletes nothing. Nothing else ever removes these files.
@@ -238,11 +253,12 @@ for the application, worker and shelf loggers while the server runs; see
 
 ## A complete example
 
-Every key on this page in one file, at the value it takes by default. The log
-destinations are the exception: the default is `stderr`, which leaves the
-**Logs** page nothing to list, so they follow the shipped example instead. Copy
-the parts you need rather than running this as it stands — the paths are
-relative to the working directory.
+Every key on this page in one file, at the value it takes by default. Two
+exceptions, both because the default is not what you want written down:
+`addr`, whose default binds port 80 on every interface, and the log
+destinations, whose default `stderr` leaves the **Logs** page nothing to list.
+Both follow the shipped example instead. Copy the parts you need rather than
+running this as it stands — the paths are relative to the working directory.
 
 ```yaml
 logger:
