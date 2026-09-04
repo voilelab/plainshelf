@@ -191,6 +191,14 @@ Read the relevant section before working in that area. Add entries according to
   outside the smoke set is unproven until `just test-e2e` runs locally or the
   night after it merges reports; a nightly failure opens one issue rather than
   landing on whoever pushes next. (`docs/development/testing-levels.md`)
+- **The suite is cheap enough to run before pushing:** the whole of it is 37
+  cases and took 1m21s wall clock in the cloud container (2 workers; 141s of
+  test bodies), on top of 3s for `npm --prefix e2e ci` and 25s for the server
+  binary — `playwright install` is skipped entirely, per the browser-revision
+  entry above. So "e2e is too heavy for routine verification"
+  (`00-diagnosis.md`, written before the container had a preinstalled browser)
+  no longer holds: for a change outside the smoke set, run it rather than
+  waiting on the nightly. Measured 2026-09-04 on PSW-99.
 - **E2E server ports are per worker, not per kernel:** `getFreePort()` takes a
   port from a band derived from `TEST_PARALLEL_INDEX` instead of asking for port
   0. Asking for 0 lets two parallel workers be handed the same number, and the
