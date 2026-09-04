@@ -2,6 +2,7 @@ package bookpkg
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -150,5 +151,51 @@ func TestOpenSourceRejectsDuplicateMemberAndNamesTheFile(t *testing.T) {
 	}
 	if got := err.Error(); !strings.Contains(got, `"format"`) {
 		t.Errorf("error does not name the duplicated member: %s", got)
+	}
+}
+
+// failingReadFS opens book.json successfully and then fails the read, which is
+// what a disconnected network mount does. json.UnmarshalRead reports that the
+// same way it reports a syntax error, so only the classification in
+// MetadataReadError keeps the two apart.
+type failingReadFS struct {
+	fsutil.FS
+	failing string
+	err     error
+}
+
+func (f failingReadFS) Open(name string) (fs.File, error) {
+	file, err := f.FS.Open(name)
+	if err != nil || name != f.failing {
+		return file, err
+	}
+	return failingFile{File: file, err: f.err}, nil
+}
+
+type failingFile struct {
+	fs.File
+	err error
+}
+
+func (f failingFile) Read([]byte) (int, error) { return 0, f.err }
+
+// A file this build could not finish reading is not a file to repair. Reporting
+// it as malformed would send a user editing a perfectly good book.json, and the
+// API would answer 409 "repair the file" for a mount that dropped.
+func TestOpenBookKeepsAnIOFailureOutOfTheMalformedReport(t *testing.T) {
+	root, bookFolder := newBookWithRawMeta(t, `{"schema_version": 1, "id": "hand-edited"}`)
+
+	diskErr := errors.New("input/output error")
+	failing := failingReadFS{FS: root, failing: path.Join(bookFolder, BookMetaFile), err: diskErr}
+
+	_, err := Open(failing, newLoggerForTest(), bookFolder)
+	if err == nil {
+		t.Fatal("Expected a failing read to fail the open, got no error")
+	}
+	if !errors.Is(err, diskErr) {
+		t.Errorf("errors.Is(err, diskErr) = false, err = %v", err)
+	}
+	if errors.Is(err, ErrMalformedMetadata) {
+		t.Errorf("a read failure was reported as malformed metadata: %v", err)
 	}
 }

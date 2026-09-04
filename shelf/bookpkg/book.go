@@ -851,7 +851,7 @@ func readBookMeta(rt fsutil.ReadFS, bookPath string) (*BookMeta, error) {
 
 	var meta BookMeta
 	if err := json.UnmarshalRead(metaFile, &meta); err != nil {
-		return nil, util.Errorf("%w", malformedMetadata(metaPath, err))
+		return nil, util.Errorf("%w", MetadataReadError(metaPath, err))
 	}
 
 	return &meta, nil

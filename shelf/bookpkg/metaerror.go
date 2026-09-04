@@ -1,6 +1,9 @@
 package bookpkg
 
 import (
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"errors"
 	"fmt"
 
 	"github.com/voilelab/plainshelf/internal/util"
@@ -41,11 +44,27 @@ func (e *MalformedMetadataError) Unwrap() []error {
 	return []error{ErrMalformedMetadata, e.Err}
 }
 
-// malformedMetadata wraps a decode failure on file. It returns nil for a nil
-// error so a call site can wrap unconditionally.
-func malformedMetadata(file string, err error) error {
+// MetadataReadError attributes a failed read of one of those files.
+//
+// It answers with a [MalformedMetadataError] only when the decoder refused what
+// the file contains, and hands err back untouched otherwise. json.UnmarshalRead
+// reports a failure of the reader underneath it the same way it reports a
+// syntax error, and the two are not the same thing to a user: a read that died
+// mid-file on a disconnected SMB share is not a file anyone can repair, so
+// answering it with "repair the file" - and with a 409 rather than the internal
+// error it is - would send them after a cause that does not exist. Only
+// jsontext and json errors describe the bytes; everything else came from below.
+//
+// It returns nil for a nil error so a call site can wrap unconditionally.
+func MetadataReadError(file string, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &MalformedMetadataError{File: file, Err: err}
+
+	var syntactic *jsontext.SyntacticError
+	var semantic *json.SemanticError
+	if errors.As(err, &syntactic) || errors.As(err, &semantic) {
+		return &MalformedMetadataError{File: file, Err: err}
+	}
+	return err
 }

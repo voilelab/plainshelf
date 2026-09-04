@@ -418,7 +418,7 @@ func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {
 
 	var meta trashMeta
 	if err := json.UnmarshalRead(fp, &meta); err != nil {
-		return nil, util.Errorf("%w", &MalformedMetadataError{File: metaPath, Err: err})
+		return nil, util.Errorf("%w", bookpkg.MetadataReadError(metaPath, err))
 	}
 
 	return &meta, nil
