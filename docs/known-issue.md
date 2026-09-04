@@ -33,9 +33,10 @@ exception — it keeps its own metadata cache keyed on size and modification tim
 so even an update reuses the stale copy; the pCloud client below is the one such
 reader today.
 
-What the button cannot do is find such an edit before you press it. Until then
-the stale reading stands, even though the file itself is served correctly when
-something asks for it — covers and source text are read from disk, never cached.
+It takes a full scan to find such an edit, whether the timer starts one or you
+force one with the button. Until that scan the stale reading stands — though the
+file itself is served correctly when something asks for it, since covers and
+source text are read from disk, never cached.
 
 On a single desktop machine those two limits are the whole story. The setups
 below each add something to them.
