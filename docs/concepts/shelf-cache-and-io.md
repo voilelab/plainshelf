@@ -349,7 +349,11 @@ What changes:
 Two consequences worth knowing:
 
 - **Every start pays for a full walk.** The scan cache is read but never written, so a read-only shelf cannot get cheaper across restarts the way a writable one does. On a large or high-latency shelf, that is the cost of the guarantee.
-- **The whole shelf is read-only, not just its files.** The write endpoints stay routed and answer 409; nothing in the UI is hidden yet.
+- **The refusal does not depend on the interface.** The app withdraws the
+  controls that would write and shows a read-only banner — see [Open a shelf
+  read-only](../configuring-local-shelf.md#open-a-shelf-read-only) for which
+  ones — but the write endpoints stay routed and answer 409 either way, so a
+  client that asks anyway is refused rather than obeyed.
 
 `read_only` is per shelf, so one server can serve a writable shelf and an archived one side by side. On the desktop app it is the **Read-only shelf** toggle in **Settings → Shelves**, which closes and reopens that one shelf so the change applies immediately.
 
