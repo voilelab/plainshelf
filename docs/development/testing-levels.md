@@ -19,23 +19,26 @@ The suite this page was written against:
 
 | Level | Files | Cases | Lines |
 |---|---:|---:|---:|
-| L1 + L2 (Go, all three modules) | 122 | 682 | 26,796 |
+| L1 + L2 (Go, all three modules) | 131 | 694 | 28,184 |
 | L3 (frontend unit and component) | 155 | 1,521 | 25,450 |
 | L4 (end-to-end) | 23 | 37 | 2,122 |
-| **Total** | **300** | **2,240** | **54,368** |
+| **Total** | **309** | **2,252** | **55,756** |
 
-Counted 2026-09-03. "Cases" is top-level `func Test…` for Go and the case count
-each runner reports for the other two, so the figures are reproducible rather
-than estimated.
+Go counted 2026-09-04, the other two 2026-09-03. "Cases" is top-level
+`func Test…` for Go and the case count each runner reports for the other two,
+so the figures are reproducible rather than estimated. The Go row counts the
+ten files of `server/contract/apitest` even though they are not `_test.go`
+files: the harness is L2 code that happens to be a package.
 
 The L4 row is the first one in this repository's history to go down: it was 30
 files / 101 cases / 4,247 lines when this page was written, and PSW-78 moved the
 assertions that never needed a browser down to L3 — which is why the L3 row grew
 by 75 cases in the same change. It went down twice more when the two
 `security-headers` cases that only issued `fetch` calls were deleted as
-duplicates of `api_security_headers_contract_test.go`, which pins the same
-headers, directives and nonce at L2 over more response shapes. The L1 + L2 row
-drifted upward on its own; that is ordinary growth, not this page's doing.
+duplicates of `server/contract/crosscut/security_headers_test.go`, which pins
+the same headers, directives and nonce at L2 over more response shapes. The
+L1 + L2 row drifted upward on its own; that is ordinary growth, not this page's
+doing.
 Every number above is a measurement, so a later reader can tell growth from
 drift.
 
@@ -44,7 +47,7 @@ drift.
 | | Level | May touch | Lives in | Runner |
 |---|---|---|---|---|
 | **L1** | Go unit | Pure Go, `t.TempDir()`, in-process fakes | Beside the code: `shelf/`, `internal/`, `server/`, `desktop/`, `reader/` | `go test ./...` |
-| **L2** | Go API contract | The real router over `httptest`, a real shelf in a temp dir, the `local_token` gate | `server/contract/api_*_contract_test.go` | `go test ./...` |
+| **L2** | Go API contract | The real router over `httptest`, a real shelf in a temp dir, the `local_token` gate | `server/contract/<area>/*_test.go`, harness in `server/contract/apitest` | `go test ./...` |
 | **L3** | Frontend unit and component | jsdom, components mounted in process, a mocked API client | `frontend/src/**/*.test.ts` next to the module, plus `frontend/scripts/*.test.mjs` for the gate scripts | `npm --prefix frontend test` |
 | **L4** | End-to-end | Real Chromium, a real `plainshelf-srv`, a real shelf on disk, the embedded bundle | `e2e/tests/*.spec.ts`, helpers in `e2e/tests/support/` | `just test-e2e`, or `just test-e2e-smoke` for the pull request's subset |
 | **L5** | Manual on device | Anything CI cannot reach: a phone, a desktop window, an SMB share | No code. Steps in `docs/development/`, evidence in the pull request | A person |
@@ -60,9 +63,27 @@ scheduling belong, and it is the level almost every Go change should stop at.
 
 The HTTP surface: status codes, request and response shapes, JSON field names,
 method gates, and the `local_token` boundary. It runs the real router, so it
-catches a route that was registered wrongly, which L1 cannot. Per `CLAUDE.md`
-rule 4, read the matching `api_*_contract_test.go` before changing a route —
-there are 31 of them, and they are the specification.
+catches a route that was registered wrongly, which L1 cannot. These tests are
+the specification, so per `CLAUDE.md` rule 4 you read the matching one before
+changing a route.
+
+They live in one package per area of the API, so the directory says where to
+look and the compiler says what is shared:
+
+| Package | Covers |
+|---|---|
+| `server/contract/apitest` | the harness itself: `Env`, the assertions, and in `url.go` every route `server/routes.go` registers |
+| `server/contract/books` | books, batches, copies, transfers, import, covers, content stats |
+| `server/contract/sources` | sources, assets, content streaming, fingerprints, similarity |
+| `server/contract/folders` | folders, folder transfers, trash |
+| `server/contract/shelves` | shelves, scans, the book cache, `/api/mode` and `/api/version` |
+| `server/contract/platform` | task chains, logs, settings |
+| `server/contract/crosscut` | what every route owes whatever it does: security, headers, method gates, read-only, request IDs, error envelopes, shelf resolution, schema versions |
+
+A helper is either exported from `apitest` or private to the one package that
+uses it — there is no third option, which is what the split bought. When a new
+helper is needed by two areas, it belongs in `apitest`, not in whichever
+package happened to need it first.
 
 L2 is not a slower L1. If a case does not depend on the request or the response,
 it belongs one level down.
