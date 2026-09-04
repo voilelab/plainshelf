@@ -16,7 +16,13 @@
         "Stanisław Lem"
       ],
       "tags": [],
+      "identifiers": {},
+      "language": "pl",
+      "comments": "",
       "star": 0,
+      "created_at": "2026-02-20T11:00:00Z",
+      "updated_at": "",
+      "published_at": "",
       "cover": "",
       "cover_present": false,
       "schema_version_on_disk": 1,
@@ -26,7 +32,13 @@
       "sources": [
         {
           "id": "20260220-110000",
+          "schema_version": 1,
+          "created_at": "2026-02-20T11:00:00Z",
+          "comment": "",
+          "format": "txt",
+          "md5_hash": "a935402f57ad5426f4fd3e4fa1b740d8",
           "has_content": true,
+          "line_count": 1,
           "char_count": 18,
           "assets": []
         }
@@ -40,7 +52,13 @@
       "format": "txt",
       "authors": [],
       "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
       "star": 0,
+      "created_at": "2026-02-21T12:00:00Z",
+      "updated_at": "",
+      "published_at": "",
       "cover": "",
       "cover_present": false,
       "schema_version_on_disk": 1,
@@ -50,7 +68,13 @@
       "sources": [
         {
           "id": "20260221-120000",
+          "schema_version": 1,
+          "created_at": "2026-02-21T12:00:00Z",
+          "comment": "",
+          "format": "txt",
+          "md5_hash": "d8d00215426b6996823469877ec42995",
           "has_content": true,
+          "line_count": 1,
           "char_count": 16,
           "assets": []
         }

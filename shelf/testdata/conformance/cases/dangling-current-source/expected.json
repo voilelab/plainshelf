@@ -11,7 +11,13 @@
       "format": "txt",
       "authors": [],
       "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "current_source and cover both point at files that are gone.",
       "star": 0,
+      "created_at": "2026-03-15T10:15:00Z",
+      "updated_at": "",
+      "published_at": "",
       "cover": "cover.png",
       "cover_present": false,
       "schema_version_on_disk": 1,
@@ -21,13 +27,25 @@
       "sources": [
         {
           "id": "20260315-101500",
+          "schema_version": 1,
+          "created_at": "2026-03-15T10:15:00Z",
+          "comment": "",
+          "format": "txt",
+          "md5_hash": "4bfb54f2fcbc9aebe235c73c16951fc1",
           "has_content": true,
+          "line_count": 1,
           "char_count": 15,
           "assets": []
         },
         {
           "id": "20260316-090000",
+          "schema_version": 1,
+          "created_at": "2026-03-16T09:00:00Z",
+          "comment": "",
+          "format": "txt",
+          "md5_hash": "1bbb3fb579ca1818afc4dfda014fd677",
           "has_content": true,
+          "line_count": 1,
           "char_count": 16,
           "assets": []
         }

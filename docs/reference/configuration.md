@@ -13,8 +13,9 @@ plainshelf-srv -conf config.yaml
 and `docker/config.yaml` is the one baked into the container image. Neither
 lists every key — the ones they leave out are exactly the ones this page is for.
 
-!!! warning "Pre-alpha"
-    Configuration keys may still be renamed or removed between releases. Check
+!!! warning "Not covered by the format freeze"
+    Configuration keys may still be renamed or removed between releases: the
+    `1.0.0-rc1` freeze covers the shelf's on-disk format, not this file. Check
     `CHANGELOG.md` before upgrading.
 
 The file has three top-level sections:

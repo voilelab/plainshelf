@@ -1,8 +1,9 @@
 # PlainShelf — Claude project guide
 
-PlainShelf is a pre-alpha, local-first reading library. The Go server embeds a
-Vue frontend and is also used by Wails desktop and experimental Capacitor
-Android clients.
+PlainShelf is a local-first reading library approaching its `1.0.0-rc1` release
+candidate, at which the on-disk format freezes. The Go server embeds a Vue
+frontend and is also used by Wails desktop and experimental Capacitor Android
+clients.
 
 ## Product constraints
 

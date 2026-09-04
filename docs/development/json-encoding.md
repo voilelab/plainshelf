@@ -19,7 +19,7 @@ imports buys no performance. It buys a deadline instead.
 The behaviors worth having — empty arrays instead of `null`, `&` and `<`
 written as themselves, duplicate object members rejected — are v2 *defaults*,
 and they change bytes. Changing bytes is cheap now and expensive after the
-`1.0.0-rc` freeze, when every writer would have to carry v1-compatibility
+`1.0.0-rc1` freeze, when every writer would have to carry v1-compatibility
 options forever to avoid a format change. That end state is the worst one
 available: the v2 API with v1 semantics, paying for the migration without
 collecting anything for it.
