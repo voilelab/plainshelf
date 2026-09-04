@@ -1,0 +1,40 @@
+{
+  "folders": [
+    "/",
+    "Classics"
+  ],
+  "books": [
+    {
+      "path": "books/Classics/genji.bookpkg",
+      "folders": [
+        "Classics"
+      ],
+      "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "title": "The Tale of Genji",
+      "format": "md",
+      "authors": [
+        "Murasaki Shikibu"
+      ],
+      "tags": [
+        "classic",
+        "heian"
+      ],
+      "star": 5,
+      "cover": "cover.png",
+      "cover_present": true,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260315-083000",
+      "current_source": "20260315-083000",
+      "sources": [
+        {
+          "id": "20260315-083000",
+          "has_content": true,
+          "char_count": 102,
+          "assets": []
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

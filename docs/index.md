@@ -4,9 +4,10 @@ PlainShelf is a local-first, single-user reading library for plain text and
 Markdown content. The shelf on disk is the source of truth; the application
 adds a web interface, desktop integration, and an experimental Android client.
 
-!!! warning "Pre-alpha"
-    APIs, data layout, and UI behavior may change. Keep a current backup of the
-    shelf and application store, especially before upgrades. See
+!!! warning "Before 1.0"
+    The on-disk format freezes at `1.0.0-rc`; until that release it can still
+    change, and APIs and UI behavior stay changeable after it. Keep a current
+    backup of the shelf and application store, especially before upgrades. See
     [Data Format Versioning](concepts/data-format-versioning.md) for what the
     on-disk format does and does not guarantee.
 

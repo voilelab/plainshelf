@@ -12,9 +12,12 @@ records, and no PlainShelf server holds your credentials. See
 [Deployment and threat model](docs/deployment-and-threat-model.md) for what each
 deployment does and does not protect.
 
-> **Pre-alpha:** APIs, data layout, and UI behavior may change. Back up your
-> shelf before upgrading — see [Backup and Restore](docs/backup-and-restore.md)
-> for what to copy and how to put it back, and
+> **Before 1.0:** the on-disk format freezes at `1.0.0-rc` — from that release
+> on, the shelf's user-data files take only backward-compatible changes. Until
+> then a 0.x upgrade can still change them, and the HTTP API and UI stay
+> changeable either way. Back up your shelf before upgrading — see
+> [Backup and Restore](docs/backup-and-restore.md) for what to copy and how to
+> put it back, and
 > [Data Format Versioning](docs/concepts/data-format-versioning.md) for what the
 > on-disk format does and does not guarantee.
 

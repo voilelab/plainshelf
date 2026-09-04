@@ -40,6 +40,10 @@
     {
       "name": "shelf-config-ignore",
       "covers": "A shelf.json that replaces the scanner's ignore list: the names it gives are skipped case-insensitively, an entry may carry the reason it is there, entries that are unusable, of the wrong type, or written as a bare name are dropped one by one, and a built-in name the list omits is listed as an ordinary folder."
+    },
+    {
+      "name": "v1-frozen-at-1.0.0-rc",
+      "covers": "The frozen baseline: a book.json carrying every field schema v1 defines and a source meta.json carrying every field its schema v1 defines, both read at the values 1.0.0-rc froze. Its shelf tree is append-only from that release on."
     }
   ]
 }

@@ -12,9 +12,10 @@ Every tagged release publishes:
 Release artifacts live on the
 [GitHub Releases](https://github.com/voilelab/plainshelf/releases) page.
 
-!!! warning "Pre-alpha"
-    PlainShelf is in early development. Pin to a specific release tag and
-    expect data layout and behavior to change between versions.
+!!! warning "Before 1.0"
+    The on-disk format freezes at `1.0.0-rc`; until that release the data
+    layout can still change between versions, and behavior can change either
+    way. Pin to a specific release tag.
 
 ---
 

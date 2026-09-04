@@ -91,9 +91,9 @@ ID. See [Data Model](concepts/data-model.md) for the on-disk layout.
 
 ## 4. Back up before experimenting
 
-PlainShelf is pre-alpha. Until it reaches 1.0.0, the on-disk format itself can
-still change between releases, so upgrading a v0.x shelf may require a fresh
-start for some data; see
+The on-disk format freezes at `1.0.0-rc`. Until that release it can still change
+between releases, so upgrading a v0.x shelf may require a fresh start for some
+data; see
 [Compatibility policy](concepts/data-format-versioning.md#compatibility-policy).
 Back up both the configured shelf and application store before upgrades or
 manual filesystem edits. Stop write activity first so the backup captures a
