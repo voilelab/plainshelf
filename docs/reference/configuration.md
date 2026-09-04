@@ -15,7 +15,7 @@ lists every key — the ones they leave out are exactly the ones this page is fo
 
 !!! warning "Not covered by the format freeze"
     Configuration keys may still be renamed or removed between releases: the
-    `1.0.0-rc` freeze covers the shelf's on-disk format, not this file. Check
+    `1.0.0-rc1` freeze covers the shelf's on-disk format, not this file. Check
     `CHANGELOG.md` before upgrading.
 
 The file has three top-level sections:

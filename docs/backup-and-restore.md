@@ -10,7 +10,7 @@ repeat either — it assumes you want a working library back, not an explanation
 of the layout.
 
 !!! warning "Before 1.0"
-    Until `1.0.0-rc`, an upgrade can change the on-disk format in a way an older
+    Until `1.0.0-rc1`, an upgrade can change the on-disk format in a way an older
     build will not read. A backup taken immediately before each upgrade is the
     only supported way back to the previous release, and stays the way back
     after the freeze, which protects a newer build reading an older shelf rather

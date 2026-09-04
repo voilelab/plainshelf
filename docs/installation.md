@@ -13,7 +13,7 @@ Release artifacts live on the
 [GitHub Releases](https://github.com/voilelab/plainshelf/releases) page.
 
 !!! warning "Before 1.0"
-    The on-disk format freezes at `1.0.0-rc`; until that release the data
+    The on-disk format freezes at `1.0.0-rc1`; until that release the data
     layout can still change between versions, and behavior can change either
     way. Pin to a specific release tag.
 
@@ -163,7 +163,7 @@ docker pull ghcr.io/voilelab/plainshelf:latest
 
 !!! info "`latest` tag"
     `latest` only follows stable releases. Pre-release tags (those containing
-    a `-`, e.g. `v1.0.0-rc.1`) are published but do **not** update `latest`.
+    a `-`, e.g. `v1.0.0-rc1`) are published but do **not** update `latest`.
 
 Run the server on <http://localhost:20000> with data persisted in a volume:
 

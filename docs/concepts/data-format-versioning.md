@@ -209,13 +209,14 @@ before the book is moved.
 
 ## Compatibility policy
 
-The on-disk format freezes at **`1.0.0-rc`**, not at `1.0.0`. The release
-candidate is the point from which the shelf's user-data files stop taking
-breaking changes; the stable `1.0.0` that follows it inherits those commitments
-rather than starting them. What a shelf can rely on therefore depends on which
-side of that tag it runs on, and the two are described separately below: the 0.x
-series is still unstable, and everything from the first `1.0.0-rc` tag on is
-covered.
+The on-disk format freezes at **`1.0.0-rc1`**, not at `1.0.0`. The first
+release candidate is the point from which the shelf's user-data files stop
+taking breaking changes; every release after it — a further `1.0.0-rc2` should
+one be needed, the stable `1.0.0`, and the rest of 1.x — inherits those
+commitments rather than starting them. What a shelf can rely on therefore
+depends on which side of that tag it runs on, and the two are described
+separately below: the 0.x series is still unstable, and everything from
+`1.0.0-rc1` on is covered.
 
 ### Before the freeze — the 0.x series
 
@@ -223,7 +224,7 @@ During the v0.x series the on-disk format may still change in breaking ways
 between releases. Such changes are announced in the changelog with a
 `Breaking (pre-1.0)` marker — v0.8's reading data
 ([below](#v08-reading-data-breaking-change)) is one of them. That marker is
-retired at `1.0.0-rc`: from the freeze on there is no such change left to
+retired at `1.0.0-rc1`: from the freeze on there is no such change left to
 announce, so a new one appearing would be a bug rather than a documented break.
 Concretely, for a shelf you are running on a 0.x build today:
 
@@ -251,12 +252,12 @@ Concretely, for a shelf you are running on a 0.x build today:
 Beyond that write refusal, treat the 0.x on-disk format as unstable: keep a
 backup before each upgrade, and do not rely on the frozen commitments below.
 
-### From PlainShelf 1.0.0-rc on
+### From PlainShelf 1.0.0-rc1 on
 
-**These commitments take effect with the first `1.0.0-rc` tag** and hold for
-every release after it, `1.0.0` and the rest of the 1.x line included. From that
-tag on, for any shelf whose books are at `book.json` schema v1, PlainShelf makes
-the commitments below.
+**These commitments take effect with the `1.0.0-rc1` tag** and hold for every
+release after it — any further release candidate, the stable `1.0.0`, and the
+rest of the 1.x line. From that tag on, for any shelf whose books are at
+`book.json` schema v1, PlainShelf makes the commitments below.
 
 #### What the freeze covers
 
@@ -335,7 +336,7 @@ file holds only the fields this page documents.
 #### What we promise
 
 - A shelf whose books are at schema v1 stays readable by every later PlainShelf
-  release, from `1.0.0-rc` through the 1.x line. Read support for schema v1 is
+  release, from `1.0.0-rc1` through the 1.x line. Read support for schema v1 is
   not removed.
 - The schema version is not raised again. Only a change that an older build
   cannot read correctly would raise it — a field changing meaning or type, a
@@ -861,7 +862,7 @@ directions.
   book, because unknown keys are not carried over — see
   [Unknown fields are not covered](#unknown-fields-are-not-covered).
 
-So "backward compatible from `1.0.0-rc` on" does not read as "mixed versions are
+So "backward compatible from `1.0.0-rc1` on" does not read as "mixed versions are
 now safe". Unversioned files and optional fields still cannot make mixed-version
 *writes* safe in general. Upgrade every build that writes to a shelf together,
 or accept that the older one loses what the newer one added.

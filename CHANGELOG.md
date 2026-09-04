@@ -2,7 +2,7 @@
 
 All notable changes to PlainShelf are documented in this file.
 
-The on-disk format freezes at `1.0.0-rc`: from that release on, `book.json`,
+The on-disk format freezes at `1.0.0-rc1`: from that release on, `book.json`,
 source `meta.json` and `trash.json` take only backward-compatible changes, and
 no further `Breaking (pre-1.0)` entry can touch them. Until then they can still
 change. APIs and UI behavior are not covered by that freeze and may still change
@@ -24,7 +24,7 @@ between releases.
 ### Changed
 
 - Changed the similarity threshold slider to reka-ui `SliderRoot` and the character-range, reading-history-limit, log-retention, line-count and scan-interval/book-check-interval number boxes to reka-ui `NumberFieldRoot`, replacing every native `range`/`number` input whose track, thumb and spinner rendered differently in every browser and were absent on touch; the scan-interval amount now saves on blur, Enter or a stepper rather than on each keystroke.
-- Changed the documented compatibility promise to freeze the on-disk format at `1.0.0-rc` rather than `1.0.0`, so `book.json`, source `meta.json` and `trash.json` take only backward-compatible additions from that release on, while the `app/` caches, per-device reading state and unrecognized fields stay outside the promise.
+- Changed the documented compatibility promise to freeze the on-disk format at `1.0.0-rc1` rather than `1.0.0`, so `book.json`, source `meta.json` and `trash.json` take only backward-compatible additions from that release on, while the `app/` caches, per-device reading state and unrecognized fields stay outside the promise.
 - Changed the desktop **Create shelf** dialog to ask where the shelf goes as a two-way choice: **Create a new folder** (the default) needs only a name and shows the folder PlainShelf will create for it, while **Use a folder I already have** is the only branch offering the read-only toggle and a path to type or browse to.
 - Changed a relative path typed into the create-shelf dialog to be refused on the form instead of by the backend's `shelf directory must be an absolute path`.
 - Fixed **Update now** under **Mobile book cache** stopping at the first read-only shelf and skipping every shelf after it; the server writes no exported cache for such a shelf, so it is now passed over.

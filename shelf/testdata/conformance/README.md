@@ -90,15 +90,15 @@ Conventions that keep the two comparable:
   the Go side keeps the string, the pCloud reader drops it to `undefined`. No
   fixture carries one.
 
-## The shelf trees are append-only from `1.0.0-rc`
+## The shelf trees are append-only from `1.0.0-rc1`
 
-The on-disk format freezes at `1.0.0-rc` (see
+The on-disk format freezes at `1.0.0-rc1` (see
 [Compatibility policy](../../../docs/concepts/data-format-versioning.md#compatibility-policy)),
 and this dataset is where that freeze is checkable rather than only stated. So
 the two halves of a case are governed differently:
 
 - **`cases/<name>/shelf/` is append-only.** The real files under it are bytes a
-  shipped PlainShelf wrote, so from `1.0.0-rc` on they are not edited or
+  shipped PlainShelf wrote, so from `1.0.0-rc1` on they are not edited or
   deleted. A file may be *added* — to a new case, or to an existing one where
   the addition is what the case is about — because an optional addition is
   exactly what the freeze still permits. Rewriting an existing one is not: it
@@ -112,13 +112,13 @@ the two halves of a case are governed differently:
   it may not do is change what it says about an existing shelf tree without a
   change in the readers to justify it.
 
-`v1-frozen-at-1.0.0-rc` is the baseline case: one book carrying every field
+`v1-frozen-at-1.0.0-rc1` is the baseline case: one book carrying every field
 `book.json` schema v1 defines and one source carrying every field source
 `meta.json` schema v1 defines, at the values the freeze pinned. It is where a
 field silently changing spelling, shape, or reading shows up as a failure in
 both harnesses at once.
 
-Edits under `shelf/` before `1.0.0-rc` are ordinary fixture maintenance; the
+Edits under `shelf/` before `1.0.0-rc1` are ordinary fixture maintenance; the
 rule starts at the tag.
 
 ## Adding a case

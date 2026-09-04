@@ -91,7 +91,7 @@ ID. See [Data Model](concepts/data-model.md) for the on-disk layout.
 
 ## 4. Back up before experimenting
 
-The on-disk format freezes at `1.0.0-rc`. Until that release it can still change
+The on-disk format freezes at `1.0.0-rc1`. Until that release it can still change
 between releases, so upgrading a v0.x shelf may require a fresh start for some
 data; see
 [Compatibility policy](concepts/data-format-versioning.md#compatibility-policy).
