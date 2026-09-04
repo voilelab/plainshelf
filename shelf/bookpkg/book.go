@@ -836,8 +836,14 @@ func Open(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, erro
 }
 
 // readBookMeta decodes a book's persisted metadata from disk.
+//
+// Member names are matched case-sensitively and a duplicate member or invalid
+// UTF-8 is an error, which are encoding/json/v2's defaults and are adopted on
+// purpose for a file people edit by hand. A failure names the file; see
+// [MalformedMetadataError].
 func readBookMeta(rt fsutil.ReadFS, bookPath string) (*BookMeta, error) {
-	metaFile, err := rt.Open(path.Join(bookPath, BookMetaFile))
+	metaPath := path.Join(bookPath, BookMetaFile)
+	metaFile, err := rt.Open(metaPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -845,7 +851,7 @@ func readBookMeta(rt fsutil.ReadFS, bookPath string) (*BookMeta, error) {
 
 	var meta BookMeta
 	if err := json.UnmarshalRead(metaFile, &meta); err != nil {
-		return nil, util.Errorf("%w", err)
+		return nil, util.Errorf("%w", MetadataReadError(metaPath, err))
 	}
 
 	return &meta, nil

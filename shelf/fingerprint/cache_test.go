@@ -760,3 +760,34 @@ func firstDifference(a, b string) (string, string) {
 	}
 	return a[i:min(i+60, len(a))], b[i:min(i+60, len(b))]
 }
+
+// The fingerprint cache is rebuildable, so the strictness the shelf's
+// hand-editable files gained is deliberately not applied to it: a duplicate
+// member makes it a cache miss, not a failure a user has to repair. Nothing
+// writes such a file - a sync tool merging two copies, or a truncated write,
+// is what leaves one behind.
+func TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported(t *testing.T) {
+	ts := newTestShelf(t)
+
+	writeCacheAt(t, ts.libRoot, cacheFile{
+		SchemaVersion: schemaVersion,
+		Algo:          testAlgo,
+		Index:         map[string]indexEntry{"sources/20260315-a1/source.txt": {MD5: "abc"}},
+		Entries:       map[string]Entry{"abc": {NormMD5: "abc"}},
+	})
+	if got := len(openCache(t, ts, ts.base, testAlgo).entries); got != 1 {
+		t.Fatalf("entries = %d before the file is broken, want 1", got)
+	}
+
+	// Not a typo a person makes in this file - a merge by a sync tool, or two
+	// writes interleaved - but it is what the strict decoder now refuses.
+	raw := `{"schema_version": 1, "schema_version": 1}`
+	if err := os.WriteFile(path.Join(ts.libRoot, appDir, cacheFileName), []byte(raw), 0644); err != nil {
+		t.Fatalf("writing a fingerprint cache: %v", err)
+	}
+
+	cache := openCache(t, ts, ts.base, testAlgo)
+	if got := len(cache.entries); got != 0 {
+		t.Errorf("entries = %d, want the unreadable cache discarded", got)
+	}
+}

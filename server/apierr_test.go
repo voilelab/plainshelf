@@ -65,6 +65,18 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: `invalid folder name: this shelf skips "Thumbs" while scanning, so a folder named this way would not stay visible`,
 		},
 		{
+			// The path and the decoder's own words are the whole point: a user
+			// who broke a book.json by hand needs to be told which file and
+			// which member, not that "a file" is invalid.
+			name: "malformed metadata names the file and the member",
+			err: &shelf.MalformedMetadataError{
+				File: "books/Dune.bookpkg/book.json",
+				Err:  errors.New(`duplicate object member name "title"`),
+			},
+			wantStatus:  http.StatusConflict,
+			wantMessage: `books/Dune.bookpkg/book.json is not valid JSON: duplicate object member name "title"; repair the file and try again`,
+		},
+		{
 			name:           "shelf initializing",
 			err:            shelf.ErrShelfInitializing,
 			wantStatus:     http.StatusServiceUnavailable,
@@ -253,6 +265,7 @@ func TestAPIErrorCodeListIsPinned(t *testing.T) {
 		"UNSUPPORTED_BOOK_SCHEMA_VERSION",
 		"UNSUPPORTED_SOURCE_SCHEMA_VERSION",
 		"UNSUPPORTED_TRASH_SCHEMA_VERSION",
+		"MALFORMED_METADATA",
 		"WORKER_BUSY",
 	}
 
@@ -308,6 +321,24 @@ func TestIgnoredFolderNameErrorKeepsTheTablesCode(t *testing.T) {
 		t.Fatalf("code = %q, want the table's %q: the richer message is the same "+
 			"refusal, so a client cannot be made to switch on two codes for it",
 			specific.code, tableEntry.code)
+	}
+}
+
+// Same shape as the ignored-folder case above: the file-naming message is
+// matched by errors.As ahead of the table, so it must carry the table's code.
+func TestMalformedMetadataErrorKeepsTheTablesCode(t *testing.T) {
+	tableEntry, ok := apiErrorFor(util.Errorf("%w", shelf.ErrMalformedMetadata))
+	if !ok {
+		t.Fatal("apiErrorFor(ErrMalformedMetadata) not found in table")
+	}
+
+	specific, ok := apiErrorFor(&shelf.MalformedMetadataError{File: "shelf.json", Err: errors.New("boom")})
+	if !ok {
+		t.Fatal("apiErrorFor(*MalformedMetadataError) not matched")
+	}
+
+	if specific.code != tableEntry.code {
+		t.Fatalf("code = %q, want the table's %q", specific.code, tableEntry.code)
 	}
 }
 

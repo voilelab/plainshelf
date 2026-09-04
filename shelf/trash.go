@@ -409,7 +409,8 @@ func (s *Shelf) ensureTrashMetaWritable(bookPath string) error {
 }
 
 func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {
-	fp, err := s.dbRoot.Open(path.Join(bookPath, trashMetaFile))
+	metaPath := path.Join(bookPath, trashMetaFile)
+	fp, err := s.dbRoot.Open(metaPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -417,7 +418,7 @@ func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {
 
 	var meta trashMeta
 	if err := json.UnmarshalRead(fp, &meta); err != nil {
-		return nil, util.Errorf("%w", err)
+		return nil, util.Errorf("%w", bookpkg.MetadataReadError(metaPath, err))
 	}
 
 	return &meta, nil

@@ -1,7 +1,8 @@
 package shelf
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"io/fs"
@@ -59,7 +60,7 @@ type shelfConfigJSON struct {
 		// file is read the same way wherever the reader looks and adding a
 		// field later does not turn some entries into a different kind of
 		// value.
-		IgnoredDirs []json.RawMessage `json:"ignored_dirs"`
+		IgnoredDirs []jsontext.Value `json:"ignored_dirs"`
 	} `json:"scan"`
 }
 
@@ -72,7 +73,7 @@ type ignoredDirJSON struct {
 // parseIgnoredDir reads one entry. A bare name is not accepted: "@eaDir" and
 // {"name": "@eaDir"} would mean the same thing and the file would have two
 // shapes for one entry, which every reader of it then has to handle.
-func parseIgnoredDir(raw json.RawMessage) (shelfutil.IgnoredDir, error) {
+func parseIgnoredDir(raw jsontext.Value) (shelfutil.IgnoredDir, error) {
 	var object ignoredDirJSON
 	if err := json.Unmarshal(raw, &object); err != nil {
 		return shelfutil.IgnoredDir{}, util.Errorf("entry is not a {name, reason} object: %w", err)
@@ -164,17 +165,14 @@ func readShelfConfig(root fsutil.ReadFS, logger logutil.Logger) (shelfConfigJSON
 
 	var conf shelfConfigJSON
 	// The limit is applied again here for a file that grew since the stat above.
-	decoder := json.NewDecoder(io.LimitReader(file, maxShelfConfigBytes))
-	if err := decoder.Decode(&conf); err != nil {
+	//
+	// UnmarshalRead consumes the whole reader and rejects anything after the
+	// first value - a second object, or the debris of a half-finished edit -
+	// which the pCloud reader also does by parsing the file in one go. Member
+	// names are matched case-sensitively and a duplicate member is an error,
+	// the same strictness book.json is read with.
+	if err := json.UnmarshalRead(io.LimitReader(file, maxShelfConfigBytes), &conf); err != nil {
 		logger.Warn("ignoring a shelf configuration that could not be read as JSON", "file", shelfConfigFile, "error", err)
-		return shelfConfigJSON{}, false
-	}
-	// A Decoder stops at the end of the first value and would accept whatever
-	// follows it - a second object, or the debris of a half-finished edit. The
-	// pCloud reader parses the whole file at once and rejects that, so this one
-	// must too, or the same file is read two ways.
-	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
-		logger.Warn("ignoring a shelf configuration with trailing data after the first JSON value", "file", shelfConfigFile)
 		return shelfConfigJSON{}, false
 	}
 

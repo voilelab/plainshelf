@@ -36,6 +36,10 @@ type apiError struct {
 // two codes for it.
 const codeIgnoredFolderName = "IGNORED_FOLDER_NAME"
 
+// codeMalformedMetadata is spelled once for the same reason: the table entry
+// and the errors.As branch below are one refusal, and only the message differs.
+const codeMalformedMetadata = "MALFORMED_METADATA"
+
 // apiErrorTable is consulted in order, so a more specific sentinel must come
 // before any general one it could also match.
 var apiErrorTable = []struct {
@@ -134,6 +138,11 @@ var apiErrorTable = []struct {
 		status:  http.StatusConflict,
 		message: "trashed book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
 	}},
+	{shelf.ErrMalformedMetadata, apiError{
+		code:    codeMalformedMetadata,
+		status:  http.StatusConflict,
+		message: "a metadata file on the shelf is not valid JSON; repair the file and try again",
+	}},
 	{taskutil.ErrWorkerBusy, apiError{
 		code:       "WORKER_BUSY",
 		status:     http.StatusServiceUnavailable,
@@ -198,6 +207,20 @@ func apiErrorFor(err error) (apiError, bool) {
 		}, true
 	}
 
+	// Which file is broken, and where, is the whole content of this refusal: a
+	// user who hand-edited a book.json cannot act on "some file is invalid".
+	// The path and the decoder's own message - which names the duplicated or
+	// mis-encoded member - travel out with the error rather than living in the
+	// table.
+	var malformed *shelf.MalformedMetadataError
+	if errors.As(err, &malformed) {
+		return apiError{
+			code:    codeMalformedMetadata,
+			status:  http.StatusConflict,
+			message: malformedMetadataMessage(malformed),
+		}, true
+	}
+
 	for _, entry := range apiErrorTable {
 		if errors.Is(err, entry.sentinel) {
 			return entry.response, true
@@ -214,6 +237,12 @@ func ignoredFolderMessage(err *shelf.IgnoredFolderNameError) string {
 		return fmt.Sprintf("invalid folder name: this shelf skips %q while scanning%s", err.Folder, consequence)
 	}
 	return fmt.Sprintf("invalid folder name: this shelf skips %q while scanning (%s)%s", err.Folder, err.Reason, consequence)
+}
+
+// malformedMetadataMessage names the file that could not be read and quotes the
+// decoder on why, which is where the offending member name comes from.
+func malformedMetadataMessage(err *shelf.MalformedMetadataError) string {
+	return fmt.Sprintf("%s is not valid JSON: %v; repair the file and try again", err.File, err.Err)
 }
 
 // writeErr answers a known error from the table, and anything else with 500

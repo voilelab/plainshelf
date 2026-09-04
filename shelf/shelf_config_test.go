@@ -226,10 +226,19 @@ func TestShelfConfigMalformedFallsBackToDefaults(t *testing.T) {
 		"wrong field type":    `{"scan": "everything"}`,
 		"wrong list type":     `{"scan": {"ignored_dirs": "@Snapshot"}}`,
 		"truncated mid-value": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}`,
-		// A Decoder stops at the end of the first value; the pCloud reader
-		// parses the whole file and rejects what follows, so this one does too.
+		// UnmarshalRead consumes the whole reader, which the pCloud reader also
+		// does by parsing the file in one go, so what follows the first value is
+		// refused rather than ignored.
 		"trailing object": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}} {"scan": {}}`,
 		"trailing debris": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}} half an edit`,
+		// Read with the strictness book.json is read with: a member written
+		// twice is refused rather than silently resolved to the last one, and a
+		// name is matched exactly.
+		// Both bodies would apply if they were read at all - last member wins,
+		// invalid bytes tolerated - so a case that fell through to the defaults
+		// for some other reason would fail here rather than pass quietly.
+		"duplicate member": `{"scan": {}, "scan": {"ignored_dirs": [{"name": "@Snapshot"}]}}`,
+		"invalid utf-8":    "{\"scan\": {\"ignored_dirs\": [{\"name\": \"@Snapshot\", \"reason\": \"\xff\xfe\"}]}}",
 	} {
 		t.Run(name, func(t *testing.T) {
 			folders := listedFolders(t, openConfiguredShelf(t, body))
