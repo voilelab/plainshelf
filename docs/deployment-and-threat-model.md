@@ -174,7 +174,7 @@ same reason a safe default is not a choice worth offering.
 PlainShelf runs no server of its own, so **no PlainShelf-operated service holds
 your accounts, your library, or your credentials**, and **nothing confidential is
 baked into its binaries** for an attacker to lift from the server or the APK.
-Three facts keep that true:
+What keeps it true:
 
 - **The server has no config field for a secret.** `app_conf` carries shelf
   paths, a store path, import and logging settings, and the `security` block —
@@ -201,7 +201,3 @@ rather than rounding off to "none":
   app can decrypt the token in order to use it, so an attacker who compromises
   both the device and the app could read it. If a device is lost, revoke the
   grant from your pCloud account settings.
-
-This is the local-first promise made concrete: no platform — including this one —
-holds your library or your reading records; the one key you grant, for your own
-pCloud, stays on your own device.

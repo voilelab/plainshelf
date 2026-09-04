@@ -122,11 +122,10 @@ A pull request does not run the whole suite. It runs the cases tagged
 | Full | all 37 cases | chromium, webkit | `nightly.yml`, 03:00 UTC on `dev` | the release |
 
 The split exists because the wait before a merge should not grow with the
-suite. It costs one thing, and it is worth stating plainly: **a green pull
-request no longer means the E2E suite passed.** A change outside the smoke set
-is checked by `just test-e2e` before pushing, and by the night after merging;
-when the night is red, the workflow opens (or comments on) one issue on this
-repository.
+suite. It costs one thing, and this is it: **a green pull request no longer
+means the E2E suite passed.** A change outside the smoke set is checked by
+`just test-e2e` before pushing, and by the night after merging; when the night
+is red, the workflow opens (or comments on) one issue on this repository.
 
 #### The browser matrix is the nightly's, not the gate's
 
@@ -140,7 +139,7 @@ therefore runs a second round on Playwright's `webkit`.
 `chromium`, so a local `just test-e2e` and the gate are unaffected and need no
 extra browser download. `nightly.yml` sets `chromium,webkit` and installs both.
 
-Two limits worth keeping straight:
+Two limits, easily conflated:
 
 - Playwright's `webkit` is neither Safari nor WKWebView — it is the same WebKit
   core in a different embedder. A green webkit round means no chromium-only

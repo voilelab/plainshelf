@@ -313,7 +313,7 @@ What changes:
 | `app/fingerprint-cache.json` | Written by the source fingerprint task | Never written; the task is refused with 409, an existing one is still read |
 | Creating, editing, moving, deleting | Allowed | Refused with HTTP 409 before anything is touched |
 
-Two consequences worth knowing:
+What that costs:
 
 - **Every start pays for a full walk.** The scan cache is read but never written, so a read-only shelf cannot get cheaper across restarts the way a writable one does. On a large or high-latency shelf, that is the cost of the guarantee.
 - **The refusal does not depend on the interface.** The app withdraws the
