@@ -12,7 +12,7 @@ import (
 )
 
 // DefaultShelfID is the only shelf the contract tests configure, so its ID is
-// spelled once here and reused by the URL builders in apitest_book_test.go.
+// spelled once here and reused by the URL builders in url.go.
 const DefaultShelfID = "default_shelf"
 
 // MaxBinaryUploadSize is the body limit the cover and asset routes enforce. It

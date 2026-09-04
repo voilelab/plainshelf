@@ -48,6 +48,13 @@ Read the relevant section before working in that area. Add entries according to
   stays true. Guarding one access does not fix it: other suites store and read
   values for real. Run the suite on a Node version `docs/development/setup.md`
   names as supported. (`docs/development/setup.md`)
+- **Test support in a package is not a `_test.go` file:** moving shared test
+  helpers into an importable package (`server/contract/apitest`) takes them out
+  of every rule that keys on the `_test.go` suffix → `internal/repocheck`'s CJK
+  check then reads a CJK fixture string as shipped text, and staticcheck's
+  `unused` stops reporting the now-exported helpers. Allowlist the fixture file
+  with a reason and keep a caller check for the exported helpers.
+  (`internal/repocheck/cjk_test.go`, `internal/repocheck/contract_test.go`)
 - **Server tests race the initial shelf scan:** a read issued before it finishes
   is answered 503 `ErrShelfInitializing`. Test envs must wait via
   `WaitReady`; do not rely on unrelated startup work to mask it.
@@ -210,7 +217,7 @@ Read the relevant section before working in that area. Add entries according to
 ## Filesystem and API
 
 - **Mutating API requests:** preserve the `local_token` boundary and review the
-  matching `server/contract/api_*_contract_test.go` whenever routes or request
+  matching contract package under `server/contract/` whenever routes or request
   handling change.
 - **Book identity:** moving or renaming a book must not regenerate its persisted
   ID. The directory name and display title are not identity.

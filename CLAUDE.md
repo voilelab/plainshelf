@@ -71,7 +71,7 @@ web builds; do not use it for Capacitor asset generation.
    `docs/development/testing-levels.md` selects. Run the narrowest relevant
    check while iterating and the full affected-area check before completion.
 4. For server API changes, read the matching
-   `server/contract/api_*_contract_test.go` and preserve the `local_token`
+   contract package under `server/contract/` and preserve the `local_token`
    security boundary.
 5. For changes to how a shelf is read or written, update the shared fixtures in
    `shelf/testdata/conformance/`. The Go shelf and the Android pCloud client are

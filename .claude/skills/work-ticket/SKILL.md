@@ -50,10 +50,10 @@ the change.
 Two consequences of a security or contract change that are easy to miss:
 
 - A route moving behind the token gate breaks every existing test that reaches
-  it without one. Fix the shared helper in `server/contract/apitest_env_test.go`
+  it without one. Fix the shared helper in `server/contract/apitest/env.go`
   rather than each call site, and check the recorders that bypass it
-  (`getWailsLike`).
-- Read `server/contract/api_*_contract_test.go` for the routes you touch, per
+  (`GetWailsLike`).
+- Read the `server/contract/` package covering the routes you touch, per
   `CLAUDE.md` rule 4.
 
 ## 4. Check before pushing

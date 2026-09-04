@@ -53,7 +53,7 @@ Minimum checks by area:
 | Desktop or reader Go | main Go check plus `go test ./...` and `golangci-lint run` inside `desktop` and `reader` |
 | Vue/TypeScript | `npm --prefix frontend test`, `npm --prefix frontend run build`, and the `check-boundaries` and `check-licenses` gates |
 | UI behavior | relevant Playwright test or an explicitly described manual/browser check |
-| Server API | Go tests plus review of `server/contract/api_*_contract_test.go` |
+| Server API | Go tests plus review of the matching `server/contract/<area>` package |
 | Documentation/rules | link/build validation and read-back of the diff |
 
 This table is a floor, not a ceiling: every check `.github/workflows/ci.yml`
