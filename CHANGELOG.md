@@ -46,6 +46,7 @@ and UI behavior may still change between releases.
 - Changed the desktop create- and modify-shelf forms to give every input a visible label, leaving the placeholders as example values.
 - Changed the create-shelf flow to say **Create shelf** everywhere (dialog title, submit button, and the button that opens it).
 - Changed the shelves settings section to offer **Create shelf** as its primary button while no shelf is configured.
+- **Breaking (pre-1.0):** changed a `log_file` of `type: filename_rotate` with no `dir` to fail startup (`missing log dir: filename_rotate requires dir`) instead of starting a server that silently wrote no log at all; set `dir`, which both shipped example configs already do.
 
 ### Fixed
 

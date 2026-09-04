@@ -109,6 +109,13 @@ func NewLogFile(conf LogFileConf) (*LogFile, error) {
 		}
 		return &LogFile{conf: &conf, writer: fp, fp: fp}, nil
 	case LogFileTypeNameRotate:
+		// Without a dir the writer would fail its first MkdirAll, and slog
+		// discards a handler's error, so the loss would be silent. There is no
+		// safe default: the working directory is wherever the server happened
+		// to be started from.
+		if strings.TrimSpace(conf.Dir) == "" {
+			return nil, util.Errorf("missing log dir: %s requires dir", LogFileTypeNameRotate)
+		}
 		if conf.RetentionDays != nil && *conf.RetentionDays < 0 {
 			return nil, util.Errorf("invalid log retention days: %d", *conf.RetentionDays)
 		}
@@ -184,10 +191,9 @@ func listLogFilesForSource(source string, conf LogFileConf) ([]Entry, error) {
 }
 
 func listRotatedLogFiles(source string, conf LogFileConf) ([]Entry, error) {
+	// The dir is used exactly as the writer uses it: a default here and none
+	// there would send the reader looking somewhere nothing was ever written.
 	dir := conf.Dir
-	if dir == "" {
-		dir = "."
-	}
 	prefix := conf.Prefix
 	if prefix == "" {
 		prefix = "log"
