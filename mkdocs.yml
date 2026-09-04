@@ -34,6 +34,7 @@ nav:
   - Backup & Restore: backup-and-restore.md
   - Deployment & Threat Model: deployment-and-threat-model.md
   - Configuration:
+      - Configuration Reference: reference/configuration.md
       - Local Shelf File Source: configuring-local-shelf.md
       - SMB Shelf File Source: configuring-smb-shelf.md
   - Concepts:

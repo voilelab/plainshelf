@@ -5,6 +5,10 @@ security mode you choose decide what it defends against — and, just as
 important, what it does not. This page names three deployment tiers, gives the
 configuration each one wants, and states plainly what protects access in each.
 
+For the type and default of each `security` key on its own, see the
+[Configuration reference](reference/configuration.md#app_confsecurity); this
+page is about which combinations to choose.
+
 It also records two standing non-goals that hold at every tier:
 
 - **No PlainShelf server holds your credentials, and none are baked into its

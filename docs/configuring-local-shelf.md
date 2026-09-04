@@ -73,6 +73,8 @@ app_conf:
 
 Keep `store_path` on reliable local storage. It does not replace `lib_root`; both paths should be configured and persisted. Reading progress, history, and time are stored by each client rather than here.
 
+For every other key the config file accepts, see the [Configuration reference](reference/configuration.md).
+
 ## 4. Run PlainShelf
 
 Start PlainShelf with the config file that points to your local shelf:
