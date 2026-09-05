@@ -40,6 +40,18 @@ func (v bookVisibility) allowsListing(listing shelf.BookListing) bool {
 	return v.allows(listing.Folders, listing.Book.GetMeta())
 }
 
+// allowsTrashed is the same question for a book sitting in the trash.
+//
+// Deleting a book must not disclose it: the trash listing is a listing like any
+// other, and its titles are the disclosure. Both halves of the mark still
+// apply, because the trash record remembers the folder the book was deleted
+// from — so the shelf answers with TrashedBook.NSFW rather than this walking a
+// path that no longer exists. Emptying the trash is not a listing and is not
+// filtered; it is one command over the whole trash.
+func (v bookVisibility) allowsTrashed(book *shelf.TrashedBook) bool {
+	return v.showNSFW || !book.NSFW
+}
+
 // listBooks is the shelf's listing with the books this request may not see
 // removed. It is what every endpoint that returns more than one book lists
 // through.

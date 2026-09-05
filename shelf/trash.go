@@ -49,6 +49,13 @@ type TrashedBook struct {
 	OriginalPath   string        `json:"original_path,omitempty"`
 	OriginalFolder FolderPath    `json:"original_folder,omitempty"`
 	DeletedAt      util.JSONTime `json:"deleted_at,omitzero"`
+
+	// NSFW is the shelf's assembled answer for the book while it sits in the
+	// trash — see Shelf.IsBookNSFW. It is computed here rather than left to the
+	// caller because the folder half of the answer needs OriginalFolder, which
+	// only the trash record remembers: trash/ lies outside books/, so the
+	// book's path no longer says where the folder rules reach it.
+	NSFW bool `json:"nsfw,omitempty"`
 }
 
 type trashMeta struct {
@@ -146,19 +153,7 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 			continue
 		}
 
-		meta := s.readTrashMetaTolerant(bookPath)
-
-		item := &TrashedBook{
-			ID:      book.ID(),
-			Title:   book.Title(),
-			Authors: append([]string(nil), book.GetMeta().Authors...),
-		}
-		if meta != nil {
-			item.DeletedAt = meta.DeletedAt
-			item.OriginalPath = meta.OriginalPath
-			item.OriginalFolder = append(FolderPath(nil), meta.OriginalFolder...)
-		}
-		items = append(items, item)
+		items = append(items, s.newTrashedBook(book, s.readTrashMetaTolerant(bookPath)))
 	}
 
 	slices.SortFunc(items, func(a, b *TrashedBook) int {
@@ -169,6 +164,45 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 	})
 
 	return items, nil
+}
+
+// newTrashedBook assembles one trash listing entry from the book package and
+// the trash record beside it. meta may be nil — see readTrashMetaTolerant —
+// in which case the book is treated as having come from the top level, which is
+// also where restoring it would put it back.
+func (s *Shelf) newTrashedBook(book *Book, meta *trashMeta) *TrashedBook {
+	item := &TrashedBook{
+		ID:      book.ID(),
+		Title:   book.Title(),
+		Authors: append([]string(nil), book.GetMeta().Authors...),
+	}
+	if meta != nil {
+		item.DeletedAt = meta.DeletedAt
+		item.OriginalPath = meta.OriginalPath
+		item.OriginalFolder = append(FolderPath(nil), meta.OriginalFolder...)
+	}
+	item.NSFW = s.IsBookNSFW(item.OriginalFolder, book.GetMeta())
+	return item
+}
+
+// GetTrashedBook returns the listing entry for one trashed book, so a caller
+// naming a single book can ask the same questions a listing answers — the
+// adult-content mark above among them — without walking the whole trash.
+//
+// It reports ErrTrashedBookNotFound for an ID that is not in the trash, the
+// same as RestoreTrashedBook and DeleteTrashedBook do.
+func (s *Shelf) GetTrashedBook(bookID string) (*TrashedBook, error) {
+	if err := s.shelfLock.RLock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
+
+	_, book, meta, err := s.findTrashedBook(bookID)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	return s.newTrashedBook(book, meta), nil
 }
 
 // ListTrashedBookIDs returns the ID of every book directory under the trash.
