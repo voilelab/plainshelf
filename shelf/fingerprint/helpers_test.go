@@ -39,17 +39,15 @@ func newLoggerForTest() logutil.Logger {
 	return *logger
 }
 
-// repairSourceHash is the RepairHash hook the tests wire in, the same one the
-// shelf facade uses: it delegates the write to the source itself, so a read-only
-// source reports fsutil.ErrReadOnly and the cache leaves it alone.
+// repairSourceHash is the hook the shelf facade uses: it delegates the write to
+// the source, so a read-only source reports fsutil.ErrReadOnly.
 func repairSourceHash(source *bookpkg.Source, contentMD5 string) (bool, error) {
 	return source.RepairContentHash(contentMD5)
 }
 
-// testShelf is a bare directory standing in for a shelf: an app/ dir for the
-// cache file, books created directly through bookpkg, and a live-book set the
-// test controls. It is everything the cache needs from a shelf and nothing it
-// does not - no scan, no lock, no *Shelf.
+// testShelf is everything the cache needs from a shelf and nothing it does not:
+// an app/ dir, books created directly through bookpkg, and a live-book set the
+// test controls. No scan, no lock, no *Shelf.
 type testShelf struct {
 	t       *testing.T
 	libRoot string
@@ -81,14 +79,11 @@ func (ts *testShelf) liveBooks() (map[string]struct{}, bool) {
 	return ts.live, true
 }
 
-// addBook creates a book holding one source at dir, under the given ID, and
-// backdates that source's modification time by age.
-//
-// The backdating is not cosmetic: a source written moments ago is deliberately
-// left out of the index, because a coarse filesystem clock cannot tell a second
-// write inside the same tick from no write at all (see fsutil.RacyWindow). A
-// book being fingerprinted in the real world is older than that; a book created
-// by a test is not. Pass age 0 to leave a source racily fresh on purpose.
+// addBook backdates the new source's modification time by age, which is not
+// cosmetic: a source written moments ago is deliberately left out of the index,
+// because a coarse filesystem clock cannot tell a second write inside the same
+// tick from no write at all (see fsutil.RacyWindow). A book fingerprinted in the
+// real world is older than that. Pass age 0 to leave one racily fresh.
 func (ts *testShelf) addBook(dir, id, title, content string, age time.Duration) *bookpkg.Book {
 	t := ts.t
 	t.Helper()
@@ -113,10 +108,9 @@ func (ts *testShelf) addBook(dir, id, title, content string, age time.Duration) 
 	return book
 }
 
-// countSourceReads returns a filesystem that counts how often a source.txt is
-// opened for reading - the cost this cache exists to avoid - which the cache and
-// the reopened books then read through. Books are created on the plain base
-// handle first, so only the I/O a test causes past this point is counted.
+// countSourceReads returns a filesystem the cache and the reopened books read
+// through. Books are created on the plain base handle first, so only the I/O a
+// test causes past this point is counted.
 func (ts *testShelf) countSourceReads() *countingFS {
 	return &countingFS{FS: ts.base}
 }
@@ -138,9 +132,8 @@ func (ts *testShelf) sourceFilePath(book *bookpkg.Book) string {
 }
 
 // countingFS counts how often a source.txt is opened, which is the cost this
-// cache exists to avoid. Reads of meta.json, book.json and the cache file are
-// not counted: they are what opening a book and loading the cache cost with or
-// without a fingerprint cache.
+// cache exists to avoid. meta.json, book.json and the cache file are not
+// counted: opening a book costs those either way.
 type countingFS struct {
 	fsutil.FS
 	opens atomic.Int64
@@ -153,9 +146,9 @@ func (f *countingFS) Open(name string) (fs.File, error) {
 	return f.FS.Open(name)
 }
 
-// fakeFingerprint stands in for the sketch builder. It counts its calls, which
-// is how the tests tell a cache hit from a recomputation, and derives every
-// field from the content so that two copies of one book produce one entry.
+// fakeFingerprint counts its calls, which is how the tests tell a cache hit from
+// a recomputation, and derives every field from the content so that two copies
+// of one book produce one entry.
 type fakeFingerprint struct {
 	label string
 	calls atomic.Int64
@@ -207,9 +200,8 @@ func saveCache(t *testing.T, cache *Cache) {
 	}
 }
 
-// reopen returns a fresh book and source read through root, standing in for the
-// next run of a fingerprint task: nothing is carried over in memory, so every
-// read the cache avoids is a read that really did not happen.
+// reopen stands in for the next run of a fingerprint task: nothing is carried
+// over in memory, so every read the cache avoids really did not happen.
 func reopen(t *testing.T, root fsutil.ReadFS, bookPath string) (*bookpkg.Book, *bookpkg.Source) {
 	t.Helper()
 
@@ -229,8 +221,8 @@ func reopen(t *testing.T, root fsutil.ReadFS, bookPath string) (*bookpkg.Book, *
 	return book, sources[0]
 }
 
-// resolveFingerprint resolves a book that is opened fresh for the call, the way
-// a new run of a fingerprint task would see it.
+// resolveFingerprint opens the book fresh for the call, the way a new run
+// would see it.
 func resolveFingerprint(t *testing.T, cache *Cache, root fsutil.ReadFS, bookPath string, builder *fakeFingerprint) Entry {
 	t.Helper()
 
@@ -243,7 +235,6 @@ func resolveFingerprint(t *testing.T, cache *Cache, root fsutil.ReadFS, bookPath
 	return entry
 }
 
-// shiftModTime moves a file's modification time by offset from now.
 func shiftModTime(t *testing.T, filePath string, offset time.Duration) {
 	t.Helper()
 
@@ -295,8 +286,8 @@ func writeCacheAt(t *testing.T, libRoot string, stored cacheFile) {
 }
 
 // metaMatchesContent reports whether a source's stored md5_hash agrees with the
-// bytes on disk. Source.VerifyContent used to answer this; production never
-// asked, because a caller that has just read the file already knows.
+// bytes on disk. Production never asks: a caller that has just read the file
+// already knows.
 func metaMatchesContent(t *testing.T, source *bookpkg.Source) bool {
 	t.Helper()
 	f, err := source.Open()

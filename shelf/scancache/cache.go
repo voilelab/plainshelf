@@ -101,7 +101,6 @@ func (c *Cache) load() {
 	c.logger.Debug("loaded the directory scan cache", "file", FileName, "dirs", len(snapshot.Dirs))
 }
 
-// LastStats reports what the most recent walk cost.
 func (c *Cache) LastStats() Stats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -122,8 +121,6 @@ type Walk struct {
 	stats Stats
 }
 
-// NewWalk starts a traversal, reading the last complete walk's snapshot so this
-// one can reuse the directories that have not changed.
 func (c *Cache) NewWalk() *Walk {
 	w := &Walk{
 		cache:     c,
@@ -143,18 +140,17 @@ func (c *Cache) NewWalk() *Walk {
 	return w
 }
 
-// ReadDir returns the children of pth the walk may descend into, listing pth
-// through root only when its mtime shows the listing could have changed. It also
-// reports whether that listing is proven unchanged - the trusted flag the caller
-// passes down to those children.
+// ReadDir lists pth through root only when its mtime shows the listing could
+// have changed, and reports whether the listing it returns is proven unchanged -
+// the trusted flag the caller passes down to those children.
 //
 // trusted says the caller established pth is still the directory the snapshot
 // describes. An mtime identifies content, not the directory: swap one directory
-// for another carrying the same mtime and matching the mtime alone would serve
-// the old children forever. The parent rules that out - renaming a directory
-// into place changes the parent's mtime, so only a parent whose listing was
-// reused may let a child's recorded mtime be believed; a relisted parent
-// distrusts its whole subtree. The walk's root is trusted by definition.
+// for another carrying the same mtime and the mtime alone would serve the old
+// children forever. Renaming a directory into place changes the parent's mtime,
+// so only a parent whose listing was reused may let a child's recorded mtime be
+// believed; a relisted parent distrusts its whole subtree, and the walk's root
+// is trusted by definition.
 func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild, bool, error) {
 	w.stats.Dirs++
 
@@ -271,10 +267,9 @@ func (c *Cache) Save() error {
 	return nil
 }
 
-// ChildIsDir reports whether pth is a directory, paying for a Stat through root
-// only when the directory entry could not answer. A listing already reports each
-// entry's type, but a symlink's type describes the link, so a link to a
-// directory falls back to Stat. child is nil at the root of a walk.
+// ChildIsDir pays for a Stat only when the directory entry could not answer: a
+// symlink's type describes the link, not its target. child is nil at the root
+// of a walk.
 func ChildIsDir(root fsutil.ReadFS, pth string, child *DirChild) (bool, error) {
 	if child != nil && !child.Symlink {
 		return true, nil

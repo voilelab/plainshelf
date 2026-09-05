@@ -79,8 +79,7 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 	}
 }
 
-// A book moved between layers keeps its fingerprints: the index is keyed on the
-// book ID, which survives the move, and not on the path, which does not.
+// The index is keyed on the book ID, which survives a move; a path would not.
 func TestFingerprintCacheSurvivesMovingABook(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("a.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -205,9 +204,8 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 	}
 }
 
-// A cache built with other rules is discarded whole rather than partly reused:
-// nothing can vouch for the comparability of an entry whose normalization or
-// sketch parameters are not the ones in use.
+// Discarded whole rather than partly reused: nothing can vouch for an entry
+// whose normalization or sketch parameters are not the ones in use.
 func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -246,8 +244,7 @@ func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
 	}
 }
 
-// Two machines sharing a shelf must not overwrite each other: entries are a
-// union, so neither side loses work it computed.
+// Entries are a union, so neither machine loses work it computed.
 func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	ts := newTestShelf(t)
 	mine := ts.addBook("mine.bookpkg", "book-mine", "Mine", "a book only this machine has read", -time.Hour)
@@ -334,9 +331,8 @@ func TestMergeIndexKeepsTheNewerRecord(t *testing.T) {
 	}
 }
 
-// Records for books the shelf no longer holds are collected on the next save,
-// along with the entries nothing points at any more. An entry a surviving book
-// still hashes to stays.
+// Collected along with the entries nothing points at any more; an entry a
+// surviving book still hashes to stays.
 func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 	ts := newTestShelf(t)
 
@@ -603,9 +599,8 @@ func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
 	}
 }
 
-// A source too freshly written to index still has its fingerprint kept: it was
-// computed by this very run, so collecting it would mean building it again next
-// time for nothing.
+// It was computed by this very run, so collecting it would mean building it
+// again next time for nothing.
 func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("fresh.bookpkg", "book-fresh", "Just Written", "written moments ago", 0)
@@ -690,15 +685,12 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	}
 }
 
-// TestFingerprintCacheWithManyEntriesIsByteStable is the reverse condition for
-// the json/v2 conversion. The cache skips its write by comparing the freshly
-// encoded file against the bytes on disk, and cacheFile holds two maps — so the
-// skip is only real while the encoder sorts them. json/v2 does not, unless the
-// option set says so, and nothing about dropping it fails loudly: the file
-// round-trips, and the single-book test above still passes because one entry
-// has no order to vary. Twelve entries do, so this is where a missing
-// Deterministic shows up as what it costs in the field, a re-upload of an
-// unchanged cache on every scan.
+// The write is skipped by comparing the freshly encoded file against the bytes
+// on disk, so the skip is only real while the encoder sorts cacheFile's two
+// maps. json/v2 does not unless the option set says so, and dropping that fails
+// nothing loudly - the file round-trips, and one entry has no order to vary.
+// Twelve do, so this is where a missing Deterministic shows up as what it costs:
+// a re-upload of an unchanged cache on every scan.
 func TestFingerprintCacheWithManyEntriesIsByteStable(t *testing.T) {
 	ts := newTestShelf(t)
 
@@ -761,11 +753,9 @@ func firstDifference(a, b string) (string, string) {
 	return a[i:min(i+60, len(a))], b[i:min(i+60, len(b))]
 }
 
-// The fingerprint cache is rebuildable, so the strictness the shelf's
-// hand-editable files gained is deliberately not applied to it: a duplicate
-// member makes it a cache miss, not a failure a user has to repair. Nothing
-// writes such a file - a sync tool merging two copies, or a truncated write,
-// is what leaves one behind.
+// The cache is rebuildable, so the strictness the hand-editable files gained is
+// deliberately not applied here: a duplicate member is a cache miss, not a
+// failure a user has to repair.
 func TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported(t *testing.T) {
 	ts := newTestShelf(t)
 
