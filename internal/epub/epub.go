@@ -27,31 +27,26 @@ const (
 	maxDocumentBytes = 32 << 20  // 32 MB for a single spine document
 	maxTotalBytes    = 256 << 20 // 256 MB across all spine documents
 
-	// Illustrations get their own, tighter budget: unlike the text, every kept
-	// image is held in memory until the book is written, and it then lives on
-	// the shelf forever. An image past either ceiling is dropped and counted,
-	// so an outsized archive costs its pictures rather than the whole import.
+	// Illustrations get a tighter budget: every kept image is held in memory
+	// until the book is written and then lives on the shelf forever. One past
+	// either ceiling is dropped and counted, so an outsized archive costs its
+	// pictures rather than the whole import.
 	maxImageBytes      = 8 << 20  // 8 MB for a single illustration
 	maxTotalImageBytes = 64 << 20 // 64 MB across all illustrations in one book
 )
 
 var errZipEntryTooLarge = errors.New("zip entry exceeds the maximum supported size")
 
-// ImageFolder is the directory, relative to the text that references them, an
-// importer is expected to store kept illustrations in. It is written into the
-// Markdown targets this package produces.
-//
-// It is declared here rather than imported so an EPUB parser does not depend on
-// the shelf's storage layer. server/import_epub_test.go asserts it still agrees
-// with shelf.SourceAssetsFolder, which is where the files actually land.
+// ImageFolder is written into the Markdown targets this package produces. It is
+// declared here rather than imported so an EPUB parser does not depend on the
+// shelf's storage layer; server/import_epub_test.go asserts it still agrees with
+// shelf.SourceAssetsFolder, where the files actually land.
 const ImageFolder = "assets"
 
-// imageExtensions are the illustration formats worth keeping. Anything else is
-// dropped and counted, including SVG, which the shelf does not serve.
-//
-// The same drift test covers this against shelf.IsSupportedImageExt: an image
-// stored under a name the shelf refuses would be referenced by the text and
-// never load.
+// imageExtensions are the formats worth keeping; anything else, SVG included, is
+// dropped and counted. The same drift test covers this against
+// shelf.IsSupportedImageExt: an image the shelf refuses would be referenced by
+// the text and never load.
 var imageExtensions = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true,
 }
@@ -102,10 +97,9 @@ type Book struct {
 	// were first referenced. It is empty unless Options.KeepImages was set.
 	Images []Image
 
-	// DroppedImages counts the distinct illustrations referenced by the spine
-	// documents that conversion discarded. The stored cover is not counted: it
-	// is kept, not lost. Images referenced more than once count once, so the
-	// number reflects artwork lost rather than tags removed.
+	// DroppedImages counts distinct illustrations the conversion discarded, so
+	// the number reflects artwork lost rather than tags removed. The stored cover
+	// is kept, not lost, and is not counted.
 	DroppedImages int
 
 	Chapters []Chapter

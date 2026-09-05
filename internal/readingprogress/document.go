@@ -1,27 +1,20 @@
-// Package readingprogress models the cross-process reading-progress document
-// and the reader -> desktop projection that folds standalone-reader progress
-// back into the desktop library.
+// Package readingprogress models the cross-process reading-progress document and
+// the reader -> desktop projection.
 //
-// Two independent processes share one reading_progress.json: the desktop app
-// (which keys progress by a book's real shelf id) and the standalone reader. A
-// reader launched from the desktop is handed the book's real shelf id and keys
-// progress directly under it; a reader run on its own has no real shelf and keys
-// everything under the synthetic shelf id "book", which the projection folds onto
-// real shelves.
+// Two independent processes share one reading_progress.json. The desktop app
+// keys progress by a book's real shelf id, and so does a reader it launched; a
+// reader run on its own has no real shelf and keys everything under the
+// synthetic shelf id "book", which the projection folds onto real shelves.
 //
-// Every entry carries the wall-clock time it was written, and all reconciliation
-// is newest-wins per book: a concurrent write from either process is arbitrated
-// by recency rather than by namespace ownership, so the reader and desktop can
-// both write the same real shelf without losing each other's updates. A reset is
-// a timestamped tombstone (offset 0) rather than a deletion, so it too wins by
-// recency instead of being silently resurrected by an older advance. This package
-// owns the document shape both sides agree on, the newest-wins merge, and the
-// newest-wins projection. The file-backed, cross-process-locked store lives in
-// store.go.
+// Every entry carries the time it was written, and all reconciliation is
+// newest-wins per book — arbitrated by recency rather than namespace ownership,
+// so both processes can write the same shelf without losing each other's
+// updates. A reset is a timestamped tombstone (offset 0) rather than a deletion,
+// so it too wins by recency instead of being resurrected by an older advance.
+// The file-backed, cross-process-locked store lives in store.go.
 //
-// The document shape mirrors frontend/src/storage/readingProgress/document.ts,
-// which owns the single client-side implementation. This package only reads and
-// writes what that format defines.
+// The shape mirrors frontend/src/storage/readingProgress/document.ts, which owns
+// the single client-side implementation.
 package readingprogress
 
 import (
@@ -34,12 +27,11 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// DocumentVersion matches READING_PROGRESS_DOCUMENT_VERSION in the frontend. A
-// document of any other version is treated as absent rather than upgraded: the
-// timestamped v2 format deliberately does not read the untimestamped v1 one.
-// This file is device-local state, outside the on-disk format commitments, and
-// dropping v1 shipped in v0.10.0 as a documented breaking change (CHANGELOG.md,
-// docs/installation.md) — not a pattern to follow for shelf data.
+// DocumentVersion matches READING_PROGRESS_DOCUMENT_VERSION in the frontend. Any
+// other version is treated as absent rather than upgraded: the timestamped v2
+// format deliberately does not read the untimestamped v1 one. This file is
+// device-local state, outside the on-disk format commitments — not a pattern to
+// follow for shelf data.
 const DocumentVersion = 2
 
 // ReaderShelfID is the synthetic shelf key the standalone reader writes progress
@@ -73,9 +65,8 @@ func New() Document {
 	return Document{Version: DocumentVersion, Shelves: map[string]map[string]Entry{}}
 }
 
-// Parse reads a stored document. A missing, corrupt, wrongly shaped, or
-// non-current-version document yields an empty document rather than an error, so
-// a bad file can never keep a reader from opening — this mirrors the frontend
+// Parse yields an empty document rather than an error for anything unusable, so
+// a bad file can never keep a reader from opening. Mirrors the frontend
 // parser's leniency.
 func Parse(text string) Document {
 	doc := New()

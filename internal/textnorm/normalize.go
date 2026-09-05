@@ -13,55 +13,42 @@ import (
 // cache, because nothing about it looks wrong.
 const NormalizeVersion = "nfkc-strip-space-punct-v1"
 
-// Normalize reduces text to the characters that carry its content: it applies
-// NFKC and drops every whitespace, punctuation, symbol and separator rune,
-// repeating until the string stops changing. What survives is letters, digits
-// and marks, in a form that does not depend on where the layout used to be.
+// Normalize reduces text to the characters that carry its content: NFKC, then
+// every whitespace, punctuation, symbol and separator rune dropped, repeated
+// until the string stops changing. Two layouts of one text therefore normalize
+// alike — a chapter rewrapped, corner brackets traded for curly quotes, an
+// ideographic space indenting every paragraph. Format conversions are weaker: an
+// EPUB rendered to text tends to gain a table of contents, and the extra
+// headings are content. Exact equality here is a zero-false-positive fast path,
+// not a replacement for a similarity sketch.
 //
-// Two layouts of one text therefore normalize to one string. A chapter rewrapped
-// at a different width, corner brackets traded for curly quotes, an ideographic
-// space indenting every paragraph — all of it is gone before the comparison
-// starts. Format conversions are a weaker case: an EPUB rendered to text tends to
-// gain a table of contents or a colophon, and the extra headings are content, so
-// the results stay different. Exact equality after Normalize is a narrow, zero
-// false positive fast path, not a replacement for a similarity sketch.
+// Three consequences a caller comparing results will meet:
 //
-// Two consequences are deliberate and worth stating, because a caller comparing
-// results will meet both:
+// Latin words run together — "the dog" and "thedog" normalize alike. Dropping
+// whitespace is what makes CJK reflowing invisible, and the cost lands on Latin,
+// where word boundaries are recoverable from the letters anyway.
 //
-// Latin words run together. "the dog" and "thedog" normalize alike, and so do
-// two CJK passages that differ only in where a translator put the Latin spaces.
-// Dropping whitespace is what makes CJK reflowing invisible, and CJK is the
-// script PlainShelf is built around; the cost lands on Latin text, where word
-// boundaries are usually recoverable from the letters anyway.
+// Traditional and simplified Chinese stay apart: 「三國」 and 「三国」 differ.
+// Converting needs a dictionary, and a wrong conversion would silently merge two
+// books that are not the same edition.
 //
-// Traditional and simplified Chinese stay apart. 「三國」 and 「三国」 normalize
-// to different strings. Converting between them is a word-level problem that
-// needs a dictionary, and a wrong conversion would silently merge two books that
-// are not the same edition.
+// Zero-width and other format runes (Unicode Cf, a byte-order mark included)
+// survive this version: NFKC does not remove them and no Unicode category calls
+// them whitespace. Stripping them is a rule change, so it belongs to a version
+// bump rather than to this function.
 //
-// Zero-width and other format runes (Unicode Cf, including a byte-order mark)
-// survive this version. NFKC does not remove them and they are not whitespace by
-// any Unicode category, so a stray BOM still separates two otherwise identical
-// texts. Stripping them is a rule change, so it belongs to a version bump rather
-// than to this function.
-//
-// Normalize takes the whole text at once so it can share the single read the
-// caller already makes for the other content metrics, rather than costing a
-// second pass over a network-mounted shelf.
+// Takes the whole text at once so it shares the single read the caller already
+// makes for the other content metrics.
 func Normalize(s string) string {
-	// NFKC has to run before the filter, because a compatibility form can expand
-	// into punctuation that only the filter knows to drop. The filter then has to
-	// be followed by NFKC again, because removing a rune can leave a base
-	// character next to a combining mark that a line break had kept apart, and
-	// NFKC could not compose the two until that break was gone. Without the
-	// second round, "e\n" + U+0301 and a precomposed "é" normalize differently —
-	// which is exactly the layout difference this function exists to erase.
+	// NFKC runs before the filter, because a compatibility form can expand into
+	// punctuation only the filter knows to drop — and after it, because removing
+	// a rune can leave a base character next to a combining mark a line break had
+	// kept apart. Without the second round, "e\n" + U+0301 and a precomposed "é"
+	// normalize differently, which is exactly the difference this erases.
 	//
-	// One extra round settles every input we know of; the loop is what turns that
-	// into a guarantee. It terminates because after the first round every
-	// compatibility decomposition is already applied, so each further round only
-	// composes, and composing never lengthens the string.
+	// One extra round settles every input we know of; the loop makes that a
+	// guarantee. It terminates because after the first round each further round
+	// only composes, and composing never lengthens the string.
 	for range maxNormalizeRounds {
 		stripped := stripLayout(norm.NFKC.String(s))
 		if stripped == s {
