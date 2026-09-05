@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "cases": [
     {
       "name": "plain-book",
@@ -47,7 +47,7 @@
     },
     {
       "name": "nsfw-marked",
-      "covers": "A shelf.json carrying only a content.nsfw_folders block, and a book.json carrying nsfw: true and nsfw: false. Both are additive: the walk, the folder list and every other field read exactly as they would without them, and a shelf.json with no scan section still skips the built-in directories."
+      "covers": "A shelf.json carrying only a content.nsfw_folders block, and a book.json carrying nsfw: true and nsfw: false. The rule marks its folder and everything below it, a folder whose name merely starts with it is not marked, the rule is spelled in a different case than the folder, a book adds its own mark and a book's nsfw: false does not cancel its folder's. Both keys are additive: the walk, the folder list and every other field read exactly as they would without them, and a shelf.json with no scan section still skips the built-in directories."
     }
   ]
 }

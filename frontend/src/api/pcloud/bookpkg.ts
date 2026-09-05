@@ -57,6 +57,21 @@ type IgnoreRules = (name: string) => boolean;
 /** The rules for a shelf that has said nothing about scanning. */
 export const DEFAULT_IGNORE_RULES: IgnoreRules = createIgnoreRules(DEFAULT_IGNORED_DIRS);
 
+/** Mirrors `NSFWFolder` in shelf/internal/shelfutil. */
+interface NSFWFolder {
+  /** A "/"-separated folder path as written; matching folds case. */
+  path: string;
+  /** A short phrase completing "marked because …". May be empty. */
+  reason: string;
+}
+
+/**
+ * Mirrors `NSFWRules` in shelf/internal/shelfutil: whether a book's folder path
+ * lies in a subtree this shelf marks as adult content. A rule marks its own
+ * folder and every folder below it.
+ */
+type NSFWRules = (folders: readonly string[]) => boolean;
+
 /** What this client reads out of `shelf.json`. */
 export interface ShelfConfig {
   /**
@@ -65,6 +80,13 @@ export interface ShelfConfig {
    * shelf said nothing, which means the defaults.
    */
   ignoredDirs?: IgnoredDir[];
+
+  /**
+   * The folder subtrees this shelf marks as adult content. Unlike `ignoredDirs`
+   * there is no built-in list to replace, so undefined and empty mean the same
+   * thing: this shelf marks no folder.
+   */
+  nsfwFolders?: NSFWFolder[];
 }
 
 /** 255 bytes is the per-component limit the Go side validates against. */
@@ -81,42 +103,133 @@ function isUsableDirName(name: string): boolean {
 }
 
 /**
+ * JSON null stands in for an absent member throughout this file: the Go side
+ * decodes into a struct, where null leaves the zero value rather than failing.
+ */
+function isAbsent(value: unknown): boolean {
+  return value === undefined || value === null;
+}
+
+function isJsonObject(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * One entry's `reason`, or undefined when the entry has to be dropped over it.
+ *
+ * A wrong type takes the whole entry with it rather than defaulting to empty:
+ * the Go side unmarshals the entry into a {name|path, reason} struct, so a
+ * number there fails the entry and the directory is not skipped, or the folder
+ * not marked. Defaulting here would skip or mark it, which is the two readers
+ * disagreeing about the same file.
+ */
+function parseReason(reason: unknown): string | undefined {
+  if (isAbsent(reason)) {
+    return '';
+  }
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+/**
  * An entry is always a {name, reason} object; a bare name is not accepted, for
  * the reason parseIgnoredDir gives in shelf/shelf_config.go.
  */
 function parseIgnoredDir(entry: unknown): IgnoredDir | undefined {
-  if (entry === null || typeof entry !== 'object') {
+  if (!isJsonObject(entry)) {
     return undefined;
   }
 
   const { name, reason } = entry as { name?: unknown; reason?: unknown };
-  if (typeof name !== 'string' || !isUsableDirName(name)) {
+  const reasonText = parseReason(reason);
+  if (typeof name !== 'string' || !isUsableDirName(name) || reasonText === undefined) {
     return undefined;
   }
-  return { name, reason: typeof reason === 'string' ? reason : '' };
+  return { name, reason: reasonText };
 }
 
 /**
- * Never throws: a file from a newer build, or one whose `scan` section is the
- * wrong shape, leaves the defaults in place rather than making the shelf
- * unreadable — as the Go side does with the same file. Unusable entries are
- * dropped one by one, so one bad line does not cost the rest.
+ * An entry is always a {path, reason} object, for the same reason parseIgnoredDir
+ * refuses a bare name: one entry, one shape.
+ */
+function parseNSFWFolder(entry: unknown): NSFWFolder | undefined {
+  if (!isJsonObject(entry)) {
+    return undefined;
+  }
+
+  const { path, reason } = entry as { path?: unknown; reason?: unknown };
+  const reasonText = parseReason(reason);
+  if (typeof path !== 'string' || normalizeFolderPath(path) === undefined || reasonText === undefined) {
+    return undefined;
+  }
+  return { path, reason: reasonText };
+}
+
+/**
+ * Whether the Go side would read this file at all.
+ *
+ * `json.UnmarshalRead` fills one struct, so a member of the wrong container type
+ * fails the *whole file* and the shelf keeps its defaults — it does not fall
+ * back section by section. A reader that dropped only the bad section would
+ * apply the other one where Go applies nothing, so a file with a broken `scan`
+ * and a valid `content` would mark folders on a phone and nowhere else.
+ *
+ * Unknown members are accepted here as they are there, so a file from a newer
+ * build still reads.
+ */
+function isReadableShelfConfig(raw: unknown): boolean {
+  if (!isJsonObject(raw)) {
+    return false;
+  }
+
+  const { schema_version: schemaVersion, scan, content } = raw as Record<string, unknown>;
+  if (!isAbsent(schemaVersion) && !Number.isInteger(schemaVersion)) {
+    return false;
+  }
+  return isReadableSection(scan, 'ignored_dirs') && isReadableSection(content, 'nsfw_folders');
+}
+
+function isReadableSection(section: unknown, member: string): boolean {
+  if (isAbsent(section)) {
+    return true;
+  }
+  if (!isJsonObject(section)) {
+    return false;
+  }
+  const listed = (section as Record<string, unknown>)[member];
+  return isAbsent(listed) || Array.isArray(listed);
+}
+
+/** The listed entries of one section, or undefined when the section has none. */
+function listedEntries(section: unknown, member: string): unknown[] | undefined {
+  const listed = (section as Record<string, unknown> | null | undefined)?.[member];
+  return Array.isArray(listed) ? listed : undefined;
+}
+
+/**
+ * Never throws: a file from a newer build, or one whose shape this reader cannot
+ * use, leaves the defaults in place rather than making the shelf unreadable — as
+ * the Go side does with the same file. Within a file it can read, unusable
+ * entries are dropped one by one, so one bad line does not cost the rest.
  */
 export function parseShelfConfig(raw: unknown): ShelfConfig {
-  const scan = (raw as { scan?: unknown } | null)?.scan;
-  const listed = (scan as { ignored_dirs?: unknown } | null | undefined)?.ignored_dirs;
-  if (!Array.isArray(listed)) {
+  if (!isReadableShelfConfig(raw)) {
     return {};
   }
 
-  const ignoredDirs: IgnoredDir[] = [];
-  for (const entry of listed) {
-    const dir = parseIgnoredDir(entry);
-    if (dir) {
-      ignoredDirs.push(dir);
-    }
+  const { scan, content } = raw as Record<string, unknown>;
+  const config: ShelfConfig = {};
+
+  const dirs = listedEntries(scan, 'ignored_dirs');
+  if (dirs) {
+    config.ignoredDirs = dirs.map(parseIgnoredDir).filter((dir) => dir !== undefined);
   }
-  return { ignoredDirs };
+
+  const folders = listedEntries(content, 'nsfw_folders');
+  if (folders) {
+    config.nsfwFolders = folders.map(parseNSFWFolder).filter((folder) => folder !== undefined);
+  }
+
+  return config;
 }
 
 /**
@@ -127,6 +240,139 @@ export function parseShelfConfig(raw: unknown): ShelfConfig {
 export function createIgnoreRules(dirs: readonly IgnoredDir[]): IgnoreRules {
   const names = new Set(dirs.filter((dir) => dir.name !== '').map((dir) => dir.name.toLowerCase()));
   return (name: string) => name.startsWith('.') || names.has(name.toLowerCase());
+}
+
+/**
+ * Folds one path segment into a map key two spellings differing only in case
+ * share — `foldSegment` in shelf/internal/shelfutil, which lowercases and then
+ * takes the fold orbit's representative.
+ *
+ * JavaScript has no `unicode.SimpleFold`, so the orbit is reached by going back
+ * up and down again: lowercase, uppercase, lowercase. Neither pass alone is
+ * enough. Lowercasing misses Greek final sigma ("Σ" lowercases to "σ" while "ς"
+ * lowercases to itself, so a folder rule is silently missed), and folding alone
+ * leaves "İ" apart from "istanbul". Two guards keep the round trip from merging
+ * more than Unicode does: an uppercase mapping that expands ("ß" to "SS", "ﬁ" to
+ * "FI") is not a case pair and is skipped, and FOLD_EXCEPTIONS covers the four
+ * code points the round trip still gets wrong.
+ *
+ * Checked exhaustively against the Go side, not by inspection: over all
+ * 1,112,064 code points this produces exactly the equivalence classes
+ * `minFold(unicode.ToLower(r))` does. The two sides read their own Unicode
+ * tables, so a script added in a newer Unicode than one of the two runtimes
+ * carries is the one way they can still disagree.
+ *
+ * IgnoreRules still matches on the lowercase name alone, as it does in Go: that
+ * is shipped behavior deciding which directories a shelf skips.
+ */
+function foldSegment(segment: string): string {
+  let folded = '';
+  for (const character of segment) {
+    folded += foldCharacter(character);
+  }
+  return folded;
+}
+
+/**
+ * Where lowercase-uppercase-lowercase does not land on Go's representative.
+ * "ı" is excluded from folding with "i" and the round trip would merge them;
+ * the other three are orbits Go folds together but whose uppercase expands, so
+ * the guard above would leave them apart. Keyed by the lowercased character.
+ */
+const FOLD_EXCEPTIONS = new Map<string, string>([
+  ['\u0131', '\u0131'], // dotless i, which folds with nothing
+  ['\u1FD3', '\u0390'], // ΐ, spelled two ways
+  ['\u1FE3', '\u03B0'], // ΰ, spelled two ways
+  ['\uFB06', '\uFB05'] // the st ligature, spelled two ways
+]);
+
+function foldCharacter(character: string): string {
+  const lower = simpleLowerCase(character);
+  const exception = FOLD_EXCEPTIONS.get(lower);
+  if (exception !== undefined) {
+    return exception;
+  }
+
+  const upper = [...lower.toUpperCase()];
+  return upper.length === 1 ? simpleLowerCase(upper[0]) : lower;
+}
+
+/**
+ * `unicode.ToLower` for one character: the simple 1:1 mapping, where JavaScript
+ * applies Unicode's full one. "İ" is the only character whose unconditional
+ * lowercase expands (to "i" plus a combining dot), and Go maps it to the "i".
+ */
+function simpleLowerCase(character: string): string {
+  return [...character.toLowerCase()][0] ?? character;
+}
+
+/**
+ * Folds a written folder path into the key the rules are stored under, or
+ * undefined when it names no folder — `normalizeFolderPath` in
+ * shelf/internal/shelfutil. Empty segments are dropped, so a leading slash, a
+ * trailing slash and a doubled separator all name the same folder; a path with
+ * no segment at all is refused, because "" would mark the whole shelf and is far
+ * more likely to be an empty field than a decision.
+ */
+function normalizeFolderPath(folderPath: string): string | undefined {
+  const folded: string[] = [];
+  for (const segment of folderPath.split('/')) {
+    if (segment === '') {
+      continue;
+    }
+    if (!isUsableDirName(segment)) {
+      return undefined;
+    }
+    folded.push(foldSegment(segment));
+  }
+  return folded.length > 0 ? folded.join('/') : undefined;
+}
+
+/**
+ * Mirrors `NewNSFWRules` in shelf/internal/shelfutil: the paths are normalized
+ * once, because a listing asks this question once per book.
+ *
+ * There is no built-in list, so an empty one — the shelf that said nothing —
+ * marks nothing. An entry that cannot name a folder is dropped on its own.
+ */
+export function createNSFWRules(folders: readonly NSFWFolder[]): NSFWRules {
+  const marked = new Set<string>();
+  for (const folder of folders) {
+    const key = normalizeFolderPath(folder.path);
+    if (key !== undefined) {
+      marked.add(key);
+    }
+  }
+  if (marked.size === 0) {
+    return () => false;
+  }
+
+  // Walking down from the root asks whether any prefix of the path is listed,
+  // since a rule marks everything below it. Comparing folded segment by folded
+  // segment is what keeps "Fiction/成人" off "Fiction/成人漫畫", which a plain
+  // string prefix test would mark.
+  return (path) => {
+    let key = '';
+    for (const segment of path) {
+      key = key === '' ? foldSegment(segment) : `${key}/${foldSegment(segment)}`;
+      if (marked.has(key)) {
+        return true;
+      }
+    }
+    return false;
+  };
+}
+
+/**
+ * Mirrors `Shelf.IsBookNSFW`: the shelf's answer for one book, assembled from
+ * the folder rules in `shelf.json` and the book's own `nsfw`.
+ *
+ * The two sources add, they do not override. `nsfw: false` on a book does NOT
+ * take it out of a marked folder — the failure that matters here is a book that
+ * should have been marked and quietly was not.
+ */
+export function isBookNSFW(isNSFWFolder: NSFWRules, folders: readonly string[], meta: BookJson): boolean {
+  return meta.nsfw === true || isNSFWFolder(folders);
 }
 
 /** Locates `shelf.json` in a listed shelf root, if the shelf has one. */
@@ -202,6 +448,12 @@ export interface BookJson {
   language?: string;
   comments?: string;
   star?: number;
+  /**
+   * The book's own mark. Optional because absent means false in book.json, and
+   * because a shelf snapshot persisted by a build before this field existed is
+   * read back through this type.
+   */
+  nsfw?: boolean;
   created_at?: string;
   updated_at?: string;
   published_at?: string;
@@ -427,6 +679,7 @@ export function parseBookJson(raw: unknown): BookJson {
     language: typeof data.language === 'string' ? data.language : undefined,
     comments: typeof data.comments === 'string' ? data.comments : undefined,
     star: typeof data.star === 'number' ? data.star : undefined,
+    nsfw: data.nsfw === true,
     created_at: typeof data.created_at === 'string' ? data.created_at : undefined,
     updated_at: typeof data.updated_at === 'string' ? data.updated_at : undefined,
     published_at: typeof data.published_at === 'string' ? data.published_at : undefined,

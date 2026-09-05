@@ -28,6 +28,7 @@
       "cover_present": false,
       "schema_version_on_disk": 1,
       "read_only": false,
+      "nsfw": false,
       "current_source_field": "20260701-120000",
       "current_source": "20260701-120000",
       "sources": [
