@@ -181,7 +181,11 @@ Three boundaries are deliberate:
 - **Empty trash** erases every book in the trash, marked ones included. It is one
   command over the whole trash rather than a list of books, and leaving the
   marked ones behind would be worse than the disclosure: they would reappear the
-  next time the setting is turned on, long after the trash looked empty.
+  next time the setting is turned on, long after the trash looked empty. So that
+  the confirmation cannot understate what it is about to erase, a filtered
+  listing says so in an `X-PlainShelf-Trash-Partial: true` header and the web UI
+  then asks about "everything in the trash" rather than naming a count. The
+  header reports only that something was withheld, never what or how much.
 
 Switch it in **Settings → Adult content**. Turning it on or off refetches the
 library listing and the folder tree straight away, so the sidebar and the book

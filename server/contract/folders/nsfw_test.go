@@ -101,6 +101,42 @@ func TestAPINSFWBooksAreAbsentFromTheTrash(t *testing.T) {
 	apitest.AssertBookIDs(t, trashedIDs(), s.Visible, s.FolderHidden, s.BookHidden)
 }
 
+// Emptying the trash is not filtered, so a client that quoted the listing's
+// length as what the sweep will erase would understate it — it is this header
+// that tells the client to warn instead of naming a number. The header says
+// only that something is missing, never what.
+func TestAPINSFWTrashListingMarksItselfPartial(t *testing.T) {
+	s := apitest.NewNSFWShelf(t)
+	partial := func() string {
+		rec := s.Env.Get(apitest.TrashBooksURL())
+		apitest.AssertStatus(t, rec, http.StatusOK)
+		return rec.Header().Get(server.TrashListingPartialHeader)
+	}
+
+	// Nothing withheld yet: an empty trash, then one holding only a book the
+	// request may see. The header must stay off for both, or the warning it
+	// drives would replace the count on every ordinary shelf.
+	if got := partial(); got != "" {
+		t.Errorf("header on an empty trash = %q, want it absent", got)
+	}
+	trashAllOf(t, s, s.Visible)
+	if got := partial(); got != "" {
+		t.Errorf("header with nothing withheld = %q, want it absent", got)
+	}
+
+	trashAllOf(t, s, s.BookHidden)
+	if got := partial(); got != "true" {
+		t.Errorf("header with a marked book withheld = %q, want \"true\"", got)
+	}
+
+	// It describes this response, not the shelf: with the setting on, the same
+	// trash is answered in full and the header goes away again.
+	apitest.SetShowNSFW(t, s.Env, true)
+	if got := partial(); got != "" {
+		t.Errorf("header with show_nsfw on = %q, want it absent", got)
+	}
+}
+
 // Restoring or erasing a book the listing just withheld would confirm it is
 // there, so both answer with the envelope an ID that was never issued gets.
 func TestAPINSFWTrashedBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {

@@ -144,6 +144,8 @@ const readOnly = computed(() => !writesEnabled.value);
 const { fetchBooks } = useBookStore();
 const { fetchFolders } = useFolderStore();
 const items = ref<TrashedBook[]>([]);
+// Whether `items` is the whole trash; see TrashedBookListing.
+const listingComplete = ref(true);
 const loading = ref(false);
 const loaded = ref(false);
 const error = ref('');
@@ -192,11 +194,13 @@ const {
   pollFailedMessage: () => t('trash.emptyAll.pollFailed')
 });
 
-// The listing hides books whose metadata cannot be read, so an empty table does
-// not mean an empty trash — and those hidden directories are exactly what the
-// sweep exists to remove. Only promise a count when one is actually known.
+// The table is not always the whole trash: books whose metadata cannot be read
+// are left out of it, and so are the ones the adult-content setting hides
+// (`complete: false`). The sweep removes those too, so quoting the table's
+// length would confirm one deletion and perform several. Only promise a count
+// when the listing is known to be the whole trash.
 const emptyQuestionText = computed(() =>
-  items.value.length > 0
+  listingComplete.value && items.value.length > 0
     ? t('trash.emptyAll.question', { count: items.value.length })
     : t('trash.emptyAll.questionUnknownCount')
 );
@@ -249,7 +253,9 @@ async function loadTrash(): Promise<void> {
   error.value = '';
   actionError.value = '';
   try {
-    items.value = await getBookshelfProvider().listTrashedBooks();
+    const listing = await getBookshelfProvider().listTrashedBooks();
+    items.value = listing.books;
+    listingComplete.value = listing.complete;
     loaded.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('trash.loadFailed');

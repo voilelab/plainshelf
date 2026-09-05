@@ -87,6 +87,19 @@ export interface TrashedBook {
   deleted_at?: BookTimestamp;
 }
 
+/**
+ * A trash listing together with whether it is the whole trash.
+ *
+ * `complete: false` means the server withheld at least one book — today, one
+ * the adult-content setting hides. **Empty trash** is not filtered and erases
+ * everything, so a partial listing's length must not be quoted as the number
+ * that sweep will delete.
+ */
+export interface TrashedBookListing {
+  books: TrashedBook[];
+  complete: boolean;
+}
+
 export interface BookDetail extends Book {
   progress?: ReadingProgress;
 }

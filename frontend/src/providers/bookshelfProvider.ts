@@ -14,7 +14,8 @@ import type {
   DownloadState,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook
+  TrashedBook,
+  TrashedBookListing
 } from '@/types/book';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
@@ -106,7 +107,7 @@ export interface BookshelfReader {
   getSimilarBookPairs(floor?: number, confirm?: boolean): Promise<SimilarBookPair[]>;
   /** Coverage of the fingerprint cache, for the "build what's missing" bar. */
   getFingerprintStatus(): Promise<FingerprintStatus>;
-  listTrashedBooks(): Promise<TrashedBook[]>;
+  listTrashedBooks(): Promise<TrashedBookListing>;
 
   /** Folder paths in the shape `api/folders.ts` returns: '/' for the top level. */
   listFolders(): Promise<string[]>;

@@ -42,7 +42,8 @@ import type {
   BookContent,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook
+  TrashedBook,
+  TrashedBookListing
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
@@ -857,7 +858,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return { total: 0, fingerprinted: 0, missing: 0, algo: { normalize: '', shingle: '', hash: '', k: 0 } };
   }
 
-  async listTrashedBooks(): Promise<TrashedBook[]> {
-    return [];
+  async listTrashedBooks(): Promise<TrashedBookListing> {
+    return { books: [], complete: true };
   }
 }

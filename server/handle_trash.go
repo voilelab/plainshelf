@@ -15,6 +15,19 @@ type trashHandlers struct {
 	*taskSubmitter
 }
 
+// TrashListingPartialHeader marks a trash listing the server did not answer in
+// full, because show_nsfw withheld at least one book from it.
+//
+// Emptying the trash is deliberately not filtered — it is one command over the
+// whole trash — so a client that quoted the listing's length as what the sweep
+// will erase would understate it. This header is how the client knows to say
+// "everything in the trash" instead of a number it cannot stand behind.
+//
+// It says only that something is missing, never what or how much. That is a
+// narrow disclosure the filter otherwise avoids, and it is the accepted price
+// of not asking the user to confirm one deletion and performing three.
+const TrashListingPartialHeader = "X-PlainShelf-Trash-Partial"
+
 type TrashedBook struct {
 	ID             string           `json:"id"`
 	Title          string           `json:"title"`
@@ -80,6 +93,10 @@ func (h *trashHandlers) getTrashedBooks(w http.ResponseWriter, r *http.Request) 
 			OriginalFolder: slices.Clone(b.OriginalFolder),
 			DeletedAt:      b.DeletedAt,
 		})
+	}
+
+	if len(resp) < len(books) {
+		w.Header().Set(TrashListingPartialHeader, "true")
 	}
 
 	h.writeJSON(w, http.StatusOK, resp)
