@@ -162,10 +162,13 @@ func nsfwRulesFrom(conf shelfConfigJSON, hasConfig bool, logger logutil.Logger) 
 		folders = append(folders, folder)
 	}
 
-	rules := shelfutil.NewNSFWRules(folders)
-	if len(rules.Paths()) == 0 {
-		return rules
+	if len(folders) == 0 {
+		// Every entry was dropped, so this shelf marks nothing and there is no
+		// list worth logging.
+		return shelfutil.NSFWRules{}
 	}
+
+	rules := shelfutil.NewNSFWRules(folders)
 	logger.Info("shelf configuration marks folders as adult content",
 		"file", shelfConfigFile, "nsfw_folders", rules.Paths())
 	return rules

@@ -19,19 +19,9 @@ package shelf
 // conservative: the failure it rules out is a book that should have been marked
 // and quietly was not, which is the failure that matters here. Taking one book
 // out of a marked folder is done by moving it out of that folder.
-//
-// meta may be nil, which is read as a book that says nothing about itself.
 func (s *Shelf) IsBookNSFW(folders FolderPath, meta *BookMeta) bool {
 	if meta != nil && meta.NSFW {
 		return true
 	}
 	return s.nsfw.IsNSFWFolder(folders)
-}
-
-// NSFWFolderReason reports why a folder path is marked as adult content, and
-// whether it is marked at all. The reason is the one written in shelf.json, so
-// it is a phrase the user wrote about their own shelf; it may be empty for a
-// folder listed without one.
-func (s *Shelf) NSFWFolderReason(folders FolderPath) (reason string, marked bool) {
-	return s.nsfw.MatchNSFWFolder(folders)
 }

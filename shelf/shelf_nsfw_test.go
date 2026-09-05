@@ -217,37 +217,6 @@ func TestNSFWSkipsUnusableEntries(t *testing.T) {
 	assertMarked(t, markedBookIDs(t, s, len(nsfwFixtureBooks)), []string{"flagged-0001", "manga-0001"})
 }
 
-// The reason is what a caller shows the user, and the nearest enclosing rule
-// owns it: a subfolder listed with its own reason explains itself rather than
-// reporting its parent's.
-func TestNSFWFolderReason(t *testing.T) {
-	s := openNSFWShelf(t, `{
-		"content": {
-			"nsfw_folders": [
-				{"path": "Fiction/Adult", "reason": "adult shelf"},
-				{"path": "Fiction/Adult/Deep"}
-			]
-		}
-	}`)
-
-	for _, tc := range []struct {
-		folders    FolderPath
-		wantReason string
-		wantMarked bool
-	}{
-		{FolderPath{"Fiction", "Adult"}, "adult shelf", true},
-		{FolderPath{"Fiction", "Adult", "Deep"}, "", true},
-		{FolderPath{"Fiction", "Classics"}, "", false},
-		{nil, "", false},
-	} {
-		reason, marked := s.NSFWFolderReason(tc.folders)
-		if marked != tc.wantMarked || reason != tc.wantReason {
-			t.Errorf("NSFWFolderReason(%v) = (%q, %v), want (%q, %v)",
-				tc.folders, reason, marked, tc.wantReason, tc.wantMarked)
-		}
-	}
-}
-
 // A shelf with no content block behaves exactly as it did before the field
 // existed: nothing is marked, and a book.json with no nsfw member reads as a
 // book that says nothing.

@@ -177,6 +177,12 @@ type NSFWFolder struct {
 
 	// Reason is a short phrase completing "marked because ...". It may be empty
 	// for a folder a user listed without explaining.
+	//
+	// Nothing reads it back yet - unlike IgnoredDir.Reason, no refusal shows it
+	// to anyone. It is kept because shelf.json is a file a person writes and
+	// never a file PlainShelf rewrites, so the note survives for the next person
+	// to open it, and because dropping it would make the two entry shapes differ
+	// for no reason a reader of the file could see.
 	Reason string
 }
 
@@ -216,36 +222,27 @@ func NewNSFWRules(folders []NSFWFolder) NSFWRules {
 	return NSFWRules{byPath: byPath}
 }
 
-// MatchNSFWFolder reports whether a book's folder path lies in a marked subtree,
-// and why. The reason is what a caller shows the user; an empty reason means the
-// folder is marked and nobody said why.
+// IsNSFWFolder reports whether a book's folder path lies in a marked subtree.
 //
-// The nearest enclosing rule wins, so a subfolder listed with its own reason
-// explains itself rather than reporting its parent's.
-func (r NSFWRules) MatchNSFWFolder(folders []string) (reason string, marked bool) {
+// A rule marks its own folder and everything below it, so the question is
+// whether any prefix of this path is listed: the prefixes are built up one
+// segment at a time and the first one that matches settles it.
+func (r NSFWRules) IsNSFWFolder(folders []string) bool {
 	if len(r.byPath) == 0 {
-		return "", false
+		return false
 	}
 
 	var key strings.Builder
-	var match NSFWFolder
 	for _, segment := range folders {
 		if key.Len() > 0 {
 			key.WriteByte('/')
 		}
 		key.WriteString(foldSegment(segment))
-		if folder, ok := r.byPath[key.String()]; ok {
-			match, marked = folder, true
+		if _, ok := r.byPath[key.String()]; ok {
+			return true
 		}
 	}
-	return match.Reason, marked
-}
-
-// IsNSFWFolder reports whether a book's folder path lies in a marked subtree,
-// for callers that have no use for the reason.
-func (r NSFWRules) IsNSFWFolder(folders []string) bool {
-	_, marked := r.MatchNSFWFolder(folders)
-	return marked
+	return false
 }
 
 // Paths returns the configured paths as written, sorted, for logging.
