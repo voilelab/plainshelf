@@ -212,10 +212,9 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
-	// A pre-schema-version source carries whatever keys an older build wrote,
-	// including fields this build no longer models. Opening it decodes only the
-	// known fields, so a rewrite persists those and does not resurrect the
-	// unknown ones, nor upgrade the source by adding format/schema_version.
+	// Opening a pre-schema-version source decodes only the fields this build
+	// models, so a rewrite neither resurrects the unknown ones nor upgrades the
+	// source by adding format/schema_version.
 	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","legacy_extra":"ignored"}`
 	if err := rootFS.WriteFile(metaPath, []byte(legacy)); err != nil {
 		t.Fatalf("write legacy meta: %v", err)
@@ -343,8 +342,7 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 	}
 }
 
-// contentMD5 is the hash meta.json should be carrying for a source: the tests
-// that used to call Source.VerifyContent compare against this instead.
+// contentMD5 is the hash meta.json should be carrying for a source.
 func contentMD5(t *testing.T, source *Source) string {
 	t.Helper()
 	f, err := source.Open()
@@ -359,10 +357,8 @@ func contentMD5(t *testing.T, source *Source) string {
 	return sum
 }
 
-// A source's meta.json is written by the same encoder as book.json, and its
-// comment is free-form text a reader typed. json/v2 leaves &, < and > alone
-// where v1 wrote \u0026, \u003c and \u003e into a file whose point is that a
-// text editor shows what you typed.
+// json/v2 leaves &, < and > alone where v1 escaped them, in a file whose point
+// is that a text editor shows what you typed.
 func TestCreateSourceWritesCommentLiterally(t *testing.T) {
 	const comment = `imported from "A & B" <draft>`
 

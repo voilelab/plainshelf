@@ -28,11 +28,9 @@ func newLoggerForTest() logutil.Logger {
 	return *logger
 }
 
-// shiftModTime moves a file's modification time by offset from now. Staleness is
-// detected from the meta file's stat (see getFileStat), and on a filesystem with
-// one-second timestamp granularity a fresh write can land in the same second as
-// the cached stat and go unnoticed. Setting the time outright makes that
-// deterministic instead of sleeping until the second ticks over.
+// shiftModTime sets the time outright rather than sleeping until the second
+// ticks over: on a filesystem with one-second timestamp granularity a fresh
+// write can otherwise land in the same second as the cached stat.
 func shiftModTime(t *testing.T, filePath string, offset time.Duration) {
 	t.Helper()
 
@@ -43,7 +41,7 @@ func shiftModTime(t *testing.T, filePath string, offset time.Duration) {
 }
 
 // treeSnapshot records every entry under root by relative path, so a test can
-// assert that a refused mutation left the package on disk exactly as it was.
+// assert that a refused mutation left the package exactly as it was.
 func treeSnapshot(t *testing.T, root string) map[string]string {
 	t.Helper()
 
@@ -69,8 +67,6 @@ func treeSnapshot(t *testing.T, root string) map[string]string {
 	return snapshot
 }
 
-// snapshotDiff describes what changed between two treeSnapshot results, or "" if
-// nothing did.
 func snapshotDiff(before, after map[string]string) string {
 	var lines []string
 	for pth, state := range after {
