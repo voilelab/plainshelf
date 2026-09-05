@@ -93,13 +93,10 @@ export function getApiBase(): string {
 }
 
 /**
- * The canonical form of a base URL.
- *
- * Exported because the stored value and the applied value have to agree
- * exactly: on the mobile shell the applied base is half of the key that scopes
- * device-local book data (providers/cacheScope.ts), so a caller deriving that
- * key from a saved shelf must normalize the same way this does — a trailing
- * slash left on one side and stripped on the other points at a different cache.
+ * Exported because the stored and applied values have to agree exactly: on
+ * mobile the applied base is half the key that scopes device-local book data
+ * (providers/cacheScope.ts), so a trailing slash left on one side and stripped
+ * on the other points at a different cache.
  */
 export function normalizeApiBase(base: string): string {
   return String(base ?? '').trim().replace(/\/+$/, '');
@@ -123,10 +120,8 @@ export function isMockApiMode(): boolean {
   return API_MODE === 'mock';
 }
 
-// isInsecurePublicAccess reports whether the server bootstrapped this page with
-// the "no API authentication, reachable off-machine" flag. The Go server sets it
-// only for security mode none bound to a non-loopback address; every other
-// posture (any local_token mode, or none on loopback) leaves it unset.
+// The Go server sets this flag only for security mode none bound to a
+// non-loopback address; every other posture leaves it unset.
 export function isInsecurePublicAccess(): boolean {
   return typeof window !== 'undefined' && window.__PLAINSHELF_SECURITY__?.insecurePublicAccess === true;
 }
@@ -154,10 +149,8 @@ function assertWritableRequest(init?: RequestInit, options?: FetchJsonOptions): 
     return;
   }
 
-  // Dynamic import is avoided here to prevent a module cycle during startup.
-  // isMobileRuntime is imported from providers/runtime rather than the providers
-  // barrel for the same reason: the barrel pulls in the providers, which import
-  // this module.
+  // Imported from providers/runtime rather than the providers barrel, and
+  // statically: the barrel pulls in the providers, which import this module.
   const readOnly = typeof window !== 'undefined' && window.__PLAINSHELF_READ_ONLY__ === true;
   if (readOnly) {
     throw new ApiError('Server is in read-only mode. Write operations are disabled.');
@@ -239,12 +232,10 @@ const FETCH_TIMEOUT_MS = 30_000;
 const FETCH_STREAM_TIMEOUT_MS = 300_000;
 
 /**
- * The JSON body the Go server's error table answers with.
- *
- * Not every refusal carries it: the routes that still call http.Error directly
- * answer plain text, and so does the standalone reader app, so the envelope is
- * parsed opportunistically and the raw text remains the fallback. Showing the
- * user a JSON blob would be worse than the string they saw before.
+ * The JSON body the Go server's error table answers with. Not every refusal
+ * carries it — the routes that still call http.Error answer plain text, as does
+ * the standalone reader — so it is parsed opportunistically with the raw text as
+ * the fallback.
  */
 interface ApiErrorEnvelope {
   error: { code?: unknown; message?: unknown; incident?: unknown };
@@ -276,10 +267,8 @@ function parseErrorEnvelope(raw: string): {
   return { code, message, incident };
 }
 
-// The header form of the envelope's incident field. Every response leaves the
-// server through the request-ID middleware (server/app.go), so the plain-text
-// refusals that still call http.Error carry a reference even without an
-// envelope to put it in.
+// Every response leaves the server through the request-ID middleware, so the
+// plain-text refusals carry a reference even without an envelope to put it in.
 const REQUEST_ID_HEADER = 'X-Request-Id';
 
 function responseIncident(res: Response, fromEnvelope?: string): string | undefined {
