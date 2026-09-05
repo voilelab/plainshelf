@@ -71,14 +71,17 @@ func (s NSFWShelf) All() []string {
 // rescanned, which covers the other way a mark arrives - the file is the source
 // of truth, and a shelf may be marked with a text editor. SetBookNSFW is the
 // route a user takes, and has its own test.
-func NewNSFWShelf(t *testing.T) NSFWShelf {
+//
+// The options are for the areas that need more than the one shelf - a folder
+// transfer has to have somewhere to transfer to.
+func NewNSFWShelf(t *testing.T, opts ...Option) NSFWShelf {
 	t.Helper()
 
 	libRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(nsfwShelfJSON), 0o644); err != nil {
 		t.Fatalf("write shelf.json: %v", err)
 	}
-	env := New(t, WithLibRoot(libRoot))
+	env := New(t, append([]Option{WithLibRoot(libRoot)}, opts...)...)
 
 	book := func(title, folder, body string) string {
 		return ImportTextBook(t, env, title, folder, title+".txt", body).Meta.ID

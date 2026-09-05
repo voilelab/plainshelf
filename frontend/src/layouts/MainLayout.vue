@@ -18,6 +18,27 @@
       @cancel="cancelPendingRenameFolder"
       @submit="confirmRenameFolder"
     />
+    <!-- Sits above the rename/move/transfer flows rather than inside any of
+         them: all three can unmark a folder subtree, and the question is the
+         same one. Danger variant, because the mark cannot be put back from the
+         app - shelf.json is the user's file and PlainShelf only reads it. -->
+    <ConfirmModal
+      :open="pendingNsfwReveal !== null"
+      :title="t('layout.folderReveal.title')"
+      :confirm-text="t('layout.folderReveal.confirm')"
+      variant="danger"
+      @cancel="cancelNsfwReveal"
+      @confirm="confirmNsfwReveal"
+    >
+      <p>
+        {{
+          pendingNsfwReveal && pendingNsfwReveal.hiddenBooks > 0
+            ? t('layout.folderReveal.bookCount', { count: pendingNsfwReveal.hiddenBooks })
+            : t('layout.folderReveal.folderOnly')
+        }}
+      </p>
+      <p>{{ t('layout.folderReveal.note') }}</p>
+    </ConfirmModal>
     <CreateFolderModal
       :open="showCreateFolderModal"
       :busy="creatingFolder"
@@ -525,6 +546,7 @@ import {
 } from 'reka-ui';
 import CreateFolderModal from '@/components/CreateFolderModal.vue';
 import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import Icon from '@/components/Icon.vue';
 import FolderTree from '@/components/FolderTree.vue';
@@ -619,6 +641,9 @@ const {
   requestRenameFolder,
   cancelPendingRenameFolder,
   confirmRenameFolder,
+  pendingNsfwReveal,
+  cancelNsfwReveal,
+  confirmNsfwReveal,
   canTransferFolder,
   transferFolderTarget,
   transferFolderName,

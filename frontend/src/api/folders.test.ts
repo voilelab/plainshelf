@@ -15,7 +15,7 @@ vi.mock('./client', async () => {
 });
 
 const { ApiError } = await import('./client');
-const { createFolder, transferFolder } = await import('./folders');
+const { createFolder, moveFolder, renameFolder, transferFolder } = await import('./folders');
 
 describe('transferFolder', () => {
   it('posts the source and target folders as segment arrays and returns the chain id', async () => {
@@ -110,5 +110,70 @@ describe('createFolder', () => {
     fetchJsonMock.mockRejectedValueOnce(new ApiError('boom', { status: 500 }));
 
     await expect(createFolder('Fiction')).rejects.toThrow('Failed to create folder');
+  });
+});
+
+/*
+Moving or renaming a folder out of a subtree shelf.json marks as adult content
+unmarks everything below it, so the server refuses the change with its own 409
+body until the caller confirms. All three routes carry the flag as ?confirm=1
+because the rename's body has room for a folder name and nothing else.
+*/
+describe('folder changes that would unhide marked content', () => {
+  const refusal = () =>
+    new ApiError(
+      JSON.stringify({
+        error: 'nsfw_reveal_requires_confirmation',
+        message: 'this folder holds content marked as adult',
+        hidden_books: 3
+      }),
+      { status: 409 }
+    );
+
+  const changes = {
+    moveFolder: (confirm?: boolean) => moveFolder('Fiction', 'Archive', { confirm }),
+    renameFolder: (confirm?: boolean) => renameFolder('Fiction', 'Library', { confirm }),
+    transferFolder: (confirm?: boolean) =>
+      transferFolder('Fiction', 'shelf-b', 'Imported', 'copy', { confirm })
+  };
+
+  for (const [name, change] of Object.entries(changes)) {
+    it(`${name} raises a typed confirmation request carrying the book count`, async () => {
+      fetchJsonMock.mockRejectedValueOnce(refusal());
+
+      await expect(change()).rejects.toMatchObject({
+        name: 'NsfwRevealConfirmationError',
+        hiddenBooks: 3
+      });
+    });
+
+    it(`${name} asks again with confirm=1 once the user has agreed`, async () => {
+      fetchJsonMock.mockClear();
+      fetchJsonMock.mockResolvedValueOnce({ taskchain_id: 'chain-1' });
+
+      await change(true);
+
+      expect(fetchJsonMock.mock.calls[0][0]).toMatch(/\?confirm=1$/);
+    });
+  }
+
+  // hidden_books is 0 when the whole disclosure is a folder name, and a client
+  // that read that as "nothing would change" would skip the question entirely.
+  it('keeps a count of zero rather than falling back to the generic 409 path', async () => {
+    fetchJsonMock.mockRejectedValueOnce(
+      new ApiError(
+        JSON.stringify({
+          error: 'nsfw_reveal_requires_confirmation',
+          message: 'the folder itself would become visible',
+          hidden_books: 0
+        }),
+        { status: 409 }
+      )
+    );
+
+    await expect(moveFolder('Fiction', 'Archive')).rejects.toMatchObject({
+      name: 'NsfwRevealConfirmationError',
+      hiddenBooks: 0
+    });
   });
 });

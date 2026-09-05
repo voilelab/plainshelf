@@ -121,6 +121,19 @@ const en = {
     moveFolder: {
       failed: 'Failed to move folder. Drag a folder onto an existing target folder.'
     },
+    // The change takes a folder out of a subtree shelf.json marks as adult
+    // content. folderOnly covers the count of 0, which is a real case: an empty
+    // marked folder discloses itself by its name alone.
+    folderReveal: {
+      title: 'Make hidden content visible?',
+      bookCount:
+        'This folder is marked as adult content and the change takes it out of that mark, so {count} hidden books become visible.',
+      folderOnly:
+        'This folder is marked as adult content and the change takes it out of that mark, so the folder becomes visible.',
+      note: 'The mark lives in shelf.json, which PlainShelf only reads. To keep it, edit that file instead.',
+      confirm: 'Change anyway',
+      transferHeld: 'The transfer is waiting for you to confirm that it may make hidden content visible.'
+    },
     openFolder: {
       shortAction: 'Open folder',
       failed: 'Failed to open folder.'

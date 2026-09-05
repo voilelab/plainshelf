@@ -38,6 +38,16 @@ func (s *Shelf) IsNSFWFolder(folders FolderPath) bool {
 	return s.nsfw.IsNSFWFolder(folders)
 }
 
+// MarksFolders reports whether this shelf's shelf.json marks any folder at all.
+//
+// The cheap half of "could this change disclose anything": a shelf that marks
+// none can never reveal a folder, so the server skips the listing walk - and the
+// forced scan before it - that answering properly would otherwise cost on every
+// folder move. Most shelves mark nothing.
+func (s *Shelf) MarksFolders() bool {
+	return s.nsfw.HasFolders()
+}
+
 // NSFWFolderRule returns the shelf.json entry that marks this folder path, if
 // one does.
 //

@@ -131,8 +131,8 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	// created folder. This mirrors the shelf-level folder-transfer preflight, which
 	// forces the same scan. ErrRescanInProgress means another scan is already
 	// refreshing the cache, so the following reads are as fresh as one here.
-	rescanForTransfer(sourceShelf)
-	rescanForTransfer(targetShelf)
+	rescanForPreflight(sourceShelf)
+	rescanForPreflight(targetShelf)
 
 	// Resolve the transfer plan from a single snapshot of the source: the folders
 	// to reproduce and the books to carry. The same snapshot screens for conflicts
@@ -207,6 +207,12 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		}
 	}
 
+	// Last of the pre-flights, so the user is never asked to confirm a disclosure
+	// for a transfer that one of the checks above would have refused anyway.
+	if h.refuseUnconfirmedReveal(w, r, sourceShelf, folderLeavingTheShelf(sourceFolder)) {
+		return
+	}
+
 	h.submitTaskChain(w, r,
 		task.NewFolderTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.requestLogger(r), operation, sourceFolder, targetFolder, books, subFolders),
 		"failed to schedule folder transfer task")
@@ -237,8 +243,8 @@ func folderHasPrefix(folder, prefix shelf.FolderPath) bool {
 	return true
 }
 
-// rescanForTransfer forces a shelf to rebuild its book cache now, so the plan and
-// the conflict checks read an authoritative listing rather than a throttled one.
+// rescanForPreflight forces a shelf to rebuild its book cache now, so a check made
+// before the work reads an authoritative listing rather than a throttled one.
 // It is best-effort: a rescan already in progress is refreshing the cache anyway,
 // and any other failure is left for the reads that follow to surface, since they
 // answer with a real error a caller can act on.
@@ -247,7 +253,7 @@ func folderHasPrefix(folder, prefix shelf.FolderPath) bool {
 // rescan rate limit belongs to the button a user presses, so a transfer must
 // neither spend its budget nor quietly plan from a stale cache when the budget
 // is gone. See Shelf.RescanUnthrottled.
-func rescanForTransfer(shelfData *shelf.ShelfData) {
+func rescanForPreflight(shelfData *shelf.ShelfData) {
 	_, _ = shelfData.RescanUnthrottled()
 }
 

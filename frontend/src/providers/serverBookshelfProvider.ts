@@ -37,7 +37,7 @@ import {
   setCurrentSource,
   updateSourceContent
 } from '@/api/sources';
-import { getFolders, transferFolder } from '@/api/folders';
+import { type FolderChangeOptions, getFolders, transferFolder } from '@/api/folders';
 import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
@@ -113,9 +113,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     sourceFolder: string,
     targetShelfID: string,
     targetFolder: string,
-    mode: BookTransferMode
+    mode: BookTransferMode,
+    options?: FolderChangeOptions
   ): Promise<string> {
-    return transferFolder(sourceFolder, targetShelfID, targetFolder, mode);
+    return transferFolder(sourceFolder, targetShelfID, targetFolder, mode, options);
   }
 
   deleteBook(bookId: string): Promise<void> {

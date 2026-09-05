@@ -99,6 +99,66 @@ export class FolderTransferConflictError extends Error {
   }
 }
 
+/**
+ * Thrown when the server refuses a folder change because it would take content
+ * out of a folder `shelf.json` marks as adult content, while `show_nsfw` is
+ * hiding it — moving or renaming the folder unmarks everything below it at once.
+ *
+ * It is a question, not a rule: the same request goes through with
+ * `{ confirm: true }` once the user has been told what it reveals.
+ * `hiddenBooks` is how many books they cannot currently see would be served
+ * afterwards, and is 0 when the whole disclosure is a folder name, so it must
+ * not be read as "nothing would change".
+ */
+export class NsfwRevealConfirmationError extends Error {
+  constructor(
+    readonly hiddenBooks: number,
+    message: string
+  ) {
+    super(message);
+    this.name = 'NsfwRevealConfirmationError';
+  }
+}
+
+/** Options every folder change that can be refused this way accepts. */
+export interface FolderChangeOptions {
+  /** Go ahead even though the change unhides marked content. */
+  confirm?: boolean;
+}
+
+const NSFW_REVEAL_CONFLICT = 'nsfw_reveal_requires_confirmation';
+
+// Three folder routes answer 409 with more than one body shape, so this checks
+// the shape rather than asserting it, and returns null for every other 409.
+function nsfwRevealConfirmation(err: unknown): NsfwRevealConfirmationError | null {
+  if (!(err instanceof ApiError) || err.status !== 409) {
+    return null;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(err.message);
+  } catch {
+    return null;
+  }
+
+  const body = parsed as { error?: unknown; message?: unknown; hidden_books?: unknown } | null;
+  if (!body || body.error !== NSFW_REVEAL_CONFLICT) {
+    return null;
+  }
+
+  return new NsfwRevealConfirmationError(
+    typeof body.hidden_books === 'number' ? body.hidden_books : 0,
+    typeof body.message === 'string' ? body.message : err.message
+  );
+}
+
+// The flag is a query parameter because the three routes carry three different
+// bodies and the rename's has room for a folder name and nothing else.
+function withConfirm(path: string, confirm?: boolean): string {
+  return confirm ? `${path}?confirm=1` : path;
+}
+
 // The 409 body a pre-flight refusal answers with. conflicting_book_ids carries
 // no omitempty, so a folder conflict - which collides on no book at all - still
 // sends it, as []. The list is never null and never absent.
@@ -148,7 +208,8 @@ export async function transferFolder(
   sourceFolder: string,
   targetShelfID: string,
   targetFolder: string,
-  mode: BookTransferMode
+  mode: BookTransferMode,
+  options?: FolderChangeOptions
 ): Promise<string> {
   if (isMockApiMode()) {
     return mockTransferFolder(sourceFolder, targetShelfID, targetFolder, mode);
@@ -159,7 +220,7 @@ export async function transferFolder(
 
   try {
     const res = await fetchJson<{ taskchain_id: string }>(
-      buildShelfApiPath('/folder-transfers'),
+      withConfirm(buildShelfApiPath('/folder-transfers'), options?.confirm),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,6 +229,10 @@ export async function transferFolder(
     );
     return res.taskchain_id;
   } catch (err) {
+    const reveal = nsfwRevealConfirmation(err);
+    if (reveal) {
+      throw reveal;
+    }
     if (err instanceof ApiError && err.status === 409) {
       const conflict = parseFolderTransferConflict(err.message);
       // The already-running case answers 409 with the chain id, not a conflict
@@ -234,7 +299,11 @@ export async function createFolder(folderPath: string): Promise<void> {
   }
 }
 
-export async function renameFolder(folderPath: string, nextName: string): Promise<void> {
+export async function renameFolder(
+  folderPath: string,
+  nextName: string,
+  options?: FolderChangeOptions
+): Promise<void> {
   const normalized = normalizeFolderPath(folderPath);
   const name = nextName.trim();
   if (!normalized || normalized === '/' || !name || name.includes('/')) {
@@ -251,11 +320,18 @@ export async function renameFolder(folderPath: string, nextName: string): Promis
   }
 
   try {
-    await fetchJson<void>(buildShelfApiPath(`/folders/${encodeFolderPath(normalized)}`), {
-      method: 'PATCH',
-      body: JSON.stringify({ name })
-    });
+    await fetchJson<void>(
+      withConfirm(buildShelfApiPath(`/folders/${encodeFolderPath(normalized)}`), options?.confirm),
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ name })
+      }
+    );
   } catch (err) {
+    const reveal = nsfwRevealConfirmation(err);
+    if (reveal) {
+      throw reveal;
+    }
     if (err instanceof ApiError && err.status === 400) {
       throw new FolderHttpError('Invalid folder name');
     }
@@ -267,7 +343,11 @@ export async function renameFolder(folderPath: string, nextName: string): Promis
   }
 }
 
-export async function moveFolder(folderPath: string, targetFolderPath: string): Promise<void> {
+export async function moveFolder(
+  folderPath: string,
+  targetFolderPath: string,
+  options?: FolderChangeOptions
+): Promise<void> {
   const normalized = normalizeFolderPath(folderPath);
   const target = normalizeFolderPath(targetFolderPath);
   if (!normalized || normalized === '/') {
@@ -288,11 +368,15 @@ export async function moveFolder(folderPath: string, targetFolderPath: string): 
   }
 
   try {
-    await fetchJson<void>(buildShelfApiPath('/folder-moves'), {
+    await fetchJson<void>(withConfirm(buildShelfApiPath('/folder-moves'), options?.confirm), {
       method: 'POST',
       body: JSON.stringify({ folder: foldersFromPath(normalized), target_folder: foldersFromPath(target) })
     });
   } catch (err) {
+    const reveal = nsfwRevealConfirmation(err);
+    if (reveal) {
+      throw reveal;
+    }
     if (err instanceof ApiError && err.status === 400) {
       throw new FolderHttpError('Invalid folder path');
     }
