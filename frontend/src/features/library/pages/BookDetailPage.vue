@@ -273,7 +273,7 @@ import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { booksRouteForFolderPath, getFolderPath } from '@/utils/folders';
 import { useI18n } from '@/i18n';
-import type { Book } from '@/types/book';
+import { isBookNsfw, type Book } from '@/types/book';
 
 const route = useRoute();
 const router = useRouter();
@@ -514,13 +514,30 @@ function closeMetadataEditor(): void {
   metadataEditorDirty.value = false;
 }
 
-function onMetadataSaved(updatedBook: Book): void {
+async function onMetadataSaved(updatedBook: Book): Promise<void> {
+  const wasNSFW = book.value !== null && isBookNsfw(book.value);
+
   // The metadata endpoint returns the complete book. Applying it directly keeps
   // the detail page, reading progress, chapter expansion, and other modal state
   // intact while updating every metadata field in the same render cycle.
   book.value = updatedBook;
   metadataEditorDirty.value = false;
   metadataSaved.value = true;
+
+  // Marking a book is the one metadata edit that can take it off this server's
+  // shelf: with `show_nsfw` off the API answers 404 for it from here on, and
+  // the page would otherwise keep rendering a book every later request denies
+  // until something else reloaded it. The list page has this covered by the
+  // full refresh it runs after every save; a detail page has no listing to
+  // re-evaluate, so it re-reads itself.
+  //
+  // Re-reading is also the whole test: with `show_nsfw` on the same request
+  // simply returns the book again, so this needs no opinion about the setting.
+  // A 404 lands on the page's own error state, where an address typed for a
+  // hidden book already lands.
+  if (!wasNSFW && isBookNsfw(updatedBook)) {
+    await fetchDetail();
+  }
 }
 
 async function onRefreshStats(): Promise<void> {
