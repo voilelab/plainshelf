@@ -16,39 +16,29 @@ const SOURCE_FILE = 'source.txt';
 const SOURCE_ASSETS_FOLDER = 'assets';
 
 /**
- * The shelf's own settings file, at the shelf root beside `books/`. Optional:
- * a shelf without one is read by the built-in rules alone. This client only ever
- * reads it, like the Go shelf (`shelf/shelf_config.go`).
+ * The shelf's own settings file. Optional; only ever read, as in
+ * shelf/shelf_config.go.
  */
 const SHELF_CONFIG_FILE = 'shelf.json';
 
 /**
- * How large a `shelf.json` this client reads, matching `maxShelfConfigBytes` in
- * shelf/shelf_config.go. A settings file is a handful of lines; the limit is
- * there so a mis-named large file in the shelf root is skipped rather than
- * downloaded onto a phone.
+ * Matches `maxShelfConfigBytes` in shelf/shelf_config.go, so a mis-named large
+ * file in the shelf root is skipped rather than downloaded onto a phone.
  */
 export const MAX_SHELF_CONFIG_BYTES = 1 << 20;
 
-/** One directory name the scanners skip, and why. Mirrors `IgnoredDir` in
- * shelf/internal/shelfutil. */
+/** Mirrors `IgnoredDir` in shelf/internal/shelfutil. */
 interface IgnoredDir {
-  /** As written; matching folds case, because a share exported over SMB may
-   * spell "$RECYCLE.BIN" either way. */
+  /** As written; matching folds case. */
   name: string;
   /** A short phrase completing "skipped because …". May be empty. */
   reason: string;
 }
 
 /**
- * What a shelf skips when it has said nothing, mirroring `DefaultIgnoredDirs`
- * in shelf/internal/shelfutil: the directories filesystems, NAS firmware and
- * sync clients create inside a shelf.
- *
- * They matter more here than the names suggest: on Synology every directory
- * carries its own "@eaDir", which would otherwise double the folder tree, and a
- * book in "#recycle" is one the user deleted. They are defaults, not a floor — a
- * shelf.json that lists its own directories replaces them.
+ * Mirrors `DefaultIgnoredDirs` in shelf/internal/shelfutil, which explains why
+ * each name is here. Defaults, not a floor: a shelf.json that lists its own
+ * directories replaces them.
  */
 export const DEFAULT_IGNORED_DIRS: readonly IgnoredDir[] = [
   { name: '@eaDir', reason: 'Synology index and thumbnail sidecar' },
@@ -58,11 +48,9 @@ export const DEFAULT_IGNORED_DIRS: readonly IgnoredDir[] = [
 ];
 
 /**
- * Which directory names one shelf skips. Mirrors `IgnoreRules` in
- * shelf/internal/shelfutil: a name on the shelf's list, or any hidden
- * directory — the leading-dot rule covers the open-ended set of hidden helpers
- * (.git, .stfolder, .dropbox.cache, .Spotlight-V100) in one condition and is the
- * one part of the rules a shelf cannot configure away.
+ * Mirrors `IgnoreRules` in shelf/internal/shelfutil: a name on the shelf's list,
+ * or any hidden directory — the one part of the rules a shelf cannot configure
+ * away.
  */
 type IgnoreRules = (name: string) => boolean;
 
@@ -93,10 +81,8 @@ function isUsableDirName(name: string): boolean {
 }
 
 /**
- * Reads one entry, which is always a {name, reason} object. A bare name is not
- * accepted: "@eaDir" and {"name": "@eaDir"} would mean the same thing and the
- * file would have two shapes for one entry, which every reader of it then has
- * to handle.
+ * An entry is always a {name, reason} object; a bare name is not accepted, for
+ * the reason parseIgnoredDir gives in shelf/shelf_config.go.
  */
 function parseIgnoredDir(entry: unknown): IgnoredDir | undefined {
   if (entry === null || typeof entry !== 'object') {
@@ -111,13 +97,10 @@ function parseIgnoredDir(entry: unknown): IgnoredDir | undefined {
 }
 
 /**
- * Reads a parsed `shelf.json`, keeping only what this client acts on.
- *
- * Never throws: a file written by a newer build, or one whose `scan` section is
- * the wrong shape, leaves the defaults in place rather than making the shelf
- * unreadable — exactly what the Go side does with the same file. Entries that
- * could not name a directory are dropped one by one, so one bad line does not
- * cost the rest of the file.
+ * Never throws: a file from a newer build, or one whose `scan` section is the
+ * wrong shape, leaves the defaults in place rather than making the shelf
+ * unreadable — as the Go side does with the same file. Unusable entries are
+ * dropped one by one, so one bad line does not cost the rest.
  */
 export function parseShelfConfig(raw: unknown): ShelfConfig {
   const scan = (raw as { scan?: unknown } | null)?.scan;
@@ -137,10 +120,7 @@ export function parseShelfConfig(raw: unknown): ShelfConfig {
 }
 
 /**
- * Builds the ignore rules for a shelf that skips these directories.
- *
- * The list is the rules, not an addition to them: a shelf that names its own
- * directories skips those and only those, so passing an empty list skips nothing
+ * The list is the rules, not an addition to them: an empty list skips nothing
  * but hidden directories. Pass DEFAULT_IGNORED_DIRS for a shelf that said
  * nothing.
  */
