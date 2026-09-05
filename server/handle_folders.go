@@ -168,6 +168,13 @@ func (h *folderHandlers) renameFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The shelf refuses every write to a read-only shelf, so this rename has
+	// nothing to disclose - and the disclosure below is a question put to the
+	// user, which must not run ahead of a refusal.
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
+		return
+	}
+
 	// A rename is a move that keeps the parent, so it unmarks a subtree the same
 	// way: Fiction/Adult renamed to Fiction/General matches no rule any more.
 	renamed := append(append(shelf.FolderPath(nil), folderParts[:len(folderParts)-1]...), newName)
@@ -203,6 +210,11 @@ func (h *folderHandlers) moveFolder(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Folder) == 0 {
 		http.Error(w, "invalid folder path", http.StatusBadRequest)
+		return
+	}
+
+	// Refused before the disclosure below, for the reason renameFolder gives.
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
 		return
 	}
 

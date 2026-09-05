@@ -443,3 +443,46 @@ func TestAPINSFWFolderMoveSeesAMarkedFolderAddedSinceTheLastScan(t *testing.T) {
 	// It holds no book, so the disclosure is the folder's name alone.
 	assertRevealConflict(t, env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(nsfwMoveBody)), 0)
 }
+
+// A read-only shelf refuses every write, so a move or rename on one has nothing
+// to disclose. The disclosure is a question put to the user, and asking it ahead
+// of a refusal spends the one question this feature gets on a change that was
+// never going to happen.
+//
+// This shelf is laid out on disk rather than through the API, because the API
+// cannot write to it: shelf.json marks Fiction/Secret, and the marked folder
+// holds no book, so the move would otherwise be refused for the disclosure its
+// name alone carries.
+func TestAPINSFWFolderChangeOnAReadOnlyShelfRefusesRatherThanAsking(t *testing.T) {
+	libRoot := t.TempDir()
+	shelfJSON := `{"schema_version":1,"content":{"nsfw_folders":[{"path":"Fiction/Secret"}]}}`
+	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(shelfJSON), 0o644); err != nil {
+		t.Fatalf("write shelf.json: %v", err)
+	}
+	for _, folder := range []string{"Archive", "Fiction/Classics", "Fiction/Secret"} {
+		if err := os.MkdirAll(filepath.Join(libRoot, "books", filepath.FromSlash(folder)), 0o755); err != nil {
+			t.Fatalf("create %s: %v", folder, err)
+		}
+	}
+
+	env := apitest.New(t, apitest.WithLibRoot(libRoot), apitest.WithReadOnlyShelf())
+
+	changes := []struct {
+		name string
+		rec  func() *httptest.ResponseRecorder
+	}{
+		{name: "move", rec: func() *httptest.ResponseRecorder {
+			return env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(nsfwMoveBody))
+		}},
+		{name: "rename", rec: func() *httptest.ResponseRecorder {
+			return env.Patch(apitest.ShelfURL("folders", "Fiction"), strings.NewReader(`{"name":"Library"}`))
+		}},
+	}
+
+	for _, tc := range changes {
+		t.Run(tc.name, func(t *testing.T) {
+			apitest.AssertErrorEnvelope(t, tc.rec(), http.StatusConflict, "SHELF_READ_ONLY",
+				"shelf is opened read-only; this PlainShelf instance cannot modify it")
+		})
+	}
+}
