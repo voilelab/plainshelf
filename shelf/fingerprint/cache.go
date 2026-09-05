@@ -30,19 +30,15 @@ type indexEntry struct {
 	MD5 string `json:"md5"`
 
 	// SeenAt is when these values were FIRST observed, and orders two machines'
-	// records of the same source against each other. A run that re-observes the
-	// same values carries the original timestamp forward, so an untouched shelf
-	// still produces byte-identical files and is never rewritten.
+	// records of the same source. A run that re-observes the same values carries
+	// the original timestamp forward, so an untouched shelf is never rewritten.
 	//
-	// The file's own mtime cannot play this part. Restoring a source from a
-	// backup gives it new content under an OLDER mtime, and a merge that ranked
-	// records by mtime would reinstate the record describing the content that is
-	// no longer there - permanently, because every later run would observe the
-	// restored file, lose the merge again, and rebuild.
-	//
-	// Two machines with skewed clocks can still order each other's records
-	// wrongly. The cost is bounded as everything here is: a record that loses
-	// when it should have won fails its next Stat check and costs one re-read.
+	// The file's own mtime cannot play this part: restoring a source from a
+	// backup gives it new content under an OLDER mtime, and a merge ranking by
+	// mtime would permanently reinstate the record for content that is gone.
+	// Skewed clocks can still order two machines' records wrongly, but a record
+	// that loses when it should have won fails its next Stat check and costs one
+	// re-read.
 	SeenAt time.Time `json:"seen_at,omitzero"`
 }
 
@@ -50,15 +46,13 @@ func (e indexEntry) matches(stat *bookpkg.FileStat) bool {
 	return stat != nil && e.Size == stat.Size && e.ModTime.Equal(stat.ModTime)
 }
 
-// describesSame reports whether two records make the same claim about a file,
-// ignoring when each was observed.
+// describesSame ignores when each record was observed.
 func (e indexEntry) describesSame(other indexEntry) bool {
 	return e.Size == other.Size && e.ModTime.Equal(other.ModTime) && e.MD5 == other.MD5
 }
 
-// supersedes reports whether e is the record worth keeping. Observation time
-// decides it; a record written before this build added that field falls back to
-// the file's modification time, which is what the older format has to offer.
+// supersedes ranks by observation time; a record written before this build
+// added that field falls back to the file's modification time.
 func (e indexEntry) supersedes(other indexEntry) bool {
 	if !e.SeenAt.Equal(other.SeenAt) {
 		return e.SeenAt.After(other.SeenAt)
@@ -76,7 +70,7 @@ type cacheFile struct {
 	// the file self-describing (same reasoning as BookMeta.SchemaVersion).
 	SchemaVersion int `json:"schema_version"`
 
-	// Generator records the build that wrote the file, for diagnostics only.
+	// Generator is for diagnostics only.
 	Generator string `json:"generator"`
 
 	Algo    Algo                  `json:"algo"`
@@ -84,15 +78,12 @@ type cacheFile struct {
 	Entries map[string]Entry      `json:"entries"`
 }
 
-// RepairHashFunc is handed the source the cache has just read and the true MD5
-// of its content, so a caller that wants to can repair an md5_hash in meta.json
-// that has drifted from the bytes on disk. It returns whether it wrote anything,
-// which is what lets the run count repairs.
+// RepairHashFunc lets a caller repair an md5_hash in meta.json that has drifted
+// from the bytes on disk, and reports whether it wrote anything.
 //
-// It exists so the cache can stay pure computation over its own file: whether to
-// write back to a source, and how, is the shelf's decision, injected here rather
-// than performed by this package. A nil hook, or one that reports
-// fsutil.ErrReadOnly, simply leaves the source as it is.
+// It is injected so the cache stays pure computation over its own file: whether
+// to write back to a source is the shelf's decision. A nil hook, or one that
+// reports fsutil.ErrReadOnly, leaves the source as it is.
 type RepairHashFunc func(source *bookpkg.Source, contentMD5 string) (bool, error)
 
 // Config is everything the cache needs from the shelf that owns it. Only Store
@@ -107,15 +98,13 @@ type Config struct {
 	Algo Algo
 
 	// Logger receives the cache's diagnostics; pass the shelf's. Optional: the
-	// zero value has no slog.Logger behind it and is defaulted by Open to one
-	// that discards everything, so a caller that supplies only Store and Algo
-	// still gets a working cache rather than a panic on the first log line.
+	// zero value has no slog.Logger behind it, so Open defaults it to one that
+	// discards rather than let the first log line panic.
 	Logger logutil.Logger
 
 	// LiveBooks reports the book IDs the shelf still holds, so Save can drop
 	// records for books that are gone, and false when the caller cannot answer
-	// yet - a shelf still scanning - in which case nothing is pruned. Nil never
-	// prunes, which is right for a reader that does not own the shelf's lifecycle.
+	// yet - a shelf still scanning. Nil never prunes.
 	LiveBooks func() (map[string]struct{}, bool)
 
 	// RepairHash is the write the cache delegates rather than owns; see
@@ -123,11 +112,9 @@ type Config struct {
 	RepairHash RepairHashFunc
 }
 
-// Cache is one process's working copy of app/fingerprint-cache.json.
-//
-// Open it once per run, Resolve every source through it, then Save. It is safe
-// to Resolve from several goroutines at once, which is how a task that walks a
-// whole shelf will want to use it.
+// Cache is one process's working copy of app/fingerprint-cache.json: Open it
+// once per run, Resolve every source through it, then Save. Resolve is safe from
+// several goroutines at once.
 type Cache struct {
 	store      appcache.Store
 	algo       Algo
@@ -145,22 +132,15 @@ type Cache struct {
 	resolved map[string]struct{}
 }
 
-// Open loads the cache for cfg.Algo, starting from empty whenever the file on
-// disk cannot be used - it is absent, unreadable, written by a newer build, or
-// describes different fingerprinting rules.
-//
-// None of those is an error: the file is derived from the shelf and the run
-// about to happen rebuilds it. The one error reported is a caller that did not
-// say which rules it fingerprints by, because a cache that cannot answer that
-// cannot be safe at all.
+// Open starts from empty whenever the file on disk cannot be used - absent,
+// unreadable, too new, or built under different rules. None of those is an
+// error, since the run about to happen rebuilds it. The one error reported is a
+// caller that did not say which rules it fingerprints by.
 func Open(cfg Config) (*Cache, error) {
 	if !cfg.Algo.complete() {
 		return nil, util.Errorf("%w", ErrIncompleteAlgo)
 	}
 
-	// Logger is optional (see Config): a caller that supplies only Store and Algo
-	// gets a discarding logger rather than a nil slog.Logger that would panic on
-	// the first Debug below.
 	logger := cfg.Logger
 	if logger.Logger == nil {
 		logger = logutil.Logger{Logger: slog.New(slog.DiscardHandler)}
@@ -193,20 +173,16 @@ func Open(cfg Config) (*Cache, error) {
 	return cache, nil
 }
 
-// BookSource names a book and the source a coverage count should look for. The
-// caller supplies these rather than the cache reading a book list, so the cache
-// never has to know how a shelf enumerates its books.
+// BookSource is supplied by the caller rather than read from a book list, so
+// the cache never has to know how a shelf enumerates its books.
 type BookSource struct {
 	BookID   string
 	SourceID string
 }
 
-// CoverageFor counts, over books, how many already have a fingerprint on record
-// for the named source, reading only the index and entries already in memory -
-// never a source.txt. A book counts as fingerprinted when the cache holds an
-// index record for that source and the entry the record names; a cache built
-// under different rules was discarded by Open and answers for none, which is
-// what tells the UI a rebuild is due.
+// CoverageFor reads only what is already in memory, never a source.txt. A cache
+// built under different rules was discarded by Open and answers for no book,
+// which is what tells the UI a rebuild is due.
 func (c *Cache) CoverageFor(books []BookSource) Coverage {
 	fingerprinted := 0
 	for _, book := range books {
@@ -223,7 +199,6 @@ func (c *Cache) CoverageFor(books []BookSource) Coverage {
 	}
 }
 
-// Stats reports what the run so far cost.
 func (c *Cache) Stats() Stats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -242,31 +217,23 @@ func (c *Cache) Stats() Stats {
 //     from a backup. One read, no fingerprinting.
 //  3. Neither: build is called with the content, and both levels are updated.
 //
-// Paths 2 and 3 read the file, which means they learn the source's true MD5 - so
-// they also offer it to the RepairHash hook, which repairs meta.json when the
-// md5_hash stored there disagrees. That field is written at import and never
-// validated afterwards, so a source edited by hand carries a confidently wrong
-// hash until something reads the content again. This is that something - but the
-// write itself belongs to the shelf, not here; see RepairHashFunc.
+// Paths 2 and 3 learn the source's true MD5, so they offer it to the RepairHash
+// hook: md5_hash is written at import and never validated afterwards, so a
+// source edited by hand carries a confidently wrong hash until something reads
+// the content again. This is that something; the write itself belongs to the
+// shelf, see RepairHashFunc.
 func (c *Cache) Resolve(book *bookpkg.Book, source *bookpkg.Source, build Builder) (Entry, error) {
 	return c.resolve(book, source, build, false)
 }
 
-// Rebuild is Resolve with every cache hit ignored: the source is always read
-// and always fingerprinted afresh, and both levels of the cache are overwritten
-// with the result.
+// Rebuild is Resolve with every cache hit ignored, because path 1 cannot be
+// trusted to notice every change: a source rewritten inside fsutil.RacyWindow,
+// or under a filesystem whose clock ticks in whole seconds, can keep the size
+// and mtime the index already recorded, and Resolve then serves the previous
+// content's fingerprint.
 //
-// Its reason to exist is that path 1 cannot be trusted to notice every change.
-// The index answers from a stat, and a stat is coarse - a source rewritten
-// inside fsutil.RacyWindow, or under a filesystem whose clock ticks in whole
-// seconds, can keep the size and mtime the index already recorded. When that
-// happens the incremental Resolve serves the previous content's fingerprint,
-// and the only way back is to read the file regardless of what the stat claims.
-// That is the one path this skips.
-//
-// A needless Rebuild is not a wrong answer, only a wasted one: the entry it
-// stores is byte-identical whenever the content really was unchanged, so the
-// cost is a read and a fingerprint, never a corrupted cache.
+// A needless Rebuild is wasted, not wrong: the entry it stores is byte-identical
+// whenever the content really was unchanged.
 func (c *Cache) Rebuild(book *bookpkg.Book, source *bookpkg.Source, build Builder) (Entry, error) {
 	return c.resolve(book, source, build, true)
 }
@@ -278,15 +245,12 @@ func (c *Cache) resolve(book *bookpkg.Book, source *bookpkg.Source, build Builde
 
 	key := indexKey(book.ID(), source.ID())
 
-	// Stat before the read, never after. Read the other way round, a source
-	// rewritten between the two calls would be recorded with the newer stat and
-	// the older content, and every later run would trust it. This order can
-	// only pair older stat values with newer content, which merely costs the
-	// next run a re-read.
+	// Stat before the read, never after: the other way round would pair a newer
+	// stat with older content and have every later run trust it. This order can
+	// only cost the next run a re-read.
 	//
 	// Still statted under force, because record needs the stat to refresh the
-	// index; only the hit it would produce is ignored, and lookupByStat is not
-	// consulted at all so its counter is not touched.
+	// index; only the hit it would produce is skipped.
 	stat, statErr := source.ContentStat()
 	if statErr != nil {
 		// Not fatal on its own: the read below reports a source that is really
@@ -311,10 +275,9 @@ func (c *Cache) resolve(book *bookpkg.Book, source *bookpkg.Source, build Builde
 
 	c.repair(source, md5Hash)
 
-	// Under force the content level is skipped too, so a source whose bytes are
-	// unchanged is still fingerprinted rather than recognized: record then
-	// counts it as Built and overwrites the entry, which is what makes "force
-	// recomputed everything" observable.
+	// Under force the content level is skipped too, so record counts even an
+	// unchanged source as Built - which is what makes "force recomputed
+	// everything" observable.
 	var entry Entry
 	known := false
 	if !force {
@@ -371,19 +334,12 @@ func (c *Cache) lookupByContent(md5Hash string) (Entry, bool) {
 	return entry, ok
 }
 
-// Lookup returns the fingerprint on record for a source without opening any
-// file: it reads only the index and entries already loaded into memory, and ok
-// is false unless an index record names the source and the entry that record
-// names is present. It is the read side of the cache, for the coverage count and
-// the similarity sweep that report what the cache knows rather than recompute
-// it.
-//
-// Unlike lookupByStat it does not compare a stat, and unlike Resolve it never
-// falls back to reading the file. Confirming the record still describes the
-// current bytes would cost the very Stat the caller is here to avoid; keeping
-// the record fresh is the incremental fingerprint task's job, and a source
-// changed since it last ran simply reads stale until the next build. Lookups do
-// not touch the run's Stats: nothing was resolved.
+// Lookup is the read side of the cache, for callers that report what it knows
+// rather than recompute it. It opens no file, compares no stat and touches no
+// Stats: confirming the record still describes the current bytes would cost the
+// very Stat the caller is here to avoid. Keeping the record fresh is the
+// incremental fingerprint task's job, so a source changed since it last ran
+// reads stale until the next build.
 func (c *Cache) Lookup(bookID, sourceID string) (Entry, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -399,10 +355,9 @@ func (c *Cache) Lookup(bookID, sourceID string) (Entry, bool) {
 	return entry, true
 }
 
-// record stores what the run just learned. The entry is stored under its
-// content hash whether or not it was just built - it is the same value either
-// way - while the index is only extended for a source whose stat is old enough
-// to be believed later. See fsutil.RacyWindow.
+// record stores the entry under its content hash whether or not it was just
+// built - it is the same value either way - while the index is only extended
+// for a source whose stat is old enough to be believed later.
 func (c *Cache) record(key string, stat *bookpkg.FileStat, readAt time.Time, md5Hash string, entry Entry, known bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -412,10 +367,9 @@ func (c *Cache) record(key string, stat *bookpkg.FileStat, readAt time.Time, md5
 		c.stats.Built++
 	}
 
-	// Pinned whether or not it can be indexed below. An entry nothing points at
-	// is normally collectable, but one this run just computed is not garbage: a
-	// source too freshly written to index would otherwise have its fingerprint
-	// built, saved, dropped by the same Save, and built again next time.
+	// Pinned whether or not it can be indexed below: a source too freshly
+	// written to index would otherwise have its fingerprint built, saved,
+	// dropped by the same Save, and built again next time.
 	c.resolved[md5Hash] = struct{}{}
 
 	// Index a source only once its stat is settled; see fsutil.RacyWindow. The
@@ -433,13 +387,9 @@ func (c *Cache) record(key string, stat *bookpkg.FileStat, readAt time.Time, md5
 	c.index[key] = observed
 }
 
-// repair offers a source's just-computed content hash to the RepairHash hook, so
-// a stale md5_hash in its meta.json can be corrected by the shelf that owns it.
-//
-// Best-effort by design: a read-only shelf reports fsutil.ErrReadOnly here and a
-// source whose schema is newer than this build refuses the write, and neither is
-// a reason to fail a fingerprint run that has the answer it came for. A nil hook
-// does nothing at all.
+// repair is best-effort by design: a read-only shelf reports fsutil.ErrReadOnly
+// and a source whose schema is newer than this build refuses the write, and
+// neither is a reason to fail a run that has the answer it came for.
 func (c *Cache) repair(source *bookpkg.Source, md5Hash string) {
 	if c.repairHash == nil {
 		return
@@ -461,23 +411,17 @@ func (c *Cache) repair(source *bookpkg.Source, md5Hash string) {
 // Save merges what this run learned into the file on disk, drops what the shelf
 // no longer holds, and writes the result atomically.
 //
-// The merge happens at write time rather than at load time because the file is
-// shared: another machine may have fingerprinted a book of its own since this
-// run started, and a plain overwrite would throw its work away.
+// The merge is at write time rather than load time because the file is shared:
+// another machine may have fingerprinted a book of its own since this run
+// started. It is a merge, not a transaction - two machines saving at the same
+// instant can both replace the same older file in turn, and serializing that
+// would mean holding the shelf lock across a read and a write, which
+// lock_mode: none cannot offer at all. Such a race costs a fingerprint computed
+// again later, never a wrong answer, because an entry is keyed by its content.
 //
-// It is a merge, not a transaction. Two machines saving at the same instant can
-// both read the same older file and replace it in turn, and the second write
-// then loses what the first added. Serializing that would mean holding the shelf
-// lock across a read and a write, which no other file under app/ does and which
-// lock_mode: none cannot offer at all. The trade is deliberate: such a race
-// costs a fingerprint computed again on some later run, never a wrong answer,
-// because an entry is keyed by the content it describes.
-//
-// Whether there is anything to write is decided by comparing the result against
-// the bytes already on disk, not by a "something was computed" flag. A run that
-// only hit the cache still has something to say when a book has since been
-// deleted - that is when its records become collectable - and a flag would skip
-// exactly that write.
+// Whether to write is decided by comparing against the bytes on disk rather than
+// by a "something was computed" flag: a run that only hit the cache still has
+// something to say when a book has since been deleted.
 func (c *Cache) Save() error {
 	// Before anything is compared, so that a read-only shelf reports what it is
 	// rather than appearing to have saved.
@@ -501,9 +445,8 @@ func (c *Cache) Save() error {
 		raw = nil
 	}
 
-	// Only when the caller can name the live books, and says its list is ready:
-	// an empty or absent set from a shelf that has not scanned yet would prune
-	// the whole file.
+	// Only when the caller says its list is ready: an empty set from a shelf
+	// that has not scanned yet would prune the whole file.
 	if c.liveBooks != nil {
 		if live, ok := c.liveBooks(); ok {
 			pruneCache(index, entries, live, c.resolved)
@@ -558,13 +501,9 @@ func (c *Cache) readFile() (*cacheFile, []byte, error) {
 	return &stored, raw, nil
 }
 
-// mergeEntries folds other into entries as a union, keeping what this run
-// computed wherever both hold the same key.
-//
-// A union is safe here and nowhere else in the file because an entry is keyed
-// by the content it describes: for two machines to disagree about a value they
-// would have to disagree about MD5 itself. Which side wins a shared key is
-// therefore arbitrary, and the fresher one is the easier to reason about.
+// mergeEntries is a union, safe here and nowhere else in the file because an
+// entry is keyed by the content it describes: for two machines to disagree about
+// a value they would have to disagree about MD5 itself.
 func mergeEntries(entries, other map[string]Entry) {
 	for md5Hash, entry := range other {
 		if _, ok := entries[md5Hash]; !ok {
@@ -587,26 +526,17 @@ func mergeIndex(index, other map[string]indexEntry) {
 	}
 }
 
-// pruneCache drops what the shelf no longer holds: index records for books that
-// are gone, and then every entry no surviving record names.
-//
-// Entries are collected the way pruneStaleBookCaches does - by what is still
-// referenced, not by age - because an entry is only worth keeping while some
-// source still hashes to it. A book another machine added since this shelf last
+// pruneCache drops index records for books that are gone, and then every entry
+// no surviving record names. A book another machine added since this shelf last
 // scanned loses its record here and is fingerprinted again there, which costs
-// one recomputation and cannot lose data.
+// one recomputation and cannot lose data. keep holds the content hashes this run
+// answered for, which are exempt.
 //
-// keep holds the content hashes this run answered for, which are exempt: a
-// source may deliberately have no index record yet, and its fingerprint is the
-// newest thing in the file rather than the stalest.
-//
-// What this does NOT collect is a record for a source deleted from a book that
-// is still there. Deciding that needs the source IDs each book still holds - a
-// directory listing per book at save time, the per-book I/O this whole file
-// exists to avoid - or a promise from the caller that its run covered every
-// source in the shelf. Until a fingerprint task exists to make that promise,
-// such a record is left in place: it costs about 1.5 kB and is never served,
-// because the source it names is gone.
+// It does NOT collect a record for a source deleted from a book that is still
+// there: deciding that needs a directory listing per book at save time - the
+// per-book I/O this whole file exists to avoid - or a promise from the caller
+// that its run covered every source. Such a record costs about 1.5 kB and is
+// never served, because the source it names is gone.
 func pruneCache(index map[string]indexEntry, entries map[string]Entry, live, keep map[string]struct{}) {
 	referenced := make(map[string]struct{}, len(index)+len(keep))
 	maps.Copy(referenced, keep)

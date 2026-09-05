@@ -12,17 +12,15 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// These tests exercise the mtime trust chain directly against a fake ReadFS,
-// with no shelf, no lock and no book packages: the cache is the layer that
-// answers "which entries does this directory hold", and that is the whole layer
-// under test here. The integration cases that need a real shelf - a snapshot
-// surviving a reopen, and the large-tree measurement - stay in package shelf.
+// These tests exercise the mtime trust chain against a fake ReadFS, with no
+// shelf, no lock and no book packages. The integration cases that need a real
+// shelf - a snapshot surviving a reopen, and the large-tree measurement - stay
+// in package shelf.
 
-// fakeFS is an in-memory tree of directories only, which is all the walk reads:
-// ReadDir lists a directory's entries and Stat reports its mtime. A path exists
-// iff it has an mtime, and a directory's children are the paths one level below
-// it. Mtimes are set explicitly so a test can put a directory inside or outside
-// fsutil.RacyWindow, or hand a replacement the mtime of what it replaced.
+// fakeFS is an in-memory tree of directories only, which is all the walk reads.
+// A path exists iff it has an mtime, and mtimes are set explicitly so a test can
+// put a directory inside or outside fsutil.RacyWindow, or hand a replacement the
+// mtime of what it replaced.
 type fakeFS struct {
 	mod map[string]time.Time
 }
@@ -31,9 +29,8 @@ func newFakeFS() *fakeFS {
 	return &fakeFS{mod: map[string]time.Time{}}
 }
 
-// mkdir creates a directory at pth with modification time mod. Parents are not
-// created implicitly: a test builds the tree top down, the way it reasons about
-// it.
+// mkdir does not create parents implicitly: a test builds the tree top down,
+// the way it reasons about it.
 func (f *fakeFS) mkdir(pth string, mod time.Time) {
 	f.mod[pth] = mod
 }
@@ -44,7 +41,6 @@ func (f *fakeFS) touch(pth string, mod time.Time) {
 	f.mod[pth] = mod
 }
 
-// rmdir removes a directory and everything under it.
 func (f *fakeFS) rmdir(pth string) {
 	for k := range f.mod {
 		if k == pth || len(k) > len(pth) && k[:len(pth)+1] == pth+"/" {
@@ -102,26 +98,21 @@ func (fakeDirEntry) IsDir() bool                  { return true }
 func (fakeDirEntry) Type() fs.FileMode            { return fs.ModeDir }
 func (e fakeDirEntry) Info() (fs.FileInfo, error) { return fakeInfo{name: e.name}, nil }
 
-// nullStore is a Store with no file behind it: loading always misses (so a walk
-// starts from an empty snapshot) and writes are accepted and discarded. These
-// tests never persist - the reopen case that does lives in package shelf.
+// nullStore has no file behind it: loading always misses and writes are
+// discarded. The reopen case that does persist lives in package shelf.
 type nullStore struct{}
 
 func (nullStore) ReadFile(string) ([]byte, error)      { return nil, util.NewError("empty") }
 func (nullStore) EnsureWritable() error                { return nil }
 func (nullStore) WriteFileAtomic(string, []byte) error { return nil }
 
-// openCache builds a cache over a null store, the way the shelf facade builds one
-// over app/ but with nothing on disk to load.
 func openCache(enabled bool) *Cache {
 	return Open(Config{Store: nullStore{}, Enabled: enabled})
 }
 
-// walkTree runs one complete walk of root the way the shelf's iterateShelfTree
-// does - NewWalk, a depth-first descent, then Install - but for the directory
-// layer alone. It returns the set of directory paths it reached and what the
-// walk cost. childrenTrusted is threaded down exactly as the real walk threads
-// it, which is what puts the trust chain under test.
+// walkTree runs one complete walk the way the shelf's iterateShelfTree does,
+// but for the directory layer alone. childrenTrusted is threaded down exactly as
+// the real walk threads it, which is what puts the trust chain under test.
 func walkTree(t *testing.T, cache *Cache, root fsutil.ReadFS, start string) (map[string]bool, Stats) {
 	t.Helper()
 
@@ -211,13 +202,11 @@ func TestScanCacheRefusesRacyDirectories(t *testing.T) {
 	}
 }
 
-// A directory's mtime identifies its content, not the directory. If one is
-// moved away and another takes its place carrying the same mtime - which
-// coarse-timestamp filesystems and timestamp-preserving copies both make
-// possible - matching the mtime alone would serve the old directory's children
-// forever, and the directories under the new one would never appear. The parent
-// is what rules that out: the rename changes the parent's mtime, the parent is
-// therefore relisted and distrusted, and the distrust cascades to the child.
+// A directory's mtime identifies its content, not the directory: coarse
+// timestamps and timestamp-preserving copies both let a replacement carry the
+// mtime of what it replaced, and matching the mtime alone would serve the old
+// children forever. The rename changes the parent's mtime, so the parent is
+// relisted and distrusted, and the distrust cascades to the child.
 func TestScanCacheDistrustsAReplacedDirectory(t *testing.T) {
 	aged := time.Now().Add(-time.Minute)
 
