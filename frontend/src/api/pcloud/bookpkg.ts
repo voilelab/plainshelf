@@ -103,19 +103,48 @@ function isUsableDirName(name: string): boolean {
 }
 
 /**
+ * JSON null stands in for an absent member throughout this file: the Go side
+ * decodes into a struct, where null leaves the zero value rather than failing.
+ */
+function isAbsent(value: unknown): boolean {
+  return value === undefined || value === null;
+}
+
+function isJsonObject(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * One entry's `reason`, or undefined when the entry has to be dropped over it.
+ *
+ * A wrong type takes the whole entry with it rather than defaulting to empty:
+ * the Go side unmarshals the entry into a {name|path, reason} struct, so a
+ * number there fails the entry and the directory is not skipped, or the folder
+ * not marked. Defaulting here would skip or mark it, which is the two readers
+ * disagreeing about the same file.
+ */
+function parseReason(reason: unknown): string | undefined {
+  if (isAbsent(reason)) {
+    return '';
+  }
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+/**
  * An entry is always a {name, reason} object; a bare name is not accepted, for
  * the reason parseIgnoredDir gives in shelf/shelf_config.go.
  */
 function parseIgnoredDir(entry: unknown): IgnoredDir | undefined {
-  if (entry === null || typeof entry !== 'object') {
+  if (!isJsonObject(entry)) {
     return undefined;
   }
 
   const { name, reason } = entry as { name?: unknown; reason?: unknown };
-  if (typeof name !== 'string' || !isUsableDirName(name)) {
+  const reasonText = parseReason(reason);
+  if (typeof name !== 'string' || !isUsableDirName(name) || reasonText === undefined) {
     return undefined;
   }
-  return { name, reason: typeof reason === 'string' ? reason : '' };
+  return { name, reason: reasonText };
 }
 
 /**
@@ -123,39 +152,79 @@ function parseIgnoredDir(entry: unknown): IgnoredDir | undefined {
  * refuses a bare name: one entry, one shape.
  */
 function parseNSFWFolder(entry: unknown): NSFWFolder | undefined {
-  if (entry === null || typeof entry !== 'object') {
+  if (!isJsonObject(entry)) {
     return undefined;
   }
 
   const { path, reason } = entry as { path?: unknown; reason?: unknown };
-  if (typeof path !== 'string' || normalizeFolderPath(path) === undefined) {
+  const reasonText = parseReason(reason);
+  if (typeof path !== 'string' || normalizeFolderPath(path) === undefined || reasonText === undefined) {
     return undefined;
   }
-  return { path, reason: typeof reason === 'string' ? reason : '' };
+  return { path, reason: reasonText };
 }
 
-/** The listed values of one `shelf.json` section, or undefined when it has none. */
-function listedEntries(raw: unknown, section: string, member: string): unknown[] | undefined {
-  const values = (raw as Record<string, unknown> | null)?.[section];
-  const listed = (values as Record<string, unknown> | null | undefined)?.[member];
+/**
+ * Whether the Go side would read this file at all.
+ *
+ * `json.UnmarshalRead` fills one struct, so a member of the wrong container type
+ * fails the *whole file* and the shelf keeps its defaults — it does not fall
+ * back section by section. A reader that dropped only the bad section would
+ * apply the other one where Go applies nothing, so a file with a broken `scan`
+ * and a valid `content` would mark folders on a phone and nowhere else.
+ *
+ * Unknown members are accepted here as they are there, so a file from a newer
+ * build still reads.
+ */
+function isReadableShelfConfig(raw: unknown): boolean {
+  if (!isJsonObject(raw)) {
+    return false;
+  }
+
+  const { schema_version: schemaVersion, scan, content } = raw as Record<string, unknown>;
+  if (!isAbsent(schemaVersion) && !Number.isInteger(schemaVersion)) {
+    return false;
+  }
+  return isReadableSection(scan, 'ignored_dirs') && isReadableSection(content, 'nsfw_folders');
+}
+
+function isReadableSection(section: unknown, member: string): boolean {
+  if (isAbsent(section)) {
+    return true;
+  }
+  if (!isJsonObject(section)) {
+    return false;
+  }
+  const listed = (section as Record<string, unknown>)[member];
+  return isAbsent(listed) || Array.isArray(listed);
+}
+
+/** The listed entries of one section, or undefined when the section has none. */
+function listedEntries(section: unknown, member: string): unknown[] | undefined {
+  const listed = (section as Record<string, unknown> | null | undefined)?.[member];
   return Array.isArray(listed) ? listed : undefined;
 }
 
 /**
- * Never throws: a file from a newer build, or one whose sections are the wrong
- * shape, leaves the defaults in place rather than making the shelf unreadable —
- * as the Go side does with the same file. Unusable entries are dropped one by
- * one, so one bad line does not cost the rest.
+ * Never throws: a file from a newer build, or one whose shape this reader cannot
+ * use, leaves the defaults in place rather than making the shelf unreadable — as
+ * the Go side does with the same file. Within a file it can read, unusable
+ * entries are dropped one by one, so one bad line does not cost the rest.
  */
 export function parseShelfConfig(raw: unknown): ShelfConfig {
+  if (!isReadableShelfConfig(raw)) {
+    return {};
+  }
+
+  const { scan, content } = raw as Record<string, unknown>;
   const config: ShelfConfig = {};
 
-  const dirs = listedEntries(raw, 'scan', 'ignored_dirs');
+  const dirs = listedEntries(scan, 'ignored_dirs');
   if (dirs) {
     config.ignoredDirs = dirs.map(parseIgnoredDir).filter((dir) => dir !== undefined);
   }
 
-  const folders = listedEntries(raw, 'content', 'nsfw_folders');
+  const folders = listedEntries(content, 'nsfw_folders');
   if (folders) {
     config.nsfwFolders = folders.map(parseNSFWFolder).filter((folder) => folder !== undefined);
   }

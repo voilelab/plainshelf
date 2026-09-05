@@ -417,9 +417,38 @@ describe('shelf.json', () => {
     ['a scan section of the wrong type', { scan: 'everything' }],
     ['a list of the wrong type', { scan: { ignored_dirs: 'everything' } }],
     ['null', null],
-    ['a string', 'not a settings file']
+    ['a string', 'not a settings file'],
+    ['an array', []],
+    ['a schema_version of the wrong type', { schema_version: '1' }],
+    ['a fractional schema_version', { schema_version: 1.5 }],
+    ['a content section of the wrong type', { content: 'adult' }],
+    ['an nsfw_folders list of the wrong type', { content: { nsfw_folders: 'Adult' } }]
   ])('reads no rules from %s', (_label, raw) => {
     expect(parseShelfConfig(raw)).toEqual({});
+  });
+
+  // Go decodes the file into one struct, so a member of the wrong container type
+  // fails the whole file and nothing in it applies. Reading the good half here
+  // would mark a folder on a phone that the server leaves unmarked.
+  it.each([
+    ['a broken scan section', { scan: 'everything', content: { nsfw_folders: [{ path: 'Adult' }] } }],
+    ['a broken content section', { scan: { ignored_dirs: [{ name: '@Snapshot' }] }, content: 7 }]
+  ])('drops the whole file over %s, not just that section', (_label, raw) => {
+    expect(parseShelfConfig(raw)).toEqual({});
+  });
+
+  // null is not a wrong type: the Go struct reads it as the zero value, which is
+  // the same as the member being absent.
+  it('reads a null section or list as silence', () => {
+    expect(parseShelfConfig({ schema_version: null, scan: null, content: { nsfw_folders: null } })).toEqual({});
+  });
+
+  // Unknown members are accepted on both sides, so a file from a newer build
+  // still applies the parts this build understands.
+  it('keeps reading a file that carries a member this build does not know', () => {
+    const raw = { scan: { ignored_dirs: [{ name: '@Snapshot' }], future: true }, tomorrow: {} };
+
+    expect(parseShelfConfig(raw)).toEqual({ ignoredDirs: [{ name: '@Snapshot', reason: '' }] });
   });
 
   // One unusable entry must not cost the rest of the file.
@@ -494,6 +523,29 @@ describe('shelf.json', () => {
     };
 
     expect(parseShelfConfig(raw)).toEqual({ nsfwFolders: [{ path: 'Fiction/Adult', reason: '' }] });
+  });
+
+  // The Go side unmarshals an entry into a {name|path, reason} struct, so a
+  // reason of the wrong type fails the entry rather than defaulting to empty.
+  // Defaulting here would skip a directory, or mark a folder, that the server
+  // does not.
+  it('drops an entry whose reason is not a string', () => {
+    const raw = {
+      scan: { ignored_dirs: [{ name: '@Snapshot', reason: 17 }, { name: 'thumbs' }] },
+      content: { nsfw_folders: [{ path: 'Adult', reason: ['no'] }, { path: 'Doujin' }] }
+    };
+
+    expect(parseShelfConfig(raw)).toEqual({
+      ignoredDirs: [{ name: 'thumbs', reason: '' }],
+      nsfwFolders: [{ path: 'Doujin', reason: '' }]
+    });
+  });
+
+  // A null reason is the member being absent, which both sides read as empty.
+  it('keeps an entry whose reason is null', () => {
+    const raw = { content: { nsfw_folders: [{ path: 'Adult', reason: null }] } };
+
+    expect(parseShelfConfig(raw)).toEqual({ nsfwFolders: [{ path: 'Adult', reason: '' }] });
   });
 });
 
