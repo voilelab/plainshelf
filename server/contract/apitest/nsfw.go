@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server"
 )
 
 // The fixture for show_nsfw, the setting that decides whether this server serves
@@ -29,7 +31,13 @@ const (
 	NSFWFlaggedFolder = "Fiction/Flagged"
 	NSFWEmptyFolder   = "Fiction/Empty"
 
-	nsfwShelfJSON = `{"schema_version":1,"content":{"nsfw_folders":[{"path":"` + NSFWMarkedFolder + `"}]}}`
+	// NSFWMarkedReason is carried by the rule so a test can assert the note the
+	// user wrote reaches the client, which is what an editor shows in place of a
+	// checkbox it must not offer.
+	NSFWMarkedReason = "kept apart from the rest of the shelf"
+
+	nsfwShelfJSON = `{"schema_version":1,"content":{"nsfw_folders":[{"path":"` + NSFWMarkedFolder +
+		`","reason":"` + NSFWMarkedReason + `"}]}}`
 )
 
 // Visible and FolderHidden are given this same body, so they are a duplicate
@@ -59,8 +67,8 @@ func (s NSFWShelf) All() []string {
 }
 
 // NewNSFWShelf builds it. shelf.json is written before the app opens because it
-// is read once at open; the book's own mark goes in afterwards and is rescanned,
-// which is how a user applies one today — there is no endpoint for it yet.
+// is read once at open; the book's own mark is applied afterwards through the
+// PATCH route, which is how a user applies one.
 func NewNSFWShelf(t *testing.T) NSFWShelf {
 	t.Helper()
 
@@ -82,12 +90,22 @@ func NewNSFWShelf(t *testing.T) NSFWShelf {
 	}
 
 	AssertStatus(t, env.Post(ShelfURL("folders", NSFWEmptyFolder), nil), http.StatusNoContent)
-	EditBookMetaFile(t, env, shelf.BookHidden, map[string]any{"nsfw": true})
+	SetBookNSFW(t, env, shelf.BookHidden, true)
 	AssertStatus(t, env.Post(ScansURL(), nil), http.StatusOK)
 	return shelf
 }
 
-// SetShowNSFW flips the setting the way a client does; there is no UI for it yet.
+// SetBookNSFW writes a book's own half of the mark through the PATCH route, the
+// way the metadata editor does.
+func SetBookNSFW(t *testing.T, env *Env, bookID string, nsfw bool) server.Book {
+	t.Helper()
+
+	rec := env.Patch(BookURL(bookID), strings.NewReader(`{"nsfw":`+strconv.FormatBool(nsfw)+`}`))
+	AssertStatus(t, rec, http.StatusOK)
+	return DecodeJSON[server.Book](t, rec)
+}
+
+// SetShowNSFW flips the setting the way the settings page does.
 func SetShowNSFW(t *testing.T, env *Env, show bool) {
 	t.Helper()
 

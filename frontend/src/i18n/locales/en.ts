@@ -264,6 +264,16 @@ const en = {
       label: 'Convert uploaded covers to JPG',
       description: 'Enable this to convert cover images to JPEG when uploading.'
     },
+    nsfw: {
+      title: 'Adult content'
+    },
+    showNsfw: {
+      label: 'Show adult content',
+      description:
+        'When this is off, the books your shelf marks as adult content are not served at all: they are absent from the library, the folder tree, search and the dashboard, and opening one by its address gives "not found".',
+      markingNote:
+        'The marks themselves belong to the shelf, not to this setting. Mark one book in its metadata editor; mark a whole folder by listing it under content.nsfw_folders in shelf.json.'
+    },
     readHistory: {
       title: 'Reading history'
     },
@@ -818,6 +828,10 @@ const en = {
       card: 'Card',
       title: 'Title'
     },
+    nsfwBadge: {
+      label: 'NSFW',
+      title: 'Marked as adult content'
+    },
     downloadState: {
       notDownloaded: 'Not downloaded',
       downloaded: 'Downloaded',
@@ -1116,6 +1130,14 @@ const en = {
       authorsLabel: 'Authors (comma separated)',
       authorsPlaceholder: 'Author A, Author B',
       organization: 'Organization',
+      nsfw: {
+        label: 'Adult content',
+        help: 'While "Show adult content" is off in Settings, a marked book is not served at all — it disappears from the library until the setting is turned back on.',
+        fromFolder:
+          'Marked by the folder rule "{path}" in shelf.json, which marks every book below it. Edit that file to change it, or move the book out of the folder.',
+        fromFolderReason:
+          'Marked by the folder rule "{path}" in shelf.json: {reason}. Edit that file to change it, or move the book out of the folder.'
+      },
       publishedAt: 'Published At',
       languageLabel: 'Language',
       starRating: 'Star rating',

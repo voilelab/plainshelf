@@ -198,10 +198,9 @@ func (env *Env) BookMetaPath(t *testing.T, bookID string) string {
 }
 
 // EditBookMetaFile merges fields into a book's book.json on disk, for a fact no
-// API can write - a schema version from a newer build, or the nsfw mark, which
-// has no endpoint yet. It returns the path and the bytes now there, so a caller
-// can prove a refused write left them alone; a caller that needs the shelf to
-// read the edit back rescans afterwards.
+// API can write - a schema version from a newer build, say. It returns the path
+// and the bytes now there, so a caller can prove a refused write left them
+// alone; a caller that needs the shelf to read the edit back rescans afterwards.
 func EditBookMetaFile(t *testing.T, env *Env, bookID string, edit map[string]any) (metaPath string, onDisk []byte) {
 	t.Helper()
 

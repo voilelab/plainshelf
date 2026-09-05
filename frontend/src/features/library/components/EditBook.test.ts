@@ -234,3 +234,122 @@ describe('EditBook language validation', () => {
     );
   });
 });
+
+describe('EditBook adult-content mark', () => {
+  function mountBook(overrides: Partial<Book>): Mounted {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const submitted: BookUpdateRequest[] = [];
+    const dirtyChanges: boolean[] = [];
+
+    const app = createApp({
+      setup: () => () =>
+        h(EditBook, {
+          book: { id: 'book-1', title: '書名', authors: [], tags: [], folders: [], ...overrides },
+          saving: false,
+          onSubmit: (payload: BookUpdateRequest) => submitted.push(payload),
+          onDirtyChange: (dirty: boolean) => dirtyChanges.push(dirty)
+        })
+    });
+    app.mount(host);
+
+    const entry = { app, host, submitted, dirtyChanges };
+    mounted.push(entry);
+    return entry;
+  }
+
+  function nsfwSwitch(host: HTMLElement): HTMLButtonElement {
+    const control = host.querySelector<HTMLButtonElement>('.nsfw-row [role="switch"]');
+    if (!control) throw new Error('Missing NSFW switch');
+    return control;
+  }
+
+  function submit(host: HTMLElement): void {
+    host.querySelector<HTMLFormElement>('.edit-form')?.dispatchEvent(
+      new Event('submit', { cancelable: true })
+    );
+  }
+
+  it('submits the mark the switch was left on', async () => {
+    setLocale('en');
+    const { host, submitted } = mountBook({ nsfw: false });
+
+    expect(nsfwSwitch(host).getAttribute('aria-checked')).toBe('false');
+    nsfwSwitch(host).click();
+    await nextTick();
+
+    submit(host);
+    await nextTick();
+
+    expect(submitted).toHaveLength(1);
+    expect(submitted[0].nsfw).toBe(true);
+  });
+
+  it('carries an already-marked book through an unrelated edit', async () => {
+    setLocale('en');
+    const { host, submitted } = mountBook({ nsfw: true });
+
+    expect(nsfwSwitch(host).getAttribute('aria-checked')).toBe('true');
+    submit(host);
+    await nextTick();
+
+    // The payload always names nsfw, so an edit that does not touch it must not
+    // read as a request to clear it.
+    expect(submitted[0].nsfw).toBe(true);
+  });
+
+  it('toggling the mark makes the form dirty', async () => {
+    setLocale('en');
+    const { host, dirtyChanges } = mountBook({ nsfw: false });
+
+    nsfwSwitch(host).click();
+    await nextTick();
+
+    expect(dirtyChanges.at(-1)).toBe(true);
+  });
+
+  it('shows a folder-borne mark as on and read-only, naming the rule and its reason', async () => {
+    setLocale('en');
+    const { host } = mountBook({
+      nsfw: false,
+      nsfw_folder: { path: 'Fiction/Adult', reason: 'kept apart' }
+    });
+
+    const control = nsfwSwitch(host);
+    // On despite the book's own nsfw being false: the two halves add, so the
+    // book is marked and a switch reading "off" would be a lie.
+    expect(control.getAttribute('aria-checked')).toBe('true');
+    expect(control.disabled).toBe(true);
+
+    const help = host.querySelector('.nsfw-row .field-help')?.textContent ?? '';
+    expect(help).toContain('Fiction/Adult');
+    expect(help).toContain('kept apart');
+    expect(control.getAttribute('aria-describedby')).toBe(
+      host.querySelector('.nsfw-row .field-help')?.id
+    );
+  });
+
+  it('does not write a folder-borne mark into the book\'s own metadata', async () => {
+    setLocale('en');
+    const { host, submitted } = mountBook({
+      nsfw: false,
+      nsfw_folder: { path: 'Fiction/Adult' }
+    });
+
+    submit(host);
+    await nextTick();
+
+    // The switch reads on, but the book's own nsfw is still false: writing true
+    // here would leave the book marked after the folder rule is removed.
+    expect(submitted[0].nsfw).toBe(false);
+  });
+
+  it('names the folder rule by path alone when it carries no reason', async () => {
+    setLocale('en');
+    const { host } = mountBook({ nsfw: false, nsfw_folder: { path: 'Fiction/Adult' } });
+
+    const help = host.querySelector('.nsfw-row .field-help')?.textContent ?? '';
+    expect(help).toContain('Fiction/Adult');
+    expect(help).not.toContain('undefined');
+  });
+});

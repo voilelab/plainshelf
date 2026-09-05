@@ -155,10 +155,9 @@ type NSFWFolder struct {
 
 	// Reason completes "marked because ...", and may be empty.
 	//
-	// Nothing reads it back yet - unlike IgnoredDir.Reason, no refusal shows it
-	// to anyone. It is kept because shelf.json is a file a person writes and
-	// PlainShelf never rewrites, so the note survives for the next person to
-	// open it.
+	// It is shown to the user: an editor that cannot offer to clear a
+	// folder-borne mark says where the mark came from instead, and the note the
+	// person wrote in shelf.json is the better answer than the path alone.
 	Reason string
 }
 
@@ -194,11 +193,13 @@ func NewNSFWRules(folders []NSFWFolder) NSFWRules {
 	return NSFWRules{byPath: byPath}
 }
 
-// IsNSFWFolder asks whether any prefix of the path is listed, since a rule
-// marks its own folder and everything below it.
-func (r NSFWRules) IsNSFWFolder(folders []string) bool {
+// Match returns the listed rule that marks this path, walking down from the
+// root so the shallowest one wins: that is the rule that would still mark the
+// folder if every deeper entry were removed, and it is the one to name when
+// telling a user where a mark came from.
+func (r NSFWRules) Match(folders []string) (NSFWFolder, bool) {
 	if len(r.byPath) == 0 {
-		return false
+		return NSFWFolder{}, false
 	}
 
 	var key strings.Builder
@@ -207,11 +208,18 @@ func (r NSFWRules) IsNSFWFolder(folders []string) bool {
 			key.WriteByte('/')
 		}
 		key.WriteString(foldSegment(segment))
-		if _, ok := r.byPath[key.String()]; ok {
-			return true
+		if folder, ok := r.byPath[key.String()]; ok {
+			return folder, true
 		}
 	}
-	return false
+	return NSFWFolder{}, false
+}
+
+// IsNSFWFolder asks whether any prefix of the path is listed, since a rule
+// marks its own folder and everything below it.
+func (r NSFWRules) IsNSFWFolder(folders []string) bool {
+	_, ok := r.Match(folders)
+	return ok
 }
 
 // Paths returns the configured paths as written, sorted, for logging.

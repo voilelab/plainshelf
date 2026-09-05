@@ -1,5 +1,7 @@
 package shelf
 
+import "github.com/voilelab/plainshelf/shelf/internal/shelfutil"
+
 // The shelf's answer to "is this book adult content", assembled from the two
 // places the answer can be written down: content.nsfw_folders in shelf.json,
 // which marks a folder subtree, and nsfw in a book's own book.json, which marks
@@ -34,4 +36,15 @@ func (s *Shelf) IsBookNSFW(folders FolderPath, meta *BookMeta) bool {
 // ask IsBookNSFW about.
 func (s *Shelf) IsNSFWFolder(folders FolderPath) bool {
 	return s.nsfw.IsNSFWFolder(folders)
+}
+
+// NSFWFolderRule returns the shelf.json entry that marks this folder path, if
+// one does.
+//
+// IsNSFWFolder answers whether; this answers which. A UI that shows a book's own
+// nsfw as an editable checkbox needs the difference: a mark that came from the
+// shelf cannot be cleared on the book, so the control is disabled and the rule
+// is named in its place.
+func (s *Shelf) NSFWFolderRule(folders FolderPath) (shelfutil.NSFWFolder, bool) {
+	return s.nsfw.Match(folders)
 }

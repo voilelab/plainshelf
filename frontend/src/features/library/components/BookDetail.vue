@@ -9,7 +9,8 @@
       <h2 class="detail-title">{{ book.title }}</h2>
       <p v-if="book.authors.length > 0" class="detail-authors">{{ formatList(book.authors) }}</p>
 
-      <div v-if="hasRating || book.tags.length > 0" class="summary-signals">
+      <div v-if="hasRating || book.tags.length > 0 || isBookNsfw(book)" class="summary-signals">
+        <BookNsfwBadge :book="book" />
         <span
           v-if="hasRating"
           class="rating-text"
@@ -110,8 +111,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import FolderBreadcrumb from './FolderBreadcrumb.vue';
+import BookNsfwBadge from '@/components/BookNsfwBadge.vue';
 import SafeHtml from '@/components/SafeHtml.vue';
-import type { Book, ReadingProgress } from '@/types/book';
+import { isBookNsfw, type Book, type ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { MarkdownChapterListItem } from '@/utils/markdownChapters';
 import { formatLanguage } from '@/utils/language';
