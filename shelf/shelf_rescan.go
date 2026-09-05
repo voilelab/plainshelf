@@ -7,16 +7,13 @@ import (
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
-// ErrRescanInProgress reports that a manual rescan is already walking this
-// shelf, so this one was refused rather than started alongside it.
+// ErrRescanInProgress reports a manual rescan already walking this shelf.
 //
-// Refused rather than queued or attached: a second walk would cost the same
-// directory traversal to answer a question the first is already answering, and
-// on the SMB and cloud-mounted shelves this button exists for, that traversal
-// is the expensive part. Attaching to the running walk is worse for the very
-// reason the button exists — a walk that began before the user dropped their
-// file in cannot report it, so attaching would answer "scanned, still not
-// there" while a retry after it ends finds the book.
+// Refused rather than queued or attached: a second walk costs the same traversal
+// to answer a question the first is answering, and on the SMB and cloud shelves
+// this button exists for that traversal is the expensive part. Attaching is
+// worse — a walk that began before the user dropped their file in cannot report
+// it, so it would answer "scanned, still not there".
 var ErrRescanInProgress = util.NewError("a rescan is already in progress")
 
 // ErrRescanRateLimited reports that this caller has asked for full walks faster
@@ -28,16 +25,15 @@ var ErrRescanInProgress = util.NewError("a rescan is already in progress")
 // could not tell them apart would retry the second as if it were the first.
 var ErrRescanRateLimited = util.NewError("rescans are being requested too quickly")
 
-// The manual rescan's rate limit, as a token bucket. It is not configurable:
-// both values are chosen to sit far above any human pace rather than to suit a
-// particular shelf, and shelf.json is a compatibility-sensitive format that a
-// knob nobody can usefully tune should not grow.
+// The manual rescan's rate limit, as a token bucket. Not configurable: both
+// values sit far above any human pace, and shelf.json should not grow a knob
+// nobody can usefully tune.
 //
-// A fixed minimum interval was rejected. Measured from either end of the
-// previous walk it refuses a user who presses the button, waits for the walk,
-// and presses again — the one sequence this button exists for. A bucket splits
-// the two demands that pull against each other into separate numbers: the burst
-// is what a hand can spend, the refill is what a loop is left with.
+// A fixed minimum interval was rejected: measured from either end of the
+// previous walk it refuses a user who presses the button, waits, and presses
+// again — the one sequence this button exists for. A bucket splits the two
+// demands apart: the burst is what a hand can spend, the refill what a loop is
+// left with.
 const (
 	// rescanBurst is how many walks can be started back to back.
 	rescanBurst = 5
@@ -82,16 +78,14 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 	return s.rescan(true)
 }
 
-// RescanUnthrottled is Rescan without the rate limit: it neither spends a token
-// nor is refused for want of one.
+// RescanUnthrottled is Rescan without the rate limit.
 //
-// It is for a forced walk performed *inside* a larger operation, not for one a
-// request asked for by itself — today, the folder-transfer preflight, which
-// walks both shelves so the plan and the conflict checks read an authoritative
-// listing. Two things make the rate limit wrong there. The tokens belong to the
+// It is for a forced walk *inside* a larger operation — today the
+// folder-transfer preflight, which walks both shelves so the plan and the
+// conflict checks read an authoritative listing. The tokens belong to the
 // button: spending them on a transfer would let a user who moved five folders
-// find that "update book list" now answers 429 for something they never
-// pressed. And the caller has nowhere to put the refusal — it would silently
+// find "update book list" answering 429 for something they never pressed. And
+// the caller has nowhere to put the refusal — it would silently
 // plan from a stale cache, which is the one thing that preflight exists to
 // prevent.
 //
