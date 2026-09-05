@@ -24,21 +24,15 @@ var ErrTrashedBookNotFound = util.NewError("trashed book not found")
 
 // TrashMetaSchemaVersion is the trash.json schema version this build writes.
 //
-// trash.json is not a cache: it records where each book came from, so losing or
-// rewriting it restores the book to the wrong place. It follows the same rules
-// as book.json. No schema_version predates versioning ("v0"): read as the
-// current version, normalized in memory, persisted only on the next write (lazy
-// upgrade); opening a shelf never rewrites it. A HIGHER schema_version is still
-// listed and readable, but any operation that would modify the trashed book is
-// refused before touching the filesystem, so an older build cannot clobber a
-// newer one.
+// trash.json is not a cache: it records where each book came from, so rewriting
+// it restores the book to the wrong place. It follows book.json's rules — no
+// schema_version is read as the current one and persisted lazily, a higher one
+// stays listed and readable but refuses any modification.
 //
-// v2 renamed the recorded origin folder key from "original_layer" to
-// "original_folder" (the layer→folder surface rename). It is a hard cut with no
-// dual read: a v1 record's "original_layer" is simply not seen, so a book trashed
-// by a pre-v2 build restores to the top level of books/ rather than its old
-// folder. The bump makes that visible instead of silent — a pre-v2 build reading
-// a v2 record refuses to modify it (ErrUnsupportedTrashSchemaVersion) rather than
+// v2 renamed the origin folder key from "original_layer" to "original_folder".
+// It is a hard cut with no dual read: a v1 record's key is not seen, so a book
+// trashed by a pre-v2 build restores to the top level of books/. The bump makes
+// that visible — a pre-v2 build refuses to modify a v2 record rather than
 // rewriting it and dropping the restore path.
 const TrashMetaSchemaVersion = 2
 

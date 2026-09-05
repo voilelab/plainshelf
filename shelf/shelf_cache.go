@@ -16,26 +16,18 @@ type bookIDCacheEntry struct {
 	path    string
 	book    *Book
 
-	// charCount is the character count of the book's current source, read when
-	// this entry was built. It is kept here because a listing that reports it
-	// would otherwise open and decode one source meta.json per book on the
-	// request path - the same N-filesystem-operations cost the background
-	// refresh below exists to keep off it.
+	// charCount is kept here because a listing that reports it would otherwise
+	// open and decode one source meta.json per book on the request path.
 	//
-	// A published entry is never modified: every path that changes a stored
-	// value replaces the whole entry, so a reader that copied values out under
-	// the cache lock cannot observe a half-updated one.
+	// A published entry is never modified: every path that changes a stored value
+	// replaces the whole entry, so a reader cannot observe a half-updated one.
 	charCount int
 
-	// charCountAt is when the read behind charCount began, and is what orders
-	// two observations of the same book against each other.
-	//
-	// A character count is written without touching book.json, so a walk that
-	// read a source before it was rewritten and the refresh that followed the
-	// write are two views of the same book, publishable in either order, and
-	// nothing else in the entry tells which is older. Publishing the older would
-	// stick, because the book.json stat check cannot see a count change. So a
-	// count is only ever replaced by one observed later; see keepNewerCharCount.
+	// charCountAt orders two observations of the same book. A count is written
+	// without touching book.json, so a walk that read a source before it was
+	// rewritten and the refresh that followed the write are publishable in either
+	// order, and publishing the older would stick — the book.json stat check
+	// cannot see a count change. See keepNewerCharCount.
 	charCountAt time.Time
 }
 
@@ -54,10 +46,9 @@ func newBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCac
 	}
 }
 
-// readCharCount reads a book's current-source character count and reports the
-// moment the read began. The start and not the end: a read that overlaps a
-// write may see either state, and the caller that started later is the one
-// whose write it followed.
+// readCharCount reports the moment the read began, not the end: a read that
+// overlaps a write may see either state, and the caller that started later is
+// the one whose write it followed.
 func readCharCount(book *Book) (int, time.Time) {
 	readAt := time.Now()
 	return book.CurrentSourceCharCount(), readAt
@@ -85,11 +76,9 @@ type bookCache struct {
 	sync.RWMutex
 	cache map[string]*bookIDCacheEntry
 
-	// folders is every folder directory the shelf holds, sorted, with the root as
-	// an empty Folders. Kept beside the book cache because both come out of the
-	// same walk, and kept as its own list because an empty folder holds no book
-	// and could not be rebuilt from cache above — the same reason
-	// BookCacheFile.Folders exists.
+	// folders is every folder directory, sorted, with the root as an empty
+	// Folders. Its own list because an empty folder holds no book and could not
+	// be rebuilt from cache above — the same reason BookCacheFile.Folders does.
 	folders []FolderPath
 
 	treeDirty    bool
@@ -106,9 +95,8 @@ type bookCache struct {
 	rescanID string
 
 	// rescanTokens and rescanTokensAt are the manual rescan's rate limit; see
-	// shelf_rescan.go. Kept here rather than beside the shelf because
-	// beginRescan already holds this lock to claim rescanID, so the claim and
-	// the token it costs are decided in one critical section.
+	// shelf_rescan.go. Here rather than beside the shelf because beginRescan
+	// already holds this lock, so the claim and its token cost are one section.
 	rescanTokens   float64
 	rescanTokensAt time.Time
 
@@ -117,11 +105,10 @@ type bookCache struct {
 	lastScanStart time.Time
 
 	// Exported cache state; see shelf_cache_export.go. There is deliberately no
-	// "export is dirty" flag: books are edited in place through *Book, which the
-	// cache holds a pointer to, so a flag would have to be set from every
-	// mutating method and any one that was missed would silently stop exporting.
-	// lastExportDigest fingerprints what was written instead, which cannot be
-	// forgotten because it is computed from the content itself.
+	// "export is dirty" flag: books are edited in place through the *Book this
+	// cache points at, so any mutating method that forgot to set one would
+	// silently stop exporting. lastExportDigest is computed from the content
+	// instead, which cannot be forgotten.
 	lastExport       time.Time
 	lastExportDigest string
 	exporting        bool
@@ -168,10 +155,9 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 func (s *Shelf) scanToBookCache() error {
 	cache := make(map[string]*bookIDCacheEntry)
 
-	// Recorded before the walk, not after. A book read early in the walk can be
-	// edited before the walk ends, so only the start time is a moment the whole
-	// result is known to be current as of. The exported cache publishes this as
-	// its Timestamp and readers use it to decide what they must re-read.
+	// Recorded before the walk, not after: a book read early can be edited before
+	// the walk ends, so only the start is a moment the whole result is current as
+	// of. The exported cache publishes it as its Timestamp.
 	scanStart := time.Now()
 
 	var folders []FolderPath

@@ -13,20 +13,16 @@ import (
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
-// shelfConfigFile is the shelf's own settings, sitting at the shelf root beside
-// books/, trash/ and app/.
+// shelfConfigFile is the shelf's own settings, at the shelf root beside books/,
+// trash/ and app/.
 //
-// It lives there rather than under app/ because app/ is documented as
-// rebuildable runtime state a user may delete at will, and a setting that
-// vanishes with the cache is worse than no setting at all. It travels with the
-// shelf rather than with the server config so that every reader of the same
-// shelf - this server, the desktop app, the Android client reading it from
-// pCloud - applies the same rules, which a per-installation config file cannot
-// guarantee.
+// Not under app/, which is documented as rebuildable state a user may delete at
+// will; and travelling with the shelf rather than with the server config, so
+// every reader of it — this server, the desktop app, the Android client on
+// pCloud — applies the same rules.
 //
-// PlainShelf only ever reads it. Nothing in this build writes or rewrites it, so
-// a hand-edited file keeps its formatting, its key order, and any key a later
-// build adds.
+// PlainShelf only ever reads it, so a hand-edited file keeps its formatting, its
+// key order, and any key a later build adds.
 const shelfConfigFile = "shelf.json"
 
 // shelfConfigSchemaVersion is the shelf.json shape this build documents and
@@ -48,37 +44,29 @@ type shelfConfigJSON struct {
 	Scan          struct {
 		// IgnoredDirs are the directory names under books/ this shelf skips.
 		//
-		// Present, it replaces the built-in defaults outright - including with
-		// an empty list, which means "skip nothing but hidden directories".
-		// Absent (a nil slice, which is why the entries stay raw) means the
-		// shelf has said nothing and gets DefaultIgnoredDirs. One list with one
-		// meaning: there is no second field layering names on top of another.
+		// Present, it replaces the built-in defaults outright — including an
+		// empty list, which means "skip nothing but hidden directories". Absent
+		// (a nil slice, which is why the entries stay raw) gets
+		// DefaultIgnoredDirs. There is no second field layering names on top.
 		//
-		// An entry is always an object - {"name": "@eaDir"}, or
-		// {"name": "@eaDir", "reason": "Synology thumbnails"} to say why a
-		// directory this build has never heard of is skipped. One shape, so a
-		// file is read the same way wherever the reader looks and adding a
-		// field later does not turn some entries into a different kind of
+		// An entry is always an object — {"name": "@eaDir"}, optionally with a
+		// "reason" — so a file reads the same way wherever the reader looks and
+		// a field added later does not turn some entries into another kind of
 		// value.
 		IgnoredDirs []jsontext.Value `json:"ignored_dirs"`
 	} `json:"scan"`
 	Content struct {
-		// NSFWFolders are the folder subtrees under books/ this shelf marks as
-		// adult content. A folder marks itself and everything below it.
+		// NSFWFolders are the folder subtrees this shelf marks as adult content;
+		// a folder marks itself and everything below it.
 		//
-		// There is no built-in list to replace here, unlike IgnoredDirs: absent
-		// and empty both mean "this shelf marks no folder", because only the
-		// user knows what their own folders hold.
+		// Unlike IgnoredDirs there is no built-in list to replace: absent and
+		// empty both mean "this shelf marks no folder", because only the user
+		// knows what their own folders hold. A folder has no metadata file of its
+		// own (docs/concepts/folders.md), so this is the only place a
+		// folder-level mark can live.
 		//
-		// A folder has no metadata file of its own - a folder is a directory
-		// (docs/concepts/folders.md) - so this is the only place a folder-level
-		// mark can live, and shelf.json is already the file that travels with
-		// the shelf and is only ever read.
-		//
-		// An entry is always an object - {"path": "Fiction/Adult"}, or
-		// {"path": "Fiction/Adult", "reason": "..."} to say why - for the same
-		// reason IgnoredDirs entries are: one shape, so a file is read the same
-		// way wherever the reader looks.
+		// An entry is always an object, for the same reason IgnoredDirs entries
+		// are: one shape wherever the reader looks.
 		NSFWFolders []jsontext.Value `json:"nsfw_folders"`
 	} `json:"content"`
 }

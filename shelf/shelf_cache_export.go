@@ -31,16 +31,11 @@ treats a missing, unparseable or too-new file as a plain cache miss and falls
 back to walking the shelf.
 */
 
-// BookCacheSchemaVersion is the exported cache format version this build writes.
+// BookCacheSchemaVersion has no migration path and needs none: the file can
+// always be regenerated, so a reader that sees an unknown version discards it.
 //
-// Unlike book.json there is no migration path and none is needed: the file can
-// always be regenerated from the shelf, so a reader that sees a version it does
-// not know discards the file rather than trying to interpret it.
-//
-// v2 renamed the folder-list key from "layers" to "folders" (the layer→folder
-// surface rename). Because a version mismatch is already a plain cache miss, an
-// existing v1 export is simply discarded and rebuilt on the next export; no error
-// reaches the caller.
+// v2 renamed the folder-list key from "layers" to "folders"; an existing v1
+// export is discarded and rebuilt on the next one, with no error to the caller.
 const BookCacheSchemaVersion = 2
 
 const bookCacheFilePrefix = "book-cache-"
@@ -67,17 +62,14 @@ type BookCacheFile struct {
 	// each other. See docs/concepts/shelf-cache-and-io.md.
 	WriterID string `json:"writer_id"`
 
-	// Timestamp is when the walk behind this file BEGAN, in Unix seconds — not
-	// when the file was written, and not when the walk finished. A reader
-	// compares it against the modification time of each book.json it can see:
-	// anything at or after this may have changed since the walk read it and
-	// must be re-read, everything older is covered by Books below.
+	// Timestamp is when the walk BEGAN, in Unix seconds — not when the file was
+	// written, and not when the walk finished. A reader compares it against each
+	// book.json's mtime: anything at or after it must be re-read.
 	//
-	// Each of those three choices is the conservative one. A write time would
-	// claim freshness the walk never verified. The walk's end time would cover
-	// books edited while it was still running, after it had already read them.
-	// And whole seconds cannot order two events inside the same second, which
-	// is why a reader treats equality as "must re-read" rather than "covered".
+	// Each choice is the conservative one. A write time would claim freshness the
+	// walk never verified; the walk's end time would cover books edited while it
+	// was still running; and whole seconds cannot order two events inside one
+	// second, which is why equality reads as "must re-read".
 	Timestamp int64 `json:"timestamp"`
 
 	// Generator records the build that wrote the file, for diagnostics only.
@@ -101,30 +93,21 @@ type BookCacheEntry struct {
 	// its ID afterwards.
 	Path string `json:"path"`
 
-	// Meta is the content of the book's book.json.
-	//
-	// Taken from the in-memory cache rather than re-read from disk, so exporting
-	// costs no per-book I/O — the point of the file is to spare a slow shelf
-	// exactly that kind of walk. One consequence is deliberate: a book.json
-	// predating schema versioning is exported as version 1, which is how this
-	// build reads it anyway, while a book whose version is NEWER than this build
-	// keeps its own version so a reader can still tell it is not fully
-	// understood here.
+	// Meta comes from the in-memory cache rather than a re-read, so exporting
+	// costs no per-book I/O — which is the point of the file. One consequence is
+	// deliberate: a book.json predating schema versioning exports as version 1,
+	// how this build reads it anyway, while a NEWER one keeps its own version so
+	// a reader can tell it is not fully understood here.
 	Meta *BookMeta `json:"meta"`
 
-	// NSFW is the shelf's answer for this book, already assembled from the
-	// folder rules in shelf.json and the book's own nsfw flag — see
-	// Shelf.IsBookNSFW.
+	// NSFW is the shelf's assembled answer — see Shelf.IsBookNSFW. Recorded
+	// rather than left to the reader because a client that reads only this file
+	// has not read shelf.json and cannot apply a folder rule, and two readers
+	// disagreeing about adult content is the one disagreement this mark cannot
+	// afford. Meta.NSFW stays the book's own half.
 	//
-	// Recorded rather than left to the reader because a client that reads only
-	// this file has not read shelf.json and cannot apply a folder rule, and two
-	// readers disagreeing about which books are adult content is the one
-	// disagreement this mark cannot afford. Meta.NSFW is still the book's own
-	// half and stays exactly what its book.json says.
-	//
-	// Omitted when false, so a shelf that marks nothing exports byte-identical
-	// files to the ones it exported before this field existed and no reader
-	// re-downloads a cache that did not change.
+	// Omitted when false, so a shelf that marks nothing exports the same bytes it
+	// did before this field existed.
 	NSFW bool `json:"nsfw,omitzero"`
 }
 
@@ -135,19 +118,16 @@ func (s *Shelf) bookCacheFileName() string {
 }
 
 // scheduleBookCacheExportIfNeeded considers an export in the background once the
-// interval has elapsed. Whether anything is written is decided by comparing
-// content, in exportBookCache.
+// interval has elapsed; exportBookCache decides by comparing content.
 //
-// Deciding on content rather than a "something changed" flag is the point: the
-// cache holds pointers to live *Book values, and every metadata edit — SetMeta,
-// SetCover, DeleteCover, SetCurrentSource — mutates one in place without going
-// near this file. A flag would have to be set from each, and the one missed
-// would silently stop exporting.
+// Content rather than a "something changed" flag is the point: the cache holds
+// pointers to live *Book values, and every metadata edit mutates one in place
+// without going near this file, so the one flag nobody set would silently stop
+// exporting.
 //
-// There is no ticker either. An export only has something to say after the shelf
-// is read or written, and every such path passes through here, so polling would
-// add a goroutine and a shutdown concern without making any file fresher. A
-// shelf closed with unexported changes is handled by Close.
+// There is no ticker either: an export only has something to say after the shelf
+// is read or written, and every such path passes through here. A shelf closed
+// with unexported changes is handled by Close.
 func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 	if s.bookCacheWriterID == "" {
 		return
@@ -232,16 +212,14 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 	return s.bookCache.lastScanStart, nil
 }
 
-// exportBookCache builds the cache payload and writes it when it differs from
-// what was written last. With force it writes unconditionally.
+// exportBookCache writes when the payload differs from what was written last,
+// or unconditionally under force.
 //
-// It intentionally does not take the shelf lock. The only file it writes is
-// named after this installation, so no other instance contends for it, and the
-// write is atomic. Reading a directory tree while another process mutates it
-// can miss a book being added — exactly the staleness this file is already
-// defined to tolerate, and the next export corrects it. Taking the lock here
-// would instead mean acquiring it from Close and from goroutines whose caller
-// already holds it.
+// It intentionally does not take the shelf lock: the only file it writes is
+// named after this installation, and the write is atomic. Reading a tree while
+// another process mutates it can miss a book being added — exactly the staleness
+// this file already tolerates. Taking the lock would instead mean acquiring it
+// from Close and from goroutines whose caller already holds it.
 func (s *Shelf) exportBookCache(force bool) error {
 	if s.bookCacheWriterID == "" {
 		return nil
@@ -261,10 +239,9 @@ func (s *Shelf) exportBookCache(force bool) error {
 	folders := s.collectExportFolders()
 	books := s.collectExportBooks()
 
-	// Hash only the content, never the timestamp, so an unchanged shelf does
-	// not rewrite the file every interval. That matters most on the transports
-	// this file exists for: on pCloud or SMB an identical rewrite is a pointless
-	// upload, and on a sync client it is a pointless conflict opportunity.
+	// Hash only the content, never the timestamp, so an unchanged shelf does not
+	// rewrite the file every interval: on pCloud or SMB that is a pointless
+	// upload, and on a sync client a pointless conflict opportunity.
 	digest, err := bookCacheDigest(folders, books)
 	if err != nil {
 		return util.Errorf("%w", err)
