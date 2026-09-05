@@ -60,7 +60,7 @@ type RescanResult struct {
 	// scanToBookCache for why the shelf's freshness is dated from the start.
 	StartedAt time.Time
 
-	BookCount  int
+	BookCount   int
 	FolderCount int
 
 	// RetryAfter is filled in only on the ErrRescanRateLimited failure, where it
@@ -138,9 +138,9 @@ func (s *Shelf) rescan(rateLimited bool) (RescanResult, error) {
 	defer s.bookCache.RUnlock()
 
 	return RescanResult{
-		ID:         claim.scanID,
-		StartedAt:  s.bookCache.lastScanStart,
-		BookCount:  len(s.bookCache.cache),
+		ID:          claim.scanID,
+		StartedAt:   s.bookCache.lastScanStart,
+		BookCount:   len(s.bookCache.cache),
 		FolderCount: len(s.bookCache.folders),
 	}, nil
 }
