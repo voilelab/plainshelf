@@ -13,21 +13,17 @@ const refreshing = ref(false);
 const error = ref('');
 
 /**
- * Drives the manual shelf update for a backend whose listing is not guaranteed
- * to reflect the shelf right now — a pCloud connection, which scans once and
- * then reads a stored copy, and a server, which rescans only every
- * `scan_interval` and is told nothing by an SMB or cloud mount in between.
+ * Drives the manual shelf update for a backend whose listing may not reflect the
+ * shelf right now: pCloud scans once and then reads a stored copy, and a server
+ * rescans only every `scan_interval`, told nothing by an SMB or cloud mount in
+ * between. `supported` is asked of the provider, not inferred from the runtime,
+ * because the mobile shell can be connected to either.
  *
- * `supported` is asked of the provider rather than inferred from the runtime:
- * the mobile shell can be connected to either a server or pCloud, and the two
- * need the update for different reasons.
- *
- * The two backends report their result differently and neither reports both.
- * pCloud dates its stored listing, which is durable state and belongs beside
- * the button as `lastSyncedAt`. A server has no such date and instead says what
- * the walk found, which is a fact about one press: it goes to a toast, because
- * a line whose width follows a book count would push the toolbar around every
- * time the shelf grows.
+ * They report differently and neither reports both. pCloud dates its stored
+ * listing, durable state that belongs beside the button as `lastSyncedAt`. A
+ * server instead says what the walk found, a fact about one press: that goes to
+ * a toast, because a line whose width follows a book count would push the
+ * toolbar around every time the shelf grows.
  */
 export function useShelfRefresh() {
   const provider = getBookshelfProvider();
@@ -60,19 +56,16 @@ export function useShelfRefresh() {
         showToast(t('library.scanFound', { books: result.bookCount, folders: result.folderCount }));
       }
     } catch (err) {
-      // The one refusal that is not a failure: another client is already
-      // walking this shelf, so the answer is to wait for it rather than to
-      // retry, and the previous listing is still correct in the meantime. That
-      // makes it a remark about this press, not a state the page has to keep
-      // showing, so it goes to a toast while real failures stay on the page.
-      // Translated here because the api and provider folders hold no strings.
+      // The one refusal that is not a failure: another client is already walking
+      // this shelf, so the answer is to wait rather than retry and the previous
+      // listing is still correct. A remark about this press, not a state the page
+      // must keep showing, so it goes to a toast. Translated here because the api
+      // and provider folders hold no strings.
       if (err instanceof ShelfScanInProgressError) {
         showToast(t('library.scanInProgress'));
       } else if (err instanceof ShelfScanRateLimitedError) {
-        // A toast for the same reason as the refusal above: the previous listing
-        // is still correct, nothing failed, and the press is the only thing to
-        // take back. The generic error would park "update failed" on the page
-        // for something that is neither an update nor a failure.
+        // A toast for the same reason as the refusal above: nothing failed, and
+        // the generic error would park "update failed" on the page.
         showToast(t('library.scanRateLimited', { seconds: err.retryAfterSeconds }));
       } else {
         error.value = err instanceof Error ? err.message : t('library.refreshFailed');

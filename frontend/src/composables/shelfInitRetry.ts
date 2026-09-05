@@ -2,20 +2,16 @@ import { ApiError } from '@/api/client';
 import { reportErrorIncident } from './useErrorIncident';
 
 /**
- * One auto-retry policy for reads that race the shelf's initial scan.
+ * One auto-retry policy for reads that race the shelf's initial scan, which
+ * answers 503 (`ErrShelfInitializing`) until it finishes. Four loaders each had
+ * a copy of this timer and counter, which is how their delays drifted apart.
  *
- * A shelf still scanning answers 503 (`ErrShelfInitializing`) for every read,
- * and four independent loaders — the book listing, the folder tree, the
- * char-count index and the dashboard — each have to wait it out. They had a
- * copy of this timer and counter each, which is how their delays drifted apart.
+ * What to show once the budget is spent stays at the call site, where the
+ * loaders disagree on purpose.
  *
- * What to show once the budget is spent stays at the call site: the loaders
- * disagree on that on purpose (an "unreachable" flag, a generic error, a
- * specific string), and it is the only part of this that is theirs.
- *
- * `useShelvesStore` deliberately does not use this: its 20 × 300ms loop is a
- * fast startup poll for the shelf list, not a "scanning, wait a while" budget,
- * and giving it these delays would visibly slow the sidebar's first paint.
+ * `useShelvesStore` deliberately does not use this: its fast startup poll for
+ * the shelf list is not a "scanning, wait a while" budget, and these delays
+ * would visibly slow the sidebar's first paint.
  */
 
 export const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before giving up
@@ -34,9 +30,9 @@ interface ShelfInitRetry {
    * False means the budget is spent and the caller owns the failure state.
    *
    * `giveUpOn` is the refusal that prompted this call. api/client.ts publishes
-   * no reference for a refusal carrying Retry-After, because a hidden retry
-   * usually succeeds - but the attempt that spends the budget is not hidden,
-   * and the reference has to come back with the error the caller then shows.
+   * no reference for one carrying Retry-After, since a hidden retry usually
+   * succeeds — but the attempt that spends the budget is not hidden, and its
+   * reference has to come back with the error the caller shows.
    */
   schedule(attempt: () => void, giveUpOn: unknown): boolean;
   /** Cancels a pending retry, keeping the remaining budget. */
