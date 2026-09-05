@@ -13,8 +13,8 @@ import (
 
 type bookIDCacheEntry struct {
 	folders FolderPath
-	path   string
-	book   *Book
+	path    string
+	book    *Book
 
 	// charCount is the character count of the book's current source, read when
 	// this entry was built. It is kept here because a listing that reports it
@@ -46,7 +46,7 @@ func newBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCac
 	charCount, charCountAt := readCharCount(book)
 
 	return &bookIDCacheEntry{
-		folders:      folders,
+		folders:     folders,
 		path:        path,
 		book:        book,
 		charCount:   charCount,
@@ -334,7 +334,7 @@ func (s *Shelf) listBookListingsFromCache() []BookListing {
 	for _, cacheEntry := range s.bookCache.cache {
 		listings = append(listings, BookListing{
 			Book:      cacheEntry.book,
-			Folders:    slices.Clone(cacheEntry.folders),
+			Folders:   slices.Clone(cacheEntry.folders),
 			CharCount: cacheEntry.charCount,
 		})
 	}
