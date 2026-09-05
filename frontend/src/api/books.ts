@@ -7,6 +7,7 @@ import type {
   NsfwFolderRule,
   PaginatedBooks,
   TrashedBook,
+  TrashedBookListing,
 } from '@/types/book';
 import {
   ApiError,
@@ -571,20 +572,36 @@ export async function deleteBook(id: string): Promise<void> {
   });
 }
 
-export async function listTrashedBooks(): Promise<TrashedBook[]> {
+// The server marks a listing it filtered with this header; see
+// TrashListingPartialHeader in server/handle_trash.go.
+const TRASH_PARTIAL_HEADER = 'X-PlainShelf-Trash-Partial';
+
+export async function listTrashedBooks(): Promise<TrashedBookListing> {
   if (isMockApiMode()) {
-    return delay(mockListTrashedBooks());
+    return delay({ books: mockListTrashedBooks(), complete: true });
   }
 
-  const books = await fetchJson<BackendTrashedBook[]>(buildShelfApiPath('/trash/books'));
-  return books.map((book) => ({
-    id: book.id,
-    title: book.title,
-    authors: book.authors ?? [],
-    original_folder: book.original_folder ?? [],
-    original_path: book.original_path,
-    deleted_at: book.deleted_at
-  }));
+  let complete = true;
+  const books = await fetchJson<BackendTrashedBook[]>(
+    buildShelfApiPath('/trash/books'),
+    undefined,
+    {
+      onResponse: (res) => {
+        complete = res.headers.get(TRASH_PARTIAL_HEADER) !== 'true';
+      }
+    }
+  );
+  return {
+    books: books.map((book) => ({
+      id: book.id,
+      title: book.title,
+      authors: book.authors ?? [],
+      original_folder: book.original_folder ?? [],
+      original_path: book.original_path,
+      deleted_at: book.deleted_at
+    })),
+    complete
+  };
 }
 
 export async function restoreTrashedBook(id: string): Promise<void> {

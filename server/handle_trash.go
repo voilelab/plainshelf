@@ -15,6 +15,19 @@ type trashHandlers struct {
 	*taskSubmitter
 }
 
+// TrashListingPartialHeader marks a trash listing the server did not answer in
+// full, because show_nsfw withheld at least one book from it.
+//
+// Emptying the trash is deliberately not filtered — it is one command over the
+// whole trash — so a client that quoted the listing's length as what the sweep
+// will erase would understate it. This header is how the client knows to say
+// "everything in the trash" instead of a number it cannot stand behind.
+//
+// It says only that something is missing, never what or how much. That is a
+// narrow disclosure the filter otherwise avoids, and it is the accepted price
+// of not asking the user to confirm one deletion and performing three.
+const TrashListingPartialHeader = "X-PlainShelf-Trash-Partial"
+
 type TrashedBook struct {
 	ID             string           `json:"id"`
 	Title          string           `json:"title"`
@@ -66,8 +79,12 @@ func (h *trashHandlers) getTrashedBooks(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	visibility := h.visibility(shelfData)
 	resp := make([]TrashedBook, 0, len(books))
 	for _, b := range books {
+		if !visibility.allowsTrashed(b) {
+			continue
+		}
 		resp = append(resp, TrashedBook{
 			ID:             b.ID,
 			Title:          b.Title,
@@ -76,6 +93,10 @@ func (h *trashHandlers) getTrashedBooks(w http.ResponseWriter, r *http.Request) 
 			OriginalFolder: slices.Clone(b.OriginalFolder),
 			DeletedAt:      b.DeletedAt,
 		})
+	}
+
+	if len(resp) < len(books) {
+		w.Header().Set(TrashListingPartialHeader, "true")
 	}
 
 	h.writeJSON(w, http.StatusOK, resp)
@@ -96,6 +117,27 @@ func (h *trashHandlers) emptyTrash(w http.ResponseWriter, r *http.Request) {
 		"failed to schedule empty trash task")
 }
 
+// lookupTrashedBook is the gate every route naming one trashed book passes
+// through, the counterpart to apiCore.lookupBookListing for the trash.
+//
+// A marked book this request may not see is answered as one that is not there,
+// with the envelope an unknown ID gets: restoring or erasing it would otherwise
+// confirm it exists, which is the fact the trash listing has just withheld.
+func (h *trashHandlers) lookupTrashedBook(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) bool {
+	book, err := shelfData.GetTrashedBook(bookID)
+	if err != nil {
+		h.writeErr(w, r, err, "failed to get trashed book")
+		return false
+	}
+
+	if !h.visibility(shelfData).allowsTrashed(book) {
+		h.writeErr(w, r, shelf.ErrTrashedBookNotFound, "failed to get trashed book")
+		return false
+	}
+
+	return true
+}
+
 // POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore
 func (h *trashHandlers) restoreTrashedBook(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
@@ -105,6 +147,10 @@ func (h *trashHandlers) restoreTrashedBook(w http.ResponseWriter, r *http.Reques
 
 	bookID, ok := resolveBookID(w, r)
 	if !ok {
+		return
+	}
+
+	if !h.lookupTrashedBook(w, r, shelfData, bookID) {
 		return
 	}
 
@@ -125,6 +171,10 @@ func (h *trashHandlers) deleteTrashedBook(w http.ResponseWriter, r *http.Request
 
 	bookID, ok := resolveBookID(w, r)
 	if !ok {
+		return
+	}
+
+	if !h.lookupTrashedBook(w, r, shelfData, bookID) {
 		return
 	}
 

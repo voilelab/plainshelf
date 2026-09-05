@@ -335,6 +335,10 @@ interface FetchJsonOptions {
   // server and the read-only mobile shell both accept it. Only the shelf rescan
   // endpoint qualifies today.
   readOnlySafe?: boolean;
+  // onResponse hands the caller the response before its body is read, for the
+  // few routes whose answer is not only in the body. It is called for an error
+  // response too, so a header is not missed on the path that throws.
+  onResponse?: (res: Response) => void;
 }
 
 export async function fetchJson<T>(
@@ -355,6 +359,8 @@ export async function fetchJson<T>(
     ...requestInit,
     headers
   }, options?.timeoutMs ?? FETCH_TIMEOUT_MS);
+
+  options?.onResponse?.(res);
 
   if (!res.ok && !options?.acceptStatuses?.includes(res.status)) {
     throw await toApiError(res);

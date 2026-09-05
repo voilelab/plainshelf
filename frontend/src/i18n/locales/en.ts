@@ -940,7 +940,7 @@ const en = {
       action: 'Empty trash',
       title: 'Empty trash',
       question: 'Permanently delete all {count} books in the trash?',
-      questionUnknownCount: 'Permanently delete everything in the trash? Books whose metadata cannot be read are not listed above, but will also be removed.',
+      questionUnknownCount: 'Permanently delete everything in the trash? Some books are not listed above, but will also be removed.',
       description: 'This permanently removes all data and cannot be undone.',
       confirm: 'Empty trash',
       busy: 'Emptying...',

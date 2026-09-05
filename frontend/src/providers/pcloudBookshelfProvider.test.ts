@@ -844,7 +844,7 @@ describe('read-only behaviour', () => {
     const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
     await expect(provider.getDuplicateBookGroups()).resolves.toEqual([]);
-    await expect(provider.listTrashedBooks()).resolves.toEqual([]);
+    await expect(provider.listTrashedBooks()).resolves.toEqual({ books: [], complete: true });
   });
 
   it('requires a shelf path', () => {

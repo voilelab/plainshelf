@@ -58,7 +58,8 @@ import type {
   BookUpdateRequest,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook
+  TrashedBook,
+  TrashedBookListing
 } from '@/types/book';
 import type { BookTransferMode, FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
@@ -187,7 +188,7 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return getFingerprintStatus();
   }
 
-  listTrashedBooks(): Promise<TrashedBook[]> {
+  listTrashedBooks(): Promise<TrashedBookListing> {
     return listTrashedBooks();
   }
 

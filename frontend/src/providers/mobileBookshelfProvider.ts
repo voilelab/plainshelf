@@ -8,7 +8,8 @@ import type {
   DownloadState,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook
+  TrashedBook,
+  TrashedBookListing
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
@@ -337,7 +338,7 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.getFingerprintStatus();
   }
 
-  listTrashedBooks(): Promise<TrashedBook[]> {
+  listTrashedBooks(): Promise<TrashedBookListing> {
     return this.remote.listTrashedBooks();
   }
 

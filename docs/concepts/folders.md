@@ -164,13 +164,28 @@ disappears with its books: a marked
 folder is not listed, and neither is one left with nothing but marked books, so
 it cannot show up in a breadcrumb or in the destination list when moving a book.
 
-Two boundaries are deliberate:
+Deleting a book does not take it out of the setting's reach. The trash page
+leaves out a marked book — its title, its authors and the folder it was deleted
+from are all withheld — and restoring or permanently deleting it answers **404**,
+the same as an ID that was never issued. The folder rule still applies there:
+the trash remembers where each book was deleted from, so a book deleted out of a
+marked folder stays marked while it sits in the trash.
+
+Three boundaries are deliberate:
 
 - The exported book cache is always a complete mirror, whatever this setting
   says. It records what the shelf says, and the client reading it applies its own
   setting; pruning it here would quietly become that client's whole library.
 - The setting is per server, not per shelf. It sits beside `cover_to_jpg` in the
   application store, so it applies to every shelf this server serves.
+- **Empty trash** erases every book in the trash, marked ones included. It is one
+  command over the whole trash rather than a list of books, and leaving the
+  marked ones behind would be worse than the disclosure: they would reappear the
+  next time the setting is turned on, long after the trash looked empty. So that
+  the confirmation cannot understate what it is about to erase, a filtered
+  listing says so in an `X-PlainShelf-Trash-Partial: true` header and the web UI
+  then asks about "everything in the trash" rather than naming a count. The
+  header reports only that something was withheld, never what or how much.
 
 Switch it in **Settings → Adult content**. Turning it on or off refetches the
 library listing and the folder tree straight away, so the sidebar and the book
