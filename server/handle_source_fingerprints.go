@@ -29,8 +29,16 @@ func (h *batchHandlers) fingerprintSources(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// The sweep runs after this response, so what it may read is decided here,
+	// the same way the content-stats sweep decides it.
+	visible, err := h.visibility(shelfData).visibleBookIDs()
+	if err != nil {
+		h.writeErr(w, r, err, "failed to list books")
+		return
+	}
+
 	h.submitTaskChain(w, r,
-		task.NewFingerprintSourcesChain(shelfData.ID, shelfData.Shelf, force, h.requestLogger(r)),
+		task.NewFingerprintSourcesChain(shelfData.ID, shelfData.Shelf, force, h.requestLogger(r), visible),
 		"failed to schedule source fingerprint task")
 }
 

@@ -18,6 +18,7 @@ const (
 	settingKeyCoverToJPG         = "cover_to_jpg"
 	settingKeyEPUBImportStrategy = "epub_import_strategy"
 	settingKeyLogRetentionDays   = "log_retention_days"
+	settingKeyShowNSFW           = "show_nsfw"
 )
 
 // maxLogRetentionDays bounds the stored retention window. Ten years is well
@@ -171,8 +172,9 @@ func shareLogRetention(conf *AppConf, retention *logutil.Retention) {
 	}
 }
 
-// setRaw stores a value that is not a JSON document. cover_to_jpg is the only
-// one: its body is the bare literal true or false.
+// setRaw stores a value that is not a JSON document: a body that is the bare
+// literal true or false, which is the shape cover_to_jpg established and
+// show_nsfw follows.
 func (s *settings) setRaw(key string, value []byte) error {
 	return s.db.SetSetting(key, value)
 }
@@ -222,4 +224,20 @@ func (s *settings) epubImportStrategy() epub.Strategy {
 	}
 
 	return epub.DefaultStrategy()
+}
+
+// showNSFW reports whether this server serves the books its shelves mark as
+// adult content. Off is the default, and there is no configuration key behind
+// it: the answer has to be changeable from the settings page of a desktop build
+// that has no config file to edit, and a stored value is the only source.
+//
+// Every failure answers false. A setting whose whole job is to hide something
+// fails closed: an unreadable store is a reason to show less, not more.
+func (s *settings) showNSFW() bool {
+	bs, exists, err := s.db.GetSetting(settingKeyShowNSFW)
+	if err != nil {
+		s.Error("failed to read setting", "key", settingKeyShowNSFW, "err", err)
+		return false
+	}
+	return exists && string(bs) == "true"
 }

@@ -92,12 +92,17 @@ server_conf:
 | `security` | mapping | `local_token` defaults | The API access gate. See [`security`](#app_confsecurity). |
 
 `store_path` holds server settings only — the cover-to-JPEG flag, the EPUB
-import default, and the log retention window. It is not the book store: the
-shelf on disk is. See [Backup and Restore](../backup-and-restore.md).
+import default, the log retention window, and whether books marked as adult
+content are shown. It is not the book store: the shelf on disk is. See
+[Backup and Restore](../backup-and-restore.md).
 
-`cover_to_jpg` is one of the three settings that can be changed at runtime. A
-value saved from the settings page wins over the config file; deleting it
-reverts to the config file, and then to `false`.
+`cover_to_jpg` is one of the three settings that have both a key here and a
+runtime value. A value saved from the settings page wins over the config file;
+deleting it reverts to the config file, and then to `false`.
+
+`show_nsfw` has no key here at all: it lives only in the store, defaults to
+hidden, and is changed through `/api/setting/show_nsfw`. See
+[Whether a marked book is shown](../concepts/folders.md#whether-a-marked-book-is-shown).
 
 ### `app_conf.security`
 

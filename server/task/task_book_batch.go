@@ -41,12 +41,18 @@ type bookBatchTask struct {
 	bookIDs      []string
 	targetFolder shelf.FolderPath
 
+	// visible is what stops the batch being the way around the single-book
+	// routes: those answer 404 for a book the request may not see, so a batch
+	// that moved or trashed the same ID would undo the whole filter, and its
+	// succeeded_ids would name it besides.
+	visible VisibleBooks
+
 	progress taskutil.Progress
 	mu       sync.Mutex
 	result   BookBatchResult
 }
 
-func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath) *bookBatchTask {
+func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath, visible VisibleBooks) *bookBatchTask {
 	return &bookBatchTask{
 		shelfID:      shelfID,
 		shelf:        s,
@@ -54,6 +60,7 @@ func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, op
 		operation:    operation,
 		bookIDs:      slices.Clone(bookIDs),
 		targetFolder: slices.Clone(targetFolder),
+		visible:      visible,
 		result: BookBatchResult{
 			Operation:    operation,
 			Total:        len(bookIDs),
@@ -165,6 +172,16 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 			return util.Errorf("%w", err)
 		}
 
+		// Refused as a book that is not on the shelf, which is what an ID that
+		// was never issued gets here: the failure code is the same not_found, so
+		// the result cannot be read as confirmation that the book exists. The
+		// shelf is not touched at all, so nothing is moved or trashed.
+		if !t.visible.Allows(bookID) {
+			t.recordFailure(bookID, shelf.ErrBookNotFound)
+			t.progress.Advance()
+			continue
+		}
+
 		var err error
 		switch t.operation {
 		case BookBatchOperationMove:
@@ -194,11 +211,13 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath) *taskutil.TaskChain {
+// NewBookBatchChain builds the batch. visible is the set of books the
+// requesting client may see; see VisibleBooks.
+func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath, visible VisibleBooks) *taskutil.TaskChain {
 	keyIDs := slices.Clone(bookIDs)
 	slices.Sort(keyIDs)
 	key := strings.Join([]string{BookBatchTaskName, shelfID, operation, targetFolder.String(), strings.Join(keyIDs, ",")}, ":")
-	task := newBookBatchTask(shelfID, s, logger, operation, bookIDs, targetFolder)
+	task := newBookBatchTask(shelfID, s, logger, operation, bookIDs, targetFolder, visible)
 	return &taskutil.TaskChain{
 		Key:         key,
 		Name:        BookBatchTaskName,

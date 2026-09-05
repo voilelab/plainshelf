@@ -26,6 +26,15 @@ func (h *folderHandlers) getFolders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The tree this returns is what the breadcrumbs and the move-book
+	// destination menu are built from, so a folder left in it after its books
+	// were filtered out would name what the filter is hiding.
+	folders, err = h.visibility(shelfData).filterFolders(folders)
+	if err != nil {
+		h.writeErr(w, r, err, "failed to get folders")
+		return
+	}
+
 	h.writeJSON(w, http.StatusOK, folders)
 }
 

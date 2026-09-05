@@ -21,11 +21,11 @@ func (h *settingHandlers) getCoverToJPG(w http.ResponseWriter, r *http.Request) 
 	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.coverToJPG()})
 }
 
-// POST /api/setting/cover_to_jpg
-//
-// The body is the bare literal true or false, not a JSON document, so this one
-// does not go through setJSONSetting.
-func (h *settingHandlers) setCoverToJPG(w http.ResponseWriter, r *http.Request) {
+// setBoolSetting stores a body that is the bare literal true or false rather
+// than a JSON document, so these do not go through setJSONSetting. It is shared
+// rather than copied because the two settings shaped this way have to accept and
+// reject exactly the same bodies.
+func (h *settingHandlers) setBoolSetting(w http.ResponseWriter, r *http.Request, key string) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.Error("read request body:", "err", err)
@@ -39,8 +39,8 @@ func (h *settingHandlers) setCoverToJPG(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.settings.setRaw(settingKeyCoverToJPG, bs); err != nil {
-		h.Error("failed to save setting", "key", settingKeyCoverToJPG, "err", err)
+	if err := h.settings.setRaw(key, bs); err != nil {
+		h.Error("failed to save setting", "key", key, "err", err)
 		http.Error(w, "failed to save setting", http.StatusInternalServerError)
 		return
 	}
@@ -48,9 +48,35 @@ func (h *settingHandlers) setCoverToJPG(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// POST /api/setting/cover_to_jpg
+func (h *settingHandlers) setCoverToJPG(w http.ResponseWriter, r *http.Request) {
+	h.setBoolSetting(w, r, settingKeyCoverToJPG)
+}
+
 // DELETE /api/setting/cover_to_jpg
 func (h *settingHandlers) deleteCoverToJPG(w http.ResponseWriter, r *http.Request) {
 	h.settings.deleteSetting(w, settingKeyCoverToJPG)
+}
+
+// GET /api/setting/show_nsfw
+//
+// Whether this server serves the books its shelves mark as adult content. The
+// mark travels with the shelf; this is the one machine's answer to it, which is
+// why it is a setting here rather than a field in shelf.json.
+func (h *settingHandlers) getShowNSFW(w http.ResponseWriter, r *http.Request) {
+	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.showNSFW()})
+}
+
+// POST /api/setting/show_nsfw
+func (h *settingHandlers) setShowNSFW(w http.ResponseWriter, r *http.Request) {
+	h.setBoolSetting(w, r, settingKeyShowNSFW)
+}
+
+// DELETE /api/setting/show_nsfw
+//
+// Deleting reverts to hidden, the value with nothing stored.
+func (h *settingHandlers) deleteShowNSFW(w http.ResponseWriter, r *http.Request) {
+	h.settings.deleteSetting(w, settingKeyShowNSFW)
 }
 
 // validateEPUBImportStrategy names the preset the client sent rather than

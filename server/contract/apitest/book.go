@@ -126,6 +126,18 @@ func ImportTextBook(t *testing.T, env *Env, title, folder, filename, body string
 		[2]string{"title", title}, [2]string{"folder", folder}))
 }
 
+// ListedBookIDs is the IDs the books endpoint reports, which is what a test
+// asserting who is and is not served compares against.
+func ListedBookIDs(t *testing.T, env *Env) []string {
+	t.Helper()
+
+	ids := []string{}
+	for _, book := range GetJSON[[]server.Book](t, env, BooksURL()) {
+		ids = append(ids, book.Meta.ID)
+	}
+	return ids
+}
+
 // ImportFileBook uploads a book file with an explicit filename and content type.
 // It complements ImportTextBook by letting callers exercise the other
 // browser-supplied content types, such as those sent for a Markdown upload.
@@ -185,11 +197,12 @@ func (env *Env) BookMetaPath(t *testing.T, bookID string) string {
 	return found
 }
 
-// BumpBookSchemaVersion rewrites a book's book.json with a schema version this
-// build does not support, reproducing a book written by a newer PlainShelf. It
-// returns the bytes now on disk so a caller can prove a refused write left them
-// alone.
-func BumpBookSchemaVersion(t *testing.T, env *Env, bookID string, extra map[string]any) (metaPath string, onDisk []byte) {
+// EditBookMetaFile merges fields into a book's book.json on disk, for a fact no
+// API can write - a schema version from a newer build, or the nsfw mark, which
+// has no endpoint yet. It returns the path and the bytes now there, so a caller
+// can prove a refused write left them alone; a caller that needs the shelf to
+// read the edit back rescans afterwards.
+func EditBookMetaFile(t *testing.T, env *Env, bookID string, edit map[string]any) (metaPath string, onDisk []byte) {
 	t.Helper()
 
 	metaPath = env.BookMetaPath(t, bookID)
@@ -202,17 +215,26 @@ func BumpBookSchemaVersion(t *testing.T, env *Env, bookID string, extra map[stri
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		t.Fatalf("unmarshal book.json: %v", err)
 	}
-	meta["schema_version"] = shelf.BookMetaSchemaVersion + 1
-	maps.Copy(meta, extra)
+	maps.Copy(meta, edit)
 
-	bumped, err := json.Marshal(meta, jsonopt.Disk())
+	edited, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("marshal book.json: %v", err)
 	}
-	if err := os.WriteFile(metaPath, bumped, 0o644); err != nil {
+	if err := os.WriteFile(metaPath, edited, 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
-	return metaPath, bumped
+	return metaPath, edited
+}
+
+// BumpBookSchemaVersion rewrites a book's book.json with a schema version this
+// build does not support, reproducing a book written by a newer PlainShelf.
+func BumpBookSchemaVersion(t *testing.T, env *Env, bookID string, extra map[string]any) (metaPath string, onDisk []byte) {
+	t.Helper()
+
+	edit := map[string]any{"schema_version": shelf.BookMetaSchemaVersion + 1}
+	maps.Copy(edit, extra)
+	return EditBookMetaFile(t, env, bookID, edit)
 }
 
 // CurrentSourceID returns the source the imported book is reading from.

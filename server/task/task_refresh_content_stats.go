@@ -42,6 +42,11 @@ type refreshContentStatsTask struct {
 	shelf   *shelf.Shelf
 	logger  *logutil.Logger
 
+	// visible limits the sweep to the books the request that started it was
+	// allowed to see, so neither the total it reports nor a failure naming a
+	// book ID says anything about a book that request was answered 404 for.
+	visible VisibleBooks
+
 	progress taskutil.Progress
 
 	mu        sync.Mutex
@@ -49,11 +54,12 @@ type refreshContentStatsTask struct {
 	failures  []refreshContentStatsFailure
 }
 
-func newRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *refreshContentStatsTask {
+func newRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, visible VisibleBooks) *refreshContentStatsTask {
 	return &refreshContentStatsTask{
 		shelfID:  shelfID,
 		shelf:    s,
 		logger:   logger,
+		visible:  visible,
 		failures: []refreshContentStatsFailure{},
 	}
 }
@@ -180,7 +186,9 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 		return util.Errorf("%w", err)
 	}
 
-	bookIDs := t.collectCandidates(books)
+	// A book added since the snapshot was taken is left to the next sweep rather
+	// than swept without anyone having decided it is visible.
+	bookIDs := t.collectCandidates(t.visible.Only(books))
 	t.progress.SetTotal(len(bookIDs))
 	if len(bookIDs) == 0 {
 		t.progress.SetStatus(taskutil.StatusCompleted)
@@ -221,12 +229,14 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func NewRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *taskutil.TaskChain {
+// NewRefreshContentStatsChain builds the sweep over the books the requesting
+// client may see; see VisibleBooks.
+func NewRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, visible VisibleBooks) *taskutil.TaskChain {
 	return &taskutil.TaskChain{
 		Key:         RefreshContentStatsTaskName + ":" + shelfID,
 		Name:        RefreshContentStatsTaskName,
 		Title:       "Update content statistics",
 		Description: "Recompute content statistics for books with an unknown character count",
-		Tasks:       []taskutil.Task{newRefreshContentStatsTask(shelfID, s, logger)},
+		Tasks:       []taskutil.Task{newRefreshContentStatsTask(shelfID, s, logger, visible)},
 	}
 }
