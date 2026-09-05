@@ -78,7 +78,7 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	// The listing carries the character counts whether or not this request
 	// asked for them: they come out of the book cache, so fetching them costs
 	// nothing beyond the listing itself.
-	books, err := shelfData.ListBooksWithCharCount()
+	books, err := h.visibility(shelfData).listBooks()
 	if err != nil {
 		h.writeErr(w, r, err, "failed to list books")
 		return
@@ -338,13 +338,14 @@ func (h *bookHandlers) findDuplicateBooks(w http.ResponseWriter, r *http.Request
 	}
 
 	md5Groups := map[string][]string{}
-	books, err := shelfData.ListBooks()
+	books, err := h.visibility(shelfData).listBooks()
 	if err != nil {
 		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
 
-	for _, b := range books {
+	for _, listing := range books {
+		b := listing.Book
 		source, err := b.GetSource(b.CurrentSource())
 		if err != nil {
 			h.Warn("failed to get source for book", "book_id", b.ID(), "error", err)

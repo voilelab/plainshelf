@@ -221,7 +221,10 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	books, err := shelfData.ListBooks()
+	// The pairs are built from what this request may see, so a marked book is
+	// not merely absent from the response: it is never compared, and cannot show
+	// up as the other half of a visible book's pair.
+	books, err := h.visibility(shelfData).listBooks()
 	if err != nil {
 		h.writeErr(w, r, err, "failed to list books")
 		return
@@ -235,7 +238,8 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 
 	prints := make([]bookSketch, 0, len(books))
 	sumValues := 0
-	for _, book := range books {
+	for _, listing := range books {
+		book := listing.Book
 		entry, ok := cache.Lookup(book.ID(), book.CurrentSource())
 		if !ok {
 			// A book without a fingerprint yet is skipped, not failed: the sweep

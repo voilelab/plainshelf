@@ -47,7 +47,7 @@ func newAPIHandlers(
 	// to apply the stored log-retention window to the loggers already running.
 	settingsSvc *settings,
 ) *apiHandlers {
-	core := &apiCore{Logger: logger, shelves: shelfManager, security: security}
+	core := &apiCore{Logger: logger, shelves: shelfManager, security: security, settings: settingsSvc}
 	tasks := &taskSubmitter{apiCore: core, pool: pool}
 
 	return &apiHandlers{
@@ -158,6 +158,9 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/epub_import_strategy", h.setting.getEPUBImportStrategy)
 	mux.HandleFunc("POST /api/setting/epub_import_strategy", h.setting.setEPUBImportStrategy)
 	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", h.setting.deleteEPUBImportStrategy)
+	mux.HandleFunc("GET /api/setting/show_nsfw", h.setting.getShowNSFW)
+	mux.HandleFunc("POST /api/setting/show_nsfw", h.setting.setShowNSFW)
+	mux.HandleFunc("DELETE /api/setting/show_nsfw", h.setting.deleteShowNSFW)
 	mux.HandleFunc("GET /api/setting/log_retention_days", h.setting.getLogRetentionDays)
 	mux.HandleFunc("POST /api/setting/log_retention_days", h.setting.setLogRetentionDays)
 	mux.HandleFunc("DELETE /api/setting/log_retention_days", h.setting.deleteLogRetentionDays)

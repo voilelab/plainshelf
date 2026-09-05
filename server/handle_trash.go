@@ -38,6 +38,13 @@ func (h *trashHandlers) trashBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Trashing goes through the same lookup as reading, so a book this request
+	// cannot see cannot be deleted either: a 204 here would confirm the book
+	// exists just as loudly as a 200 on the GET would.
+	if _, ok := h.lookupBookListing(w, r, shelfData, bookID); !ok {
+		return
+	}
+
 	if err := shelfData.MoveBookToTrash(bookID); err != nil {
 		h.writeErr(w, r, err, "failed to trash book")
 		return

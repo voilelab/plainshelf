@@ -23,5 +23,15 @@ func (s *Shelf) IsBookNSFW(folders FolderPath, meta *BookMeta) bool {
 	if meta != nil && meta.NSFW {
 		return true
 	}
+	return s.IsNSFWFolder(folders)
+}
+
+// IsNSFWFolder reports whether this folder path lies in a marked subtree,
+// without asking about any book in it.
+//
+// A caller that lists folders needs the question in this form: a marked folder
+// is marked whether or not it currently holds a book, so there is no book to
+// ask IsBookNSFW about.
+func (s *Shelf) IsNSFWFolder(folders FolderPath) bool {
 	return s.nsfw.IsNSFWFolder(folders)
 }

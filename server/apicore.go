@@ -19,11 +19,17 @@ import (
 // Cache-Control visibility from the token gate rather than from the config, so
 // the two cannot drift apart. No handler consults it for anything else - the
 // gate itself runs in Security.Middleware, before routing.
+//
+// settings is here for the one setting that decides what a request may see at
+// all rather than how a handler behaves: show_nsfw. It sits on the shared core
+// because the book lookups below apply it, which is what gives every route that
+// names a book the same answer - see bookVisibility.
 type apiCore struct {
 	*logutil.Logger
 
 	shelves  *shelf.ShelfManager
 	security *Security
+	settings *settings
 }
 
 // requestLogger returns a logger that stamps the request's ID on every line it
@@ -67,23 +73,39 @@ func (c *apiCore) rejectReadOnlyShelf(w http.ResponseWriter, r *http.Request, sh
 	return true
 }
 
+// lookupBook is lookupBookListing for a handler that needs only the book. It
+// goes through the listing because half the visibility answer is the book's
+// folder, which the book does not carry; the shelf does the same work either
+// way, so this costs nothing beyond the folder it discards.
 func (c *apiCore) lookupBook(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
-	book, err := shelfData.GetBook(bookID)
-	if err != nil {
-		c.writeErr(w, r, err, "failed to get book")
+	listing, ok := c.lookupBookListing(w, r, shelfData, bookID)
+	if !ok {
 		return nil, false
 	}
 
-	return book, true
+	return listing.Book, true
 }
 
-// lookupBookListing is lookupBook for a handler that also needs the book's
-// folder, which the book itself no longer carries. It writes the same error
-// response on failure.
+// lookupBookListing resolves a book this request named, and is the single gate
+// every such route passes through: the handlers reach it via loadBook,
+// loadBookListing and loadBookSource, so a route cannot acquire a book without
+// the check below.
+//
+// A book the request may not see is answered as one that is not there. 403
+// would confirm the book exists, which is the fact being withheld, so this
+// writes the response an unknown ID gets, byte for byte apart from the incident
+// ID. The lookup still happens first - the shelf is where the book's folder
+// comes from - so a caller timing the two could in principle tell them apart;
+// closing that would mean not consulting the shelf at all.
 func (c *apiCore) lookupBookListing(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (shelf.BookListing, bool) {
 	listing, err := shelfData.GetBookListing(bookID)
 	if err != nil {
 		c.writeErr(w, r, err, "failed to get book")
+		return shelf.BookListing{}, false
+	}
+
+	if !c.visibility(shelfData).allowsListing(listing) {
+		c.writeErr(w, r, shelf.ErrBookNotFound, "failed to get book")
 		return shelf.BookListing{}, false
 	}
 

@@ -138,11 +138,43 @@ The last row is deliberate: `"nsfw": false` on a book **cannot** take it out of 
 marked folder. Missing a book that should have been marked is the worse mistake
 of the two, so the folder wins. To exempt one book, move it out of the folder.
 
-Marking something does not hide it. Today the mark is only computed and
-recorded — it is written into each entry of the exported book cache the Android
-client reads, so every PlainShelf reading the shelf gets the same answer without
-a central list to keep in sync. Editing `shelf.json` takes effect when the shelf
-is next opened, so restart the server afterwards.
+The mark travels with the shelf and is written into each entry of the exported
+book cache the Android client reads, so every PlainShelf reading the shelf gets
+the same answer without a central list to keep in sync. Editing `shelf.json`
+takes effect when the shelf is next opened, so restart the server afterwards.
+
+### Whether a marked book is shown
+
+Marking a book says what it is; whether this server shows it is a separate
+setting, `show_nsfw`. It is off by default, so a freshly marked book disappears
+from the library as soon as the shelf is reopened.
+
+The filtering happens on the server, not in the browser: with `show_nsfw` off, a
+marked book is absent from the library listing, from the duplicate and similarity
+pages and from the dashboard's totals, and every address that names it — the
+book, its cover, its content, its sources — answers **404**, exactly as a book
+that is not on the shelf does. A folder disappears with its books: a marked
+folder is not listed, and neither is one left with nothing but marked books, so
+it cannot show up in a breadcrumb or in the destination list when moving a book.
+
+Two boundaries are deliberate:
+
+- The exported book cache is always a complete mirror, whatever this setting
+  says. It records what the shelf says, and the client reading it applies its own
+  setting; pruning it here would quietly become that client's whole library.
+- The setting is per server, not per shelf. It sits beside `cover_to_jpg` in the
+  application store, so it applies to every shelf this server serves.
+
+There is no settings page for it yet — that is coming — so today it is switched
+through the API:
+
+```sh
+curl -X POST http://127.0.0.1:20000/api/setting/show_nsfw \
+  -H "X-PlainShelf-Token: $PLAINSHELF_TOKEN" --data true
+```
+
+`GET` the same address to read it, and `DELETE` it to return to the default of
+hidden.
 
 ## Example use cases
 
