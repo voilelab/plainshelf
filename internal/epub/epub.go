@@ -97,9 +97,10 @@ type Book struct {
 	// were first referenced. It is empty unless Options.KeepImages was set.
 	Images []Image
 
-	// DroppedImages counts distinct illustrations the conversion discarded, so
-	// the number reflects artwork lost rather than tags removed. The stored cover
-	// is kept, not lost, and is not counted.
+	// DroppedImages counts the distinct illustrations referenced by the spine
+	// documents that the conversion discarded, so the number reflects artwork
+	// lost rather than tags removed. An asset no spine document references is not
+	// counted, and neither is the stored cover, which is kept rather than lost.
 	DroppedImages int
 
 	Chapters []Chapter
