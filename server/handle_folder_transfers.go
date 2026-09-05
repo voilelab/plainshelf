@@ -207,6 +207,12 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		}
 	}
 
+	// Last of the pre-flights, so the user is never asked to confirm a disclosure
+	// for a transfer that one of the checks above would have refused anyway.
+	if h.refuseUnconfirmedReveal(w, r, sourceShelf, sourceFolder, offTheShelf) {
+		return
+	}
+
 	h.submitTaskChain(w, r,
 		task.NewFolderTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.requestLogger(r), operation, sourceFolder, targetFolder, books, subFolders),
 		"failed to schedule folder transfer task")

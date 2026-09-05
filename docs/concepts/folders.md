@@ -171,6 +171,52 @@ the same as an ID that was never issued. The folder rule still applies there:
 the trash remembers where each book was deleted from, so a book deleted out of a
 marked folder stays marked while it sits in the trash.
 
+### Moving a marked folder
+
+A folder rule marks a *path*, so moving or renaming the folder out from under
+that path unmarks everything below it at once — rename `Fiction/成人` to
+`Fiction/一般`, or move `Fiction` somewhere else, and every book beneath it is
+served from the next request on. With `show_nsfw` off that would be a folder's
+worth of books going from hidden to public in one action nobody described, so
+the folder routes ask first.
+
+While `show_nsfw` is off, a change that would take marked content out of a marked
+subtree is refused with **409** and this body, and nothing happens:
+
+```json
+{
+  "error": "nsfw_reveal_requires_confirmation",
+  "message": "this folder holds content the shelf marks as adult ...",
+  "hidden_books": 3
+}
+```
+
+`hidden_books` counts the books that would become visible. It is `0` when the
+whole disclosure is a folder name — an empty marked folder is hidden too — so it
+does not mean "nothing would change". Repeat the same request with `?confirm=1`
+to go ahead:
+
+```sh
+curl -X POST 'http://127.0.0.1:20000/api/shelves/default_shelf/folder-moves?confirm=1' \
+  -H "X-PlainShelf-Token: $PLAINSHELF_TOKEN" \
+  --data '{"folder":["Fiction"],"target_folder":["Archive"]}'
+```
+
+Three routes ask: `POST .../folder-moves`, `PATCH .../folders/{path}` (the
+rename) and `POST .../folder-transfers`. In the web UI the same question is a
+dialog naming the count, and the change goes through when you accept it.
+
+The cross-shelf transfer is judged on the source shelf alone, and asks for a copy
+as well as a move: a copy leaves this shelf untouched but publishes the same
+titles on the other one. Only a book's own `nsfw` travels with it, because that
+is written in its `book.json`; `shelf.json` stays behind, so whether the target
+shelf happens to mark the same path is not this shelf's answer to give.
+
+Nothing here rewrites the mark. `shelf.json` is yours and PlainShelf only reads
+it, so after a confirmed move the folder really is unmarked — the confirmation is
+all this adds. With `show_nsfw` on there is nothing to reveal, and all three
+routes behave exactly as they did before this existed.
+
 Three boundaries are deliberate:
 
 - The exported book cache is always a complete mirror, whatever this setting

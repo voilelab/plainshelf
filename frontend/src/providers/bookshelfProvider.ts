@@ -5,6 +5,7 @@ import type {
   DesktopShelfIDPreview
 } from '@/api/desktop';
 import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
+import type { FolderChangeOptions } from '@/api/folders';
 import type {
   BookmarkPayload,
   Book,
@@ -250,7 +251,8 @@ export interface BookshelfWriter {
     sourceFolder: string,
     targetShelfID: string,
     targetFolder: string,
-    mode: BookTransferMode
+    mode: BookTransferMode,
+    options?: FolderChangeOptions
   ): Promise<string>;
   importBook(payload: BookCreateRequest): Promise<Book>;
   uploadBookCover(bookId: string, file: File): Promise<void>;

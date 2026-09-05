@@ -1,6 +1,13 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { createFolder, deleteFolder, FolderTransferConflictError, moveFolder, renameFolder } from '@/api/folders';
+import {
+  createFolder,
+  deleteFolder,
+  FolderTransferConflictError,
+  moveFolder,
+  NsfwRevealConfirmationError,
+  renameFolder
+} from '@/api/folders';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
@@ -94,6 +101,41 @@ export function useFolderManagement() {
   const renamingFolder = ref(false);
   const deletingFolderMap = ref<Record<string, boolean>>({});
   const pendingDeleteFolderPath = ref('');
+
+  /*
+   * A folder rule in shelf.json marks a path, so moving or renaming the folder
+   * out from under that path unmarks everything below it in one action. The
+   * server refuses such a change until it is confirmed and says how many hidden
+   * books it would serve; this holds that answer, and the retry that goes ahead.
+   *
+   * One piece of state for all three changes (rename, move, cross-shelf
+   * transfer) because only one of them can be in flight from this sidebar at a
+   * time, and the question the user is asked is the same one.
+   */
+  const pendingNsfwReveal = ref<{ hiddenBooks: number; retry: () => Promise<void> } | null>(null);
+
+  // Records the refusal and reports it, so each caller reads as
+  // "confirm-and-return" rather than repeating the instanceof check.
+  function askToConfirmReveal(err: unknown, retry: () => Promise<void>): boolean {
+    if (!(err instanceof NsfwRevealConfirmationError)) {
+      return false;
+    }
+    pendingNsfwReveal.value = { hiddenBooks: err.hiddenBooks, retry };
+    return true;
+  }
+
+  function cancelNsfwReveal(): void {
+    pendingNsfwReveal.value = null;
+  }
+
+  async function confirmNsfwReveal(): Promise<void> {
+    const pending = pendingNsfwReveal.value;
+    if (!pending) {
+      return;
+    }
+    pendingNsfwReveal.value = null;
+    await pending.retry();
+  }
 
   const currentFolder = computed(() => {
     const q = route.query.folders;
@@ -260,7 +302,7 @@ export function useFolderManagement() {
     renameFolderError.value = '';
   }
 
-  async function confirmRenameFolder(nextName: string): Promise<void> {
+  async function confirmRenameFolder(nextName: string, confirmReveal = false): Promise<void> {
     const path = pendingRenameFolderPath.value;
     if (!path || renamingFolder.value) {
       return;
@@ -276,7 +318,7 @@ export function useFolderManagement() {
     folderOperationError.value = '';
 
     try {
-      await renameFolder(path, nextName);
+      await renameFolder(path, nextName, { confirm: confirmReveal });
       await Promise.all([fetchFolders(), fetchBooks()]);
 
       const destination = renamedFolderDestination(currentFolder.value, path, nextName);
@@ -286,6 +328,12 @@ export function useFolderManagement() {
 
       pendingRenameFolderPath.value = '';
     } catch (err) {
+      // The rename modal stays open behind the confirmation, so confirming
+      // retries the same rename rather than asking the user to retype it.
+      if (askToConfirmReveal(err, () => confirmRenameFolder(nextName, true))) {
+        return;
+      }
+
       const message = err instanceof Error ? err.message : '';
       if (message === 'Invalid folder name') {
         renameFolderError.value = t('layout.renameFolder.invalid');
@@ -297,7 +345,10 @@ export function useFolderManagement() {
     }
   }
 
-  async function onMoveFolder(payload: { folderPath: string; targetFolder: string }): Promise<void> {
+  async function onMoveFolder(
+    payload: { folderPath: string; targetFolder: string },
+    confirmReveal = false
+  ): Promise<void> {
     if (readOnly.value) {
       folderOperationError.value = t(writeDisabledMessageKey.value);
       return;
@@ -305,7 +356,7 @@ export function useFolderManagement() {
     folderOperationError.value = '';
 
     try {
-      await moveFolder(payload.folderPath, payload.targetFolder);
+      await moveFolder(payload.folderPath, payload.targetFolder, { confirm: confirmReveal });
       await Promise.all([fetchFolders(), fetchBooks()]);
 
       const destination = movedFolderDestination(currentFolder.value, payload.folderPath, payload.targetFolder);
@@ -313,6 +364,10 @@ export function useFolderManagement() {
         goToFolder(destination);
       }
     } catch (err) {
+      if (askToConfirmReveal(err, () => onMoveFolder(payload, true))) {
+        return;
+      }
+
       const message = err instanceof Error ? err.message : '';
       folderOperationError.value = message || t('layout.moveFolder.failed');
     }
@@ -414,6 +469,9 @@ export function useFolderManagement() {
   // become their own readable strings (a book-ID clash lists every colliding ID),
   // and anything else keeps the server's own message.
   function describeTransferFolderError(err: unknown): Error {
+    if (err instanceof NsfwRevealConfirmationError) {
+      return new Error(t('layout.folderReveal.transferHeld'));
+    }
     if (err instanceof FolderTransferConflictError) {
       if (err.kind === 'book_id_conflict') {
         return new Error(
@@ -425,11 +483,14 @@ export function useFolderManagement() {
     return err instanceof Error ? err : new Error(t('layout.transferFolder.errors.failed'));
   }
 
-  async function submitTransferFolder(payload: {
-    targetShelfId: string;
-    targetParentFolder: string;
-    mode: BookTransferMode;
-  }): Promise<void> {
+  async function submitTransferFolder(
+    payload: {
+      targetShelfId: string;
+      targetParentFolder: string;
+      mode: BookTransferMode;
+    },
+    confirmReveal = false
+  ): Promise<void> {
     const source = transferFolderTarget.value;
     if (!source || transferFolderStarted.value) {
       return;
@@ -447,8 +508,15 @@ export function useFolderManagement() {
     // so this attaches to the existing progress instead of scheduling a second.
     await beginTransferFolder(async () => {
       try {
-        return await bookshelfWriter().transferFolder(source, payload.targetShelfId, targetPath, payload.mode);
+        return await bookshelfWriter().transferFolder(source, payload.targetShelfId, targetPath, payload.mode, {
+          confirm: confirmReveal
+        });
       } catch (err) {
+        // The transfer never started, so the progress view has to say something.
+        // It says the transfer is waiting on the confirmation, which is what the
+        // dialog on top of it is asking for; declining leaves that explanation
+        // in place, and confirming resets it by starting the chain again.
+        askToConfirmReveal(err, () => submitTransferFolder(payload, true));
         throw describeTransferFolderError(err);
       }
     });
@@ -538,6 +606,9 @@ export function useFolderManagement() {
     requestRenameFolder,
     cancelPendingRenameFolder,
     confirmRenameFolder,
+    pendingNsfwReveal,
+    cancelNsfwReveal,
+    confirmNsfwReveal,
     onMoveFolder,
     onOpenFolder,
     canTransferFolder,

@@ -118,6 +118,14 @@ const zhHant = {
     moveFolder: {
       failed: '移動資料夾失敗。請將資料夾拖曳到既有的目標資料夾上。'
     },
+    folderReveal: {
+      title: '要讓隱藏的內容變成可見嗎？',
+      bookCount: '這個資料夾被標記為成人內容，這次變更會讓它脫離該標記，{count} 本原本隱藏的書會變成可見。',
+      folderOnly: '這個資料夾被標記為成人內容，這次變更會讓它脫離該標記，資料夾本身會變成可見。',
+      note: '標記寫在 shelf.json，PlainShelf 只讀不寫。想保留標記請改編輯那個檔案。',
+      confirm: '仍要變更',
+      transferHeld: '這次轉移正在等你確認是否可以讓隱藏的內容變成可見。'
+    },
     openFolder: {
       shortAction: '開啟資料夾',
       failed: '開啟資料夾失敗。'

@@ -2,6 +2,7 @@ package folders_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -186,4 +187,192 @@ func TestAPINSFWEmptyTrashStillErasesEverything(t *testing.T) {
 	if trashed := apitest.GetJSON[[]server.TrashedBook](t, s.Env, apitest.TrashBooksURL()); len(trashed) != 0 {
 		t.Errorf("trashed books after empty = %+v, want none", trashed)
 	}
+}
+
+/*
+Moving a marked folder — or any folder above one — takes its subtree out from
+under the shelf.json rule that marks it, so the books below it are served from
+the next request on. That is a whole folder's worth of books changing from
+hidden to public in one action nobody described, which is why the folder routes
+ask first: they answer 409 with nsfwRevealConflictKind and do nothing, and the
+caller retries with ?confirm=1.
+
+The mark itself is untouched either way. shelf.json is the user's own file and
+PlainShelf only reads it, so the folder really is unmarked afterwards — the
+confirmation is the whole of what this adds, not a rewrite of the rule.
+*/
+
+// nsfwRevealConflictBody mirrors the 409 body those routes answer with, pinning
+// the wire shape the frontend's confirmation dialog reads.
+type nsfwRevealConflictBody struct {
+	Error       string `json:"error"`
+	Message     string `json:"message"`
+	HiddenBooks int    `json:"hidden_books"`
+}
+
+const nsfwRevealConflictKind = "nsfw_reveal_requires_confirmation"
+
+// assertRevealConflict reads the refusal and checks it names the books it is
+// about, so a dialog built on it cannot quote the wrong number.
+func assertRevealConflict(t *testing.T, rec *httptest.ResponseRecorder, wantHidden int) {
+	t.Helper()
+
+	apitest.AssertStatus(t, rec, http.StatusConflict)
+	body := apitest.DecodeJSON[nsfwRevealConflictBody](t, rec)
+	if body.Error != nsfwRevealConflictKind {
+		t.Errorf("error = %q, want %q", body.Error, nsfwRevealConflictKind)
+	}
+	if body.HiddenBooks != wantHidden {
+		t.Errorf("hidden_books = %d, want %d", body.HiddenBooks, wantHidden)
+	}
+	if body.Message == "" {
+		t.Error("message is empty, want the explanation the dialog shows")
+	}
+}
+
+// confirmed is the same URL with the flag the caller retries under.
+func confirmed(url string) string { return url + "?confirm=1" }
+
+const nsfwMoveBody = `{"folder":["Fiction"],"target_folder":["Archive"]}`
+
+// newNSFWShelfWithArchive adds a root folder outside the marked subtree, which
+// is somewhere a move can go.
+func newNSFWShelfWithArchive(t *testing.T) apitest.NSFWShelf {
+	t.Helper()
+
+	s := apitest.NewNSFWShelf(t)
+	apitest.AssertStatus(t, s.Env.Post(apitest.ShelfURL("folders", "Archive"), nil), http.StatusNoContent)
+	return s
+}
+
+// Moving Fiction under Archive would carry Fiction/Adult to Archive/Fiction/Adult,
+// which no rule names. Exactly one of the two hidden books comes out with it:
+// BookHidden is marked in its own book.json and stays marked wherever it goes.
+func TestAPINSFWFolderMoveAsksBeforeUnhiding(t *testing.T) {
+	s := newNSFWShelfWithArchive(t)
+	moves := apitest.ShelfURL("folder-moves")
+
+	assertRevealConflict(t, s.Env.Post(moves, strings.NewReader(nsfwMoveBody)), 1)
+
+	// The refusal did nothing: Fiction is where it was, and the books it holds
+	// are still filtered the way they were.
+	folders := apitest.GetJSON[[]shelf.FolderPath](t, s.Env, apitest.ShelfURL("folders"))
+	if !slices.ContainsFunc(folders, func(f shelf.FolderPath) bool { return f.String() == "Fiction" }) {
+		t.Fatalf("folders = %v, want Fiction still at the root", folders)
+	}
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
+
+	apitest.AssertStatus(t, s.Env.Post(confirmed(moves), strings.NewReader(nsfwMoveBody)), http.StatusNoContent)
+
+	// Confirmed, the move happened and did exactly what the refusal said it
+	// would: the folder-marked book is served, the book-marked one is not.
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic, s.FolderHidden)
+}
+
+// With the setting on there is nothing to reveal, so neither route asks and both
+// behave as they did before this existed.
+func TestAPINSFWFolderMoveDoesNotAskWhileShowNSFWIsOn(t *testing.T) {
+	s := newNSFWShelfWithArchive(t)
+	apitest.SetShowNSFW(t, s.Env, true)
+
+	apitest.AssertStatus(t,
+		s.Env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(nsfwMoveBody)),
+		http.StatusNoContent)
+}
+
+// A move that carries no marked folder is not this rule's business, whichever
+// way the setting is set. Fiction/Flagged is the case worth pinning: it holds a
+// book the request cannot see, but the mark is the book's own and travels with
+// it, so nothing is revealed.
+func TestAPINSFWFolderMoveDoesNotAskWithoutAMarkedFolder(t *testing.T) {
+	s := newNSFWShelfWithArchive(t)
+	moves := apitest.ShelfURL("folder-moves")
+
+	for _, folder := range []string{"Fiction/Classics", apitest.NSFWFlaggedFolder} {
+		body := `{"folder":["Fiction","` + strings.Split(folder, "/")[1] + `"],"target_folder":["Archive"]}`
+		apitest.AssertStatus(t, s.Env.Post(moves, strings.NewReader(body)), http.StatusNoContent)
+	}
+
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
+}
+
+// A rename is the same disclosure by another route: the folder keeps its parent
+// and stops matching the rule. Both the marked folder itself and the ancestor
+// the user can actually see in the tree are held to it.
+func TestAPINSFWFolderRenameAsksBeforeUnhiding(t *testing.T) {
+	renames := map[string]string{
+		"the marked folder itself": apitest.NSFWMarkedFolder,
+		"an ancestor of it":        "Fiction",
+	}
+
+	for name, folder := range renames {
+		t.Run(name, func(t *testing.T) {
+			s := apitest.NewNSFWShelf(t)
+			url := apitest.ShelfURL("folders", folder)
+			body := func() *strings.Reader { return strings.NewReader(`{"name":"General"}`) }
+
+			assertRevealConflict(t, s.Env.Patch(url, body()), 1)
+			apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
+
+			apitest.AssertStatus(t, s.Env.Patch(confirmed(url), body()), http.StatusNoContent)
+			apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic, s.FolderHidden)
+		})
+	}
+}
+
+// A folder renamed to a name no rule covers is a reveal even when it is empty:
+// the folder's own name is the disclosure, which is why it is dropped from the
+// tree whether or not it holds a book. hidden_books is 0 there, and a client
+// must not read that as "nothing would change".
+func TestAPINSFWFolderRenameAsksForAnEmptyMarkedFolder(t *testing.T) {
+	s := apitest.NewNSFWShelf(t)
+
+	apitest.SetShowNSFW(t, s.Env, true)
+	apitest.AssertStatus(t, s.Env.Post(apitest.BookURL(s.FolderHidden, "trash"), nil), http.StatusNoContent)
+	apitest.SetShowNSFW(t, s.Env, false)
+
+	assertRevealConflict(t, s.Env.Patch(
+		apitest.ShelfURL("folders", apitest.NSFWMarkedFolder),
+		strings.NewReader(`{"name":"General"}`)), 0)
+}
+
+/*
+A cross-shelf transfer is judged on the source alone. Only a book's own nsfw
+travels with it — that is written in its book.json — while shelf.json stays
+behind, so whether the target shelf happens to mark the same path is not this
+shelf's answer to give. A copy is asked the same question as a move: it leaves
+this shelf untouched but publishes the same titles on the other one.
+*/
+func TestAPINSFWFolderTransferAsksBeforeUnhiding(t *testing.T) {
+	for _, mode := range []string{"copy", "move"} {
+		t.Run(mode, func(t *testing.T) {
+			s := apitest.NewNSFWShelf(t, apitest.WithSecondShelf(t.TempDir()))
+			transfers := apitest.FolderTransfersURL()
+			body := `{"mode":"` + mode + `","source_folder":["Fiction"],` +
+				`"target_shelf":"` + apitest.SecondShelfID + `","target_folder":["Imported"]}`
+
+			assertRevealConflict(t, s.Env.Post(transfers, strings.NewReader(body)), 1)
+			if books := apitest.GetJSON[[]server.Book](t, s.Env, apitest.SecondShelfBooksURL()); len(books) != 0 {
+				t.Fatalf("target books after the refusal = %#v, want none", books)
+			}
+
+			accepted := apitest.SubmitTaskChain(t, s.Env, confirmed(transfers), []byte(body), http.StatusAccepted)
+			if chain := apitest.WaitForTaskChain(t, s.Env, accepted.TaskChainID); chain.Status != "completed" {
+				t.Fatalf("chain status = %q, want completed: %+v", chain.Status, chain)
+			}
+		})
+	}
+}
+
+// The reverse half of the transfer rule: a source folder holding no marked
+// folder transfers without a confirmation, exactly as it did before.
+func TestAPINSFWFolderTransferDoesNotAskWithoutAMarkedFolder(t *testing.T) {
+	s := apitest.NewNSFWShelf(t, apitest.WithSecondShelf(t.TempDir()))
+
+	apitest.SubmitTaskChain(t, s.Env, apitest.FolderTransfersURL(), []byte(`{
+		"mode": "copy",
+		"source_folder": ["Fiction", "Classics"],
+		"target_shelf": "`+apitest.SecondShelfID+`",
+		"target_folder": ["Imported"]
+	}`), http.StatusAccepted)
 }
