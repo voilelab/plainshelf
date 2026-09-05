@@ -27,7 +27,7 @@ between releases.
 - Added the `shelf.json` folder rule marking a book to its API response (`nsfw_folder`, with the rule's `path` and `reason`), which the metadata editor shows in place of an editable switch for a book a folder rule already marks.
 - Added an **NSFW** badge to the library's list and card views and to a book's detail page, marking the books that disappear when **Show adult content** is turned off.
 - Added a device-local **Show adult content on this device** switch under **Settings → Adult content** on a client with no server to ask (the mobile shell, a pCloud shelf), off by default and never synced with the server's `show_nsfw`.
-- Added adult-content filtering to a pCloud shelf, which previously ignored the shelf's marks entirely: with the device switch off a marked book is absent from the library listing, answers "not found" at every address, drops out of **Downloaded books**, and takes a marked folder — or one left holding nothing but marked books — out of the folder tree.
+- Added adult-content filtering to a pCloud shelf, which previously ignored the shelf's marks entirely: with the device switch off a marked book is absent from the library listing, answers "not found" at every address, takes a marked folder — or one left holding nothing but marked books — out of the folder tree, and is withheld by the offline cache too (its entry, text, cover, sources and illustrations), so a download is not a way past the switch while the stored copy itself is kept.
 
 ### Changed
 

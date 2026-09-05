@@ -87,13 +87,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import { getBookshelfProvider } from '@/providers';
 import type { DownloadedBookEntry, StorageEstimateResult } from '@/providers/bookshelfProvider';
-import { ShelfVisibility } from '@/providers/shelfVisibility';
 import type { Book } from '@/types/book';
 import { formatBytes } from '@/utils/bytes';
 import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
@@ -103,7 +102,7 @@ import { useI18n } from '@/i18n';
 const router = useRouter();
 const { t } = useI18n();
 
-const downloaded = ref<DownloadedBookEntry[]>([]);
+const entries = ref<DownloadedBookEntry[]>([]);
 const storageEstimate = ref<StorageEstimateResult | null>(null);
 const loading = ref(false);
 const error = ref('');
@@ -113,27 +112,12 @@ const actionError = ref('');
 
 const { showNsfw } = useDeviceNsfwPreference();
 
-/**
- * Being on the device is not a way past the setting: a book downloaded while it
- * was on has to disappear from here when it is turned off, or "hidden on this
- * phone" would hold everywhere but the one list that is offline.
- *
- * Filtered here rather than in the cache so the entries stay on disk — the
- * setting hides books, it does not delete downloads — and computed rather than
- * applied at load, so toggling the setting takes effect without a reload.
- *
- * Only where the backend has no server to answer for it. Behind a PlainShelf
- * server the listing was already filtered server-side by whatever `show_nsfw`
- * says there, and filtering again would let this device's setting override it.
- * The mark itself comes off the stored book, which a download taken by a build
- * before the mark existed does not carry.
- */
-const entries = computed(() => {
-  if (!getBookshelfProvider().filtersNsfwOnDevice?.()) {
-    return downloaded.value;
-  }
-  const visibility = new ShelfVisibility({ showNsfw: showNsfw.value });
-  return downloaded.value.filter((entry) => visibility.allows(entry.book));
+// The provider already withholds the books this device hides — being on the
+// device is not a way past the setting — so this page does no filtering of its
+// own. It only has to ask again when the answer changes, since the list was
+// fetched once on mount.
+watch(showNsfw, () => {
+  void loadEntries();
 });
 
 const totalSizeBytes = computed(() =>
@@ -152,7 +136,7 @@ async function loadEntries(): Promise<void> {
       provider.listDownloadedBookEntries?.() ?? Promise.resolve([]),
       provider.getStorageEstimate?.() ?? Promise.resolve({ supported: false })
     ]);
-    downloaded.value = nextEntries;
+    entries.value = nextEntries;
     storageEstimate.value = nextEstimate;
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('downloads.list.loadFailed');

@@ -21,6 +21,7 @@ import {
 import { referencedAssetNames } from '@/utils/markdownLineSyntax';
 import { currentCacheScopeKey } from './cacheScope';
 import { collectReadHistoryBooks } from './readHistoryBooks';
+import { VisibleMobileBookCache } from './visibleMobileBookCache';
 import type {
   BookshelfReader,
   DownloadedBookEntry,
@@ -110,12 +111,25 @@ export class MobileBookshelfProvider implements BookshelfReader {
   // native-ness is fixed for the page lifetime.
   saveBookContentToFile?: (bookId: string, suggestedName: string) => Promise<string>;
 
+  /**
+   * The offline cache, wrapped so it withholds what this device hides.
+   *
+   * Every cache-first path below — content, covers, sources, illustrations —
+   * answers before connectivity is even checked, and the listing and single
+   * book fall back to it when the backend is unreachable. Wrapping it once is
+   * what keeps those paths from being a way round the setting the backend
+   * applies; see VisibleMobileBookCache, which is inert behind a server.
+   */
+  private readonly cache: MobileBookCache;
+
   constructor(
     private readonly remote: BookshelfReader = new ServerBookshelfProvider(),
-    private readonly cache: MobileBookCache = new InMemoryMobileBookCache(),
+    cache: MobileBookCache = new InMemoryMobileBookCache(),
     private readonly isOnline: () => boolean = defaultIsOnline,
     private readonly coverCache: MobileCoverCache = new InMemoryMobileCoverCache()
   ) {
+    this.cache = new VisibleMobileBookCache(cache, () => this.filtersNsfwOnDevice());
+
     if (Capacitor.isNativePlatform()) {
       this.saveBookContentToFile = (bookId, suggestedName) =>
         this.exportBookContentToDocuments(bookId, suggestedName);

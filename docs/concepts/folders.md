@@ -275,8 +275,11 @@ rules, which the app reads out of `shelf.json` itself rather than trusting the
 exported book cache's precomputed answer. A marked book is absent from the
 library listing, its address answers "not found", a marked folder and one left
 holding nothing but marked books drop out of the folder tree, and a book already
-downloaded for offline reading disappears from **Downloaded books** too: being on
-the device is not a way past the switch.
+downloaded for offline reading is withheld by the offline cache itself — its
+entry, its text, its cover, its sources and its illustrations — so it is gone
+from **Downloaded books** and unreadable even in flight mode. Being on the device
+is not a way past the switch; the stored copy is kept, because the switch hides
+books rather than deleting downloads.
 
 The two settings are deliberately **not** synchronised. They are separate
 machines' decisions, and syncing them would turn "not on this phone" into "on no
