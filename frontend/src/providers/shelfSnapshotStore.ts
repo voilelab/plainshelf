@@ -14,8 +14,7 @@ const SNAPSHOT_FILE = 'shelf-snapshot.json';
 /** One book as the shelf listing found it: where its files are, and what its
  * book.json says — including the `nsfw` it declares. `Book` itself is
  * deliberately absent: it is derived from these two plus the shelf-level
- * `nsfw_folders` below, and storing it as well would create a second source of
- * truth. */
+ * `nsfw_folders` below. */
 interface PersistedShelfBook {
   pkg: BookPackageRef;
   meta: BookJson;
@@ -33,14 +32,9 @@ export interface PersistedShelfSnapshot {
   books: PersistedShelfBook[];
 
   /**
-   * The shelf.json folder rules marking adult content, as version 2 added them.
-   *
-   * Stored at the shelf rather than repeated on each book because that is where
-   * they live: one rule marks a subtree, and `folders` on the book is what the
-   * rule is applied to. Restoring a snapshot never reads shelf.json — that costs
-   * a request — so without this the folder half of every mark would be missing
-   * and every book in a marked folder would read back as unmarked. Absent means
-   * a shelf that marks no folder, which is also what version 1 could express.
+   * The shelf.json folder rules marking adult content, added in version 2. A
+   * restore never reads shelf.json — that costs a request — so without these
+   * every book in a marked folder reads back unmarked. Absent marks no folder.
    */
   nsfw_folders?: NSFWFolder[];
 }
@@ -76,9 +70,7 @@ export function parseShelfSnapshot(value: unknown): PersistedShelfSnapshot | nul
   if (!snapshot.books.every((book) => isPersistedShelfBook(book))) {
     return null;
   }
-  // Rejected rather than dropped: a rule this reader cannot read is a mark it
-  // would silently stop applying, and discarding the whole snapshot only costs
-  // one walk.
+  // Rejected, not dropped: a rule lost here is a mark silently stopped.
   if (snapshot.nsfw_folders !== undefined) {
     if (!Array.isArray(snapshot.nsfw_folders) || !snapshot.nsfw_folders.every(isNSFWFolder)) {
       return null;

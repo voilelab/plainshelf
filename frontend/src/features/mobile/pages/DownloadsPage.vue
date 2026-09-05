@@ -112,10 +112,8 @@ const actionError = ref('');
 
 const { showNsfw } = useDeviceNsfwPreference();
 
-// The provider already withholds the books this device hides — being on the
-// device is not a way past the setting — so this page does no filtering of its
-// own. It only has to ask again when the answer changes, since the list was
-// fetched once on mount.
+// The provider already withholds what this device hides, so this page only has
+// to ask again when the answer changes.
 watch(showNsfw, () => {
   void loadEntries();
 });

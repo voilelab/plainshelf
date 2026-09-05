@@ -72,11 +72,7 @@ export interface NSFWFolder {
  */
 type NSFWRules = (folders: readonly string[]) => boolean;
 
-/**
- * Mirrors `NSFWRules.Match`: the listed rule marking a path, rather than only
- * whether one does. A reader that has to *say* where a mark came from needs the
- * entry itself, and asking twice would be two walks down the same path.
- */
+/** Mirrors `NSFWRules.Match`: the rule marking a path, not just whether one does. */
 export type NSFWFolderLookup = (folders: readonly string[]) => NSFWFolder | undefined;
 
 /** What this client reads out of `shelf.json`. */
@@ -358,9 +354,7 @@ export function createNSFWFolderLookup(folders: readonly NSFWFolder[]): NSFWFold
   // Walking down from the root asks whether any prefix of the path is listed,
   // since a rule marks everything below it. Comparing folded segment by folded
   // segment is what keeps "Fiction/成人" off "Fiction/成人漫畫", which a plain
-  // string prefix test would mark. The shallowest match wins, for the reason
-  // `NSFWRules.Match` gives: it is the rule that would still mark the folder if
-  // every deeper entry were removed.
+  // string prefix test would mark. The shallowest match wins, as it does in Go.
   return (path) => {
     let key = '';
     for (const segment of path) {
@@ -723,10 +717,8 @@ export function isSchemaNewerThanSupported(meta: BookJson): boolean {
  * incompletely, so a book written by a version this one understands carries the
  * same fields it always did.
  *
- * The adult-content mark has two halves and they are carried separately, as the
- * server carries them: `nsfw` is the book's own, out of its book.json, and
- * `nsfwFolder` is the shelf.json rule reaching it — pass the one
- * `createNSFWFolderLookup` returns for `folders`, and nothing when none does.
+ * The mark's two halves are carried apart, as the server carries them: `nsfw`
+ * from book.json, and `nsfwFolder` from `createNSFWFolderLookup`.
  */
 export function toBook(meta: BookJson, folders: string[], nsfwFolder?: NSFWFolder): Book {
   const book: Book = {

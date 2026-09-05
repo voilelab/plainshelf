@@ -100,12 +100,7 @@ interface ShelfSnapshot {
   byID: Map<string, LoadedBook>;
   /** Every folder directory, including ones holding no books. */
   folders: string[];
-  /**
-   * The shelf's adult-content folder rules, as read from shelf.json and as
-   * persisted with the snapshot. Kept on the snapshot rather than on the
-   * provider because they belong to the listing they were read with: a restore
-   * carries the rules the walk that produced it saw.
-   */
+  /** The shelf.json adult-content rules this listing was read with. */
   nsfwFolders: NSFWFolder[];
   /** {@link nsfwFolders} compiled once, since a listing asks per book. */
   isNsfwFolder: NSFWFolderLookup;
@@ -424,8 +419,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     const configRef = findShelfConfigFile(root);
     const config = await this.loadShelfConfig(configRef);
     const ignore = createIgnoreRules(config.ignoredDirs ?? DEFAULT_IGNORED_DIRS);
-    // Undefined and empty mean the same thing for these — a shelf that marks no
-    // folder — so there is no default list to fall back to.
+    // No built-in list: undefined and empty both mean "marks no folder".
     const nsfwFolders = config.nsfwFolders ?? [];
     const isNsfwFolder = createNSFWFolderLookup(nsfwFolders);
 
@@ -603,13 +597,8 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * The filter this read is answered through, built from the device setting.
-   *
-   * Built per call rather than held on the provider: the setting is changed in
-   * the settings page while the provider lives for the whole process, and a
-   * filter captured once would go on serving what the user has just hidden.
-   * Within one read it is fixed, so a listing and the folder tree derived from
-   * it cannot disagree.
+   * Built per call, since the provider outlives a change to the setting; fixed
+   * within one read, so a listing and its folder tree cannot disagree.
    */
   private visibility(snapshot: ShelfSnapshot): ShelfVisibility {
     return new ShelfVisibility({
@@ -619,10 +608,8 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * The one lookup by id, so a book this device hides cannot be reached by any
-   * route: content, cover, sources and progress all resolve through here, and
-   * the existing not-found path is what a hidden book takes — being told it
-   * exists but may not be read would disclose it just as well.
+   * The one lookup by id: content, cover and sources all resolve through here,
+   * so a hidden book takes the existing not-found path on every route.
    */
   private async findBook(bookId: string): Promise<LoadedBook> {
     const snapshot = await this.ensureSnapshot();
@@ -681,9 +668,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, options?: ListBooksOptions): Promise<PaginatedBooks> {
     return this.guarded(async () => {
       const snapshot = await this.ensureSnapshot();
-      // Filtered before the slice, not after: paging a filtered list is the only
-      // way `total` matches what the pages hold, and filtering one page would
-      // leave short pages with the hidden books' places still counted.
+      // Before the slice, not after: otherwise `total` and the pages disagree.
       const visibility = this.visibility(snapshot);
       const visible = snapshot.books.filter((entry) => visibility.allows(entry.book));
       const start = Math.max(0, (page - 1) * pageSize);
@@ -766,12 +751,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return false;
   }
 
-  /**
-   * True because there is no server to ask: this provider reads the marks out of
-   * the shelf itself and applies the device setting to them. A client that does
-   * have a server must answer false, so the server's own `show_nsfw` stays the
-   * only filter on that path rather than being doubled here.
-   */
+  /** True: there is no server to ask, so this reader applies the marks itself. */
   filtersNsfwOnDevice(): boolean {
     return true;
   }

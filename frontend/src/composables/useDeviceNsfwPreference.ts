@@ -5,20 +5,10 @@ const STORAGE_KEY = 'show-nsfw-device';
 /**
  * Whether this device shows the books the shelf marks as adult content.
  *
- * Device-local (localStorage), like the reader-launch preference and for a
- * sharper reason: a client reading a shelf straight out of cloud storage has no
- * server to ask, so `/api/setting/show_nsfw` — the answer PSW-92 filters on —
- * is not reachable from it at all. Without a local answer the mark would have
- * no effect there, which is the wrong direction to fail in.
- *
- * It is deliberately *not* synchronised with the server setting. They are two
- * machines' separate decisions: "not on this phone" must not become "on no
- * client at all". Where a server does answer, it stays the only authority and
- * this preference filters nothing (see `filtersNsfwOnDevice` on the provider).
- *
- * Defaults to off, so a shelf whose marks this device cannot yet evaluate — a
- * snapshot from an older build, a storage read that failed — hides rather than
- * shows.
+ * Device-local because a client reading cloud storage has no server to ask for
+ * `show_nsfw`. Deliberately not synced with it: "not on this phone" must not
+ * become "on no client at all". Off by default — a device that cannot yet
+ * evaluate the marks should hide rather than show.
  */
 const DEFAULT_SHOW_NSFW_ON_DEVICE = false;
 
@@ -31,14 +21,12 @@ function readStored(): boolean {
   return window.localStorage.getItem(STORAGE_KEY) === 'true';
 }
 
-// One shared preference for the whole app rather than per-component state, so
-// the settings panel, the library and the downloads list cannot disagree.
+// One shared ref, so the settings panel and the lists cannot disagree.
 const showNsfw = ref<boolean>(DEFAULT_SHOW_NSFW_ON_DEVICE);
 
 if (typeof window !== 'undefined') {
   showNsfw.value = readStored();
-  // `storage` fires in *other* same-origin tabs, so a change made in one reaches
-  // every open tab's ref. The writing tab updates its own ref below.
+  // `storage` fires in *other* tabs; the writing tab updates its own ref below.
   window.addEventListener('storage', (event) => {
     if (event.key === STORAGE_KEY) {
       showNsfw.value = event.newValue === 'true';
@@ -46,11 +34,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-/**
- * Read straight from localStorage rather than from the ref, so a filter built
- * during a listing honours a change made in another tab before its `storage`
- * event has necessarily been processed here.
- */
+/** Straight from storage, so a change in another tab is honoured immediately. */
 export function getShowNsfwOnDevice(): boolean {
   if (typeof window === 'undefined') {
     return showNsfw.value;
@@ -61,8 +45,7 @@ export function getShowNsfwOnDevice(): boolean {
 }
 
 export function setShowNsfwOnDevice(value: boolean): void {
-  // Persisted synchronously, so a getShowNsfwOnDevice() right after a change
-  // reads the new value with no watcher flush in between.
+  // Synchronous, so a read right after a change sees the new value.
   showNsfw.value = value;
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STORAGE_KEY, value ? 'true' : 'false');

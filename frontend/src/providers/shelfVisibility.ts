@@ -1,41 +1,25 @@
 import { isBookNsfw, type Book } from '@/types/book';
 
-/**
- * The folder path a listing names the top level by. `collectFolders` produces
- * it, and a book sitting directly under `books/` belongs to it.
- */
+/** What `collectFolders` names the top level; a book with no folder is in it. */
 const ROOT_FOLDER = '/';
 
-/**
- * Whether a folder path lies in a marked subtree — `createNSFWFolderLookup`
- * read as a yes or no. Takes the path's segments, as the shelf rules do.
- */
+/** `createNSFWFolderLookup` as a yes or no, over the path's segments. */
 type IsNsfwFolder = (folders: readonly string[]) => boolean;
 
 interface ShelfVisibilityOptions {
   /** The device's answer; see useDeviceNsfwPreference. */
   showNsfw: boolean;
-  /**
-   * The shelf's folder rules. Omitted where the caller has books but no rules —
-   * the downloads list, which reads the mark off each stored book — in which
-   * case only a folder inside a marked subtree cannot be recognised as one, and
-   * `filterFolders` must not be used.
-   */
+  /** The shelf's folder rules. Omit only where `filterFolders` is not used. */
   isNsfwFolder?: IsNsfwFolder;
 }
 
 /**
  * Which of a shelf's books exist at all, as far as this client is concerned.
  *
- * One object rather than a filter per call site, for the reason `bookVisibility`
- * in server/visibility.go is one type: the answer has to be the same on every
- * entry point. A listing that filtered while the single-book lookup did not
- * would still hand the book to anyone holding its id, and a folder tree that
- * did not would name the folder the books were hidden from.
- *
- * `showNsfw` is read once, when the filter is built, so a listing and the folder
- * filter derived from it cannot disagree because the setting changed halfway
- * through.
+ * One object rather than a filter per call site, for the reason
+ * `bookVisibility` in server/visibility.go is one type: an entry point that did
+ * not filter would still hand the book to anyone holding its id. `showNsfw` is
+ * read once, so a listing and a folder tree derived from it cannot disagree.
  */
 export class ShelfVisibility {
   private readonly showNsfw: boolean;
@@ -51,28 +35,16 @@ export class ShelfVisibility {
     return this.showNsfw || !isBookNsfw(book);
   }
 
-  /**
-   * The listing with the books this client may not see removed. Returns the
-   * array it was given when nothing is filtered, so a shelf that marks nothing
-   * pays no copy.
-   */
+  /** The listing without the books this client may not see. */
   keepBooks<T extends Pick<Book, 'nsfw' | 'nsfw_folder'>>(books: readonly T[]): readonly T[] {
     return this.showNsfw ? books : books.filter((book) => this.allows(book));
   }
 
   /**
-   * The folder list with the folders this client must not see dropped, keeping
-   * the rest in the order they were given.
-   *
-   * Mirrors `bookVisibility.filterFolders`. Two kinds go: a folder inside a
-   * marked subtree, and a folder whose books are all hidden — the second stops
-   * the mark showing through its own absence, since a folder holding nothing but
-   * marked books would otherwise stay in the tree with its name as the
-   * disclosure. A folder holding no book at all is kept: someone made it, and
-   * dropping it would take away a destination.
-   *
-   * `books` must be the *unfiltered* listing: the filtered one alone cannot tell
-   * a folder emptied by the filter from one that was always empty.
+   * Mirrors `bookVisibility.filterFolders`: a folder in a marked subtree goes,
+   * and so does one whose books are all hidden, since its name is the
+   * disclosure. One that was always empty is kept. `books` must be the
+   * *unfiltered* listing — the filtered one cannot tell those two apart.
    */
   filterFolders(folders: readonly string[], books: readonly Book[]): string[] {
     if (this.showNsfw) {
