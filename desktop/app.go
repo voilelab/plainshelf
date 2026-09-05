@@ -55,12 +55,9 @@ type DesktopShelfDetails struct {
 	ReadOnly          bool   `json:"read_only"`
 }
 
-// AddShelfParams carries the fields the add-shelf form submits.
-//
-// It is a struct rather than a positional argument list because Wails binds it
-// by field name and the list had already grown a ReadOnly bool onto the end;
-// every further per-shelf setting the UI exposes (BookCheckInterval is the
-// first) is a field here rather than one more anonymous positional argument.
+// AddShelfParams is a struct rather than a positional argument list because
+// Wails binds it by field name: every further per-shelf setting the UI exposes
+// is a field here rather than one more anonymous positional argument.
 type AddShelfParams struct {
 	Name              string `json:"name"`
 	LibRoot           string `json:"libRoot"`
@@ -225,27 +222,21 @@ func writeDeviceDocument(path, label, doc string) error {
 	return nil
 }
 
-// ReadReadHistory returns the stored reading-history document, or an empty
-// string when this device has not stored one yet.
+// ReadReadHistory reports an empty string when this device has stored none.
 func (a *DesktopApp) ReadReadHistory() (string, error) {
 	return readDeviceDocument(a.readHistoryPath)
 }
 
-// WriteReadHistory replaces the stored reading-history document.
 func (a *DesktopApp) WriteReadHistory(doc string) error {
 	return writeDeviceDocument(a.readHistoryPath, "read history", doc)
 }
 
-// ReadReadingProgress returns the stored reading-progress document, or an empty
-// string when this device has not stored one yet.
-//
-// The standalone reader writes progress into the same file under its own
-// synthetic shelf id ("book"). Before handing the document to the desktop
-// frontend, any such reader progress is projected onto the real shelves it
-// belongs to (by stable book id, taking the max) so the library reflects it.
-// This is the projection trigger: it runs whenever the desktop reads progress —
-// which is what a returning-from-the-reader user causes — and is cheap when
-// there is no reader progress to fold (the common case): no lock, no write.
+// ReadReadingProgress is the projection trigger: the standalone reader writes
+// into the same file under its synthetic "book" shelf id, and that progress is
+// folded onto the real shelves it belongs to before the document reaches the
+// frontend. Running it on every read is what a returning-from-the-reader user
+// causes; see projectStoredReaderProgress for why it is cheap when there is
+// nothing to fold.
 func (a *DesktopApp) ReadReadingProgress() (string, error) {
 	if a.readingProgressSync == nil || a.readerNamespaceIsRealShelf() {
 		return readDeviceDocument(a.readingProgressPath)
@@ -253,11 +244,10 @@ func (a *DesktopApp) ReadReadingProgress() (string, error) {
 	return projectStoredReaderProgress(a.readingProgressSync, a.resolveBookShelf)
 }
 
-// projectStoredReaderProgress folds any standalone-reader progress in store onto
-// the real shelves resolve reports, and returns the document text to hand the
-// frontend. It is cheap when there is no reader progress to fold — the common
-// case — taking no lock and writing nothing; only genuinely new reader progress
-// triggers a locked read-modify-write.
+// projectStoredReaderProgress folds any standalone-reader progress onto the real
+// shelves resolve reports. The common case — nothing to fold — takes no lock and
+// writes nothing; only genuinely new reader progress triggers a locked
+// read-modify-write.
 func projectStoredReaderProgress(store *readingprogress.Store, resolve readingprogress.ResolveShelf) (string, error) {
 	doc, raw, err := store.Read()
 	if err != nil {
@@ -315,15 +305,13 @@ func (a *DesktopApp) WriteReadingProgress(doc string) error {
 	return err
 }
 
-// resolveBookShelf reports which real shelf holds the given stable book id.
+// resolveBookShelf reports which real shelf holds a stable book id.
 //
 // Book ids are only unique within a shelf, so a copied or legacy package can
-// carry the same id in more than one shelf. It therefore scans every shelf and
-// resolves the book only when exactly one holds it — an ambiguous id is left
-// unresolved rather than projected onto whichever shelf happened to come first
-// in the map-ordered scan. A shelf that is still initializing (or otherwise
-// errors) is treated as "not here": the book stays under the reader's namespace
-// and a later read re-attempts the projection once the shelf is ready.
+// carry one id in two shelves: an ambiguous id is left unresolved rather than
+// projected onto whichever shelf came first in the map-ordered scan. A shelf
+// still initializing is treated as "not here", and a later read re-attempts the
+// projection once it is ready.
 func (a *DesktopApp) resolveBookShelf(bookID string) (string, bool) {
 	if a.app == nil {
 		return "", false
@@ -347,12 +335,10 @@ func (a *DesktopApp) resolveBookShelf(bookID string) (string, bool) {
 	return match, true
 }
 
-// readerNamespaceIsRealShelf reports whether a real shelf uses the same id the
-// standalone reader stores progress under. In that degenerate configuration the
-// "book" namespace belongs to a real shelf, so reader projection is disabled and
-// the desktop treats the document as entirely its own — the real shelf must not
-// be blocked from saving its own progress. New shelves cannot take this id (see
-// generateDesktopShelfID); this guards a config that predates that rule.
+// readerNamespaceIsRealShelf disables reader projection when a real shelf uses
+// the id the standalone reader stores progress under: that shelf must not be
+// blocked from saving its own progress. New shelves cannot take the id (see
+// generateDesktopShelfID); this guards a config predating that rule.
 func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
 	if a.app == nil {
 		return false
@@ -366,8 +352,7 @@ func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
 	})
 }
 
-// ReadReadingStats returns the stored reading-stats document, or an empty
-// string when this device has not stored one yet.
+// ReadReadingStats reports an empty string when this device has stored none.
 func (a *DesktopApp) ReadReadingStats() (string, error) {
 	return readDeviceDocument(a.readingStatsPath)
 }
