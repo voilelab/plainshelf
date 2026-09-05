@@ -6,27 +6,23 @@ import { getBookshelfProvider, isWebRuntime } from '@/providers';
 import { t } from '@/i18n';
 
 /**
- * The in-app reader route for a book. This is the single place the `/reader/:id`
- * path is spelled outside the router: every reading entry that needs a real
- * `href` — the home cards render a RouterLink `custom` slot so a middle-click or
- * "open in new tab" still works — builds its target from here rather than
- * writing the path itself. That is what lets `check-module-boundaries`'s
- * reader-entrypoint rule hold the launch policy to one entrance; a card that
- * spells `/reader/…` on its own would silently bypass the preference again.
+ * The single place `/reader/:id` is spelled outside the router: every reading
+ * entry that needs a real `href` builds its target here. That is what lets
+ * `check-module-boundaries`'s reader-entrypoint rule hold the launch policy to
+ * one entrance — a card that spelled the path itself would silently bypass the
+ * preference again.
  */
 export function readerRoutePath(id: string): string {
   return `/reader/${id}`;
 }
 
 /**
- * Opening a book in the reader, honouring the device-local "reader launch
- * preference". This is the single launch path shared by every reading entry —
- * the library, book detail and reading history through `useBookActions.goRead`,
- * and the home dashboard's "recent reading" / "read now" cards directly.
+ * The single launch path shared by every reading entry, honouring the
+ * device-local "reader launch preference".
  *
- * It deliberately depends on nothing but `useRouter` and `useToasts` (the rest
- * are module-level helpers, not stores), so the home components can call it
- * without pulling in the book/folder stores `useBookActions` carries.
+ * It deliberately depends on nothing but `useRouter` and `useToasts`, so the
+ * home components can call it without pulling in the book and folder stores
+ * `useBookActions` carries.
  */
 export function useReaderLaunch() {
   const router = useRouter();
@@ -42,27 +38,19 @@ export function useReaderLaunch() {
       ? { path: readerRoutePath(id), query: { section: String(Math.trunc(sectionIndex)) } }
       : { path: readerRoutePath(id) };
 
-    // Device-local preference: 'new-reader' (default) opens a fresh reader,
-    // 'in-window' navigates the current window in place. Only the web and
-    // desktop shells have a fresh-reader path to gate; the mobile and standalone
-    // reader shells always navigate in place regardless — isWebRuntime() is
-    // false for them and they define no openDesktopReader, so they fall straight
-    // through to the router.push at the end, unaffected by the preference.
+    // 'new-reader' (the default) opens a fresh reader, 'in-window' navigates in
+    // place. Only web and desktop have a fresh-reader path to gate: mobile and
+    // the standalone reader fall straight through to the router.push at the end.
     const openInNewReader = getReaderLaunchMode() === 'new-reader';
 
-    // On a plain web-server build, opening a new reader means a new tab so the
-    // library or book page it was launched from is not replaced wholesale —
-    // closing the tab returns the reader there. Matches externalLinks.ts's
-    // window.open idiom.
+    // On the web, a new reader is a new tab, so the page it was launched from is
+    // not replaced wholesale.
     //
-    // No router.push fallback on the window.open itself: with noopener/noreferrer
-    // window.open returns null even on success (per the HTML spec), so its result
-    // cannot tell a blocked pop-up from an opened one. Pushing "on failure" would
-    // therefore fire on every success too and navigate the original tab as well,
-    // which is exactly the wholesale replacement this feature avoids. A
-    // user-gesture open is not pop-up-blocked in practice. When the preference is
-    // 'in-window', we deliberately router.push instead — that is the requested
-    // in-place navigation, not a fallback.
+    // No router.push fallback on the window.open: with noopener/noreferrer it
+    // returns null even on success (per the HTML spec), so "on failure" would
+    // fire on every success too and navigate the original tab as well — exactly
+    // the replacement this avoids. The router.push under 'in-window' is the
+    // requested navigation, not a fallback.
     if (isWebRuntime()) {
       if (openInNewReader) {
         window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
@@ -72,23 +60,16 @@ export function useReaderLaunch() {
       return;
     }
 
-    // On the desktop app, opening a new reader means the standalone reader in its
-    // own window; its progress flows back into this library (reading_progress.json).
-    // Only the desktop provider defines openDesktopReader, so web/mobile fall
-    // through. A chapter jump passes its section so the reader opens on that
-    // chapter — the same window as the default read, not the in-app one — and the
-    // in-app /reader/:id route stays the fallback if the reader will not launch
-    // (e.g. not installed). When the preference is 'in-window', skip the shell-out
-    // entirely and navigate in place.
+    // On desktop, a new reader is the standalone app in its own window, whose
+    // progress flows back through reading_progress.json. Only the desktop
+    // provider defines openDesktopReader, so web and mobile fall through, and the
+    // in-app route stays the fallback when the reader will not launch.
     const provider = getBookshelfProvider();
     if (provider.openDesktopReader && openInNewReader) {
       provider.openDesktopReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch((err) => {
-        // The standalone reader did not launch, so fall back to the in-app
-        // reader as before. But the user explicitly picked "open a new reader",
-        // so a silent fallback reads as "my setting is broken" — explain instead
-        // why the book opened here. Two shapes: this platform has no standalone
-        // reader at all (non-macOS), or the macOS reader failed to launch (not
-        // installed, or the launch itself errored).
+        // Fall back to the in-app reader, but say why: the user explicitly asked
+        // for a new reader, so a silent fallback reads as "my setting is broken".
+        // Either this platform has no standalone reader, or it failed to launch.
         void router.push(to);
         showToast(
           isReaderUnsupportedPlatform(err)
@@ -103,13 +84,11 @@ export function useReaderLaunch() {
   }
 
   /**
-   * Click handler for a reading entry rendered as a real `<a href>` (a
-   * RouterLink `custom` slot). A plain left click runs the launch preference;
-   * a modified click (⌘/Ctrl/Shift/Alt) or any non-primary button is the user
-   * asking the browser to open the URL its own way — a new tab or window — so it
-   * is left to the browser default and the preference is bypassed, exactly as a
-   * normal link behaves. Non-primary buttons fire `auxclick`, not `click`, so
-   * they never reach here; the `button` guard is belt-and-suspenders.
+   * For a reading entry rendered as a real `<a href>`. A plain left click runs
+   * the launch preference; a modified click is the user asking the browser to
+   * open the URL its own way, so it is left to the browser default exactly as a
+   * normal link behaves. Non-primary buttons fire `auxclick`, so the `button`
+   * guard is belt-and-suspenders.
    */
   function onReaderLinkClick(event: MouseEvent, id: string, sectionIndex?: number): void {
     if (

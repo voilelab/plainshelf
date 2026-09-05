@@ -37,20 +37,20 @@ function sanitizeDownloadName(name: string): string {
 }
 
 /**
- * Shared book-level actions (read / open detail / edit / open book folder /
- * download / move to another folder / delete) used by both BookDetailPage and
- * the card view's context menu. Each call site gets its own instance — the
- * delete/download busy state below is intentionally per-instance, not a module
- * singleton.
+ * Shared book-level actions, used by both BookDetailPage and the card view's
+ * context menu. Each call site gets its own instance: the delete/download busy
+ * state below is intentionally per-instance, not a module singleton.
+ *
+ * Every path that moves or copies a book refreshes the book store afterwards,
+ * because the sidebar derives its per-folder counts from it.
  */
 export function useBookActions(options: UseBookActionsOptions = {}) {
   const router = useRouter();
   const { folders, loaded: foldersLoaded, fetchFolders } = useFolderStore();
   const { fetchBooks } = useBookStore();
   const { showToast } = useToasts();
-  // The reader-launch path lives in its own composable so the home dashboard's
-  // reading entries share it without pulling in the stores above. goRead below
-  // is a thin delegate kept for the existing library / book-detail call sites.
+  // In its own composable so the home dashboard's reading entries share it
+  // without pulling in the stores above; goRead below is a thin delegate.
   const { launchReader } = useReaderLaunch();
 
   const downloading = ref(false);
@@ -83,9 +83,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
         return;
       }
       const target = transferTarget.value;
-      // A move drops the source from the active shelf and a copy leaves it, but
-      // either way the sidebar's per-folder counts have shifted, so refresh the
-      // book store — the same refresh submitMove/submitCopy perform.
+      // Either mode shifts the per-folder counts.
       void fetchBooks();
       if (target) {
         options.onTransferred?.(target, transferMode.value, status);
@@ -120,11 +118,9 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
 
   /**
-   * Opens the reader, optionally at one chapter instead of the saved progress.
-   * The index is the reader's own section index, so it survives a title change.
-   * The launch logic (new tab / standalone reader / in-place navigation, gated
-   * by the device-local preference) lives in `useReaderLaunch`; this only
-   * forwards to it so existing call sites keep their `goRead` name.
+   * Forwards to `useReaderLaunch`, which owns the launch policy, so existing
+   * call sites keep the `goRead` name. The optional index is the reader's own
+   * section index, so it survives a title change.
    */
   function goRead(id: string, sectionIndex?: number): void {
     launchReader(id, sectionIndex);
@@ -194,8 +190,8 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   function requestMove(book: Book): void {
     moveTarget.value = book;
-    // The move dialog shows actionError itself, so it must not open carrying
-    // the message some earlier action left behind.
+    // The dialog shows actionError itself, so it must not open carrying a
+    // message some earlier action left behind.
     actionError.value = '';
     // The sidebar normally fills the folder store on load, but the detail page
     // can be opened directly by URL, and mobile has no sidebar at all.
@@ -229,8 +225,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     try {
       await bookshelfWriter().updateBookFolder(target.id, targetFolder);
       moveTarget.value = null;
-      // The sidebar derives its per-folder counts from the book store, the same
-      // refresh the drag-to-folder path performs after a move.
+      // Per-folder counts; see the note on useBookActions.
       void fetchBooks();
       options.onMoved?.(target, targetFolder);
     } catch (err) {
@@ -243,8 +238,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   function requestCopy(book: Book): void {
     copyTarget.value = book;
-    // The copy dialog shows actionError itself, so it must not open carrying a
-    // message some earlier action left behind.
+    // Cleared for the same reason as openMoveDialog.
     actionError.value = '';
     if (!foldersLoaded.value) {
       void fetchFolders();
@@ -269,12 +263,11 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     try {
       const copy = await bookshelfWriter().copyBook(target.id, targetFolder);
       copyTarget.value = null;
-      // Keep the sidebar's per-folder counts in step with the new book, the same
-      // refresh submitMove performs.
+      // Per-folder counts, as in submitMove.
       void fetchBooks();
       options.onCopied?.(copy, targetFolder);
     } catch (err) {
-      // Leaves the modal open so the destination stays picked for a retry.
+      // Left open, as in submitMove.
       actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.copyFailed');
     } finally {
       copying.value = false;
@@ -283,8 +276,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   function requestTransfer(book: Book): void {
     transferTarget.value = book;
-    // The transfer dialog surfaces its own progress and errors, so it must not
-    // open carrying a message some earlier action left behind.
+    // Cleared for the same reason as openMoveDialog.
     actionError.value = '';
     resetTransfer();
   }
