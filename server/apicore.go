@@ -53,10 +53,19 @@ func (c *apiCore) resolveShelf(w http.ResponseWriter, r *http.Request) (*shelf.S
 	return shelfData, true
 }
 
-// rejectReadOnlyShelf is for the endpoints that queue a background chain, which
-// would otherwise answer 202 and let the caller discover the refusal in a task
-// report, or not at all. A synchronous handler needs none of this: the shelf
-// refuses it with fsutil.ErrReadOnly and writeErr turns that into 409.
+// rejectReadOnlyShelf answers the refusal a read-only shelf owes, ahead of the
+// work. Two kinds of endpoint need it, for the same reason: the answer has to
+// come before something the refusal would invalidate.
+//
+//   - The endpoints that queue a background chain would otherwise answer 202 and
+//     let the caller discover the refusal in a task report, or not at all.
+//   - The folder move and rename, which are synchronous, but ask the user
+//     whether to unhide a marked subtree first (see refuseUnconfirmedReveal). A
+//     question put to the user must not run ahead of a refusal, or they approve
+//     a disclosure for a change that was never going to happen.
+//
+// Every other synchronous handler needs none of this: the shelf refuses it with
+// fsutil.ErrReadOnly and writeErr turns that into the same 409 this writes.
 func (c *apiCore) rejectReadOnlyShelf(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData) bool {
 	if !shelfData.ReadOnly() {
 		return false

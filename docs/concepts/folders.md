@@ -211,6 +211,10 @@ keeps that mark wherever it goes, and a folder left holding nothing but such
 books stays out of the folder tree on its own account — so moving it asks
 nothing. Losing the folder mark is not by itself a disclosure.
 
+Nor does a change that was never going to happen get to ask: a read-only shelf,
+or a destination the shelf already holds, is refused as itself rather than
+behind a confirmation.
+
 The cross-shelf transfer is judged on the source shelf alone, and asks for a copy
 as well as a move: a copy leaves this shelf untouched but publishes the same
 titles on the other one. Only a book's own `nsfw` travels with it, because that
