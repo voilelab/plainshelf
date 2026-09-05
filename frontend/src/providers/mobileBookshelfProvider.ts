@@ -325,6 +325,16 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.supportsCharCountListing?.() ?? true;
   }
 
+  /**
+   * Also the backend's answer, not the shell's. The same app reads a pCloud
+   * shelf on one device and a PlainShelf server on the next, and only the first
+   * has no server to apply the setting for it — so this cannot be read off the
+   * runtime being mobile.
+   */
+  filtersNsfwOnDevice(): boolean {
+    return this.remote.filtersNsfwOnDevice?.() ?? false;
+  }
+
 
   getDuplicateBookGroups(): Promise<string[][]> {
     return this.remote.getDuplicateBookGroups();

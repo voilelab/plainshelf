@@ -62,6 +62,19 @@ describe('useSettingsTabs', () => {
     app.unmount();
   });
 
+  // The device's own adult-content answer is the mirror image of `cover`: it is
+  // shown only where the server's `nsfw` tab is not, so one question never has
+  // two switches in front of a user whose server already decides it.
+  it('honours ?tab=device-nsfw only on a client with no server settings', async () => {
+    const readOnly = await setup(false, '/settings?tab=device-nsfw');
+    expect(readOnly.api.activeSettingsTab.value).toBe('device-nsfw');
+    readOnly.app.unmount();
+
+    const editable = await setup(true, '/settings?tab=device-nsfw');
+    expect(editable.api.activeSettingsTab.value).toBe('cover');
+    editable.app.unmount();
+  });
+
   it('ignores a tab the current shell does not show', async () => {
     // cover is editable-only; on a read-only server it falls back to default.
     const { api, app } = await setup(false, '/settings?tab=cover');

@@ -26,9 +26,12 @@ between releases.
 - Added an **Adult content** switch to the book metadata editor, writing `nsfw` to `book.json` through `PATCH /api/shelves/{shelf_id}/books/{book_id}`, which now accepts that field.
 - Added the `shelf.json` folder rule marking a book to its API response (`nsfw_folder`, with the rule's `path` and `reason`), which the metadata editor shows in place of an editable switch for a book a folder rule already marks.
 - Added an **NSFW** badge to the library's list and card views and to a book's detail page, marking the books that disappear when **Show adult content** is turned off.
+- Added a device-local **Show adult content on this device** switch under **Settings → Adult content** on a client with no server to ask (the mobile shell, a pCloud shelf), off by default and never synced with the server's `show_nsfw`.
+- Added adult-content filtering to a pCloud shelf, which previously ignored the shelf's marks entirely: with the device switch off a marked book is absent from the library listing, answers "not found" at every address, drops out of **Downloaded books**, and takes a marked folder — or one left holding nothing but marked books — out of the folder tree.
 
 ### Changed
 
+- Changed the pCloud shelf snapshot on a device to version 2, which carries the shelf's `content.nsfw_folders` rules; a version 1 snapshot is discarded and the shelf is walked once on the next launch.
 - Changed the similarity threshold slider to reka-ui `SliderRoot` and the character-range, reading-history-limit, log-retention, line-count and scan-interval/book-check-interval number boxes to reka-ui `NumberFieldRoot`, replacing every native `range`/`number` input whose track, thumb and spinner rendered differently in every browser and were absent on touch; the scan-interval amount now saves on blur, Enter or a stepper rather than on each keystroke.
 - Changed the documented compatibility promise to freeze the on-disk format at `1.0.0-rc1` rather than `1.0.0`, so `book.json`, source `meta.json` and `trash.json` take only backward-compatible additions from that release on, while the `app/` caches, per-device reading state and unrecognized fields stay outside the promise.
 - Changed the desktop **Create shelf** dialog to ask where the shelf goes as a two-way choice: **Create a new folder** (the default) needs only a name and shows the folder PlainShelf will create for it, while **Use a folder I already have** is the only branch offering the read-only toggle and a path to type or browse to.

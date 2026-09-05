@@ -93,21 +93,48 @@ import BookCoverImg from '@/components/BookCoverImg.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import { getBookshelfProvider } from '@/providers';
 import type { DownloadedBookEntry, StorageEstimateResult } from '@/providers/bookshelfProvider';
+import { ShelfVisibility } from '@/providers/shelfVisibility';
 import type { Book } from '@/types/book';
 import { formatBytes } from '@/utils/bytes';
+import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 
 const router = useRouter();
 const { t } = useI18n();
 
-const entries = ref<DownloadedBookEntry[]>([]);
+const downloaded = ref<DownloadedBookEntry[]>([]);
 const storageEstimate = ref<StorageEstimateResult | null>(null);
 const loading = ref(false);
 const error = ref('');
 const deleteTarget = ref<Book | null>(null);
 const removing = ref(false);
 const actionError = ref('');
+
+const { showNsfw } = useDeviceNsfwPreference();
+
+/**
+ * Being on the device is not a way past the setting: a book downloaded while it
+ * was on has to disappear from here when it is turned off, or "hidden on this
+ * phone" would hold everywhere but the one list that is offline.
+ *
+ * Filtered here rather than in the cache so the entries stay on disk — the
+ * setting hides books, it does not delete downloads — and computed rather than
+ * applied at load, so toggling the setting takes effect without a reload.
+ *
+ * Only where the backend has no server to answer for it. Behind a PlainShelf
+ * server the listing was already filtered server-side by whatever `show_nsfw`
+ * says there, and filtering again would let this device's setting override it.
+ * The mark itself comes off the stored book, which a download taken by a build
+ * before the mark existed does not carry.
+ */
+const entries = computed(() => {
+  if (!getBookshelfProvider().filtersNsfwOnDevice?.()) {
+    return downloaded.value;
+  }
+  const visibility = new ShelfVisibility({ showNsfw: showNsfw.value });
+  return downloaded.value.filter((entry) => visibility.allows(entry.book));
+});
 
 const totalSizeBytes = computed(() =>
   entries.value.reduce((total, entry) => total + entry.sizeBytes, 0)
@@ -125,7 +152,7 @@ async function loadEntries(): Promise<void> {
       provider.listDownloadedBookEntries?.() ?? Promise.resolve([]),
       provider.getStorageEstimate?.() ?? Promise.resolve({ supported: false })
     ]);
-    entries.value = nextEntries;
+    downloaded.value = nextEntries;
     storageEstimate.value = nextEstimate;
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('downloads.list.loadFailed');

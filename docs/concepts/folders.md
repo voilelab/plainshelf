@@ -261,6 +261,29 @@ A book already open in a browser tab is not a way round the setting: reloading
 the page, or pasting the book's address into a new tab, lands on the same
 "failed to load" screen any unknown book gives, because the API answers 404.
 
+### A shelf read without a server
+
+The Android client can read a shelf straight out of pCloud, with no PlainShelf
+server between it and the files. There is no `show_nsfw` to ask for on that path,
+so the app keeps its own answer: **Settings → Adult content** on such a client
+offers a **Show adult content on this device** switch, off by default and stored
+only on that device.
+
+It hides the same things the server setting hides, computed from the same two
+marks the shelf carries — the book's own `nsfw` and the `content.nsfw_folders`
+rules, which the app reads out of `shelf.json` itself rather than trusting the
+exported book cache's precomputed answer. A marked book is absent from the
+library listing, its address answers "not found", a marked folder and one left
+holding nothing but marked books drop out of the folder tree, and a book already
+downloaded for offline reading disappears from **Downloaded books** too: being on
+the device is not a way past the switch.
+
+The two settings are deliberately **not** synchronised. They are separate
+machines' decisions, and syncing them would turn "not on this phone" into "on no
+client at all". So a phone pointed at a PlainShelf server rather than at pCloud
+ignores its own switch entirely: the server has already filtered what it served,
+and that server's `show_nsfw` stays the only authority on that path.
+
 ### Seeing which books are marked
 
 While `show_nsfw` is on, a marked book carries an **NSFW** badge in the library

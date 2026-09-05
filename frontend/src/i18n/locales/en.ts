@@ -287,6 +287,14 @@ const en = {
       markingNote:
         'The marks themselves belong to the shelf, not to this setting. Mark one book in its metadata editor; mark a whole folder by listing it under content.nsfw_folders in shelf.json.'
     },
+    deviceNsfw: {
+      title: 'Adult content',
+      label: 'Show adult content on this device',
+      description:
+        'When this is off, the books the shelf marks as adult content are treated as absent on this device: they are missing from the library, the folder tree and the downloads list, and opening one by its address gives "not found".',
+      scopeNote:
+        'This preference is stored only on this device, and it is not shared with a PlainShelf server. It applies where this app reads a shelf directly from cloud storage; where a server serves the shelf, that server\'s own setting decides.'
+    },
     readHistory: {
       title: 'Reading history'
     },
