@@ -67,14 +67,10 @@ const METADATA_CONCURRENCY = 8;
 const PAGE_SIZE_DEFAULT = 8;
 
 /**
- * Marks a book as having a cover without naming a fetchable address.
- *
- * `useCoverSrc` treats `cover_url` as a presence flag on mobile — falsy means
- * "no cover, show the placeholder" — and then resolves the bytes through
- * `getBookCover()`. A real URL cannot be used here: pCloud download links come
- * from a per-file request and expire, so producing one per book during a
- * listing would cost an extra round trip each and be stale by the time it
- * rendered.
+ * Marks a book as having a cover without naming a fetchable address:
+ * `useCoverSrc` treats `cover_url` as a presence flag on mobile and resolves the
+ * bytes through `getBookCover()`. A real URL cannot be used, because pCloud
+ * download links come from a per-file request and expire.
  */
 export function pcloudCoverUrl(bookId: string): string {
   return `pcloud:cover/${bookId}`;
@@ -127,17 +123,11 @@ interface PCloudBookshelfProviderOptions {
 /**
  * Restates a pCloud failure in the error type the provider stack speaks.
  *
- * MobileBookshelfProvider decides whether to fall back to downloaded books by
- * asking whether the backend was reachable, and it reads that off `ApiError`:
- * anything else it assumes is unreachable. A raw PCloudError would therefore
- * send every failure — an expired token, a shelf that no longer exists, a book
- * that was deleted — down the offline-cache path, quietly showing stale content
- * instead of reporting the problem.
- *
- * So the transient/permanent distinction the pCloud folder already draws is
- * carried across the boundary: retryable failures become "unreachable", and
- * everything else is surfaced. Translating here rather than teaching the
- * wrapper about pCloud keeps that wrapper backend-agnostic.
+ * MobileBookshelfProvider reads reachability off `ApiError` and assumes anything
+ * else is unreachable, so a raw PCloudError would send every failure — expired
+ * token, deleted book — down the offline-cache path and quietly show stale
+ * content. Carrying the pCloud folder's transient/permanent distinction across
+ * the boundary here keeps that wrapper backend-agnostic.
  */
 function toProviderError(err: unknown): unknown {
   if (!(err instanceof PCloudError)) {

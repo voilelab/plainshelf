@@ -92,24 +92,21 @@ function isServerUnreachableError(err: unknown): boolean {
 }
 
 export class MobileBookshelfProvider implements BookshelfReader {
-  // Memoized object URLs for cached cover blobs, keyed by (server, shelf) and
-  // book id. Created lazily in applyCachedCover and revoked in removeDownload;
-  // the provider is a long-lived singleton so this map's lifetime matches the
-  // app's, which is fine given the small number of downloaded books.
+  // Memoized object URLs for cached cover blobs, created in applyCachedCover
+  // and revoked in removeDownload. The provider is a long-lived singleton, so
+  // this map lives as long as the app — fine for the number of downloads.
   //
   // The scope belongs in the key for the same reason the filesystem cache puts
   // it in the path (see cacheScope.ts): keyed by book id alone, a cover
-  // memoized while connected to one shelf would be handed back for a different
-  // book with the same id on another, and the memo would short-circuit the
-  // scoped filesystem lookup that would otherwise have corrected it.
+  // memoized on one shelf would be handed back for a different book with the
+  // same id on another, short-circuiting the scoped lookup that would have
+  // corrected it.
   private readonly coverUrlCache = new Map<string, string>();
 
-  // Present only in a native shell. A browser preview (mobile-shell-preview, the
-  // e2e provider) leaves it undefined so useBookActions.downloadBook falls back
-  // to its blob `<a download>` path, which works in a real browser but is
-  // silently ignored by the Android WebView — the reason "匯出檔案" did nothing
-  // in the app. Gated at construction because native-ness is fixed for the page
-  // lifetime; see runtime.ts.
+  // Present only in a native shell: a browser preview leaves it undefined so
+  // useBookActions.downloadBook falls back to its blob `<a download>` path,
+  // which the Android WebView silently ignores. Gated at construction because
+  // native-ness is fixed for the page lifetime.
   saveBookContentToFile?: (bookId: string, suggestedName: string) => Promise<string>;
 
   constructor(
@@ -125,16 +122,13 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Writes a book's content into the shared Documents folder so the user can
-   * reach it from the Files app or hand it to another app, and returns the
-   * saved location for a confirmation toast.
+   * Writes into the shared Documents folder so the user can reach the file from
+   * the Files app, returning the saved location for a toast.
    *
    * `suggestedName` is already filesystem-safe (useBookActions sanitizes it),
-   * and Documents needs no runtime permission for a file the app itself creates
-   * on modern Android. Text is written as UTF-8 directly rather than base64,
-   * since an exported source is plain text/Markdown. An existing file of the
-   * same name is overwritten, matching a browser download into a folder that
-   * already holds one.
+   * and Documents needs no runtime permission for a file the app itself creates.
+   * An existing file of the same name is overwritten, matching a browser
+   * download into a folder that already holds one.
    */
   private async exportBookContentToDocuments(
     bookId: string,
@@ -348,11 +342,8 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
 
-  // Shelf refresh is entirely the wrapped backend's business — nothing here
-  // caches the listing itself. Reported as unsupported unless the backend says
-  // otherwise, and both backends do: pCloud because its stored listing is only
-  // ever as fresh as the last update, a server because a book added to the
-  // shelf from outside waits out `scan_interval` otherwise.
+  // Entirely the wrapped backend's business — nothing here caches the listing.
+  // Unsupported unless the backend says otherwise, and both do.
   supportsShelfRefresh(): boolean {
     return Boolean(this.remote.supportsShelfRefresh?.());
   }
@@ -421,11 +412,8 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
   /**
    * The cache answers first, so a downloaded book shows its illustrations
-   * without a request even when the server is reachable.
-   *
-   * An asset the download did not store — a book downloaded before assets were
-   * cached, or one whose text changed since — still resolves online. Offline it
-   * fails, and the reader shows the alt text rather than losing the chapter.
+   * without a request. An asset the download did not store still resolves
+   * online; offline it fails and the reader shows the alt text.
    */
   async getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
     const cached = await this.cache.getCachedAsset(bookId, sourceId, name);
