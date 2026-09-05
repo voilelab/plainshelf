@@ -4,19 +4,17 @@ import { normalizeApiBase, setActiveShelfID, setApiBase } from '@/api/client';
 import { SecureStorage } from '@/providers/secureStorage';
 
 // Native (Capacitor) builds load a static bundle with no backend to inject the
-// server address, token, or selected shelf. The device therefore keeps its own
-// list of shelves: each entry names one library and carries the source type it
-// is read through, so a phone can hold a couple of PlainShelf servers and a
-// couple of pCloud folders side by side and switch between them.
+// server address, token, or selected shelf, so the device keeps its own list of
+// shelves: a phone can hold a couple of PlainShelf servers and a couple of
+// pCloud folders side by side and switch between them.
 //
-// Non-secret entry fields live in Capacitor Preferences as one JSON array.
-// Every token — server and pCloud alike — is kept per entry in Android
-// Keystore-backed storage, so no secret is ever written into that array.
+// Non-secret fields live in Capacitor Preferences as one JSON array; every
+// token is kept per entry in Android Keystore-backed storage, so no secret is
+// ever written into that array.
 //
-// The token is not what makes the app read-only — api/client.ts rejects every
-// mutation before it is sent, token or not. The app issues no writes at all, so
-// a server token is only needed to read from a `protect_read` server, which
-// requires one for reads as well.
+// A token is not what makes the app read-only — api/client.ts rejects every
+// mutation before it is sent. A server token is only needed to read from a
+// `protect_read` server.
 const KEY_ENTRIES = 'plainshelf.mobile.shelves';
 const KEY_ACTIVE_ENTRY_ID = 'plainshelf.mobile.activeShelfId';
 const SECRET_KEY_PREFIX = 'plainshelf.mobile.secret.';
@@ -43,10 +41,9 @@ export type ShelfSourceType = 'server' | 'pcloud';
 
 interface ShelfEntryBase {
   /**
-   * Device-local handle for selecting, editing and deleting this entry. Opaque
-   * and never sent anywhere. Deliberately *not* the cache scope key: device
-   * data is scoped by where the shelf lives (see cacheScope.ts), so renaming an
-   * entry must not orphan its downloads.
+   * Opaque device-local handle, never sent anywhere. Deliberately *not* the
+   * cache scope key: device data is scoped by where the shelf lives (see
+   * cacheScope.ts), so renaming an entry must not orphan its downloads.
    */
   id: string;
   /** What the shelf picker shows. */
@@ -72,16 +69,10 @@ export interface PCloudShelfEntry extends ShelfEntryBase {
   /** Path of the shelf directory on pCloud, e.g. `/PlainShelf/default-shelf`. */
   pcloudShelfRoot: string;
   /**
-   * pCloud's numeric user id for the authorized account, recorded so two
-   * accounts can be told apart.
-   *
-   * Optional, and deliberately so: the host and folder path alone are not
-   * unique — two accounts in the same region can both hold
-   * `/PlainShelf/shelf` — and without this they would derive the same cache
-   * scope and share every downloaded book. Entries saved before this existed
-   * have no id and keep their original scope, so their downloads survive; it
-   * is recorded at authorization, which is the only moment the account is
-   * known for certain.
+   * pCloud's numeric user id, recorded at authorization because host and folder
+   * path alone are not unique: two accounts in one region can both hold
+   * `/PlainShelf/shelf` and would otherwise share a cache scope. Optional, so
+   * entries saved before it existed keep the scope their downloads live under.
    */
   pcloudUserId?: string;
 }
@@ -89,12 +80,9 @@ export interface PCloudShelfEntry extends ShelfEntryBase {
 export type ShelfEntry = ServerShelfEntry | PCloudShelfEntry;
 
 /**
- * The list currently applied to this process, and which entry is active.
- *
  * Kept here so callers that cannot await — provider construction runs
- * synchronously at bootstrap, before the router exists — can still see which
- * shelf is active. main.ts awaits initMobileConfig() first, so this is
- * populated by the time anything asks.
+ * synchronously at bootstrap — can still see which shelf is active. main.ts
+ * awaits initMobileConfig() first, so it is populated by the time anything asks.
  */
 let entries: ShelfEntry[] = [];
 let activeEntryID = '';
@@ -143,12 +131,9 @@ async function setShelfEntryToken(entryID: string, token: string): Promise<void>
 }
 
 /**
- * Opaque local handle.
- *
  * `getRandomValues` rather than `randomUUID`: the latter is secure-context
- * gated, and while the Android shell is served over https://localhost, the
- * `?mobile-shell-preview=1` harness is served over plain HTTP by the Go server.
- * Not a secret either way, so the last resort is acceptable.
+ * gated, and the `?mobile-shell-preview=1` harness is served over plain HTTP.
+ * Not a secret either way.
  */
 function newShelfEntryID(): string {
   const cryptoObj = globalThis.crypto;
@@ -165,8 +150,6 @@ function normalizeString(value: unknown): string {
 }
 
 /**
- * Rebuilds one entry from stored JSON, or null when it is unusable.
- *
  * Defensive on purpose: a truncated or hand-edited blob must cost the user the
  * entries it can no longer describe, not the whole app. An entry missing its id
  * is dropped rather than regenerated — a new id would point its device data at
@@ -258,17 +241,13 @@ async function readLegacyPCloudToken(): Promise<string> {
 }
 
 /**
- * Turns the one stored connection into the first entry of the list.
+ * The migrated entry must resolve to exactly the (API base, shelf id) pair the
+ * old layout applied, because that pair is the cache scope key: anything else
+ * leaves every downloaded book on disk but invisible.
  *
- * The migrated entry must resolve to exactly the same (API base, shelf id) pair
- * the old layout applied, because that pair is the cache scope key: anything
- * else would leave every downloaded book on disk but invisible. See
- * providers/cacheScope.ts.
- *
- * Ordering matters as much as the mapping. The new entry, its token and the
+ * Ordering matters as much as the mapping: the new entry, its token and the
  * active id are all committed before a single legacy key is removed, so an
- * interrupted migration re-runs from an untouched source rather than losing the
- * connection halfway.
+ * interrupted migration re-runs from an untouched source.
  */
 async function migrateSingleConnection(): Promise<ShelfEntry[]> {
   const [mode, serverUrl, token, shelfId, pcloudClientId, pcloudHost, pcloudShelfRoot] =
@@ -350,16 +329,13 @@ export function shelfEntryDisplayName(entry: ShelfEntry): string {
 }
 
 /**
- * Where an entry's library lives, in the terms api/client.ts understands.
+ * Where an entry's library lives, in api/client.ts's terms — and the cache scope
+ * identity, which is why both applying an entry and locating a deleted entry's
+ * downloads go through this one function.
  *
- * Also the cache scope identity (providers/cacheScope.ts), which is why both
- * applying an entry and locating a deleted entry's downloads go through this
- * one function rather than repeating the switch.
- *
- * A pCloud entry never builds an HTTP URL from these, but still gets a
- * `pcloud://` base deliberately: any API call that slips through in pCloud mode
- * then fails visibly instead of quietly resolving against the WebView's own
- * origin.
+ * A pCloud entry never builds an HTTP URL from these but still gets a
+ * `pcloud://` base, so any API call that slips through fails visibly instead of
+ * resolving against the WebView's own origin.
  */
 export function shelfEntryTarget(entry: ShelfEntry | null): {
   apiBase: string;
@@ -372,33 +348,26 @@ export function shelfEntryTarget(entry: ShelfEntry | null): {
     if (!entry.pcloudHost) {
       return { apiBase: '', shelfID: entry.pcloudShelfRoot };
     }
-    // The account is part of the identity when it is known: the regional host
-    // and folder path are not unique, so two accounts both holding
-    // `/PlainShelf/shelf` would otherwise share one cache — showing each
-    // other's books, and taking each other's downloads down on delete. An
-    // entry authorized before the id was recorded has none, and keeps the
-    // scope its data already lives under.
+    // Part of the identity when known: two accounts both holding
+    // `/PlainShelf/shelf` would otherwise share one cache, showing each other's
+    // books and taking each other's downloads down on delete.
     const account = entry.pcloudUserId ? `/${entry.pcloudUserId}` : '';
     return {
       apiBase: normalizeApiBase(`pcloud://${entry.pcloudHost}${account}`),
       shelfID: entry.pcloudShelfRoot
     };
   }
-  // Normalized here, not just on the way into the API client: a server URL
-  // saved with a trailing slash would otherwise produce one scope key while it
-  // is active (from the normalized applied base) and a different one when its
-  // downloads are located for deletion, so the delete would sweep a directory
-  // that never existed and leave the real one on disk.
+  // Normalized here, not just on the way into the API client: a URL saved with
+  // a trailing slash would otherwise scope one way while active and another way
+  // when its downloads are located for deletion, so the delete would sweep a
+  // directory that never existed.
   return { apiBase: normalizeApiBase(entry.serverUrl), shelfID: entry.shelfId };
 }
 
 /**
- * Whether this entry's stored fields are complete.
- *
- * Field-level only, so it stays synchronous for the bootstrap path that has to
- * choose a provider before anything can await. Whether the shelf can actually
- * be opened is isShelfEntryUsable() — a pCloud entry also needs its token,
- * which lives in Keystore-backed storage.
+ * Field-level only, so it stays synchronous for the bootstrap path that must
+ * choose a provider before anything can await. Whether the shelf can actually be
+ * opened is isShelfEntryUsable(), which also needs the Keystore token.
  */
 export function isShelfEntryConfigured(entry: ShelfEntry | null | undefined): boolean {
   if (!entry) {
@@ -411,19 +380,16 @@ export function isShelfEntryConfigured(entry: ShelfEntry | null | undefined): bo
 }
 
 /**
- * Whether this entry can actually open its library, which is what the router
- * guard needs to know.
+ * What the router guard needs to know.
  *
- * A pCloud shelf is unusable without its bearer token: there is no anonymous
- * read and no server to refuse the request, so letting the guard through would
- * land the user in a library whose every read fails, instead of on the form
- * that can re-authorize it. The token can be missing while the metadata
- * survives — preferences restored onto a device whose Keystore data did not
- * come with them, or a legacy connection migrated mid-authorization.
+ * A pCloud shelf is unusable without its bearer token — no anonymous read, no
+ * server to refuse — so letting the guard through would land the user in a
+ * library whose every read fails rather than on the form that re-authorizes it.
+ * The token can be missing while the metadata survives: preferences restored
+ * onto a device whose Keystore data did not come with them.
  *
- * A server shelf is the opposite case and deliberately does not require one: a
- * token is only needed when the server sets `protect_read`, so demanding one
- * would lock a perfectly good connection out of its own library.
+ * A server shelf deliberately does not require one: a token is only needed for
+ * `protect_read`, so demanding it would lock out a good connection.
  */
 export async function isShelfEntryUsable(entry: ShelfEntry | null | undefined): Promise<boolean> {
   if (!isShelfEntryConfigured(entry) || !entry) {
@@ -469,11 +435,9 @@ export function getActiveShelfEntryID(): string {
 }
 
 /**
- * Pushes the active entry into the API client. Called once at startup (before
- * the app mounts) and again whenever the list changes.
- *
- * The API base and shelf id are also the identity that scopes device-local book
- * data (see providers/cacheScope.ts), so a pCloud entry sets them too.
+ * Called once at startup, before the app mounts, and again whenever the list
+ * changes. The API base and shelf id are also the identity that scopes
+ * device-local book data, so a pCloud entry sets them too.
  */
 export async function applyActiveShelfEntry(): Promise<void> {
   const entry = getActiveShelfEntry();
@@ -484,9 +448,8 @@ export async function applyActiveShelfEntry(): Promise<void> {
   const entryID = entry?.id ?? '';
   activeEntryToken = await getShelfEntryToken(entryID);
 
-  // The API client reads the token via window.plainshelf.getApiToken (reusing
-  // the Electron branch). Resolved on each call rather than captured, so a
-  // token update applies immediately without touching this closure.
+  // Resolved on each call rather than captured, so a token update applies
+  // immediately without touching this closure.
   window.plainshelf = {
     getApiToken: async () => getShelfEntryToken(entryID)
   };
@@ -530,12 +493,9 @@ export async function upsertShelfEntry(entry: ShelfEntry, token?: string): Promi
 }
 
 /**
- * Drops an entry and its token. The caller is responsible for the entry's
- * downloaded books — see providers/cacheScope.ts for how to locate them.
- *
- * When the active entry goes, the first remaining one takes over so the app has
- * somewhere to open; an emptied list leaves the router to send the user back to
- * the shelf list.
+ * The caller is responsible for the entry's downloaded books — see
+ * providers/cacheScope.ts for how to locate them. When the active entry goes,
+ * the first remaining one takes over so the app has somewhere to open.
  */
 export async function deleteShelfEntry(entryID: string): Promise<void> {
   const next = entries.filter((entry) => entry.id !== entryID);

@@ -11,10 +11,9 @@ import { WailsBookshelfProvider } from './wailsBookshelfProvider';
 let provider: BookshelfProvider | null = null;
 
 export function createBookshelfProvider(): BookshelfProvider {
-  // A registered shell decides first: it is the thing that knows what this
-  // host reads from, and asking it here is what keeps the mobile and pCloud
-  // stack out of this module's import graph — and therefore out of the web
-  // bundle that frontend/web.go embeds.
+  // A registered shell decides first: asking it here is what keeps the mobile
+  // and pCloud stack out of this module's import graph, and therefore out of
+  // the web bundle frontend/web.go embeds.
   const shell = getShell();
   if (shell) {
     return shell.createProvider();
@@ -35,19 +34,16 @@ export function getBookshelfProvider(): BookshelfProvider {
 }
 
 /**
- * Mirrors how a read-only server answers a mutation (server/app.go), and how
- * PCloudBookshelfProvider refuses one, so a caller that surfaces the message
- * reads the same either way. Contains "read-only" deliberately: the mobile e2e
- * suite asserts on that phrase.
+ * Mirrors how a read-only server answers a mutation (server/app.go) and how
+ * PCloudBookshelfProvider refuses one, so the message reads the same either way.
+ * The phrase "read-only" is asserted on by the mobile e2e suite.
  */
 const WRITES_UNAVAILABLE_MESSAGE = 'This client is read-only. Write operations are disabled.';
 
 /**
- * Whether this provider implements the whole write surface.
- *
  * An intersection is not a union, so `provider.writable === true` does not
- * narrow on its own — the predicate is what does the narrowing, and
- * `implements BookshelfWriter` on the class is what makes it true.
+ * narrow on its own: this predicate is what narrows, and `implements
+ * BookshelfWriter` on the class is what makes it true.
  */
 export function isWritableProvider(
   provider: BookshelfProvider
@@ -56,16 +52,12 @@ export function isWritableProvider(
 }
 
 /**
- * The active provider, for a caller that is about to mutate the shelf.
+ * Every shelf write goes through here rather than getBookshelfProvider(), so
+ * "this call changes the library" is visible at the call site and there is one
+ * place to refuse it. Reads — including the device-local ones on mobile — keep
+ * using getBookshelfProvider().
  *
- * Every shelf write goes through here rather than through
- * getBookshelfProvider(), so "this call changes the library" is visible at the
- * call site and there is one place to refuse it. Reads — including the
- * device-local ones on mobile, such as saveReadProgress and the reading
- * history — keep using getBookshelfProvider().
- *
- * Throws rather than rejecting: every call site awaits inside a try, so a
- * synchronous throw is caught wherever this can currently be raised. Do not
+ * Throws rather than rejecting: every call site awaits inside a try. Do not
  * introduce `bookshelfWriter().x(…).catch(…)` in a non-async context.
  */
 export function bookshelfWriter(): WritableBookshelfProvider {

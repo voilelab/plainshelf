@@ -6,64 +6,46 @@ import type { ShelfPicker } from '@/types/shelfPicker';
 import type { DeviceDocumentStorage } from '@/storage/deviceDocument';
 
 /**
- * What a host shell contributes to the shared app.
+ * What a host shell contributes to the shared app. A shell registers itself
+ * during bootstrap and the shared code asks; the direction is the point,
+ * because otherwise `providers/index.ts` imports every provider a shell might
+ * pick and the whole mobile and pCloud stack lands in the web bundle
+ * `frontend/web.go` embeds.
  *
- * The shared code does not reach into a shell; a shell registers itself here
- * during bootstrap and the shared code asks. That direction is the point:
- * without it, `providers/index.ts` has to import every provider a shell might
- * pick, which puts the whole mobile and pCloud stack in the module graph of the
- * web build that `frontend/web.go` embeds and the desktop build serves.
- *
- * Kept to what a shell actually has to answer today. Add a member when a
- * concrete branch needs one, not in anticipation.
+ * Add a member when a concrete branch needs one, not in anticipation.
  */
 export interface RuntimeShell {
-  /**
-   * The provider this shell reads its shelf through.
-   *
-   * Called lazily, on first use of the provider, so a shell may rely on
-   * anything it set up during installation.
-   */
+  /** Called lazily, so a shell may rely on anything it set up during install. */
   createProvider(): BookshelfProvider;
 
   /**
-   * Where this shell keeps a device-local document — the reading history and
-   * reading stats, which are per-device state and never sent to the shelf.
-   *
-   * Optional: a shell that is happy with the browser default does not implement
-   * it, and the stores fall back to localStorage. `path` is the shell-agnostic
-   * key each store already defines for itself.
+   * Where this shell keeps a device-local document — reading history and stats,
+   * which are per-device state and never sent to the shelf. Optional: without
+   * it the stores fall back to localStorage. `path` is the shell-agnostic key
+   * each store already defines for itself.
    */
   createDeviceDocumentStorage?(path: string): DeviceDocumentStorage;
 
   /**
-   * The one shelf this shell is pointed at, when its shelf list is device-local
-   * rather than something a server enumerates.
-   *
-   * The mobile device keeps its own list — several servers and pCloud folders
-   * side by side — of which exactly one is active, and the others are not
-   * shelves *of this shelf's* server. So the app-wide list collapses to this.
-   * Absent on a shell whose shelves come from the server.
+   * The one shelf this shell is pointed at, when its shelf list is device-local.
+   * The mobile device keeps several servers and pCloud folders side by side, of
+   * which exactly one is active and the others are not shelves *of this shelf's*
+   * server, so the app-wide list collapses to this.
    */
   activeShelfInfo?(): ShelfInfo | null;
 
   /**
-   * The shelf dropdown this shell puts in the sidebar, when its shelves are not
-   * the ones a server enumerates.
-   *
-   * The mobile device lists its own entries — several servers and pCloud
-   * folders — and picking one restarts the app rather than swapping shelves in
-   * place. Absent on a shell that is happy with the server-backed picker.
+   * The shelf dropdown this shell puts in the sidebar. On mobile, picking one
+   * restarts the app rather than swapping shelves in place. Absent on a shell
+   * happy with the server-backed picker.
    */
   createShelfPicker?(): ShelfPicker;
 
   /**
-   * Navigation guards this shell needs on the shared router.
-   *
-   * The mobile shell gates every route behind a usable shelf entry and refuses
-   * the pages a read-only client cannot use. Installed by main.ts before
-   * `app.use(router)`, which is what triggers the first navigation — a guard
-   * registered after that would let the first route through ungated.
+   * Navigation guards this shell needs on the shared router. Installed by
+   * main.ts before `app.use(router)`, which is what triggers the first
+   * navigation — a guard registered after it would let the first route through
+   * ungated.
    */
   installRouterGuards?(router: Router): void;
 }
@@ -71,10 +53,8 @@ export interface RuntimeShell {
 let shell: RuntimeShell | null = null;
 
 /**
- * Installs the host shell. Call once, during bootstrap, before anything can
- * ask for a provider — `main.ts` does this ahead of `createApp`.
- *
- * Passing null clears it, which is what a test needs between cases.
+ * Call once, during bootstrap, before anything can ask for a provider —
+ * `main.ts` does this ahead of `createApp`. Null clears it, for tests.
  */
 export function registerShell(next: RuntimeShell | null): void {
   shell = next;

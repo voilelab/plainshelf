@@ -48,10 +48,9 @@ export interface ShelfRefreshResult {
 }
 
 /**
- * Everything a reading client needs. Every provider implements all of it.
- *
+ * Everything a reading client needs; every provider implements all of it.
  * Reading progress and history are here rather than on the write surface
- * because they are per-device state and never sent to the shelf backend.
+ * because they are per-device state, never sent to the shelf backend.
  */
 export interface BookshelfReader {
   /** `options` is opt-in extra work for the backend; omit it unless the caller displays the field. */
@@ -60,7 +59,6 @@ export interface BookshelfReader {
 
   getBookContent(bookId: string): Promise<BookContent>;
   downloadBookContent(bookId: string): Promise<Blob>;
-  /** @deprecated Legacy sources only. New Markdown sources derive chapters from H2. */
 
   getReadProgress(bookId: string): Promise<ReadingProgress>;
   saveReadProgress(bookId: string, progress: BookmarkPayload): Promise<void>;
@@ -72,38 +70,27 @@ export interface BookshelfReader {
   getBookCoverUrl(bookId: string, cacheKey?: number): string;
 
   /**
-   * Whether getBookCoverUrl() produces something an `<img src>` cannot load on
-   * its own, so the cover has to be fetched through getBookCover() and handed
-   * to the element as a `blob:` URL instead.
-   *
-   * True for a backend whose cover URL is not a plain fetchable address — the
-   * pCloud provider returns an internal `pcloud:` reference — and for the
-   * mobile shell, where a direct `<img src="http://...">` is issued by the
-   * WebView itself, bypassing CapacitorHttp and tripping mixed-content
-   * blocking against the `https://localhost` origin.
+   * Whether the cover has to be fetched through getBookCover() and handed to the
+   * element as a `blob:` URL. True when the cover URL is not a plain fetchable
+   * address (pCloud returns an internal `pcloud:` reference) and on the mobile
+   * shell, where a direct `<img src="http://...">` is issued by the WebView
+   * itself, bypassing CapacitorHttp and tripping mixed-content blocking.
    */
   coversMustBeFetchedAsBlob?(): boolean;
 
   /**
    * Whether there is a PlainShelf server behind this backend to report its
-   * `read_only` mode.
-   *
-   * Absent means yes — a server, desktop or mock client all have one, and that
-   * is the ordinary case. pCloud answers false: it is storage, not a server, so
-   * asking would be a request nothing can answer. Writes stay refused either
-   * way, by the provider's own missing write surface.
+   * `read_only` mode. Absent means yes. pCloud answers false: it is storage,
+   * not a server, so asking would be a request nothing can answer.
    */
   supportsServerMode?(): boolean;
 
   /**
-   * Whether asking for character counts alongside a book listing is affordable
-   * on this backend.
-   *
-   * Absent means yes — a PlainShelf server computes them from its own shelf
-   * cache. pCloud answers false: it has no server to aggregate, so it would
-   * have to fetch every book's source meta.json over the network to answer one
-   * listing. That is a property of the backend, not of the device asking, so a
-   * phone pointed at a self-hosted server can offer the filter.
+   * Whether character counts alongside a listing are affordable. Absent means
+   * yes — a server computes them from its shelf cache. pCloud answers false: it
+   * would fetch every book's meta.json over the network for one listing. A
+   * property of the backend, not the device, so a phone pointed at a server can
+   * still offer the filter.
    */
   supportsCharCountListing?(): boolean;
 
@@ -129,60 +116,43 @@ export interface BookshelfReader {
   getSourceContent(bookId: string, sourceId: string): Promise<string>;
 
   /**
-   * Reads one illustration from a source's `assets/` directory.
-   *
-   * Optional because a backend can serve a book's text without being able to
-   * reach its images: an offline mobile cache only holds what it downloaded.
-   * The reader falls back to the image's alt text when this is absent or
-   * rejects, so a missing illustration never costs the reader the chapter.
+   * Optional because a backend can serve a book's text without reaching its
+   * images: an offline cache only holds what it downloaded. The reader falls
+   * back to the alt text, so a missing illustration never costs the chapter.
    */
   getSourceAsset?(bookId: string, sourceId: string, name: string): Promise<Blob>;
 
   /**
-   * Fetches the named illustrations as one zip, for a download that would
-   * otherwise pay a request per figure. Optional: only the mobile download path
-   * uses it, and only when the backend offers it, falling back to per-file
-   * fetches otherwise. Online reading stays per-image and lazy.
+   * The named illustrations as one zip, for a download that would otherwise pay
+   * a request per figure; only the mobile download path uses it, falling back to
+   * per-file fetches. Online reading stays per-image and lazy.
    *
    * Returns the raw archive, not decoded blobs, so the caller can unzip one
-   * entry at a time rather than hold every figure in memory. An absent name is
-   * packed as no entry.
+   * entry at a time. An absent name is packed as no entry.
    */
   getSourceAssetsBundle?(bookId: string, sourceId: string, names: string[]): Promise<Blob>;
 
   /**
-   * Manual shelf update, for a listing that does not necessarily reflect the
-   * shelf right now.
+   * Manual shelf update, for a listing that may not reflect the shelf right now:
+   * pCloud scans once and then reads a stored copy, and a server only rescans
+   * every `scan_interval` with no change notification from an SMB or cloud
+   * mount.
    *
-   * Two backends have that problem for different reasons. The pCloud provider
-   * scans once and then reads a stored copy, because walking the shelf costs a
-   * request per book. A server keeps its own cache warm, but only every
-   * `scan_interval`, and no filesystem change notification reaches it from an
-   * SMB or cloud mount — so a book added from outside PlainShelf waits out the
-   * interval unless the user asks for the walk.
-   *
-   * `supportsShelfRefresh` is what the UI asks, because a wrapper always has
-   * the methods even when the backend it wraps does not.
-   *
-   * `refreshShelf` returns what the update found when the backend can say;
-   * `getShelfFetchedAt` is for a backend that instead dates its stored listing.
-   * No backend does both, and neither is required.
+   * `supportsShelfRefresh` is what the UI asks, because a wrapper always has the
+   * methods even when the backend it wraps does not. `refreshShelf` reports what
+   * the update found; `getShelfFetchedAt` instead dates a stored listing. No
+   * backend does both, and neither is required.
    */
   supportsShelfRefresh?(): boolean;
   refreshShelf?(): Promise<ShelfRefreshResult | void>;
   getShelfFetchedAt?(): Promise<number | null>;
 
   /**
-   * The shelf this client already knows it is pointed at, for use when listing
-   * shelves fails.
-   *
-   * Present only on a backend whose shelf choice is device-local and outlives a
+   * The shelf this client already knows it is pointed at, for when listing
+   * shelves fails. Present only where the choice is device-local and outlives a
    * failed request — the mobile shell persists it during connection setup — so
-   * offline-cached books stay reachable when the network does not. A server or
-   * desktop client has no such fallback: its shelf list *is* the source of
-   * truth, and a failure there means there is nothing to fall back to.
-   *
-   * Returns '' when nothing has been chosen yet.
+   * offline-cached books stay reachable when the network does not. '' when
+   * nothing has been chosen yet.
    */
   getPersistedShelfID?(): string;
 
@@ -209,11 +179,9 @@ export interface BookshelfReader {
   /** Reveals a shelf's lib_root in the host file explorer (desktop only). */
   openDesktopShelfFolder?(shelfID: string): Promise<void>;
   /**
-   * Returns the shelf id AddShelf would assign to a shelf named `name` right
-   * now, plus the directory such a shelf would be created in when the user
-   * picks none (desktop only), so the add-shelf form can preview both as the
-   * user types. Both fields are '' for an empty name or when preview is
-   * unavailable.
+   * The shelf id AddShelf would assign to `name` right now, plus the directory
+   * such a shelf would land in when the user picks none, so the add-shelf form
+   * can preview both as the user types. Both are '' when unavailable.
    */
   previewDesktopShelfID?(name: string): Promise<DesktopShelfIDPreview>;
   /**
@@ -226,33 +194,26 @@ export interface BookshelfReader {
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
   modifyDesktopShelf?(params: DesktopModifyShelfParams): Promise<void>;
   /**
-   * Writes a book's content out as a file the user keeps, outside the app's
-   * private storage. The desktop client opens a native save dialog and resolves
-   * to `void` — the dialog is its own confirmation. The mobile client writes to
-   * a shared, user-visible folder with no dialog of its own, so it resolves to a
-   * human-readable location string the caller surfaces as a toast; a browser
-   * build defines the method not at all and falls back to a blob download.
+   * Writes a book's content out as a file the user keeps. Desktop opens a native
+   * save dialog and resolves to `void` — the dialog is its own confirmation.
+   * Mobile writes to a shared folder with no dialog, so it resolves to a
+   * location string the caller surfaces as a toast. A browser build omits the
+   * method and falls back to a blob download.
    */
   saveBookContentToFile?(bookId: string, suggestedName: string): Promise<string | void>;
 }
 
 /**
- * Shelf mutations. Absent as a block on a provider that cannot write, so the
+ * Shelf mutations, absent as a block on a provider that cannot write: the
  * Android client and the pCloud backend are read-only by construction rather
- * than by refusing at runtime.
- *
- * Reach these through `bookshelfWriter()`, never off `BookshelfProvider`
- * directly.
+ * than by refusing at runtime. Reach these through `bookshelfWriter()`.
  */
 export interface BookshelfWriter {
   /**
-   * Present only on a provider that implements every member below, which is
-   * what `isWritableProvider()` reads.
-   *
-   * A capability flag rather than a probe for one of the methods, for the same
-   * reason `supportsShelfRefresh` exists: a wrapper always has the methods even
-   * when the backend it wraps does not. `implements BookshelfWriter` is what
-   * makes the claim honest, because TypeScript then demands the whole surface.
+   * What `isWritableProvider()` reads. A flag rather than a probe for one of the
+   * methods, because a wrapper always has the methods even when the backend it
+   * wraps does not; `implements BookshelfWriter` is what makes the claim honest,
+   * since TypeScript then demands the whole surface.
    */
   readonly writable: true;
 
@@ -281,11 +242,8 @@ export interface BookshelfWriter {
     mode: BookTransferMode
   ): Promise<string>;
   /**
-   * Copies or moves a whole folder — every book and sub-folder beneath
-   * it — from the active shelf to `targetShelfID`, returning the id of the
-   * background task chain to poll. `sourceFolder` and `targetFolder` are '/'-joined
-   * paths; `targetFolder` is the folder's full destination path on the target
-   * shelf.
+   * As transferBook, for a whole folder and everything beneath it.
+   * `targetFolder` is the folder's full destination path on the target shelf.
    */
   transferFolder(
     sourceFolder: string,
@@ -293,8 +251,6 @@ export interface BookshelfWriter {
     targetFolder: string,
     mode: BookTransferMode
   ): Promise<string>;
-  /** @deprecated Legacy sources only. */
-
   importBook(payload: BookCreateRequest): Promise<Book>;
   uploadBookCover(bookId: string, file: File): Promise<void>;
   uploadBookCoverBlob(bookId: string, blob: Blob): Promise<void>;
@@ -317,10 +273,9 @@ export interface BookshelfWriter {
 
   /**
    * Optional because only the desktop shell can reach host paths, but a write
-   * either way: it creates one book in the active shelf exactly as importBook
-   * does, from a picker result rather than an upload. The caller invokes it once
-   * per selected file so the shared import executor drives the same N/M progress
-   * and file-boundary abort as the upload path.
+   * either way: one book in the active shelf, as importBook, from a picker
+   * result rather than an upload. Called once per selected file so the shared
+   * import executor drives the same N/M progress and file-boundary abort.
    */
   importBookFromLocalPath?(localPath: string, folderPath: string): Promise<DesktopImportBookResult | null>;
 

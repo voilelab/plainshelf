@@ -16,11 +16,9 @@ export const BASE_DIR = 'plainshelf-cache';
 const SCOPES_DIR = `${BASE_DIR}/scopes`;
 export const CACHE_DIRECTORY = Directory.Data;
 
-// Directory for a client that has no (server, shelf) identity yet. Unreachable
-// from the native shell: there `getApiBase()` is applied before mount and the
-// router holds the app on the connect page until it is, so every key contains
-// the `apiBase|shelfID` separator and encodes to a name with `%7C` in it. Named
-// rather than left as an empty path segment so the layout has no `//` in it.
+// Directory for a client with no (server, shelf) identity yet. Unreachable from
+// the native shell, where getApiBase() is applied before mount. Named rather
+// than left as an empty segment so the layout has no `//` in it.
 export const UNSCOPED_DIR_NAME = '_unscoped';
 
 export function encode(id: string): string {
@@ -30,16 +28,13 @@ export function encode(id: string): string {
 /**
  * A short, fixed-length path component standing for an arbitrary name.
  *
- * `encode` suits ids the shelf generates — short and ASCII — but not a name
- * chosen by whoever put a file on the shelf. The shelf accepts up to 255 UTF-8
- * bytes, and percent-encoding triples a CJK name, so about 29 characters
- * already overflow a 255-byte filesystem component and the write fails.
+ * `encode` suits ids the shelf generates, but not a name a user chose: the shelf
+ * accepts 255 UTF-8 bytes and percent-encoding triples a CJK name, so about 29
+ * characters already overflow a filesystem component.
  *
- * The cache is device-private and always looked up by its logical key, so the
- * component has no reason to be readable. Callers must still record the exact
- * name inside the file and check it on read: this is a 64-bit non-cryptographic
- * hash, and a collision has to read as a cache miss rather than as the wrong
- * file.
+ * Callers must still record the exact name inside the file and check it on read:
+ * this is a 64-bit non-cryptographic hash, and a collision has to read as a
+ * cache miss rather than as the wrong file.
  */
 export function hashComponent(value: string): string {
   const bytes = new TextEncoder().encode(value);
@@ -59,23 +54,18 @@ export function scopeDir(scopeKey: string): string {
 }
 
 /**
- * Deletes everything one shelf downloaded — book content, covers, per-book
- * progress files and the pCloud shelf snapshot.
+ * Deletes everything one shelf downloaded. Takes the scope key as an argument
+ * rather than reading the active one, so removing a shelf the app is *not*
+ * reading does not have to repoint the API client at it first; nothing else
+ * enumerates scope directories, so this is the only path that reclaims them.
  *
- * Takes the scope key as an argument rather than reading the active one, so
- * removing a shelf the app is *not* currently reading does not have to
- * repoint the API client at it first. Nothing else enumerates scope
- * directories, so this is the only path by which that space is reclaimed.
- *
- * Reading history and reading stats are untouched: they live in documents
- * shared across shelves and are the only device data that cannot be rebuilt
- * from the library.
+ * Reading history and stats are untouched: they are shared across shelves and
+ * are the only device data that cannot be rebuilt from the library.
  */
 export async function removeCacheScope(scopeKey: string): Promise<void> {
-  // An empty key is not a shelf identity — scopeDir maps it to the shared
-  // pre-scope directory, so deleting a corrupt entry with no server URL and no
-  // shelf id would take unrelated downloads with it. Nothing to reclaim here
-  // anyway: an entry that derives no scope never wrote one.
+  // An empty key is not a shelf identity: scopeDir maps it to the shared
+  // pre-scope directory, so this would take unrelated downloads with it. An
+  // entry that derives no scope never wrote one anyway.
   if (!scopeKey) {
     return;
   }
@@ -83,13 +73,9 @@ export async function removeCacheScope(scopeKey: string): Promise<void> {
 }
 
 /**
- * Reads a UTF-8 file, treating every failure — missing file, plugin error,
- * unexpected payload type — as a cache miss.
- *
- * Device-local data here is always reconstructible from the shelf, so a read
- * that cannot answer must degrade to "not cached" rather than take down the
- * caller. Writes deliberately do *not* follow this rule: they throw, so a
- * caller that must know whether it committed still can.
+ * Every failure — missing file, plugin error, unexpected payload — is a cache
+ * miss: this data is always reconstructible from the shelf. Writes deliberately
+ * do *not* follow the rule, so a caller that must know whether it committed can.
  */
 export async function readTextFile(path: string): Promise<string | null> {
   try {
@@ -118,21 +104,18 @@ export async function readJsonFile<T>(path: string): Promise<T | null> {
 }
 
 /**
- * Writes through the plugin, retrying once when another write has already
- * created the directory this one was about to create.
+ * Retries once when another write has already created the directory this one was
+ * about to create.
  *
- * `writeFile({ recursive: true })` makes a missing parent by checking whether
- * it exists and then creating it. In the web fallback those are separate
- * IndexedDB round trips, so two writes into the same not-yet-created directory
- * both see it missing, both create it, and the loser fails with "Current
- * directory does already exist." Downloading a book is exactly that shape: it
- * writes a manifest, content and a cover into a fresh book directory while the
- * shelf snapshot may still be landing in the scope directory above it.
+ * `writeFile({ recursive: true })` checks whether the parent exists and then
+ * creates it. In the web fallback those are separate IndexedDB round trips, so
+ * two writes into the same not-yet-created directory both see it missing, both
+ * create it, and the loser fails with "Current directory does already exist."
+ * Downloading a book is exactly that shape.
  *
- * Repeating the write settles it, and costs nothing beyond the failed attempt:
- * the directory exists by then, so the retry does no mkdir at all. A second
- * collision cannot happen for the same reason. Only the web fallback needs
- * this - the native plugin creates parents in one `mkdirs` call.
+ * The retry does no mkdir at all, since the directory exists by then, so a
+ * second collision cannot happen. Only the web fallback needs this — the native
+ * plugin creates parents in one `mkdirs` call.
  */
 async function writeFileCreatingParents(options: WriteFileOptions): Promise<void> {
   try {
@@ -162,11 +145,9 @@ export async function writeJsonFile(path: string, value: unknown): Promise<void>
 }
 
 /**
- * Reads a file written by {@link writeBinaryFile}, as base64.
- *
- * Omitting `encoding` is what makes the plugin treat the file as bytes; it
- * hands them back base64-encoded, which is the shape base64ToBlob wants.
- * A miss degrades to null for the same reason readTextFile's does.
+ * Omitting `encoding` is what makes the plugin treat the file as bytes; it hands
+ * them back base64-encoded, which is the shape base64ToBlob wants. A miss
+ * degrades to null for the same reason readTextFile's does.
  */
 export async function readBinaryFile(path: string): Promise<string | null> {
   try {
@@ -213,11 +194,9 @@ export async function rmdirIgnoringMissing(path: string): Promise<void> {
 }
 
 /**
- * Whether a Capacitor Filesystem failure means "the file is not there".
- *
- * The plugin and its web fallback report it by message rather than by a code,
- * so this has to match text. Also used by storage/deviceDocument.ts, which
- * persists through the same plugin.
+ * The plugin and its web fallback report a missing file by message rather than
+ * by a code, so this has to match text. Also used by storage/deviceDocument.ts,
+ * which persists through the same plugin.
  */
 export function isMissingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
