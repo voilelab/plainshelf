@@ -1,6 +1,8 @@
 package server
 
 import (
+	"slices"
+
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -152,13 +154,12 @@ func (v bookVisibility) filterFolders(folders []shelf.FolderPath) ([]shelf.Folde
 	return kept, nil
 }
 
-// folderReveal is what one folder move, rename or transfer would take out of a
-// marked subtree, as far as this request is concerned.
+// folderReveal is what one folder change would take out of a marked subtree, as
+// far as this request is concerned.
 //
-// Books and folders are counted apart because either alone is a disclosure. A
+// Books and folders are counted apart because either alone is a disclosure: a
 // book hidden by a folder rule is a title this request has never been served,
-// and a marked folder that holds no book still says what it is by its own name -
-// which is why filterFolders drops it whether or not anything is in it.
+// and a folder that becomes listed names what it holds.
 type folderReveal struct {
 	Books   int
 	Folders int
@@ -166,68 +167,112 @@ type folderReveal struct {
 
 func (r folderReveal) any() bool { return r.Books > 0 || r.Folders > 0 }
 
-// folderDestination answers, for one folder that currently sits under the folder
-// being moved, whether it is still marked once the move is done. A nil meta asks
-// about the folder itself rather than about a book in it, which is the question
-// IsBookNSFW answers as IsNSFWFolder.
-type folderDestination func(folders shelf.FolderPath, meta *shelf.BookMeta) bool
+// folderChange is one folder move or rename, seen from the shelf it happens on.
+// To is where the folder lands; a change built by folderLeavingTheShelf has
+// none, which is what a cross-shelf transfer does.
+type folderChange struct {
+	From shelf.FolderPath
+	To   shelf.FolderPath
+}
 
-// withinShelf is the destination of a move or a rename that keeps the folder on
-// this shelf: everything under from lands under to, and this shelf's own rules
-// decide the result.
-func (v bookVisibility) withinShelf(from, to shelf.FolderPath) folderDestination {
-	return func(folders shelf.FolderPath, meta *shelf.BookMeta) bool {
-		moved := append(append(shelf.FolderPath(nil), to...), folders[len(from):]...)
-		return v.shelf.IsBookNSFW(moved, meta)
+// folderMovedTo is a move or a rename within one shelf. A rename is a move that
+// keeps the parent, so both are the same question: everything under From lands
+// under To, and this shelf's own rules decide the result.
+func folderMovedTo(from, to shelf.FolderPath) folderChange {
+	return folderChange{From: from, To: to}
+}
+
+// folderLeavingTheShelf is a cross-shelf transfer, for a copy as well as a move:
+// a copy leaves this shelf untouched but publishes the same titles on the other
+// one, which is the same disclosure.
+func folderLeavingTheShelf(from shelf.FolderPath) folderChange {
+	return folderChange{From: from}
+}
+
+// stillMarked answers, for one folder currently under From and one book sitting
+// in it, whether it is still marked once the change is done. A nil meta asks
+// about the folder itself, which IsBookNSFW answers as IsNSFWFolder.
+func (c folderChange) stillMarked(s *shelf.Shelf, folders shelf.FolderPath, meta *shelf.BookMeta) bool {
+	if c.To == nil {
+		// Only a book's own nsfw travels off this shelf, because it is written
+		// in its book.json. shelf.json stays behind, and whether the target
+		// shelf happens to mark the same path is the target's business - reading
+		// it here would let a coincidence of naming decide what this shelf gives
+		// up.
+		return meta != nil && meta.NSFW
 	}
+	moved := append(append(shelf.FolderPath(nil), c.To...), folders[len(c.From):]...)
+	return s.IsBookNSFW(moved, meta)
 }
 
-// offTheShelf is the destination of a cross-shelf transfer, for both a move and
-// a copy: a copy leaves this shelf untouched, but it publishes the same titles
-// on the other shelf, which is the same disclosure.
-//
-// Only a book's own nsfw travels, because it is written in its book.json.
-// shelf.json stays behind, and whether the target shelf happens to mark the same
-// path is the target's business - reading it here would let a coincidence of
-// naming decide what this shelf is willing to give up.
-func offTheShelf(_ shelf.FolderPath, meta *shelf.BookMeta) bool {
-	return meta != nil && meta.NSFW
+// couldReveal is the cheap half of "would this change disclose anything": with
+// the setting on there is nothing hidden to reveal, and a shelf that marks no
+// folder can never lose a mark by moving one. Everything below walks the shelf,
+// so this is what keeps that walk off the shelves it cannot tell anything about.
+func (v bookVisibility) couldReveal() bool {
+	return !v.showNSFW && v.shelf.MarksFolders()
 }
 
-// revealedBy walks what sits under folder and counts what dest stops marking.
-//
-// It answers an empty reveal when the request already sees marked books: there
-// is then nothing this move could show it that it is not being shown already.
-func (v bookVisibility) revealedBy(folder shelf.FolderPath, dest folderDestination) (folderReveal, error) {
-	if v.showNSFW {
+// revealedBy counts what change stops this shelf from marking.
+func (v bookVisibility) revealedBy(change folderChange) (folderReveal, error) {
+	if !v.couldReveal() {
 		return folderReveal{}, nil
-	}
-
-	var reveal folderReveal
-
-	folders, err := v.shelf.GetAllFolders()
-	if err != nil {
-		return folderReveal{}, util.Errorf("%w", err)
-	}
-	for _, sub := range folders {
-		if folderHasPrefix(sub, folder) && v.shelf.IsNSFWFolder(sub) && !dest(sub, nil) {
-			reveal.Folders++
-		}
 	}
 
 	listings, err := v.shelf.ListBooksWithCharCount()
 	if err != nil {
 		return folderReveal{}, util.Errorf("%w", err)
 	}
+
+	var reveal folderReveal
+
+	// holdsBook is filterFolders' own question, asked over the subtree that is
+	// about to move: a book counts for its folder and for every folder above it.
+	// The books travel with the folder, so the answer is the same afterwards.
+	holdsBook := map[string]bool{}
 	for _, listing := range listings {
-		if !folderHasPrefix(listing.Folders, folder) {
+		if !folderHasPrefix(listing.Folders, change.From) {
 			continue
 		}
-		// Already visible, or marked by something the move does not touch:
+		for depth := range len(listing.Folders) + 1 {
+			holdsBook[listing.Folders[:depth].String()] = true
+		}
+		// Already visible, or marked by something the change does not touch:
 		// neither is a book this request would newly be served.
 		meta := listing.Book.GetMeta()
-		if !v.allows(listing.Folders, meta) && !dest(listing.Folders, meta) {
+		if !v.allows(listing.Folders, meta) && !change.stillMarked(v.shelf, listing.Folders, meta) {
 			reveal.Books++
+		}
+	}
+
+	folders, err := v.shelf.GetAllFolders()
+	if err != nil {
+		return folderReveal{}, util.Errorf("%w", err)
+	}
+
+	// A change that cannot run must fail as itself rather than as a disclosure
+	// the user approves for nothing: the shelf refuses to land a folder on a
+	// name it already holds. Its own check, under its own lock, is the
+	// authority; this only declines to ask first when the same listing already
+	// shows the change going nowhere.
+	if change.To != nil && slices.ContainsFunc(folders, change.To.Equal) {
+		return folderReveal{}, nil
+	}
+
+	for _, sub := range folders {
+		if !folderHasPrefix(sub, change.From) || !v.shelf.IsNSFWFolder(sub) {
+			continue
+		}
+		if change.stillMarked(v.shelf, sub, nil) {
+			continue
+		}
+		// Losing the mark is not enough to become visible. filterFolders drops a
+		// folder whose books are all filtered out, so one still holding nothing
+		// but hidden books stays out of the tree on its own account. Only a
+		// folder holding no book at all is disclosed by its name alone - and any
+		// book of its that does become visible is counted above.
+		if !holdsBook[sub.String()] {
+			reveal.Folders++
 		}
 	}
 

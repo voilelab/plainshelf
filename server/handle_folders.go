@@ -95,18 +95,33 @@ func confirmedReveal(r *http.Request) bool {
 	return r.URL.Query().Get("confirm") == "1"
 }
 
-// refuseUnconfirmedReveal answers 409 and reports true when the folder change
-// described by folder and dest would unhide something the caller has not
-// confirmed. A caller that gets false may go ahead.
+// refreshBeforeReveal forces the fresh scan the check below needs, on the shelves
+// where a mark makes one necessary.
+//
+// The listings it reads are answered from a throttled cache, so a marked folder
+// another writer added to a shared or network shelf since the last scan would be
+// missing from them - while the move that follows works on the real filesystem
+// and would carry that folder out from under its mark. This is the same forced
+// scan, for the same reason, that the cross-shelf transfer runs before resolving
+// its plan; that endpoint has already run its own by the time it asks, so it
+// does not call this.
+func (c *apiCore) refreshBeforeReveal(r *http.Request, shelfData *shelf.ShelfData) {
+	if confirmedReveal(r) || !c.visibility(shelfData).couldReveal() {
+		return
+	}
+	rescanForPreflight(shelfData)
+}
+
+// refuseUnconfirmedReveal answers 409 and reports true when change would unhide
+// something the caller has not confirmed. A caller that gets false may go ahead.
 func (c *apiCore) refuseUnconfirmedReveal(
-	w http.ResponseWriter, r *http.Request,
-	shelfData *shelf.ShelfData, folder shelf.FolderPath, dest folderDestination,
+	w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, change folderChange,
 ) bool {
 	if confirmedReveal(r) {
 		return false
 	}
 
-	reveal, err := c.visibility(shelfData).revealedBy(folder, dest)
+	reveal, err := c.visibility(shelfData).revealedBy(change)
 	if err != nil {
 		c.writeErr(w, r, err, "failed to read the shelf")
 		return true
@@ -156,7 +171,8 @@ func (h *folderHandlers) renameFolder(w http.ResponseWriter, r *http.Request) {
 	// A rename is a move that keeps the parent, so it unmarks a subtree the same
 	// way: Fiction/Adult renamed to Fiction/General matches no rule any more.
 	renamed := append(append(shelf.FolderPath(nil), folderParts[:len(folderParts)-1]...), newName)
-	if h.refuseUnconfirmedReveal(w, r, shelfData, folderParts, h.visibility(shelfData).withinShelf(folderParts, renamed)) {
+	h.refreshBeforeReveal(r, shelfData)
+	if h.refuseUnconfirmedReveal(w, r, shelfData, folderMovedTo(folderParts, renamed)) {
 		return
 	}
 
@@ -193,7 +209,8 @@ func (h *folderHandlers) moveFolder(w http.ResponseWriter, r *http.Request) {
 	// MoveFolder keeps the folder's own name and hangs it under the target, so
 	// that is the path every folder below it is rebased onto.
 	moved := append(append(shelf.FolderPath(nil), req.TargetFolder...), req.Folder[len(req.Folder)-1])
-	if h.refuseUnconfirmedReveal(w, r, shelfData, req.Folder, h.visibility(shelfData).withinShelf(req.Folder, moved)) {
+	h.refreshBeforeReveal(r, shelfData)
+	if h.refuseUnconfirmedReveal(w, r, shelfData, folderMovedTo(req.Folder, moved)) {
 		return
 	}
 

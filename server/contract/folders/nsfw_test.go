@@ -3,6 +3,8 @@ package folders_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -375,4 +377,69 @@ func TestAPINSFWFolderTransferDoesNotAskWithoutAMarkedFolder(t *testing.T) {
 		"target_shelf": "`+apitest.SecondShelfID+`",
 		"target_folder": ["Imported"]
 	}`), http.StatusAccepted)
+}
+
+// Losing the folder mark is not the same as becoming visible. filterFolders
+// already drops a folder whose books are all filtered out, so a marked folder
+// holding nothing but book-marked books stays out of the tree wherever it goes -
+// and a confirmation claiming otherwise would train the user to click through
+// the ones that mean something.
+func TestAPINSFWFolderMoveDoesNotAskWhenTheBooksStayHidden(t *testing.T) {
+	s := newNSFWShelfWithArchive(t)
+
+	// Now the only book under the marked folder carries the mark itself, and
+	// Fiction/Empty is outside that folder, so nothing under Fiction/Adult can
+	// surface.
+	apitest.EditBookMetaFile(t, s.Env, s.FolderHidden, map[string]any{"nsfw": true})
+	apitest.AssertStatus(t, s.Env.Post(apitest.ScansURL(), nil), http.StatusOK)
+
+	apitest.AssertStatus(t,
+		s.Env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(nsfwMoveBody)),
+		http.StatusNoContent)
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
+}
+
+// A change the shelf would refuse anyway must fail as itself. Asking the user to
+// approve a disclosure and then answering the confirmed retry with the real
+// conflict spends the one question this feature gets on nothing.
+func TestAPINSFWFolderRenameReportsItsOwnConflictRatherThanAsking(t *testing.T) {
+	s := newNSFWShelfWithArchive(t)
+
+	// Fiction holds the marked folder, so this rename would reveal - but Archive
+	// is already taken, so RenameFolder refuses it whatever the user answers.
+	rec := s.Env.Patch(apitest.ShelfURL("folders", "Fiction"), strings.NewReader(`{"name":"Archive"}`))
+	apitest.AssertErrorEnvelope(t, rec, http.StatusConflict, "UNKNOWN", "failed to rename folder")
+}
+
+// The listings the check reads are answered from a throttled cache, so a marked
+// folder another writer added since the last scan would be missing from them -
+// and the move works on the real filesystem, which has it. The preflight forces
+// the scan first, the same way the cross-shelf transfer does before it plans.
+//
+// This builds its own shelf rather than using the shared fixture: the point is a
+// marked folder the cache has never seen, and the fixture's is scanned into the
+// cache when it is built.
+func TestAPINSFWFolderMoveSeesAMarkedFolderAddedSinceTheLastScan(t *testing.T) {
+	const marked = "Fiction/Secret"
+
+	libRoot := t.TempDir()
+	shelfJSON := `{"schema_version":1,"content":{"nsfw_folders":[{"path":"` + marked + `"}]}}`
+	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(shelfJSON), 0o644); err != nil {
+		t.Fatalf("write shelf.json: %v", err)
+	}
+
+	env := apitest.New(t, apitest.WithLibRoot(libRoot))
+	apitest.ImportTextBook(t, env, "Classic", "Fiction/Classics", "classic.txt", "a visible book")
+	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("folders", "Archive"), nil), http.StatusNoContent)
+	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
+
+	// Written straight to disk and deliberately not scanned. shelf.json already
+	// marks this path, and the shelf's cache is inside its scan interval, so
+	// only a forced scan can see it.
+	if err := os.MkdirAll(filepath.Join(libRoot, "books", filepath.FromSlash(marked)), 0o755); err != nil {
+		t.Fatalf("create the folder behind the shelf's back: %v", err)
+	}
+
+	// It holds no book, so the disclosure is the folder's name alone.
+	assertRevealConflict(t, env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(nsfwMoveBody)), 0)
 }

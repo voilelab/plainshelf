@@ -215,6 +215,10 @@ func (r NSFWRules) Match(folders []string) (NSFWFolder, bool) {
 	return NSFWFolder{}, false
 }
 
+// HasFolders reports whether any folder is marked at all, so a caller can skip
+// work that only a mark makes necessary without asking about a path first.
+func (r NSFWRules) HasFolders() bool { return len(r.byPath) > 0 }
+
 // IsNSFWFolder asks whether any prefix of the path is listed, since a rule
 // marks its own folder and everything below it.
 func (r NSFWRules) IsNSFWFolder(folders []string) bool {
