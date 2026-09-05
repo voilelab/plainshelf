@@ -4,6 +4,7 @@ import type {
   BookContent,
   BookFormat,
   BookUpdateRequest,
+  NsfwFolderRule,
   PaginatedBooks,
   TrashedBook,
 } from '@/types/book';
@@ -58,6 +59,9 @@ interface BackendBookMeta {
   current_source?: string;
   star?: number;
   identifiers?: Record<string, string>;
+  // Absent rather than false when the book is not marked: the server omits a
+  // zero `nsfw` so a shelf that marks nothing writes the book.json it always did.
+  nsfw?: boolean;
 }
 
 interface BackendBook {
@@ -69,6 +73,9 @@ interface BackendBook {
   // `Book` struct, which only populates this when the request was made with
   // `include=char_count` (see ListBooksOptions.includeCharCount below).
   char_count?: number;
+  // Sibling of `meta` because it comes from shelf.json rather than book.json:
+  // the folder rule that marks this book, when one does.
+  nsfw_folder?: NsfwFolderRule;
 }
 
 interface BackendTrashedBook {
@@ -151,7 +158,9 @@ function transformBook(b: BackendBook): Book {
     current_source: b.meta.current_source,
     star: b.meta.star ?? 0,
     identifiers: b.meta.identifiers,
-    char_count: b.char_count
+    char_count: b.char_count,
+    nsfw: b.meta.nsfw ?? false,
+    nsfw_folder: b.nsfw_folder
   };
 }
 

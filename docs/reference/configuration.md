@@ -101,7 +101,8 @@ runtime value. A value saved from the settings page wins over the config file;
 deleting it reverts to the config file, and then to `false`.
 
 `show_nsfw` has no key here at all: it lives only in the store, defaults to
-hidden, and is changed through `/api/setting/show_nsfw`. See
+hidden, and is changed from **Settings → Adult content** or through
+`/api/setting/show_nsfw`. See
 [Whether a marked book is shown](../concepts/folders.md#whether-a-marked-book-is-shown).
 
 ### `app_conf.security`

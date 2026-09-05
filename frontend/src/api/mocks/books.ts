@@ -249,6 +249,9 @@ export function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   if (payload.published_at !== undefined) book.published_at = payload.published_at;
   if (payload.identifiers !== undefined) book.identifiers = payload.identifiers;
   if (payload.format !== undefined) book.format = payload.format;
+  // Only the book's own half: nsfw_folder comes from shelf.json, which the mock
+  // shelf has no equivalent of, and a payload can never write it anyway.
+  if (payload.nsfw !== undefined) book.nsfw = payload.nsfw;
   book.updated_at = new Date().toISOString();
   return { ...book };
 }

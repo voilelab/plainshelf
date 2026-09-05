@@ -32,6 +32,7 @@ vi.mock('@/features/settings/components/CoverPanel.vue', () => stubPanel('cover'
 vi.mock('@/features/settings/components/EpubImportPanel.vue', () => stubPanel('import'));
 vi.mock('@/features/settings/components/LanguagePanel.vue', () => stubPanel('language'));
 vi.mock('@/features/settings/components/LogRetentionPanel.vue', () => stubPanel('logs'));
+vi.mock('@/features/settings/components/NsfwPanel.vue', () => stubPanel('nsfw'));
 vi.mock('@/features/settings/components/ReadHistoryPanel.vue', () => stubPanel('read-history'));
 vi.mock('@/features/settings/components/ReaderLaunchPanel.vue', () => stubPanel('reader-launch'));
 vi.mock('@/features/settings/components/ShelvesPanel.vue', () => stubPanel('shelves'));
@@ -52,6 +53,7 @@ vi.mock('@/features/settings/composables/useServerSettingsForm', async () => {
       saving: r(false),
       error: r(''),
       coverToJpg: r(false),
+      showNsfw: r(false),
       logRetentionDays: r(30),
       readHistoryLimit: r(50),
       readerLaunchMode: r('tab'),
@@ -63,6 +65,7 @@ vi.mock('@/features/settings/composables/useServerSettingsForm', async () => {
         return Promise.resolve();
       },
       onCoverToJpgChange: () => {},
+      onShowNsfwChange: () => {},
       onLogRetentionDaysChange: () => {},
       onReadHistoryLimitChange: () => {},
       onReaderLaunchModeChange: () => {},
@@ -142,7 +145,7 @@ describe('SettingsPage tabs', () => {
     // Every panel body exists from the first render: with unmountOnHide left at
     // Reka's default only the active tab's content would be here.
     expect(new Set(mounts.log).size).toBe(mounts.log.length);
-    expect(mounts.log).toHaveLength(8);
+    expect(mounts.log).toHaveLength(9);
 
     const mountedOnce = [...mounts.log];
     for (const label of ['About', 'Shelves', 'About', 'Shelves']) {

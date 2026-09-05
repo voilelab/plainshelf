@@ -65,7 +65,7 @@ schema v1, the first key in that file records the format version:
 | `language` | BCP-47 language tag |
 | `comments` | Free-form notes |
 | `star` | Rating, 0–5 |
-| `nsfw` | Marks this one book as adult content. Optional and omitted when `false`, so most `book.json` files do not carry it. It can only add: a shelf may also mark a whole folder in [`shelf.json`](data-model.md#shelfjson), and `false` here does not take a book out of a marked folder. See [Marking a folder as adult content](folders.md#marking-a-folder-as-adult-content) |
+| `nsfw` | Marks this one book as adult content. Optional and omitted when `false`, so most `book.json` files do not carry it. Written by the metadata editor's **Adult content** switch, or by hand. It can only add: a shelf may also mark a whole folder in [`shelf.json`](data-model.md#shelfjson), and `false` here does not take a book out of a marked folder. See [Marking a folder as adult content](folders.md#marking-a-folder-as-adult-content) |
 | `created_at` | Creation timestamp (RFC 3339) |
 | `updated_at` | Last modification timestamp (RFC 3339) |
 | `published_at` | Publication date (`YYYY-MM-DD`) |

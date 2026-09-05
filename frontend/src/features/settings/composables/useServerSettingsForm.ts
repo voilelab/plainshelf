@@ -4,10 +4,18 @@ import {
   getCoverToJpgSetting,
   getEpubImportStrategySetting,
   getLogRetentionDaysSetting,
+  getShowNsfwSetting,
   setCoverToJpgSetting,
   setEpubImportStrategySetting,
-  setLogRetentionDaysSetting
+  setLogRetentionDaysSetting,
+  setShowNsfwSetting
 } from '@/api/settings';
+// The listing and the folder tree are module-level stores that outlive a route
+// change, so flipping show_nsfw has to refresh them explicitly — otherwise the
+// sidebar and a library page returned to keep showing the shelf the previous
+// setting produced.
+import { useBookStore } from '@/composables/useBookStore';
+import { useFolderStore } from '@/composables/useFolderStore';
 // Reading history and its retention limit are per-device state, not server settings.
 import { getReadHistoryLimit, setReadHistoryLimit } from '@/storage/readHistory';
 // The reader-launch preference is likewise per-device, not a server setting.
@@ -33,6 +41,7 @@ interface ServerSettingsForm {
   saving: Ref<boolean>;
   error: Ref<string>;
   coverToJpg: Ref<boolean>;
+  showNsfw: Ref<boolean>;
   logRetentionDays: Ref<number>;
   readHistoryLimit: Ref<number>;
   readerLaunchMode: Ref<ReaderLaunchMode>;
@@ -41,6 +50,7 @@ interface ServerSettingsForm {
   epubImportError: Ref<string>;
   loadSettings: () => Promise<void>;
   onCoverToJpgChange: (value: boolean) => Promise<void>;
+  onShowNsfwChange: (value: boolean) => Promise<void>;
   onLogRetentionDaysChange: (value: number) => Promise<void>;
   onReadHistoryLimitChange: (value: number) => Promise<void>;
   onReaderLaunchModeChange: (mode: ReaderLaunchMode) => void;
@@ -68,6 +78,7 @@ export function useServerSettingsForm(options: {
   const saving = ref(false);
   const error = ref('');
   const coverToJpg = ref(false);
+  const showNsfw = ref(false);
   const logRetentionDays = ref(DEFAULT_LOG_RETENTION_DAYS);
   const readHistoryLimit = ref(0);
   const readerLaunchMode = ref<ReaderLaunchMode>(getReaderLaunchMode());
@@ -93,13 +104,15 @@ export function useServerSettingsForm(options: {
         return;
       }
 
-      const [nextCoverToJpg, nextEpubStrategy, nextLogRetentionDays] = await Promise.all([
+      const [nextCoverToJpg, nextEpubStrategy, nextLogRetentionDays, nextShowNsfw] = await Promise.all([
         getCoverToJpgSetting(),
         getEpubImportStrategySetting(),
-        getLogRetentionDaysSetting()
+        getLogRetentionDaysSetting(),
+        getShowNsfwSetting()
       ]);
       coverToJpg.value = nextCoverToJpg;
       logRetentionDays.value = nextLogRetentionDays;
+      showNsfw.value = nextShowNsfw;
       hydrateEpubImportDraft(nextEpubStrategy);
     } catch (err) {
       error.value = err instanceof Error ? err.message : t('settings.loadFailed');
@@ -153,6 +166,38 @@ export function useServerSettingsForm(options: {
     } finally {
       saving.value = false;
     }
+  }
+
+  /**
+   * Unlike the other settings, this one changes which books the server serves at
+   * all, so storing it is only half the work: the shared listing and folder
+   * stores still hold the shelf the previous value produced, and they outlive
+   * this page. Refetching both here is what `useShelfRefresh` does after a
+   * rescan, and for the same reason.
+   *
+   * Only the store call is rolled back on failure — the refetch is not, because
+   * the stores report their own failures on the pages that render them, and
+   * putting the switch back would misstate what the server now serves.
+   */
+  async function onShowNsfwChange(nextValue: boolean): Promise<void> {
+    const prevValue = showNsfw.value;
+    showNsfw.value = nextValue;
+    saving.value = true;
+    error.value = '';
+
+    try {
+      await setShowNsfwSetting(nextValue);
+    } catch (err) {
+      showNsfw.value = prevValue;
+      error.value = err instanceof Error ? err.message : t('settings.saveFailed');
+      saving.value = false;
+      return;
+    }
+
+    const { fetchBooks } = useBookStore();
+    const { fetchFolders } = useFolderStore();
+    await Promise.all([fetchBooks(), fetchFolders()]);
+    saving.value = false;
   }
 
   async function onLogRetentionDaysChange(value: number): Promise<void> {
@@ -218,6 +263,7 @@ export function useServerSettingsForm(options: {
     saving,
     error,
     coverToJpg,
+    showNsfw,
     logRetentionDays,
     readHistoryLimit,
     readerLaunchMode,
@@ -226,6 +272,7 @@ export function useServerSettingsForm(options: {
     epubImportError,
     loadSettings,
     onCoverToJpgChange,
+    onShowNsfwChange,
     onLogRetentionDaysChange,
     onReadHistoryLimitChange,
     onReaderLaunchModeChange,

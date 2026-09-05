@@ -25,7 +25,10 @@
           <BookDownloadBadge :state="book.download_state" class="book-card-download" />
 
           <div class="book-card-body">
-            <p class="book-card-folder">{{ folderLabel(book) }}</p>
+            <div class="book-card-folder-row">
+              <p class="book-card-folder">{{ folderLabel(book) }}</p>
+              <BookNsfwBadge :book="book" />
+            </div>
             <h3 class="book-card-title">{{ book.title }}</h3>
             <p class="book-card-summary">{{ summaryText(book) }}</p>
             <p class="book-card-meta">
@@ -94,6 +97,7 @@ import {
 } from 'reka-ui';
 import BookCoverImg from './BookCoverImg.vue';
 import BookDownloadBadge from './BookDownloadBadge.vue';
+import BookNsfwBadge from './BookNsfwBadge.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
 import { useBookSummaries } from '@/composables/useBookSummaries';
@@ -219,6 +223,17 @@ function primaryDateLabel(book: Book): string {
   right: 8px;
   top: 8px;
   z-index: 2;
+}
+
+/* The badge shares the folder line rather than a row of its own: the card body
+   is a fixed-height grid and an extra row would shorten the title and summary
+   on every card, marked or not. */
+.book-card-folder-row {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  min-width: 0;
 }
 
 .book-card-body {

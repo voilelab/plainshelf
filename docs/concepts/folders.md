@@ -126,7 +126,8 @@ and `/Fiction/成人/` all name the same folder. Only whole names match: marking
 `Fiction/成人` does not mark `Fiction/成人漫畫`.
 
 A single book can also be marked on its own, with `"nsfw": true` in its
-`book.json`. The two only ever add together:
+`book.json`. That one is editable in the app: open the book's metadata editor
+and turn on **Adult content**. The two only ever add together:
 
 | In `shelf.json` | In the book's `book.json` | Marked? |
 |---|---|---|
@@ -137,6 +138,8 @@ A single book can also be marked on its own, with `"nsfw": true` in its
 The last row is deliberate: `"nsfw": false` on a book **cannot** take it out of a
 marked folder. Missing a book that should have been marked is the worse mistake
 of the two, so the folder wins. To exempt one book, move it out of the folder.
+The metadata editor shows this: for a book inside a marked folder the switch is
+on and disabled, and names the rule that marks it.
 
 The mark travels with the shelf and is written into each entry of the exported
 book cache the Android client reads, so every PlainShelf reading the shelf gets
@@ -169,8 +172,12 @@ Two boundaries are deliberate:
 - The setting is per server, not per shelf. It sits beside `cover_to_jpg` in the
   application store, so it applies to every shelf this server serves.
 
-There is no settings page for it yet — that is coming — so today it is switched
-through the API:
+Switch it in **Settings → Adult content**. Turning it on or off refetches the
+library listing and the folder tree straight away, so the sidebar and the book
+list agree with the setting without a page reload.
+
+It is also reachable from the API, which is how a script or a headless server
+sets it:
 
 ```sh
 curl -X POST http://127.0.0.1:20000/api/setting/show_nsfw \
@@ -179,6 +186,21 @@ curl -X POST http://127.0.0.1:20000/api/setting/show_nsfw \
 
 `GET` the same address to read it, and `DELETE` it to return to the default of
 hidden.
+
+A book already open in a browser tab is not a way round the setting: reloading
+the page, or pasting the book's address into a new tab, lands on the same
+"failed to load" screen any unknown book gives, because the API answers 404.
+
+### Seeing which books are marked
+
+While `show_nsfw` is on, a marked book carries an **NSFW** badge in the library
+list and card views and on its detail page. That is what the badge is for: it
+says which books leave when the setting is turned back off. With the setting off
+there is nothing to badge — those books are not served at all.
+
+Editing the folder list is still a `shelf.json` edit. There is no UI for it, and
+it needs the server restarted; the mark belongs to the shelf, and it changes
+rarely, while marking one book is an everyday action and has a control.
 
 ## Example use cases
 

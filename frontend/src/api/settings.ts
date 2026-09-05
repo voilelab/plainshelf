@@ -14,6 +14,7 @@ interface SettingResponse {
 export const DEFAULT_LOG_RETENTION_DAYS = 30;
 
 let mockCoverToJpg = false;
+let mockShowNsfw = false;
 let mockLogRetentionDays = DEFAULT_LOG_RETENTION_DAYS;
 let mockEpubImportStrategy: EpubImportStrategy = { ...DEFAULT_EPUB_IMPORT_STRATEGY };
 
@@ -37,6 +38,37 @@ export async function setCoverToJpgSetting(enabled: boolean): Promise<void> {
   }
 
   await fetchJson<void>('/api/setting/cover_to_jpg', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain;charset=UTF-8'
+    },
+    body: enabled ? 'true' : 'false'
+  });
+}
+
+/**
+ * Whether the server serves the books its shelves mark as adult content. Off is
+ * the default and the value the server answers with when nothing is stored, so
+ * a client that cannot read the setting shows less rather than more.
+ */
+export async function getShowNsfwSetting(): Promise<boolean> {
+  if (isMockApiMode()) {
+    return mockShowNsfw;
+  }
+
+  const res = await fetchJson<SettingResponse>('/api/setting/show_nsfw');
+  return toBoolean(res?.value);
+}
+
+export async function setShowNsfwSetting(enabled: boolean): Promise<void> {
+  if (isMockApiMode()) {
+    mockShowNsfw = enabled;
+    return;
+  }
+
+  // The endpoint takes the bare literal true or false, not a JSON document —
+  // the shape cover_to_jpg established and this one follows.
+  await fetchJson<void>('/api/setting/show_nsfw', {
     method: 'POST',
     headers: {
       'Content-Type': 'text/plain;charset=UTF-8'

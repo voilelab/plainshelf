@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   outgoingCopyEnabled: null as any,
   transferDestinations: null as any,
   detailBook: null as any,
+  // What the metadata modal reports back from a save. A field per test rather
+  // than a constant because one case turns the book into one the server no
+  // longer serves.
+  savedBook: null as any,
   currentSource: null as any,
   guardDirty: null as any,
   guardConfirmation: null as any
@@ -199,18 +203,6 @@ vi.mock('@/features/library/components/MetaEditorModal.vue', async () => {
       props: { open: Boolean, bookId: String },
       emits: ['close', 'saved', 'dirty-change'],
       setup(props, { emit }) {
-        const updated: Book = {
-          id: 'book-1',
-          title: 'Updated title',
-          authors: ['New Author'],
-          tags: ['new-tag'],
-          language: 'ja',
-          published_at: '2026-08-28',
-          comment: 'Updated note',
-          star: 5,
-          identifiers: { isbn: '9780000000000' },
-          folders: ['fiction']
-        };
         return () => props.open
           ? h('div', { class: 'metadata-modal-stub', 'data-book-id': props.bookId }, [
               h('button', {
@@ -228,7 +220,7 @@ vi.mock('@/features/library/components/MetaEditorModal.vue', async () => {
                 class: 'metadata-save',
                 onClick: () => {
                   emit('dirty-change', false);
-                  emit('saved', updated);
+                  emit('saved', mocks.savedBook);
                   emit('close');
                 }
               }, 'save')
@@ -353,6 +345,18 @@ beforeEach(() => {
   mocks.transferDestinations.value = [];
   mocks.requestTransfer.mockReset();
   mocks.detailBook.value = originalBook();
+  mocks.savedBook = {
+    id: 'book-1',
+    title: 'Updated title',
+    authors: ['New Author'],
+    tags: ['new-tag'],
+    language: 'ja',
+    published_at: '2026-08-28',
+    comment: 'Updated note',
+    star: 5,
+    identifiers: { isbn: '9780000000000' },
+    folders: ['fiction']
+  } satisfies Book;
   mocks.currentSource.value = null;
   mocks.deleteSourceComment.mockReset().mockResolvedValue(undefined);
 });
@@ -399,6 +403,46 @@ describe('BookDetailPage metadata editor', () => {
     expect(host.textContent).toContain('Book details saved.');
     expect(mocks.fetchDetail).toHaveBeenCalledTimes(1);
     expect(mocks.routerPush).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['the book\'s own mark', { nsfw: true }],
+    // A move into a marked folder hides the book just as its own mark does,
+    // which is why the page asks isBookNsfw rather than reading `nsfw`.
+    ['a folder rule', { nsfw_folder: { path: 'Fiction/Adult' } }]
+  ])('re-reads the book when a save marks it through %s', async (_name, mark) => {
+    mocks.savedBook = { ...mocks.savedBook, ...mark };
+
+    const host = mountPage();
+    await flush();
+    expect(mocks.fetchDetail).toHaveBeenCalledTimes(1);
+
+    editMetadataButton(host)?.click();
+    await flush();
+    host.querySelector<HTMLButtonElement>('.metadata-save')?.click();
+    await flush();
+
+    // With `show_nsfw` off the server now answers 404 for this book, and the
+    // page has no listing behind it to notice. The re-read is what turns the
+    // stale detail into the error state; with the setting on it just returns
+    // the same book.
+    expect(mocks.fetchDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not re-read a book that was already marked before the save', async () => {
+    mocks.detailBook.value = { ...originalBook(), nsfw: true };
+    mocks.savedBook = { ...mocks.savedBook, nsfw: true };
+
+    const host = mountPage();
+    await flush();
+    editMetadataButton(host)?.click();
+    await flush();
+    host.querySelector<HTMLButtonElement>('.metadata-save')?.click();
+    await flush();
+
+    // It was already marked and still on screen, so this server is serving
+    // marked books; nothing about its visibility changed.
+    expect(mocks.fetchDetail).toHaveBeenCalledTimes(1);
   });
 
   it('propagates modal draft state to the route and unload guard', async () => {

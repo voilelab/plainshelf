@@ -74,7 +74,10 @@ vi.mock('./EditBook.vue', async () => {
       },
       emits: ['submit', 'cancel', 'dirty-change'],
       setup(props, { emit }) {
-        const payload: BookUpdateRequest = { title: 'Updated title' };
+        // Carries nsfw as well as a plain field: the modal must forward whatever
+        // the editor submits rather than a set of fields it knows about, or a
+        // control added to the editor would silently stop saving.
+        const payload: BookUpdateRequest = { title: 'Updated title', nsfw: true };
         return () => h('div', {
           class: 'edit-book-stub',
           'data-title': (props.book as Book).title,
@@ -313,8 +316,8 @@ describe('MetaEditorModal saving lifecycle', () => {
     click(host, '.edit-submit');
     await flushAsync();
 
-    expect(providerMocks.updateBook).toHaveBeenCalledWith('book-1', { title: 'Updated title' });
-    expect(submitted).toEqual([{ title: 'Updated title' }]);
+    expect(providerMocks.updateBook).toHaveBeenCalledWith('book-1', { title: 'Updated title', nsfw: true });
+    expect(submitted).toEqual([{ title: 'Updated title', nsfw: true }]);
     expect(saved).toEqual([updated]);
     expect(closed).toHaveLength(1);
   });

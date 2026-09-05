@@ -31,6 +31,20 @@ export interface Book {
   char_count?: number;
 
   /**
+   * The book's own adult-content mark, from `nsfw` in its book.json. Editable —
+   * unlike `nsfw_folder`, which the shelf owns. Use {@link isBookNsfw} rather
+   * than this field wherever the question is "is this book marked".
+   */
+  nsfw?: boolean;
+
+  /**
+   * The `content.nsfw_folders` rule in shelf.json that marks this book's folder,
+   * absent when none does. Read-only: the two marks add, so clearing `nsfw` on
+   * the book does not take it out of a marked folder.
+   */
+  nsfw_folder?: NsfwFolderRule;
+
+  /**
    * Whether book.json declares a schema version this client does not know, so
    * fields it carries may not be shown. Set by readers that parse book.json
    * themselves (api/pcloud); a server-backed book never carries it, because the
@@ -45,6 +59,23 @@ export interface Book {
   local_version?: string;
   remote_version?: string;
   downloaded_at?: BookTimestamp;
+}
+
+/** One `content.nsfw_folders` entry, as written in shelf.json. */
+export interface NsfwFolderRule {
+  path: string;
+  /** What the person who wrote the entry noted; often absent, in which case a
+   *  caller names the path instead. */
+  reason?: string;
+}
+
+/**
+ * Whether the shelf marks this book as adult content — the book's own `nsfw` or
+ * a folder rule, the same sum the server's `Shelf.IsBookNSFW` computes. The two
+ * halves are reported separately because only one of them is editable here.
+ */
+export function isBookNsfw(book: Pick<Book, 'nsfw' | 'nsfw_folder'>): boolean {
+  return book.nsfw === true || book.nsfw_folder !== undefined;
 }
 
 export interface TrashedBook {
@@ -100,6 +131,9 @@ export interface BookUpdateRequest {
   identifiers?: Record<string, string>;
   /** Only 'txt' and 'md' are accepted; the server rejects anything else. */
   format?: BookFormat;
+  /** The book's own adult-content mark. It cannot clear one the book's folder
+   *  carries — that rule lives in shelf.json. */
+  nsfw?: boolean;
 }
 
 /** Built-in EPUB output layouts. The preset also decides the stored book format. */

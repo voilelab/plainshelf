@@ -35,6 +35,9 @@
         <TabsTrigger value="language" class="settings-tab-trigger">{{
           t('settings.language.title')
         }}</TabsTrigger>
+        <TabsTrigger v-if="serverSettingsEditable" value="nsfw" class="settings-tab-trigger">{{
+          t('settings.nsfw.title')
+        }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
           t('settings.import.title')
         }}</TabsTrigger>
@@ -67,6 +70,10 @@
 
       <TabsContent value="language" class="settings-tab-content">
         <LanguagePanel />
+      </TabsContent>
+
+      <TabsContent v-if="serverSettingsEditable" value="nsfw" class="settings-tab-content">
+        <NsfwPanel :value="showNsfw" :disabled="loading || saving" @change="onShowNsfwChange" />
       </TabsContent>
 
       <TabsContent v-if="serverSettingsEditable" value="import" class="settings-tab-content">
@@ -109,6 +116,7 @@ import CoverPanel from '@/features/settings/components/CoverPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
 import LanguagePanel from '@/features/settings/components/LanguagePanel.vue';
 import LogRetentionPanel from '@/features/settings/components/LogRetentionPanel.vue';
+import NsfwPanel from '@/features/settings/components/NsfwPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
 import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
@@ -131,6 +139,7 @@ const {
   saving,
   error,
   coverToJpg,
+  showNsfw,
   logRetentionDays,
   readHistoryLimit,
   readerLaunchMode,
@@ -139,6 +148,7 @@ const {
   epubImportError,
   loadSettings,
   onCoverToJpgChange,
+  onShowNsfwChange,
   onLogRetentionDaysChange,
   onReadHistoryLimitChange,
   onReaderLaunchModeChange,

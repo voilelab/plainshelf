@@ -28,6 +28,24 @@
           <input v-model="publishedAtInput" class="input" type="date" />
         </label>
 
+        <!-- Same row-as-label shape the settings panels use: the switch is a
+             <button>, so `for` is what keeps the help text a click target. -->
+        <div class="field">
+          <label class="nsfw-row" :for="nsfwSwitchId">
+            <div>
+              <span :id="nsfwLabelId" class="label">{{ t('libraryForms.editBook.nsfw.label') }}</span>
+              <p :id="nsfwHelpId" class="field-help">{{ nsfwHelpText }}</p>
+            </div>
+            <BaseSwitch
+              :id="nsfwSwitchId"
+              v-model="nsfwShown"
+              :disabled="folderNsfwRule !== undefined"
+              :aria-labelledby="nsfwLabelId"
+              :aria-describedby="nsfwHelpId"
+            />
+          </label>
+        </div>
+
         <fieldset class="field rating-field">
           <legend class="label">{{ t('libraryForms.editBook.starRating') }}</legend>
           <div class="star-rating">
@@ -211,6 +229,7 @@ import {
   TagsInputRoot,
   type AcceptableValue
 } from 'reka-ui';
+import BaseSwitch from '@/components/BaseSwitch.vue';
 import SafeHtml from '@/components/SafeHtml.vue';
 import type { Book, BookUpdateRequest } from '@/types/book';
 import {
@@ -288,6 +307,34 @@ const showCommentPreview = ref(false);
 const commentPreviewHtml = computed(() => renderDescriptionHtml(comment.value));
 const publishedAtInput = ref('');
 const star = ref(0);
+// The book's own half of the adult-content mark. The folder rule is the other
+// half and is not editable here, so a folder-marked book shows the switch on
+// and disabled — a control that could be turned off without the book becoming
+// visible would be a lie about what the shelf does.
+const nsfw = ref(false);
+const nsfwSwitchId = useId();
+const nsfwLabelId = useId();
+const nsfwHelpId = useId();
+const folderNsfwRule = computed(() => props.book.nsfw_folder);
+// What the switch renders is the whole mark; what the payload carries is only
+// the book's own half. They differ for a folder-marked book, and keeping them
+// one value would either show it as unmarked or write the folder's mark into
+// its book.json, where clearing the folder rule would then leave it behind.
+const nsfwShown = computed<boolean>({
+  get: () => folderNsfwRule.value !== undefined || nsfw.value,
+  set: (value) => {
+    nsfw.value = value;
+  }
+});
+const nsfwHelpText = computed(() => {
+  const rule = folderNsfwRule.value;
+  if (!rule) {
+    return t('libraryForms.editBook.nsfw.help');
+  }
+  return rule.reason
+    ? t('libraryForms.editBook.nsfw.fromFolderReason', { path: rule.path, reason: rule.reason })
+    : t('libraryForms.editBook.nsfw.fromFolder', { path: rule.path });
+});
 const identifierRows = ref<{ key: string; value: string }[]>([]);
 const initialDraft = ref('');
 // languageSelectOptions() resolves its labels through t(), so reading it inside
@@ -326,6 +373,10 @@ watch(
     comment.value = book.comment ?? '';
     publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
+    // A folder rule already marks the book, so the switch reads on whatever
+    // book.json says; the payload below still sends the book's own value, so
+    // saving cannot silently write the folder's mark into the book.
+    nsfw.value = book.nsfw === true;
     identifierRows.value = Object.entries(book.identifiers ?? {}).map(([key, value]) => ({ key, value }));
     initialDraft.value = serializeDraft();
   },
@@ -390,6 +441,7 @@ function serializeDraft(): string {
     comment: comment.value,
     publishedAtInput: publishedAtInput.value,
     star: star.value,
+    nsfw: nsfw.value,
     identifierRows: identifierRows.value
   });
 }
@@ -411,6 +463,7 @@ function onSubmit(): void {
     comment: comment.value.trim(),
     published_at: publishedAtInput.value || undefined,
     star: star.value,
+    nsfw: nsfw.value,
     identifiers: buildIdentifiersPayload()
   });
 }
@@ -655,6 +708,17 @@ function toFormDateValue(rawValue?: string): string {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+.nsfw-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nsfw-row .field-help {
+  margin-top: 4px;
 }
 
 .field-error {

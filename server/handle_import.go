@@ -269,7 +269,7 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.writeImportedBook(w, newBook, folderParts)
+		h.writeImportedBook(w, shelfData, newBook, folderParts)
 		return
 	}
 
@@ -295,7 +295,7 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeImportedBook(w, newBook, folderParts)
+	h.writeImportedBook(w, shelfData, newBook, folderParts)
 }
 
 // writeEPUBImportError reports a bad archive with its detail, because the
@@ -313,11 +313,8 @@ func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, r *http.Req
 // writeImportedBook responds with the freshly imported book. The book was
 // created under folderParts, which is where it now sits; the book itself does
 // not carry its folder back.
-func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book, folderParts shelf.FolderPath) {
-	h.writeJSON(w, http.StatusCreated, Book{
-		Meta:   newBook.GetMeta(),
-		Folder: folderParts,
-	})
+func (h *importHandlers) writeImportedBook(w http.ResponseWriter, shelfData *shelf.ShelfData, newBook *shelf.Book, folderParts shelf.FolderPath) {
+	h.writeJSON(w, http.StatusCreated, newBookResponse(shelfData, newBook.GetMeta(), folderParts))
 }
 
 // fromLocalPath imports a book from a local file path on the server.

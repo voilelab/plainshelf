@@ -256,6 +256,16 @@ const zhHant = {
       label: '將上傳封面轉為 JPG',
       description: '啟用後，封面圖片上傳時會轉換為 JPEG。'
     },
+    nsfw: {
+      title: '成人內容'
+    },
+    showNsfw: {
+      label: '顯示成人內容',
+      description:
+        '關閉時，書架標記為成人內容的書完全不會被提供：書庫、資料夾樹、搜尋與首頁都看不到，直接輸入網址開啟也會得到「找不到」。',
+      markingNote:
+        '標記本身屬於書架，不屬於這個開關。單本書在它的中繼資料編輯器裡標；整個資料夾則是在 shelf.json 的 content.nsfw_folders 裡列出。'
+    },
     readHistory: {
       title: '閱讀紀錄'
     },
@@ -803,6 +813,10 @@ const zhHant = {
       card: '卡片',
       title: '標題'
     },
+    nsfwBadge: {
+      label: '成人內容',
+      title: '已標記為成人內容'
+    },
     downloadState: {
       notDownloaded: '未下載',
       downloaded: '已下載',
@@ -1101,6 +1115,14 @@ const zhHant = {
       authorsLabel: '作者（以逗號分隔）',
       authorsPlaceholder: '作者 A, 作者 B',
       organization: '整理',
+      nsfw: {
+        label: '成人內容',
+        help: '設定頁的「顯示成人內容」關閉時，被標記的書完全不會被提供 —— 在開關重新打開前，它會從書庫消失。',
+        fromFolder:
+          '由 shelf.json 的資料夾規則「{path}」標記，該規則涵蓋其下所有書。要更動請編輯該檔案，或把這本書移出該資料夾。',
+        fromFolderReason:
+          '由 shelf.json 的資料夾規則「{path}」標記：{reason}。要更動請編輯該檔案，或把這本書移出該資料夾。'
+      },
       publishedAt: '出版日期',
       languageLabel: '語言',
       starRating: '星等',
