@@ -15,10 +15,8 @@ export function readDroppedFiles(event: DragEvent): File[] {
   return Array.from(event.dataTransfer?.files ?? []);
 }
 
-// Extracts the final segment of a host file path, handling both POSIX ('/') and
-// Windows ('\') separators, so a desktop local path shows its filename rather
-// than the whole path in the import list. A path with no separator is returned
-// unchanged.
+// Handles both POSIX and Windows separators, so a desktop local path shows its
+// filename rather than the whole path in the import list.
 export function basenameFromPath(path: string): string {
   const segments = path.split(/[/\\]/);
   return segments[segments.length - 1] || path;

@@ -1,12 +1,8 @@
 /**
  * Generic evaluation of the declarative book filters over an already-loaded book
- * list. The library page used to hand-write one computed per folder
- * (`searchedBooks` → `folderFilteredBooks` → `filteredBooks`) purely so the empty
- * state could name which folder emptied the list. That does not scale past a few
- * conditions, and it re-encodes ordering the registry already knows. These
- * helpers loop the registry instead: `applyBookFilters` ANDs every active
- * condition, and `soleBlockingFilter` derives the empty-state cause with no
- * per-condition `if`.
+ * list. These loop the registry instead of the hand-written computed-per-filter
+ * cascade they replaced, which re-encoded ordering the registry already knows
+ * and did not scale past a few conditions.
  */
 import type { Book } from '@/types/book';
 import type { AnyBookFilterDef } from './registry';
@@ -18,10 +14,8 @@ export interface ActiveBookFilter {
 }
 
 /**
- * Fills in data the listing omits before a predicate reads it — today only the
- * character count, which lives in a lazily loaded index. Applied to every book
- * before every predicate; a filter that needs nothing extra is unaffected, since
- * the returned book still carries all its own fields.
+ * Fills in data the listing omits — today only the character count, which lives
+ * in a lazily loaded index. A filter that needs nothing extra is unaffected.
  */
 type BookAugment = (book: Book) => Book;
 
@@ -43,16 +37,10 @@ export function applyBookFilters(
 }
 
 /**
- * The single condition responsible for an empty result, or `null` when there
- * isn't one. A condition is the sole cause when removing *it alone* makes the
- * result non-empty — i.e. every other active condition together still matches
- * something. When two conditions each independently empty the list (removing
- * either still leaves the list empty) or when the list is non-empty, no single
- * condition can be blamed and this returns `null`; the caller then falls back to
- * a generic "nothing matches" message.
- *
- * This is the generic replacement for the hand-written empty-state cascade: the
- * blame follows from the predicates, not from an ordered list of `if`s.
+ * The single condition responsible for an empty result: the one whose removal
+ * *alone* makes the result non-empty. When two conditions each empty the list
+ * independently, neither can be blamed and this returns `null`, and the caller
+ * falls back to a generic "nothing matches" message.
  */
 export function soleBlockingFilter(
   books: readonly Book[],

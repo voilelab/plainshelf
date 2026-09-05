@@ -89,13 +89,10 @@ export function formatLanguage(input?: string): string {
 const languageTagRE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 
 /**
- * True when the tag is empty — meaning "unspecified" — or a well-formed BCP 47
- * tag.
- *
- * A verdict rather than a message on purpose. Returning translated text invites
+ * A verdict rather than a message on purpose: returning translated text invites
  * the caller to capture it in a ref, where it freezes at whichever locale
- * produced it: the same trap the label constants above used to have, one step
- * removed. The caller renders the message from this through a computed.
+ * produced it — the same trap the label constants above used to have. The caller
+ * renders the message through a computed. An empty tag means "unspecified".
  */
 export function isValidLanguageTag(input: string): boolean {
   const value = input.trim();

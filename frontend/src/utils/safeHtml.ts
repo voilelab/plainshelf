@@ -1,30 +1,21 @@
 /**
  * Turns untrusted book text into something safe to put on screen.
  *
- * A book's description is a mix of hand-written Markdown and whatever HTML an
- * EPUB import carried over, and the reader renders whole chapters of the same
- * kind of text, so no view may interpolate either as it stands. Two kinds of
- * output come out of here: `toPlainSummary` for the places that want words —
- * the card and the list summaries print `<p>` at the reader today, and a `<ul>`
- * or an `<h1>` resizes a card the grid needs to keep at one height — and, for
- * the places that render the markup, `renderDescriptionHtml` followed by
- * `sanitizeHtml`, with `SafeHtml.vue` as the only permitted `v-html` sink. A
- * caller that needs both readings of one description asks `renderDescription`
- * rather than the two in turn.
- *
- * Every caller that needs the description as words goes through this module,
- * which is what keeps a summary and the description itself reading the same
- * source the same way.
+ * A book's description mixes hand-written Markdown with whatever HTML an EPUB
+ * import carried over, so no view may interpolate it as it stands. Two outputs:
+ * `toPlainSummary` for the places that want words, and `renderDescriptionHtml`
+ * followed by `sanitizeHtml` for the places that render the markup, with
+ * `SafeHtml.vue` as the only permitted `v-html` sink. `renderDescription`
+ * answers both from one parse.
  */
 import createSanitizer, { type DOMPurify } from 'dompurify';
 import MarkdownIt from 'markdown-it';
 
 /**
  * The dialect every reading of a book's text is parsed in: raw HTML kept, a
- * single newline is a line break. The reader's chapters
- * (`renderMarkdownBlocks`) are the same kind of text as a description and are
- * written in the same dialect, so these four values are stated once; the
- * instances cannot be shared, because each configures rules of its own on top.
+ * single newline is a line break. Stated once because the reader's chapters
+ * (`renderMarkdownBlocks`) are the same kind of text; the instances cannot be
+ * shared, because each configures rules of its own on top.
  */
 export const BOOK_TEXT_MARKDOWN_OPTIONS = {
   html: true,
@@ -34,12 +25,10 @@ export const BOOK_TEXT_MARKDOWN_OPTIONS = {
 } as const;
 
 /**
- * Links stay enabled here, unlike in the reader, which refuses to render a
- * navigable anchor - only the link text survives sanitizing anyway, and leaving
- * the rule off would spell it out as `[text](target)`.
- *
- * One instance serves both outputs, so the words a card reports and the markup
- * a detail page renders are the same parse of the same source.
+ * Links stay enabled here, unlike in the reader: only the link text survives
+ * sanitizing anyway, and leaving the rule off would spell it out as
+ * `[text](target)`. One instance serves both outputs, so a card's words and a
+ * detail page's markup are the same parse of the same source.
  */
 const markdown = new MarkdownIt(BOOK_TEXT_MARKDOWN_OPTIONS);
 
@@ -57,10 +46,9 @@ const SEPARATING_ELEMENTS = new Set([
 
 /**
  * Elements holding markup or a document of their own rather than prose. The
- * sanitizer drops these subtrees whole, contents included, so a summary that
- * read them would report words no rendered description can ever show - and a
- * detail page would label a row whose sanitized body is empty. One list serves
- * both readings for that reason; they cannot be allowed to disagree.
+ * sanitizer drops these subtrees whole, so a summary that read them would report
+ * words no rendered description can ever show. One list serves both readings for
+ * that reason.
  */
 const NON_PROSE_ELEMENTS = [
   'embed',
@@ -105,17 +93,15 @@ function collectText(node: Node, parts: string[]): void {
 }
 
 /**
- * Reads rendered markup back as its words: one line, no tags left over. A
- * parser rather than a tag-shaped regular expression, so a `<` that is a real
+ * A parser rather than a tag-shaped regular expression, so a `<` that is a real
  * less-than sign keeps the text that follows it.
  */
 function textOf(html: string): string {
-  // The parsed document has no browsing context: scripts do not run and no
-  // element loads anything, which is what makes reading it back safe. That
-  // property belongs to DOMParser rather than to the traversal below - the
-  // same markup assigned to a detached element's innerHTML does fetch an
-  // `<img>`, a `<video>` poster and its `<source>`, which would let a
-  // description PlainShelf did not write call home the moment a card is drawn.
+  // The parsed document has no browsing context, which is what makes reading it
+  // back safe. That property belongs to DOMParser, not to the traversal below:
+  // the same markup assigned to a detached element's innerHTML does fetch an
+  // `<img>` and a `<video>` poster, letting a description PlainShelf did not
+  // write call home the moment a card is drawn.
   const document = new DOMParser().parseFromString(html, 'text/html');
   const parts: string[] = [];
   collectText(document.body, parts);
@@ -123,11 +109,9 @@ function textOf(html: string): string {
 }
 
 /**
- * Reads `source` as the document it describes and returns its words: one line,
- * no HTML tags, no Markdown syntax left over.
- *
- * Text that amounts to no words - `<br>`, an empty tag, spaces - returns an
- * empty string, which is the caller's cue to fall back to something else.
+ * One line, no HTML tags, no Markdown syntax left over. Text that amounts to no
+ * words - `<br>`, an empty tag, spaces - returns an empty string, which is the
+ * caller's cue to fall back to something else.
  */
 export function toPlainSummary(source: string | null | undefined): string {
   const html = renderDescriptionHtml(source);
@@ -139,15 +123,13 @@ export function toPlainSummary(source: string | null | undefined): string {
 }
 
 /**
- * Renders a description as the markup it describes, for `SafeHtml` to sanitize
- * with the `summary` profile. The return value is renderer output and nothing
- * more: the dialect above keeps raw HTML by design, so whatever an EPUB import
- * carried over is still in it, and no view may put it on screen unsanitized.
+ * Renderer output and nothing more: the dialect above keeps raw HTML by design,
+ * so whatever an EPUB import carried over is still in it and no view may put it
+ * on screen unsanitized.
  *
- * A link and an image are left to the profile rather than disabled here. The
- * profile allows neither tag and keeps their contents, so a link arrives as its
- * text - the same words `toPlainSummary` would report - while an image, which
- * has no text, arrives as nothing.
+ * Links and images are left to the profile rather than disabled here: it allows
+ * neither tag and keeps their contents, so a link arrives as its text - the same
+ * words `toPlainSummary` reports - and an image as nothing.
  */
 export function renderDescriptionHtml(source: string | null | undefined): string {
   if (!source || !source.trim()) {
@@ -165,10 +147,9 @@ interface RenderedDescription {
 }
 
 /**
- * Both readings of one description from one parse, for a view that needs to
- * decide whether there is anything to show *and* show it - the detail page asks
- * exactly that. Deciding on `text` and rendering `html` keeps "this description
- * has content" and "this is the content" answering from the same source.
+ * Both readings from one parse, for a view that needs to decide whether there is
+ * anything to show *and* show it. Deciding on `text` and rendering `html` keeps
+ * the two questions answering from the same source.
  */
 export function renderDescription(source: string | null | undefined): RenderedDescription {
   const html = renderDescriptionHtml(source);
@@ -279,11 +260,9 @@ export function sanitizeColorStyle(rawStyle: string): string {
 }
 
 /**
- * Hooks are per-instance global state in DOMPurify, so a single shared instance
- * could only serve one class allowlist at a time and the profiles would leak
- * into each other. Each profile therefore owns its instance and its hook.
- * Creation is lazy because the hook and `sanitizeColorStyle` both need a DOM,
- * which a module-level side effect would demand at import time.
+ * Hooks are per-instance global state in DOMPurify, so one shared instance could
+ * serve only one class allowlist and the profiles would leak into each other.
+ * Creation is lazy because the hook and `sanitizeColorStyle` both need a DOM.
  */
 const instances = new Map<SafeHtmlProfile, DOMPurify>();
 

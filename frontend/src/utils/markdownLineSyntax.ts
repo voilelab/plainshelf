@@ -26,7 +26,6 @@ export interface MarkdownFenceState {
   length: number;
 }
 
-/** Shared line-level syntax used by both the renderer and chapter scanner. */
 export function parseMarkdownHeadingLine(rawLine: string): MarkdownHeadingLine | null {
   const match = HEADING_RE.exec(rawLine);
   if (!match) {

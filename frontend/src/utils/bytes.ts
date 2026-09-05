@@ -1,10 +1,7 @@
 const UNITS = ['B', 'KB', 'MB', 'GB'] as const;
 const STEP = 1024;
 
-/**
- * Formats a byte count for display (1024-based units). Values under 1KB are
- * shown as whole bytes; larger values get one decimal place.
- */
+/** Formats a byte count for display, in 1024-based units. */
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return '0 B';
