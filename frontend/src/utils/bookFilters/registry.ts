@@ -1,17 +1,12 @@
 /**
- * Declarative registry of the library page's book filters.
- *
- * Each condition states, in one place, how it is carried in the URL
- * (`queryKeys` / `parse` / `serialize`), whether it is currently narrowing the
- * list (`isActive`), how it decides a single book (`predicate`), and — for the
- * conditions that need it — whether the backend can support it (`supported`) and
- * what extra data it must load first (`createDependency`).
- *
- * The point is that adding a condition is adding one entry here, not editing the
+ * Declarative registry of the library page's book filters: a condition states
+ * everything about itself in one entry, so adding one is not also editing the
  * query builder, hand-writing a computed, and remembering every key to strip.
- * `buildBooksQuery` (useBooksRouteQuery.ts) loops over `BOOK_FILTERS` and touches
- * only the URL parts; `predicate` stays deliberately transport-independent so a
- * future query language can reuse the same leaf checks its AST evaluates to.
+ *
+ * `buildBooksQuery` (useBooksRouteQuery.ts) loops over `BOOK_FILTERS` and
+ * touches only the URL parts; `predicate` stays deliberately
+ * transport-independent so a future query language can reuse the same leaf
+ * checks its AST evaluates to.
  */
 import type { LocationQuery } from 'vue-router';
 import type { Book } from '@/types/book';
@@ -37,17 +32,16 @@ import {
 } from './codec';
 
 /**
- * Where a filter's control lives. `inline` conditions sit in the toolbar (search)
- * or are driven by navigation (the folder, from the breadcrumb); `panel`
- * conditions live in the filter panel and show as removable chips above the list.
+ * `inline` conditions sit in the toolbar (search) or are driven by navigation
+ * (the folder, from the breadcrumb); `panel` conditions live in the filter panel
+ * and show as removable chips above the list.
  */
 type FilterChrome = 'inline' | 'panel';
 
 /**
  * Extra, lazily loaded data a filter needs before it can decide books — today
- * only the character-count index. Kept off the generic path: `buildBooksQuery`
- * never looks at it, and only a consumer that actually filters the list creates
- * and reads it.
+ * only the character-count index. Kept off the generic path: only a consumer
+ * that actually filters the list creates and reads it.
  */
 interface FilterDependency {
   /** Ensures the extra data is loaded (idempotent). */
@@ -55,11 +49,9 @@ interface FilterDependency {
   /** Whether the extra data has arrived and the filter may be applied. */
   ready(): boolean;
   /**
-   * Fills in the datum the listing omits from the loaded data, returning a book
-   * the predicate can decide correctly. This is the bridge that keeps
-   * `predicate` transport-independent: a consumer evaluates
-   * `predicate(dependency.augment(book), value)` so the lazily fetched value is
-   * applied without the predicate ever knowing where the value came from.
+   * The bridge that keeps `predicate` transport-independent: a consumer
+   * evaluates `predicate(dependency.augment(book), value)`, so the lazily
+   * fetched datum is applied without the predicate knowing where it came from.
    */
   augment(book: Book): Book;
   /** How many of `books` the filter cannot decide because their datum is unknown. */
@@ -67,10 +59,9 @@ interface FilterDependency {
 }
 
 /**
- * The shape of a panel filter's control, and thus of its chip. Keying the panel
- * UI and the chip label on this — not on the filter's identity — is what keeps
- * "add a condition" to one registry entry: a new `facetSingle` field needs no
- * new component and no new chip branch.
+ * The shape of a panel filter's control, and thus of its chip. Keying the UI on
+ * this rather than on the filter's identity is what keeps "add a condition" to
+ * one registry entry: a new `facetSingle` field needs no new component.
  *
  * - `range`     — two numeric bounds (charCount).
  * - `triState`  — has / none / all, where `all` is the inactive value (cover).
@@ -86,9 +77,7 @@ interface BookFilterDef<T> {
   /** Every query key the condition owns; all are cleared before re-serializing. */
   readonly queryKeys: readonly string[];
   readonly chrome: FilterChrome;
-  /** Reads the condition's value out of the current query. */
   parse(query: LocationQuery): T;
-  /** Writes an active value back as the query keys it owns. */
   serialize(value: T): Record<string, string | string[]>;
   /** Whether `value` actually narrows the list (an empty value does not). */
   isActive(value: T): boolean;
@@ -101,16 +90,14 @@ interface BookFilterDef<T> {
   /** How a `chrome: 'panel'` condition is rendered in the filter panel. */
   readonly panelControl?: PanelControlKind;
   /**
-   * The value that makes `isActive` false — what a "remove chip" or "clear all"
-   * assigns. Every panel condition carries its own so nothing has to special-case
-   * "how do I turn this one off".
+   * The value that makes `isActive` false — what "remove chip" and "clear all"
+   * assign, so nothing has to special-case how one condition is turned off.
    */
   readonly clearedValue?: T;
   /**
-   * A book's own non-blank values for this field, used to build the panel's facet
-   * list. Present on the field conditions (author/tags/cover/language); the same
-   * function `predicate` decides "none/has/eq" against, so the facet and the
-   * predicate can never disagree about what counts as a value.
+   * A book's own non-blank values for this field, for the panel's facet list.
+   * The same function `predicate` decides "none/has/eq" against, so the two can
+   * never disagree about what counts as a value.
    */
   facetValues?(book: Book): string[];
 }

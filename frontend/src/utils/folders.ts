@@ -74,15 +74,14 @@ export function folderPathEquals(left: string, right: string): boolean {
 }
 
 /**
- * The library route that lists `folderPath` from its first page. Shared by every
- * caller that navigates into a folder (sidebar tree, breadcrumb, post-delete
- * redirect) so they all emit the same canonical `folders` query.
+ * Shared by every caller that navigates into a folder (sidebar tree, breadcrumb,
+ * post-delete redirect) so they all emit the same canonical `folders` query.
  *
- * Three destinations, not two: an empty path is the unfiltered "All books"
- * view (no `folders` key), `ROOT_FOLDER_FILTER` is the narrower "books sitting
- * directly at the shelf root" filter that the sidebar's root node selects, and
- * anything else is a normalized folder path. `ROOT_FOLDER_FILTER` must survive
- * verbatim — LibraryPage's `matchesFolder` tells it apart from a missing query.
+ * Three destinations, not two: an empty path is the unfiltered "All books" view
+ * (no `folders` key), `ROOT_FOLDER_FILTER` is the narrower "books sitting
+ * directly at the shelf root" filter, and anything else is a normalized folder
+ * path. `ROOT_FOLDER_FILTER` must survive verbatim — LibraryPage's
+ * `matchesFolder` tells it apart from a missing query.
  */
 export function booksRouteForFolderPath(folderPath: string): BooksFolderRoute {
   const trimmed = folderPath.trim();

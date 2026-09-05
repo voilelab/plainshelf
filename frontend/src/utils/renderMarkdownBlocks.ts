@@ -169,16 +169,15 @@ export const READER_BLOCK_CHAR_BUDGET = 2000;
 export const READER_BLOCK_LINE_BUDGET = 80;
 
 /**
- * Cuts an oversized section into render chunks at top-level Markdown block
- * boundaries. Each markdown-it block token carries its own `[startLine,
- * endLine)` span, so a fenced code block, list, blockquote or table is always
- * kept whole: a cut never lands inside a multi-line construct, and an ordered
- * list is never split into separately renumbered halves. A single block larger
- * than the budget becomes its own chunk instead of being cut mid-line.
+ * Cuts an oversized section at top-level Markdown block boundaries. Each
+ * markdown-it block token carries its own `[startLine, endLine)` span, so a
+ * fenced block, list, blockquote or table is kept whole and an ordered list is
+ * never split into separately renumbered halves. A single block larger than the
+ * budget becomes its own chunk.
  *
- * The chunk boundaries are a render concern only. They carry no offset meaning,
- * so the reader's char-offset progress bridge is unaffected by how a section is
- * divided here (see `.claude/rules/50-lessons.md` on `markdownChapters.ts`).
+ * The boundaries are a render concern only and carry no offset meaning, so the
+ * reader's char-offset progress bridge is unaffected (see
+ * `.claude/rules/50-lessons.md` on `markdownChapters.ts`).
  */
 function splitSourceIntoRenderChunks(
   source: string,
