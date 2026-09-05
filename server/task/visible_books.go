@@ -14,17 +14,15 @@ import "github.com/voilelab/plainshelf/shelf"
 // A nil set means the request saw everything, which is every chain on a server
 // hiding nothing - and leaves such a chain exactly what it was before the
 // setting existed.
-type VisibleBooks map[string]struct{}
+type VisibleBooks map[string]bool
 
 // Allows reports whether a chain carrying this set may touch the book. A nil
 // set allows everything, so a caller with nothing to hide passes nil rather
-// than a set naming every book on the shelf.
+// than a set naming every book on the shelf. That nil case is the whole reason
+// this exists: a plain v[bookID] answers false for it, which would be the
+// opposite of what nil means.
 func (v VisibleBooks) Allows(bookID string) bool {
-	if v == nil {
-		return true
-	}
-	_, ok := v[bookID]
-	return ok
+	return v == nil || v[bookID]
 }
 
 // Only drops the books outside the set, keeping the order it was given.

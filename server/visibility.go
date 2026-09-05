@@ -75,7 +75,7 @@ func (v bookVisibility) keep(listings []shelf.BookListing) []shelf.BookListing {
 //
 // It is a snapshot: the sweep runs later, so a book added in between is left to
 // the next one rather than swept without anyone having decided it is visible.
-func (v bookVisibility) visibleBookIDs() (map[string]struct{}, error) {
+func (v bookVisibility) visibleBookIDs() (map[string]bool, error) {
 	if v.showNSFW {
 		return nil, nil
 	}
@@ -85,9 +85,9 @@ func (v bookVisibility) visibleBookIDs() (map[string]struct{}, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	ids := make(map[string]struct{}, len(listings))
+	ids := make(map[string]bool, len(listings))
 	for _, listing := range listings {
-		ids[listing.Book.ID()] = struct{}{}
+		ids[listing.Book.ID()] = true
 	}
 	return ids, nil
 }

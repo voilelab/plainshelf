@@ -117,6 +117,36 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 	}
 }
 
+// TestAPISettingShowNSFWContract pins the switch that decides whether the books
+// a shelf marks as adult content are served at all. It defaults to hidden and
+// has no config-file key behind it: the store is the only source, so deleting
+// the stored value returns to hidden rather than to a configured value. What it
+// filters is pinned in server/contract/crosscut/nsfw_test.go.
+func TestAPISettingShowNSFWContract(t *testing.T) {
+	env := apitest.New(t)
+	const key = "show_nsfw"
+
+	if got := settingValue[bool](t, env, key); got {
+		t.Fatalf("default show_nsfw = %v, want false", got)
+	}
+
+	for _, want := range []bool{true, false} {
+		setSetting(t, env, key, strconv.FormatBool(want), http.StatusNoContent)
+		if got := settingValue[bool](t, env, key); got != want {
+			t.Fatalf("show_nsfw after set = %v, want %v", got, want)
+		}
+	}
+
+	// A value that is not a boolean is rejected, the same as cover_to_jpg.
+	setSetting(t, env, key, `"yes"`, http.StatusBadRequest)
+
+	setSetting(t, env, key, "true", http.StatusNoContent)
+	deleteSetting(t, env, key)
+	if got := settingValue[bool](t, env, key); got {
+		t.Fatalf("show_nsfw after delete = %v, want the hidden default", got)
+	}
+}
+
 // TestAPISettingLogRetentionDaysContract pins the control that makes log
 // deletion optional. It matters most on the desktop build, which has no config
 // file to edit: without this route a user has no way to turn deletion off.

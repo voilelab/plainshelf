@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 )
 
@@ -150,6 +151,18 @@ type ErrorEnvelope struct {
 // AssertErrorEnvelope pins a refusal's status, content type, code and message
 // together, because the three travel as one contract: a client that switches on
 // the code needs the JSON body to have arrived at all.
+// AssertBookIDs compares two sets of book IDs, order-insensitively, which is how
+// every listing assertion reads: the endpoint's own order is pinned elsewhere.
+func AssertBookIDs(t *testing.T, got []string, want ...string) {
+	t.Helper()
+
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("book IDs = %v, want %v", got, want)
+	}
+}
+
 func AssertErrorEnvelope(t *testing.T, rec *httptest.ResponseRecorder, status int, code, message string) {
 	t.Helper()
 

@@ -177,15 +177,8 @@ func fingerprintTestApp(t *testing.T, libRoot string) *App {
 // addFingerprintBook for the same dance).
 func makeBook(t *testing.T, shelfData *shelf.ShelfData, libRoot, title, content string) *shelf.Book {
 	t.Helper()
-	return makeBookIn(t, shelfData, libRoot, nil, title, content)
-}
 
-// makeBookIn is makeBook for a book that has to sit in a particular folder,
-// which is half of what decides whether the shelf marks it as adult content.
-func makeBookIn(t *testing.T, shelfData *shelf.ShelfData, libRoot string, folder shelf.FolderPath, title, content string) *shelf.Book {
-	t.Helper()
-
-	book, err := shelfData.NewBookWith(folder, title, func(b *shelf.Book) error {
+	book, err := shelfData.NewBookWith(nil, title, func(b *shelf.Book) error {
 		source, err := b.NewSource(strings.NewReader(content))
 		if err != nil {
 			return err
