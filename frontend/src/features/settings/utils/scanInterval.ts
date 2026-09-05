@@ -1,11 +1,8 @@
 /**
- * The shelf scan interval as the settings UI edits it.
- *
- * On disk the value is a Go duration string (`shelf.ShelfConf.ScanInterval`,
- * parsed by `time.ParseDuration`), where an empty string means the built-in
- * default and `0s` means "no throttling, walk the whole shelf on every
- * refresh". Neither is guessable from a text box, so the panel edits a mode
- * plus an amount and a unit and converts here.
+ * On disk the value is a Go duration string, where empty means the built-in
+ * default and `0s` means "walk the whole shelf on every refresh". Neither is
+ * guessable from a text box, so the panel edits a mode plus an amount and a
+ * unit and converts here.
  */
 
 export type ScanIntervalMode = 'default' | 'interval' | 'always';
@@ -47,12 +44,11 @@ const UNIT_MS: Record<string, number> = {
 const SECONDS_PER_UNIT: Record<ScanIntervalUnit, number> = { s: 1, m: 60, h: 3600 };
 
 /**
- * The largest duration `time.Duration` can hold, which counts nanoseconds in an
- * int64: 2^63-1 ns, in milliseconds. Past it `time.ParseDuration` answers
- * `invalid duration` rather than a value, so an amount the number box would
- * happily accept - `2562048h` - would put the raw Go error back in front of the
- * user. Rounded down, because the exact figure is not representable as a
- * double and only the direction of the error matters here.
+ * 2^63-1 nanoseconds in milliseconds, the most `time.Duration` holds. Past it
+ * `time.ParseDuration` answers `invalid duration`, so an amount the number box
+ * would accept — `2562048h` — would put the raw Go error in front of the user.
+ * Rounded down: the exact figure is not representable as a double, and only the
+ * direction of the error matters.
  */
 const MAX_DURATION_MS = 9_223_372_036_854.775;
 

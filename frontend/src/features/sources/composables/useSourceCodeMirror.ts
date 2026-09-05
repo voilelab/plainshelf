@@ -40,13 +40,10 @@ import type {
 /**
  * The shortest gap between two document snapshots handed to the host.
  *
- * The editor owns the document; the page only needs a copy to derive the
- * chapter outline, the dirty flag and the payload it saves. Flattening the
- * whole rope into a string on every keystroke buys none of that, so a burst of
- * typing publishes on its first change and then at most this often, with a
- * trailing snapshot once it stops. `flushDocument()` covers the callers that
- * must read an exact, current document (saving, chapter edits), and the blur
- * handler covers everything the user reaches by clicking out of the editor.
+ * The page only needs a copy to derive the outline, the dirty flag and the save
+ * payload, so a burst of typing publishes on its first change and then at most
+ * this often, with a trailing snapshot once it stops. `flushDocument()` covers
+ * the callers that need an exact, current document.
  */
 const DOCUMENT_SYNC_INTERVAL_MS = 150;
 
@@ -114,17 +111,14 @@ function renderFindState(state: FindState | null): string {
 }
 
 /**
- * The line ending a document is written with, when it is written with one.
+ * CodeMirror stores line breaks as single positions and renders back with `\n`
+ * unless told otherwise, so a source saved from a CRLF file would come back
+ * rewritten end to end — a whole-file diff for a project whose files are the
+ * source of truth. A consistently CRLF document therefore keeps it, both for
+ * what the editor emits and for what pressing Enter inserts.
  *
- * CodeMirror stores line breaks as single positions and renders a document back
- * with `\n` unless told otherwise, so a source saved from a CRLF file would come
- * back rewritten end to end — a whole-file diff for a project whose files are
- * the source of truth. A document that is consistently CRLF therefore keeps it,
- * both for what the editor emits and for what pressing Enter inserts.
- *
- * A document that mixes endings has no separator that round-trips it; those
- * normalize to `\n`, which is also what the previous textarea did to any line
- * it re-projected.
+ * A document that mixes endings has no separator that round-trips it, so those
+ * normalize to `\n`.
  */
 function lineSeparatorOf(text: string): string {
   if (!text.includes('\r')) return '\n';
@@ -141,13 +135,9 @@ function splitLines(text: string, separator: string): string[] {
 const setSectionRange = StateEffect.define<SourceEditorViewRange | null>();
 
 /**
- * The focused chapter's range, kept in document coordinates.
- *
- * This is what replaced the old slice: the document is always whole, and the
- * chapter is expressed as a range that the editor itself maps through every
- * change. Between two pushes from the page the boundary therefore tracks the
- * text instead of drifting, which is what the debounced boundary recomputation
- * used to be for.
+ * The focused chapter as a range the editor maps through every change, rather
+ * than a slice: between two pushes from the page the boundary tracks the text
+ * instead of drifting.
  */
 const sectionRangeField = StateField.define<SourceEditorViewRange | null>({
   create: () => null,
