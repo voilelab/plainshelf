@@ -22,11 +22,10 @@ const serverStartAttempts = 3;
  */
 const portTakenMarker = 'bind: address already in use';
 /**
- * Per-probe cap on the /health request. Without it a probe can block forever:
- * when the port belongs to a process that accepts connections and never
- * answers, `fetch` has no timeout of its own, so the poll loop stops ticking
- * and `serverStartupTimeoutMs` is never reached — the run fails much later with
- * Playwright's bare "beforeAll hook timeout" and none of the server's output.
+ * Per-probe cap on the /health request. `fetch` has no timeout of its own, so a
+ * port held by a process that accepts and never answers would stop the poll
+ * loop ticking and `serverStartupTimeoutMs` would never be reached — the run
+ * failing much later with a bare "beforeAll hook timeout".
  */
 const healthProbeTimeoutMs = 2_000;
 /** How many times a busy temp shelf may be re-tried before teardown fails. */

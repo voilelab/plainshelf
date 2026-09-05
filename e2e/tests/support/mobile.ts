@@ -1,16 +1,12 @@
 import { expect, type Page } from '@playwright/test';
 
-// Mirrors frontend/src/providers/runtime.ts isMobileRuntime()'s desktop-browser
-// escape hatch: appending this to a top-level goto makes the app boot with the
-// mobile (Capacitor) provider on ordinary desktop Chromium, so the offline
-// book cache + Preferences-backed connection config get exercised without an
-// Android emulator.
+// isMobileRuntime()'s desktop-browser escape hatch: on a top-level goto this
+// boots the mobile provider in ordinary Chromium, so the offline book cache and
+// the Preferences-backed connection config are exercised without an emulator.
 export const MOBILE_PREVIEW_QUERY = 'mobile-shell-preview=1';
 
-// Minimal shape of the hook attached by frontend/src/main.ts
-// (window.__plainshelfTestHooks). Declared locally rather than imported from
-// the frontend package: the e2e project has no path alias to frontend/src and
-// intentionally stays a standalone TS project (see e2e/package.json).
+// The hook frontend/src/main.ts attaches. Declared locally rather than imported:
+// the e2e project intentionally stays a standalone TS project.
 declare global {
   interface Window {
     __plainshelfTestHooks?: {
@@ -44,20 +40,13 @@ function withMobilePreview(route: string): string {
 }
 
 /**
- * Drives the mobile shelf setup (`/connect`) end to end: fills in the server
- * URL (and optional token), loads the server's shelves, picks one from the
- * reka-ui Select, and saves — landing on `/books`.
+ * Drives the mobile shelf setup (`/connect`) end to end, landing on `/books`.
+ * A device with no shelves has nothing to list, so `/connect` renders the add
+ * form directly — which is what this walks. Use openMobileShelfEditor() once a
+ * shelf exists.
  *
- * `/connect` is the device's shelf list, but a device with no shelves has
- * nothing to list, so it renders the add form directly — which is what this
- * walks. Use openMobileShelfEditor() to reach the form once a shelf exists.
- *
- * The token does not grant write access — the client is read-only regardless.
- * It is needed only when the server sets `protect_read` (server/security.go),
- * which makes reads require one too; without it a native install can connect
- * untokened. It used to be needed unconditionally, for reading-telemetry POSTs
- * that no longer exist: the read_history and reading_activity APIs were removed
- * when both moved to device storage.
+ * The token grants no write access: it is needed only when the server sets
+ * `protect_read`, which makes reads require one too.
  */
 export async function connectMobile(
   page: Page,
@@ -93,13 +82,10 @@ export async function connectMobile(
 }
 
 /**
- * Waits for the mobile shell to have finished booting.
- *
- * Saving a shelf restarts the app (features/mobile/utils/reloadIntoApp.ts), and
- * a URL assertion is satisfied the moment that navigation commits — before
- * main.ts has run its bootstrap and attached the hooks every mobile spec drives
- * the provider through. Waiting on the hook itself is the signal that the app,
- * and its saved shelf, are actually up.
+ * Saving a shelf restarts the app, and a URL assertion is satisfied the moment
+ * that navigation commits — before main.ts has attached the hooks every mobile
+ * spec drives the provider through. Waiting on the hook is the signal that the
+ * app, and its saved shelf, are actually up.
  */
 export async function waitForMobileApp(page: Page): Promise<void> {
   await page.waitForFunction(() => Boolean(window.__plainshelfTestHooks));
@@ -146,15 +132,13 @@ export async function openMobileShelfEditor(
 }
 
 /**
- * Standard "reopen the app" action: a top-level navigation (not an in-app
- * router push) carrying the mobile-shell-preview param, since in-app
- * navigations drop the param from the URL and isMobileRuntime() reads
- * location.search on its first check.
+ * A top-level navigation, not an in-app router push, carrying the
+ * mobile-shell-preview param: in-app navigations drop it from the URL and
+ * isMobileRuntime() reads location.search on its first check.
  *
- * Waits for the boot to finish, because main.ts restores the device's shelves
- * before it mounts anything: `goto` resolves on the document load, which is
- * ahead of that await, so a caller reaching straight for the provider hook
- * would otherwise race the bootstrap it just triggered.
+ * Waits for the boot because `goto` resolves on the document load, ahead of
+ * main.ts restoring the device's shelves — a caller reaching straight for the
+ * provider hook would race the bootstrap it just triggered.
  */
 export async function reopenMobileAt(page: Page, baseUrl: string, route: string): Promise<void> {
   await page.goto(`${baseUrl}${withMobilePreview(route)}`);
