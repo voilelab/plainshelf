@@ -335,6 +335,14 @@ book's package path, and the shelf's folders. A client downloads that one file
 instead of walking the shelf, and the cost of opening a library stops growing
 with the number of books in it.
 
+One value in it is computed rather than copied: each entry carries `nsfw`, the
+finished answer to whether that book is
+[adult content](folders.md#marking-a-folder-as-adult-content), assembled from the
+folder rules in `shelf.json` and the book's own flag. It is there so that a
+client which downloads only this file — which is the point of the file — reaches
+the same answer as the server without reading `shelf.json` itself. Like the flag
+in `book.json`, it is written only when `true`.
+
 ### When it is written
 
 - after the initial scan, so a client that arrives before anything else has read
@@ -402,10 +410,10 @@ cannot parse are never removed, so anything else under `app/` is left alone.
   Format Versioning](data-format-versioning.md#the-exported-book-cache) covers
   what a mismatch costs and why the version is duplicated on the TypeScript
   side.
-- It contains exactly what `book.json` already contains. If your shelf is
-  private, it is no more revealing than the shelf itself — but it does put every
-  book's metadata in one file, which matters if you share `app/` more widely
-  than `books/`.
+- It contains what `book.json` already contains, plus the computed `nsfw` above.
+  If your shelf is private, it is no more revealing than the shelf itself — but
+  it does put every book's metadata in one file, which matters if you share
+  `app/` more widely than `books/`.
 - `book_cache_writer_id` can be pinned per shelf in the config file if you want
   a predictable name; leave it unset and PlainShelf supplies one.
 

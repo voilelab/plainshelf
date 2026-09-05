@@ -83,6 +83,12 @@ type Shelf struct {
 	// shelf_config.go.
 	ignore shelfutil.IgnoreRules
 
+	// nsfw is which folder subtrees under books/ this shelf marks as adult
+	// content, from shelf.json's content.nsfw_folders. Read once in Open with
+	// ignore above and never written again, so IsBookNSFW can be asked once per
+	// book in a listing without touching the filesystem.
+	nsfw shelfutil.NSFWRules
+
 	// Exported book cache; see shelf_cache_export.go. An empty writer ID
 	// disables the export entirely, which is what a bare ShelfConf gets.
 	bookCacheWriterID string
@@ -289,6 +295,10 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		dbRoot = fsutil.ReadOnly(dbRoot)
 	}
 
+	// shelf.json is read once, here, and every rule it carries is derived from
+	// that one read; see shelf_config.go.
+	rules := loadShelfRules(dbRoot, *logger)
+
 	s := &Shelf{
 		Logger:    *logger,
 		dbRoot:    dbRoot,
@@ -297,7 +307,8 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		shelfLock: shelfLock,
 		readyCh:   make(chan struct{}),
 
-		ignore: loadIgnoreRules(dbRoot, *logger),
+		ignore: rules.ignore,
+		nsfw:   rules.nsfw,
 
 		// cache
 		bookCache:         newBookCache(scanInterval, bookCheckInterval),

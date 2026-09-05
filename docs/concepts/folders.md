@@ -102,6 +102,48 @@ applies it, the Android client reading it from pCloud included. The file is read
 when the shelf is opened, so restart the server after editing it. There is no
 settings page for it yet; it is a file you write by hand.
 
+## Marking a folder as adult content
+
+A folder has no settings file of its own — it is a directory, and nothing else —
+so a mark that applies to a whole folder lives in
+[`shelf.json`](data-model.md#shelfjson), under `content.nsfw_folders`:
+
+```json
+{
+  "schema_version": 1,
+  "content": {
+    "nsfw_folders": [
+      { "path": "Fiction/成人", "reason": "adult shelf" }
+    ]
+  }
+}
+```
+
+A `path` names one folder under `books/`, and it marks that folder **and every
+folder below it**. The path is matched without regard to case, and leading,
+trailing and doubled `/` make no difference, so `Fiction/成人`, `fiction/成人`
+and `/Fiction/成人/` all name the same folder. Only whole names match: marking
+`Fiction/成人` does not mark `Fiction/成人漫畫`.
+
+A single book can also be marked on its own, with `"nsfw": true` in its
+`book.json`. The two only ever add together:
+
+| In `shelf.json` | In the book's `book.json` | Marked? |
+|---|---|---|
+| folder not listed | absent or `false` | No |
+| folder not listed | `true` | Yes |
+| folder listed | anything, including `false` | Yes |
+
+The last row is deliberate: `"nsfw": false` on a book **cannot** take it out of a
+marked folder. Missing a book that should have been marked is the worse mistake
+of the two, so the folder wins. To exempt one book, move it out of the folder.
+
+Marking something does not hide it. Today the mark is only computed and
+recorded — it is written into each entry of the exported book cache the Android
+client reads, so every PlainShelf reading the shelf gets the same answer without
+a central list to keep in sync. Editing `shelf.json` takes effect when the shelf
+is next opened, so restart the server afterwards.
+
 ## Example use cases
 
 | Use case | Folder structure |

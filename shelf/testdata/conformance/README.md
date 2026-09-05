@@ -59,10 +59,13 @@ observations both can make, in the shape both can produce:
 | `book_caches[]` | `Shelf.readBookCacheFile` | `parseBookCacheFile` |
 
 A case's `shelf.json`, when it has one, is part of the input rather than a field
-of the reading: both harnesses read it before walking (`loadIgnoreRules`,
+of the reading: both harnesses read it before walking (`loadShelfRules`,
 `parseShelfConfig`), so its effect shows up in `folders` and `books`. A case
 whose `shelf.json` names its own directories no longer skips the defaults, so
 such a case is where a name like `lost+found` legitimately appears as a folder.
+Its `content` section has no such effect: it decides which books are marked as
+adult content, which is not yet a field of the reading — see
+[Out of scope](#out-of-scope).
 
 Conventions that keep the two comparable:
 
@@ -150,6 +153,15 @@ neither answer is currently wrong:
 - choosing between several usable caches: the pCloud client picks by the
   listing's modification time (`pickNewestBookCache`), which the Go side has no
   counterpart for because it only ever writes its own;
+- whether a book is marked as adult content — the Go side assembles it from
+  `content.nsfw_folders` in `shelf.json` and `nsfw` in `book.json`
+  (`Shelf.IsBookNSFW`), while the pCloud reader reads neither. Recording it here
+  would mean giving that reader its own copy of the folder rules; the exported
+  book cache already carries the assembled answer as `nsfw` on each entry, which
+  is the route a client that never reads `shelf.json` is meant to take. Until one
+  of the two happens, `nsfw-marked` pins only that neither key changes anything
+  else about the reading, and the rules themselves are covered by
+  `shelf/shelf_nsfw_test.go`;
 - a file broken by hand: the Go side reads `book.json`, `meta.json`,
   `trash.json` and `shelf.json` with `encoding/json/v2`, which refuses a
   duplicate member and invalid UTF-8, while the pCloud reader uses `JSON.parse`,

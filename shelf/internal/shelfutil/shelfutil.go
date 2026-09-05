@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -159,6 +160,171 @@ func (r IgnoreRules) Names() []string {
 	}
 	slices.Sort(names)
 	return names
+}
+
+// NSFWFolder is one folder subtree under books/ this shelf marks as NSFW, and
+// why.
+//
+// It is a path rather than a name, unlike IgnoredDir: a directory a filesystem
+// creates carries the same name at every level and is skipped wherever it
+// appears, while "the folder I keep adult books in" is one place in one tree.
+type NSFWFolder struct {
+	// Path is the folder path under books/ as it was written, "/"-separated -
+	// "Fiction/Adult". Matching folds case (see foldSegment) and ignores
+	// leading, trailing and repeated separators, so a share exported over SMB or
+	// a path copied out of a file manager still matches.
+	Path string
+
+	// Reason is a short phrase completing "marked because ...". It may be empty
+	// for a folder a user listed without explaining.
+	//
+	// Nothing reads it back yet - unlike IgnoredDir.Reason, no refusal shows it
+	// to anyone. It is kept because shelf.json is a file a person writes and
+	// never a file PlainShelf rewrites, so the note survives for the next person
+	// to open it, and because dropping it would make the two entry shapes differ
+	// for no reason a reader of the file could see.
+	Reason string
+}
+
+// NSFWRules is which folder subtrees under books/ one shelf marks as NSFW. The
+// zero value marks nothing, which is what a shelf that has said nothing gets:
+// there is no built-in list here, because only the user knows what their own
+// folders hold.
+//
+// A rule marks its folder and every folder below it, so a book is NSFW when any
+// prefix of its folder path is listed. The prefixes are normalized once, when
+// the shelf is opened, because a listing asks this question once per book and
+// re-parsing shelf.json for each of a thousand books is the cost this exists to
+// avoid.
+type NSFWRules struct {
+	// byPath is keyed by the normalized, case-folded path (see foldSegment). It
+	// is never written after NewNSFWRules returns, so an NSFWRules can be copied
+	// and read from several goroutines.
+	byPath map[string]NSFWFolder
+}
+
+// NewNSFWRules builds the rules for a shelf that marks these folder subtrees.
+// Paths are matched without regard to case and an entry whose path is unusable
+// is dropped; reporting a bad entry is the caller's job, because only the caller
+// knows where to report it - see ValidateNSFWFolderPath.
+func NewNSFWRules(folders []NSFWFolder) NSFWRules {
+	byPath := make(map[string]NSFWFolder, len(folders))
+	for _, folder := range folders {
+		key, err := normalizeFolderPath(folder.Path)
+		if err != nil {
+			continue
+		}
+		byPath[key] = folder
+	}
+	if len(byPath) == 0 {
+		return NSFWRules{}
+	}
+	return NSFWRules{byPath: byPath}
+}
+
+// IsNSFWFolder reports whether a book's folder path lies in a marked subtree.
+//
+// A rule marks its own folder and everything below it, so the question is
+// whether any prefix of this path is listed: the prefixes are built up one
+// segment at a time and the first one that matches settles it.
+func (r NSFWRules) IsNSFWFolder(folders []string) bool {
+	if len(r.byPath) == 0 {
+		return false
+	}
+
+	var key strings.Builder
+	for _, segment := range folders {
+		if key.Len() > 0 {
+			key.WriteByte('/')
+		}
+		key.WriteString(foldSegment(segment))
+		if _, ok := r.byPath[key.String()]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// Paths returns the configured paths as written, sorted, for logging.
+func (r NSFWRules) Paths() []string {
+	paths := make([]string, 0, len(r.byPath))
+	for _, folder := range r.byPath {
+		paths = append(paths, folder.Path)
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+// ValidateNSFWFolderPath reports whether a path names a folder subtree under
+// books/. It accepts what NewNSFWRules keeps, so a caller can validate an entry
+// and say what was wrong with it before the rules silently drop it.
+func ValidateNSFWFolderPath(folderPath string) error {
+	_, err := normalizeFolderPath(folderPath)
+	return err
+}
+
+// normalizeFolderPath turns a written folder path into the folded key the rules
+// are stored under.
+//
+// Empty segments are dropped rather than rejected, which is what makes a leading
+// slash, a trailing slash and a doubled separator all name the same folder: a
+// path is a location, and three spellings of one location that behaved
+// differently would be a trap rather than a rule. A path with no segment at all
+// is refused, because "" would mark the whole shelf and is far more likely to be
+// an empty field than a decision.
+func normalizeFolderPath(folderPath string) (string, error) {
+	segments := strings.Split(folderPath, "/")
+	folded := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		if segment == "" {
+			continue
+		}
+		if err := ValidateFolderSegment(segment); err != nil {
+			return "", util.Errorf("invalid folder path %q: %w", folderPath, err)
+		}
+		folded = append(folded, foldSegment(segment))
+	}
+	if len(folded) == 0 {
+		return "", util.Errorf("folder path %q names no folder", folderPath)
+	}
+	return strings.Join(folded, "/"), nil
+}
+
+// foldSegment returns the form of one path segment that two spellings differing
+// only in case share, so a folded segment can be a map key rather than a
+// comparison.
+//
+// Lowercasing alone is not that form. Greek final sigma is the case that shows
+// it: "Σ" lowercases to "σ" while "ς" lowercases to itself, so two spellings of
+// one letter get two keys and a folder rule is silently missed - which here
+// means a book that should have been marked quietly is not. Unicode's simple
+// case folding alone is not it either: it deliberately leaves "İ" alone, so a
+// Turkish folder would stop matching its lowercase spelling, which lowercasing
+// gets right today.
+//
+// Doing both catches both. Folding after lowering only ever merges spellings
+// that Unicode already calls the same letter, so it cannot mark a folder the
+// user did not name, and the direction it errs in - merging - is the
+// conservative one for this rule.
+//
+// IgnoreRules above still keys on the lowercase name alone. That is shipped
+// behavior deciding which directories a shelf skips, so changing it belongs to
+// its own change rather than to this one.
+func foldSegment(segment string) string {
+	return strings.Map(func(r rune) rune { return minFold(unicode.ToLower(r)) }, segment)
+}
+
+// minFold returns the smallest rune Unicode's simple case folding considers
+// equal to r, which gives every rune in one folding orbit the same
+// representative.
+func minFold(r rune) rune {
+	smallest := r
+	for folded := unicode.SimpleFold(r); folded != r; folded = unicode.SimpleFold(folded) {
+		if folded < smallest {
+			smallest = folded
+		}
+	}
+	return smallest
 }
 
 var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)

@@ -111,6 +111,21 @@ type BookCacheEntry struct {
 	// keeps its own version so a reader can still tell it is not fully
 	// understood here.
 	Meta *BookMeta `json:"meta"`
+
+	// NSFW is the shelf's answer for this book, already assembled from the
+	// folder rules in shelf.json and the book's own nsfw flag — see
+	// Shelf.IsBookNSFW.
+	//
+	// Recorded rather than left to the reader because a client that reads only
+	// this file has not read shelf.json and cannot apply a folder rule, and two
+	// readers disagreeing about which books are adult content is the one
+	// disagreement this mark cannot afford. Meta.NSFW is still the book's own
+	// half and stays exactly what its book.json says.
+	//
+	// Omitted when false, so a shelf that marks nothing exports byte-identical
+	// files to the ones it exported before this field existed and no reader
+	// re-downloads a cache that did not change.
+	NSFW bool `json:"nsfw,omitzero"`
 }
 
 // bookCacheFileName is the file this installation owns. Every other
@@ -330,9 +345,13 @@ func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 
 	books := make(map[string]BookCacheEntry, len(s.bookCache.cache))
 	for bookID, entry := range s.bookCache.cache {
+		meta := entry.book.GetMeta()
 		books[bookID] = BookCacheEntry{
 			Path: entry.path,
-			Meta: entry.book.GetMeta(),
+			Meta: meta,
+			// The rules are immutable for the life of the shelf, so asking here
+			// costs no lock of its own and no filesystem access.
+			NSFW: s.IsBookNSFW(entry.folders, meta),
 		}
 	}
 	return books

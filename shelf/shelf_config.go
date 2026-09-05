@@ -62,6 +62,25 @@ type shelfConfigJSON struct {
 		// value.
 		IgnoredDirs []jsontext.Value `json:"ignored_dirs"`
 	} `json:"scan"`
+	Content struct {
+		// NSFWFolders are the folder subtrees under books/ this shelf marks as
+		// adult content. A folder marks itself and everything below it.
+		//
+		// There is no built-in list to replace here, unlike IgnoredDirs: absent
+		// and empty both mean "this shelf marks no folder", because only the
+		// user knows what their own folders hold.
+		//
+		// A folder has no metadata file of its own - a folder is a directory
+		// (docs/concepts/folders.md) - so this is the only place a folder-level
+		// mark can live, and shelf.json is already the file that travels with
+		// the shelf and is only ever read.
+		//
+		// An entry is always an object - {"path": "Fiction/Adult"}, or
+		// {"path": "Fiction/Adult", "reason": "..."} to say why - for the same
+		// reason IgnoredDirs entries are: one shape, so a file is read the same
+		// way wherever the reader looks.
+		NSFWFolders []jsontext.Value `json:"nsfw_folders"`
+	} `json:"content"`
 }
 
 // ignoredDirJSON is the object form of one entry.
@@ -81,20 +100,84 @@ func parseIgnoredDir(raw jsontext.Value) (shelfutil.IgnoredDir, error) {
 	return shelfutil.IgnoredDir{Name: object.Name, Reason: object.Reason}, nil
 }
 
-// loadIgnoreRules reads shelf.json and returns the directory-ignore rules for
-// this shelf. The rules are read once, when the shelf is opened, and never
-// change while it is open: every listing, every scan and every folder name
-// checked against them within one run answers the same way. Editing shelf.json
-// takes effect the next time the shelf is opened.
+// nsfwFolderJSON is the object form of one content.nsfw_folders entry.
+type nsfwFolderJSON struct {
+	Path   string `json:"path"`
+	Reason string `json:"reason"`
+}
+
+// parseNSFWFolder reads one entry. As with parseIgnoredDir, a bare path is not
+// accepted: one entry, one shape.
+func parseNSFWFolder(raw jsontext.Value) (shelfutil.NSFWFolder, error) {
+	var object nsfwFolderJSON
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return shelfutil.NSFWFolder{}, util.Errorf("entry is not a {path, reason} object: %w", err)
+	}
+	return shelfutil.NSFWFolder{Path: object.Path, Reason: object.Reason}, nil
+}
+
+// shelfRules is everything this build reads out of shelf.json. It is read once,
+// when the shelf is opened, and never written again, so every listing, scan and
+// folder check within one run answers the same way. Editing shelf.json takes
+// effect the next time the shelf is opened.
+type shelfRules struct {
+	ignore shelfutil.IgnoreRules
+	nsfw   shelfutil.NSFWRules
+}
+
+// loadShelfRules reads shelf.json once and derives every rule set from it.
 //
-// No failure here stops a shelf from opening. A missing file is the normal case
-// and means the built-in defaults; an unreadable or malformed one is reported
-// and then also means the defaults, because locking a user out of their library
-// over a typo in an optional file would be a far worse outcome than listing a
-// directory they wanted hidden.
-func loadIgnoreRules(root fsutil.ReadFS, logger logutil.Logger) shelfutil.IgnoreRules {
-	conf, ok := readShelfConfig(root, logger)
-	if !ok || conf.Scan.IgnoredDirs == nil {
+// No failure here stops a shelf from opening. A missing file is the normal case;
+// an unreadable or malformed one is reported and then means the same thing,
+// because locking a user out of their library over a typo in an optional file
+// would be a far worse outcome than listing a directory they wanted hidden.
+func loadShelfRules(root fsutil.ReadFS, logger logutil.Logger) shelfRules {
+	conf, hasConfig := readShelfConfig(root, logger)
+	return shelfRules{
+		ignore: ignoreRulesFrom(conf, hasConfig, logger),
+		nsfw:   nsfwRulesFrom(conf, hasConfig, logger),
+	}
+}
+
+// nsfwRulesFrom builds the content rules from a shelf.json this build has
+// already read. An entry that cannot name a folder is dropped one by one, like
+// an unusable ignored_dirs entry: the rest of the list is still what the shelf
+// said.
+func nsfwRulesFrom(conf shelfConfigJSON, hasConfig bool, logger logutil.Logger) shelfutil.NSFWRules {
+	if !hasConfig || len(conf.Content.NSFWFolders) == 0 {
+		return shelfutil.NSFWRules{}
+	}
+
+	folders := make([]shelfutil.NSFWFolder, 0, len(conf.Content.NSFWFolders))
+	for _, raw := range conf.Content.NSFWFolders {
+		folder, err := parseNSFWFolder(raw)
+		if err != nil {
+			logger.Warn("ignoring an unreadable entry in the shelf configuration", "file", shelfConfigFile, "entry", string(raw), "error", err)
+			continue
+		}
+		if err := shelfutil.ValidateNSFWFolderPath(folder.Path); err != nil {
+			logger.Warn("ignoring an unusable entry in the shelf configuration", "file", shelfConfigFile, "path", folder.Path, "error", err)
+			continue
+		}
+		folders = append(folders, folder)
+	}
+
+	if len(folders) == 0 {
+		// Every entry was dropped, so this shelf marks nothing and there is no
+		// list worth logging.
+		return shelfutil.NSFWRules{}
+	}
+
+	rules := shelfutil.NewNSFWRules(folders)
+	logger.Info("shelf configuration marks folders as adult content",
+		"file", shelfConfigFile, "nsfw_folders", rules.Paths())
+	return rules
+}
+
+// ignoreRulesFrom builds the directory-ignore rules from a shelf.json this build
+// has already read.
+func ignoreRulesFrom(conf shelfConfigJSON, hasConfig bool, logger logutil.Logger) shelfutil.IgnoreRules {
+	if !hasConfig || conf.Scan.IgnoredDirs == nil {
 		return shelfutil.NewIgnoreRules(shelfutil.DefaultIgnoredDirs())
 	}
 
