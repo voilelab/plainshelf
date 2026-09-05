@@ -10,16 +10,18 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { bookPackagePath, findBookCacheFiles, parseBookCacheFile } from './bookCacheFile';
-import type { BookJson, PCloudFileRef } from './bookpkg';
+import type { BookJson, PCloudFileRef, ShelfConfig } from './bookpkg';
 import {
   collectBookPackages,
   collectFolders,
   createIgnoreRules,
+  createNSFWRules,
   DEFAULT_IGNORED_DIRS,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
   findShelfConfigFile,
+  isBookNSFW,
   isSchemaNewerThanSupported,
   parseBookJson,
   parseShelfConfig,
@@ -39,7 +41,7 @@ import type { PCloudItem } from './types';
  */
 
 /** The expected.json shape this harness understands (schema_version in manifest.json). */
-const DATASET_VERSION = 2;
+const DATASET_VERSION = 3;
 
 const DATASET_ROOT = fileURLToPath(new URL('../../../../shelf/testdata/conformance/', import.meta.url));
 
@@ -85,6 +87,7 @@ interface ExpectedBook {
   cover_present: boolean;
   schema_version_on_disk: number;
   read_only: boolean;
+  nsfw: boolean;
   current_source_field: string;
   current_source: string | null;
   sources: ExpectedSource[];
@@ -164,8 +167,9 @@ function readCase(shelfDir: string): ExpectedReading {
   // The shelf's own settings decide which directories are skipped, so they are
   // read before the walk, exactly as the provider does.
   const configRef = findShelfConfigFile(root);
-  const config = configRef ? parseShelfConfig(readListedJson(contents, configRef)) : {};
+  const config: ShelfConfig = configRef ? parseShelfConfig(readListedJson(contents, configRef)) : {};
   const ignore = createIgnoreRules(config.ignoredDirs ?? DEFAULT_IGNORED_DIRS);
+  const isNSFWFolder = createNSFWRules(config.nsfwFolders ?? []);
 
   const books: ExpectedBook[] = [];
   for (const pkg of collectBookPackages(booksFolder, ignore)) {
@@ -195,6 +199,7 @@ function readCase(shelfDir: string): ExpectedReading {
       cover_present: findCoverFile(pkg, meta) !== undefined,
       schema_version_on_disk: meta.schema_version ?? 0,
       read_only: isSchemaNewerThanSupported(meta),
+      nsfw: isBookNSFW(isNSFWFolder, pkg.folders, meta),
       current_source_field: meta.current_source ?? '',
       current_source: findCurrentSource(pkg, meta)?.id ?? null,
       sources: pkg.sources.map((source) => {

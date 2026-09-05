@@ -51,6 +51,7 @@ observations both can make, in the shape both can produce:
 | `books[].cover_present` | `Book.OpenCover` | `findCoverFile` |
 | `books[].schema_version_on_disk` | `readBookMeta` | `BookJson.schema_version` |
 | `books[].read_only` | `Book.EnsureWritable` | `isSchemaNewerThanSupported` |
+| `books[].nsfw` | `Shelf.IsBookNSFW` | `isBookNSFW` |
 | `books[].current_source_field` | `Book.CurrentSource` | `BookJson.current_source` |
 | `books[].current_source` | `Book.ResolveCurrentSource` | `findCurrentSource` |
 | `books[].sources[]` | `Book.ListSource` | `BookSourceRef` |
@@ -60,12 +61,10 @@ observations both can make, in the shape both can produce:
 
 A case's `shelf.json`, when it has one, is part of the input rather than a field
 of the reading: both harnesses read it before walking (`loadShelfRules`,
-`parseShelfConfig`), so its effect shows up in `folders` and `books`. A case
-whose `shelf.json` names its own directories no longer skips the defaults, so
-such a case is where a name like `lost+found` legitimately appears as a folder.
-Its `content` section has no such effect: it decides which books are marked as
-adult content, which is not yet a field of the reading — see
-[Out of scope](#out-of-scope).
+`parseShelfConfig`), so its effect shows up in `folders`, `books` and
+`books[].nsfw`. A case whose `shelf.json` names its own directories no longer
+skips the defaults, so such a case is where a name like `lost+found`
+legitimately appears as a folder.
 
 Conventions that keep the two comparable:
 
@@ -79,6 +78,13 @@ Conventions that keep the two comparable:
   visible as the two differing.
 - `usable` in `book_caches` means the file parses as a cache *this build* can
   read; an unusable one costs a full scan and is never an error.
+- `nsfw` is the sum of the two places a mark can be written — `nsfw` in the
+  book's own `book.json` and a `content.nsfw_folders` rule in `shelf.json` —
+  not either half on its own. The two add: a book's `nsfw: false` does not take
+  it out of a marked folder. Folder paths are matched case-insensitively, and
+  both sides must agree on what Unicode means by that (`shelfutil.foldSegment`,
+  `foldSegment` in `bookpkg.ts`), which is why the marked folder in
+  `nsfw-marked` is spelled in a different case than its rule.
 - An absent value is recorded as `""`, `0`, `[]` or `{}` rather than `null`,
   since one side reads a JSON member into a zero value and the other into
   `undefined`, and neither difference is a disagreement about the file.
@@ -153,15 +159,6 @@ neither answer is currently wrong:
 - choosing between several usable caches: the pCloud client picks by the
   listing's modification time (`pickNewestBookCache`), which the Go side has no
   counterpart for because it only ever writes its own;
-- whether a book is marked as adult content — the Go side assembles it from
-  `content.nsfw_folders` in `shelf.json` and `nsfw` in `book.json`
-  (`Shelf.IsBookNSFW`), while the pCloud reader reads neither. Recording it here
-  would mean giving that reader its own copy of the folder rules; the exported
-  book cache already carries the assembled answer as `nsfw` on each entry, which
-  is the route a client that never reads `shelf.json` is meant to take. Until one
-  of the two happens, `nsfw-marked` pins only that neither key changes anything
-  else about the reading, and the rules themselves are covered by
-  `shelf/shelf_nsfw_test.go`;
 - a file broken by hand: the Go side reads `book.json`, `meta.json`,
   `trash.json` and `shelf.json` with `encoding/json/v2`, which refuses a
   duplicate member and invalid UTF-8, while the pCloud reader uses `JSON.parse`,

@@ -30,6 +30,7 @@
       "cover_present": false,
       "schema_version_on_disk": 1,
       "read_only": false,
+      "nsfw": false,
       "current_source_field": "",
       "current_source": null,
       "sources": []
@@ -57,6 +58,7 @@
       "cover_present": false,
       "schema_version_on_disk": 1,
       "read_only": false,
+      "nsfw": true,
       "current_source_field": "",
       "current_source": null,
       "sources": []
@@ -83,6 +85,7 @@
       "cover_present": false,
       "schema_version_on_disk": 1,
       "read_only": false,
+      "nsfw": true,
       "current_source_field": "",
       "current_source": null,
       "sources": []
@@ -109,6 +112,7 @@
       "cover_present": false,
       "schema_version_on_disk": 1,
       "read_only": false,
+      "nsfw": true,
       "current_source_field": "",
       "current_source": null,
       "sources": []
@@ -135,6 +139,7 @@
       "cover_present": false,
       "schema_version_on_disk": 1,
       "read_only": false,
+      "nsfw": false,
       "current_source_field": "",
       "current_source": null,
       "sources": []
@@ -158,6 +163,7 @@
       "cover_present": false,
       "schema_version_on_disk": 1,
       "read_only": false,
+      "nsfw": true,
       "current_source_field": "",
       "current_source": null,
       "sources": []

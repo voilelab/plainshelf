@@ -54,6 +54,13 @@ const ALLOWED = new Set([
   // definition, and this script only walks src/.
   'src/i18n/missingKeyPattern.ts#MISSING_KEY_PATTERN',
 
+  // The shelf's adult-content rules, which this reader computes so that the
+  // cross-language conformance dataset can pin the answer (PSW-116). Nothing on
+  // the pCloud side applies the mark yet; the client that does is what will make
+  // these ordinary exports.
+  'src/api/pcloud/bookpkg.ts#createNSFWRules',
+  'src/api/pcloud/bookpkg.ts#isBookNSFW',
+
   // Internals reached directly by their own unit tests.
   'src/api/books.ts#SimilarRelation',
   'src/api/pcloud/auth.ts#hostForLocationId',

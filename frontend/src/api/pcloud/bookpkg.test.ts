@@ -5,11 +5,13 @@ import {
   collectBookPackages,
   collectFolders,
   createIgnoreRules,
+  createNSFWRules,
   DEFAULT_IGNORE_RULES,
   findBooksFolder,
   findShelfConfigFile,
   findCoverFile,
   findCurrentSource,
+  isBookNSFW,
   isSchemaNewerThanSupported,
   parseBookJson,
   parseShelfConfig,
@@ -223,6 +225,16 @@ describe('parseBookJson', () => {
     expect(meta.authors).toEqual(['A']);
     expect(meta.tags).toEqual([]);
   });
+
+  // A book written before the member existed says nothing, which is not a mark.
+  it.each([
+    ['true', true, true],
+    ['false', false, false],
+    ['absent', undefined, false],
+    ['a string', 'yes', false]
+  ])('reads nsfw written as %s', (_label, written, want) => {
+    expect(parseBookJson({ id: 'x', title: 'T', nsfw: written }).nsfw).toBe(want);
+  });
 });
 
 describe('isSchemaNewerThanSupported', () => {
@@ -430,6 +442,148 @@ describe('shelf.json', () => {
     };
 
     expect(parseShelfConfig(raw)).toEqual({ ignoredDirs: [{ name: '@Snapshot', reason: '' }] });
+  });
+
+  it('reads the folders the shelf marks as adult content, with and without a reason', () => {
+    const raw = {
+      schema_version: 1,
+      content: {
+        nsfw_folders: [{ path: 'Fiction/Adult' }, { path: '/Doujin/', reason: 'the doujin shelf' }]
+      }
+    };
+
+    expect(parseShelfConfig(raw)).toEqual({
+      nsfwFolders: [
+        { path: 'Fiction/Adult', reason: '' },
+        { path: '/Doujin/', reason: 'the doujin shelf' }
+      ]
+    });
+  });
+
+  // The two sections are read independently: a shelf may carry either one.
+  it('reads both sections of a file that carries both', () => {
+    const raw = {
+      scan: { ignored_dirs: [{ name: '@Snapshot' }] },
+      content: { nsfw_folders: [{ path: 'Adult' }] }
+    };
+
+    expect(parseShelfConfig(raw)).toEqual({
+      ignoredDirs: [{ name: '@Snapshot', reason: '' }],
+      nsfwFolders: [{ path: 'Adult', reason: '' }]
+    });
+  });
+
+  // As for ignored_dirs: one entry, one shape, and one unusable entry must not
+  // cost the rest of the file.
+  it('drops nsfw_folders entries that could not name a folder', () => {
+    const raw = {
+      content: {
+        nsfw_folders: [
+          { path: '' },
+          { path: '/' },
+          { path: 'Fiction/./Adult' },
+          { path: 'Fiction/../Adult' },
+          { path: 'with\\separator' },
+          17,
+          null,
+          'Fiction/Adult',
+          { reason: 'no path' },
+          { path: 'Fiction/Adult' }
+        ]
+      }
+    };
+
+    expect(parseShelfConfig(raw)).toEqual({ nsfwFolders: [{ path: 'Fiction/Adult', reason: '' }] });
+  });
+});
+
+describe('createNSFWRules / isBookNSFW', () => {
+  const rules = (...paths: string[]) => createNSFWRules(paths.map((path) => ({ path, reason: '' })));
+  const book = (nsfw: boolean) => parseBookJson({ id: 'x', title: 'T', nsfw });
+
+  // A rule marks its own folder and everything below it, and nothing beside it.
+  // "Fiction/成人漫畫" is the case worth pinning: a plain string prefix test
+  // would match it against "Fiction/成人" and mark a folder nobody named.
+  it.each([
+    ['the marked folder itself', ['Fiction', '成人'], true],
+    ['a folder below it', ['Fiction', '成人', 'Deep'], true],
+    ['a name that starts with it', ['Fiction', '成人漫畫'], false],
+    ['a folder beside it', ['Fiction', 'Classics'], false],
+    ['the folder above it', ['Fiction'], false],
+    ['the root', [], false]
+  ])('marks %s', (_label, folders, want) => {
+    expect(rules('Fiction/成人')(folders)).toBe(want);
+  });
+
+  // Leading, trailing and doubled separators name the same folder, while a path
+  // with no segment at all would mark the whole shelf and is refused.
+  it.each([
+    ['/Fiction/成人', true],
+    ['Fiction/成人/', true],
+    ['Fiction//成人', true],
+    ['', false],
+    ['/', false]
+  ])('reads the rule written as %s', (path, want) => {
+    expect(rules(path)(['Fiction', '成人'])).toBe(want);
+  });
+
+  it('marks nothing for a shelf that listed no folder', () => {
+    expect(createNSFWRules([])(['Fiction', '成人'])).toBe(false);
+  });
+
+  it('keeps the usable rules of a list that also holds an unusable one', () => {
+    const rule = rules('Fiction/../Adult', 'Fiction/成人');
+    expect(rule(['Fiction', '成人'])).toBe(true);
+  });
+
+  it.each([
+    ['its folder', ['Fiction', '成人'], false, true],
+    ['its own mark, outside any rule', [], true, true],
+    ['its own mark, inside one', ['Fiction', '成人'], true, true],
+    ['neither', ['Fiction', 'Classics'], false, false]
+  ])('marks a book by %s', (_label, folders, own, want) => {
+    expect(isBookNSFW(rules('Fiction/成人'), folders, book(own))).toBe(want);
+  });
+
+  // The asymmetry Shelf.IsBookNSFW depends on: a book may add itself, but it may
+  // not take itself out of a marked folder. The failure that rules out is a book
+  // that should have been marked and quietly was not; taking one book out of a
+  // marked folder is done by moving it.
+  it('does not let a book cancel the mark its folder carries', () => {
+    const refused = parseBookJson({ id: 'x', title: 'T', nsfw: false });
+
+    expect(refused.nsfw).toBe(false);
+    expect(isBookNSFW(rules('Fiction/成人'), ['Fiction', '成人'], refused)).toBe(true);
+  });
+});
+
+// Case-insensitive matching has to mean what Unicode means by it, not what
+// lowercasing happens to do, and this reader has to agree with
+// shelfutil.foldSegment on every case. Both halves are a folder rule silently
+// missed — a book that should have been marked quietly is not.
+describe('NSFW folder case folding', () => {
+  const marks = (rule: string, folder: string) =>
+    createNSFWRules([{ path: rule, reason: '' }])([folder]);
+
+  it.each([
+    // "Σ" lowercases to "σ" and "ς" lowercases to itself, so lowercasing alone
+    // gives one letter two spellings that never meet.
+    ['capital sigma rule, final sigma folder', 'ΣΕΙΡΑΣ', 'σειρας', true],
+    ['final sigma rule, capital sigma folder', 'σειρας', 'ΣΕΙΡΑΣ', true],
+    // Unicode's simple case folding leaves "İ" alone, so folding alone loses a
+    // match that lowercasing gets right.
+    ['turkish dotted capital', 'İstanbul', 'istanbul', true],
+    ['turkish lowercase', 'istanbul', 'İstanbul', true],
+    // The dotless i is excluded from folding with "i", so the two stay apart —
+    // as they do in Go, which is what makes this a match rather than a bug.
+    ['dotless i is its own letter', 'ıstanbul', 'istanbul', false],
+    // "ß" uppercases to "SS", which is a spelling rather than a case pair.
+    ['sharp s keeps its own spelling', 'Straße', 'Strasse', false],
+    ['sharp s matches its capital', 'STRAẞE', 'straße', true],
+    ['ascii', 'Fiction', 'FICTION', true],
+    ['a different word still does not match', 'Fiction', 'Fictional', false]
+  ])('%s', (_label, rule, folder, want) => {
+    expect(marks(rule, folder)).toBe(want);
   });
 });
 

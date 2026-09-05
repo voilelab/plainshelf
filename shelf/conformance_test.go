@@ -32,7 +32,7 @@ otherwise invisible until a phone shows the wrong library.
 // matching schema_version in testdata/conformance/manifest.json. Both harnesses
 // check it, so a dataset change that outpaces one of them fails loudly instead
 // of being read as a behavior difference.
-const conformanceDatasetVersion = 2
+const conformanceDatasetVersion = 3
 
 const conformanceRoot = "testdata/conformance"
 
@@ -70,6 +70,7 @@ type conformanceBook struct {
 	CoverPresent        bool                `json:"cover_present"`
 	SchemaVersionOnDisk int                 `json:"schema_version_on_disk"`
 	ReadOnly            bool                `json:"read_only"`
+	NSFW                bool                `json:"nsfw"`
 	CurrentSourceField  string              `json:"current_source_field"`
 	CurrentSource       *string             `json:"current_source"`
 	Sources             []conformanceSource `json:"sources"`
@@ -293,6 +294,7 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 			CoverPresent:        coverPresent,
 			SchemaVersionOnDisk: onDiskSchema,
 			ReadOnly:            errors.Is(book.EnsureWritable(), ErrUnsupportedBookSchemaVersion),
+			NSFW:                s.IsBookNSFW(listing.Folders, meta),
 			CurrentSourceField:  book.CurrentSource(),
 			CurrentSource:       currentSource,
 			Sources:             readConformanceSources(t, s, book),
