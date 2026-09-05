@@ -96,6 +96,21 @@ export interface BookshelfReader {
    */
   supportsCharCountListing?(): boolean;
 
+  /**
+   * Whether this backend applies the device's adult-content setting itself.
+   *
+   * Absent means no, which is the answer wherever a PlainShelf server is behind
+   * the backend: there the server's own `show_nsfw` filters before anything
+   * reaches this client, and a second filter here would let a device setting
+   * override a decision the server has already made. Only a backend reading the
+   * shelf's files directly — pCloud — answers true, because it has no server to
+   * ask and would otherwise ignore the marks entirely.
+   *
+   * Views that filter on the device read this to know whether to; the listings
+   * this backend serves are already filtered by the time they are returned.
+   */
+  filtersNsfwOnDevice?(): boolean;
+
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;
   /**

@@ -3,8 +3,15 @@ import { useRoute, useRouter } from 'vue-router';
 
 // Tabs that are always shown, plus the ones that render only when the server
 // settings are editable (the cover, NSFW, EPUB-import and log-retention panels).
+//
+// `device-nsfw` is the third list: it is the device's own adult-content answer,
+// which only a client with no server to ask acts on. Showing it beside the
+// server's `nsfw` tab would put two switches for one question in front of a
+// user whose server already decides it, so it appears exactly where that tab
+// does not.
 const ALWAYS_TABS = ['read-history', 'reader-launch', 'language', 'about', 'shelves'];
 const EDITABLE_TABS = ['cover', 'nsfw', 'import', 'logs'];
+const DEVICE_ONLY_TABS = ['device-nsfw'];
 
 /**
  * The settings page's active tab, backed by the `?tab=` route query.
@@ -30,7 +37,9 @@ export function useSettingsTabs(
   const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
 
   const availableTabs = computed(() =>
-    serverSettingsEditable.value ? [...ALWAYS_TABS, ...EDITABLE_TABS] : ALWAYS_TABS
+    serverSettingsEditable.value
+      ? [...ALWAYS_TABS, ...EDITABLE_TABS]
+      : [...ALWAYS_TABS, ...DEVICE_ONLY_TABS]
   );
 
   function requestedTab(): string | null {

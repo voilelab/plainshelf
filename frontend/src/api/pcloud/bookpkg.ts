@@ -58,7 +58,7 @@ type IgnoreRules = (name: string) => boolean;
 export const DEFAULT_IGNORE_RULES: IgnoreRules = createIgnoreRules(DEFAULT_IGNORED_DIRS);
 
 /** Mirrors `NSFWFolder` in shelf/internal/shelfutil. */
-interface NSFWFolder {
+export interface NSFWFolder {
   /** A "/"-separated folder path as written; matching folds case. */
   path: string;
   /** A short phrase completing "marked because …". May be empty. */
@@ -71,6 +71,13 @@ interface NSFWFolder {
  * folder and every folder below it.
  */
 type NSFWRules = (folders: readonly string[]) => boolean;
+
+/**
+ * Mirrors `NSFWRules.Match`: the listed rule marking a path, rather than only
+ * whether one does. A reader that has to *say* where a mark came from needs the
+ * entry itself, and asking twice would be two walks down the same path.
+ */
+export type NSFWFolderLookup = (folders: readonly string[]) => NSFWFolder | undefined;
 
 /** What this client reads out of `shelf.json`. */
 export interface ShelfConfig {
@@ -335,32 +342,42 @@ function normalizeFolderPath(folderPath: string): string | undefined {
  * There is no built-in list, so an empty one — the shelf that said nothing —
  * marks nothing. An entry that cannot name a folder is dropped on its own.
  */
-export function createNSFWRules(folders: readonly NSFWFolder[]): NSFWRules {
-  const marked = new Set<string>();
+export function createNSFWFolderLookup(folders: readonly NSFWFolder[]): NSFWFolderLookup {
+  const marked = new Map<string, NSFWFolder>();
   for (const folder of folders) {
     const key = normalizeFolderPath(folder.path);
     if (key !== undefined) {
-      marked.add(key);
+      // Last entry wins for one path, as assigning into Go's map does.
+      marked.set(key, folder);
     }
   }
   if (marked.size === 0) {
-    return () => false;
+    return () => undefined;
   }
 
   // Walking down from the root asks whether any prefix of the path is listed,
   // since a rule marks everything below it. Comparing folded segment by folded
   // segment is what keeps "Fiction/成人" off "Fiction/成人漫畫", which a plain
-  // string prefix test would mark.
+  // string prefix test would mark. The shallowest match wins, for the reason
+  // `NSFWRules.Match` gives: it is the rule that would still mark the folder if
+  // every deeper entry were removed.
   return (path) => {
     let key = '';
     for (const segment of path) {
       key = key === '' ? foldSegment(segment) : `${key}/${foldSegment(segment)}`;
-      if (marked.has(key)) {
-        return true;
+      const folder = marked.get(key);
+      if (folder !== undefined) {
+        return folder;
       }
     }
-    return false;
+    return undefined;
   };
+}
+
+/** The same question as {@link createNSFWFolderLookup}, asked as a yes or no. */
+export function createNSFWRules(folders: readonly NSFWFolder[]): NSFWRules {
+  const lookup = createNSFWFolderLookup(folders);
+  return (path) => lookup(path) !== undefined;
 }
 
 /**
@@ -705,8 +722,13 @@ export function isSchemaNewerThanSupported(meta: BookJson): boolean {
  * `schema_newer_than_supported` is set only for a book this reader knows it read
  * incompletely, so a book written by a version this one understands carries the
  * same fields it always did.
+ *
+ * The adult-content mark has two halves and they are carried separately, as the
+ * server carries them: `nsfw` is the book's own, out of its book.json, and
+ * `nsfwFolder` is the shelf.json rule reaching it — pass the one
+ * `createNSFWFolderLookup` returns for `folders`, and nothing when none does.
  */
-export function toBook(meta: BookJson, folders: string[]): Book {
+export function toBook(meta: BookJson, folders: string[], nsfwFolder?: NSFWFolder): Book {
   const book: Book = {
     id: meta.id,
     title: meta.title,
@@ -723,8 +745,17 @@ export function toBook(meta: BookJson, folders: string[]): Book {
     published_at: meta.published_at,
     current_source: meta.current_source,
     star: meta.star ?? 0,
-    identifiers: meta.identifiers
+    identifiers: meta.identifiers,
+    nsfw: meta.nsfw === true
   };
+
+  if (nsfwFolder) {
+    // `reason` is omitted rather than left empty, matching the server's
+    // `omitempty`, so a client with nothing to quote names the path instead.
+    book.nsfw_folder = nsfwFolder.reason
+      ? { path: nsfwFolder.path, reason: nsfwFolder.reason }
+      : { path: nsfwFolder.path };
+  }
 
   return isSchemaNewerThanSupported(meta) ? { ...book, schema_newer_than_supported: true } : book;
 }

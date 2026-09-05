@@ -274,6 +274,14 @@ const zhHant = {
       markingNote:
         '標記本身屬於書架，不屬於這個開關。單本書在它的中繼資料編輯器裡標；整個資料夾則是在 shelf.json 的 content.nsfw_folders 裡列出。'
     },
+    deviceNsfw: {
+      title: '成人內容',
+      label: '在這台裝置顯示成人內容',
+      description:
+        '關閉時，書架標記為成人內容的書在這台裝置上等同不存在：書庫、資料夾樹與下載清單都看不到，直接輸入網址開啟也會得到「找不到」。',
+      scopeNote:
+        '這個偏好只存在這台裝置，不會與 PlainShelf 伺服器同步。它適用於本 app 直接讀取雲端儲存的書架；由伺服器提供的書架，仍以伺服器自己的設定為準。'
+    },
     readHistory: {
       title: '閱讀紀錄'
     },
