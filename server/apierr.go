@@ -151,16 +151,13 @@ var apiErrorTable = []struct {
 	}},
 }
 
-// The two codes no sentinel owns. Every other code names one table entry, so a
-// reporter can look it up; these two say only "the table does not name this
-// failure", and which one is sent depends on what the handler asked for:
+// The two codes no sentinel owns; both say only "the table does not name this
+// failure".
 //
-//   - codeInternal accompanies a 5xx, where the cause was logged server-side and
-//     deliberately withheld from the body.
-//   - codeUnknown accompanies the caller-chosen non-5xx statuses of
-//     writeErrStatus, where the request is at fault but the table cannot yet say
-//     how. Calling those INTERNAL would send a reporter looking for a server
-//     bug that is not there.
+//   - codeInternal accompanies a 5xx, whose cause was logged and withheld.
+//   - codeUnknown accompanies writeErrStatus's caller-chosen non-5xx statuses,
+//     where the request is at fault but the table cannot say how. Calling those
+//     INTERNAL would send a reporter after a server bug that is not there.
 const (
 	codeInternal = "INTERNAL"
 	codeUnknown  = "UNKNOWN"
@@ -178,15 +175,12 @@ type apiErrorDetail struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 
-	// Incident correlates this response with the server log entries for the
-	// request that produced it. It is the request's ID, not a second number
-	// minted for the failure: a user reporting a refusal they understand - a
-	// 404, a read-only shelf - has something to quote too, and quotes the same
-	// string the X-Request-Id header carries.
+	// Incident is the request's ID, not a second number minted for the failure,
+	// so a user reporting a refusal they understand has something to quote and
+	// quotes the same string X-Request-Id carries.
 	//
-	// It stays omitempty for the responses no middleware saw: the desktop
-	// client reaches some handlers directly, and those have no request to take
-	// an ID from.
+	// omitempty for the responses no middleware saw: the desktop client reaches
+	// some handlers directly, and those have no request to take an ID from.
 	Incident string `json:"incident,omitempty"`
 }
 
@@ -194,10 +188,9 @@ type apiErrorDetail struct {
 // answers with a JSON body carrying the running chain's ID, so the task
 // handlers match it themselves.
 func apiErrorFor(err error) (apiError, bool) {
-	// Which directory names a shelf skips is that shelf's own setting, so the
-	// table cannot hold the message: naming the built-in directories would send
-	// a user whose shelf.json lists its own looking for a rule that does not
-	// apply. The shelf carries the reason out with the rejection instead.
+	// Which directories a shelf skips is that shelf's own setting, so naming the
+	// built-in ones here would send a user whose shelf.json lists its own after
+	// a rule that does not apply. The shelf carries the reason out instead.
 	var ignored *shelf.IgnoredFolderNameError
 	if errors.As(err, &ignored) {
 		return apiError{
@@ -208,10 +201,8 @@ func apiErrorFor(err error) (apiError, bool) {
 	}
 
 	// Which file is broken, and where, is the whole content of this refusal: a
-	// user who hand-edited a book.json cannot act on "some file is invalid".
-	// The path and the decoder's own message - which names the duplicated or
-	// mis-encoded member - travel out with the error rather than living in the
-	// table.
+	// user who hand-edited a book.json cannot act on "some file is invalid", so
+	// the path and the decoder's own message travel out with the error.
 	var malformed *shelf.MalformedMetadataError
 	if errors.As(err, &malformed) {
 		return apiError{
@@ -245,11 +236,9 @@ func malformedMetadataMessage(err *shelf.MalformedMetadataError) string {
 	return fmt.Sprintf("%s is not valid JSON: %v; repair the file and try again", err.File, err.Err)
 }
 
-// writeErr answers a known error from the table, and anything else with 500
-// and fallback, so an unexpected failure never leaks its detail to the client.
-//
-// The body is the JSON envelope in every case; err.Error() reaches the log, not
-// the client.
+// writeErr answers a known error from the table, and anything else with 500 and
+// fallback. The body is the JSON envelope either way; err.Error() reaches the
+// log, not the client.
 func (c *apiCore) writeErr(w http.ResponseWriter, r *http.Request, err error, fallback string) {
 	c.writeErrStatus(w, r, err, fallback, http.StatusInternalServerError)
 }
@@ -273,11 +262,9 @@ func (c *apiCore) writeErrStatus(w http.ResponseWriter, r *http.Request, err err
 		code = codeInternal
 	}
 
-	// The unknown failure is the one that reaches a bug report, and its body
-	// deliberately withholds the cause, so this line has to answer every
-	// question the body cannot: which request, what it asked for, which shelf
-	// it was against, and the whole error chain. Anything missing here is a
-	// question the developer has to put back to the user days later.
+	// The body deliberately withholds the cause, so this line has to answer
+	// every question it cannot: which request, what it asked for, which shelf,
+	// and the whole error chain.
 	c.Error(fallback,
 		"request_id", incident,
 		"code", code,

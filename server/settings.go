@@ -26,12 +26,9 @@ const (
 // arithmetic in logutil can carry.
 const maxLogRetentionDays = 3650
 
-// settings resolves a setting to the value the rest of the server should act
-// on: the stored one when there is a usable one, the configured one otherwise.
-//
-// It is a component rather than a set of App methods because the import path
-// reads settings too, and the store and the config are the only things any of
-// this needs.
+// settings resolves a setting to the value the rest of the server should act on:
+// the stored one when usable, the configured one otherwise. A component rather
+// than App methods because the import path reads settings too.
 type settings struct {
 	*logutil.Logger
 
@@ -129,13 +126,10 @@ func checkLogRetentionDays(days int) error {
 	return nil
 }
 
-// logRetentionDays is the window the log writers are currently applying: the
-// stored setting when there is a usable one, otherwise what the configuration
-// names for the app logger.
-//
-// A per-shelf logger may be configured with a different window, which is what
-// it returns to when the setting is cleared. Reporting the app logger's is the
-// honest single answer for a single control.
+// logRetentionDays is the window the log writers currently apply. A per-shelf
+// logger may be configured with a different one, which is what it returns to
+// when the setting is cleared; the app logger's is the honest single answer for
+// a single control.
 func (s *settings) logRetentionDays() int {
 	if days, ok := readJSONSetting(s, settingKeyLogRetentionDays, checkLogRetentionDays); ok {
 		return days

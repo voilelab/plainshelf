@@ -31,11 +31,10 @@ type fingerprintHandlers struct {
 // does not.
 const defaultSimilarFloor = 0.15
 
-// similarWorkBudget caps the merge steps the synchronous sweep will spend.
-// Cost is the sum of sketch lengths, not the book count: a short work keeps
-// every shingle, so a shelf of novellas costs far more per pair than one of
-// novels. Past the budget the endpoint declines rather than outrun the
-// client's 30s fetch timeout. A var so a test can lower it.
+// similarWorkBudget caps the merge steps the synchronous sweep will spend. Cost
+// is the sum of sketch lengths, not the book count: a short work keeps every
+// shingle, so a shelf of novellas costs far more per pair than one of novels.
+// A var so a test can lower it.
 var similarWorkBudget = 1 << 30
 
 // similarMergeStepsPerSecond converts the conservative merge-step upper bound
@@ -95,12 +94,10 @@ type similarPair struct {
 	Relation string `json:"relation"`
 }
 
-// similarTooLarge is the estimate returned before a shelf whose fingerprinted
-// content would cost more than similarWorkBudget is compared in one pass. It
-// gives the caller enough information to ask the user whether the synchronous
-// wait is worthwhile. It travels on a plain 200, not a 202: nothing was accepted
-// for later processing - there is no similarity task - so 202 would promise a
-// result that never arrives.
+// similarTooLarge is the estimate returned instead of comparing a shelf that
+// would cost more than similarWorkBudget, so the caller can ask the user whether
+// the wait is worthwhile. It travels on a plain 200: nothing was accepted for
+// later processing, so 202 would promise a result that never arrives.
 type similarTooLarge struct {
 	Status        string `json:"status"`
 	Total         int    `json:"total"`

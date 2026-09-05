@@ -5,21 +5,17 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// bookVisibility answers one question for one request: which of a shelf's books
-// exist at all, as far as this request is concerned.
+// bookVisibility answers which of a shelf's books exist at all, as far as one
+// request is concerned.
 //
-// It is one type rather than a check in each handler because the answer has to
-// be the same on every route. A listing that filtered while the single-book
-// route did not would still serve the book to anyone holding its URL, and three
-// listings each with their own condition would eventually disagree. Every
-// book-shaped response is therefore built from this: listings go through
-// listBooks, and a request that names one book goes through
-// apiCore.lookupBookListing.
+// One type rather than a check per handler because the answer has to be the same
+// on every route: a listing that filtered while the single-book route did not
+// would still serve the book to anyone holding its URL. Listings go through
+// listBooks, and a request naming one book through apiCore.lookupBookListing.
 //
-// The rule itself belongs to the shelf - Shelf.IsBookNSFW, assembled from
-// shelf.json and the book's own book.json - because the mark travels with the
-// files and every reader of the shelf has to compute it the same way. What this
-// adds is the one server's decision about whether a marked book is served.
+// The rule itself belongs to the shelf - Shelf.IsBookNSFW - because the mark
+// travels with the files and every reader has to compute it the same way. What
+// this adds is the server's decision about whether a marked book is served.
 type bookVisibility struct {
 	shelf *shelf.Shelf
 
@@ -92,20 +88,17 @@ func (v bookVisibility) visibleBookIDs() (map[string]bool, error) {
 	return ids, nil
 }
 
-// filterFolders drops the folders this request must not see, keeping the rest
-// in the order they were given.
+// filterFolders drops the folders this request must not see, keeping the rest in
+// the order they were given.
 //
 // Two kinds go: a folder inside a marked subtree, and a folder whose books are
-// all hidden. The second is what stops the mark showing through its own
-// absence - a folder holding nothing but marked books would otherwise stay in
-// the tree, in the breadcrumbs and in the move-book destination menu, and its
-// name is usually the whole disclosure.
+// all hidden. The second stops the mark showing through its own absence - a
+// folder holding nothing but marked books would otherwise stay in the tree, the
+// breadcrumbs and the move-book menu, and its name is usually the disclosure.
 //
-// A folder that holds no books at all is kept. It is empty for a reason this
-// setting had nothing to do with - someone made it - and dropping it would take
-// away a destination the user needs. Ancestors follow from the same rule
-// without a special case: a folder that still holds a visible book anywhere
-// below it counts as holding one.
+// A folder holding no books at all is kept: someone made it, and dropping it
+// would take away a destination the user needs. Ancestors follow from the same
+// rule, since a folder holding a visible book anywhere below it counts.
 func (v bookVisibility) filterFolders(folders []shelf.FolderPath) ([]shelf.FolderPath, error) {
 	if v.showNSFW {
 		return folders, nil
