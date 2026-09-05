@@ -95,6 +95,22 @@ func confirmedReveal(r *http.Request) bool {
 	return r.URL.Query().Get("confirm") == "1"
 }
 
+// validFolderPaths answers the request error a malformed path earns and reports
+// false, so a caller can put that answer ahead of a refusal that would otherwise
+// hide it. The shelf validates these paths again when it acts on them; this only
+// settles the order the caller answers in.
+func (c *apiCore) validFolderPaths(
+	w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, paths ...shelf.FolderPath,
+) bool {
+	for _, path := range paths {
+		if err := shelfData.ValidateFolderPath(path); err != nil {
+			c.writeErrStatus(w, r, err, "invalid folder name", http.StatusBadRequest)
+			return false
+		}
+	}
+	return true
+}
+
 // refreshBeforeReveal forces the fresh scan the check below needs, on the shelves
 // where a mark makes one necessary.
 //
@@ -168,6 +184,19 @@ func (h *folderHandlers) renameFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A rename is a move that keeps the parent, so it unmarks a subtree the same
+	// way: Fiction/Adult renamed to Fiction/General matches no rule any more.
+	renamed := append(append(shelf.FolderPath(nil), folderParts[:len(folderParts)-1]...), newName)
+
+	// Both paths are validated here rather than left to RenameFolder, because
+	// the two refusals below have to come after it: a malformed path is a
+	// request error whatever state the shelf is in, and the same order is what
+	// the cross-shelf transfer already runs. RenameFolder validates them again
+	// under its own lock, which is where the answer that counts comes from.
+	if !h.validFolderPaths(w, r, shelfData, folderParts, renamed) {
+		return
+	}
+
 	// The shelf refuses every write to a read-only shelf, so this rename has
 	// nothing to disclose - and the disclosure below is a question put to the
 	// user, which must not run ahead of a refusal.
@@ -175,9 +204,6 @@ func (h *folderHandlers) renameFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A rename is a move that keeps the parent, so it unmarks a subtree the same
-	// way: Fiction/Adult renamed to Fiction/General matches no rule any more.
-	renamed := append(append(shelf.FolderPath(nil), folderParts[:len(folderParts)-1]...), newName)
 	h.refreshBeforeReveal(r, shelfData)
 	if h.refuseUnconfirmedReveal(w, r, shelfData, folderMovedTo(folderParts, renamed)) {
 		return
@@ -213,14 +239,21 @@ func (h *folderHandlers) moveFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Refused before the disclosure below, for the reason renameFolder gives.
+	// MoveFolder keeps the folder's own name and hangs it under the target, so
+	// that is the path every folder below it is rebased onto.
+	moved := append(append(shelf.FolderPath(nil), req.TargetFolder...), req.Folder[len(req.Folder)-1])
+
+	// Validated ahead of both refusals below, for the reason renameFolder gives.
+	// The target parent is checked rather than the assembled path, which is what
+	// MoveFolder itself validates.
+	if !h.validFolderPaths(w, r, shelfData, req.Folder, req.TargetFolder) {
+		return
+	}
+
 	if h.rejectReadOnlyShelf(w, r, shelfData) {
 		return
 	}
 
-	// MoveFolder keeps the folder's own name and hangs it under the target, so
-	// that is the path every folder below it is rebased onto.
-	moved := append(append(shelf.FolderPath(nil), req.TargetFolder...), req.Folder[len(req.Folder)-1])
 	h.refreshBeforeReveal(r, shelfData)
 	if h.refuseUnconfirmedReveal(w, r, shelfData, folderMovedTo(req.Folder, moved)) {
 		return

@@ -485,4 +485,27 @@ func TestAPINSFWFolderChangeOnAReadOnlyShelfRefusesRatherThanAsking(t *testing.T
 				"shelf is opened read-only; this PlainShelf instance cannot modify it")
 		})
 	}
+
+	// A malformed path is a request error whatever state the shelf is in, so it
+	// has to be answered before either refusal above - the shelf would have said
+	// so itself, and only says it later than these two now do.
+	malformed := []struct {
+		name string
+		rec  func() *httptest.ResponseRecorder
+	}{
+		{name: "move", rec: func() *httptest.ResponseRecorder {
+			return env.Post(apitest.ShelfURL("folder-moves"),
+				strings.NewReader(`{"folder":[".."],"target_folder":["Archive"]}`))
+		}},
+		{name: "rename", rec: func() *httptest.ResponseRecorder {
+			return env.Patch(apitest.ShelfURL("folders", "Fiction"), strings.NewReader(`{"name":".."}`))
+		}},
+	}
+
+	for _, tc := range malformed {
+		t.Run("malformed "+tc.name, func(t *testing.T) {
+			apitest.AssertErrorEnvelope(t, tc.rec(), http.StatusBadRequest,
+				"INVALID_FOLDER", "invalid folder name")
+		})
+	}
 }
