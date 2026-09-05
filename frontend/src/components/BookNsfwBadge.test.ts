@@ -29,21 +29,20 @@ afterEach(() => {
 });
 
 describe('BookNsfwBadge', () => {
-  it('renders nothing for an unmarked book', () => {
-    expect(mount({}).querySelector('.book-nsfw-badge')).toBeNull();
-    expect(mount({ nsfw: false }).querySelector('.book-nsfw-badge')).toBeNull();
-  });
+  it('renders for either half of the mark and for neither', () => {
+    // The folder row is the one a card cannot get from `nsfw`: without it,
+    // exactly the books a folder rule hides would look unmarked in the listing
+    // that is showing them because the setting is on.
+    const cases: [Pick<Book, 'nsfw' | 'nsfw_folder'>, boolean][] = [
+      [{}, false],
+      [{ nsfw: false }, false],
+      [{ nsfw: true }, true],
+      [{ nsfw: false, nsfw_folder: { path: 'Fiction/Adult' } }, true]
+    ];
 
-  it("renders for a book marked in its own metadata", () => {
-    expect(mount({ nsfw: true }).querySelector('.book-nsfw-badge')).not.toBeNull();
-  });
-
-  it('renders for a book marked only by its folder', () => {
-    // The half a book card never sees in `nsfw`: without it, exactly the books
-    // a folder rule hides would look unmarked in the listing that is showing
-    // them because the setting is on.
-    const host = mount({ nsfw: false, nsfw_folder: { path: 'Fiction/Adult' } });
-    expect(host.querySelector('.book-nsfw-badge')).not.toBeNull();
+    for (const [book, shown] of cases) {
+      expect(mount(book).querySelector('.book-nsfw-badge') !== null, JSON.stringify(book)).toBe(shown);
+    }
   });
 
   it('carries a text label, not colour alone', () => {

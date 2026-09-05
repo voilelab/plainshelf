@@ -405,8 +405,13 @@ describe('BookDetailPage metadata editor', () => {
     expect(mocks.routerPush).not.toHaveBeenCalled();
   });
 
-  it('re-reads the book when a save marks it as adult content', async () => {
-    mocks.savedBook = { ...mocks.savedBook, nsfw: true };
+  it.each([
+    ['the book\'s own mark', { nsfw: true }],
+    // A move into a marked folder hides the book just as its own mark does,
+    // which is why the page asks isBookNsfw rather than reading `nsfw`.
+    ['a folder rule', { nsfw_folder: { path: 'Fiction/Adult' } }]
+  ])('re-reads the book when a save marks it through %s', async (_name, mark) => {
+    mocks.savedBook = { ...mocks.savedBook, ...mark };
 
     const host = mountPage();
     await flush();
@@ -421,20 +426,6 @@ describe('BookDetailPage metadata editor', () => {
     // page has no listing behind it to notice. The re-read is what turns the
     // stale detail into the error state; with the setting on it just returns
     // the same book.
-    expect(mocks.fetchDetail).toHaveBeenCalledTimes(2);
-  });
-
-  it('re-reads when the mark comes from the book\'s folder rather than the book', async () => {
-    mocks.savedBook = { ...mocks.savedBook, nsfw_folder: { path: 'Fiction/Adult' } };
-
-    const host = mountPage();
-    await flush();
-    editMetadataButton(host)?.click();
-    await flush();
-    host.querySelector<HTMLButtonElement>('.metadata-save')?.click();
-    await flush();
-
-    // A move into a marked folder hides the book just as its own mark does.
     expect(mocks.fetchDetail).toHaveBeenCalledTimes(2);
   });
 

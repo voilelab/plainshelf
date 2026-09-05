@@ -149,22 +149,3 @@ func TestAPIBookReportsTheFolderRuleThatMarksIt(t *testing.T) {
 		t.Errorf("book-marked book reports meta.nsfw = false, want its own mark")
 	}
 }
-
-// The endpoint is not the only way in: book.json is the source of truth, so a
-// mark written straight into the file is the shelf's answer once it is rescanned.
-// The PATCH route added for the metadata editor is a convenience over this, not
-// a gate in front of it.
-func TestAPIBookNSFWWrittenByHandIsRead(t *testing.T) {
-	s := apitest.NewNSFWShelf(t)
-	apitest.SetShowNSFW(t, s.Env, true)
-
-	apitest.EditBookMetaFile(t, s.Env, s.Classic, map[string]any{"nsfw": true})
-	apitest.AssertStatus(t, s.Env.Post(apitest.ScansURL(), nil), http.StatusOK)
-
-	if got := apitest.GetJSON[server.Book](t, s.Env, apitest.BookURL(s.Classic)); !got.Meta.NSFW {
-		t.Errorf("meta.nsfw = false, want the mark written into book.json")
-	}
-
-	apitest.SetShowNSFW(t, s.Env, false)
-	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible)
-}

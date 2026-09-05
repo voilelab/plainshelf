@@ -67,8 +67,10 @@ func (s NSFWShelf) All() []string {
 }
 
 // NewNSFWShelf builds it. shelf.json is written before the app opens because it
-// is read once at open; the book's own mark is applied afterwards through the
-// PATCH route, which is how a user applies one.
+// is read once at open; the book's own mark goes straight into book.json and is
+// rescanned, which covers the other way a mark arrives - the file is the source
+// of truth, and a shelf may be marked with a text editor. SetBookNSFW is the
+// route a user takes, and has its own test.
 func NewNSFWShelf(t *testing.T) NSFWShelf {
 	t.Helper()
 
@@ -90,7 +92,7 @@ func NewNSFWShelf(t *testing.T) NSFWShelf {
 	}
 
 	AssertStatus(t, env.Post(ShelfURL("folders", NSFWEmptyFolder), nil), http.StatusNoContent)
-	SetBookNSFW(t, env, shelf.BookHidden, true)
+	EditBookMetaFile(t, env, shelf.BookHidden, map[string]any{"nsfw": true})
 	AssertStatus(t, env.Post(ScansURL(), nil), http.StatusOK)
 	return shelf
 }

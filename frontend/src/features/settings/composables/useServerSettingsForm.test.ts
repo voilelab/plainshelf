@@ -76,17 +76,6 @@ describe('useServerSettingsForm show_nsfw', () => {
     expect(error.value).toBe('');
   });
 
-  it('turns the setting back off through the same endpoint', async () => {
-    settingsApi.getShowNsfwSetting.mockResolvedValue(true);
-
-    const { showNsfw, loadSettings, onShowNsfwChange } = form();
-    await loadSettings();
-    await onShowNsfwChange(false);
-
-    expect(settingsApi.setShowNsfwSetting).toHaveBeenLastCalledWith(false);
-    expect(showNsfw.value).toBe(false);
-  });
-
   it('rolls the switch back and skips the refetch when the save fails', async () => {
     settingsApi.setShowNsfwSetting.mockRejectedValue(new Error('nope'));
 

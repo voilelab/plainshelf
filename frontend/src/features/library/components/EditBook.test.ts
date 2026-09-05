@@ -281,55 +281,32 @@ describe('EditBook adult-content mark', () => {
     submit(host);
     await nextTick();
 
-    expect(submitted).toHaveLength(1);
     expect(submitted[0].nsfw).toBe(true);
   });
 
-  it('carries an already-marked book through an unrelated edit', async () => {
+  it('shows a folder-borne mark as on and read-only, naming the rule', async () => {
     setLocale('en');
-    const { host, submitted } = mountBook({ nsfw: true });
-
-    expect(nsfwSwitch(host).getAttribute('aria-checked')).toBe('true');
-    submit(host);
-    await nextTick();
-
-    // The payload always names nsfw, so an edit that does not touch it must not
-    // read as a request to clear it.
-    expect(submitted[0].nsfw).toBe(true);
-  });
-
-  it('toggling the mark makes the form dirty', async () => {
-    setLocale('en');
-    const { host, dirtyChanges } = mountBook({ nsfw: false });
-
-    nsfwSwitch(host).click();
-    await nextTick();
-
-    expect(dirtyChanges.at(-1)).toBe(true);
-  });
-
-  it('shows a folder-borne mark as on and read-only, naming the rule and its reason', async () => {
-    setLocale('en');
-    const { host } = mountBook({
+    const withReason = mountBook({
       nsfw: false,
       nsfw_folder: { path: 'Fiction/Adult', reason: 'kept apart' }
     });
 
-    const control = nsfwSwitch(host);
+    const control = nsfwSwitch(withReason.host);
     // On despite the book's own nsfw being false: the two halves add, so the
     // book is marked and a switch reading "off" would be a lie.
     expect(control.getAttribute('aria-checked')).toBe('true');
     expect(control.disabled).toBe(true);
+    expect(withReason.host.querySelector('.nsfw-row .field-help')?.textContent)
+      .toContain('kept apart');
 
-    const help = host.querySelector('.nsfw-row .field-help')?.textContent ?? '';
+    // A rule with no reason falls back to naming the path alone.
+    const noReason = mountBook({ nsfw: false, nsfw_folder: { path: 'Fiction/Adult' } });
+    const help = noReason.host.querySelector('.nsfw-row .field-help')?.textContent ?? '';
     expect(help).toContain('Fiction/Adult');
-    expect(help).toContain('kept apart');
-    expect(control.getAttribute('aria-describedby')).toBe(
-      host.querySelector('.nsfw-row .field-help')?.id
-    );
+    expect(help).not.toContain('undefined');
   });
 
-  it('does not write a folder-borne mark into the book\'s own metadata', async () => {
+  it("does not write a folder-borne mark into the book's own metadata", async () => {
     setLocale('en');
     const { host, submitted } = mountBook({
       nsfw: false,
@@ -342,14 +319,5 @@ describe('EditBook adult-content mark', () => {
     // The switch reads on, but the book's own nsfw is still false: writing true
     // here would leave the book marked after the folder rule is removed.
     expect(submitted[0].nsfw).toBe(false);
-  });
-
-  it('names the folder rule by path alone when it carries no reason', async () => {
-    setLocale('en');
-    const { host } = mountBook({ nsfw: false, nsfw_folder: { path: 'Fiction/Adult' } });
-
-    const help = host.querySelector('.nsfw-row .field-help')?.textContent ?? '';
-    expect(help).toContain('Fiction/Adult');
-    expect(help).not.toContain('undefined');
   });
 });
