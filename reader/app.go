@@ -23,20 +23,15 @@ type ReaderApp struct {
 	ctx     context.Context
 	library *readerapi.Library
 
-	// shelfID is the shelf id this reader reports as active and keys its progress
-	// under. It is the real desktop shelf id when the desktop app launched the
-	// reader with -shelf, so the reader opens at — and writes back to — the same
-	// shelves.<realShelfID>.<bookID> position the desktop library already holds.
-	// When the reader runs standalone (no -shelf) it is the synthetic
-	// readerapi.ShelfID ("book"), which the desktop side projects onto real
-	// shelves; see internal/readingprogress.
+	// shelfID is the real desktop shelf id when the desktop launched this reader
+	// with -shelf, so it opens at and writes back to the position the library
+	// already holds. Standalone it is the synthetic readerapi.ShelfID ("book"),
+	// which the desktop side projects onto real shelves.
 	shelfID string
 
-	// launchSection is the reader section index the reader was launched to open
-	// (desktop -section), or noLaunchSection when none was requested. It is carried
-	// into the frontend through BootConfig as the `?section=` deep link, and only
-	// applies to the launch book: OpenBookPackage clears it, so a manually opened
-	// book is not dragged to the original launch chapter.
+	// launchSection reaches the frontend through BootConfig as the `?section=`
+	// deep link, and applies to the launch book alone: OpenBookPackage clears it,
+	// so a manually opened book is not dragged to the original chapter.
 	launchSection int
 
 	// progressStore is the shared reading-progress document, the same file the
