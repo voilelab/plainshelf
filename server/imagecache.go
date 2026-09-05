@@ -22,14 +22,10 @@ func imageContentTypeForExt(ext string) string {
 	}
 }
 
-// cacheVisibility returns the Cache-Control visibility for a stored file's
-// response.
-//
-// It is derived from the token gate itself rather than read from the config
-// separately, so the two cannot drift apart. A response the gate protected must
-// not be stored by a shared cache: the token travels in a header the cache does
-// not key on, so a stored copy could answer a later request that never reached
-// the gate.
+// cacheVisibility is derived from the token gate itself rather than read from
+// the config, so the two cannot drift apart. A gated response must not be stored
+// by a shared cache: the token travels in a header the cache does not key on, so
+// a stored copy could answer a request that never reached the gate.
 func (c *apiCore) cacheVisibility(r *http.Request) string {
 	if c.security.requiresToken(r) {
 		return "private"
@@ -47,14 +43,11 @@ const (
 	// stale copy cannot outlive the change that made it stale.
 	cacheUntilChanged imageCacheFreshness = "max-age=86400"
 
-	// cacheRevalidateAlways suits a file the API can replace or remove while
-	// its URL stays the same, which is every source asset: the reader derives
-	// the URL from the file name in the text, and nothing records a version to
-	// bust a cache with - deliberately, since the filesystem is the only list.
-	//
-	// Without this a client would keep showing a replaced illustration, or one
-	// already deleted, for up to a day. Revalidation is cheap here because the
-	// response carries an ETag and answers 304 from a single stat.
+	// cacheRevalidateAlways suits a file the API can replace or remove while its
+	// URL stays the same, which is every source asset: the reader derives the URL
+	// from the file name in the text, and nothing records a version to bust a
+	// cache with. Revalidation is cheap because the response carries an ETag and
+	// answers 304 from a single stat.
 	cacheRevalidateAlways imageCacheFreshness = "no-cache"
 )
 
@@ -83,18 +76,13 @@ func (c *apiCore) serveImageValidator(
 	return false
 }
 
-// etagMatchesIfNoneMatch reports whether an If-None-Match header value matches
-// the stored file's ETag.
-//
-// RFC 9110 allows a list of validators or "*", and requires the weak
-// comparison for GET and HEAD, where only the opaque tag matters. Plain string
-// equality answers a browser echoing one tag back, but misses a client sending
-// several - and the cost of a miss is a full body, which for an asset has no
-// size bound.
+// etagMatchesIfNoneMatch follows RFC 9110, which allows a list of validators or
+// "*" and requires the weak comparison for GET and HEAD. Plain string equality
+// answers a browser echoing one tag back but misses a client sending several,
+// and the cost of a miss is a full body, unbounded for an asset.
 //
 // Splitting on commas is safe for the tags this server issues: they are
-// mtime-size pairs and never contain one. A tag from elsewhere that did would
-// simply fail to match, which errs towards sending the body.
+// mtime-size pairs and never contain one.
 func etagMatchesIfNoneMatch(header, etag string) bool {
 	header = strings.TrimSpace(header)
 	if header == "" || etag == "" {

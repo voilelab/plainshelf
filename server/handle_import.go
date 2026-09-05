@@ -315,7 +315,7 @@ func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, r *http.Req
 // not carry its folder back.
 func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book, folderParts shelf.FolderPath) {
 	h.writeJSON(w, http.StatusCreated, Book{
-		Meta:  newBook.GetMeta(),
+		Meta:   newBook.GetMeta(),
 		Folder: folderParts,
 	})
 }

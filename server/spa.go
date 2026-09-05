@@ -71,15 +71,12 @@ func generateCSPNonce() (string, error) {
 	return base64.RawStdEncoding.EncodeToString(nonceBytes), nil
 }
 
-// contentSecurityPolicy is the document policy sent with index.html. It is the
-// browser-side backstop the ticket asks for: if the sanitizer is ever bypassed,
-// the policy still refuses to run injected script (no 'unsafe-inline' in
-// script-src — the one inline script, the bootstrap below, carries the nonce)
-// and refuses to be framed, so a single XSS or clickjack cannot also carry off
-// the local token embedded in this page.
+// contentSecurityPolicy is the browser-side backstop: if the sanitizer is ever
+// bypassed, the policy still refuses to run injected script (no 'unsafe-inline'
+// in script-src — the bootstrap below carries the nonce) and refuses to be
+// framed, so an XSS or clickjack cannot carry off the local token in this page.
 //
-// The relaxations are deliberate and each is forced by something the app really
-// loads:
+// Each relaxation is forced by something the app really loads:
 //   - img-src data: — the default cover (bookcover.svg) is small enough that the
 //     build inlines it as a data: URI.
 //   - img-src blob: — reader illustration assets are fetched with the token and

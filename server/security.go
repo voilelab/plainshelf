@@ -119,12 +119,10 @@ func ValidateSecurityForListenAddr(conf *SecurityConf, listenAddr string) error 
 	return util.Errorf("app_conf.security.mode must be set when server_conf.addr %q is not loopback", listenAddr)
 }
 
-// InsecureNetworkExposure reports whether the API answers every request without
-// authentication from beyond this machine: security mode none, bound to a
-// non-loopback listen address. It is what the Web UI's persistent "no API auth"
-// warning keys on. Mode local_token never qualifies, and a loopback bind is the
-// ordinary local-development case, not an exposure. In-process embedders
-// (desktop, reader) open no port and so are never asked.
+// InsecureNetworkExposure reports mode none bound to a non-loopback address,
+// which is what the Web UI's persistent "no API auth" warning keys on. A
+// loopback bind is ordinary local development, not an exposure, and in-process
+// embedders open no port at all.
 func (sec *Security) InsecureNetworkExposure(listenAddr string) bool {
 	return sec != nil && sec.conf.Mode == SecurityModeNone && !isLoopbackListenAddr(listenAddr)
 }
@@ -142,17 +140,16 @@ func isLoopbackListenAddr(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// setStaticSecurityHeaders writes the browser-hardening headers PlainShelf
-// sends on every response, whatever the security mode. They are the layer that
-// stands in front of the sanitizer and the local token: nosniff stops a
-// response being reinterpreted as a different content type, DENY refuses to be
-// framed (so a clickjacking page cannot borrow the token-bearing UI), and
-// no-referrer keeps the address — which can carry a book or shelf identifier —
-// off any outbound request. None depend on the token gate, so they are set
-// before it, ahead of any mode branching or early return. The document-level
-// Content-Security-Policy is not here: it belongs on the HTML response that
-// carries the token, and is set in spaHandlers.fallback with its per-request
-// nonce.
+// setStaticSecurityHeaders writes the browser-hardening headers sent on every
+// response, whatever the security mode: nosniff stops a response being
+// reinterpreted as another content type, DENY refuses to be framed so a
+// clickjacking page cannot borrow the token-bearing UI, and no-referrer keeps
+// the address — which can carry a book or shelf identifier — off any outbound
+// request.
+//
+// None depend on the token gate, so they are set before it, ahead of any mode
+// branching or early return. The document-level Content-Security-Policy belongs
+// on the HTML response that carries the token; see spaHandlers.fallback.
 func setStaticSecurityHeaders(h http.Header) {
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("X-Frame-Options", "DENY")
@@ -224,13 +221,10 @@ func (sec *Security) requiresToken(r *http.Request) bool {
 }
 
 // isTokenExemptScan reports the one write-shaped request the token gate lets
-// through: the shelf rescan, while protect_read is off. The gate's rule is
-// "a read needs no token unless protect_read says so", and a rescan is a read --
-// it walks the shelf and rebuilds the cache, which is why read-only mode already
-// exempts it (isReadOnlySafeRequest). Being a POST was the only thing holding it,
-// and that made the "refresh the book list" button fail with 401 under the
-// shipped defaults, which the docs promise need no token. With protect_read on,
-// reads need a token and so does this.
+// through: the shelf rescan, while protect_read is off. A rescan is a read — it
+// walks the shelf and rebuilds the cache, which is why read-only mode already
+// exempts it — and being a POST was the only thing holding it, which made the
+// "refresh the book list" button fail with 401 under the shipped defaults.
 //
 // Exempt from the token is not exempt from CSRF: see
 // originAllowedForTokenExemptRequest.
@@ -239,14 +233,11 @@ func (sec *Security) isTokenExemptScan(r *http.Request) bool {
 		isReadOnlySafeRequest(r)
 }
 
-// IsLogAPIPath reports whether a path serves the log API, which always needs a
-// token. protect_read answers "must a reader authenticate to see the shelf",
-// and the logs are not shelf content: they record every request path, and so
-// the shelf's structure, together with the access times and remote addresses
-// behind it. Someone who turns protect_read off to let the household read books
-// over the LAN has said nothing about publishing that. It is an exception in
-// the same place /health is one, deliberately not a setting: a safe default is
-// not a choice to offer.
+// IsLogAPIPath reports the log API, which always needs a token. protect_read
+// answers "must a reader authenticate to see the shelf", and the logs are not
+// shelf content: they record every request path — and so the shelf's structure —
+// with the access times and remote addresses behind it. Deliberately not a
+// setting: a safe default is not a choice to offer.
 func IsLogAPIPath(path string) bool {
 	return path == "/api/logs" || strings.HasPrefix(path, "/api/logs/")
 }
@@ -300,12 +291,11 @@ func (sec *Security) originAllowedForProtectedRequest(r *http.Request, tokenOK b
 
 // originAllowedForTokenExemptRequest is the CSRF half of the gate for a request
 // let through without a token. A browser attaches Origin to every cross-site
-// POST, so an origin we do not know is a page acting on its own and is refused.
-// No origin at all is not a browser -- the Android client's native HTTP bridge
-// sends none -- so there is no cross-site request to forge. That is where it
-// parts from originAllowedForProtectedRequest, which needs a valid token to
-// vouch for a missing origin; demanding one here would restore the 401 this
-// exemption removes.
+// POST, so an unknown origin is a page acting on its own. No origin at all is
+// not a browser — the Android client's native HTTP bridge sends none — so there
+// is nothing to forge. That is where it parts from
+// originAllowedForProtectedRequest, which needs a token to vouch for a missing
+// origin; demanding one here would restore the 401 this exemption removes.
 func (sec *Security) originAllowedForTokenExemptRequest(r *http.Request) bool {
 	origin, hasOrigin := sec.requestOrigin(r)
 	if !hasOrigin {
@@ -383,10 +373,9 @@ func (sec *Security) applyCORS(w http.ResponseWriter, r *http.Request) {
 	h.Add("Vary", "Origin")
 	h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 	h.Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, "+sec.conf.TokenHeader)
-	// The request ID is the number a user quotes in a bug report, so a browser
-	// on an allowed origin has to be able to read it off the response. Only
-	// origins that already read the whole body reach this far, so exposing one
-	// response header grants nothing the gate had withheld.
+	// The number a user quotes in a bug report, so a browser on an allowed origin
+	// has to read it off the response. Only origins that already read the whole
+	// body reach this far.
 	h.Set("Access-Control-Expose-Headers", RequestIDHeader)
 }
 

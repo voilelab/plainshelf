@@ -44,15 +44,12 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Set to true to ensure that if any initialization step fails,
-	// all previously initialized resources will be properly closed.
+	// Cleared on success; until then a failed step closes what is already open.
 	failure := true
 
 	// Every logger below shares one retention window so the setting route can
-	// change all of them at once. It is attached before the first logger is
-	// built; the stored value is pushed into it as soon as the store is open,
-	// which is before anything writes a log line and so before any rotation
-	// could act on the wrong window.
+	// change all of them at once. Attached before the first logger is built, and
+	// filled in as soon as the store is open — before anything writes a line.
 	shareLogRetention(conf, logutil.NewRetention())
 
 	logger, err := logutil.NewLogger(&conf.Logger)
@@ -168,12 +165,10 @@ func (app *App) ShelfManager() *shelf.ShelfManager {
 	return app.shelfManager
 }
 
-// TaskChains exposes the task-chain pool so a test can submit a chain directly
-// and watch it run, rather than driving one through whichever HTTP route
-// happens to start one. No production caller needs it — the routes reach the
-// pool through app.taskChains — and it stays exported only because the contract
-// tests are external packages under server/contract, which an export_test.go in
-// this package cannot reach.
+// TaskChains lets a test submit a chain directly rather than through whichever
+// HTTP route happens to start one. No production caller needs it; it is exported
+// only because the contract tests live in external packages under
+// server/contract, which an export_test.go here cannot reach.
 func (app *App) TaskChains() *taskutil.Pool {
 	return app.taskChains
 }
@@ -205,13 +200,10 @@ func (app *App) resolveShelfConf(conf shelf.ShelfConfWithID) shelf.ShelfConfWith
 
 // applyAppReadOnly carries AppConf.ReadOnly down into the shelf configuration.
 //
-// rejectReadOnlyWrite only turns away requests that ask for a write, which is
-// not the same thing as not writing: a shelf writes on its own account too -
-// it creates its folders, clears app/tmp/, takes the lock file and exports the
-// book cache on a timer, none of which has a request behind it. A server
-// declared read-only that still did all that would be read-only in name only,
-// and its exported cache would additionally prune the files other installations
-// wrote into a shelf they share.
+// rejectReadOnlyWrite only turns away requests, which is not the same as not
+// writing: a shelf creates its folders, clears app/tmp/, takes the lock file and
+// exports the book cache on a timer with no request behind any of it — and that
+// export would prune the files other installations wrote into a shared shelf.
 //
 // The app-wide setting can only add the restriction; a shelf already configured
 // read_only stays read-only on a writable server.
@@ -254,10 +246,8 @@ func (app *App) Handler() http.Handler {
 
 	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// One ID per request, minted before anything can answer it, so the
-		// response header, this log line, every later log line about the
-		// request and the error envelope all quote the same string. A user who
-		// reports that string names one request, and the developer who searches
-		// the log for it lands on the line below.
+		// response header, every log line about the request and the error
+		// envelope all quote the same string.
 		requestID := logutil.NewRequestID()
 		w.Header().Set(RequestIDHeader, requestID)
 		r = r.WithContext(logutil.WithRequestID(r.Context(), requestID))
@@ -309,14 +299,11 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 	return true
 }
 
-// isReadOnlySafeRequest reports a POST that writes nothing to the shelf, so
-// read-only mode has no reason to refuse it.
+// isReadOnlySafeRequest reports a POST that writes nothing to the shelf.
 //
 // The rescan endpoint is the only one: it walks the shelf and rebuilds the
-// in-memory cache, which is what a read does. Keeping it to a named exception
-// rather than a general "reads may POST" rule is deliberate — the gate stays a
-// method test that one route opts out of, so adding a second one has to be
-// written down here.
+// in-memory cache, which is what a read does. A named exception rather than a
+// general "reads may POST" rule, so adding a second one has to be written here.
 //
 // The token gate draws the same exception, for the same reason, in
 // Security.isTokenExemptScan: a rescan reads, so protect_read governs it rather
