@@ -31,19 +31,15 @@ import (
 const SourcesFolder = "sources"
 const BookMetaFile = "book.json"
 
-// CurrentSourceHintFile names the human-readable pointer to the active source.
-//
-// LegacyCurrentSourceHintFile is the name earlier builds used. Nothing ever
-// reads either file back — current_source in book.json is the only authority —
-// so the rename needs no migration: the next hint write drops the legacy file
-// so a shelf never carries both.
+// Nothing ever reads either hint file back — current_source in book.json is the
+// only authority — so the rename needed no migration: the next hint write drops
+// the legacy file, and a shelf never carries both.
 const CurrentSourceHintFile = "CURRENT_SOURCE.txt"
 const LegacyCurrentSourceHintFile = "CURRENT_VERSION_LOCATION.txt"
 
-// CurrentSourceHintTemplate is English rather than a UI locale: i18n lives in
-// the frontend and the server has no locale to read, so a headless write has no
-// defensible language to pick. The file is disposable, so a future locale-aware
-// write could undo this at no cost.
+// The hint is English rather than a UI locale: i18n lives in the frontend and a
+// headless write has no locale to read. The file is disposable, so a future
+// locale-aware write could undo this at no cost.
 const CurrentSourceHintTemplate = `[PlainShelf hint]
 This book currently reads from:
 %s
@@ -57,18 +53,15 @@ can safely delete it; it is rewritten the next time the current source changes.
 //
 // A book.json with no schema_version predates versioning ("v0"): it is read as
 // v1 and normalized in memory, and the version reaches disk only on the next
-// write (lazy upgrade, as with published_at in internal/util/json_date.go).
-// Opening a library never rewrites it.
+// write, so opening a library never rewrites it.
 //
 // A HIGHER schema_version is read best-effort but never written back, so an
-// older build cannot clobber a newer one's data. EnsureWritable enforces that
-// refusal, and every mutating operation calls it before touching the filesystem.
+// older build cannot clobber a newer one's data. EnsureWritable enforces that.
 const BookMetaSchemaVersion = 1
 
 var ErrSourceNotFound = util.NewError("source not found")
 var ErrInvalidIdentifierKey = util.NewError("identifier key cannot be empty")
 
-// MinStar and MaxStar bound BookMeta.Star, inclusive.
 const (
 	MinStar = 0
 	MaxStar = 5
@@ -76,35 +69,31 @@ const (
 
 var ErrInvalidStar = util.NewError("star must be between 0 and 5")
 
-// ErrInvalidLanguageTag is returned when BookMeta.Language is neither empty nor
-// a well-formed BCP 47 tag.
+// ErrInvalidLanguageTag is not reported for an empty language, which means
+// "unknown".
 var ErrInvalidLanguageTag = util.NewError("language must be a BCP 47 tag")
 
-// BookFormatText and BookFormatMarkdown are the values BookMeta.Format accepts.
-// They decide how the reader renders the book's text; the bytes on disk are the
-// same either way, so switching between them rewrites nothing but book.json. The
-// canonical values live in shelfutil, which owns ValidateBookFormat; these
-// re-exports keep them reachable as bookpkg.BookFormatText.
+// BookMeta.Format decides how the reader renders the book's text; the bytes on
+// disk are the same either way, so switching rewrites nothing but book.json.
+// The canonical values live in shelfutil, which owns ValidateBookFormat.
 const (
 	BookFormatText     = shelfutil.BookFormatText
 	BookFormatMarkdown = shelfutil.BookFormatMarkdown
 )
 
-// ErrInvalidBookFormat is returned when BookMeta.Format is neither empty nor a
-// known format.
+// ErrInvalidBookFormat is not reported for an empty format: books created
+// before the field existed have none.
 var ErrInvalidBookFormat = util.NewError(`format must be "txt" or "md"`)
 
-// ErrUnsupportedBookSchemaVersion is returned when a write is attempted against
-// a book.json whose on-disk schema_version is newer than this build supports.
-// It is book.json specific on purpose: sources/{id}/meta.json and trash.json
-// carry their own sentinels (ErrUnsupportedSourceSchemaVersion and
-// ErrUnsupportedTrashSchemaVersion) so errors.Is can tell which file is too new.
+// ErrUnsupportedBookSchemaVersion is book.json specific on purpose:
+// sources/{id}/meta.json and trash.json carry their own sentinels, so errors.Is
+// can tell which file is too new.
 var ErrUnsupportedBookSchemaVersion = util.NewError("book.json schema version is newer than this build supports")
 
 type Book struct {
 	logger logutil.Logger
-	// root reads the shelf. It is a ReadFS so that a read path cannot mutate
-	// the book by accident; every mutation narrows it back through writeRoot.
+	// root is a ReadFS so that a read path cannot mutate the book by accident;
+	// every mutation narrows it back through writeRoot.
 	root       fsutil.ReadFS
 	folderPath string
 	meta       *BookMeta
@@ -113,10 +102,9 @@ type Book struct {
 }
 
 type BookMeta struct {
-	// SchemaVersion is the on-disk format version of book.json. It is managed by
-	// shelf: any value supplied by a caller is ignored and overwritten with
-	// BookMetaSchemaVersion on write. Declared first so it marshals as the first
-	// key, keeping the file self-describing when opened in a text editor.
+	// SchemaVersion is managed by shelf: any value a caller supplies is
+	// overwritten on write. Declared first so it marshals as the first key,
+	// keeping the file self-describing when opened in a text editor.
 	SchemaVersion int `json:"schema_version"`
 
 	ID          string            `json:"id"`
@@ -130,39 +118,29 @@ type BookMeta struct {
 	Comments    string            `json:"comments"`
 	Star        int               `json:"star"`
 
-	// NSFW marks this one book as adult content. It is additive and omitted
-	// when false, so a shelf that marks nothing writes exactly the book.json it
-	// wrote before, and an older build reads the file as it always did.
+	// NSFW is omitted when false, so a shelf that marks nothing writes exactly
+	// the book.json it wrote before.
 	//
 	// It can only add: a shelf may also mark a whole folder subtree in
-	// shelf.json, and false here does not take a book out of one. The shelf owns
-	// that rule - a book package read on its own knows nothing about the folder
-	// it sits in - so this field is the book's own half of the answer and
-	// Shelf.IsBookNSFW is the answer.
+	// shelf.json, and false here does not take a book out of one. This field is
+	// the book's own half of the answer; Shelf.IsBookNSFW is the answer.
 	NSFW bool `json:"nsfw,omitzero"`
 
 	CreatedAt   util.JSONTime `json:"created_at,omitzero"`
 	UpdatedAt   util.JSONTime `json:"updated_at,omitzero"`
 	PublishedAt util.JSONDate `json:"published_at,omitzero"`
 
-	// User should not modify CurrentSource directly, it is managed by shelf internally,
-	// and can be updated via SetCurrentSource method
+	// CurrentSource is managed by shelf; SetCurrentSource is the way in.
 	CurrentSource string `json:"current_source"`
 }
 
-// IsStale checks whether the cached book metadata is out of date by comparing
-// the current file stat of the book meta file with the cached metaStat. If the
-// file stat differs, the book is considered stale and should be refreshed.
 func (b *Book) IsStale() bool {
-	// FIXME: IsStale only treats the cache as stale when the tracked book.json
-	// file stat changes. If the file content changes but preserves the same
-	// tracked stat values (for example, mtime and size), the change won’t be detected.
+	// FIXME: a change that preserves both mtime and size is not detected.
 	metaPath := path.Join(b.folderPath, BookMetaFile)
 
 	currentMetaStat, err := getFileStat(b.root, metaPath)
 	if err != nil {
-		// If we cannot stat the meta file, we consider the book as stale to be safe,
-		// and let the caller handle the error when trying to open the book.
+		// Stale is the safe answer; the caller sees the real error on reopen.
 		b.logger.Warn("failed to stat meta file during IsStale check, treating book as stale", "error", err)
 		return true
 	}
@@ -186,8 +164,7 @@ func (b *Book) PackagePath() string {
 	return b.folderPath
 }
 
-// CoverETag returns a weak ETag derived from the cover file's mtime and size.
-// Returns an empty string if the book has no cover or the stat fails.
+// CoverETag returns an empty string when there is no cover or the stat fails.
 func (b *Book) CoverETag() string {
 	if b.meta.Cover == "" {
 		return ""
@@ -216,12 +193,9 @@ func (b *Book) OpenCover() ([]byte, string, error) {
 	return coverData, ext, nil
 }
 
-// writeRoot returns the book's filesystem as a writable handle, reporting
-// fsutil.ErrReadOnly when the book was opened on a read-only shelf.
-//
-// This is a different question from EnsureWritable, which asks whether this
-// build understands the book well enough to rewrite it. Both guards run before
-// a mutation: one is about the shelf, the other about the book.
+// writeRoot asks whether the shelf may be written at all; EnsureWritable asks
+// whether this build understands the book well enough to rewrite it. Both
+// guards run before a mutation.
 func (b *Book) writeRoot() (fsutil.FS, error) {
 	root, err := fsutil.Writable(b.root)
 	if err != nil {
@@ -230,14 +204,12 @@ func (b *Book) writeRoot() (fsutil.FS, error) {
 	return root, nil
 }
 
-// EnsureWritable reports an error when the book's on-disk schema version is
-// newer than this build supports, meaning the book must be treated as
-// read-only.
+// EnsureWritable refuses a book.json newer than this build supports.
 //
-// Call it before any filesystem mutation on the book, not only before writing
-// book.json: a guard that runs last still lets a refused request truncate a
-// cover, delete a file, or rename a folder first. It is checked against b.meta
-// — what is actually on disk — so a caller-supplied BookMeta cannot bypass it.
+// Call it before any filesystem mutation, not only before writing book.json: a
+// guard that runs last still lets a refused request truncate a cover, delete a
+// file, or rename a folder first. It is checked against b.meta — what is
+// actually on disk — so a caller-supplied BookMeta cannot bypass it.
 func (b *Book) EnsureWritable() error {
 	if b.meta.SchemaVersion > BookMetaSchemaVersion {
 		return util.Errorf("%w: book.json is schema_version %d, this build writes %d",
@@ -248,9 +220,7 @@ func (b *Book) EnsureWritable() error {
 
 func (b *Book) SetCover(imageData []byte, ext string) error {
 	// Guard before touching the filesystem: refusing only at SetMeta would
-	// already have published the new cover file. The atomic write below keeps
-	// the previous image intact either way, but a read-only book should not
-	// gain a new cover file at all.
+	// already have published the new cover file.
 	if err := b.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -289,14 +259,10 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 	return nil
 }
 
-// removeReplacedCover deletes a cover file this call replaced, but only if the
-// book still points away from it.
-//
-// An overlapping upload can write a new image under the old name and point the
-// book back at it (from cover.png, a JPEG upload and a concurrent PNG upload can
-// interleave that way). Deleting it then would leave book.json referencing a
-// missing file, so the persisted meta is re-read and the file left alone if it
-// has been reclaimed: losing an orphan is cheaper than losing the live cover.
+// removeReplacedCover deletes the replaced cover only if the book still points
+// away from it. An overlapping upload can write a new image under the old name
+// and point the book back at it, and losing an orphan is cheaper than losing
+// the live cover.
 func (b *Book) removeReplacedCover(root fsutil.FS, previousCover string) {
 	persisted, err := readBookMeta(b.root, b.folderPath)
 	if err != nil {
@@ -373,7 +339,6 @@ func (b *Book) SetCurrentSource(sourceID string) error {
 
 	err = b.writeCurrentSourceHint(sourceID)
 	if err != nil {
-		// This error is not critical, just log it and continue.
 		b.logger.Warn("failed to write current source hint", "error", err)
 	}
 
@@ -407,7 +372,7 @@ func (b *Book) writeCurrentSourceHint(sourceID string) error {
 	return nil
 }
 
-// GetMeta returns a copy of the book meta, user can modify the returned meta and call SetMeta to update the book meta, but should not modify the CurrentSource field directly
+// GetMeta returns a copy the caller may modify and hand back to SetMeta.
 func (b *Book) GetMeta() *BookMeta {
 	metaCopy := *b.meta
 	metaCopy.Tags = slices.Clone(b.meta.Tags)
@@ -416,7 +381,6 @@ func (b *Book) GetMeta() *BookMeta {
 	return &metaCopy
 }
 
-// SetMeta allows user to update book meta, but not the CurrentSource field which is managed by shelf internally
 func (b *Book) SetMeta(meta *BookMeta) error {
 	if meta.CurrentSource != b.meta.CurrentSource {
 		return util.NewError("cannot modify CurrentSource field directly, use SetCurrentSource method instead")
@@ -429,8 +393,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		return util.NewError("meta cannot be nil")
 	}
 
-	// Never let this build overwrite a book written by a newer one. Callers that
-	// touch other files first guard earlier; this is the backstop for book.json.
+	// The backstop for book.json; callers that touch other files guard earlier.
 	if err := b.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -457,9 +420,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 			return util.Errorf("%w", ErrInvalidIdentifierKey)
 		}
 	}
-	// Stamp unconditionally: the schema version is shelf-managed and any value
-	// the caller supplied is ignored. This is what makes the v0 → v1 upgrade
-	// lazy — the version reaches disk only when the book is next written.
+	// Stamped unconditionally, which is what makes the v0 → v1 upgrade lazy.
 	meta.SchemaVersion = BookMetaSchemaVersion
 
 	bs, err := json.Marshal(meta, jsonopt.Disk())
@@ -497,7 +458,7 @@ type NewSourceOptions struct {
 	Comment string
 }
 
-// NewSource creates a new plain-text source. Use NewSourceWithOptions when the
+// NewSource creates a plain-text source. Use NewSourceWithOptions when the
 // caller knows the source is Markdown or wants to record its provenance.
 func (b *Book) NewSource(source io.Reader) (*Source, error) {
 	return b.NewSourceWithOptions(source, NewSourceOptions{Format: BookFormatText})
@@ -524,10 +485,9 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, options.Format)
 	}
 
-	// create a new source for the given book with the provided source file and metadata.
-	// The base ID is a second-granularity timestamp, so two sources created within the
-	// same second would otherwise collide and overwrite each other. Probe for a free
-	// folder name and bump a numeric suffix on collision (same scheme as NewBook).
+	// The ID is a second-granularity timestamp, so two sources created within
+	// the same second would collide. Bump a numeric suffix until the folder name
+	// is free (same scheme as NewBook).
 	baseSourceID := time.Now().Format("20060102-150405")
 	sourceID := baseSourceID
 	var sourcePath string
@@ -578,15 +538,13 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 	return source, nil
 }
 
-// currentSourceCharCount reports the character count of the book's current
-// source, and 0 when there is no current source or it cannot be read. A
-// listing treats an unknown count as absent rather than failing over one
-// damaged book, so there is nothing for a caller to handle.
+// CurrentSourceCharCount reports 0 when there is no current source or it cannot
+// be read: a listing treats an unknown count as absent rather than failing over
+// one damaged book.
 //
-// The source's meta.json is opened directly instead of through GetSource,
-// which stats the source folder first: the open below already reports a
-// missing source, and on a network mount that stat is another round trip for
-// every book in the shelf. The shelf's book cache reads this for its listings.
+// meta.json is opened directly instead of through GetSource, which stats the
+// source folder first: the open below already reports a missing source, and on
+// a network mount that stat is another round trip for every book in the shelf.
 func (b *Book) CurrentSourceCharCount() int {
 	sourceID := b.CurrentSource()
 	if err := shelfutil.ValidateSourceID(sourceID); err != nil {
@@ -601,12 +559,11 @@ func (b *Book) CurrentSourceCharCount() int {
 	return source.GetMeta().CharCount
 }
 
-// ResolveCurrentSource opens the source a reader should be served, tolerating a
-// current_source pointer that no longer resolves. A shelf edited by hand or by
-// sync tools can point at a source removed or damaged outside this build;
-// falling back to the newest surviving source keeps the book readable. This is
-// a read path and never repairs book.json: the filesystem stays the source of
-// truth, and only an explicit write may change it.
+// ResolveCurrentSource tolerates a current_source pointer that no longer
+// resolves: a shelf edited by hand or by sync tools can point at a source
+// removed outside this build, and falling back to the newest surviving source
+// keeps the book readable. It never repairs book.json — only an explicit write
+// may change the shelf.
 func (b *Book) ResolveCurrentSource() (*Source, error) {
 	// GetSource("") fails path-segment validation rather than reporting a
 	// missing source, so an unset pointer is answered before asking for it.
@@ -615,9 +572,8 @@ func (b *Book) ResolveCurrentSource() (*Source, error) {
 		if err == nil {
 			return source, nil
 		}
-		// A half-removed or unreadable source folder fails in openSource and is
-		// not ErrSourceNotFound; for a reader every one of those means the same
-		// thing, so the reason is logged and the fallback runs regardless.
+		// A half-removed folder fails in openSource, which is not
+		// ErrSourceNotFound; to a reader every failure means the same thing.
 		b.logger.Warn("current source is unusable, falling back to the newest source",
 			"book", b.folderPath, "current_source", currentID, "error", err)
 	}
@@ -625,8 +581,7 @@ func (b *Book) ResolveCurrentSource() (*Source, error) {
 	sources, err := b.ListSource()
 	if err != nil {
 		// A book that never had a source has no sources/ folder at all, so this
-		// reports fs.ErrNotExist rather than an empty list. That is "nothing to
-		// serve", not a broken shelf, so it must not be reported as one.
+		// reports fs.ErrNotExist rather than an empty list.
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, util.Errorf("%w", ErrSourceNotFound)
 		}
@@ -639,14 +594,12 @@ func (b *Book) ResolveCurrentSource() (*Source, error) {
 	return sources[len(sources)-1], nil
 }
 
-// latestSourceExcluding returns the newest source that is not excludeID, or nil
-// when the book has no other source. ListSource sorts by ID, but the choice is
-// made explicitly here so it does not silently depend on that.
+// latestSourceExcluding picks the newest explicitly, so it does not silently
+// depend on ListSource's ordering.
 func (b *Book) latestSourceExcluding(excludeID string) (*Source, error) {
 	sources, err := b.ListSource()
 	if err != nil {
-		// A missing sources/ folder means there is nothing to promote, which is
-		// the same answer as an empty list.
+		// A missing sources/ folder is the same answer as an empty list.
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
@@ -692,9 +645,8 @@ func (b *Book) DeleteSource(sourceID string) error {
 		}
 		return util.Errorf("%w", err)
 	}
-	// A source written by a newer model may contain metadata this build cannot
-	// preserve or even recognize. Treat deleting it as a write and refuse it by
-	// the same rule used by content, comment, split, and asset mutations.
+	// A source written by a newer build may hold metadata this one cannot even
+	// recognize, so deleting it counts as a write.
 	source, err := openSource(b.root, sourcePath)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -703,11 +655,9 @@ func (b *Book) DeleteSource(sourceID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	// Deleting the active source must not leave current_source dangling, which
-	// would make the book unreadable. Hand the pointer over first and only then
-	// remove the folder: a replacement created after the removal could reuse the
-	// freed ID within the same second, and a failure here leaves the book
-	// pointing at a source that exists rather than at one that does not.
+	// Hand the pointer over before removing the folder: a replacement created
+	// after the removal could reuse the freed ID within the same second, and a
+	// failure here leaves the book pointing at a source that still exists.
 	if deletingCurrent {
 		if err := b.handOverCurrentSource(sourceID); err != nil {
 			return util.Errorf("%w", err)
@@ -723,9 +673,8 @@ func (b *Book) DeleteSource(sourceID string) error {
 }
 
 // handOverCurrentSource points current_source at the newest source other than
-// leavingID. A book always keeps at least one source — NewBookWith creates an
-// empty one — so deleting the last source leaves an empty replacement behind
-// instead of a book with nothing to read.
+// leavingID. A book always keeps at least one source, so deleting the last one
+// leaves an empty replacement behind rather than nothing to read.
 func (b *Book) handOverCurrentSource(leavingID string) error {
 	successor, err := b.latestSourceExcluding(leavingID)
 	if err != nil {
@@ -750,11 +699,9 @@ func (b *Book) handOverCurrentSource(leavingID string) error {
 	return nil
 }
 
-// ListSource returns every source of the book, sorted by ID in ascending
-// order. The order is this method's own contract: the fsutil.ReadFS
-// implementation happens to return sorted directory entries today, but the
-// interface does not promise it, and the source list UI and the current-source
-// fallback both depend on it.
+// ListSource sorts by ID ascending. The order is this method's own contract:
+// fsutil.ReadFS happens to return sorted entries today but does not promise it,
+// and both the source list UI and the current-source fallback depend on it.
 func (b *Book) ListSource() ([]*Source, error) {
 	sourcesPath := path.Join(b.folderPath, SourcesFolder)
 
@@ -765,17 +712,14 @@ func (b *Book) ListSource() ([]*Source, error) {
 
 	var sources []*Source
 	for _, entry := range sourceEntries {
-		// Skip non-directory entries (e.g. leftover *.tmp files from an
-		// interrupted atomic write, or stray files created by a sync tool) so
-		// a single bad entry does not fail the whole listing.
+		// A stray file from a sync tool must not fail the whole listing.
 		if !entry.IsDir() {
 			continue
 		}
 
 		revID := entry.Name()
-		// NewSourceWithOptions publishes from a hidden *.tmp directory. A crash
-		// can leave that unpublished directory behind, but it must never become
-		// part of the visible source model or duplicate the embedded final ID.
+		// A crash can leave NewSourceWithOptions' unpublished *.tmp directory
+		// behind, which must never enter the visible source model.
 		if strings.HasPrefix(revID, ".") && strings.HasSuffix(revID, ".tmp") {
 			continue
 		}
@@ -813,12 +757,9 @@ func Open(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, erro
 		return nil, util.Errorf("%w", err)
 	}
 
-	// A too-new book is deliberately NOT an error here. Failing would drop it from
-	// listings (iterateShelfTree), evict it from the cache (onlyRefreshBooksInCache),
-	// 404 from the API, and — worst — make it unrestorable from trash. A visible,
-	// explained book beats one that silently disappears; setMeta protects the bytes
-	// on disk. This normalization is not in readBookMeta because that decoder also
-	// re-reads the persisted cover name, which needs the raw bytes and no warning.
+	// A too-new book is deliberately NOT an error here: failing would drop it
+	// from listings, 404 from the API and — worst — make it unrestorable from
+	// trash. setMeta is what protects the bytes on disk.
 	switch {
 	case meta.SchemaVersion > BookMetaSchemaVersion:
 		logger.Warn("book.json schema version is newer than this build supports; book is read-only",
@@ -826,9 +767,8 @@ func Open(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, erro
 			"schema_version", meta.SchemaVersion,
 			"supported", BookMetaSchemaVersion)
 	case meta.SchemaVersion < BookMetaSchemaVersion:
-		// Missing (pre-v1), zero, or garbage. Normalize in memory only; the
-		// version reaches disk on the next write. Future versions add real
-		// field migration here.
+		// Missing (pre-v1), zero, or garbage. Normalized in memory only; future
+		// versions add real field migration here.
 		meta.SchemaVersion = BookMetaSchemaVersion
 	}
 
@@ -847,12 +787,9 @@ func Open(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, erro
 	}, nil
 }
 
-// readBookMeta decodes a book's persisted metadata from disk.
-//
-// Member names are matched case-sensitively and a duplicate member or invalid
-// UTF-8 is an error, which are encoding/json/v2's defaults and are adopted on
-// purpose for a file people edit by hand. A failure names the file; see
-// [MalformedMetadataError].
+// readBookMeta keeps encoding/json/v2's strict defaults — case-sensitive member
+// names, duplicate members and invalid UTF-8 rejected — on purpose for a file
+// people edit by hand. A failure names the file; see [MalformedMetadataError].
 func readBookMeta(rt fsutil.ReadFS, bookPath string) (*BookMeta, error) {
 	metaPath := path.Join(bookPath, BookMetaFile)
 	metaFile, err := rt.Open(metaPath)

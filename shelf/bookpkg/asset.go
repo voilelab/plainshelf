@@ -25,44 +25,31 @@ import (
 //
 // Assets sit beside the text, so `![](assets/img-0001.jpg)` in source.txt
 // resolves the same way in the reader as in any editor opened on that file. A
-// source thus owns its images: DeleteSource removes the whole source folder, so
-// there are no orphans to collect.
+// source thus owns its images, and DeleteSource leaves no orphans behind.
 //
-// The directory is deliberately flat — an asset name is a single path segment,
-// which makes "contains no separator" a complete traversal defense on its own.
-//
-// Nothing records the directory's contents: the filesystem is the list. That
-// keeps book.json's schema unchanged, so a build without asset support reads
-// such a shelf as it always did.
+// The directory is deliberately flat, which makes "contains no separator" a
+// complete traversal defense on its own, and nothing records its contents: the
+// filesystem is the list, so no metadata schema had to change.
 const SourceAssetsFolder = "assets"
 
-// ErrAssetNotFound is returned when a source has no asset under the given name.
 var ErrAssetNotFound = util.NewError("asset not found")
 
-// ErrInvalidAssetName is returned when an asset name is not a safe, servable
-// file name. Every asset lookup validates the name before touching the
-// filesystem, so callers can treat it as a request error.
+// ErrInvalidAssetName is reported before the filesystem is touched, so callers
+// can treat it as a request error.
 var ErrInvalidAssetName = util.NewError("invalid asset name")
 
-// imageExtensions are the image file extensions the shelf stores and the read
-// path serves with a correct content type.
 var imageExtensions = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true,
 }
 
-// IsSupportedImageExt reports whether ext — a file extension including the
-// leading dot, in any case — is one the read path serves with a correct
-// content type.
+// IsSupportedImageExt takes an extension including the leading dot, in any case.
 func IsSupportedImageExt(ext string) bool {
 	return imageExtensions[strings.ToLower(ext)]
 }
 
 func validateAssetName(name string) error {
-	// A leading dot would let a request name a hidden file. The shelf never
-	// writes one under assets/, so nothing legitimate is refused here. Checked
-	// before shelfutil.ValidatePathSegment, which rejects dot-prefixed segments too but
-	// reports them in terms of the directory names the shelf scanner skips —
-	// wrong vocabulary for an asset request.
+	// Checked before shelfutil.ValidatePathSegment, which rejects dot-prefixed
+	// segments too but reports them in the vocabulary of the shelf scanner.
 	if strings.HasPrefix(name, ".") {
 		return util.Errorf("%w %q: must not start with a dot", ErrInvalidAssetName, name)
 	}
@@ -83,11 +70,9 @@ func (r *Source) AssetPath(name string) (string, error) {
 	return path.Join(r.folderPath, SourceAssetsFolder, name), nil
 }
 
-// WriteAsset stores one illustration in the source's assets/ directory,
-// replacing one already under that name.
-//
-// The name goes through the same validation the read path uses, so a file the
-// server could never serve cannot be written in the first place.
+// WriteAsset stores one illustration, replacing one already under that name.
+// The name goes through the validation the read path uses, so a file the server
+// could never serve cannot be written in the first place.
 func (r *Source) WriteAsset(name string, data []byte) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
@@ -112,15 +97,11 @@ func (r *Source) WriteAsset(name string, data []byte) error {
 	return nil
 }
 
-// DeleteAsset removes one illustration from the source's assets/ directory.
+// DeleteAsset reports ErrAssetNotFound rather than succeeding quietly, since an
+// asset is addressed by name and a silent success would hide a typo.
 //
-// A name that is not stored reports ErrAssetNotFound rather than succeeding
-// quietly: unlike a cover, which a book either has or does not, an asset is
-// addressed by name, and a silent success would hide a typo.
-//
-// The text is not touched. A link left pointing at a deleted file renders as
-// its alt text, and rewriting someone's prose to keep an invariant the shelf
-// does not enforce would be a worse trade.
+// The text is not touched: a link to a deleted file renders as its alt text,
+// which beats rewriting someone's prose.
 func (r *Source) DeleteAsset(name string) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
@@ -144,8 +125,7 @@ func (r *Source) DeleteAsset(name string) error {
 	return nil
 }
 
-// AssetETag returns a weak ETag derived from the asset's mtime and size, or an
-// empty string when the name is invalid or the file cannot be stat'd.
+// AssetETag returns an empty string when the asset cannot be stat'd.
 func (r *Source) AssetETag(name string) string {
 	assetPath, err := r.AssetPath(name)
 	if err != nil {
@@ -155,27 +135,20 @@ func (r *Source) AssetETag(name string) string {
 }
 
 // Asset is an open handle to one of a source's illustrations. The caller owns
-// File and must close it.
-//
-// Info comes from the same open handle, so a caller can size the response
-// without a second lookup, and Ext is the name's extension including the
-// leading dot.
+// File and must close it. Info comes from that same handle, so a caller can
+// size the response without a second lookup.
 type Asset struct {
 	File fs.File
 	Info fs.FileInfo
 	Ext  string
 }
 
-// OpenAsset opens one of this source's assets for reading.
-//
-// The file is handed back open rather than buffered: unlike a cover, which the
-// API caps on upload, an asset is placed on the shelf by hand and can be
-// arbitrarily large, so buffering one per in-flight request would let a few big
-// illustrations decide the server's memory use.
+// OpenAsset hands the file back open rather than buffered: unlike a cover,
+// which the API caps on upload, an asset is placed on the shelf by hand and can
+// be arbitrarily large.
 //
 // A missing asset and a name resolving to a non-regular file both report
-// ErrAssetNotFound: to a reader they are the same outcome, and neither is a
-// server fault.
+// ErrAssetNotFound; to a reader they are the same outcome.
 func (r *Source) OpenAsset(name string) (*Asset, error) {
 	assetPath, err := r.AssetPath(name)
 	if err != nil {
@@ -190,8 +163,8 @@ func (r *Source) OpenAsset(name string) (*Asset, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Stat the open handle rather than the path: it costs no extra lookup and
-	// keeps a directory named like an image from failing as a read error.
+	// Stat the open handle rather than the path: no extra lookup, and a
+	// directory named like an image does not fail as a read error.
 	info, err := assetFile.Stat()
 	if err != nil {
 		assetFile.Close() //nolint:errcheck // best-effort cleanup; stat error is returned
@@ -205,11 +178,9 @@ func (r *Source) OpenAsset(name string) (*Asset, error) {
 	return &Asset{File: assetFile, Info: info, Ext: path.Ext(name)}, nil
 }
 
-// ListAssets returns the names of every servable illustration in the source's
-// assets/ directory, sorted. Anything the read path could not serve — a
-// sub-directory, a hidden file, a non-image extension — is skipped, so the
-// result is exactly the set a per-name request could open. A missing assets/
-// directory is an empty result, not an error.
+// ListAssets returns exactly the set a per-name request could open: anything
+// the read path could not serve is skipped, and a missing assets/ directory is
+// an empty result rather than an error.
 func (r *Source) ListAssets() ([]string, error) {
 	entries, err := r.root.ReadDir(path.Join(r.folderPath, SourceAssetsFolder))
 	if err != nil {

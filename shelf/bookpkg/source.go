@@ -33,8 +33,8 @@ var ErrUnsupportedSourceSchemaVersion = util.NewError("source meta.json schema v
 */
 
 type Source struct {
-	// root reads the shelf. It is a ReadFS so that a read path cannot mutate
-	// the source by accident; every mutation narrows it back through writeRoot.
+	// root is a ReadFS so that a read path cannot mutate the source by
+	// accident; every mutation narrows it back through writeRoot.
 	root       fsutil.ReadFS
 	folderPath string
 
@@ -49,7 +49,6 @@ type SourceMeta struct {
 	Comment   string        `json:"comment"`
 	Format    string        `json:"format,omitempty"`
 
-	// depending on the content
 	MD5Hash   string `json:"md5_hash,omitempty"`
 	LineCount int    `json:"line_count,omitzero"`
 	CharCount int    `json:"char_count,omitzero"`
@@ -68,8 +67,6 @@ func (r *Source) GetMeta() *SourceMeta {
 	return &meta
 }
 
-// writeRoot returns the source's filesystem as a writable handle, reporting
-// fsutil.ErrReadOnly when the source was opened on a read-only shelf.
 func (r *Source) writeRoot() (fsutil.FS, error) {
 	root, err := fsutil.Writable(r.root)
 	if err != nil {
@@ -95,10 +92,8 @@ func (r *Source) Open() (fs.File, error) {
 	return fp, nil
 }
 
-// ContentStat is the size and modification time of source.txt, which is what a
-// cache keyed on "has this file changed" compares. Reported as an error rather
-// than a zero value so a caller cannot mistake a missing source for an
-// unchanged one.
+// ContentStat reports an error rather than a zero value so a caller cannot
+// mistake a missing source for an unchanged one.
 func (r *Source) ContentStat() (*FileStat, error) {
 	stat, err := getFileStat(r.root, path.Join(r.folderPath, SourceFile))
 	if err != nil {
@@ -107,9 +102,6 @@ func (r *Source) ContentStat() (*FileStat, error) {
 	return stat, nil
 }
 
-// ReadContent reads the whole source file. Every caller here needs more than
-// one metric out of the same bytes, and reading once keeps that at a single
-// round trip on a network-mounted shelf.
 func (r *Source) ReadContent() ([]byte, error) {
 	f, err := r.Open()
 	if err != nil {
@@ -161,8 +153,7 @@ func (r *Source) refreshContentMetadata() error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	// Read the file once; compute all three metrics from the buffer to avoid
-	// 3 separate SMB round-trips on network-mounted shelves.
+	// One read, three metrics: a network-mounted shelf pays per round trip.
 	data, err := r.ReadContent()
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -188,13 +179,13 @@ func (r *Source) refreshContentMetadata() error {
 
 // RepairContentHash rewrites meta.json's md5_hash when it disagrees with the
 // content hash, reporting whether it wrote anything. A source edited outside
-// PlainShelf carries a confidently wrong hash (nothing revalidates it after
-// import); only a caller that just read the whole file knows the true value.
+// PlainShelf carries a confidently wrong hash; only a caller that just read the
+// whole file knows the true value.
 //
-// Deliberately narrow: line_count and char_count are stale in the same case
-// but are UI-visible, so a background task must not change them as a side
-// effect; and a source with no md5_hash (a legacy import) is left alone, since
-// filling it in would trigger the whole-library rewrite
+// Deliberately narrow: line_count and char_count are stale in the same case but
+// are UI-visible, so a background task must not change them as a side effect;
+// and a source with no md5_hash (a legacy import) is left alone, since filling
+// it in would trigger the whole-library rewrite
 // docs/concepts/data-format-versioning.md exists to avoid.
 func (r *Source) RepairContentHash(md5Hash string) (bool, error) {
 	if md5Hash == "" || r.meta.MD5Hash == "" || r.meta.MD5Hash == md5Hash {
@@ -215,9 +206,8 @@ func (r *Source) RepairContentHash(md5Hash string) (bool, error) {
 	return true, nil
 }
 
-// UpdateComment replaces the source's free-form comment. It records how this
-// source came to be — for example what an import could not carry over — and is
-// rewritten whenever the content is imported again.
+// UpdateComment replaces the free-form record of how this source came to be —
+// for example what an import could not carry over.
 func (r *Source) UpdateComment(comment string) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
@@ -233,10 +223,10 @@ func (r *Source) UpdateComment(comment string) error {
 	return nil
 }
 
-// writebackMeta persists r.meta. It takes the writable handle rather than
-// narrowing r.root itself: a caller has already changed r.meta in memory by the
-// time it gets here, so refusing a read-only shelf at this point would leave
-// GetMeta reporting a value that never reached disk.
+// writebackMeta takes the writable handle rather than narrowing r.root itself:
+// a caller has already changed r.meta in memory by the time it gets here, so
+// refusing a read-only shelf here would leave GetMeta reporting a value that
+// never reached disk.
 func (r *Source) writebackMeta(root fsutil.FS) error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 
@@ -287,7 +277,6 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Read the written file once to compute all three metrics.
 	destFile1, err := rt.Open(sourceDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)

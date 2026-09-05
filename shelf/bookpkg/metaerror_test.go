@@ -11,10 +11,8 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
-// newBookWithRawMeta writes bytes straight into a book package's book.json,
-// bypassing the encoder. Every case below is a file no writer of this build
-// would produce - it is what a text editor leaves behind - so the fixture has
-// to be written as bytes rather than marshalled from a struct.
+// newBookWithRawMeta bypasses the encoder: every case below is a file no writer
+// of this build would produce, only a text editor.
 func newBookWithRawMeta(t *testing.T, raw string) (fsutil.FS, string) {
 	t.Helper()
 
@@ -36,9 +34,6 @@ func newBookWithRawMeta(t *testing.T, raw string) (fsutil.FS, string) {
 	return fsutil.NewRootFS(tmpRoot), bookFolder
 }
 
-// A duplicate member is rejected rather than silently resolved to the last one,
-// and the refusal has to be actionable: the decoder names the member, this
-// package names the file.
 func TestOpenBookRejectsDuplicateMemberAndNamesTheFileAndMember(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t, `{
   "schema_version": 1,
@@ -71,8 +66,6 @@ func TestOpenBookRejectsDuplicateMemberAndNamesTheFileAndMember(t *testing.T) {
 	}
 }
 
-// Invalid UTF-8 is refused for the same reason, and the decoder points at the
-// member holding it.
 func TestOpenBookRejectsInvalidUTF8AndNamesTheFile(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t,
 		"{\"schema_version\": 1, \"id\": \"hand-edited\", \"comments\": \"\xff\xfe\"}")
@@ -89,8 +82,8 @@ func TestOpenBookRejectsInvalidUTF8AndNamesTheFile(t *testing.T) {
 	}
 }
 
-// Trailing data after the first value is refused too: a half-finished edit that
-// leaves a second object behind is not a book this build guesses at.
+// A half-finished edit that leaves a second object behind is not a book this
+// build guesses at.
 func TestOpenBookRejectsTrailingData(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t,
 		`{"schema_version": 1, "id": "hand-edited", "title": "First"} {"title": "Second"}`)
@@ -100,12 +93,9 @@ func TestOpenBookRejectsTrailingData(t *testing.T) {
 	}
 }
 
-// Member names are matched case-sensitively, so "Title" is not the title
-// field - it is an unknown member, which is read without complaint and, until
-// the passthrough PSW-93 adds, dropped by the next write to the book.
-//
-// This case pins the read half only. That a hand-added key survives a write is
-// PSW-93's to deliver and is not asserted here.
+// "Title" is an unknown member, which is read without complaint and, until the
+// passthrough PSW-93 adds, dropped by the next write. Only the read half is
+// pinned here.
 func TestOpenBookDoesNotApplyACaseVariantMemberName(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t,
 		`{"schema_version": 1, "id": "hand-edited", "Title": "Capitalised"}`)
@@ -119,8 +109,7 @@ func TestOpenBookDoesNotApplyACaseVariantMemberName(t *testing.T) {
 	}
 }
 
-// A source's meta.json is read with the same strictness, and names itself
-// rather than the book that holds it.
+// The error names the source's own meta.json, not the book that holds it.
 func TestOpenSourceRejectsDuplicateMemberAndNamesTheFile(t *testing.T) {
 	tmpLib := t.TempDir()
 	const sourceFolder = "20260315-a1"
@@ -154,10 +143,8 @@ func TestOpenSourceRejectsDuplicateMemberAndNamesTheFile(t *testing.T) {
 	}
 }
 
-// failingReadFS opens book.json successfully and then fails the read, which is
-// what a disconnected network mount does. json.UnmarshalRead reports that the
-// same way it reports a syntax error, so only the classification in
-// MetadataReadError keeps the two apart.
+// failingReadFS opens book.json and then fails the read, as a disconnected
+// network mount does.
 type failingReadFS struct {
 	fsutil.FS
 	failing string
@@ -179,9 +166,8 @@ type failingFile struct {
 
 func (f failingFile) Read([]byte) (int, error) { return 0, f.err }
 
-// A file this build could not finish reading is not a file to repair. Reporting
-// it as malformed would send a user editing a perfectly good book.json, and the
-// API would answer 409 "repair the file" for a mount that dropped.
+// Reporting an interrupted read as malformed would send a user editing a
+// perfectly good book.json, and the API would answer 409 for a dropped mount.
 func TestOpenBookKeepsAnIOFailureOutOfTheMalformedReport(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t, `{"schema_version": 1, "id": "hand-edited"}`)
 
