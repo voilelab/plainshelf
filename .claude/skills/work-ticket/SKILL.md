@@ -138,9 +138,14 @@ pull_request_read  method: "get_review_comments" # inline findings, with thread 
 `get_reviews` misses inline comments entirely: an automated reviewer's findings
 live only in `get_review_comments`, and its summary review body says nothing but
 "here are some suggestions". A ticket reported as reviewed on the strength of
-`get_reviews` alone has not been reviewed. Page with `perPage`/`after` for the
-same reason: a review long enough to spill to a second page is read as a short
-one otherwise.
+`get_reviews` alone has not been reviewed.
+
+Read past the first page for the same reason — a review long enough to spill to
+a second one is read as a short review otherwise — and note that the two are
+paginated differently. `get_review_comments` is cursor-paginated: pass `after`,
+taking the cursor from the previous response's `pageInfo.endCursor`, and stop
+when `hasNextPage` is false. `get_reviews` and `get_check_runs` are page-numbered:
+raise `page` with `perPage` until a response comes back short.
 
 Two things that read as failures and are not. `get_status` answers `pending`
 with `total_count: 0` because this repo posts check *runs* and no legacy commit
