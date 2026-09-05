@@ -299,6 +299,57 @@ func TestSimilarBooksExcludeNSFWBooksWhenHidden(t *testing.T) {
 	assertIDs(t, pairedIDs(), env.visible, env.folderHidden, env.bookHidden)
 }
 
+// runChain posts to an endpoint that starts background work and returns the
+// chain once it has settled, so a test can read what the sweep actually did
+// rather than only what the endpoint answered.
+func (e *nsfwEnv) runChain(t *testing.T, url string, body io.Reader) TaskChain {
+	t.Helper()
+
+	rec := e.do(t, http.MethodPost, url, body)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("POST %s = %d, want 202; body %s", url, rec.Code, rec.Body.String())
+	}
+	var submitted struct {
+		TaskChainID string `json:"taskchain_id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &submitted); err != nil {
+		t.Fatalf("decoding %q: %v", rec.Body.String(), err)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		chain := decodeInto[TaskChain](t, e.get(t, "/api/taskchains/"+submitted.TaskChainID))
+		switch chain.Status {
+		case "completed", "partially_completed", "failed":
+			return chain
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("chain %s did not finish, last status %q", submitted.TaskChainID, chain.Status)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// chainResult re-decodes the finished task's result into the shape the caller
+// wants to assert on. The chain response carries it as an opaque value, so a
+// round trip through JSON is how a test reads one field of it.
+func chainResult[T any](t *testing.T, chain TaskChain) T {
+	t.Helper()
+
+	if len(chain.Tasks) != 1 {
+		t.Fatalf("chain has %d tasks, want 1", len(chain.Tasks))
+	}
+	bs, err := json.Marshal(chain.Tasks[0].Result)
+	if err != nil {
+		t.Fatalf("re-encoding the task result: %v", err)
+	}
+	var value T
+	if err := json.Unmarshal(bs, &value); err != nil {
+		t.Fatalf("decoding %q: %v", bs, err)
+	}
+	return value
+}
+
 // The sweep is background work started by a request, so what it may touch is
 // decided by that request. Its reported total is the observable half: it counts
 // the books it swept, and a hidden one must not be among them.
@@ -306,41 +357,13 @@ func TestContentStatRefreshSkipsNSFWBooksWhenHidden(t *testing.T) {
 	env := newNSFWEnv(t)
 
 	sweptTotal := func() int {
-		rec := env.do(t, http.MethodPost, shelfURL("content-stat-refreshes"), nil)
-		if rec.Code != http.StatusAccepted {
-			t.Fatalf("POST content-stat-refreshes = %d, want 202; body %s", rec.Code, rec.Body.String())
+		chain := env.runChain(t, shelfURL("content-stat-refreshes"), nil)
+		if chain.Status != "completed" {
+			t.Fatalf("chain finished %q, want completed", chain.Status)
 		}
-		var submitted struct {
-			TaskChainID string `json:"taskchain_id"`
-		}
-		if err := json.Unmarshal(rec.Body.Bytes(), &submitted); err != nil {
-			t.Fatalf("decoding %q: %v", rec.Body.String(), err)
-		}
-
-		deadline := time.Now().Add(10 * time.Second)
-		for {
-			chain := decodeInto[TaskChain](t, env.get(t, "/api/taskchains/"+submitted.TaskChainID))
-			if chain.Status == "completed" || chain.Status == "partially_completed" || chain.Status == "failed" {
-				if chain.Status != "completed" {
-					t.Fatalf("chain finished %q, want completed", chain.Status)
-				}
-				result, err := json.Marshal(chain.Tasks[0].Result)
-				if err != nil {
-					t.Fatalf("re-encoding the task result: %v", err)
-				}
-				var stats struct {
-					Total int `json:"total"`
-				}
-				if err := json.Unmarshal(result, &stats); err != nil {
-					t.Fatalf("decoding %q: %v", result, err)
-				}
-				return stats.Total
-			}
-			if time.Now().After(deadline) {
-				t.Fatalf("chain %s did not finish, last status %q", submitted.TaskChainID, chain.Status)
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
+		return chainResult[struct {
+			Total int `json:"total"`
+		}](t, chain).Total
 	}
 
 	if got := sweptTotal(); got != 2 {
@@ -350,6 +373,94 @@ func TestContentStatRefreshSkipsNSFWBooksWhenHidden(t *testing.T) {
 	env.setShowNSFW(t, true)
 	if got := sweptTotal(); got != 4 {
 		t.Errorf("swept %d books with show_nsfw on, want all 4", got)
+	}
+}
+
+// The fingerprint sweep walks the same books, and its result reports how many
+// it covered plus a book and source ID for anything that failed.
+func TestSourceFingerprintSweepSkipsNSFWBooksWhenHidden(t *testing.T) {
+	env := newNSFWEnv(t)
+
+	sweptBooks := func() int {
+		chain := env.runChain(t, shelfURL("source-fingerprints"), nil)
+		if chain.Status != "completed" {
+			t.Fatalf("chain finished %q, want completed", chain.Status)
+		}
+		return chainResult[struct {
+			Books int `json:"books"`
+		}](t, chain).Books
+	}
+
+	if got := sweptBooks(); got != 2 {
+		t.Errorf("fingerprinted %d books, want the 2 this request can see", got)
+	}
+
+	env.setShowNSFW(t, true)
+	if got := sweptBooks(); got != 4 {
+		t.Errorf("fingerprinted %d books with show_nsfw on, want all 4", got)
+	}
+}
+
+// The coverage count is a listing in miniature: a total taken over the whole
+// shelf would report that books exist even when the listing beside it is empty.
+func TestFingerprintStatusCountsOnlyVisibleBooks(t *testing.T) {
+	env := newNSFWEnv(t)
+
+	total := func() int {
+		return decodeInto[struct {
+			Total int `json:"total"`
+		}](t, env.get(t, shelfURL("fingerprints", "status"))).Total
+	}
+
+	if got := total(); got != 2 {
+		t.Errorf("fingerprint status counted %d books, want the 2 this request can see", got)
+	}
+
+	env.setShowNSFW(t, true)
+	if got := total(); got != 4 {
+		t.Errorf("fingerprint status counted %d books with show_nsfw on, want all 4", got)
+	}
+}
+
+// A batch takes book IDs from the client, so it is the one way to name a hidden
+// book without going through a route that answers 404. It must neither act on
+// the book nor say anything about it that an ID the shelf never held would not.
+func TestBookBatchRefusesNSFWBooksWhenHidden(t *testing.T) {
+	env := newNSFWEnv(t)
+
+	type batchResult struct {
+		SucceededIDs []string `json:"succeeded_ids"`
+		Failures     []struct {
+			BookID string `json:"book_id"`
+			Code   string `json:"code"`
+		} `json:"failures"`
+	}
+
+	trash := func(bookID string) batchResult {
+		body := strings.NewReader(`{"operation":"trash","book_ids":["` + bookID + `"]}`)
+		return chainResult[batchResult](t, env.runChain(t, shelfURL("book-batches"), body))
+	}
+
+	unknown := trash("no_such_book")
+	for _, hidden := range env.hiddenIDs() {
+		got := trash(hidden)
+		if len(got.SucceededIDs) != 0 {
+			t.Errorf("batch succeeded on hidden book %s: %v", hidden, got.SucceededIDs)
+		}
+		if len(got.Failures) != 1 || got.Failures[0].Code != unknown.Failures[0].Code {
+			t.Errorf("failures = %+v, want one %q, the answer an unknown ID gets", got.Failures, unknown.Failures[0].Code)
+		}
+	}
+
+	// Nothing was trashed: both books are still on the shelf once they can be
+	// seen again.
+	env.setShowNSFW(t, true)
+	assertIDs(t, env.listedBookIDs(t), env.visible, env.classic, env.folderHidden, env.bookHidden)
+
+	// And with the setting on, the same batch really does trash one, so the
+	// refusal above was the filter rather than a batch that never works.
+	if got := trash(env.folderHidden); len(got.SucceededIDs) != 1 {
+		t.Errorf("batch with show_nsfw on = %+v, want the book trashed", got)
 	}
 }
 

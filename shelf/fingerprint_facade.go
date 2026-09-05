@@ -20,6 +20,11 @@ type (
 	FingerprintEntry      = fingerprint.Entry
 	FingerprintCacheStats = fingerprint.Stats
 	FingerprintCoverage   = fingerprint.Coverage
+
+	// FingerprintBookSource names one book and the source of it a coverage
+	// count asks about. The caller assembles the list, which is what keeps this
+	// shelf out of the question of which books a given request may count.
+	FingerprintBookSource = fingerprint.BookSource
 )
 
 // ErrIncompleteFingerprintAlgo is raised by OpenFingerprintCache for an
@@ -46,27 +51,23 @@ func (s *Shelf) OpenFingerprintCache(algo FingerprintAlgo) (*FingerprintCache, e
 	return cache, nil
 }
 
-// FingerprintStatus reports how many books already have a fingerprint for their
-// current source under algo, reading only app/fingerprint-cache.json and the
-// books the shelf holds in memory - never a source.txt. A cache built under
-// different rules answers for none, which is what tells the UI a rebuild is due.
-func (s *Shelf) FingerprintStatus(algo FingerprintAlgo) (FingerprintCoverage, error) {
+// FingerprintCoverageFor reports how many of these books already have a
+// fingerprint for the named source under algo, reading only
+// app/fingerprint-cache.json and what is already in memory - never a
+// source.txt. A cache built under different rules answers for none, which is
+// what tells the UI a rebuild is due.
+//
+// The books are the caller's to choose rather than the whole shelf's listing,
+// because a count is a listing in miniature: a total taken over books the
+// requester cannot see would report that they exist. Which books a request may
+// count is a server-side question the shelf has no business answering.
+func (s *Shelf) FingerprintCoverageFor(algo FingerprintAlgo, books []FingerprintBookSource) (FingerprintCoverage, error) {
 	cache, err := s.OpenFingerprintCache(algo)
 	if err != nil {
 		return FingerprintCoverage{}, util.Errorf("%w", err)
 	}
 
-	books, err := s.ListBooks()
-	if err != nil {
-		return FingerprintCoverage{}, util.Errorf("%w", err)
-	}
-
-	refs := make([]fingerprint.BookSource, 0, len(books))
-	for _, book := range books {
-		refs = append(refs, fingerprint.BookSource{BookID: book.ID(), SourceID: book.CurrentSource()})
-	}
-
-	return cache.CoverageFor(refs), nil
+	return cache.CoverageFor(books), nil
 }
 
 // repairSourceContentHash is the write the fingerprint cache delegates back to

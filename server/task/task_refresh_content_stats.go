@@ -42,10 +42,10 @@ type refreshContentStatsTask struct {
 	shelf   *shelf.Shelf
 	logger  *logutil.Logger
 
-	// visible, when non-nil, limits the sweep to these book IDs: the books the
-	// request that started it was allowed to see. Nil means it saw the whole
-	// shelf, which is every sweep on a server not hiding anything.
-	visible map[string]struct{}
+	// visible limits the sweep to the books the request that started it was
+	// allowed to see, so neither the total it reports nor a failure naming a
+	// book ID says anything about a book that request was answered 404 for.
+	visible VisibleBooks
 
 	progress taskutil.Progress
 
@@ -54,7 +54,7 @@ type refreshContentStatsTask struct {
 	failures  []refreshContentStatsFailure
 }
 
-func newRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, visible map[string]struct{}) *refreshContentStatsTask {
+func newRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, visible VisibleBooks) *refreshContentStatsTask {
 	return &refreshContentStatsTask{
 		shelfID:  shelfID,
 		shelf:    s,
@@ -62,27 +62,6 @@ func newRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.
 		visible:  visible,
 		failures: []refreshContentStatsFailure{},
 	}
-}
-
-// onlyVisible drops the books the request that started this sweep could not
-// see, so neither the total it reports nor a failure naming a book ID says
-// anything about a book that request was answered 404 for.
-//
-// The set is a snapshot taken when the chain was submitted, because the sweep
-// runs later: a book added since is left to the next sweep rather than swept
-// without anyone having decided it is visible.
-func (t *refreshContentStatsTask) onlyVisible(books []*shelf.Book) []*shelf.Book {
-	if t.visible == nil {
-		return books
-	}
-
-	kept := make([]*shelf.Book, 0, len(books))
-	for _, book := range books {
-		if _, ok := t.visible[book.ID()]; ok {
-			kept = append(kept, book)
-		}
-	}
-	return kept
 }
 
 func (t *refreshContentStatsTask) Name() string {
@@ -207,7 +186,9 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 		return util.Errorf("%w", err)
 	}
 
-	bookIDs := t.collectCandidates(t.onlyVisible(books))
+	// A book added since the snapshot was taken is left to the next sweep rather
+	// than swept without anyone having decided it is visible.
+	bookIDs := t.collectCandidates(t.visible.Only(books))
 	t.progress.SetTotal(len(bookIDs))
 	if len(bookIDs) == 0 {
 		t.progress.SetStatus(taskutil.StatusCompleted)
@@ -248,10 +229,9 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 	return nil
 }
 
-// NewRefreshContentStatsChain builds the sweep. visible is the set of book IDs
-// the requesting client may see, or nil for the whole shelf; see
-// refreshContentStatsTask.onlyVisible.
-func NewRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, visible map[string]struct{}) *taskutil.TaskChain {
+// NewRefreshContentStatsChain builds the sweep over the books the requesting
+// client may see; see VisibleBooks.
+func NewRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, visible VisibleBooks) *taskutil.TaskChain {
 	return &taskutil.TaskChain{
 		Key:         RefreshContentStatsTaskName + ":" + shelfID,
 		Name:        RefreshContentStatsTaskName,

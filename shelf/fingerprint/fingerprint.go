@@ -154,7 +154,7 @@ type Stats struct {
 // Coverage is how much of a set of books the cache can already answer for, as
 // the maintenance UI reports it before offering to build the rest. It is a pure
 // read of the loaded cache; see Cache.CoverageFor and the shelf's
-// FingerprintStatus facade.
+// FingerprintCoverageFor facade.
 type Coverage struct {
 	// Total is how many books were counted, Fingerprinted how many have a
 	// fingerprint on record for their current source, and Missing the

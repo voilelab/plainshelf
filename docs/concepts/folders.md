@@ -153,7 +153,11 @@ The filtering happens on the server, not in the browser: with `show_nsfw` off, a
 marked book is absent from the library listing, from the duplicate and similarity
 pages and from the dashboard's totals, and every address that names it — the
 book, its cover, its content, its sources — answers **404**, exactly as a book
-that is not on the shelf does. A folder disappears with its books: a marked
+that is not on the shelf does. Naming it some other way does not get round that:
+a batch move or trash refuses the ID the same way, and the background sweeps
+(content statistics, source fingerprints) and the fingerprint coverage count
+leave it out too, so none of their totals can report that it exists. A folder
+disappears with its books: a marked
 folder is not listed, and neither is one left with nothing but marked books, so
 it cannot show up in a breadcrumb or in the destination list when moving a book.
 

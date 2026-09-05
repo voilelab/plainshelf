@@ -132,7 +132,7 @@ func TestFingerprintSourcesTaskCoversEverySourceOfABook(t *testing.T) {
 func runFingerprintSources(t *testing.T, testShelf *shelf.Shelf) (*fingerprintSourcesTask, error) {
 	t.Helper()
 
-	task := newFingerprintSourcesTask("default_shelf", testShelf, false, newTaskTestLogger(t))
+	task := newFingerprintSourcesTask("default_shelf", testShelf, false, newTaskTestLogger(t), nil)
 	return task, task.Run(t.Context())
 }
 
@@ -142,7 +142,7 @@ func runFingerprintSources(t *testing.T, testShelf *shelf.Shelf) (*fingerprintSo
 func runForceFingerprintSources(t *testing.T, testShelf *shelf.Shelf) (*fingerprintSourcesTask, error) {
 	t.Helper()
 
-	task := newFingerprintSourcesTask("default_shelf", testShelf, true, newTaskTestLogger(t))
+	task := newFingerprintSourcesTask("default_shelf", testShelf, true, newTaskTestLogger(t), nil)
 	return task, task.Run(t.Context())
 }
 

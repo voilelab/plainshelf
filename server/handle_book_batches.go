@@ -86,7 +86,18 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The batch runs after this response, so which of the named books it may
+	// touch is decided here. A book this request cannot see is refused inside
+	// the chain rather than rejected outright, because that is what an ID the
+	// shelf has never held gets: the caller still receives its 202 and reads
+	// not_found for that ID, and the two are indistinguishable.
+	visible, err := h.visibility(shelfData).visibleBookIDs()
+	if err != nil {
+		h.writeErr(w, r, err, "failed to list books")
+		return
+	}
+
 	h.submitTaskChain(w, r,
-		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, h.requestLogger(r), request.Operation, ids, request.TargetFolder),
+		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, h.requestLogger(r), request.Operation, ids, request.TargetFolder, visible),
 		"failed to schedule book batch task")
 }

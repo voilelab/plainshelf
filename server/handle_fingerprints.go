@@ -11,6 +11,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/sketch"
 	"github.com/voilelab/plainshelf/server/task"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 // fingerprintHandlers answers the two read-only endpoints the similarity page
@@ -297,7 +298,25 @@ func (h *fingerprintHandlers) getFingerprintStatus(w http.ResponseWriter, r *htt
 		return
 	}
 
-	status, err := shelfData.FingerprintStatus(task.FingerprintAlgo())
+	// Counted over the same books the similarity sweep compares, not the whole
+	// shelf: a total that included the hidden ones would disagree with the
+	// results beside it and, on a shelf whose visible listing is empty, would
+	// report that books exist at all.
+	books, err := h.visibility(shelfData).listBooks()
+	if err != nil {
+		h.writeErr(w, r, err, "failed to list books")
+		return
+	}
+
+	refs := make([]shelf.FingerprintBookSource, 0, len(books))
+	for _, listing := range books {
+		refs = append(refs, shelf.FingerprintBookSource{
+			BookID:   listing.Book.ID(),
+			SourceID: listing.Book.CurrentSource(),
+		})
+	}
+
+	status, err := shelfData.FingerprintCoverageFor(task.FingerprintAlgo(), refs)
 	if err != nil {
 		h.writeErr(w, r, err, "failed to read fingerprint status")
 		return
