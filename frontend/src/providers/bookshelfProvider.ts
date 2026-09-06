@@ -13,6 +13,7 @@ import type {
   BookContent,
   BookUpdateRequest,
   DownloadState,
+  NsfwMarks,
   PaginatedBooks,
   ReadingProgress,
   TrashedBook,
@@ -101,6 +102,11 @@ export interface BookshelfReader {
    * Absent means no: behind a server, `show_nsfw` has already filtered.
    */
   filtersNsfwOnDevice?(): boolean;
+
+  /**
+   * Adult-content marks by book id, from the device alone: no request, and null when it has none.
+   */
+  localNsfwMarks?(): Promise<ReadonlyMap<string, NsfwMarks> | null>;
 
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;

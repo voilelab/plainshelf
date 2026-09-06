@@ -1265,6 +1265,38 @@ describe('adult content', () => {
     expect(calls).toEqual(spent);
   });
 
+  // What repairs a download taken before the marks were stored with it: the
+  // offline cache asks for these from behind a cache read, so the answer has to
+  // come off the device.
+  it('answers the marks from the stored snapshot alone, without walking the shelf', async () => {
+    const store = new InMemoryShelfSnapshotStore();
+    await idsOf(makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store }).provider);
+
+    const second = makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store });
+    const marks = await second.provider.localNsfwMarks();
+
+    expect(second.calls.recursiveListfolder).toBe(0);
+    // Both halves, and a boolean `nsfw` even where the shelf marks nothing —
+    // that is what tells a repaired manifest from one that predates the marks.
+    expect(marks?.get('own-mark')).toEqual({ nsfw: true, nsfw_folder: undefined });
+    expect(marks?.get('by-folder')).toEqual({
+      nsfw: false,
+      nsfw_folder: { path: 'Marked', reason: 'the top shelf' }
+    });
+    expect(marks?.get('plain')).toEqual({ nsfw: false, nsfw_folder: undefined });
+  });
+
+  // Null, not an empty map: "the shelf marks none of these" would repair every
+  // manifest as unmarked and make the gap permanent.
+  it('answers null rather than walk the shelf when the device holds no listing', async () => {
+    const { provider, calls } = makeProvider(markedShelf(NSFW_CONFIG), {
+      snapshotStore: new InMemoryShelfSnapshotStore()
+    });
+
+    await expect(provider.localNsfwMarks()).resolves.toBeNull();
+    expect(calls.recursiveListfolder).toBe(0);
+  });
+
   it('applies the folder rules a restored snapshot carries, without re-reading shelf.json', async () => {
     const store = new InMemoryShelfSnapshotStore();
     const first = makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store });

@@ -345,6 +345,186 @@ describe('MobileBookshelfProvider — adult content in the offline cache', () =>
   });
 });
 
+// Downloads taken before the marks were written into manifests (PSW-119) carry
+// neither half of them, so they read as unmarked and slipped past the device
+// switch. The marks are already on the device in the shelf snapshot; the cache
+// wrapper repairs those manifests from it before it answers.
+describe('MobileBookshelfProvider — downloads taken before the marks existed', () => {
+  let cache: InMemoryMobileBookCache;
+  let localNsfwMarks: ReturnType<typeof vi.fn>;
+
+  const OLD_MARKED = 'old-marked';
+  const OLD_PLAIN = 'old-plain';
+
+  beforeEach(async () => {
+    connectTo(SERVER_A, SHELF_A);
+    cache = new InMemoryMobileBookCache();
+    setShowNsfwOnDevice(false);
+    // makeBook writes no `nsfw` field at all, which is exactly the shape a
+    // manifest stored by the previous release carries.
+    for (const id of [OLD_MARKED, OLD_PLAIN]) {
+      await cache.saveDownloadedBook({
+        book: makeBook(id),
+        sources: [makeSource('src-1')],
+        downloaded_at: '2026-07-10T12:00:00Z',
+        size_bytes: 1024
+      });
+      await cache.saveCachedBookContent(id, { content: `${id} text` });
+      await cache.saveCachedCover(id, new Blob(['cover']));
+    }
+
+    localNsfwMarks = vi.fn(async () =>
+      new Map([
+        [OLD_MARKED, { nsfw: true }],
+        [OLD_PLAIN, { nsfw: false }]
+      ])
+    );
+  });
+
+  afterEach(() => {
+    setShowNsfwOnDevice(false);
+    connectTo(SERVER_A, SHELF_A);
+  });
+
+  /** pCloud-shaped: no server to ask, and every remote read would fail offline. */
+  function pcloudBacked(remoteOverrides: Partial<BookshelfReader> = {}): MobileBookshelfProvider {
+    const remote: Partial<BookshelfReader> = {
+      filtersNsfwOnDevice: () => true,
+      localNsfwMarks: localNsfwMarks as unknown as BookshelfReader['localNsfwMarks'],
+      listBooks: () => Promise.reject(unreachableError()),
+      getBook: () => Promise.reject(unreachableError()),
+      getBookContent: () => Promise.reject(unreachableError()),
+      getBookCover: () => Promise.reject(unreachableError()),
+      listSources: () => Promise.reject(unreachableError()),
+      getSource: () => Promise.reject(unreachableError()),
+      getSourceContent: () => Promise.reject(unreachableError()),
+      ...remoteOverrides
+    };
+    return new MobileBookshelfProvider(remote as BookshelfReader, cache, () => false);
+  }
+
+  it('hides one that the shelf marks, from the listing, the downloads page and its id', async () => {
+    const provider = pcloudBacked();
+
+    const page = await provider.listBooks(1, 20);
+    expect(page.items.map((book) => book.id)).toEqual([OLD_PLAIN]);
+    expect(page.total).toBe(1);
+
+    const entries = await provider.listDownloadedBookEntries();
+    expect(entries.map((entry) => entry.book.id)).toEqual([OLD_PLAIN]);
+
+    await expect(provider.getBook(OLD_MARKED)).rejects.toThrow();
+    await expect(provider.getBookContent(OLD_MARKED)).rejects.toThrow();
+    await expect(provider.getBookCover(OLD_MARKED)).rejects.toThrow();
+    await expect(provider.getDownloadState(OLD_MARKED)).resolves.toBe('not_downloaded');
+  });
+
+  // The first reverse case: a book the shelf does not mark must read exactly as
+  // it did, missing field and all.
+  it('leaves an unmarked one served from the same cache', async () => {
+    const provider = pcloudBacked();
+
+    await expect(provider.getBookContent(OLD_PLAIN)).resolves.toEqual({ content: `${OLD_PLAIN} text` });
+    await expect(provider.getDownloadState(OLD_PLAIN)).resolves.toBe('downloaded');
+    await expect(provider.getBook(OLD_PLAIN)).resolves.toMatchObject({ id: OLD_PLAIN });
+  });
+
+  it('repairs the manifest rather than the download: content and sources stay', async () => {
+    await pcloudBacked().listBooks(1, 20);
+
+    // Read straight from the wrapped cache, past the filter.
+    await expect(cache.getCachedBook(OLD_MARKED)).resolves.toMatchObject({ nsfw: true });
+    await expect(cache.getCachedBook(OLD_PLAIN)).resolves.toMatchObject({ nsfw: false });
+    await expect(cache.getCachedBookContent(OLD_MARKED)).resolves.toEqual({
+      content: `${OLD_MARKED} text`
+    });
+    await expect(cache.getCachedCover(OLD_MARKED)).resolves.toBeInstanceOf(Blob);
+    await expect(cache.listCachedSources(OLD_MARKED)).resolves.toHaveLength(1);
+    const [manifest] = (await cache.listDownloadedManifests()).filter(
+      (entry) => entry.book.id === OLD_MARKED
+    );
+    expect(manifest.size_bytes).toBe(1024);
+    expect(manifest.downloaded_at).toBe('2026-07-10T12:00:00Z');
+  });
+
+  it('asks the device for the marks once, however many reads follow', async () => {
+    const provider = pcloudBacked();
+
+    await provider.listBooks(1, 20);
+    await provider.listDownloadedBookEntries();
+    await provider.getDownloadState(OLD_PLAIN);
+    await expect(provider.getBook(OLD_MARKED)).rejects.toThrow();
+
+    expect(localNsfwMarks).toHaveBeenCalledTimes(1);
+  });
+
+  // The window PSW-120 leaves open on purpose: with no listing on the device
+  // yet there is nothing to repair from, and blanking the offline library would
+  // cost more than the stale mark.
+  it('keeps serving every pre-mark download when the device holds no listing', async () => {
+    const provider = pcloudBacked({ localNsfwMarks: () => Promise.resolve(null) });
+
+    const page = await provider.listBooks(1, 20);
+    expect(page.items.map((book) => book.id).sort()).toEqual([OLD_MARKED, OLD_PLAIN]);
+    expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
+  });
+
+  // The manifests are read before the marks and written after, so anything the
+  // user did in between has to survive: this write is a whole manifest.
+  it('does not restore a download removed while the marks were read', async () => {
+    localNsfwMarks.mockImplementationOnce(async () => {
+      await cache.removeDownloadedBook(OLD_MARKED);
+      return new Map([
+        [OLD_MARKED, { nsfw: true }],
+        [OLD_PLAIN, { nsfw: false }]
+      ]);
+    });
+
+    await pcloudBacked().listBooks(1, 20);
+
+    await expect(cache.getCachedBook(OLD_MARKED)).resolves.toBeNull();
+  });
+
+  // Defence in depth rather than a reachable bug: every shelf switch in the
+  // mobile shell restarts the app (reloadIntoApp), so nothing changes the scope
+  // under a live wrapper today. The cache writes below still resolve it for
+  // themselves, as downloadBook's own guard does.
+  it('writes nothing when the device changes shelves mid-pass, and repairs the new one', async () => {
+    localNsfwMarks.mockImplementationOnce(async () => {
+      connectTo(SERVER_B, SHELF_B);
+      return new Map([
+        [OLD_MARKED, { nsfw: true }],
+        [OLD_PLAIN, { nsfw: false }]
+      ]);
+    });
+    const provider = pcloudBacked();
+
+    // One guarded read, so exactly one pass: the scope moves under it and it
+    // stops rather than filing these manifests under the shelf now connected.
+    await provider.getDownloadState(OLD_PLAIN);
+    expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
+
+    // That pass did not count, so the next read makes one for the new shelf.
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([OLD_PLAIN]);
+  });
+
+  // ...and it closes on the next shelf update, not on the next app launch: a
+  // pass that found nothing to answer from must not count as the one pass.
+  it('repairs on a later read once the listing has arrived', async () => {
+    localNsfwMarks.mockResolvedValueOnce(null);
+    const provider = pcloudBacked();
+
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id).sort()).toEqual([
+      OLD_MARKED,
+      OLD_PLAIN
+    ]);
+
+    // Same provider, same wrapper — only the snapshot behind it has caught up.
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([OLD_PLAIN]);
+    await expect(provider.getBook(OLD_MARKED)).rejects.toThrow();
+  });
+});
+
 describe('MobileBookshelfProvider — device-local reading history', () => {
   let cache: InMemoryMobileBookCache;
 
