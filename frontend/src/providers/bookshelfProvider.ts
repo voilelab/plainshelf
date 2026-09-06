@@ -13,6 +13,7 @@ import type {
   BookContent,
   BookUpdateRequest,
   DownloadState,
+  NsfwMarks,
   PaginatedBooks,
   ReadingProgress,
   TrashedBook,
@@ -101,6 +102,15 @@ export interface BookshelfReader {
    * Absent means no: behind a server, `show_nsfw` has already filtered.
    */
   filtersNsfwOnDevice?(): boolean;
+
+  /**
+   * The shelf's adult-content marks, by book id, from what is already stored on
+   * the device. Only backends that answer `filtersNsfwOnDevice` need it, and
+   * only so a download taken before those marks were cached can be repaired
+   * without asking the network — so an implementation must never issue a
+   * request, and answers null when it has nothing stored to answer from.
+   */
+  localNsfwMarks?(): Promise<ReadonlyMap<string, NsfwMarks> | null>;
 
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;

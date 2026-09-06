@@ -74,9 +74,17 @@ export interface NsfwFolderRule {
  * a folder rule, the same sum the server's `Shelf.IsBookNSFW` computes. The two
  * halves are reported separately because only one of them is editable here.
  */
-export function isBookNsfw(book: Pick<Book, 'nsfw' | 'nsfw_folder'>): boolean {
+export function isBookNsfw(book: NsfwMarks): boolean {
   return book.nsfw === true || book.nsfw_folder !== undefined;
 }
+
+/**
+ * The pair of marks {@link isBookNsfw} reads, on their own.
+ *
+ * Named because they travel without the rest of the book: a listing hands them
+ * to a filter, and a cached download that predates them is repaired from them.
+ */
+export type NsfwMarks = Pick<Book, 'nsfw' | 'nsfw_folder'>;
 
 export interface TrashedBook {
   id: string;

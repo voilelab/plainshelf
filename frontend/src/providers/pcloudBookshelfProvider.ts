@@ -51,6 +51,7 @@ import type {
   BookmarkPayload,
   Book,
   BookContent,
+  NsfwMarks,
   PaginatedBooks,
   ReadingProgress,
   TrashedBook,
@@ -754,6 +755,32 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   /** True: there is no server to ask, so this reader applies the marks itself. */
   filtersNsfwOnDevice(): boolean {
     return true;
+  }
+
+  /**
+   * The marks the current listing carries, for repairing a download taken
+   * before they were stored with it.
+   *
+   * Deliberately not `ensureSnapshot`: that walks the shelf when the device has
+   * nothing stored, and this is called from behind a cache read that must cost
+   * no request. With no snapshot on the device there is nothing to answer from,
+   * and the answer is null rather than an empty map — "the shelf marks none of
+   * them" and "this device cannot say" hide different books.
+   */
+  async localNsfwMarks(): Promise<ReadonlyMap<string, NsfwMarks> | null> {
+    // Read, never stored as the provider's snapshot: taking the slot here would
+    // race the restore/walk that ensureSnapshot arbitrates through `pending`.
+    const snapshot = this.snapshot ?? (await this.restoreSnapshot());
+    if (!snapshot) {
+      return null;
+    }
+
+    return new Map(
+      snapshot.books.map(({ meta, book }) => [
+        meta.id,
+        { nsfw: book.nsfw, nsfw_folder: book.nsfw_folder } satisfies NsfwMarks
+      ])
+    );
   }
 
   /**

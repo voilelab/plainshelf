@@ -128,7 +128,11 @@ export class MobileBookshelfProvider implements BookshelfReader {
     private readonly isOnline: () => boolean = defaultIsOnline,
     private readonly coverCache: MobileCoverCache = new InMemoryMobileCoverCache()
   ) {
-    this.cache = new VisibleMobileBookCache(cache, () => this.filtersNsfwOnDevice());
+    this.cache = new VisibleMobileBookCache(
+      cache,
+      () => this.filtersNsfwOnDevice(),
+      () => this.remote.localNsfwMarks?.() ?? Promise.resolve(null)
+    );
 
     if (Capacitor.isNativePlatform()) {
       this.saveBookContentToFile = (bookId, suggestedName) =>

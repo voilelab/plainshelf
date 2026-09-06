@@ -64,6 +64,7 @@ between releases.
 ### Fixed
 
 - Fixed the desktop create- and modify-shelf dialogs opening with focus on nothing; the caret now starts in the shelf name field.
+- Fixed books downloaded on a pCloud shelf before the adult-content marks were cached staying visible with **Show adult content on this device** off; their stored entries are now repaired from the shelf listing already on the device, without a pCloud request and without deleting the downloads.
 
 ### Removed
 
