@@ -357,6 +357,7 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
   const OLD_PLAIN = 'old-plain';
 
   beforeEach(async () => {
+    connectTo(SERVER_A, SHELF_A);
     cache = new InMemoryMobileBookCache();
     setShowNsfwOnDevice(false);
     // makeBook writes no `nsfw` field at all, which is exactly the shape a
@@ -382,6 +383,7 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
 
   afterEach(() => {
     setShowNsfwOnDevice(false);
+    connectTo(SERVER_A, SHELF_A);
   });
 
   /** pCloud-shaped: no server to ask, and every remote read would fail offline. */
@@ -465,6 +467,45 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     const page = await provider.listBooks(1, 20);
     expect(page.items.map((book) => book.id).sort()).toEqual([OLD_MARKED, OLD_PLAIN]);
     expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
+  });
+
+  // The manifests are read before the marks and written after, so anything the
+  // user did in between has to survive: this write is a whole manifest.
+  it('does not restore a download removed while the marks were read', async () => {
+    localNsfwMarks.mockImplementationOnce(async () => {
+      await cache.removeDownloadedBook(OLD_MARKED);
+      return new Map([
+        [OLD_MARKED, { nsfw: true }],
+        [OLD_PLAIN, { nsfw: false }]
+      ]);
+    });
+
+    await pcloudBacked().listBooks(1, 20);
+
+    await expect(cache.getCachedBook(OLD_MARKED)).resolves.toBeNull();
+  });
+
+  // Defence in depth rather than a reachable bug: every shelf switch in the
+  // mobile shell restarts the app (reloadIntoApp), so nothing changes the scope
+  // under a live wrapper today. The cache writes below still resolve it for
+  // themselves, as downloadBook's own guard does.
+  it('writes nothing when the device changes shelves mid-pass, and repairs the new one', async () => {
+    localNsfwMarks.mockImplementationOnce(async () => {
+      connectTo(SERVER_B, SHELF_B);
+      return new Map([
+        [OLD_MARKED, { nsfw: true }],
+        [OLD_PLAIN, { nsfw: false }]
+      ]);
+    });
+    const provider = pcloudBacked();
+
+    // One guarded read, so exactly one pass: the scope moves under it and it
+    // stops rather than filing these manifests under the shelf now connected.
+    await provider.getDownloadState(OLD_PLAIN);
+    expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
+
+    // That pass did not count, so the next read makes one for the new shelf.
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([OLD_PLAIN]);
   });
 
   // ...and it closes on the next shelf update, not on the next app launch: a

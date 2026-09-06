@@ -1,3 +1,4 @@
+import { currentCacheScopeKey } from './cacheScope';
 import type { MobileBookCache, CachedBookManifest } from './mobileBookCache';
 import { ShelfVisibility } from './shelfVisibility';
 import { getShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
@@ -18,8 +19,9 @@ import type { SourceMeta } from '@/types/source';
  * the marks the backend already holds on the device; see {@link repair}.
  */
 export class VisibleMobileBookCache implements MobileBookCache {
-  /** The repair pass, kept to one per instance; see {@link repair}. */
+  /** The repair pass, kept to one per cache scope; see {@link repair}. */
   private repaired: Promise<void> | null = null;
+  private repairedScope: string | null = null;
 
   constructor(
     private readonly inner: MobileBookCache,
@@ -149,7 +151,16 @@ export class VisibleMobileBookCache implements MobileBookCache {
     if (!this.filtersOnDevice()) {
       return Promise.resolve();
     }
-    this.repaired ??= this.runRepair()
+
+    // Which downloads these are is a property of the (server, shelf) pair, not
+    // of the wrapper, and the wrapper outlives a change to it. See cacheScope.
+    const scope = currentCacheScopeKey();
+    if (this.repaired && this.repairedScope === scope) {
+      return this.repaired;
+    }
+
+    this.repairedScope = scope;
+    const done = this.runRepair(scope)
       .catch((err) => {
         // A cache read must still answer: the alternative to a stale mark here
         // is no offline library at all.
@@ -157,22 +168,23 @@ export class VisibleMobileBookCache implements MobileBookCache {
         return false;
       })
       .then((answered) => {
-        // A backend that could not answer has not been asked yet as far as this
-        // wrapper is concerned: drop the one-shot so the read after the next
-        // shelf update tries again, rather than waiting for a new provider.
-        if (!answered) {
+        // A pass that could not be made has not been made: drop it so the read
+        // after the next shelf update tries again, rather than waiting for a
+        // new provider. Identity-checked, so a pass started since keeps the slot.
+        if (!answered && this.repaired === done) {
           this.repaired = null;
         }
       });
-    return this.repaired;
+    this.repaired = done;
+    return done;
   }
 
-  /** False when the marks were unavailable, so the pass is worth repeating. */
-  private async runRepair(): Promise<boolean> {
-    const stale = (await this.inner.listDownloadedManifests()).filter(
+  /** False when the pass could not be made, so it is worth repeating. */
+  private async runRepair(scope: string): Promise<boolean> {
+    const anyStale = (await this.inner.listDownloadedManifests()).some(
       (manifest) => manifest.book.nsfw === undefined
     );
-    if (stale.length === 0) {
+    if (!anyStale) {
       return true;
     }
 
@@ -181,10 +193,21 @@ export class VisibleMobileBookCache implements MobileBookCache {
       return false;
     }
 
+    // Listed again rather than reused: a download or a removal can land while
+    // the marks are being read, and writing the earlier copy back would undo it
+    // or restore a manifest whose content and cover have gone.
+    const stale = (await this.inner.listDownloadedManifests()).filter(
+      (manifest) => manifest.book.nsfw === undefined
+    );
     for (const manifest of stale) {
       const mark = marks.get(manifest.book.id);
       if (!mark) {
         continue;
+      }
+      // Each cache write resolves the scope it lands in for itself, so writing
+      // on past a change here would file this shelf's manifest under another.
+      if (currentCacheScopeKey() !== scope) {
+        return false;
       }
       await this.inner.saveDownloadedBook({
         ...manifest,
