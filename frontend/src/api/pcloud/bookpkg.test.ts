@@ -5,6 +5,7 @@ import {
   collectBookPackages,
   collectFolders,
   createIgnoreRules,
+  createNSFWFolderLookup,
   createNSFWRules,
   DEFAULT_IGNORE_RULES,
   findBooksFolder,
@@ -296,6 +297,30 @@ describe('toBook', () => {
   it('never sets cover_url, because pCloud download links expire', () => {
     const book = toBook(parseBookJson({ id: 'x', title: 'T', cover: 'cover.png' }), []);
     expect(book.cover_url).toBeUndefined();
+  });
+
+  // The two halves are carried apart, as the server carries them: only the
+  // book's own is editable, and isBookNsfw is the one place that adds them.
+  it('carries the book\'s own mark and the folder rule reaching it', () => {
+    const meta = parseBookJson({ id: 'x', title: 'T', nsfw: true });
+    const book = toBook(meta, ['Adult'], { path: 'Adult', reason: 'the top shelf' });
+
+    expect(book).toMatchObject({ nsfw: true, nsfw_folder: { path: 'Adult', reason: 'the top shelf' } });
+  });
+
+  it('reports an unmarked book as unmarked rather than as unknown', () => {
+    const book = toBook(parseBookJson({ id: 'x', title: 'T' }), []);
+
+    expect(book.nsfw).toBe(false);
+    expect(book.nsfw_folder).toBeUndefined();
+  });
+
+  // `omitempty` on the server's side of the same field: a client with nothing
+  // to quote names the path instead, so an empty note must not read as one.
+  it('omits an empty reason rather than carrying it', () => {
+    const book = toBook(parseBookJson({ id: 'x', title: 'T' }), ['Adult'], { path: 'Adult', reason: '' });
+
+    expect(book.nsfw_folder).toEqual({ path: 'Adult' });
   });
 });
 
@@ -606,6 +631,43 @@ describe('createNSFWRules / isBookNSFW', () => {
 
     expect(refused.nsfw).toBe(false);
     expect(isBookNSFW(rules('Fiction/成人'), ['Fiction', '成人'], refused)).toBe(true);
+  });
+});
+
+// The rule itself, not only whether one exists: a reader that has to say where
+// a mark came from needs the entry, and the shelf's own note is a better answer
+// than the path alone.
+describe('createNSFWFolderLookup', () => {
+  it('returns the rule that marks the path, with the note written for it', () => {
+    const lookup = createNSFWFolderLookup([{ path: 'Fiction/Adult', reason: 'the top shelf' }]);
+
+    expect(lookup(['Fiction', 'Adult', 'Deep'])).toEqual({ path: 'Fiction/Adult', reason: 'the top shelf' });
+    expect(lookup(['Fiction'])).toBeUndefined();
+  });
+
+  // Mirrors NSFWRules.Match: the shallowest rule wins, because it is the one
+  // that would still mark the folder if every deeper entry were removed.
+  it('names the shallowest of two rules reaching one folder', () => {
+    const lookup = createNSFWFolderLookup([
+      { path: 'Fiction/Adult/2024', reason: 'this year' },
+      { path: 'Fiction/Adult', reason: 'the top shelf' }
+    ]);
+
+    expect(lookup(['Fiction', 'Adult', '2024'])?.reason).toBe('the top shelf');
+  });
+
+  // Two entries for one path collapse the way assigning into Go's map does.
+  it('keeps the last of two entries written for the same folder', () => {
+    const lookup = createNSFWFolderLookup([
+      { path: 'Adult', reason: 'first' },
+      { path: '/Adult/', reason: 'second' }
+    ]);
+
+    expect(lookup(['Adult'])?.reason).toBe('second');
+  });
+
+  it('marks nothing for a shelf that listed no folder', () => {
+    expect(createNSFWFolderLookup([])(['Adult'])).toBeUndefined();
   });
 });
 

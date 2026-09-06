@@ -38,6 +38,12 @@
         <TabsTrigger v-if="serverSettingsEditable" value="nsfw" class="settings-tab-trigger">{{
           t('settings.nsfw.title')
         }}</TabsTrigger>
+        <!-- The device's own answer, for a client with no server to ask: it is
+             what the pCloud reader filters on. Shown only where the server tab
+             above is not, so one question never has two switches. -->
+        <TabsTrigger v-else value="device-nsfw" class="settings-tab-trigger">{{
+          t('settings.deviceNsfw.title')
+        }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
           t('settings.import.title')
         }}</TabsTrigger>
@@ -74,6 +80,10 @@
 
       <TabsContent v-if="serverSettingsEditable" value="nsfw" class="settings-tab-content">
         <NsfwPanel :value="showNsfw" :disabled="loading || saving" @change="onShowNsfwChange" />
+      </TabsContent>
+
+      <TabsContent v-else value="device-nsfw" class="settings-tab-content">
+        <DeviceNsfwPanel :value="showNsfwOnDevice" @change="setShowNsfwOnDevice" />
       </TabsContent>
 
       <TabsContent v-if="serverSettingsEditable" value="import" class="settings-tab-content">
@@ -113,6 +123,7 @@ import { onMounted } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
+import DeviceNsfwPanel from '@/features/settings/components/DeviceNsfwPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
 import LanguagePanel from '@/features/settings/components/LanguagePanel.vue';
 import LogRetentionPanel from '@/features/settings/components/LogRetentionPanel.vue';
@@ -120,6 +131,7 @@ import NsfwPanel from '@/features/settings/components/NsfwPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
 import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
+import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
@@ -133,6 +145,9 @@ const { serverSettingsEditable } = useWriteAccess();
 // The active tab is backed by the ?tab= query so the sidebar's "manage
 // shelves" deep link lands here even on repeat clicks — see useSettingsTabs.
 const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable);
+// Device-local, so it is not part of the server settings form: nothing to load
+// and nothing to save, and it survives a shelf the server never answers for.
+const { showNsfw: showNsfwOnDevice, setShowNsfw: setShowNsfwOnDevice } = useDeviceNsfwPreference();
 
 const {
   loading,

@@ -96,6 +96,12 @@ export interface BookshelfReader {
    */
   supportsCharCountListing?(): boolean;
 
+  /**
+   * Whether this backend applies the device's adult-content setting itself.
+   * Absent means no: behind a server, `show_nsfw` has already filtered.
+   */
+  filtersNsfwOnDevice?(): boolean;
+
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;
   /**

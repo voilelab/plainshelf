@@ -6,6 +6,7 @@ import { PCloudClient } from '@/api/pcloud/client';
 import { BOOK_META_SCHEMA_VERSION, MAX_SHELF_CONFIG_BYTES } from '@/api/pcloud/bookpkg';
 import { PCloudError } from '@/api/pcloud/errors';
 import { useErrorIncident } from '@/composables/useErrorIncident';
+import { setShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
 import type { PCloudItem } from '@/api/pcloud/types';
 import type { BookshelfWriter } from './bookshelfProvider';
 import { isWritableProvider } from './index';
@@ -79,6 +80,8 @@ interface BookSpec {
   charCount?: number;
   /** book.json's declared schema version; defaults to the one this build reads. */
   schemaVersion?: number;
+  /** The book's own half of the adult-content mark, as book.json spells it. */
+  nsfw?: boolean;
   /** Illustrations in the source's assets/ directory, name to body. */
   assets?: Record<string, string>;
 }
@@ -95,6 +98,7 @@ function bookPackage(spec: BookSpec): PCloudItem {
         title: spec.title,
         authors: ['Author'],
         cover: spec.cover ?? '',
+        ...(spec.nsfw ? { nsfw: true } : {}),
         current_source: sourceID
       })
     }),
@@ -1152,6 +1156,130 @@ describe('shelf.json', () => {
     // reader sorts folders in.
     expect(await provider.listFolders()).toEqual(['@Snapshot', '/']);
     expect(downloaded).not.toContain(oversized.fileid);
+  });
+});
+
+// PSW-119: there is no server behind this provider, so the device setting is
+// the only thing the shelf's adult-content marks can be applied against. Its
+// three entry points have to agree — a listing that filtered while getBook did
+// not would still hand the book to anyone holding its id.
+describe('adult content', () => {
+  // "Doujin" holds nothing but a marked book; "Fiction" holds one of each.
+  const NSFW_CONFIG = JSON.stringify({
+    schema_version: 1,
+    content: { nsfw_folders: [{ path: 'Marked', reason: 'the top shelf' }] }
+  });
+
+  function markedShelf(config?: string): PCloudItem {
+    return folder('default-shelf', [
+      folder('books', [
+        bookPackage({ id: 'plain', title: 'Plain' }),
+        folder('Fiction', [
+          bookPackage({ id: 'own-mark', title: 'Own', nsfw: true }),
+          bookPackage({ id: 'sibling', title: 'Sibling' })
+        ]),
+        folder('Doujin', [bookPackage({ id: 'only-marked', title: 'Only', nsfw: true })]),
+        folder('Marked', [bookPackage({ id: 'by-folder', title: 'ByFolder' })]),
+        folder('Empty', [])
+      ]),
+      ...(config ? [file({ name: 'shelf.json', body: config })] : [])
+    ]);
+  }
+
+  async function idsOf(provider: PCloudBookshelfProvider): Promise<string[]> {
+    return (await provider.listBooks(1, 50)).items.map((book) => book.id);
+  }
+
+  afterEach(() => {
+    setShowNsfwOnDevice(false);
+  });
+
+  it('declares that it applies the device setting itself', () => {
+    const { provider } = makeProvider(markedShelf());
+
+    expect(provider.filtersNsfwOnDevice()).toBe(true);
+  });
+
+  it('hides a marked book from the listing, the single book and its content', async () => {
+    const { provider } = makeProvider(markedShelf(NSFW_CONFIG));
+
+    expect(await idsOf(provider)).toEqual(['plain', 'sibling']);
+    await expect(provider.getBook('own-mark')).rejects.toThrow(/not found/i);
+    await expect(provider.getBook('by-folder')).rejects.toThrow(/not found/i);
+    // Every read resolves the book through the same lookup, so nothing reaches
+    // its bytes either.
+    await expect(provider.getBookContent('own-mark')).rejects.toThrow(/not found/i);
+    await expect(provider.listSources('by-folder')).rejects.toThrow(/not found/i);
+  });
+
+  it('counts only the books it serves, so the pages are not short', async () => {
+    const { provider } = makeProvider(markedShelf(NSFW_CONFIG));
+
+    const page = await provider.listBooks(1, 50);
+    expect(page.total).toBe(page.items.length);
+  });
+
+  it('drops a marked folder and one left holding nothing but marked books', async () => {
+    const { provider } = makeProvider(markedShelf(NSFW_CONFIG));
+
+    // "Marked" goes because the shelf marks it; "Doujin" goes because the only
+    // book in it is hidden, and an empty folder named after what it held is the
+    // disclosure. "Empty" was always empty and stays.
+    expect(await provider.listFolders()).toEqual(['/', 'Empty', 'Fiction']);
+  });
+
+  it('serves the marked books, badge fields and all, once the setting is on', async () => {
+    const { provider } = makeProvider(markedShelf(NSFW_CONFIG));
+    setShowNsfwOnDevice(true);
+
+    expect(await idsOf(provider)).toEqual(['by-folder', 'only-marked', 'own-mark', 'plain', 'sibling']);
+    expect(await provider.listFolders()).toEqual(['/', 'Doujin', 'Empty', 'Fiction', 'Marked']);
+
+    // The two halves are reported apart, as the server reports them: BookNsfwBadge
+    // adds them itself through isBookNsfw.
+    const own = await provider.getBook('own-mark');
+    expect(own.nsfw).toBe(true);
+    expect(own.nsfw_folder).toBeUndefined();
+    await expect(provider.getBook('by-folder')).resolves.toMatchObject({
+      nsfw: false,
+      nsfw_folder: { path: 'Marked', reason: 'the top shelf' }
+    });
+  });
+
+  // The reverse case: a shelf that marks nothing must read exactly as it did
+  // before the filter existed, and must not spend a request reaching that answer.
+  it('changes nothing, and asks pCloud for nothing extra, on an unmarked shelf', async () => {
+    const plainShelf = shelfTree([
+      bookPackage({ id: 'a', title: 'A' }),
+      bookPackage({ id: 'b', title: 'B' })
+    ]);
+    const { provider, calls } = makeProvider(plainShelf);
+
+    expect(await idsOf(provider)).toEqual(['a', 'b']);
+    expect(await provider.listFolders()).toEqual(['/']);
+    const spent = { ...calls };
+
+    setShowNsfwOnDevice(true);
+    expect(await idsOf(provider)).toEqual(['a', 'b']);
+    expect(await provider.listFolders()).toEqual(['/']);
+    expect(calls).toEqual(spent);
+  });
+
+  it('applies the folder rules a restored snapshot carries, without re-reading shelf.json', async () => {
+    const store = new InMemoryShelfSnapshotStore();
+    const first = makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store });
+    await idsOf(first.provider);
+
+    // A second provider over the same device: the restore never walks pCloud, so
+    // the folder half of the mark can only come from the stored rules.
+    const second = makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store });
+    expect(await idsOf(second.provider)).toEqual(['plain', 'sibling']);
+    expect(second.calls.recursiveListfolder).toBe(0);
+
+    setShowNsfwOnDevice(true);
+    await expect(second.provider.getBook('by-folder')).resolves.toMatchObject({
+      nsfw_folder: { path: 'Marked', reason: 'the top shelf' }
+    });
   });
 });
 

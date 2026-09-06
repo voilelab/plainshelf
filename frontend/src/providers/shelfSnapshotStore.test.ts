@@ -112,6 +112,29 @@ describe('parseShelfSnapshot', () => {
     expect(parseShelfSnapshot(makeSnapshot(overrides))).toBeNull();
   });
 
+  // Version 1 carried no nsfw_folders, so reading one as it stands would leave
+  // every book in a marked folder looking unmarked — the direction that shows
+  // what the device was told to hide. Discarding it costs one walk.
+  it('rejects a snapshot from before the folder marks were persisted', () => {
+    expect(parseShelfSnapshot(makeSnapshot({ version: 1, nsfw_folders: undefined }))).toBeNull();
+  });
+
+  it('accepts a snapshot that carries folder marks', () => {
+    const snapshot = makeSnapshot({ nsfw_folders: [{ path: 'Fiction/Adult', reason: 'the top shelf' }] });
+
+    expect(parseShelfSnapshot(snapshot)).toEqual(snapshot);
+  });
+
+  // Same reasoning: a rule this reader cannot read is a mark it would stop
+  // applying, so the snapshot goes rather than the rule.
+  it.each([
+    ['a folder list of the wrong type', { nsfw_folders: 'Adult' as unknown as [] }],
+    ['a rule with no path', { nsfw_folders: [{ reason: 'why' } as never] }],
+    ['a rule whose reason is not text', { nsfw_folders: [{ path: 'Adult', reason: null } as never] }]
+  ])('rejects %s', (_label, overrides) => {
+    expect(parseShelfSnapshot(makeSnapshot(overrides))).toBeNull();
+  });
+
   it('rejects a book with no id, rather than listing a nameless entry', () => {
     const snapshot = makeSnapshot();
     snapshot.books[0].meta = { title: 'A' } as never;

@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
@@ -95,6 +95,7 @@ import { getBookshelfProvider } from '@/providers';
 import type { DownloadedBookEntry, StorageEstimateResult } from '@/providers/bookshelfProvider';
 import type { Book } from '@/types/book';
 import { formatBytes } from '@/utils/bytes';
+import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 
@@ -108,6 +109,14 @@ const error = ref('');
 const deleteTarget = ref<Book | null>(null);
 const removing = ref(false);
 const actionError = ref('');
+
+const { showNsfw } = useDeviceNsfwPreference();
+
+// The provider already withholds what this device hides, so this page only has
+// to ask again when the answer changes.
+watch(showNsfw, () => {
+  void loadEntries();
+});
 
 const totalSizeBytes = computed(() =>
   entries.value.reduce((total, entry) => total + entry.sizeBytes, 0)

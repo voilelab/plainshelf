@@ -2,6 +2,7 @@ import {
   collectBookPackages,
   collectFolders,
   createIgnoreRules,
+  createNSFWFolderLookup,
   DEFAULT_IGNORED_DIRS,
   MAX_SHELF_CONFIG_BYTES,
   findBooksFolder,
@@ -13,7 +14,15 @@ import {
   toBook,
   toSourceMeta,
 } from '@/api/pcloud/bookpkg';
-import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef, ShelfConfig } from '@/api/pcloud/bookpkg';
+import type {
+  BookJson,
+  BookPackageRef,
+  BookSourceRef,
+  NSFWFolder,
+  NSFWFolderLookup,
+  PCloudFileRef,
+  ShelfConfig
+} from '@/api/pcloud/bookpkg';
 import {
   bookPackagePath,
   findBookCacheFiles,
@@ -28,6 +37,8 @@ import { PCloudClient } from '@/api/pcloud/client';
 import type { PCloudItem } from '@/api/pcloud/types';
 import { PCloudDataError, PCloudError, isRetryablePCloudError } from '@/api/pcloud/errors';
 import { reportIncident } from '@/composables/useErrorIncident';
+import { getShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
+import { ShelfVisibility } from './shelfVisibility';
 import { ApiError } from '@/api/client';
 import {
   addReadHistory as addLocalReadHistory,
@@ -89,6 +100,10 @@ interface ShelfSnapshot {
   byID: Map<string, LoadedBook>;
   /** Every folder directory, including ones holding no books. */
   folders: string[];
+  /** The shelf.json adult-content rules this listing was read with. */
+  nsfwFolders: NSFWFolder[];
+  /** {@link nsfwFolders} compiled once, since a listing asks per book. */
+  isNsfwFolder: NSFWFolderLookup;
 }
 
 /**
@@ -301,6 +316,9 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       return null;
     }
 
+    const nsfwFolders = persisted.nsfw_folders ?? [];
+    const isNsfwFolder = createNSFWFolderLookup(nsfwFolders);
+
     const books = persisted.books.map(({ pkg, meta }) => {
       if (pkg.meta) {
         this.jsonCache.set(pkg.meta.fileid, {
@@ -309,14 +327,16 @@ export class PCloudBookshelfProvider implements BookshelfReader {
           value: meta
         });
       }
-      return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
+      return { pkg, meta, book: this.buildBook(meta, pkg, isNsfwFolder) } satisfies LoadedBook;
     });
 
     return {
       fetchedAt: persisted.fetched_at,
       books,
       byID: new Map(books.map((entry) => [entry.meta.id, entry])),
-      folders: persisted.folders
+      folders: persisted.folders,
+      nsfwFolders,
+      isNsfwFolder
     };
   }
 
@@ -326,7 +346,8 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       shelf_root: this.shelfRoot,
       fetched_at: snapshot.fetchedAt,
       folders: snapshot.folders,
-      books: snapshot.books.map(({ pkg, meta }) => ({ pkg, meta }))
+      books: snapshot.books.map(({ pkg, meta }) => ({ pkg, meta })),
+      nsfw_folders: snapshot.nsfwFolders
     } satisfies PersistedShelfSnapshot);
   }
 
@@ -396,7 +417,11 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     // readJson answers from the cache while its size and mtime are unchanged, so
     // a refresh does not download it again.
     const configRef = findShelfConfigFile(root);
-    const ignore = createIgnoreRules((await this.loadShelfConfig(configRef)).ignoredDirs ?? DEFAULT_IGNORED_DIRS);
+    const config = await this.loadShelfConfig(configRef);
+    const ignore = createIgnoreRules(config.ignoredDirs ?? DEFAULT_IGNORED_DIRS);
+    // No built-in list: undefined and empty both mean "marks no folder".
+    const nsfwFolders = config.nsfwFolders ?? [];
+    const isNsfwFolder = createNSFWFolderLookup(nsfwFolders);
 
     const packages = collectBookPackages(booksFolder, ignore);
     // Folders stay derived from the listing rather than read from the cache. The
@@ -434,7 +459,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
               modified: pkg.meta.modified,
               value: cachedMeta
             });
-            return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
+            return { pkg, meta, book: this.buildBook(meta, pkg, isNsfwFolder) } satisfies LoadedBook;
           } catch (err) {
             console.warn(`Ignoring the cached entry for ${pkg.folderName}; reading its book.json instead.`, err);
           }
@@ -443,7 +468,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
 
       try {
         const meta = parseBookJson(await this.readJson(pkg.meta));
-        return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
+        return { pkg, meta, book: this.buildBook(meta, pkg, isNsfwFolder) } satisfies LoadedBook;
       } catch (err) {
         // Only a book that is genuinely broken is skipped. A transport failure
         // says nothing about the book, and swallowing it here would cache a
@@ -468,7 +493,9 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       fetchedAt: this.now(),
       books,
       byID: new Map(books.map((entry) => [entry.meta.id, entry])),
-      folders
+      folders,
+      nsfwFolders,
+      isNsfwFolder
     };
 
     this.snapshot = snapshot;
@@ -564,15 +591,30 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return value;
   }
 
-  private buildBook(meta: BookJson, pkg: BookPackageRef): Book {
-    const book = toBook(meta, pkg.folders);
+  private buildBook(meta: BookJson, pkg: BookPackageRef, isNsfwFolder: NSFWFolderLookup): Book {
+    const book = toBook(meta, pkg.folders, isNsfwFolder(pkg.folders));
     return findCoverFile(pkg, meta) ? { ...book, cover_url: pcloudCoverUrl(meta.id) } : book;
   }
 
+  /**
+   * Built per call, since the provider outlives a change to the setting; fixed
+   * within one read, so a listing and its folder tree cannot disagree.
+   */
+  private visibility(snapshot: ShelfSnapshot): ShelfVisibility {
+    return new ShelfVisibility({
+      showNsfw: getShowNsfwOnDevice(),
+      isNsfwFolder: (folders) => snapshot.isNsfwFolder(folders) !== undefined
+    });
+  }
+
+  /**
+   * The one lookup by id: content, cover and sources all resolve through here,
+   * so a hidden book takes the existing not-found path on every route.
+   */
   private async findBook(bookId: string): Promise<LoadedBook> {
     const snapshot = await this.ensureSnapshot();
     const entry = snapshot.byID.get(bookId);
-    if (!entry) {
+    if (!entry || !this.visibility(snapshot).allows(entry.book)) {
       throw new PCloudError(`Book ${bookId} was not found in the pCloud shelf.`);
     }
     return entry;
@@ -626,8 +668,11 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, options?: ListBooksOptions): Promise<PaginatedBooks> {
     return this.guarded(async () => {
       const snapshot = await this.ensureSnapshot();
+      // Before the slice, not after: otherwise `total` and the pages disagree.
+      const visibility = this.visibility(snapshot);
+      const visible = snapshot.books.filter((entry) => visibility.allows(entry.book));
       const start = Math.max(0, (page - 1) * pageSize);
-      const pageEntries = snapshot.books.slice(start, start + pageSize);
+      const pageEntries = visible.slice(start, start + pageSize);
 
       // char_count lives in the current source's meta.json, so it costs a read
       // per book. It stays opt-in for that reason, and only the requested page
@@ -636,7 +681,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
         ? await mapWithConcurrency(pageEntries, METADATA_CONCURRENCY, (entry) => this.withCharCount(entry))
         : pageEntries.map((entry) => entry.book);
 
-      return { items, total: snapshot.books.length, page, pageSize };
+      return { items, total: visible.length, page, pageSize };
     });
   }
 
@@ -706,6 +751,11 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return false;
   }
 
+  /** True: there is no server to ask, so this reader applies the marks itself. */
+  filtersNsfwOnDevice(): boolean {
+    return true;
+  }
+
   /**
    * Answering would cost one meta.json download per book, on a metered
    * transport, for a filter the user may not use.
@@ -717,7 +767,13 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   // --- folders --------------------------------------------------------------
 
   listFolders(): Promise<string[]> {
-    return this.guarded(async () => (await this.ensureSnapshot()).folders);
+    return this.guarded(async () => {
+      const snapshot = await this.ensureSnapshot();
+      return this.visibility(snapshot).filterFolders(
+        snapshot.folders,
+        snapshot.books.map((entry) => entry.book)
+      );
+    });
   }
 
   // --- sources -------------------------------------------------------------
