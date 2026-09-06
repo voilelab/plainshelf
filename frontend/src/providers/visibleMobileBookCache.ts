@@ -143,19 +143,7 @@ export class VisibleMobileBookCache implements MobileBookCache {
   // --- repairing pre-mark manifests ----------------------------------------
 
   /**
-   * Writes the shelf's marks into the manifests downloaded before they were
-   * stored, so those downloads answer to the setting like any other.
-   *
-   * `nsfw` is written as a boolean for every book the backend knows, so
-   * `undefined` means exactly "this manifest predates the marks" and a repaired
-   * one is never examined twice. A book the backend cannot place — the shelf
-   * has not been read on this device yet, or no longer holds it — is left
-   * alone: hiding on doubt would take the whole offline library away from a
-   * user who cannot refresh it.
-   *
-   * Runs once per instance, before the first guarded read, and only where the
-   * backend applies the marks itself. Nothing but the manifest's `book` is
-   * touched: content, cover and sources stay where they are.
+   * Writes the shelf's marks into manifests stored before them; one they cannot place stays visible.
    */
   private repair(): Promise<void> {
     if (!this.filtersOnDevice()) {

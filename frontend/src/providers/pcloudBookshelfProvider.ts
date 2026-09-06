@@ -758,14 +758,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * The marks the current listing carries, for repairing a download taken
-   * before they were stored with it.
-   *
-   * Deliberately not `ensureSnapshot`: that walks the shelf when the device has
-   * nothing stored, and this is called from behind a cache read that must cost
-   * no request. With no snapshot on the device there is nothing to answer from,
-   * and the answer is null rather than an empty map — "the shelf marks none of
-   * them" and "this device cannot say" hide different books.
+   * Not `ensureSnapshot`, which walks the shelf; null, not an empty map, when the device holds none.
    */
   async localNsfwMarks(): Promise<ReadonlyMap<string, NsfwMarks> | null> {
     // Read, never stored as the provider's snapshot: taking the slot here would

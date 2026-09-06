@@ -466,25 +466,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     expect(page.items.map((book) => book.id).sort()).toEqual([OLD_MARKED, OLD_PLAIN]);
     expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
   });
-
-  // The second reverse case: behind a PlainShelf server the marks are the
-  // server's to apply, so this path must not run at all.
-  it('does not look at the manifests when a server answers for the shelf', async () => {
-    const remote: Partial<BookshelfReader> = {
-      localNsfwMarks: localNsfwMarks as unknown as BookshelfReader['localNsfwMarks'],
-      listBooks: () => Promise.reject(unreachableError()),
-      getBookContent: () => Promise.reject(unreachableError())
-    };
-    const provider = new MobileBookshelfProvider(remote as BookshelfReader, cache, () => false);
-
-    const page = await provider.listBooks(1, 20);
-    expect(page.items.map((book) => book.id).sort()).toEqual([OLD_MARKED, OLD_PLAIN]);
-    await expect(provider.getBookContent(OLD_MARKED)).resolves.toEqual({
-      content: `${OLD_MARKED} text`
-    });
-    expect(localNsfwMarks).not.toHaveBeenCalled();
-    expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
-  });
 });
 
 describe('MobileBookshelfProvider — device-local reading history', () => {

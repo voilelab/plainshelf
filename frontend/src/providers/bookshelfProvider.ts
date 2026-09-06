@@ -104,11 +104,7 @@ export interface BookshelfReader {
   filtersNsfwOnDevice?(): boolean;
 
   /**
-   * The shelf's adult-content marks, by book id, from what is already stored on
-   * the device. Only backends that answer `filtersNsfwOnDevice` need it, and
-   * only so a download taken before those marks were cached can be repaired
-   * without asking the network — so an implementation must never issue a
-   * request, and answers null when it has nothing stored to answer from.
+   * Adult-content marks by book id, from the device alone: no request, and null when it has none.
    */
   localNsfwMarks?(): Promise<ReadonlyMap<string, NsfwMarks> | null>;
 
