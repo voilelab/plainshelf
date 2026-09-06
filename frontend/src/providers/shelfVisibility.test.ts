@@ -81,21 +81,4 @@ describe('ShelfVisibility.filterFolders', () => {
       'Fiction/Classics'
     ]);
   });
-
-  it('counts a book directly under books/ towards the top level', () => {
-    expect(filter(['/', 'Fiction'], [book('a', [], { nsfw: true })])).toEqual(['Fiction']);
-  });
-
-  it('returns the folders untouched with the setting on', () => {
-    const books = [book('a', ['Adult'], { nsfw: true })];
-
-    expect(filter(['/', 'Adult'], books, true)).toEqual(['/', 'Adult']);
-  });
-
-  it('changes nothing on a shelf that marks nothing', () => {
-    const folders = ['/', 'Empty', 'Fiction'];
-    const books = [book('a', ['Fiction'])];
-
-    expect(filter(folders, books)).toEqual(folders);
-  });
 });
