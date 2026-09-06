@@ -47,7 +47,7 @@ alongside the desktop app. See
 [the reader section below](#experimental-standalone-book-package-reader) for
 what the reader installs and how to remove it.
 
-The bundled `.app` is unsigned and unnotarized; the cask's `postflight`
+The bundled `.app` is unsigned and unnotarized; the cask's `postflight_steps`
 clears Gatekeeper's quarantine attribute so the app opens normally on
 first launch.
 
@@ -77,8 +77,8 @@ You can also install the reader on its own — macOS on Apple Silicon
 brew install --cask voilelab/plainshelf/bookpkg-reader
 ```
 
-The reader `.app` is also unsigned and unnotarized; its `postflight` clears
-the quarantine attribute the same way. Uninstall with
+The reader `.app` is also unsigned and unnotarized; its `postflight_steps`
+clears the quarantine attribute the same way. Uninstall with
 `brew uninstall --cask bookpkg-reader`.
 
 `brew zap --cask bookpkg-reader` removes only the reader's own data (keyed to

@@ -17,9 +17,9 @@ cask "plainshelf" do
 
   app "PlainShelf.app"
 
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/PlainShelf.app"]
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args: ["-dr", "com.apple.quarantine", "{{appdir}}/PlainShelf.app"]
   end
 
   uninstall quit: "com.voilelab.plainshelf"

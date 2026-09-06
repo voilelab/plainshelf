@@ -17,11 +17,11 @@ cask "bookpkg-reader" do
 
   app "PlainShelfReader.app"
 
-  postflight do
+  postflight_steps do
     # The .app is unsigned and unnotarized until code signing lands; clear the
     # quarantine attribute so it opens without a right-click on first launch.
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/PlainShelfReader.app"]
+    run "/usr/bin/xattr",
+        args: ["-dr", "com.apple.quarantine", "{{appdir}}/PlainShelfReader.app"]
   end
 
   uninstall quit: "com.voilelab.plainshelf-reader"
