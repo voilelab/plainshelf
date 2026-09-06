@@ -149,25 +149,36 @@ export class VisibleMobileBookCache implements MobileBookCache {
     if (!this.filtersOnDevice()) {
       return Promise.resolve();
     }
-    this.repaired ??= this.runRepair().catch((err) => {
-      // A cache read must still answer: the alternative to a stale mark here is
-      // no offline library at all.
-      console.warn('Could not repair the adult-content marks on earlier downloads.', err);
-    });
+    this.repaired ??= this.runRepair()
+      .catch((err) => {
+        // A cache read must still answer: the alternative to a stale mark here
+        // is no offline library at all.
+        console.warn('Could not repair the adult-content marks on earlier downloads.', err);
+        return false;
+      })
+      .then((answered) => {
+        // A backend that could not answer has not been asked yet as far as this
+        // wrapper is concerned: drop the one-shot so the read after the next
+        // shelf update tries again, rather than waiting for a new provider.
+        if (!answered) {
+          this.repaired = null;
+        }
+      });
     return this.repaired;
   }
 
-  private async runRepair(): Promise<void> {
+  /** False when the marks were unavailable, so the pass is worth repeating. */
+  private async runRepair(): Promise<boolean> {
     const stale = (await this.inner.listDownloadedManifests()).filter(
       (manifest) => manifest.book.nsfw === undefined
     );
     if (stale.length === 0) {
-      return;
+      return true;
     }
 
     const marks = await this.localMarks();
     if (!marks) {
-      return;
+      return false;
     }
 
     for (const manifest of stale) {
@@ -180,5 +191,6 @@ export class VisibleMobileBookCache implements MobileBookCache {
         book: { ...manifest.book, nsfw: mark.nsfw === true, nsfw_folder: mark.nsfw_folder }
       });
     }
+    return true;
   }
 }

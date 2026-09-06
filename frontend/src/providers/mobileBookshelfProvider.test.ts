@@ -401,7 +401,7 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     return new MobileBookshelfProvider(remote as BookshelfReader, cache, () => false);
   }
 
-  it('hides one the shelf marks from the listing, the downloads page and its id', async () => {
+  it('hides one that the shelf marks, from the listing, the downloads page and its id', async () => {
     const provider = pcloudBacked();
 
     const page = await provider.listBooks(1, 20);
@@ -465,6 +465,22 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     const page = await provider.listBooks(1, 20);
     expect(page.items.map((book) => book.id).sort()).toEqual([OLD_MARKED, OLD_PLAIN]);
     expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
+  });
+
+  // ...and it closes on the next shelf update, not on the next app launch: a
+  // pass that found nothing to answer from must not count as the one pass.
+  it('repairs on a later read once the listing has arrived', async () => {
+    localNsfwMarks.mockResolvedValueOnce(null);
+    const provider = pcloudBacked();
+
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id).sort()).toEqual([
+      OLD_MARKED,
+      OLD_PLAIN
+    ]);
+
+    // Same provider, same wrapper — only the snapshot behind it has caught up.
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([OLD_PLAIN]);
+    await expect(provider.getBook(OLD_MARKED)).rejects.toThrow();
   });
 });
 
