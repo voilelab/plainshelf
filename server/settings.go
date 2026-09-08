@@ -206,18 +206,30 @@ func (s *settings) coverToJPG() bool {
 // matters for the desktop client, which imports without opening the import
 // dialog and so has no other way to choose.
 func (s *settings) epubImportStrategy() epub.Strategy {
-	if strategy, ok := readJSONSetting(s, settingKeyEPUBImportStrategy, epub.Strategy.Validate); ok {
-		return strategy
+	if strategy, ok := readJSONSetting(s, settingKeyEPUBImportStrategy, validateNormalizedStrategy); ok {
+		return strategy.Normalized()
 	}
 
 	if s.conf.EPUBImportStrategy != nil {
-		if err := s.conf.EPUBImportStrategy.Validate(); err == nil {
-			return *s.conf.EPUBImportStrategy
+		if strategy := s.conf.EPUBImportStrategy.Normalized(); strategy.Validate() == nil {
+			return strategy
 		}
 		s.Error("epubImportStrategy: invalid configured strategy", "preset", s.conf.EPUBImportStrategy.Preset)
 	}
 
-	return epub.DefaultStrategy()
+	return epub.DefaultStrategy().Normalized()
+}
+
+// validateNormalizedStrategy accepts a strategy that leaves fields out: an
+// omitted preset is the default one, so a configuration block that only turns
+// keep_images off keeps its other keys instead of being discarded whole. An
+// unknown preset is still rejected, which is what keeps a typo loud.
+//
+// A strategy submitted through the API is validated as written instead - there
+// the client named a preset on purpose, so an unrecognized one is an error
+// rather than a field to fill in.
+func validateNormalizedStrategy(strategy epub.Strategy) error {
+	return strategy.Normalized().Validate()
 }
 
 // showNSFW reports whether this server serves the books its shelves mark as
