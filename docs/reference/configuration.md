@@ -213,7 +213,10 @@ See [EPUB Import](../epub-import.md) for what each one produces.
 | `include_description` | bool | `true` when the section is absent | Also write the book description at the top of the text. It is always saved to the book's metadata regardless. |
 | `keep_images` | bool | `true` | Store the EPUB's illustrations beside the text and link them. Ignored by the `plain` preset, whose output would show the link markup literally. |
 
-`include_description` is the one key here whose default depends on the section
+Each key here defaults on its own, so a block may set only what it wants to
+change: writing just `keep_images: false` leaves `preset` at `markdown`.
+
+`include_description` is the one key whose default depends on the section
 being present: with no `epub_import_strategy` block at all the built-in default
 applies and the description is included, but inside a block you wrote, an
 omitted `include_description` is `false`. Set it explicitly.

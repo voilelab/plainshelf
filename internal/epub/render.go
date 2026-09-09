@@ -43,7 +43,9 @@ func DefaultStrategy() Strategy {
 	return Strategy{Preset: PresetMarkdown, IncludeDescription: true}
 }
 
-// Validate reports whether the strategy names a known preset.
+// Validate reports whether the strategy names a known preset. An empty preset
+// is not one: a caller that accepts a partially written strategy validates the
+// Normalized value instead.
 func (s Strategy) Validate() error {
 	switch s.Preset {
 	case PresetMarkdown, PresetPlain:
