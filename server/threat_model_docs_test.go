@@ -69,8 +69,16 @@ func TestDocsThreatModelTierBExampleAcceptsItsOwnOrigins(t *testing.T) {
 // restoring the claim that the desktop and standalone reader are "effectively
 // Tier A". The desktop hard-codes SecurityModeNone (desktop/app.go) and the
 // reader does not reach this package at all, so neither runs the token gate
-// Tier A is defined by; both open no network port, which is the true half the
-// old sentence was built on.
+// Tier A is defined by.
+//
+// The two facts asserted here are the ones the section has to carry for a
+// reader to check it against the code: the mode desktop/app.go actually sets,
+// and the absence of a listener, which is what makes that mode cost nothing.
+// Deliberately not asserted is how the section rates the two boundaries against
+// each other. An earlier draft called this one "weaker than" Tier A's and was
+// wrong in the safe direction: no port means a page in an ordinary browser
+// cannot make the request at all, where Tier A's reachable loopback port needs
+// the token to refuse it. Pinning that wording would have pinned the mistake.
 func TestDocsThreatModelDoesNotCallTheDesktopAppsTierA(t *testing.T) {
 	section := docsThreatModelSection(t, "### The desktop and standalone reader apps")
 
@@ -78,9 +86,13 @@ func TestDocsThreatModelDoesNotCallTheDesktopAppsTierA(t *testing.T) {
 		t.Error("the desktop/reader section no longer names the mode desktop/app.go actually sets " +
 			"(`security.mode: none`); a reader cannot check the claim against the code without it")
 	}
-	if strings.Contains(section, "Tier A") && !strings.Contains(section, "weaker than") {
-		t.Error("the desktop/reader section mentions Tier A without saying its protection is weaker; " +
-			"neither app runs the token gate that defines Tier A")
+	if !strings.Contains(section, "no network port") || !strings.Contains(section, "`ListenAndServe`") {
+		t.Error("the desktop/reader section no longer states that neither app opens a network port " +
+			"(no `ListenAndServe`), which is what makes running without the token gate cost them nothing")
+	}
+	if strings.Contains(section, "effectively Tier A") {
+		t.Error(`the desktop/reader section calls the apps "effectively Tier A" again; ` +
+			"neither runs the local_token gate that defines Tier A")
 	}
 }
 

@@ -131,13 +131,19 @@ port does not arise. What they are not is `local_token`:
   and no origin check.
 
 What protects them is the process boundary rather than a mode: the API answers
-only inside the app's own webview. That is a real boundary, and it is weaker than
-Tier A's, which additionally stops a page open in your ordinary browser from
-forging requests at a port that browser can reach. The exposure that remains is
-local, not networked, and a token in front of the API would not close it: any
-program already running as you can read the shelf files directly, with or without
+only inside the app's own webview, and a browser you open separately cannot reach
+it, because there is no port to connect to. Against the web-origin CSRF that
+Tier A spends its token on, that is the stronger position of the two rather than
+a weaker one — Tier A's loopback port *is* reachable from a page in your ordinary
+browser, which is exactly why it needs the token, while here the request cannot
+be made at all.
+
+The missing mode therefore costs these two apps nothing, because what remains is
+local rather than networked and a token would not close it either: any program
+already running as you can read the shelf files directly, with or without
 PlainShelf, and anything that can inject script into the app's own webview is
-inside the boundary already.
+inside the boundary already — under `local_token` too, since the token is written
+into the page (`server/spa.go`) where same-origin script can simply read it.
 
 ## What `local_token` actually protects
 
