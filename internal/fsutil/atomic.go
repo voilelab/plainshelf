@@ -19,10 +19,13 @@ const tempSuffixLength = 8
 // segment keeps two concurrent writers to the same destination from sharing a
 // temp file and corrupting each other's data.
 func tempPath(name string) string {
-	return fmt.Sprintf("%s.%s.tmp", name, randomSuffix(tempSuffixLength))
+	return fmt.Sprintf("%s.%s.tmp", name, RandomString(tempSuffixLength))
 }
 
-func randomSuffix(n int) string {
+// RandomString returns n characters drawn from an alphanumeric alphabet. It
+// names temp files, temp directories and rescan tokens, where only collision
+// resistance matters, not cryptographic strength.
+func RandomString(n int) string {
 	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	result := make([]byte, n)
 	for i := range result {
