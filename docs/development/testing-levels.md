@@ -15,40 +15,49 @@ answer is usually [R2](#rules).
 
 ## Why this page exists
 
-The suite this page was written against:
+The suite, measured 2026-09-12, against the suite this page was written for:
 
-| Level | Files | Cases | Lines |
-|---|---:|---:|---:|
-| L1 + L2 (Go, all three modules) | 131 | 694 | 28,184 |
-| L3 (frontend unit and component) | 155 | 1,521 | 25,450 |
-| L4 (end-to-end) | 23 | 37 | 2,122 |
-| **Total** | **309** | **2,252** | **55,756** |
+| Level | Files | Cases | Lines | Was (2026-09-03/04) |
+|---|---:|---:|---:|---|
+| L1 + L2 (Go, all three modules) | 145 | 751 | 30,306 | 131 / 694 / 28,184 |
+| L3 (frontend unit and component) | 166 | 1,712 | 27,745 | 155 / 1,521 / 25,450 |
+| L4 (end-to-end) | 23 | 37 | 2,065 | 23 / 37 / 2,122 |
+| **Total** | **334** | **2,500** | **60,116** | **309 / 2,252 / 55,756** |
 
-Go counted 2026-09-04, the other two 2026-09-03. "Cases" is top-level
-`func Test…` for Go and the case count each runner reports for the other two,
-so the figures are reproducible rather than estimated. The Go row counts the
-ten files of `server/contract/apitest` even though they are not `_test.go`
-files: the harness is L2 code that happens to be a package.
+"Cases" is top-level `func Test…` for Go and the case count each runner
+reports for the other two, so the figures are reproducible rather than
+estimated. The Go row counts the eleven files of `server/contract/apitest` even
+though they are not `_test.go` files: the harness is L2 code that happens to be
+a package. The L3 row counts `frontend/testing/`, which is the same kind of
+thing on the other side.
 
-The L4 row is the first one in this repository's history to go down: it was 30
-files / 101 cases / 4,247 lines when this page was written, and PSW-78 moved the
+The two lower rows grew and L4 held at 37 across nine days, which is the shape
+this page is for. L4's line count went down without its case count moving:
+`mobile-reader.spec.ts` gave up 99 lines of assertions that never needed a
+browser.
+
+The L4 row is the only one in this repository's history to go down. It was 30
+files / 101 cases / 4,247 lines when this page was written; PSW-78 moved the
 assertions that never needed a browser down to L3 — which is why the L3 row grew
-by 75 cases in the same change. It went down twice more when the two
+by 75 cases in the same change — and it went down twice more when the two
 `security-headers` cases that only issued `fetch` calls were deleted as
 duplicates of `server/contract/crosscut/security_headers_test.go`, which pins
 the same headers, directives and nonce at L2 over more response shapes. The
-L1 + L2 row drifted upward on its own; that is ordinary growth, not this page's
-doing.
+other two rows drift upward on their own; that is ordinary growth, not this
+page's doing.
+
 Every number above is a measurement, so a later reader can tell growth from
-drift.
+drift. Re-measure rather than adjust: the commands are one `find` and the two
+runners' own summaries, and a number nobody re-measured is worth less than no
+number.
 
 ## The five levels
 
 | | Level | May touch | Lives in | Runner |
 |---|---|---|---|---|
-| **L1** | Go unit | Pure Go, `t.TempDir()`, in-process fakes | Beside the code: `shelf/`, `internal/`, `server/`, `desktop/`, `reader/` | `go test ./...` |
+| **L1** | Go unit | Pure Go, `t.TempDir()`, in-process fakes, and in `server/` a started `App` — see below | Beside the code: `shelf/`, `internal/`, `server/`, `desktop/`, `reader/` | `go test ./...` |
 | **L2** | Go API contract | The real router over `httptest`, a real shelf in a temp dir, the `local_token` gate | `server/contract/<area>/*_test.go`, harness in `server/contract/apitest` | `go test ./...` |
-| **L3** | Frontend unit and component | jsdom, components mounted in process, a mocked API client | `frontend/src/**/*.test.ts` next to the module, plus `frontend/scripts/*.test.mjs` for the gate scripts | `npm --prefix frontend test` |
+| **L3** | Frontend unit and component | jsdom, components mounted in process, a mocked API client | `frontend/src/**/*.test.ts` next to the module, plus `frontend/scripts/*.test.mjs` for the gate scripts; the mount helper is `frontend/testing/` | `npm --prefix frontend test` |
 | **L4** | End-to-end | Real Chromium, a real `plainshelf-srv`, a real shelf on disk, the embedded bundle | `e2e/tests/*.spec.ts`, helpers in `e2e/tests/support/` | `just test-e2e`, or `just test-e2e-smoke` for the pull request's subset |
 | **L5** | Manual on device | Anything CI cannot reach: a phone, a desktop window, an SMB share | No code. Steps in `docs/development/`, evidence in the pull request | A person |
 
@@ -58,6 +67,27 @@ Everything that is a function of its inputs, plus everything that is a function
 of a directory you can create with `t.TempDir()`. No listener, no network, no
 browser. This is where shelf layout, ID stability, parsing, hashing and task
 scheduling belong, and it is the level almost every Go change should stop at.
+
+#### `server/`'s own tests build a whole app, and that is still L1
+
+"In-process fakes" undersells what a `server/` test may do. Seven files there
+call `newTestApp` (`server/apptest_test.go`), which opens a real shelf on a temp
+dir, opens the store, starts the background worker and blocks on `WaitReady` —
+a production `App`, not a fake. One file goes further: `handle_fingerprints_test.go`
+drives `app.Handler()` over `httptest`, which is the real router.
+
+That is not a contradiction, because **the line between L1 and L2 is what the
+test is about, not what it switches on.** L2 is for what the API promises its
+callers: the status code, the body shape, the method gate, the token. L1 is for
+everything else, including a test that needs the router as a *means* — because
+it injects its own `ResponseWriter` to watch a write deadline move, or reads an
+unexported constant, or backdates a file on disk that the harness has no way to
+reach. Those cannot be written against `apitest`, and rewriting them so they
+could would be rewriting what they check.
+
+The rule that decides it is still the one at the end of the next section: if a
+case does not depend on the request or the response, it does not belong in
+`server/contract` — whatever it had to start up to get its answer.
 
 ### L2 — Go API contract
 
@@ -93,6 +123,11 @@ it belongs one level down.
 Composables, stores, utilities, and components mounted in jsdom against a mocked
 API client. No real server and no real browser: a test that needs either is not
 an L3 test, it is an L4 test that has not admitted it yet.
+
+Mount through `frontend/testing/mount.ts`, which owns the teardown so no file
+has to. Its header lists the handful of shapes that keep their own mount — the
+ones where mounting is part of what the test is about — and a new file is
+almost certainly not one of them.
 
 `npm --prefix frontend run build` is `vue-tsc` plus Vite, not this suite. Type
 checking clean says nothing about whether these tests ran.
