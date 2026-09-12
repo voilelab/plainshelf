@@ -7,13 +7,16 @@
 // more accurate and cheaper than the textbook construction of k independent
 // hash functions.
 //
-// Every function here is pure and the package depends on nothing else in the
-// project, so a sketch can be built, stored and compared anywhere.
+// Every function here is pure, and the only thing it needs beyond the standard
+// library is the generic heap in internal/container, so a sketch can be built,
+// stored and compared anywhere.
 package sketch
 
 import (
 	"slices"
 	"unicode/utf8"
+
+	"github.com/voilelab/plainshelf/internal/container"
 )
 
 const (
@@ -87,10 +90,10 @@ func Build(normalized string, n, k int) Sketch {
 	}
 
 	seen := map[uint64]struct{}{}
-	// bottom is a max-heap of the k smallest hashes seen so far, so the value
-	// to evict is always at the root. Cap the initial allocation: k may be the
+	// bottom is a max-heap of the k smallest hashes seen so far, so the hash to
+	// evict is always at the root. Cap the initial allocation: k may be the
 	// document length for a short document, or an arbitrary caller value.
-	bottom := make([]uint64, 0, min(k, 1024))
+	bottom := container.From(make([]uint64, 0, min(k, 1024)), container.Greater[uint64])
 
 	eachShingle(normalized, n, func(hash uint64) {
 		if _, duplicate := seen[hash]; duplicate {
@@ -98,47 +101,18 @@ func Build(normalized string, n, k int) Sketch {
 		}
 		seen[hash] = struct{}{}
 
-		switch {
-		case len(bottom) < k:
-			bottom = append(bottom, hash)
-			siftUp(bottom, len(bottom)-1)
-		case hash < bottom[0]:
-			bottom[0] = hash
-			siftDown(bottom, 0)
+		if bottom.Len() < k {
+			bottom.Push(hash)
+
+			return
+		}
+		if largest, _ := bottom.Peek(); hash < largest {
+			bottom.Replace(hash)
 		}
 	})
 
-	slices.Sort(bottom)
+	values := bottom.Items()
+	slices.Sort(values)
 
-	return Sketch{N: n, Distinct: len(seen), Values: bottom}
-}
-
-// siftUp restores the max-heap property after appending at index i.
-func siftUp(heap []uint64, i int) {
-	for i > 0 {
-		parent := (i - 1) / 2
-		if heap[parent] >= heap[i] {
-			return
-		}
-		heap[parent], heap[i] = heap[i], heap[parent]
-		i = parent
-	}
-}
-
-// siftDown restores the max-heap property after replacing the value at index i.
-func siftDown(heap []uint64, i int) {
-	for {
-		largest := i
-		if left := 2*i + 1; left < len(heap) && heap[left] > heap[largest] {
-			largest = left
-		}
-		if right := 2*i + 2; right < len(heap) && heap[right] > heap[largest] {
-			largest = right
-		}
-		if largest == i {
-			return
-		}
-		heap[largest], heap[i] = heap[i], heap[largest]
-		i = largest
-	}
+	return Sketch{N: n, Distinct: len(seen), Values: values}
 }
