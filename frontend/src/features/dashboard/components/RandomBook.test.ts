@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, nextTick } from 'vue';
+import { defineComponent, h, nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Book } from '@/types/book';
@@ -39,6 +39,7 @@ vi.mock('@/components/BookCoverImg.vue', () => ({
 }));
 
 import RandomBook from './RandomBook.vue';
+import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
 // Mirrors RouterLink: a plain link renders an <a>; `custom` renders the slot
@@ -59,12 +60,8 @@ function makeBook(overrides: Partial<Book> = {}): Book {
   return { id: 'b1', title: 'Book', authors: [], tags: [], folders: [], ...overrides };
 }
 
-function mount(props: { books: Book[]; startedIds?: Set<string> }) {
-  const host = document.createElement('div');
-  const app = createApp(RandomBook, props);
-  app.component('RouterLink', RouterLinkStub);
-  app.mount(host);
-  return { host, app };
+function mountRandom(props: { books: Book[]; startedIds?: Set<string> }) {
+  return mount(RandomBook, { props, components: { RouterLink: RouterLinkStub } });
 }
 
 // window.open is unimplemented in jsdom; a spy silences it and lets the launch
@@ -95,13 +92,11 @@ describe('RandomBook', () => {
       makeBook({ id: 'started', title: 'Started' }),
       makeBook({ id: 'fresh', title: 'Fresh' })
     ];
-    const { host, app } = mount({ books, startedIds: new Set(['started']) });
+    const { host } = mountRandom({ books, startedIds: new Set(['started']) });
 
     // Index 0 of the unstarted pool is "Fresh"; the started book is skipped even
     // though it is first in the full list.
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('Fresh');
-
-    app.unmount();
   });
 
   it('falls back to the whole shelf when every book has been started', () => {
@@ -109,14 +104,12 @@ describe('RandomBook', () => {
       makeBook({ id: 'a', title: 'Alpha' }),
       makeBook({ id: 'b', title: 'Beta' })
     ];
-    const { host, app } = mount({ books, startedIds: new Set(['a', 'b']) });
+    const { host } = mountRandom({ books, startedIds: new Set(['a', 'b']) });
 
     // No unstarted book to prefer, so it must still surface one rather than the
     // empty state — index 0 of the full list.
     expect(host.querySelector('.random-book-empty')).toBeNull();
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('Alpha');
-
-    app.unmount();
   });
 
   it('advances on Shuffle even when the current book is the only unstarted one', async () => {
@@ -128,7 +121,7 @@ describe('RandomBook', () => {
       makeBook({ id: 's2', title: 'StartedTwo' }),
       makeBook({ id: 'fresh', title: 'Fresh' })
     ];
-    const { host, app } = mount({ books, startedIds: new Set(['s1', 's2']) });
+    const { host } = mountRandom({ books, startedIds: new Set(['s1', 's2']) });
 
     // Initial pick prefers the sole unstarted book.
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('Fresh');
@@ -137,34 +130,28 @@ describe('RandomBook', () => {
     host.querySelector('button')?.click();
     await nextTick();
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('StartedOne');
-
-    app.unmount();
   });
 
   // "Read now" now honours the reader-launch preference instead of always
   // navigating in place: on a web build with 'new-reader' it opens a new tab and
   // must not push the current window.
   it('opens the reader in a new tab under the new-reader preference and does not push', () => {
-    const { host, app } = mount({ books: [makeBook({ id: 'b1', title: 'Book' })] });
+    const { host } = mountRandom({ books: [makeBook({ id: 'b1', title: 'Book' })] });
 
     (host.querySelector('.random-book-actions a.primary') as HTMLElement).click();
 
     expect(openSpy).toHaveBeenCalledWith('/reader/b1', '_blank', 'noopener,noreferrer');
     expect(launch.push).not.toHaveBeenCalled();
-
-    app.unmount();
   });
 
   // Reverse: with 'in-window' it navigates in place and must not open a new tab.
   it('navigates in place under the in-window preference and does not open a new tab', () => {
     launch.getReaderLaunchMode.mockReturnValue('in-window');
-    const { host, app } = mount({ books: [makeBook({ id: 'b1', title: 'Book' })] });
+    const { host } = mountRandom({ books: [makeBook({ id: 'b1', title: 'Book' })] });
 
     (host.querySelector('.random-book-actions a.primary') as HTMLElement).click();
 
     expect(launch.push).toHaveBeenCalledWith({ path: '/reader/b1' });
     expect(openSpy).not.toHaveBeenCalled();
-
-    app.unmount();
   });
 });

@@ -1,21 +1,16 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, nextTick, type App } from 'vue';
+import { nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ErrorIncidentNotice from './ErrorIncidentNotice.vue';
+import { mount } from '#testing/mount';
 import { reportIncident, useErrorIncident } from '@/composables/useErrorIncident';
 import { setLocale } from '@/i18n';
 
 const { dismissIncident } = useErrorIncident();
-const mounted: Array<{ app: App; host: HTMLElement }> = [];
 
 function mountNotice(): HTMLElement {
-  const host = document.createElement('div');
-  document.body.append(host);
-  const app = createApp(defineComponent({ setup: () => () => h(ErrorIncidentNotice) }));
-  app.mount(host);
-  mounted.push({ app, host });
-  return host;
+  return mount(ErrorIncidentNotice).host;
 }
 
 function notice(host: HTMLElement): HTMLElement | null {
@@ -35,10 +30,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  for (const { app, host } of mounted.splice(0)) {
-    app.unmount();
-    host.remove();
-  }
   vi.unstubAllGlobals();
 });
 
