@@ -523,8 +523,15 @@ func TestResolveDesktopFolderPath(t *testing.T) {
 func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
-	if _, err := resolveDesktopFolderPath(libRoot, []string{"..", "outside"}); err == nil {
-		t.Fatal("expected traversal folder path to fail, got nil")
+	// The second case only escapes once the path is cleaned, so it separates a
+	// lexical check on the raw relative path from one that cleans first.
+	for _, parts := range [][]string{
+		{"..", "outside"},
+		{"fiction", "..", "..", "outside"},
+	} {
+		if _, err := resolveDesktopFolderPath(libRoot, parts); err == nil {
+			t.Fatalf("expected traversal folder path %v to fail, got nil", parts)
+		}
 	}
 }
 

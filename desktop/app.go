@@ -619,7 +619,7 @@ func resolveDesktopFolderPath(libRoot string, folderParts []string) (string, err
 	if err != nil {
 		return "", util.Errorf("resolving folder directory: %w", err)
 	}
-	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+	if !filepath.IsLocal(relPath) {
 		return "", util.Errorf("invalid folder path")
 	}
 
@@ -683,7 +683,7 @@ func (a *DesktopApp) resolveBookPackagePath(shelfID, bookID string) (string, err
 	if err != nil {
 		return "", util.Errorf("resolving book directory: %w", err)
 	}
-	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+	if !filepath.IsLocal(relPath) {
 		return "", util.Errorf("invalid book path")
 	}
 
