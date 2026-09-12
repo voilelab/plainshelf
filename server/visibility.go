@@ -201,7 +201,7 @@ func (c folderChange) stillMarked(s *shelf.Shelf, folders shelf.FolderPath, meta
 		// up.
 		return meta != nil && meta.NSFW
 	}
-	moved := append(append(shelf.FolderPath(nil), c.To...), folders[len(c.From):]...)
+	moved := slices.Concat(c.To, folders[len(c.From):])
 	return s.IsBookNSFW(moved, meta)
 }
 

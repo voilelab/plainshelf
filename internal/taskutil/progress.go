@@ -24,10 +24,7 @@ func (p *Progress) SetStatus(status Status) {
 func (p *Progress) SetTotal(total int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if total < 0 {
-		total = 0
-	}
-	p.total = total
+	p.total = max(total, 0)
 }
 
 // Advance records one processed unit of work, whether it succeeded or not.
