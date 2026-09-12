@@ -30,8 +30,8 @@ func TestBookPathFromArgs(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			if got := bookPathFromArgs(test.args); got != test.want {
-				t.Errorf("bookPathFromArgs(%q) = %q, want %q", test.args, got, test.want)
+			if got := parseLaunchArgs(test.args).bookPath; got != test.want {
+				t.Errorf("parseLaunchArgs(%q).bookPath = %q, want %q", test.args, got, test.want)
 			}
 		})
 	}

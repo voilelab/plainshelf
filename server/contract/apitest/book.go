@@ -12,6 +12,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -76,22 +77,12 @@ func (up FormUpload) Request(t *testing.T, method, url string) *http.Request {
 	return req
 }
 
-// setFields drops the fields whose value is empty, so a caller can leave "title",
-// "folder" or "strategy" out of the form by passing "".
-func setFields(fields ...[2]string) [][2]string {
-	set := make([][2]string, 0, len(fields))
-	for _, field := range fields {
-		if field[1] != "" {
-			set = append(set, field)
-		}
-	}
-	return set
-}
-
-// BookUpload describes an upload of the import endpoint's "file" part.
+// BookUpload describes an upload of the import endpoint's "file" part. A field
+// whose value is empty is dropped, so a caller can leave "title", "folder" or
+// "strategy" out of the form by passing "".
 func BookUpload(filename, contentType, content string, fields ...[2]string) FormUpload {
 	return FormUpload{
-		Fields:      setFields(fields...),
+		Fields:      slices.DeleteFunc(fields, func(f [2]string) bool { return f[1] == "" }),
 		FileField:   "file",
 		Filename:    filename,
 		ContentType: contentType,

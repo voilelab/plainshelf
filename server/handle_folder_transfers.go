@@ -151,7 +151,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	}
 	var books []task.FolderTransferBook
 	for _, listing := range listings {
-		if folderHasPrefix(listing.Folders, sourceFolder) {
+		if listing.Folders.HasPrefix(sourceFolder) {
 			books = append(books, task.FolderTransferBook{
 				ID:           listing.Book.ID(),
 				SourceFolder: append(shelf.FolderPath(nil), listing.Folders...),
@@ -223,24 +223,11 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 func foldersUnder(all []shelf.FolderPath, root shelf.FolderPath) []shelf.FolderPath {
 	var under []shelf.FolderPath
 	for _, l := range all {
-		if folderHasPrefix(l, root) {
+		if l.HasPrefix(root) {
 			under = append(under, append(shelf.FolderPath(nil), l...))
 		}
 	}
 	return under
-}
-
-// folderHasPrefix reports whether folder is prefix itself or sits beneath it.
-func folderHasPrefix(folder, prefix shelf.FolderPath) bool {
-	if len(folder) < len(prefix) {
-		return false
-	}
-	for i := range prefix {
-		if folder[i] != prefix[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // rescanForPreflight forces a shelf to rebuild its book cache now, so a check made

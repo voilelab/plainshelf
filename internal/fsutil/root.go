@@ -4,6 +4,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
+	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
@@ -38,7 +40,7 @@ func (l *RootFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	sortDirEntries(entries)
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 	return entries, nil
 }
 

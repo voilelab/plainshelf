@@ -7,6 +7,7 @@ import (
 	"encoding/json/v2"
 	"io/fs"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
@@ -40,7 +41,7 @@ type securityBootstrapPayload struct {
 // file, so the SPA's own router can handle the path.
 func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 	cleanPath := strings.TrimPrefix(r.URL.Path, "/")
-	if cleanPath == "" || !hasFileExtension(cleanPath) {
+	if cleanPath == "" || path.Ext(cleanPath) == "" {
 		data, err := fs.ReadFile(h.fs, "index.html")
 		if err != nil {
 			http.NotFound(w, r)
@@ -139,16 +140,4 @@ func (h *spaHandlers) injectSecurityBootstrap(data []byte, nonce string) []byte 
 		return out
 	}
 	return append(bootstrap, data...)
-}
-
-func hasFileExtension(path string) bool {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			return false
-		}
-		if path[i] == '.' {
-			return true
-		}
-	}
-	return false
 }
