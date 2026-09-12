@@ -224,7 +224,7 @@ func foldersUnder(all []shelf.FolderPath, root shelf.FolderPath) []shelf.FolderP
 	var under []shelf.FolderPath
 	for _, l := range all {
 		if l.HasPrefix(root) {
-			under = append(under, append(shelf.FolderPath(nil), l...))
+			under = append(under, slices.Clone(l))
 		}
 	}
 	return under

@@ -338,7 +338,5 @@ func NewFolderTransferChain(sourceShelfID string, source *shelf.Shelf, targetShe
 // under targetFolder, preserving the tail below sourceFolder. sourceFolder must be a
 // prefix of folder, which the caller has already ensured for every folder it maps.
 func remapFolder(folder, sourceFolder, targetFolder shelf.FolderPath) shelf.FolderPath {
-	tail := folder[len(sourceFolder):]
-	mapped := append(append(shelf.FolderPath(nil), targetFolder...), tail...)
-	return mapped
+	return slices.Concat(targetFolder, folder[len(sourceFolder):])
 }

@@ -286,9 +286,7 @@ func foldSegment(segment string) string {
 func minFold(r rune) rune {
 	smallest := r
 	for folded := unicode.SimpleFold(r); folded != r; folded = unicode.SimpleFold(folded) {
-		if folded < smallest {
-			smallest = folded
-		}
+		smallest = min(smallest, folded)
 	}
 	return smallest
 }

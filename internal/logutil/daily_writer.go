@@ -29,10 +29,7 @@ func NewDailyFileWriter(conf LogFileConf) *DailyFileWriter {
 		prefix = "log"
 	}
 
-	retentionDays := conf.ResolvedRetentionDays()
-	if retentionDays < 0 {
-		retentionDays = 0
-	}
+	retentionDays := max(conf.ResolvedRetentionDays(), 0)
 
 	return &DailyFileWriter{
 		dir:           conf.Dir,

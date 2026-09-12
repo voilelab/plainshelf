@@ -84,12 +84,7 @@ func ContainmentFrom(a, b Sketch, jaccard float64) (float64, float64) {
 // integer comparison rules out a whole pair, which matters for a library whose
 // documents vary widely in length.
 func MaxJaccard(na, nb int) float64 {
-	if na < 0 {
-		na = 0
-	}
-	if nb < 0 {
-		nb = 0
-	}
+	na, nb = max(na, 0), max(nb, 0)
 	if na == 0 && nb == 0 {
 		return 1
 	}
