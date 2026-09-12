@@ -12,6 +12,7 @@
     "test:mutation": "stryker run",
     "check-boundaries": "node scripts/check-module-boundaries.mjs",
     "check-exports": "node scripts/check-exports.mjs",
+    "check-style-contracts": "node scripts/check-style-contracts.mjs",
     "check-licenses": "license-checker --production --excludePrivatePackages --failOn \"UNLICENSED;UNKNOWN\" && node scripts/check-font-licenses.mjs && node scripts/check-icon-licenses.mjs"
   },
   "dependencies": {
