@@ -3,8 +3,8 @@ package shelf
 import (
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
 // ErrRescanInProgress reports a manual rescan already walking this shelf.
@@ -173,7 +173,7 @@ func (s *Shelf) beginRescan(now time.Time, rateLimited bool) rescanClaim {
 	// Not a cryptographic identifier: it is never persisted and never
 	// authenticates anything. It exists so a refused caller can say which
 	// rescan it lost to, and so two of them can be told apart in the log.
-	s.bookCache.rescanID = shelfutil.RandomString(12)
+	s.bookCache.rescanID = fsutil.RandomString(12)
 	return rescanClaim{scanID: s.bookCache.rescanID}
 }
 

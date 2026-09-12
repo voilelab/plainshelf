@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json/jsontext"
-	"errors"
-	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
@@ -169,19 +168,11 @@ func readDeviceDocument(path string) (string, error) {
 		return "", util.NewError("desktop storage is not ready")
 	}
 
-	bs, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	return string(bs), nil
+	return fsutil.ReadTextFile(path)
 }
 
-// writeDeviceDocument replaces the stored document. The write is atomic (temp
-// file plus rename) so an interrupted write cannot leave a half-written
-// document behind.
+// writeDeviceDocument replaces the stored document, once it is JSON of a sane
+// size. The write itself is atomic; see fsutil.WriteTextFileAtomic.
 func writeDeviceDocument(path, label, doc string) error {
 	if path == "" {
 		return util.NewError("desktop storage is not ready")
@@ -193,33 +184,7 @@ func writeDeviceDocument(path, label, doc string) error {
 		return util.Errorf("%s document is not valid JSON", label)
 	}
 
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".device_document-*.json")
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	tmpPath := tmp.Name()
-
-	if _, err := tmp.WriteString(doc); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return util.Errorf("%w", err)
-	}
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return util.Errorf("%w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return util.Errorf("%w", err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return util.Errorf("%w", err)
-	}
-
-	return nil
+	return fsutil.WriteTextFileAtomic(path, ".device_document-*.json", doc)
 }
 
 // ReadReadHistory reports an empty string when this device has stored none.
@@ -654,7 +619,7 @@ func resolveDesktopFolderPath(libRoot string, folderParts []string) (string, err
 	if err != nil {
 		return "", util.Errorf("resolving folder directory: %w", err)
 	}
-	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+	if !filepath.IsLocal(relPath) {
 		return "", util.Errorf("invalid folder path")
 	}
 
@@ -718,7 +683,7 @@ func (a *DesktopApp) resolveBookPackagePath(shelfID, bookID string) (string, err
 	if err != nil {
 		return "", util.Errorf("resolving book directory: %w", err)
 	}
-	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+	if !filepath.IsLocal(relPath) {
 		return "", util.Errorf("invalid book path")
 	}
 
