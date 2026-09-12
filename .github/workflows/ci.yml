@@ -51,6 +51,9 @@ jobs:
       - name: Check unused exports
         run: npm run check-exports
 
+      - name: Check style contracts
+        run: npm run check-style-contracts
+
       - name: Check dependency licenses
         run: npm run check-licenses
 
