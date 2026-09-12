@@ -231,7 +231,7 @@ func (v bookVisibility) revealedBy(change folderChange) (folderReveal, error) {
 	// The books travel with the folder, so the answer is the same afterwards.
 	holdsBook := map[string]bool{}
 	for _, listing := range listings {
-		if !folderHasPrefix(listing.Folders, change.From) {
+		if !listing.Folders.HasPrefix(change.From) {
 			continue
 		}
 		for depth := range len(listing.Folders) + 1 {
@@ -260,7 +260,7 @@ func (v bookVisibility) revealedBy(change folderChange) (folderReveal, error) {
 	}
 
 	for _, sub := range folders {
-		if !folderHasPrefix(sub, change.From) || !v.shelf.IsNSFWFolder(sub) {
+		if !sub.HasPrefix(change.From) || !v.shelf.IsNSFWFolder(sub) {
 			continue
 		}
 		if change.stillMarked(v.shelf, sub, nil) {

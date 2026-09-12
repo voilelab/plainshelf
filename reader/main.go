@@ -38,15 +38,16 @@ func main() {
 	// synthetic reader shelf. -section carries the chapter to open at (negative
 	// when absent), so a desktop chapter jump lands on that chapter rather than the
 	// restored progress.
-	app := NewReaderApp(logger, shelfIDFromArgs(os.Args[1:]), sectionFromArgs(os.Args[1:]))
+	launch := parseLaunchArgs(os.Args[1:])
+	app := NewReaderApp(logger, launch.shelfID, launch.section)
 
 	// -book opens that package instead of prompting for one:
 	// `just run-reader path/to/book.bookpkg`, and `open -a PlainShelfReader
 	// --args -book path/to/book.bookpkg`. A path that cannot be opened falls
 	// through to the folder dialog rather than taking the window down — the
 	// user is already looking at an app that can ask.
-	if bookPath := bookPathFromArgs(os.Args[1:]); bookPath != "" {
-		if _, err := app.Library().Open(bookPath); err != nil {
+	if launch.bookPath != "" {
+		if _, err := app.Library().Open(launch.bookPath); err != nil {
 			log.Println("failed to open the book package given on the command line:", err)
 		}
 	}
@@ -85,24 +86,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-// bookPathFromArgs reads -book from the arguments the app was launched with,
-// shelfIDFromArgs reads -shelf, and sectionFromArgs reads -section. All delegate
-// to parseLaunchArgs so the flags are defined on one FlagSet: flag.Parse stops at
-// the first argument it does not recognize, so a set that knew only -book would
-// drop a following -shelf (and one that knew only -shelf would stop at a leading
-// -book). The desktop app passes them together.
-func bookPathFromArgs(args []string) string {
-	return parseLaunchArgs(args).bookPath
-}
-
-func shelfIDFromArgs(args []string) string {
-	return parseLaunchArgs(args).shelfID
-}
-
-func sectionFromArgs(args []string) int {
-	return parseLaunchArgs(args).section
 }
 
 // noLaunchSection is the -section value that means "no chapter was requested";

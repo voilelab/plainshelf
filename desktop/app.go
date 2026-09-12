@@ -662,25 +662,9 @@ func resolveDesktopFolderPath(libRoot string, folderParts []string) (string, err
 }
 
 func (a *DesktopApp) OpenFolderDirectory(shelfID string, folderParts []string) error {
-	shelfID = strings.TrimSpace(shelfID)
-	if shelfID == "" {
-		return util.Errorf("shelf ID cannot be empty")
-	}
-
-	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	libRoot, err := a.shelfLibRoot(shelfID)
 	if err != nil {
-		return util.Errorf("loading shelf config: %w", err)
-	}
-
-	var libRoot string
-	for _, entry := range conf.Shelves {
-		if entry.ID == shelfID {
-			libRoot = entry.LibRoot
-			break
-		}
-	}
-	if libRoot == "" {
-		return util.Errorf("shelf with ID %q not found", shelfID)
+		return util.Errorf("%w", err)
 	}
 
 	// normalizeFolderParts trims user-provided segments and drops empty entries;
@@ -714,25 +698,9 @@ func (a *DesktopApp) resolveBookPackagePath(shelfID, bookID string) (string, err
 		return "", util.NewError("desktop backend app instance is nil")
 	}
 
-	shelfID = strings.TrimSpace(shelfID)
-	if shelfID == "" {
-		return "", util.Errorf("shelf ID cannot be empty")
-	}
-
-	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	libRoot, err := a.shelfLibRoot(shelfID)
 	if err != nil {
-		return "", util.Errorf("loading shelf config: %w", err)
-	}
-
-	var libRoot string
-	for _, entry := range conf.Shelves {
-		if entry.ID == shelfID {
-			libRoot = entry.LibRoot
-			break
-		}
-	}
-	if libRoot == "" {
-		return "", util.Errorf("shelf with ID %q not found", shelfID)
+		return "", util.Errorf("%w", err)
 	}
 
 	relativeBookPath, err := a.app.GetBookFolderPath(shelfID, bookID)

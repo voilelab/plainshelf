@@ -298,7 +298,7 @@ func (t *folderTransferTask) pruneSourceFolder() {
 
 	under := make([]shelf.FolderPath, 0, len(folders))
 	for _, l := range folders {
-		if folderHasPrefix(l, t.sourceFolder) {
+		if l.HasPrefix(t.sourceFolder) {
 			under = append(under, l)
 		}
 	}
@@ -332,19 +332,6 @@ func NewFolderTransferChain(sourceShelfID string, source *shelf.Shelf, targetShe
 		Description: "Transfer a folder to another shelf",
 		Tasks:       []taskutil.Task{task},
 	}
-}
-
-// folderHasPrefix reports whether folder is prefix itself or sits beneath it.
-func folderHasPrefix(folder, prefix shelf.FolderPath) bool {
-	if len(folder) < len(prefix) {
-		return false
-	}
-	for i := range prefix {
-		if folder[i] != prefix[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // remapFolder rewrites a source folder sitting under sourceFolder into its place
