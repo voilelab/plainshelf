@@ -5,6 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Controllable reader state shared with the useReader mock. The keydown guard
 // reads currentSectionIndex/sections directly, so tests drive them here and
 // assert on the navigation spies.
+//
+// Because useReader is mocked, nothing here can say anything about useReader —
+// which is why the "does not step past the first or last chapter" case moved to
+// useReader.test.ts, where the clamp that actually makes a stray step harmless
+// lives. What stays below is the page's own: which chrome it shows, and which
+// keystrokes it forwards.
 const reader = vi.hoisted(() => {
   return {
     currentSectionIndex: undefined as unknown as Ref<number>,
@@ -297,19 +303,6 @@ describe('ReaderView keyboard chapter navigation', () => {
     press('ArrowRight');
     expect(reader.goNextSection).not.toHaveBeenCalled();
     editable.remove();
-  });
-
-  it('does not step past the first or last chapter', async () => {
-    mount();
-    await flush();
-
-    reader.currentSectionIndex.value = 0;
-    press('ArrowLeft');
-    expect(reader.goPrevSection).not.toHaveBeenCalled();
-
-    reader.currentSectionIndex.value = reader.sections.value.length - 1;
-    press('ArrowRight');
-    expect(reader.goNextSection).not.toHaveBeenCalled();
   });
 
   it('ignores the arrow keys while a modal is open', async () => {
