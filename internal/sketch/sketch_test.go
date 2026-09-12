@@ -236,3 +236,15 @@ func TestBuildDefaultKeepsShortDocumentsExact(t *testing.T) {
 		t.Errorf("empty document produced %+v", empty)
 	}
 }
+
+// BenchmarkBuild covers the scan the whole package is paced by: one
+// book-length document, at the defaults a real import uses.
+func BenchmarkBuild(b *testing.B) {
+	document := strings.Join(randomWords(newRNG(20260912), 60000), " ")
+
+	b.ReportAllocs()
+	b.SetBytes(int64(len(document)))
+	for b.Loop() {
+		Build(document, DefaultN, DefaultK)
+	}
+}
