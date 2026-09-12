@@ -73,6 +73,9 @@ between releases.
 
 ### Security
 
+- Fixed the deployment and threat model page describing the desktop and standalone reader apps as "always effectively Tier A"; the desktop runs `security.mode: none` and the reader has no security mode at all, so neither carries the token or origin checks, and the page now states the process boundary that does protect them.
+- Fixed the page's Tier B example listing only LAN origins, which cost a reader every write made in a browser on the server itself; `allowed_origins` replaces the loopback defaults rather than extending them, and both the example and the surrounding text now say so.
+- Fixed the page calling a granted pCloud token the only credential PlainShelf persists, omitting the PlainShelf server access token the Android app keeps in the same Keystore-backed storage.
 - Changed the security policy's supported branch from `main` to `dev`, which is where development happens and releases are cut from.
 - Added a rate limit to the shelf rescan (`POST /api/shelves/{id}/scans`) of five walks back to back plus one every 10 seconds, refusing the rest with `429` and a `Retry-After` so a LAN device cannot hold the server's CPU and SMB bandwidth with a loop; `409` still means another walk is running, the cross-shelf transfer preflight is exempt, and it is not configurable.
 - Updated `golang.org/x/image` to v0.45.0, closing a memory-exhaustion vector (GO-2026-6222) that an untrusted WebP cover could reach through the cover upload and EPUB import paths.

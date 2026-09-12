@@ -3,7 +3,8 @@
 PlainShelf is local-first and single-user. Where you bind the server and which
 security mode you choose decide what it defends against — and, just as
 important, what it does not. This page names three deployment tiers, gives the
-configuration each one wants, and states plainly what protects access in each.
+configuration each one wants, and states plainly what protects access in each —
+then does the same for the desktop and reader apps, which are neither.
 
 For the type and default of each `security` key on its own, see the
 [Configuration reference](reference/configuration.md#app_confsecurity); this
@@ -12,9 +13,10 @@ page is about which combinations to choose.
 It also records two standing non-goals that hold at every tier:
 
 - **No PlainShelf server holds your credentials, and none are baked into its
-  binaries.** The one credential it persists — a pCloud token you grant — stays
-  on your own device. See
-  [Where third-party credentials live](#where-third-party-credentials-live).
+  binaries.** The credentials that are persisted — a pCloud token you grant, and
+  the access token for a PlainShelf server you add on Android — are stored on
+  your own device by the Android app, never by a server. See
+  [Where credentials live](#where-credentials-live).
 - **`local_token` is a CSRF boundary, not access control.** See
   [What `local_token` actually protects](#what-local_token-actually-protects).
 
@@ -22,8 +24,8 @@ It also records two standing non-goals that hold at every tier:
 
 | Tier | Who it is for | `server_conf.addr` | `security.mode` | `security.protect_read` | `security.allowed_origins` | What actually controls access |
 |---|---|---|---|---|---|---|
-| **A** | One person, one machine (desktop app, local server) | `127.0.0.1:20000` | `local_token` (default) | `false` (default) | loopback defaults | The loopback bind: nothing off the machine can connect. |
-| **B** | Home LAN / NAS, including VPN remote | LAN address or `0.0.0.0:20000` | `local_token` | `true` | your LAN and VPN origins | The network you trust — the LAN itself, or the VPN in front of it. |
+| **A** | One person, one machine (a local server you run) | `127.0.0.1:20000` | `local_token` (default) | `false` (default) | loopback defaults | The loopback bind: nothing off the machine can connect. |
+| **B** | Home LAN / NAS, including VPN remote | LAN address or `0.0.0.0:20000` | `local_token` | `true` | loopback **and** your LAN and VPN origins | The network you trust — the LAN itself, or the VPN in front of it. |
 | **C** | The public internet | — | *not supported yet* | — | — | Nothing PlainShelf ships. Do not deploy here. |
 
 ### Tier A — loopback, single user
@@ -39,9 +41,6 @@ app_conf:
   security:
     mode: local_token   # the default when security is unset; shown for clarity
 ```
-
-The desktop and standalone reader apps embed the server in-process and open no
-network port, so they are always effectively Tier A.
 
 ### Tier B — home LAN / NAS, including VPN remote
 
@@ -65,6 +64,11 @@ app_conf:
     mode: local_token
     protect_read: true           # require the token for reads too, not only writes
     allowed_origins:
+      # Setting this list REPLACES the loopback defaults, it does not add to
+      # them — so keep the local addresses if you ever open the UI on the
+      # machine itself.
+      - "http://127.0.0.1:20000"
+      - "http://localhost:20000"
       - "http://nas.local:20000"
       - "http://192.168.1.10:20000"
       # add every hostname/port you actually open the UI through,
@@ -73,10 +77,14 @@ app_conf:
 
 Two things to get right on this tier:
 
-- **`allowed_origins` must list the origins you use.** The defaults cover only
-  loopback, so a mutating request from `http://nas.local:20000` is rejected as a
-  forbidden origin until you add it. Add each LAN hostname, LAN IP, and VPN
-  address you open the UI through — with the exact scheme and port.
+- **`allowed_origins` replaces the defaults, it does not extend them.**
+  PlainShelf applies its four loopback defaults — `http://127.0.0.1:20000`,
+  `http://localhost:20000`, and the same two on the Vite dev port `5173` — *only
+  while the list is empty* (`server/security.go`). Set it, and those defaults are
+  gone: a browser opened on the NAS itself at `http://127.0.0.1:20000` then gets
+  `403 forbidden origin` on every write. So the list has to name every origin you
+  use, loopback included, with the exact scheme and port — each LAN hostname,
+  each LAN IP, each VPN address, and the local ones you would otherwise lose.
 - **`protect_read: true` is defence in depth, not a login.** It makes even read
   requests carry the token, so a bare API scrape that never loads a page gets
   `401`. It does *not* keep anyone out who opens the Web UI: the token is handed
@@ -104,6 +112,38 @@ A real answer is planned. `security.mode` reserves two values —
 fails at startup with "reserved but not implemented yet". A public tier waits on
 that work landing. Until then, keep an internet-facing deployment behind a VPN
 and treat it as Tier B.
+
+### The desktop and standalone reader apps
+
+Neither app is a row on that table. Both embed their API in the Wails window and
+open **no network port** — neither calls `ListenAndServe`, so there is nothing
+for another machine to connect to, and the tiers' question of who can reach the
+port does not arise. What they are not is `local_token`:
+
+- The **desktop app** runs the same server in-process with `security.mode: none`
+  hard-coded (`desktop/app.go`). Under `none` the middleware returns before the
+  token check, the origin allowlist and CORS (`server/security.go`), so its API
+  has no token and no origin check. The static browser-hardening headers
+  (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`) are still set.
+- The **standalone reader** does not go through `server/security.go` at all. It
+  serves its own `readerapi` handler from the Wails asset server
+  (`reader/main.go`), so it has no `security.mode` to set, and likewise no token
+  and no origin check.
+
+What protects them is the process boundary rather than a mode: the API answers
+only inside the app's own webview, and a browser you open separately cannot reach
+it, because there is no port to connect to. Against the web-origin CSRF that
+Tier A spends its token on, that is the stronger position of the two rather than
+a weaker one — Tier A's loopback port *is* reachable from a page in your ordinary
+browser, which is exactly why it needs the token, while here the request cannot
+be made at all.
+
+The missing mode therefore costs these two apps nothing, because what remains is
+local rather than networked and a token would not close it either: any program
+already running as you can read the shelf files directly, with or without
+PlainShelf, and anything that can inject script into the app's own webview is
+inside the boundary already — under `local_token` too, since the token is written
+into the page (`server/spa.go`) where same-origin script can simply read it.
 
 ## What `local_token` actually protects
 
@@ -169,7 +209,7 @@ the shelf's structure, together with access times and remote addresses. Turning
 that, so the logs stay behind the token either way. It is not a setting, for the
 same reason a safe default is not a choice worth offering.
 
-## Where third-party credentials live
+## Where credentials live
 
 PlainShelf runs no server of its own, so **no PlainShelf-operated service holds
 your accounts, your library, or your credentials**, and **nothing confidential is
@@ -189,9 +229,19 @@ What keeps it true:
   `poll_token` OAuth flow, which needs no app secret and no redirect URL, so
   there is nothing confidential shipped inside the APK.
 
-There is one credential PlainShelf does persist, and it is worth stating plainly
-rather than rounding off to "none":
+Two credentials are nevertheless persisted, both by the Android app and both on
+the device itself. They are worth stating plainly rather than rounding off to
+"none":
 
+- **The access token of a PlainShelf server you add on Android is stored on the
+  device.** A shelf entry that points at a server keeps that server's token in
+  the same Android Keystore-backed secure storage as the pCloud token below, one
+  secret per shelf entry (`frontend/src/providers/mobileConfig.ts`); the
+  non-secret part of the entry, such as the server address, goes to Capacitor
+  Preferences, and no token is ever written there. It is the `local_token` of a
+  server you run, entered by hand, and it is needed only to read from a server
+  that sets `protect_read: true`. It leaves the device only as a header to that
+  server.
 - **A pCloud OAuth token you grant is stored on your own device.** If you connect
   an Android pCloud shelf, the access token you approve is saved in the device's
   Keystore-backed secure storage
