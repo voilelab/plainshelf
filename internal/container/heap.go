@@ -10,7 +10,7 @@ package container
 import "cmp"
 
 // Heap is a binary heap ordered by less, with the smallest element at the root.
-// The zero value is not usable; build one with [New] or [From].
+// The zero value is not usable; build one with [NewHeap] or [HeapFrom].
 type Heap[T any] struct {
 	items []T
 	less  func(a, b T) bool
@@ -24,15 +24,15 @@ func Less[T cmp.Ordered](a, b T) bool { return a < b }
 // seen so far.
 func Greater[T cmp.Ordered](a, b T) bool { return a > b }
 
-// New returns an empty heap ordered by less, which must not be nil.
-func New[T any](less func(a, b T) bool) *Heap[T] {
+// NewHeap returns an empty heap ordered by less, which must not be nil.
+func NewHeap[T any](less func(a, b T) bool) *Heap[T] {
 	return &Heap[T]{less: less}
 }
 
-// From returns a heap over items, reordering them in place in O(len(items)),
+// HeapFrom returns a heap over items, reordering them in place in O(len(items)),
 // which is cheaper than pushing them one at a time. The caller must not use
 // items afterwards. Passing an empty slice with a capacity preallocates.
-func From[T any](items []T, less func(a, b T) bool) *Heap[T] {
+func HeapFrom[T any](items []T, less func(a, b T) bool) *Heap[T] {
 	heap := &Heap[T]{items: items, less: less}
 	for i := len(items)/2 - 1; i >= 0; i-- {
 		heap.down(i)

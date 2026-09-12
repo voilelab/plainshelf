@@ -32,7 +32,7 @@ func TestPopReturnsElementsInOrder(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			heap := New(tc.less)
+			heap := NewHeap(tc.less)
 			for _, value := range values {
 				heap.Push(value)
 				checkInvariant(t, heap)
@@ -57,7 +57,7 @@ func TestPopReturnsElementsInOrder(t *testing.T) {
 
 func TestFromHeapifiesInPlace(t *testing.T) {
 	items := []int{5, 1, 9, 1, 7, 3, 8, 0, 2, 6}
-	heap := From(items, Less[int])
+	heap := HeapFrom(items, Less[int])
 
 	checkInvariant(t, heap)
 	if heap.Len() != len(items) {
@@ -71,7 +71,7 @@ func TestFromHeapifiesInPlace(t *testing.T) {
 }
 
 func TestFromEmptySlicePreallocates(t *testing.T) {
-	heap := From(make([]int, 0, 64), Less[int])
+	heap := HeapFrom(make([]int, 0, 64), Less[int])
 
 	if heap.Len() != 0 {
 		t.Fatalf("Len is %d, want 0", heap.Len())
@@ -85,7 +85,7 @@ func TestFromEmptySlicePreallocates(t *testing.T) {
 }
 
 func TestEmptyHeap(t *testing.T) {
-	heap := New(Less[string])
+	heap := NewHeap(Less[string])
 
 	if _, ok := heap.Peek(); ok {
 		t.Error("Peek reported a root on an empty heap")
@@ -106,14 +106,14 @@ func TestEmptyHeap(t *testing.T) {
 func TestReplaceMatchesPopThenPush(t *testing.T) {
 	values := []int{5, 1, 9, 7, 3}
 
-	replaced := From(slices.Clone(values), Less[int])
+	replaced := HeapFrom(slices.Clone(values), Less[int])
 	displaced, ok := replaced.Replace(4)
 	if !ok || displaced != 1 {
 		t.Fatalf("Replace returned (%d, %t), want (1, true)", displaced, ok)
 	}
 	checkInvariant(t, replaced)
 
-	popped := From(slices.Clone(values), Less[int])
+	popped := HeapFrom(slices.Clone(values), Less[int])
 	popped.Pop()
 	popped.Push(4)
 
@@ -134,7 +134,7 @@ func TestBoundedSmallest(t *testing.T) {
 		stream[i] = random.Uint64()
 	}
 
-	heap := From(make([]uint64, 0, k), Greater[uint64])
+	heap := HeapFrom(make([]uint64, 0, k), Greater[uint64])
 	for _, value := range stream {
 		switch root, ok := heap.Peek(); {
 		case heap.Len() < k:
@@ -162,7 +162,7 @@ func TestCustomComparator(t *testing.T) {
 		pages int
 	}
 
-	heap := New(func(a, b book) bool { return a.pages < b.pages })
+	heap := NewHeap(func(a, b book) bool { return a.pages < b.pages })
 	for _, item := range []book{{"long", 900}, {"short", 40}, {"middling", 300}} {
 		heap.Push(item)
 	}
@@ -182,7 +182,7 @@ func TestRandomizedAgainstSort(t *testing.T) {
 			values[i] = random.IntN(100)
 		}
 
-		heap := From(slices.Clone(values), Less[int])
+		heap := HeapFrom(slices.Clone(values), Less[int])
 		checkInvariant(t, heap)
 
 		want := slices.Clone(values)

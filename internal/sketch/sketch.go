@@ -93,7 +93,7 @@ func Build(normalized string, n, k int) Sketch {
 	// bottom is a max-heap of the k smallest hashes seen so far, so the hash to
 	// evict is always at the root. Cap the initial allocation: k may be the
 	// document length for a short document, or an arbitrary caller value.
-	bottom := container.From(make([]uint64, 0, min(k, 1024)), container.Greater[uint64])
+	bottom := container.HeapFrom(make([]uint64, 0, min(k, 1024)), container.Greater[uint64])
 
 	eachShingle(normalized, n, func(hash uint64) {
 		if _, duplicate := seen[hash]; duplicate {
