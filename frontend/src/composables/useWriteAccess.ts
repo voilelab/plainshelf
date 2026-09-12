@@ -22,8 +22,11 @@ type WriteDisabledReason = 'platform' | 'server-read-only' | 'shelf-read-only' |
  * `bookshelfWriter()` refuses on. Deliberately separate from the server's
  * `read_only` config and from the shelf's own — all three can be true at once,
  * and each means something different to the user.
+ *
+ * Module-private: every caller reads it through one of the flags below, which
+ * is the surface that says what the answer is *for*.
  */
-export function isLibraryEditingSupported(): boolean {
+function isLibraryEditingSupported(): boolean {
   return isWritableProvider(getBookshelfProvider());
 }
 
