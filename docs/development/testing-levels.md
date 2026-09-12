@@ -207,10 +207,20 @@ checked by eye when the surface around them changes:
 | Dashboard with one recent book | The "recent reading" cover stays capped rather than stretching the row | `read-history.spec.ts` |
 | Library toolbar at 1600/1280/1024/800 | The last control ("Update book list") stays inside the header | `library-rescan.spec.ts` |
 | Mobile shelf editor at 360×480 | The page itself scrolls, so "Save and continue" is reachable | `mobile-shelves.spec.ts` |
+| Mobile reader at 320×844, toolbar open | The five controls stay thumb-sized rather than squeezing, and a recalled gesture hint clears the toolbar instead of sitting behind it | `mobile-reader.spec.ts` |
+| Mobile reader, a chapter with a wide code block | The block scrolls sideways on its own without turning the chapter, and does not stretch the column | `mobile-reader.spec.ts` |
 
 Two of these were regressions once, so this is a real cost, not a tidy-up. If
 one recurs, the answer is an E2E case *and* a deletion to pay for it (R4) —
 not a quiet raise of the 40.
+
+The last two rows keep less than they look like. Each had a *declaration* under
+it as well as a geometry — `min-height: 44px`, `touch-action: pan-x` — and a
+declaration does not need a layout engine, only the file it is written in. Those
+halves went to `frontend/scripts/check-style-contracts.mjs`, which fails the
+build when the rule is dropped. What is left by eye is the part a declaration
+cannot promise: that nothing else squeezes the controls at 320px, and that the
+block's own scrolling wins over the page's.
 
 ## Decision tree
 
