@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Controllable reader state shared with the useReader mock. The keydown guard
 // reads currentSectionIndex/sections directly, so tests drive them here and
 // assert on the navigation spies.
+//
+// Because useReader is mocked, nothing here can say anything about useReader.
+// What these cases pin is the page's own: which chrome it shows, and which
+// keystrokes it forwards — including the ones it must not.
 const reader = vi.hoisted(() => {
   return {
     currentSectionIndex: undefined as unknown as Ref<number>,
@@ -299,6 +303,12 @@ describe('ReaderView keyboard chapter navigation', () => {
     editable.remove();
   });
 
+  // Not redundant with useReader's clamp, which is what a *deliberate*
+  // out-of-range goToSection is allowed to do. A stray one is a different
+  // thing: the clamp keeps the index, but goToSection still writes
+  // updateProgressByOffset(section.startOffset) and flushes it — so an arrow
+  // press at the last chapter would throw away however far into it the reader
+  // had got, and persist the loss. This guard is what stops the press.
   it('does not step past the first or last chapter', async () => {
     mount();
     await flush();
