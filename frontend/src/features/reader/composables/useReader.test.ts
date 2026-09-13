@@ -266,9 +266,12 @@ describe('useReader chapter boundaries', () => {
     mocks.saveReadProgress.mockResolvedValue(undefined);
   });
 
-  // The page guards the arrows too, but the clamp here is what makes a stray
-  // call harmless — including one from a deep link or a key repeat.
-  it('stays put when asked to step past either end', async () => {
+  // What the clamp promises is only the index: an out-of-range section — from a
+  // `?section=` link, say — opens the nearest one instead of failing. It does
+  // not make the call free, because goToSection still moves the saved position
+  // to that chapter's start. Refusing to make the call at all is the page's
+  // job, and ReaderView.test.ts is where that is pinned.
+  it('opens the nearest chapter when asked to step past either end', async () => {
     const reader = useReader(() => 'book-1');
     await reader.fetchReaderData();
 
