@@ -18,7 +18,7 @@ const { WailsBookshelfProvider } = await import('@/providers/wailsBookshelfProvi
 const { MobileBookshelfProvider } = await import('@/providers/mobileBookshelfProvider');
 const { InMemoryMobileBookCache } = await import('@/providers/mobileBookCache');
 const { PCloudBookshelfProvider } = await import('@/providers/pcloudBookshelfProvider');
-const { isLibraryEditingSupported, useWriteAccess } = await import('./useWriteAccess');
+const { useWriteAccess } = await import('./useWriteAccess');
 
 // readOnly is a module-level ref shared by every useServerMode() caller, so the
 // test drives it directly instead of stubbing GET /api/mode.
@@ -257,13 +257,17 @@ describe('platform capabilities', () => {
   });
 });
 
-describe('isLibraryEditingSupported', () => {
-  it('follows the provider write surface', () => {
+// The provider's write surface is what decides these, and it is read through
+// the flags rather than directly: libraryEditingAvailable is the one that says
+// only "can this client write at all", without the server's or the shelf's
+// read_only folded in.
+describe('the provider write surface', () => {
+  it('decides whether library editing is available at all', () => {
     connectReadingClient();
-    expect(isLibraryEditingSupported()).toBe(false);
+    expect(useWriteAccess().libraryEditingAvailable.value).toBe(false);
 
     connectWritableClient();
-    expect(isLibraryEditingSupported()).toBe(true);
+    expect(useWriteAccess().libraryEditingAvailable.value).toBe(true);
   });
 
   // WailsBookshelfProvider inherits its write surface from
@@ -273,7 +277,7 @@ describe('isLibraryEditingSupported', () => {
   it('keeps the desktop shell writable through inheritance', () => {
     getBookshelfProviderMock.mockReturnValue(new WailsBookshelfProvider());
 
-    expect(isLibraryEditingSupported()).toBe(true);
+    expect(useWriteAccess().libraryEditingAvailable.value).toBe(true);
   });
 
   // The pCloud backend is a reading client in its own right, independently of
@@ -286,6 +290,6 @@ describe('isLibraryEditingSupported', () => {
       })
     );
 
-    expect(isLibraryEditingSupported()).toBe(false);
+    expect(useWriteAccess().libraryEditingAvailable.value).toBe(false);
   });
 });

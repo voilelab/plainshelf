@@ -1,20 +1,19 @@
 // @vitest-environment jsdom
-import { createApp, nextTick } from 'vue';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { nextTick } from 'vue';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import LogRetentionPanel from './LogRetentionPanel.vue';
+import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
-function mount(value: number) {
-  const host = document.createElement('div');
+// Captured emits stay here rather than in the shared helper: what a component
+// reports is its own, and only this file knows what to do with it.
+function mountPanel(value: number) {
   const changes: number[] = [];
-  const app = createApp(LogRetentionPanel, {
-    value,
-    disabled: false,
-    onChange: (next: number) => changes.push(next)
+  const { host } = mount(LogRetentionPanel, {
+    props: { value, disabled: false, onChange: (next: number) => changes.push(next) }
   });
-  app.mount(host);
-  return { host, app, changes };
+  return { host, changes };
 }
 
 function field(host: HTMLElement): HTMLInputElement {
@@ -35,34 +34,26 @@ beforeEach(() => {
   setLocale('en');
 });
 
-afterEach(() => {
-  document.body.innerHTML = '';
-});
-
 describe('LogRetentionPanel', () => {
   // The panel deletes files, so what the current number does has to be legible
   // without the reader working it out from the unit.
   it('says in words that a window deletes older files', () => {
-    const { host, app } = mount(30);
+    const { host } = mountPanel(30);
 
     expect(host.textContent).toContain('Log files older than 30 days are deleted.');
-
-    app.unmount();
   });
 
   it('says that zero deletes nothing', () => {
-    const { host, app } = mount(0);
+    const { host } = mountPanel(0);
 
     expect(host.textContent).toContain('No log file is deleted.');
     // The static description also says "are deleted when the log rotates", so
     // match the effect line's own wording rather than the phrase alone.
     expect(host.textContent).not.toContain('Log files older than');
-
-    app.unmount();
   });
 
   it('bounds the field at what the server accepts', () => {
-    const { host, app } = mount(30);
+    const { host } = mountPanel(30);
 
     // Reka renders a text input with the spinbutton role, so the bounds live on
     // the ARIA attributes rather than on `min`/`max`.
@@ -70,12 +61,10 @@ describe('LogRetentionPanel', () => {
     expect(input.getAttribute('aria-valuemin')).toBe('0');
     expect(input.getAttribute('aria-valuemax')).toBe('3650');
     expect(input.value).toBe('30');
-
-    app.unmount();
   });
 
   it('reports a stepped value and clamps it at the server maximum', async () => {
-    const { host, app, changes } = mount(3649);
+    const { host, changes } = mountPanel(3649);
     await nextTick();
 
     press(host, 'increase');
@@ -84,18 +73,16 @@ describe('LogRetentionPanel', () => {
 
     // At the ceiling the stepper is disabled rather than reporting a value the
     // server would reject.
-    const { host: cappedHost, app: cappedApp, changes: cappedChanges } = mount(3650);
+    const { host: cappedHost, changes: cappedChanges } = mountPanel(3650);
     await nextTick();
     press(cappedHost, 'increase');
     await nextTick();
     expect(cappedChanges).toEqual([]);
 
-    app.unmount();
-    cappedApp.unmount();
   });
 
   it('restores the stored retention window when the box is emptied, saving nothing', async () => {
-    const { host, app, changes } = mount(30);
+    const { host, changes } = mountPanel(30);
     await nextTick();
 
     const input = field(host);
@@ -115,12 +102,10 @@ describe('LogRetentionPanel', () => {
     press(host, 'increase');
     await nextTick();
     expect(changes).toEqual([31]);
-
-    app.unmount();
   });
 
   it('reports a typed window when the box loses focus', async () => {
-    const { host, app, changes } = mount(30);
+    const { host, changes } = mountPanel(30);
 
     const input = field(host);
     input.value = '90';
@@ -129,6 +114,5 @@ describe('LogRetentionPanel', () => {
 
     expect(changes).toEqual([90]);
 
-    app.unmount();
   });
 });

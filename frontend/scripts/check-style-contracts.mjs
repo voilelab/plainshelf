@@ -56,6 +56,34 @@ export const CONTRACTS = [
     why: 'A heading on a different family than its body text is the bug this pins.'
   },
   {
+    name: 'body text follows the reading font size',
+    file: 'src/features/reader/styles/reader-content.css',
+    selector: '.reader-text',
+    property: 'font-size',
+    must: /var\(--reader-font-size/,
+    why:
+      'The reader sets --reader-font-size from the device default and the font-size controls; ' +
+      'a fixed size here would leave both doing nothing.'
+  },
+  {
+    name: 'a code block pans on its own axis',
+    file: 'src/features/reader/components/MobileReaderView.vue',
+    selector: ':deep(.reader-md-code)',
+    property: 'touch-action',
+    must: /\bpan-x\b/,
+    why:
+      'A wide code block scrolls sideways inside the page. Without pan-x the browser hands the ' +
+      'horizontal drag to the reader, which turns the chapter instead of scrolling the code.'
+  },
+  {
+    name: 'toolbar controls stay thumb-sized',
+    file: 'src/features/reader/components/MobileReaderView.vue',
+    selector: '.mobile-reader-tool',
+    property: 'min-height',
+    must: /\b44px\b/,
+    why: 'Five controls share a 320px-wide toolbar; the floor is what stops them being squeezed under a thumb.'
+  },
+  {
     name: 'code keeps a monospace stack',
     file: 'src/features/reader/styles/reader-content.css',
     selector: '.reader-md-inline-code',
@@ -124,13 +152,32 @@ function blockAt(css, open) {
   return { text: css.slice(open + 1), end: css.length };
 }
 
-/** Returns the first rule whose selector list names `selector`, or null. */
+/**
+ * Returns the first rule whose selector list names `selector`, or null. The
+ * match is on a whole name rather than a substring: `.mobile-reader-tool` must
+ * not be answered by `.mobile-reader-toolbar`, which is a different rule with a
+ * different job. A named selector may still sit inside a longer one
+ * (`:deep(h1)` within `.reader-safe-html :deep(h1)`), which is why this is not
+ * simply an equality test.
+ */
 export function ruleFor(css, selector) {
-  return (
-    rules(css).find((rule) =>
-      rule.selector.split(',').some((part) => part.trim().includes(selector))
-    ) ?? null
-  );
+  return rules(css).find((rule) => rule.selector.split(',').some((part) => names(part, selector))) ?? null;
+}
+
+/** True when `selector` appears in `part` bounded by something that is not part of a name. */
+function names(part, selector) {
+  const isNameChar = (char) => char !== undefined && /[A-Za-z0-9_-]/.test(char);
+  let from = 0;
+  for (;;) {
+    const at = part.indexOf(selector, from);
+    if (at < 0) {
+      return false;
+    }
+    if (!isNameChar(part[at - 1]) && !isNameChar(part[at + selector.length])) {
+      return true;
+    }
+    from = at + 1;
+  }
 }
 
 /** Returns the declared value of `property`, or null when it is not declared. */

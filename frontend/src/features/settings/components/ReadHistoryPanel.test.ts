@@ -1,20 +1,19 @@
 // @vitest-environment jsdom
-import { createApp, nextTick } from 'vue';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { nextTick } from 'vue';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import ReadHistoryPanel from './ReadHistoryPanel.vue';
+import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
-function mount(value: number, disabled = false) {
-  const host = document.createElement('div');
+// Captured emits stay here rather than in the shared helper: what a component
+// reports is its own, and only this file knows what to do with it.
+function mountPanel(value: number, disabled = false) {
   const changes: number[] = [];
-  const app = createApp(ReadHistoryPanel, {
-    value,
-    disabled,
-    onChange: (next: number) => changes.push(next)
+  const { host } = mount(ReadHistoryPanel, {
+    props: { value, disabled, onChange: (next: number) => changes.push(next) }
   });
-  app.mount(host);
-  return { host, app, changes };
+  return { host, changes };
 }
 
 function field(host: HTMLElement): HTMLInputElement {
@@ -35,13 +34,9 @@ beforeEach(() => {
   setLocale('en');
 });
 
-afterEach(() => {
-  document.body.innerHTML = '';
-});
-
 describe('ReadHistoryPanel', () => {
   it('shows the stored limit on a labelled spinbutton', () => {
-    const { host, app } = mount(20);
+    const { host } = mountPanel(20);
 
     const input = field(host);
     expect(input.value).toBe('20');
@@ -49,19 +44,17 @@ describe('ReadHistoryPanel', () => {
     // The label is a real `<label for>`: reka's NumberFieldInput is an input.
     const label = host.querySelector<HTMLLabelElement>('label');
     expect(label?.htmlFor).toBe(input.id);
-
-    app.unmount();
   });
 
   it('reports a stepped limit and stops at zero', async () => {
-    const { host, app, changes } = mount(1);
+    const { host, changes } = mountPanel(1);
     await nextTick();
 
     press(host, 'decrease');
     await nextTick();
     expect(changes).toEqual([0]);
 
-    const { host: floorHost, app: floorApp, changes: floorChanges } = mount(0);
+    const { host: floorHost, changes: floorChanges } = mountPanel(0);
     await nextTick();
     press(floorHost, 'decrease');
     await nextTick();
@@ -69,12 +62,10 @@ describe('ReadHistoryPanel', () => {
     // disabled at the floor rather than reporting one.
     expect(floorChanges).toEqual([]);
 
-    app.unmount();
-    floorApp.unmount();
   });
 
   it('restores the stored limit when the box is emptied, saving nothing', async () => {
-    const { host, app, changes } = mount(20);
+    const { host, changes } = mountPanel(20);
     await nextTick();
 
     const input = field(host);
@@ -94,12 +85,10 @@ describe('ReadHistoryPanel', () => {
     press(host, 'increase');
     await nextTick();
     expect(changes).toEqual([21]);
-
-    app.unmount();
   });
 
   it('rounds a fractional limit to a whole number of entries', async () => {
-    const { host, app, changes } = mount(20);
+    const { host, changes } = mountPanel(20);
 
     const input = field(host);
     input.value = '12.4';
@@ -107,12 +96,10 @@ describe('ReadHistoryPanel', () => {
     await nextTick();
 
     expect(changes).toEqual([12]);
-
-    app.unmount();
   });
 
   it('disables the whole field while a save is in flight', () => {
-    const { host, app } = mount(20, true);
+    const { host } = mountPanel(20, true);
 
     // Reka pairs the native attribute with `data-disabled` on the input, both
     // steppers and the surrounding box; numeric-controls.css styles the
@@ -124,6 +111,5 @@ describe('ReadHistoryPanel', () => {
     }
     expect(host.querySelector('.number-field')?.hasAttribute('data-disabled')).toBe(true);
 
-    app.unmount();
   });
 });

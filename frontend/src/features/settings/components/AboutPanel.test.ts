@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, nextTick, type App } from 'vue';
+import { defineComponent, h, nextTick } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // The bundled fonts ship under the OFL, so the licence text has to be reachable
@@ -24,24 +24,17 @@ vi.mock('@/features/settings/components/FontLicenseModal.vue', () => ({
   })
 }));
 
+import { mount } from '#testing/mount';
+
 const AboutPanel = (await import('./AboutPanel.vue')).default;
 
-let active: { app: App; host: HTMLElement } | null = null;
-
 async function mountPanel(): Promise<HTMLElement> {
-  const host = document.createElement('div');
-  document.body.append(host);
-  const app = createApp(defineComponent({ setup: () => () => h(AboutPanel) }));
-  app.mount(host);
-  active = { app, host };
+  const { host } = mount(AboutPanel);
   await nextTick();
   return host;
 }
 
 afterEach(() => {
-  active?.app.unmount();
-  active?.host.remove();
-  active = null;
   opened.urls.length = 0;
 });
 
