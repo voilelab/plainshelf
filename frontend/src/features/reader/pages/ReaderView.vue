@@ -193,6 +193,10 @@ function onDocumentKeydown(event: KeyboardEvent): void {
     return;
   }
 
+  // Claim the key even at the first/last chapter: an unhandled key reaches
+  // AppKit through macOS WKWebView (desktop, reader), which beeps.
+  event.preventDefault();
+
   if (event.key === 'ArrowLeft' && currentSectionIndex.value > 0) {
     void goPrevSection();
   } else if (event.key === 'ArrowRight' && currentSectionIndex.value < sections.value.length - 1) {
