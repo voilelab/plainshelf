@@ -24,11 +24,13 @@ function field(host: HTMLElement): HTMLInputElement {
 }
 
 // Reka's steppers act on pointerdown (so a press-and-hold repeats), not click.
+// Every stepper matches pointerup by pointerId, so the events need a real one.
+const POINTER = { bubbles: true, button: 0, pointerId: 1, pointerType: 'mouse' };
 function press(host: HTMLElement, direction: 'increase' | 'decrease'): void {
   const buttons = host.querySelectorAll<HTMLButtonElement>('.number-field-step');
   const button = direction === 'decrease' ? buttons[0] : buttons[1];
-  button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
-  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
+  button.dispatchEvent(new PointerEvent('pointerdown', POINTER));
+  window.dispatchEvent(new PointerEvent('pointerup', POINTER));
 }
 
 beforeEach(() => {
