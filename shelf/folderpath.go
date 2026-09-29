@@ -1,6 +1,9 @@
 package shelf
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // FolderPath is a book's position in the shelf's folder tree: the ordered path
 // segments from books/ down to the book's own directory. It is a shelf concept,
@@ -13,13 +16,10 @@ func (l FolderPath) String() string {
 }
 
 func (l FolderPath) Equal(other FolderPath) bool {
-	if len(l) != len(other) {
-		return false
-	}
-	for i := range l {
-		if l[i] != other[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(l, other)
+}
+
+// HasPrefix reports whether l is prefix itself or sits beneath it.
+func (l FolderPath) HasPrefix(prefix FolderPath) bool {
+	return len(l) >= len(prefix) && slices.Equal(l[:len(prefix)], prefix)
 }

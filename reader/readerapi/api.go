@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"mime"
 	"net/http"
-	"path"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
@@ -252,12 +251,6 @@ func (h *handlers) writeAsset(w http.ResponseWriter, source *bookpkg.Source, nam
 // contentTypeForExt keeps the reader from guessing: an illustration the browser
 // cannot type is served as bytes rather than as something it will try to parse.
 func contentTypeForExt(ext string) string {
-	if ext == "" {
-		return "application/octet-stream"
-	}
-	if !path.IsAbs(ext) && ext[0] != '.' {
-		ext = "." + ext
-	}
 	if mimeType := mime.TypeByExtension(ext); mimeType != "" {
 		return mimeType
 	}

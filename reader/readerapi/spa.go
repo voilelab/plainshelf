@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"io/fs"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
@@ -83,7 +84,7 @@ func indexHTML(assets fs.FS, boot BootConfig) ([]byte, error) {
 	// Before </head>, so the flag is set before main.js runs and bootstrap can
 	// decide which shell to install without waiting for a request.
 	if index := bytes.Index(page, []byte("</head>")); index >= 0 {
-		return bytes.Join([][]byte{page[:index], script, page[index:]}, nil), nil
+		return slices.Concat(page[:index], script, page[index:]), nil
 	}
-	return bytes.Join([][]byte{script, page}, nil), nil
+	return slices.Concat(script, page), nil
 }

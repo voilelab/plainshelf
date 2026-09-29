@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { createApp, defineComponent, h, nextTick, ref, type App } from 'vue';
 import { createMemoryHistory, createRouter, type Router } from 'vue-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +9,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // inactive tab's wrapper in the DOM, and with `unmount-on-hide` off it keeps
 // the content too — so they are checked here, where a tab switch costs
 // milliseconds instead of a server and a browser.
+//
+// What this file cannot check is the CSS half of that: jsdom applies no
+// stylesheet, so whether a hidden panel collapses is a style contract instead —
+// scripts/check-style-contracts.mjs.
 
 /** Counts one entry per panel mount, so a re-mount after a tab switch shows up. */
 const mounts = vi.hoisted(() => ({ log: [] as string[] }));
@@ -180,24 +182,5 @@ describe('SettingsPage tabs', () => {
     expect(states.shelves).toBe(false);
     expect(states.cover).toBe(true);
     expect(Object.values(states).filter((hidden) => !hidden)).toHaveLength(1);
-  });
-
-  it('collapses a hidden panel, so a retained one takes no layout row', () => {
-    // `hidden` above is only half the contract: `.settings-tab-content` is a
-    // grid, and an author rule outranks the user-agent `[hidden]` default — so
-    // without the paired rule every inactive panel would stay a grid item, its
-    // gap would push the active panel down by a different amount per tab, and
-    // with unmountOnHide off it would render its content in full. jsdom applies
-    // no stylesheet, so the pairing is asserted against the component source.
-    // Vitest runs from `frontend/`, and `import.meta.url` is a Vite module id
-    // rather than a file URL, so the path is resolved from the root instead.
-    const source = readFileSync(
-      resolve('src/features/settings/pages/SettingsPage.vue'),
-      'utf8'
-    );
-    const rule = source.match(/\.settings-tab-content\[hidden\]\s*\{([^}]*)\}/);
-
-    expect(rule, '.settings-tab-content[hidden] rule is missing').not.toBeNull();
-    expect(rule![1]).toMatch(/display:\s*none/);
   });
 });

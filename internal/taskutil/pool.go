@@ -2,7 +2,6 @@ package taskutil
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"slices"
 	"sync"
 	"time"
@@ -83,11 +82,7 @@ func (p *Pool) Submit(chain *TaskChain) (*TaskChain, error) {
 		}
 	}
 
-	id, err := newTaskChainID()
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
+	id := rand.Text()
 	chain.ID = id
 	if chain.CreatedAt.IsZero() {
 		chain.CreatedAt = time.Now()
@@ -199,12 +194,4 @@ func (p *Pool) removeLocked(id string) {
 	if idx := slices.Index(p.order, id); idx >= 0 {
 		p.order = slices.Delete(p.order, idx, idx+1)
 	}
-}
-
-func newTaskChainID() (string, error) {
-	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	return hex.EncodeToString(buf), nil
 }

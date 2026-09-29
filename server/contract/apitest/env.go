@@ -36,14 +36,6 @@ func WithLibRoot(libRoot string) Option {
 	}
 }
 
-// WithStorePath pins the app store, which is what makes state such as the book
-// cache writer ID survive a simulated restart.
-func WithStorePath(storePath string) Option {
-	return func(conf *server.AppConf) {
-		conf.StorePath = storePath
-	}
-}
-
 // WithAppLogFile logs the app to a single named file.
 func WithAppLogFile(filename string) Option {
 	return func(conf *server.AppConf) {
@@ -98,6 +90,18 @@ func WithReadOnlyShelf() Option {
 func WithReadOnlyServer() Option {
 	return func(conf *server.AppConf) {
 		conf.ReadOnly = true
+	}
+}
+
+// WithBookCacheInterval overrides how often the shelf re-exports its book
+// cache, for the one kind of test that has to wait the interval out rather than
+// wait for a file: proving that a timer did NOT write. A non-event cannot be
+// polled for, so the wait is real, and a shorter interval is what makes it
+// short. Anything waiting for an export to land should poll for the file
+// instead — see internal/testutil.WaitForExportedBookCache.
+func WithBookCacheInterval(interval string) Option {
+	return func(conf *server.AppConf) {
+		conf.Shelves[0].BookCacheInterval = interval
 	}
 }
 

@@ -3,49 +3,25 @@ package shelves_test
 import (
 	"encoding/json/v2"
 	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 
+	"github.com/voilelab/plainshelf/internal/testutil"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
 // readExportedBookCache returns the single book cache file the app wrote into
-// the shelf's app folder. Its name carries the installation's writer ID, which
-// is generated on first start and is therefore not predictable from a test.
+// the shelf's app folder, waiting for it to appear. Its name carries the
+// installation's writer ID, which is generated on first start and is therefore
+// not predictable from a test.
 func readExportedBookCache(t *testing.T, libRoot string) shelf.BookCacheFile {
 	t.Helper()
 
-	appDir := filepath.Join(libRoot, "app")
-	entries, err := os.ReadDir(appDir)
-	if err != nil {
-		t.Fatalf("read app dir: %v", err)
-	}
-
-	var found string
-	for _, entry := range entries {
-		name := entry.Name()
-		if !entry.IsDir() && strings.HasPrefix(name, "book-cache-") && strings.HasSuffix(name, ".json") {
-			if found != "" {
-				t.Fatalf("expected exactly one exported book cache, also found %s", name)
-			}
-			found = filepath.Join(appDir, name)
-		}
-	}
-	if found == "" {
-		t.Fatalf("no exported book cache under %s", appDir)
-	}
-
-	raw, err := os.ReadFile(found)
-	if err != nil {
-		t.Fatalf("read exported book cache: %v", err)
-	}
+	raw := testutil.WaitForExportedBookCache(t, libRoot)
 	var cache shelf.BookCacheFile
 	if err := json.Unmarshal(raw, &cache); err != nil {
 		t.Fatalf("decode exported book cache: %v", err)
@@ -95,55 +71,17 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 	}
 }
 
-// The writer ID identifies the installation, so it has to outlive a restart:
-// two runs against the same store must keep writing the same file rather than
-// leaving a new one behind on every start.
-func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
-	storePath := t.TempDir()
-	libRoot := t.TempDir()
-
-	newRun := func() string {
-		app, err := server.NewApp(apitest.AppConf(t, apitest.WithLibRoot(libRoot), apitest.WithStorePath(storePath)))
-		if err != nil {
-			t.Fatalf("NewApp: %v", err)
-		}
-		defer func() {
-			if err := app.Close(); err != nil {
-				t.Fatalf("Close app: %v", err)
-			}
-		}()
-
-		shelfData, ok := app.ShelfManager().GetShelf(apitest.DefaultShelfID)
-		if !ok {
-			t.Fatalf("%s missing", apitest.DefaultShelfID)
-		}
-		if err := shelfData.WaitReady(t.Context()); err != nil {
-			t.Fatalf("WaitReady: %v", err)
-		}
-		if _, err := shelfData.ExportBookCache(); err != nil {
-			t.Fatalf("ExportBookCache: %v", err)
-		}
-		return readExportedBookCache(t, libRoot).WriterID
-	}
-
-	first := newRun()
-	second := newRun()
-	if first == "" || first != second {
-		t.Fatalf("writer ID changed across restarts: %q then %q", first, second)
-	}
-	// readExportedBookCache fails when a second file appears, so reaching here
-	// also proves the restart did not orphan the first run's cache.
-}
-
 // A shelf opened after startup — the desktop "add shelf" flow — must get the
 // installation's writer ID too. Without it the new shelf exports nothing and
 // its manual export fails until the app is restarted.
+//
+// The writer ID's other half — that it survives a restart at all — needs no
+// request and is pinned in server's own tests.
 func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
 	env := apitest.New(t)
 
-	// Wait a moment for the initial book cache export to finish.
-	time.Sleep(2 * time.Second)
-
+	// The startup export runs on a timer, so wait for the file rather than for
+	// the interval.
 	startupWriterID := readExportedBookCache(t, env.LibRoot).WriterID
 
 	addedRoot := t.TempDir()

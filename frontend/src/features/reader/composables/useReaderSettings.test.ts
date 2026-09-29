@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { effectScope, nextTick, ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -120,9 +118,9 @@ describe('reader font settings', () => {
 
 // The end-to-end case that used to read `font-family` off the rendered reader
 // is gone; what it proved beyond the storage round-trip above was that each id
-// maps to its own stack and that code text opts out of the reading font. Both
-// are pinned here — jsdom resolves no `var()`, so the opt-out is asserted
-// against the stylesheet that states it.
+// maps to its own stack and that code text opts out of the reading font. The
+// first is pinned here. The second cannot be — jsdom resolves no `var()` — so
+// it is a style contract instead: scripts/check-style-contracts.mjs.
 describe('reader font reaches the rendered text', () => {
   it('gives each font id its own family stack', () => {
     expect(getReaderFontFamily('system')).toMatch(/^Georgia,/);
@@ -131,21 +129,5 @@ describe('reader font reaches the rendered text', () => {
     expect(new Set(READER_FONT_OPTIONS.map((option) => option.cssFamily)).size).toBe(
       READER_FONT_OPTIONS.length
     );
-  });
-
-  it('keeps code text on a monospace stack the reading font cannot reach', () => {
-    const css = readFileSync(resolve('src/features/reader/styles/reader-content.css'), 'utf8');
-    const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)];
-    const familyOf = (selector: string) =>
-      rules.find((rule) => rule[1].includes(selector))?.[2].match(/font-family:([^;]*)/)?.[1] ?? '';
-
-    // Body text and headings follow the chosen font through the custom property
-    // ReaderView sets from getReaderFontFamily.
-    expect(familyOf('.reader-text')).toContain('var(--reader-font-family');
-    expect(familyOf(':deep(h1)')).toContain('var(--reader-font-family');
-
-    // Code does not: a proportional reading font would mangle indentation.
-    expect(familyOf('.reader-md-inline-code')).toContain('monospace');
-    expect(familyOf('.reader-md-inline-code')).not.toContain('--reader-font-family');
   });
 });

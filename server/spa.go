@@ -3,10 +3,10 @@ package server
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/json/v2"
 	"io/fs"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
@@ -40,17 +40,15 @@ type securityBootstrapPayload struct {
 // file, so the SPA's own router can handle the path.
 func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 	cleanPath := strings.TrimPrefix(r.URL.Path, "/")
-	if cleanPath == "" || !hasFileExtension(cleanPath) {
+	if cleanPath == "" || path.Ext(cleanPath) == "" {
 		data, err := fs.ReadFile(h.fs, "index.html")
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		nonce, err := generateCSPNonce()
-		if err != nil {
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
+		// A fresh nonce per response: a reused or guessable one would let an
+		// injected inline script claim it and defeat the policy.
+		nonce := rand.Text()
 		w.Header().Set("Content-Security-Policy", contentSecurityPolicy(nonce))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(h.injectSecurityBootstrap(data, nonce))
@@ -58,17 +56,6 @@ func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.files.ServeHTTP(w, r)
-}
-
-// generateCSPNonce returns a fresh base64 nonce for one HTML response's CSP.
-// It must be unpredictable and unique per response: a reused or guessable nonce
-// would let an injected inline script claim it and defeat the policy.
-func generateCSPNonce() (string, error) {
-	nonceBytes := make([]byte, 16)
-	if _, err := rand.Read(nonceBytes); err != nil {
-		return "", err
-	}
-	return base64.RawStdEncoding.EncodeToString(nonceBytes), nil
 }
 
 // contentSecurityPolicy is the browser-side backstop: if the sanitizer is ever
@@ -139,16 +126,4 @@ func (h *spaHandlers) injectSecurityBootstrap(data []byte, nonce string) []byte 
 		return out
 	}
 	return append(bootstrap, data...)
-}
-
-func hasFileExtension(path string) bool {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			return false
-		}
-		if path[i] == '.' {
-			return true
-		}
-	}
-	return false
 }

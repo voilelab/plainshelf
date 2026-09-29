@@ -54,7 +54,7 @@ func folderTransferPlan(t *testing.T, source *shelf.Shelf, sourceFolder shelf.Fo
 	}
 	var subfolders []shelf.FolderPath
 	for _, l := range allFolders {
-		if folderHasPrefix(l, sourceFolder) {
+		if l.HasPrefix(sourceFolder) {
 			subfolders = append(subfolders, l)
 		}
 	}
@@ -65,7 +65,7 @@ func folderTransferPlan(t *testing.T, source *shelf.Shelf, sourceFolder shelf.Fo
 	}
 	var books []FolderTransferBook
 	for _, listing := range listings {
-		if folderHasPrefix(listing.Folders, sourceFolder) {
+		if listing.Folders.HasPrefix(sourceFolder) {
 			books = append(books, FolderTransferBook{ID: listing.Book.ID(), SourceFolder: listing.Folders})
 		}
 	}

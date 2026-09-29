@@ -88,11 +88,15 @@ func TestAPISecurityOriginAndCORSContract(t *testing.T) {
 	}
 }
 
-// TestAPISecurityContainerDefaultConfigContract pins the shipped container
-// default. The image runs docker/config.yaml unmodified, so its parsed
-// security block is what a user who forgets a port mapping is protected by. A
-// regression to mode: "none" would silently answer anonymous writes on any
-// exposed port, which is exactly what this default exists to prevent.
+// TestAPISecurityContainerDefaultConfigContract mounts the shipped container
+// default on the real router: the image runs docker/config.yaml unmodified, so
+// its parsed security block is what a user who forgets a port mapping is
+// protected by, and the block is asserted here as configured rather than as a
+// synthetic one the test wrote itself.
+//
+// What that block has to say for itself — mode local_token, and a listen-addr
+// guard that passes — needs no request and is pinned in
+// server/conf_container_test.go.
 func TestAPISecurityContainerDefaultConfigContract(t *testing.T) {
 	confPath := filepath.Join(apitest.RepoRoot(t), "docker", "config.yaml")
 	bs, err := os.ReadFile(confPath)
@@ -106,18 +110,6 @@ func TestAPISecurityContainerDefaultConfigContract(t *testing.T) {
 	}
 	if conf.AppConf == nil || conf.AppConf.Security == nil {
 		t.Fatalf("container config has no app_conf.security block")
-	}
-	if got := conf.AppConf.Security.Mode; got != server.SecurityModeLocalToken {
-		t.Fatalf("container config security mode = %q, want %q", got, server.SecurityModeLocalToken)
-	}
-
-	// addr stays 0.0.0.0:20000 (required inside the container) and the listen-addr
-	// guard still passes because the mode is set explicitly.
-	if conf.ServerConf == nil {
-		t.Fatalf("container config has no server_conf block")
-	}
-	if err := server.ValidateSecurityForListenAddr(conf.AppConf.Security, conf.ServerConf.Addr); err != nil {
-		t.Fatalf("ValidateSecurityForListenAddr(%q) = %v, want nil", conf.ServerConf.Addr, err)
 	}
 
 	// The parsed default protects mutating requests: no token -> 401, token -> 204.

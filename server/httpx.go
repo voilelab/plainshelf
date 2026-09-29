@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -136,15 +137,7 @@ const maxDescribedFieldLength = 64
 // so anything that does not read as a field name is withheld — belt-and-braces
 // alongside the nosniff header the server now sends, not a substitute for it.
 func describableField(pointer jsontext.Pointer) (string, bool) {
-	var path strings.Builder
-	for token := range pointer.Tokens() {
-		if path.Len() > 0 {
-			path.WriteByte('/')
-		}
-		path.WriteString(token)
-	}
-
-	field := path.String()
+	field := strings.Join(slices.Collect(pointer.Tokens()), "/")
 	if field == "" || len(field) > maxDescribedFieldLength {
 		return "", false
 	}

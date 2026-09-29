@@ -20,6 +20,7 @@ package readingprogress
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"maps"
 	"math"
 	"strings"
 
@@ -145,7 +146,7 @@ func (d Document) Clone() Document {
 		out.Version = DocumentVersion
 	}
 	for shelfKey, books := range d.Shelves {
-		out.Shelves[shelfKey] = cloneBooks(books)
+		out.Shelves[shelfKey] = maps.Clone(books)
 	}
 	return out
 }
@@ -222,19 +223,6 @@ func MergeNewest(disk, write Document) Document {
 				dst[bookID] = entry
 			}
 		}
-	}
-	return out
-}
-
-// cloneBooks deliberately keeps the make+loop rather than maps.Clone. Document.Clone
-// promises callers may mutate the returned maps freely, and a shelf decoded from a
-// JSON "shelf": null yields a nil books map here — maps.Clone(nil) returns nil, so a
-// caller that writes into the cloned shelf without a nil guard would panic. The
-// make guarantees a non-nil map and preserves that contract unconditionally.
-func cloneBooks(books map[string]Entry) map[string]Entry {
-	out := make(map[string]Entry, len(books))
-	for bookID, entry := range books {
-		out[bookID] = entry
 	}
 	return out
 }

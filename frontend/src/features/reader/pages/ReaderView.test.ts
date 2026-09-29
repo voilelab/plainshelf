@@ -180,8 +180,10 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve));
 }
 
-function press(key: 'ArrowLeft' | 'ArrowRight'): void {
-  document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+function press(key: 'ArrowLeft' | 'ArrowRight'): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+  document.dispatchEvent(event);
+  return event;
 }
 
 beforeEach(() => {
@@ -276,8 +278,8 @@ describe('ReaderView keyboard chapter navigation', () => {
     const input = document.createElement('input');
     document.body.append(input);
     input.focus();
-    press('ArrowLeft');
-    press('ArrowRight');
+    expect(press('ArrowLeft').defaultPrevented).toBe(false);
+    expect(press('ArrowRight').defaultPrevented).toBe(false);
     expect(reader.goPrevSection).not.toHaveBeenCalled();
     expect(reader.goNextSection).not.toHaveBeenCalled();
     input.remove();
@@ -310,6 +312,20 @@ describe('ReaderView keyboard chapter navigation', () => {
     reader.currentSectionIndex.value = reader.sections.value.length - 1;
     press('ArrowRight');
     expect(reader.goNextSection).not.toHaveBeenCalled();
+  });
+
+  // An unprevented key falls through macOS WKWebView to AppKit, which beeps.
+  it('claims the arrow keys it handles, including at the first or last chapter', async () => {
+    mount();
+    await flush();
+
+    expect(press('ArrowRight').defaultPrevented).toBe(true);
+
+    reader.currentSectionIndex.value = 0;
+    expect(press('ArrowLeft').defaultPrevented).toBe(true);
+
+    reader.currentSectionIndex.value = reader.sections.value.length - 1;
+    expect(press('ArrowRight').defaultPrevented).toBe(true);
   });
 
   it('ignores the arrow keys while a modal is open', async () => {

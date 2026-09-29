@@ -4,7 +4,6 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,7 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 
 	"github.com/voilelab/plainshelf/server"
-	"github.com/voilelab/plainshelf/shelf"
 )
 
 /*
@@ -26,10 +24,21 @@ The app-wide one is not only an HTTP gate. Refusing the requests that ask for a
 write is not the same as not writing: a shelf writes on its own account too — it
 creates its folders, clears app/tmp/, takes the lock file and exports the book
 cache on a timer — and none of that has a request behind it for the gate to see.
-The first half of this file pins that the setting reaches ShelfConf, which is
-what turns those writes off as well; the second half pins the HTTP side of the
-per-shelf setting.
+That the setting reaches ShelfConf, which is what turns those writes off as
+well, is pinned in server/app_readonly_test.go: it asks nothing of the router,
+so it is not a contract test. What is pinned here is the part that needs the
+router — a read-only server serving a whole round of reads without touching the
+shelf, and the per-shelf setting's HTTP side.
 */
+
+// readOnlyBookCacheWait is how long TestReadOnlyServerLeavesTheShelfUntouched
+// lets the export timer run, and readOnlyBookCacheInterval is how often it
+// ticks while it does. Four ticks, because one is what the assertion needs and
+// the rest is margin for a loaded runner.
+const (
+	readOnlyBookCacheInterval = "100ms"
+	readOnlyBookCacheWait     = 400 * time.Millisecond
+)
 
 // fileState is what a snapshot records about one path in the shelf. Modification
 // time is the assertion the acceptance test is really about; size and directory
@@ -88,44 +97,6 @@ func assertTreeUnchanged(t *testing.T, before, after map[string]fileState) {
 	}
 }
 
-// A read-only server opens every shelf read-only, including one added after
-// startup through the desktop "add shelf" flow.
-func TestReadOnlyServerOpensEveryShelfReadOnly(t *testing.T) {
-	env := apitest.New(t, apitest.WithReadOnlyServer())
-
-	shelfData, ok := env.App.ShelfManager().GetShelf(apitest.DefaultShelfID)
-	if !ok {
-		t.Fatalf("%s missing", apitest.DefaultShelfID)
-	}
-	if !shelfData.ReadOnly() {
-		t.Error("configured shelf ReadOnly() = false, want the app-wide read_only to reach it")
-	}
-
-	addedRoot := t.TempDir()
-	if err := env.App.AddShelf(shelf.ShelfConfWithID{
-		ID:        "added_later",
-		Name:      "Added Later",
-		ShelfConf: shelf.ShelfConf{LibRoot: addedRoot},
-	}); err != nil {
-		t.Fatalf("AddShelf: %v", err)
-	}
-
-	added, ok := env.App.ShelfManager().GetShelf("added_later")
-	if !ok {
-		t.Fatal("added_later missing from the shelf manager")
-	}
-	if !added.ReadOnly() {
-		t.Error("added shelf ReadOnly() = false, want the app-wide read_only to reach it too")
-	}
-
-	// The writer ID is what enables the exported book cache, and exporting is a
-	// write. A read-only server must not hand one out, so the export is refused
-	// as read-only rather than reported as unconfigured.
-	if _, err := added.ExportBookCache(); err == nil {
-		t.Error("ExportBookCache on a read-only server succeeded, want a refusal")
-	}
-}
-
 // The acceptance case: a read-only server serves a whole round of reads — list
 // the books, read a book's content, rescan — and leaves the shelf byte for byte
 // and mtime for mtime as it found it.
@@ -146,7 +117,16 @@ func TestReadOnlyServerLeavesTheShelfUntouched(t *testing.T) {
 	before := snapshotTree(t, libRoot)
 
 	t.Run("read", func(t *testing.T) {
-		env := apitest.New(t, apitest.WithLibRoot(libRoot), apitest.WithReadOnlyServer())
+		// The export timer is the one write with no request behind it, so the
+		// read-only run has to outlive at least one tick for the snapshot below
+		// to mean anything. There is nothing to poll for — the assertion is that
+		// nothing appears — so the interval is shortened and the wait is a small
+		// multiple of it rather than a fixed two seconds.
+		env := apitest.New(t,
+			apitest.WithLibRoot(libRoot),
+			apitest.WithReadOnlyServer(),
+			apitest.WithBookCacheInterval(readOnlyBookCacheInterval),
+		)
 
 		rec := env.Get(apitest.BooksURL())
 		apitest.AssertStatus(t, rec, http.StatusOK)
@@ -162,27 +142,10 @@ func TestReadOnlyServerLeavesTheShelfUntouched(t *testing.T) {
 		// through. It is the one POST that does, and it must stay one.
 		apitest.AssertStatus(t, env.Post(apitest.ShelfURL("scans"), nil), http.StatusOK)
 
-		// The book cache export runs on a timer as well as on demand; give the
-		// interval configured for contract tests time to come round.
-		time.Sleep(2 * time.Second)
+		time.Sleep(readOnlyBookCacheWait)
 	})
 
 	assertTreeUnchanged(t, before, snapshotTree(t, libRoot))
-}
-
-// A read-only server must not create the shelf either — the same promise
-// ShelfConf.ReadOnly makes, reached through the app-wide setting.
-func TestReadOnlyServerDoesNotCreateTheShelf(t *testing.T) {
-	libRoot := filepath.Join(t.TempDir(), "missing-shelf")
-
-	app, err := server.NewApp(apitest.AppConf(t, apitest.WithLibRoot(libRoot), apitest.WithReadOnlyServer()))
-	if err == nil {
-		app.Close()
-		t.Fatal("NewApp succeeded on a missing lib_root, want a failure rather than a created shelf")
-	}
-	if _, statErr := os.Stat(libRoot); !os.IsNotExist(statErr) {
-		t.Errorf("stat %s = %v, want the path still missing", libRoot, statErr)
-	}
 }
 
 // A shelf opened with read_only serves reads normally.

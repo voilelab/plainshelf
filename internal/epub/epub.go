@@ -567,9 +567,7 @@ func resolveHref(baseDir, href string) string {
 	if href == "" {
 		return ""
 	}
-	if idx := strings.IndexByte(href, '#'); idx >= 0 {
-		href = href[:idx]
-	}
+	href, _, _ = strings.Cut(href, "#")
 	if href == "" {
 		return ""
 	}

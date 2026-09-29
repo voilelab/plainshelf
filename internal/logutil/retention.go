@@ -31,10 +31,7 @@ func (r *Retention) Set(days int) {
 	if r == nil {
 		return
 	}
-	if days < 0 {
-		days = 0
-	}
-	r.days.Store(int64(days))
+	r.days.Store(int64(max(days, 0)))
 }
 
 // Clear returns every writer sharing this value to its own configured window.

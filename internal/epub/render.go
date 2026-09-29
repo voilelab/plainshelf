@@ -168,8 +168,7 @@ func Render(book *Book, strategy Strategy) Rendered {
 	}
 }
 
-// docBuilder assembles blocks separated by exactly one blank line, tracking how
-// many lines have been written so chapter start lines are exact.
+// docBuilder assembles blocks separated by exactly one blank line.
 type docBuilder struct {
 	b strings.Builder
 }
@@ -181,13 +180,9 @@ func (d *docBuilder) appendBlock(block string) {
 	}
 
 	if d.b.Len() > 0 {
-		d.write("\n\n")
+		d.b.WriteString("\n\n")
 	}
-	d.write(block)
-}
-
-func (d *docBuilder) write(s string) {
-	d.b.WriteString(s)
+	d.b.WriteString(block)
 }
 
 func (d *docBuilder) String() string {

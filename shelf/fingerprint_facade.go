@@ -43,7 +43,7 @@ func (s *Shelf) OpenFingerprintCache(algo FingerprintAlgo) (*FingerprintCache, e
 		Algo:       algo,
 		Logger:     s.Logger,
 		LiveBooks:  s.liveBookIDs,
-		RepairHash: repairSourceContentHash,
+		RepairHash: (*Source).RepairContentHash,
 	})
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -68,16 +68,6 @@ func (s *Shelf) FingerprintCoverageFor(algo FingerprintAlgo, books []Fingerprint
 	}
 
 	return cache.CoverageFor(books), nil
-}
-
-// repairSourceContentHash is the write the fingerprint cache delegates back to
-// the shelf: when a source's content hashes to something its meta.json does not
-// record, the stored hash is stale and repaired here. Keeping the write on this
-// side is what lets fingerprint.Cache stay pure computation over its own file -
-// it computes and caches, the shelf owns the source data. See
-// Source.RepairContentHash.
-func repairSourceContentHash(source *Source, contentMD5 string) (bool, error) {
-	return source.RepairContentHash(contentMD5)
 }
 
 // liveBookIDs reports the books the shelf currently holds, for the cache to
