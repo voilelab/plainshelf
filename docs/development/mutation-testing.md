@@ -14,6 +14,15 @@ has no score threshold.
 
 ## Run it
 
+> **On hold until the runner supports Vitest 5.**
+> `@stryker-mutator/vitest-runner@10.0.0` accepts any `vitest >= 2.0.0` as a
+> peer, but it does not work with Vitest 5: a mutant a test kills is still
+> reported as survived. On `markdownLineSyntax.ts` the same run kills 59 of 62
+> mutants under Vitest 4.1.11 and 10 of 62 under Vitest 5.0.0, and
+> `--logLevel debug` dies in the runner's own config dump with `Converting
+> circular structure to JSON`. Every number on this page was measured under
+> Vitest 4; a run made today reports scores that are wrong, not merely lower.
+
 ```bash
 npm --prefix frontend ci
 npm --prefix frontend run test:mutation
