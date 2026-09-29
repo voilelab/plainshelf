@@ -11,7 +11,7 @@ import (
 // block of every cache derived from normalized text, and bump it whenever
 // Normalize's output can change for any input — a mixed cache is worse than no
 // cache, because nothing about it looks wrong.
-const NormalizeVersion = "nfkc-strip-space-punct-v1"
+const NormalizeVersion = "nfkc-strip-space-punct-v2"
 
 // Normalize reduces text to the characters that carry its content: NFKC, then
 // every whitespace, punctuation, symbol and separator rune dropped, repeated
