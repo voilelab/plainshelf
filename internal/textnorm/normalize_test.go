@@ -267,8 +267,18 @@ func TestNormalizeIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestNormalizeKeepsSupplementaryRunes pins the x/text v0.42.0 fix behind v2:
+// older NFKC truncated a supplementary rune in its composition lookup, so
+// U+10041 plus an acute came out as "Á".
+func TestNormalizeKeepsSupplementaryRunes(t *testing.T) {
+	const in = "\U00010041\u0301"
+	if got := Normalize(in); got != in {
+		t.Errorf("Normalize(%q) = %q, want it unchanged", in, got)
+	}
+}
+
 func TestNormalizeVersionIsSet(t *testing.T) {
-	if NormalizeVersion != "nfkc-strip-space-punct-v1" {
+	if NormalizeVersion != "nfkc-strip-space-punct-v2" {
 		t.Errorf("NormalizeVersion = %q; changing it invalidates every cache built on it", NormalizeVersion)
 	}
 }
