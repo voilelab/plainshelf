@@ -9,8 +9,8 @@ tag is created on the PR's merge commit, never pushed by hand.
 | 1 | you | Run **Prepare release** from the Actions tab with the tag, e.g. `v0.11.0` |
 | 2 | `prepare-release.yml` | Opens the release PR `release-prep/<tag>` → `release/<major>.x` |
 | 3 | you | Review and merge the release PR with a merge commit |
-| 4 | `publish-release.yml` | Builds, tags the merge commit, publishes the Release and Docker image |
-| 5 | you | For a stable release, update the Homebrew casks with `scripts/update-cask.sh <tag>` |
+| 4 | `publish-release.yml` | Builds, tags the merge commit, publishes the Release and Docker image; for a stable tag, opens the cask bump PR |
+| 5 | you | For a stable release, merge the cask bump PR into `dev` |
 
 ## What Prepare release checks
 
@@ -50,7 +50,13 @@ Once it succeeds, `docs.yml` deploys the documentation site from the released
 commit, so the published docs follow the latest release and never run ahead of
 a failed one.
 
-Nothing needs to go back to `dev`: `release/<major>.x` only ever gains merge
+For a stable tag it then runs `scripts/update-cask.sh` against the assets it
+just published and opens `cask-bump/<tag>` → `dev`, labelled `internal`: `brew`
+reads the tap from `dev`, so users get the release once that PR merges. A
+prerelease leaves the casks alone. A bot opens this PR too, so no CI runs on it;
+close and reopen it if `dev` requires checks.
+
+Apart from the casks, nothing needs to go back to `dev`: `release/<major>.x` only ever gains merge
 commits, so the next release PR merges cleanly as long as each one is merged
 with a merge commit.
 
