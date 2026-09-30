@@ -1,9 +1,7 @@
 cask "bookpkg-reader" do
-  # Experimental. version and sha256 are placeholders until the first tagged
-  # release that ships the reader build job's artifact
-  # (bookpkg-reader_v<version>_darwin_arm64.zip); pin both by running
-  # scripts/update-cask.sh <tag>, which updates this cask and plainshelf.rb
-  # together so the dependency pair stays in sync.
+  # Experimental. version and sha256 are pinned by scripts/update-cask.sh <tag>,
+  # which updates this cask and plainshelf.rb together so the dependency pair
+  # stays in sync; each stable release opens a PR that runs it.
   version "0.10.0"
   sha256 "7640b793d3f5e0d376ad2cce2f2f5e3d7dad58a3eb6e3eeada8ea29364e82049"
 
