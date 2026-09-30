@@ -1,15 +1,19 @@
 package shelf
 
 import (
-	"encoding/json"
+	"cmp"
+	"encoding/json/v2"
 	"errors"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/voilelab/plainshelf/internal/jsonopt"
+	"github.com/voilelab/plainshelf/internal/util"
 )
 
 /*
@@ -28,7 +32,7 @@ otherwise invisible until a phone shows the wrong library.
 // matching schema_version in testdata/conformance/manifest.json. Both harnesses
 // check it, so a dataset change that outpaces one of them fails loudly instead
 // of being read as a behavior difference.
-const conformanceDatasetVersion = 1
+const conformanceDatasetVersion = 3
 
 const conformanceRoot = "testdata/conformance"
 
@@ -42,34 +46,47 @@ type conformanceManifest struct {
 
 // conformanceReading is what both implementations must report for one case.
 type conformanceReading struct {
-	Folders     []string               `json:"folders"`
+	Folders    []string               `json:"folders"`
 	Books      []conformanceBook      `json:"books"`
 	BookCaches []conformanceBookCache `json:"book_caches"`
 }
 
 type conformanceBook struct {
 	Path                string              `json:"path"`
-	Folders              []string            `json:"folders"`
+	Folders             []string            `json:"folders"`
 	ID                  string              `json:"id"`
 	Title               string              `json:"title"`
 	Format              string              `json:"format"`
 	Authors             []string            `json:"authors"`
 	Tags                []string            `json:"tags"`
+	Identifiers         map[string]string   `json:"identifiers"`
+	Language            string              `json:"language"`
+	Comments            string              `json:"comments"`
 	Star                int                 `json:"star"`
+	CreatedAt           string              `json:"created_at"`
+	UpdatedAt           string              `json:"updated_at"`
+	PublishedAt         string              `json:"published_at"`
 	Cover               string              `json:"cover"`
 	CoverPresent        bool                `json:"cover_present"`
 	SchemaVersionOnDisk int                 `json:"schema_version_on_disk"`
 	ReadOnly            bool                `json:"read_only"`
+	NSFW                bool                `json:"nsfw"`
 	CurrentSourceField  string              `json:"current_source_field"`
 	CurrentSource       *string             `json:"current_source"`
 	Sources             []conformanceSource `json:"sources"`
 }
 
 type conformanceSource struct {
-	ID         string   `json:"id"`
-	HasContent bool     `json:"has_content"`
-	CharCount  int      `json:"char_count"`
-	Assets     []string `json:"assets"`
+	ID            string   `json:"id"`
+	SchemaVersion int      `json:"schema_version"`
+	CreatedAt     string   `json:"created_at"`
+	Comment       string   `json:"comment"`
+	Format        string   `json:"format"`
+	MD5Hash       string   `json:"md5_hash"`
+	HasContent    bool     `json:"has_content"`
+	LineCount     int      `json:"line_count"`
+	CharCount     int      `json:"char_count"`
+	Assets        []string `json:"assets"`
 }
 
 type conformanceBookCache struct {
@@ -175,9 +192,7 @@ func decodeConformanceJSON(t *testing.T, filePath string, target any) {
 	}
 	defer file.Close() //nolint:errcheck // read-only fixture
 
-	decoder := json.NewDecoder(file)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	if err := json.UnmarshalRead(file, target, json.RejectUnknownMembers(true)); err != nil {
 		t.Fatalf("failed to decode %s: %v", filePath, err)
 	}
 }
@@ -201,7 +216,7 @@ func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
 
 	return conformanceReading{
-		Folders:     s.collectExportFolders(),
+		Folders:    s.collectExportFolders(),
 		Books:      readConformanceBooks(t, s),
 		BookCaches: readConformanceBookCaches(t, s),
 	}
@@ -222,7 +237,7 @@ func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
 	var meta struct {
 		SchemaVersion int `json:"schema_version"`
 	}
-	if err := json.NewDecoder(file).Decode(&meta); err != nil {
+	if err := json.UnmarshalRead(file, &meta); err != nil {
 		t.Fatalf("decode book.json (%s): %v", bookPath, err)
 	}
 	return meta.SchemaVersion
@@ -262,24 +277,31 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 
 		observed = append(observed, conformanceBook{
 			Path:                book.PackagePath(),
-			Folders:              orEmpty(listing.Folders),
+			Folders:             orEmpty(listing.Folders),
 			ID:                  book.ID(),
 			Title:               book.Title(),
 			Format:              meta.Format,
 			Authors:             orEmpty(meta.Authors),
 			Tags:                orEmpty(meta.Tags),
+			Identifiers:         orEmptyMap(meta.Identifiers),
+			Language:            meta.Language,
+			Comments:            meta.Comments,
 			Star:                meta.Star,
+			CreatedAt:           formatConformanceTime(meta.CreatedAt),
+			UpdatedAt:           formatConformanceTime(meta.UpdatedAt),
+			PublishedAt:         formatConformanceDate(meta.PublishedAt),
 			Cover:               meta.Cover,
 			CoverPresent:        coverPresent,
 			SchemaVersionOnDisk: onDiskSchema,
 			ReadOnly:            errors.Is(book.EnsureWritable(), ErrUnsupportedBookSchemaVersion),
+			NSFW:                s.IsBookNSFW(listing.Folders, meta),
 			CurrentSourceField:  book.CurrentSource(),
 			CurrentSource:       currentSource,
 			Sources:             readConformanceSources(t, s, book),
 		})
 	}
 
-	sort.Slice(observed, func(i, j int) bool { return observed[i].Path < observed[j].Path })
+	slices.SortFunc(observed, func(a, b conformanceBook) int { return cmp.Compare(a.Path, b.Path) })
 	return observed
 }
 
@@ -303,11 +325,18 @@ func readConformanceSources(t *testing.T, s *Shelf, book *Book) []conformanceSou
 			content.Close() //nolint:errcheck // read-only probe
 		}
 
+		meta := source.GetMeta()
 		observed = append(observed, conformanceSource{
-			ID:         source.ID(),
-			HasContent: hasContent,
-			CharCount:  source.GetMeta().CharCount,
-			Assets:     readConformanceAssets(t, s, source),
+			ID:            source.ID(),
+			SchemaVersion: meta.SchemaVersion,
+			CreatedAt:     formatConformanceTime(meta.CreatedAt),
+			Comment:       meta.Comment,
+			Format:        meta.Format,
+			MD5Hash:       meta.MD5Hash,
+			HasContent:    hasContent,
+			LineCount:     meta.LineCount,
+			CharCount:     meta.CharCount,
+			Assets:        readConformanceAssets(t, s, source),
 		})
 	}
 	return observed
@@ -386,7 +415,7 @@ func readConformanceBookCaches(t *testing.T, s *Shelf) []conformanceBookCache {
 		observed = append(observed, record)
 	}
 
-	sort.Slice(observed, func(i, j int) bool { return observed[i].Name < observed[j].Name })
+	slices.SortFunc(observed, func(a, b conformanceBookCache) int { return cmp.Compare(a.Name, b.Name) })
 	return observed
 }
 
@@ -397,6 +426,37 @@ func orEmpty(values []string) []string {
 		return []string{}
 	}
 	return values
+}
+
+// orEmptyMap does for a map what orEmpty does for a slice.
+func orEmptyMap(values map[string]string) map[string]string {
+	if values == nil {
+		return map[string]string{}
+	}
+	return values
+}
+
+// formatConformanceTime writes a timestamp the way the dataset records one:
+// RFC 3339, and the empty string for an absent value. Go parses these into a
+// time.Time while the pCloud reader keeps the raw string, so the two agree only
+// on the canonical spelling — which is the one PlainShelf writes, and the one
+// every fixture is written in.
+func formatConformanceTime(value util.JSONTime) string {
+	if value.IsZero() {
+		return ""
+	}
+	return time.Time(value).Format(time.RFC3339)
+}
+
+// formatConformanceDate is formatConformanceTime for published_at, which is a
+// date rather than an instant. Go canonicalizes an RFC 3339 value down to the
+// date while the pCloud reader would keep it whole, so a fixture writes the
+// date-only form the format documents.
+func formatConformanceDate(value util.JSONDate) string {
+	if value.IsZero() {
+		return ""
+	}
+	return time.Time(value).Format(time.DateOnly)
 }
 
 func assertConformanceEqual(t *testing.T, expected, observed conformanceReading) {
@@ -431,7 +491,7 @@ func assertConformanceEqual(t *testing.T, expected, observed conformanceReading)
 func marshalConformance(t *testing.T, reading conformanceReading) string {
 	t.Helper()
 
-	data, err := json.MarshalIndent(reading, "", "  ")
+	data, err := json.Marshal(reading, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("failed to marshal a conformance reading: %v", err)
 	}

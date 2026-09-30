@@ -15,7 +15,6 @@ linters:
     errcheck:
       exclude-functions:
         - (net/http.ResponseWriter).Write
-        - (*encoding/json.Encoder).Encode
         - (github.com/voilelab/plainshelf/shelf.ShelfLock).Unlock
         - (github.com/voilelab/plainshelf/internal/fsutil.FS).RemoveAll
   exclusions:

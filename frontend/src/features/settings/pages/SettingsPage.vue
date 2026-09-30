@@ -18,7 +18,7 @@
          state that has to outlive a tab switch — a book-cache export in flight,
          the fetched shelf list, the font-license cache — so they stay mounted,
          the way they did when every tab body lived in this component. -->
-    <TabsRoot :default-value="defaultSettingsTab" class="settings-tabs" :unmount-on-hide="false">
+    <TabsRoot v-model="activeSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
         <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
           t('settings.cover.title')
@@ -32,8 +32,23 @@
         <TabsTrigger value="reader-launch" class="settings-tab-trigger">{{
           t('settings.readerLaunch.title')
         }}</TabsTrigger>
+        <TabsTrigger value="language" class="settings-tab-trigger">{{
+          t('settings.language.title')
+        }}</TabsTrigger>
+        <TabsTrigger v-if="serverSettingsEditable" value="nsfw" class="settings-tab-trigger">{{
+          t('settings.nsfw.title')
+        }}</TabsTrigger>
+        <!-- The device's own answer, for a client with no server to ask: it is
+             what the pCloud reader filters on. Shown only where the server tab
+             above is not, so one question never has two switches. -->
+        <TabsTrigger v-else value="device-nsfw" class="settings-tab-trigger">{{
+          t('settings.deviceNsfw.title')
+        }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
           t('settings.import.title')
+        }}</TabsTrigger>
+        <TabsTrigger v-if="serverSettingsEditable" value="logs" class="settings-tab-trigger">{{
+          t('settings.logs.title')
         }}</TabsTrigger>
         <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
         <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
@@ -59,6 +74,18 @@
         />
       </TabsContent>
 
+      <TabsContent value="language" class="settings-tab-content">
+        <LanguagePanel />
+      </TabsContent>
+
+      <TabsContent v-if="serverSettingsEditable" value="nsfw" class="settings-tab-content">
+        <NsfwPanel :value="showNsfw" :disabled="loading || saving" @change="onShowNsfwChange" />
+      </TabsContent>
+
+      <TabsContent v-else value="device-nsfw" class="settings-tab-content">
+        <DeviceNsfwPanel :value="showNsfwOnDevice" @change="setShowNsfwOnDevice" />
+      </TabsContent>
+
       <TabsContent v-if="serverSettingsEditable" value="import" class="settings-tab-content">
         <EpubImportPanel
           :preset="epubPreset"
@@ -69,6 +96,14 @@
           @update:preset="onEpubPresetChange"
           @update:include-description="epubIncludeDescription = $event"
           @save="onSaveEpubImportStrategy"
+        />
+      </TabsContent>
+
+      <TabsContent v-if="serverSettingsEditable" value="logs" class="settings-tab-content">
+        <LogRetentionPanel
+          :value="logRetentionDays"
+          :disabled="loading || saving"
+          @change="onLogRetentionDaysChange"
         />
       </TabsContent>
 
@@ -84,30 +119,43 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { onMounted } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
+import DeviceNsfwPanel from '@/features/settings/components/DeviceNsfwPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
+import LanguagePanel from '@/features/settings/components/LanguagePanel.vue';
+import LogRetentionPanel from '@/features/settings/components/LogRetentionPanel.vue';
+import NsfwPanel from '@/features/settings/components/NsfwPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
 import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
+import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 import { useServerSettingsForm } from '@/features/settings/composables/useServerSettingsForm';
+import { useSettingsTabs } from '@/features/settings/composables/useSettingsTabs';
 
 const { t } = useI18n();
 // Shelves is the useful landing tab when the server settings tabs are gone:
 // it holds the connection and downloads panels.
 const { serverSettingsEditable } = useWriteAccess();
-const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
+// The active tab is backed by the ?tab= query so the sidebar's "manage
+// shelves" deep link lands here even on repeat clicks — see useSettingsTabs.
+const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable);
+// Device-local, so it is not part of the server settings form: nothing to load
+// and nothing to save, and it survives a shelf the server never answers for.
+const { showNsfw: showNsfwOnDevice, setShowNsfw: setShowNsfwOnDevice } = useDeviceNsfwPreference();
 
 const {
   loading,
   saving,
   error,
   coverToJpg,
+  showNsfw,
+  logRetentionDays,
   readHistoryLimit,
   readerLaunchMode,
   epubPreset,
@@ -115,6 +163,8 @@ const {
   epubImportError,
   loadSettings,
   onCoverToJpgChange,
+  onShowNsfwChange,
+  onLogRetentionDaysChange,
   onReadHistoryLimitChange,
   onReaderLaunchModeChange,
   onEpubPresetChange,

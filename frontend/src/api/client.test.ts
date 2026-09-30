@@ -25,6 +25,8 @@ Object.defineProperty(globalThis, 'window', {
 });
 
 const { ApiError, fetchJson, setActiveShelfID } = await import('./client');
+const { useErrorIncident } = await import('@/composables/useErrorIncident');
+const { incident: shownIncident, dismissIncident } = useErrorIncident();
 
 const SHELF = 'main';
 
@@ -123,5 +125,240 @@ describe('assertWritableRequest', () => {
       ).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('error responses', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  function errorResponse(
+    body: string,
+    contentType: string,
+    status = 404,
+    extraHeaders: Record<string, string> = {}
+  ): Response {
+    return new Response(body, {
+      status,
+      headers: { 'Content-Type': contentType, ...extraHeaders }
+    });
+  }
+
+  async function failedRequest(res: Response): Promise<InstanceType<typeof ApiError>> {
+    fetchMock.mockResolvedValue(res);
+    try {
+      await fetchJson(`/api/shelves/${SHELF}/books/abc`);
+    } catch (err) {
+      return err as InstanceType<typeof ApiError>;
+    }
+    throw new Error('request unexpectedly succeeded');
+  }
+
+  beforeEach(() => {
+    isMobileRuntimeMock.mockReset();
+    isMobileRuntimeMock.mockReturnValue(false);
+    (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = false;
+    setActiveShelfID(SHELF);
+    dismissIncident();
+
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('shows the envelope message and keeps the code', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"BOOK_NOT_FOUND","message":"book not found"}}\n',
+        'application/json; charset=utf-8'
+      )
+    );
+
+    // The user must never be shown the raw JSON.
+    expect(err.message).toBe('book not found');
+    expect(err.code).toBe('BOOK_NOT_FOUND');
+    expect(err.status).toBe(404);
+  });
+
+  // Most routes still answer http.Error plain text, and so does the standalone
+  // reader app, so the old path has to keep working unchanged.
+  it('falls back to the raw text for a plain-text refusal', async () => {
+    const err = await failedRequest(errorResponse('shelf not found', 'text/plain; charset=utf-8'));
+
+    expect(err.message).toBe('shelf not found');
+    expect(err.code).toBeUndefined();
+  });
+
+  it('falls back to the raw text for JSON that is not an envelope', async () => {
+    const err = await failedRequest(
+      errorResponse('{"taskchain_id":"abc"}', 'application/json; charset=utf-8', 409)
+    );
+
+    expect(err.message).toBe('{"taskchain_id":"abc"}');
+    expect(err.code).toBeUndefined();
+  });
+
+  it('falls back to the status line when the body is empty', async () => {
+    const err = await failedRequest(errorResponse('', 'text/plain; charset=utf-8', 502));
+
+    expect(err.message).toContain('502');
+    expect(err.code).toBeUndefined();
+  });
+
+  // The 46 display sites read err.message and nothing else. Whatever shape the
+  // body takes, that one field has to stay the human sentence they can print.
+  it('keeps message human for every body shape', async () => {
+    const bodies = [
+      ['{"error":{"code":"BOOK_NOT_FOUND","message":"book not found"}}', 'book not found'],
+      ['shelf not found', 'shelf not found'],
+      ['{"taskchain_id":"abc"}', '{"taskchain_id":"abc"}']
+    ] as const;
+
+    for (const [body, expected] of bodies) {
+      const err = await failedRequest(errorResponse(body, 'application/json; charset=utf-8'));
+      expect(err.message).toBe(expected);
+    }
+  });
+
+  it('reads the incident out of the envelope', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"INTERNAL","message":"could not read book","incident":"K7MQ4XZB"}}\n',
+        'application/json; charset=utf-8',
+        500
+      )
+    );
+
+    expect(err.incident).toBe('K7MQ4XZB');
+    expect(shownIncident.value).toBe('K7MQ4XZB');
+  });
+
+  // The routes that still answer plain text carry no envelope, but they do pass
+  // the request-ID middleware, so the header is the reference for them.
+  it('falls back to the request-ID header for a plain-text refusal', async () => {
+    const err = await failedRequest(
+      errorResponse('shelf not found', 'text/plain; charset=utf-8', 404, {
+        'X-Request-Id': 'ABCD2345'
+      })
+    );
+
+    expect(err.message).toBe('shelf not found');
+    expect(err.incident).toBe('ABCD2345');
+    expect(shownIncident.value).toBe('ABCD2345');
+  });
+
+  it('leaves the incident unset when neither the body nor the header names one', async () => {
+    const err = await failedRequest(errorResponse('shelf not found', 'text/plain; charset=utf-8'));
+
+    expect(err.incident).toBeUndefined();
+    expect(shownIncident.value).toBe('');
+  });
+
+  // A shelf still scanning answers 503 with Retry-After, the caller waits it out
+  // (composables/shelfInitRetry.ts) and the read usually succeeds. Showing a
+  // reference for each attempt would put a number next to a page that loaded.
+  it('does not raise a reference for a refusal the server calls transient', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"SHELF_INITIALIZING","message":"shelf is initializing","incident":"K7MQ4XZB"}}',
+        'application/json; charset=utf-8',
+        503,
+        { 'Retry-After': '3' }
+      )
+    );
+
+    expect(err.incident).toBe('K7MQ4XZB');
+    expect(shownIncident.value).toBe('');
+  });
+
+  it('raises a reference for a body that is not valid JSON at a 2xx', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('not json', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'ABCD2345' }
+      })
+    );
+
+    await expect(fetchJson(`/api/shelves/${SHELF}/books`)).rejects.toMatchObject({
+      message: 'Invalid JSON response from server.',
+      incident: 'ABCD2345'
+    });
+    expect(shownIncident.value).toBe('ABCD2345');
+  });
+});
+
+// A 409 on the task-chain endpoints means either "a sweep is already running,
+// here is its ID" or "this shelf is read-only". acceptStatuses cannot tell them
+// apart by status, so the envelope has to be rejected on its own shape.
+describe('accepted non-2xx statuses', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  function jsonResponse(body: string, status: number): Response {
+    return new Response(body, {
+      status,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    });
+  }
+
+  beforeEach(() => {
+    isMobileRuntimeMock.mockReset();
+    isMobileRuntimeMock.mockReturnValue(false);
+    (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = false;
+    setActiveShelfID(SHELF);
+
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('accepts the running chain a 409 reports', async () => {
+    fetchMock.mockResolvedValue(jsonResponse('{"taskchain_id":"chain-1"}', 409));
+
+    const res = await fetchJson<{ taskchain_id: string }>(
+      `/api/shelves/${SHELF}/book-batches`,
+      { method: 'POST' },
+      { acceptStatuses: [409] }
+    );
+
+    expect(res.taskchain_id).toBe('chain-1');
+  });
+
+  // Without this the caller reads taskchain_id off a refusal, gets undefined,
+  // and polls it instead of reporting that the shelf is read-only.
+  it('rejects an error envelope arriving at an accepted status', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        '{"error":{"code":"SHELF_READ_ONLY","message":"shelf is opened read-only"}}\n',
+        409
+      )
+    );
+
+    const err = await fetchJson(
+      `/api/shelves/${SHELF}/book-batches`,
+      { method: 'POST' },
+      { acceptStatuses: [409] }
+    ).then(
+      () => null,
+      (e: unknown) => e as InstanceType<typeof ApiError>
+    );
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err?.code).toBe('SHELF_READ_ONLY');
+    expect(err?.status).toBe(409);
+    expect(err?.message).toBe('shelf is opened read-only');
+  });
+
+  it('leaves a 2xx envelope-shaped payload alone', async () => {
+    // A successful response is never a refusal, whatever its field names.
+    fetchMock.mockResolvedValue(jsonResponse('{"error":{"code":"X","message":"y"}}', 200));
+
+    const res = await fetchJson<{ error: { code: string } }>(`/api/shelves/${SHELF}/books`);
+
+    expect(res.error.code).toBe('X');
   });
 });

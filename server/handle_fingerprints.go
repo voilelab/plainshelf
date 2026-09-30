@@ -1,13 +1,17 @@
 package server
 
 import (
+	"cmp"
+	"errors"
 	"math"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/sketch"
 	"github.com/voilelab/plainshelf/server/task"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 // fingerprintHandlers answers the two read-only endpoints the similarity page
@@ -27,12 +31,23 @@ type fingerprintHandlers struct {
 // does not.
 const defaultSimilarFloor = 0.15
 
-// similarWorkBudget caps the merge steps the synchronous sweep will spend.
-// Cost is the sum of sketch lengths, not the book count: a short work keeps
-// every shingle, so a shelf of novellas costs far more per pair than one of
-// novels. Past the budget the endpoint declines rather than outrun the
-// client's 30s fetch timeout. A var so a test can lower it.
+// similarWorkBudget caps the merge steps the synchronous sweep will spend. Cost
+// is the sum of sketch lengths, not the book count: a short work keeps every
+// shingle, so a shelf of novellas costs far more per pair than one of novels.
+// A var so a test can lower it.
 var similarWorkBudget = 1 << 30
+
+// similarMergeStepsPerSecond converts the conservative merge-step upper bound
+// into a human-scale duration. It is intentionally only an order-of-magnitude
+// estimate: at this rate the default budget lands at roughly 32 seconds, the
+// point where the normal frontend request timeout would otherwise expire.
+const similarMergeStepsPerSecond = 1 << 25
+
+// confirmedSimilarTimeout matches the frontend's confirmed-request timeout.
+// The normal server WriteTimeout is only 60 seconds, so a confirmed comparison
+// must extend its own write deadline before it starts reading the cache and
+// performing the sweep.
+const confirmedSimilarTimeout = 5 * time.Minute
 
 // The relation names describe how two sources are alike. The server decides
 // this rather than the frontend so the classification lives in one place, and a
@@ -79,17 +94,18 @@ type similarPair struct {
 	Relation string `json:"relation"`
 }
 
-// similarTooLarge is the body for a shelf whose fingerprinted content would
-// cost more than similarWorkBudget to compare in one pass: the synchronous
-// sweep was declined rather than run past the request's deadline. It reports
-// the estimated merge steps and the budget so the caller can explain the
-// refusal. It travels on a plain 200, not a 202: nothing was accepted for later
-// processing - there is no similarity task - so 202 would promise a result that
-// never arrives.
+// similarTooLarge is the estimate returned instead of comparing a shelf that
+// would cost more than similarWorkBudget, so the caller can ask the user whether
+// the wait is worthwhile. It travels on a plain 200: nothing was accepted for
+// later processing, so 202 would promise a result that never arrives.
 type similarTooLarge struct {
-	Status string `json:"status"`
-	Work   int    `json:"work"`
-	Budget int    `json:"budget"`
+	Status        string `json:"status"`
+	Total         int    `json:"total"`
+	Fingerprinted int    `json:"fingerprinted"`
+	Pairs         int    `json:"pairs"`
+	Work          int    `json:"work"`
+	Seconds       int    `json:"seconds"`
+	Budget        int    `json:"budget"`
 }
 
 // bookSketch is a book paired with the decoded fingerprint of its current
@@ -124,8 +140,8 @@ func classifyRelation(sameNormMD5 bool, jaccard, maxContainment float64) string 
 // stable order and only once, and MaxJaccard rules out a length-mismatched pair
 // with a single integer comparison before the sketch intersection is computed.
 func buildSimilarPairs(prints []bookSketch, floor float64) []similarPair {
-	sorted := append([]bookSketch(nil), prints...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].bookID < sorted[j].bookID })
+	sorted := slices.Clone(prints)
+	slices.SortFunc(sorted, func(a, b bookSketch) int { return cmp.Compare(a.bookID, b.bookID) })
 
 	pairs := []similarPair{}
 	for i := range sorted {
@@ -193,21 +209,35 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	books, err := shelfData.ListBooks()
+	confirmed := r.URL.Query().Get("confirm") == "1"
+	if confirmed {
+		// http.Server.WriteTimeout installs a connection deadline before this
+		// handler runs. Move it for this request only; extending the browser's
+		// timeout cannot keep a server-side 60-second deadline alive.
+		if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(confirmedSimilarTimeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			h.Warn("failed to extend the confirmed similarity response deadline", "error", err)
+		}
+	}
+
+	// The pairs are built from what this request may see, so a marked book is
+	// not merely absent from the response: it is never compared, and cannot show
+	// up as the other half of a visible book's pair.
+	books, err := h.visibility(shelfData).listBooks()
 	if err != nil {
-		h.writeErr(w, err, "failed to list books")
+		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
 
 	cache, err := shelfData.OpenFingerprintCache(task.FingerprintAlgo())
 	if err != nil {
-		h.writeErr(w, err, "failed to open the fingerprint cache")
+		h.writeErr(w, r, err, "failed to open the fingerprint cache")
 		return
 	}
 
 	prints := make([]bookSketch, 0, len(books))
 	sumValues := 0
-	for _, book := range books {
+	for _, listing := range books {
+		book := listing.Book
 		entry, ok := cache.Lookup(book.ID(), book.CurrentSource())
 		if !ok {
 			// A book without a fingerprint yet is skipped, not failed: the sweep
@@ -240,9 +270,18 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 	// gated here on the fingerprints that will really be compared rather than the
 	// raw book count, which is unrelated to the work: a shelf of short works
 	// keeps every shingle and costs far more per pair than one of novels. Past
-	// the budget the endpoint declines rather than outrun the request's deadline.
-	if work := (len(prints) - 1) * sumValues; work > similarWorkBudget {
-		h.writeJSON(w, http.StatusOK, similarTooLarge{Status: "too_large", Work: work, Budget: similarWorkBudget})
+	// the budget the endpoint estimates first rather than outrun the request's
+	// normal deadline without the user's confirmation.
+	if work := (len(prints) - 1) * sumValues; work > similarWorkBudget && !confirmed {
+		h.writeJSON(w, http.StatusOK, similarTooLarge{
+			Status:        "too_large",
+			Total:         len(books),
+			Fingerprinted: len(prints),
+			Pairs:         len(prints) * (len(prints) - 1) / 2,
+			Work:          work,
+			Seconds:       (work + similarMergeStepsPerSecond - 1) / similarMergeStepsPerSecond,
+			Budget:        similarWorkBudget,
+		})
 		return
 	}
 
@@ -256,9 +295,27 @@ func (h *fingerprintHandlers) getFingerprintStatus(w http.ResponseWriter, r *htt
 		return
 	}
 
-	status, err := shelfData.FingerprintStatus(task.FingerprintAlgo())
+	// Counted over the same books the similarity sweep compares, not the whole
+	// shelf: a total that included the hidden ones would disagree with the
+	// results beside it and, on a shelf whose visible listing is empty, would
+	// report that books exist at all.
+	books, err := h.visibility(shelfData).listBooks()
 	if err != nil {
-		h.writeErr(w, err, "failed to read fingerprint status")
+		h.writeErr(w, r, err, "failed to list books")
+		return
+	}
+
+	refs := make([]shelf.FingerprintBookSource, 0, len(books))
+	for _, listing := range books {
+		refs = append(refs, shelf.FingerprintBookSource{
+			BookID:   listing.Book.ID(),
+			SourceID: listing.Book.CurrentSource(),
+		})
+	}
+
+	status, err := shelfData.FingerprintCoverageFor(task.FingerprintAlgo(), refs)
+	if err != nil {
+		h.writeErr(w, r, err, "failed to read fingerprint status")
 		return
 	}
 

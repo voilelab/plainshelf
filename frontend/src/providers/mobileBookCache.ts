@@ -1,7 +1,7 @@
 import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 
-export interface CachedBookSizeBreakdown {
+interface CachedBookSizeBreakdown {
   content: number;
   sources: number;
   cover: number;

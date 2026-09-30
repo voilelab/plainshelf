@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 
 const { addReadHistoryMock, clearReadHistoryMock, getReadHistoryIDsMock } = vi.hoisted(() => ({
@@ -42,6 +42,7 @@ import type { Book, PaginatedBooks, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { BookshelfReader } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
+import { setShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
 import { InMemoryMobileCoverCache } from './mobileCoverCache';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import { DOWNLOAD_SHELF_CHANGED_ERROR, MobileBookshelfProvider } from './mobileBookshelfProvider';
@@ -217,6 +218,311 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
     });
   });
 
+});
+
+// PSW-119: the offline cache is the one place a book is served without the
+// backend being asked, so it is the one place the pCloud provider's own filter
+// cannot reach. Already having downloaded a book must not be a way past the
+// device setting — see VisibleMobileBookCache.
+describe('MobileBookshelfProvider — adult content in the offline cache', () => {
+  let cache: InMemoryMobileBookCache;
+
+  const MARKED = 'marked-book';
+  const PLAIN = 'plain-book';
+
+  beforeEach(async () => {
+    cache = new InMemoryMobileBookCache();
+    setShowNsfwOnDevice(false);
+
+    for (const [id, mark] of [
+      [PLAIN, {}],
+      [MARKED, { nsfw: true }]
+    ] as [string, Partial<Book>][]) {
+      await cache.saveDownloadedBook({
+        book: makeBook(id, mark),
+        sources: [makeSource('src-1')],
+        downloaded_at: '2026-07-10T12:00:00Z'
+      });
+      await cache.saveCachedBookContent(id, { content: `${id} text` });
+      await cache.saveCachedSourceContent(id, 'src-1', `${id} source`);
+      await cache.saveCachedCover(id, new Blob(['cover']));
+      await cache.saveCachedAsset(id, 'src-1', 'fig.png', new Blob(['image']));
+    }
+  });
+
+  afterEach(() => {
+    setShowNsfwOnDevice(false);
+  });
+
+  /** A backend with no server to ask, as pCloud is; `isOnline` is the caller's. */
+  function pcloudBacked(isOnline = () => false): MobileBookshelfProvider {
+    const remote: Partial<BookshelfReader> = {
+      filtersNsfwOnDevice: () => true,
+      listBooks: () => Promise.reject(unreachableError()),
+      getBook: () => Promise.reject(unreachableError()),
+      getBookContent: () => Promise.reject(unreachableError()),
+      getBookCover: () => Promise.reject(unreachableError()),
+      listSources: () => Promise.reject(unreachableError()),
+      getSource: () => Promise.reject(unreachableError()),
+      getSourceContent: () => Promise.reject(unreachableError())
+    };
+    return new MobileBookshelfProvider(remote as BookshelfReader, cache, isOnline);
+  }
+
+  it('leaves a marked download out of the offline listing and its total', async () => {
+    const page = await pcloudBacked().listBooks(1, 20);
+
+    expect(page.items.map((book) => book.id)).toEqual([PLAIN]);
+    expect(page.total).toBe(1);
+  });
+
+  // The unreachable-server fallback is the same cache read, reached with
+  // navigator.onLine still true — the LTE-away-from-home case.
+  it('leaves it out of the unreachable-server fallback too', async () => {
+    const page = await pcloudBacked(() => true).listBooks(1, 20);
+
+    expect(page.items.map((book) => book.id)).toEqual([PLAIN]);
+  });
+
+  it('answers a marked download by id as an offline cache miss', async () => {
+    const provider = pcloudBacked();
+
+    await expect(provider.getBook(MARKED)).rejects.toThrow();
+    await expect(provider.getBook(PLAIN)).resolves.toMatchObject({ id: PLAIN });
+  });
+
+  // These read the cache before connectivity is checked at all, so without the
+  // wrapper a marked download stayed readable even with the backend reachable.
+  it('withholds its content, cover, sources and illustrations', async () => {
+    const provider = pcloudBacked();
+
+    await expect(provider.getBookContent(MARKED)).rejects.toThrow();
+    await expect(provider.downloadBookContent(MARKED)).rejects.toThrow();
+    await expect(provider.getBookCover(MARKED)).rejects.toThrow();
+    await expect(provider.getSourceContent(MARKED, 'src-1')).rejects.toThrow();
+    await expect(provider.getSourceAsset(MARKED, 'src-1', 'fig.png')).rejects.toThrow();
+    await expect(provider.listSources(MARKED)).resolves.toEqual([]);
+    await expect(provider.getDownloadState(MARKED)).resolves.toBe('not_downloaded');
+  });
+
+  it('keeps serving the unmarked download from the same cache', async () => {
+    const provider = pcloudBacked();
+
+    await expect(provider.getBookContent(PLAIN)).resolves.toEqual({ content: `${PLAIN} text` });
+    await expect(provider.getSourceAsset(PLAIN, 'src-1', 'fig.png')).resolves.toBeInstanceOf(Blob);
+    await expect(provider.getDownloadState(PLAIN)).resolves.toBe('downloaded');
+  });
+
+  it('leaves the marked download out of the downloads list', async () => {
+    const entries = await pcloudBacked().listDownloadedBookEntries();
+
+    expect(entries.map((entry) => entry.book.id)).toEqual([PLAIN]);
+  });
+
+  it('serves it again once the device setting is on', async () => {
+    setShowNsfwOnDevice(true);
+    const provider = pcloudBacked();
+
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([PLAIN, MARKED]);
+    await expect(provider.getBookContent(MARKED)).resolves.toEqual({ content: `${MARKED} text` });
+    await expect(provider.getDownloadState(MARKED)).resolves.toBe('downloaded');
+  });
+
+  // The reverse case: behind a PlainShelf server the listing was already
+  // filtered by that server's show_nsfw, and this device switch must not
+  // overrule it — a book only reaches the cache because the server served it.
+  it('filters nothing when the backend has a server to answer for it', async () => {
+    const remote: Partial<BookshelfReader> = {
+      listBooks: () => Promise.reject(unreachableError()),
+      getBookContent: () => Promise.reject(unreachableError())
+    };
+    const provider = new MobileBookshelfProvider(remote as BookshelfReader, cache, () => false);
+
+    const page = await provider.listBooks(1, 20);
+    expect(page.items.map((book) => book.id).sort()).toEqual([MARKED, PLAIN]);
+    await expect(provider.getBookContent(MARKED)).resolves.toEqual({ content: `${MARKED} text` });
+    await expect(provider.getDownloadState(MARKED)).resolves.toBe('downloaded');
+  });
+});
+
+// Downloads taken before the marks were written into manifests (PSW-119) carry
+// neither half of them, so they read as unmarked and slipped past the device
+// switch. The marks are already on the device in the shelf snapshot; the cache
+// wrapper repairs those manifests from it before it answers.
+describe('MobileBookshelfProvider — downloads taken before the marks existed', () => {
+  let cache: InMemoryMobileBookCache;
+  let localNsfwMarks: ReturnType<typeof vi.fn>;
+
+  const OLD_MARKED = 'old-marked';
+  const OLD_PLAIN = 'old-plain';
+
+  beforeEach(async () => {
+    connectTo(SERVER_A, SHELF_A);
+    cache = new InMemoryMobileBookCache();
+    setShowNsfwOnDevice(false);
+    // makeBook writes no `nsfw` field at all, which is exactly the shape a
+    // manifest stored by the previous release carries.
+    for (const id of [OLD_MARKED, OLD_PLAIN]) {
+      await cache.saveDownloadedBook({
+        book: makeBook(id),
+        sources: [makeSource('src-1')],
+        downloaded_at: '2026-07-10T12:00:00Z',
+        size_bytes: 1024
+      });
+      await cache.saveCachedBookContent(id, { content: `${id} text` });
+      await cache.saveCachedCover(id, new Blob(['cover']));
+    }
+
+    localNsfwMarks = vi.fn(async () =>
+      new Map([
+        [OLD_MARKED, { nsfw: true }],
+        [OLD_PLAIN, { nsfw: false }]
+      ])
+    );
+  });
+
+  afterEach(() => {
+    setShowNsfwOnDevice(false);
+    connectTo(SERVER_A, SHELF_A);
+  });
+
+  /** pCloud-shaped: no server to ask, and every remote read would fail offline. */
+  function pcloudBacked(remoteOverrides: Partial<BookshelfReader> = {}): MobileBookshelfProvider {
+    const remote: Partial<BookshelfReader> = {
+      filtersNsfwOnDevice: () => true,
+      localNsfwMarks: localNsfwMarks as unknown as BookshelfReader['localNsfwMarks'],
+      listBooks: () => Promise.reject(unreachableError()),
+      getBook: () => Promise.reject(unreachableError()),
+      getBookContent: () => Promise.reject(unreachableError()),
+      getBookCover: () => Promise.reject(unreachableError()),
+      listSources: () => Promise.reject(unreachableError()),
+      getSource: () => Promise.reject(unreachableError()),
+      getSourceContent: () => Promise.reject(unreachableError()),
+      ...remoteOverrides
+    };
+    return new MobileBookshelfProvider(remote as BookshelfReader, cache, () => false);
+  }
+
+  it('hides one that the shelf marks, from the listing, the downloads page and its id', async () => {
+    const provider = pcloudBacked();
+
+    const page = await provider.listBooks(1, 20);
+    expect(page.items.map((book) => book.id)).toEqual([OLD_PLAIN]);
+    expect(page.total).toBe(1);
+
+    const entries = await provider.listDownloadedBookEntries();
+    expect(entries.map((entry) => entry.book.id)).toEqual([OLD_PLAIN]);
+
+    await expect(provider.getBook(OLD_MARKED)).rejects.toThrow();
+    await expect(provider.getBookContent(OLD_MARKED)).rejects.toThrow();
+    await expect(provider.getBookCover(OLD_MARKED)).rejects.toThrow();
+    await expect(provider.getDownloadState(OLD_MARKED)).resolves.toBe('not_downloaded');
+  });
+
+  // The first reverse case: a book the shelf does not mark must read exactly as
+  // it did, missing field and all.
+  it('leaves an unmarked one served from the same cache', async () => {
+    const provider = pcloudBacked();
+
+    await expect(provider.getBookContent(OLD_PLAIN)).resolves.toEqual({ content: `${OLD_PLAIN} text` });
+    await expect(provider.getDownloadState(OLD_PLAIN)).resolves.toBe('downloaded');
+    await expect(provider.getBook(OLD_PLAIN)).resolves.toMatchObject({ id: OLD_PLAIN });
+  });
+
+  it('repairs the manifest rather than the download: content and sources stay', async () => {
+    await pcloudBacked().listBooks(1, 20);
+
+    // Read straight from the wrapped cache, past the filter.
+    await expect(cache.getCachedBook(OLD_MARKED)).resolves.toMatchObject({ nsfw: true });
+    await expect(cache.getCachedBook(OLD_PLAIN)).resolves.toMatchObject({ nsfw: false });
+    await expect(cache.getCachedBookContent(OLD_MARKED)).resolves.toEqual({
+      content: `${OLD_MARKED} text`
+    });
+    await expect(cache.getCachedCover(OLD_MARKED)).resolves.toBeInstanceOf(Blob);
+    await expect(cache.listCachedSources(OLD_MARKED)).resolves.toHaveLength(1);
+    const [manifest] = (await cache.listDownloadedManifests()).filter(
+      (entry) => entry.book.id === OLD_MARKED
+    );
+    expect(manifest.size_bytes).toBe(1024);
+    expect(manifest.downloaded_at).toBe('2026-07-10T12:00:00Z');
+  });
+
+  it('asks the device for the marks once, however many reads follow', async () => {
+    const provider = pcloudBacked();
+
+    await provider.listBooks(1, 20);
+    await provider.listDownloadedBookEntries();
+    await provider.getDownloadState(OLD_PLAIN);
+    await expect(provider.getBook(OLD_MARKED)).rejects.toThrow();
+
+    expect(localNsfwMarks).toHaveBeenCalledTimes(1);
+  });
+
+  // The window PSW-120 leaves open on purpose: with no listing on the device
+  // yet there is nothing to repair from, and blanking the offline library would
+  // cost more than the stale mark.
+  it('keeps serving every pre-mark download when the device holds no listing', async () => {
+    const provider = pcloudBacked({ localNsfwMarks: () => Promise.resolve(null) });
+
+    const page = await provider.listBooks(1, 20);
+    expect(page.items.map((book) => book.id).sort()).toEqual([OLD_MARKED, OLD_PLAIN]);
+    expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
+  });
+
+  // The manifests are read before the marks and written after, so anything the
+  // user did in between has to survive: this write is a whole manifest.
+  it('does not restore a download removed while the marks were read', async () => {
+    localNsfwMarks.mockImplementationOnce(async () => {
+      await cache.removeDownloadedBook(OLD_MARKED);
+      return new Map([
+        [OLD_MARKED, { nsfw: true }],
+        [OLD_PLAIN, { nsfw: false }]
+      ]);
+    });
+
+    await pcloudBacked().listBooks(1, 20);
+
+    await expect(cache.getCachedBook(OLD_MARKED)).resolves.toBeNull();
+  });
+
+  // Defence in depth rather than a reachable bug: every shelf switch in the
+  // mobile shell restarts the app (reloadIntoApp), so nothing changes the scope
+  // under a live wrapper today. The cache writes below still resolve it for
+  // themselves, as downloadBook's own guard does.
+  it('writes nothing when the device changes shelves mid-pass, and repairs the new one', async () => {
+    localNsfwMarks.mockImplementationOnce(async () => {
+      connectTo(SERVER_B, SHELF_B);
+      return new Map([
+        [OLD_MARKED, { nsfw: true }],
+        [OLD_PLAIN, { nsfw: false }]
+      ]);
+    });
+    const provider = pcloudBacked();
+
+    // One guarded read, so exactly one pass: the scope moves under it and it
+    // stops rather than filing these manifests under the shelf now connected.
+    await provider.getDownloadState(OLD_PLAIN);
+    expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
+
+    // That pass did not count, so the next read makes one for the new shelf.
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([OLD_PLAIN]);
+  });
+
+  // ...and it closes on the next shelf update, not on the next app launch: a
+  // pass that found nothing to answer from must not count as the one pass.
+  it('repairs on a later read once the listing has arrived', async () => {
+    localNsfwMarks.mockResolvedValueOnce(null);
+    const provider = pcloudBacked();
+
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id).sort()).toEqual([
+      OLD_MARKED,
+      OLD_PLAIN
+    ]);
+
+    // Same provider, same wrapper — only the snapshot behind it has caught up.
+    expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([OLD_PLAIN]);
+    await expect(provider.getBook(OLD_MARKED)).rejects.toThrow();
+  });
 });
 
 describe('MobileBookshelfProvider — device-local reading history', () => {

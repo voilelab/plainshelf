@@ -27,8 +27,3 @@ func newScanCache(dbRoot fsutil.ReadFS, enabled bool, logger logutil.Logger) *sc
 		Logger:  logger,
 	})
 }
-
-// lastScanStats reports what the most recent walk of the shelf tree cost.
-func (s *Shelf) lastScanStats() scanStats {
-	return s.scanCache.LastStats()
-}

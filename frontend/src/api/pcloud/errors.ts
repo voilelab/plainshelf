@@ -1,3 +1,5 @@
+import { newClientIncidentID } from '@/api/incident';
+
 /**
  * pCloud reports failures two ways: an HTTP-level error, or HTTP 200 carrying a
  * non-zero `result` code in the JSON body. PCloudError keeps both so callers can
@@ -12,6 +14,12 @@
 export class PCloudError extends Error {
   /** pCloud result code, or 0 when the failure was at the HTTP/transport layer. */
   readonly result: number;
+  /**
+   * The reference a bug report quotes. Minted here rather than read off a
+   * response because pCloud is talked to directly: there is no PlainShelf
+   * server to have logged a request ID for this failure.
+   */
+  readonly incident: string;
   readonly status?: number;
   /**
    * Set for transport failures — a dropped connection or an expired time
@@ -27,6 +35,7 @@ export class PCloudError extends Error {
   ) {
     super(message);
     this.name = 'PCloudError';
+    this.incident = newClientIncidentID();
     this.result = options?.result ?? 0;
     this.status = options?.status;
     this.retryable = options?.retryable ?? false;

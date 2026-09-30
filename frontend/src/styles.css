@@ -10,6 +10,11 @@
   --z-modal: 80;
   /* Above modals: a toast raised while a dialog is open still has to be seen. */
   --z-toast: 90;
+  /* Reserved height of the mobile shell's bottom tab bar (MobileTabBar). Other
+     bottom-fixed mobile bars offset by this so they stack above it instead of
+     being overlaid; it is an upper bound on the bar's content height, not its
+     footprint (which adds the bottom safe-area inset on top). */
+  --mobile-tab-bar-height: 56px;
 }
 
 * {

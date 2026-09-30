@@ -22,7 +22,7 @@ type App struct {
 	handlers *apiHandlers
 
 	shelfManager *shelf.ShelfManager
-	taskChains   taskutil.Pool
+	taskChains   *taskutil.Pool
 	storeDB      *store.DB
 
 	// bookCacheWriterID names this installation in the book cache every shelf
@@ -44,9 +44,13 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Set to true to ensure that if any initialization step fails,
-	// all previously initialized resources will be properly closed.
+	// Cleared on success; until then a failed step closes what is already open.
 	failure := true
+
+	// Every logger below shares one retention window so the setting route can
+	// change all of them at once. Attached before the first logger is built, and
+	// filled in as soon as the store is open — before anything writes a line.
+	shareLogRetention(conf, logutil.NewRetention())
 
 	logger, err := logutil.NewLogger(&conf.Logger)
 	if err != nil {
@@ -71,6 +75,9 @@ func NewApp(conf *AppConf) (*App, error) {
 			}
 		}
 	}()
+
+	settingsSvc := &settings{Logger: logger, db: storeDB, conf: conf}
+	settingsSvc.applyLogRetention()
 
 	writerID, err := resolveBookCacheWriterID(storeDB)
 	if err != nil {
@@ -128,7 +135,7 @@ func NewApp(conf *AppConf) (*App, error) {
 
 	// Assembled after App so the handlers share its logger rather than opening
 	// one of their own.
-	app.handlers = newAPIHandlers(&app.Logger, shelfManager, security, storeDB, taskChains, frontend.WebFS, conf)
+	app.handlers = newAPIHandlers(&app.Logger, shelfManager, security, storeDB, taskChains, frontend.WebFS, conf, settingsSvc)
 
 	return app, nil
 }
@@ -142,11 +149,27 @@ func (app *App) Conf() *AppConf {
 	return app.conf
 }
 
+// SetInsecureNetworkWarning makes the SPA bootstrap surface a persistent
+// "API authentication is disabled" warning in the Web UI. Only the network
+// server path sets it, computed from the listen address (see
+// Security.InsecureNetworkExposure); in-process embedders such as the desktop
+// and reader apps open no port and never call it.
+func (app *App) SetInsecureNetworkWarning(v bool) {
+	if app == nil || app.handlers == nil || app.handlers.spa == nil {
+		return
+	}
+	app.handlers.spa.warnInsecurePublic = v
+}
+
 func (app *App) ShelfManager() *shelf.ShelfManager {
 	return app.shelfManager
 }
 
-func (app *App) TaskChains() taskutil.Pool {
+// TaskChains lets a test submit a chain directly rather than through whichever
+// HTTP route happens to start one. No production caller needs it; it is exported
+// only because the contract tests live in external packages under
+// server/contract, which an export_test.go here cannot reach.
+func (app *App) TaskChains() *taskutil.Pool {
 	return app.taskChains
 }
 
@@ -157,22 +180,30 @@ func (app *App) TaskChains() taskutil.Pool {
 // export fails. Read-only mode has to be applied here for the same reason, and
 // it is what withholds the writer ID rather than granting it.
 func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
+	return app.shelfManager.AddShelf(app.resolveShelfConf(conf))
+}
+
+// resolveShelfConf finishes a shelf configuration the app was handed: it folds
+// in the app-wide read-only mode, the log retention window every logger shares
+// and, unless the shelf is read-only, this installation's book cache writer ID.
+func (app *App) resolveShelfConf(conf shelf.ShelfConfWithID) shelf.ShelfConfWithID {
 	shelfConf := applyAppReadOnly(conf, app.conf.ReadOnly)
 	if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
 		shelfConf.BookCacheWriterID = app.bookCacheWriterID
 	}
-	return app.shelfManager.AddShelf(shelfConf)
+	// A shelf opened or reconfigured after startup writes its own log file, so
+	// it joins the retention window the setting controls rather than keeping
+	// the configured default.
+	shelfConf.Logger.LogFile.Retention = app.conf.Logger.LogFile.Retention
+	return shelfConf
 }
 
 // applyAppReadOnly carries AppConf.ReadOnly down into the shelf configuration.
 //
-// rejectReadOnlyWrite only turns away requests that ask for a write, which is
-// not the same thing as not writing: a shelf writes on its own account too -
-// it creates its folders, clears app/tmp/, takes the lock file and exports the
-// book cache on a timer, none of which has a request behind it. A server
-// declared read-only that still did all that would be read-only in name only,
-// and its exported cache would additionally prune the files other installations
-// wrote into a shelf they share.
+// rejectReadOnlyWrite only turns away requests, which is not the same as not
+// writing: a shelf creates its folders, clears app/tmp/, takes the lock file and
+// exports the book cache on a timer with no request behind any of it — and that
+// export would prune the files other installations wrote into a shared shelf.
 //
 // The app-wide setting can only add the restriction; a shelf already configured
 // read_only stays read-only on a writable server.
@@ -183,8 +214,13 @@ func applyAppReadOnly(conf shelf.ShelfConfWithID, appReadOnly bool) shelf.ShelfC
 	return conf
 }
 
-func (app *App) UpdateShelf(id, name, scanInterval string) error {
-	return app.shelfManager.UpdateShelf(id, name, scanInterval)
+// UpdateShelf reconfigures an open shelf. conf carries the shelf's whole
+// configuration, not only what changed, so it goes through the same resolution
+// as AddShelf - a shelf that stops being read-only has to be given the writer
+// ID that read-only mode withheld from it, and one that becomes read-only has
+// to give it up again.
+func (app *App) UpdateShelf(conf shelf.ShelfConfWithID) error {
+	return app.shelfManager.UpdateShelf(app.resolveShelfConf(conf))
 }
 
 func (app *App) RemoveShelf(id string) error {
@@ -209,7 +245,14 @@ func (app *App) Handler() http.Handler {
 	app.handlers.serve(mux)
 
 	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		// One ID per request, minted before anything can answer it, so the
+		// response header, every log line about the request and the error
+		// envelope all quote the same string.
+		requestID := logutil.NewRequestID()
+		w.Header().Set(RequestIDHeader, requestID)
+		r = r.WithContext(logutil.WithRequestID(r.Context(), requestID))
+
+		app.Info("app handler", "request_id", requestID, "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
 		if app.rejectReadOnlyWrite(w, r) {
 			return
 		}
@@ -256,18 +299,17 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 	return true
 }
 
-// isReadOnlySafeRequest reports a POST that writes nothing to the shelf, so
-// read-only mode has no reason to refuse it.
+// isReadOnlySafeRequest reports a POST that writes nothing to the shelf.
 //
 // The rescan endpoint is the only one: it walks the shelf and rebuilds the
-// in-memory cache, which is what a read does. Keeping it to a named exception
-// rather than a general "reads may POST" rule is deliberate — the gate stays a
-// method test that one route opts out of, so adding a second one has to be
-// written down here.
+// in-memory cache, which is what a read does. A named exception rather than a
+// general "reads may POST" rule, so adding a second one has to be written here.
 //
-// The token gate is not affected. This runs after it, and a rescan still costs
-// the server real work, so it stays behind the same local_token boundary as
-// every other POST.
+// The token gate draws the same exception, for the same reason, in
+// Security.isTokenExemptScan: a rescan reads, so protect_read governs it rather
+// than its method. The two gates stay separate -- this one answers "may the
+// shelf change", that one "who is asking" -- but they agree on which requests
+// are reads.
 func isReadOnlySafeRequest(r *http.Request) bool {
 	return r.Method == http.MethodPost && isShelfScanPath(r.URL.Path)
 }

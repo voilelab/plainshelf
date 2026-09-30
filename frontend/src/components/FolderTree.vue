@@ -1,19 +1,30 @@
 <template>
   <nav class="sidebar-nav-list" :aria-label="t('layout.foldersNavLabel')">
-    <div
-      class="sidebar-nav-item"
-      :class="{ active: !selected, 'drop-target': isRootDropTarget }"
-      @dragover.prevent="onRootDragOver"
-      @dragenter.prevent="onRootDragEnter"
-      @dragleave="onRootDragLeave"
-      @drop="onRootDrop"
-    >
-      <span class="tree-toggle-placeholder" aria-hidden="true"></span>
-      <button type="button" class="sidebar-nav-item-label" @click="emit('select', '')">
-        {{ t('library.allBooks') }}
-      </button>
-      <span class="sidebar-nav-count">{{ totalBookCount }}</span>
-    </div>
+    <ContextMenuRoot>
+      <ContextMenuTrigger as-child :disabled="readOnly">
+        <div
+          class="sidebar-nav-item"
+          :class="{ active: !selected, 'drop-target': isRootDropTarget }"
+          @dragover.prevent="onRootDragOver"
+          @dragenter.prevent="onRootDragEnter"
+          @dragleave="onRootDragLeave"
+          @drop="onRootDrop"
+        >
+          <span class="tree-toggle-placeholder" aria-hidden="true"></span>
+          <button type="button" class="sidebar-nav-item-label" @click="emit('select', '')">
+            {{ t('library.allBooks') }}
+          </button>
+          <span class="sidebar-nav-count">{{ totalBookCount }}</span>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuPortal>
+        <ContextMenuContent class="reka-menu">
+          <ContextMenuItem class="reka-menu-item" @select="emit('create-folder', '/')">
+            {{ t('layout.createFolder.add') }}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenuPortal>
+    </ContextMenuRoot>
 
     <TreeRoot
       v-slot="{ flattenItems }"
@@ -25,7 +36,12 @@
       v-model:expanded="expanded"
     >
       <ContextMenuRoot v-for="item in flattenItems" :key="item._id">
-        <ContextMenuTrigger as-child :disabled="readOnly || !canManageFolder(item.value)">
+        <!-- The synthetic / node cannot be renamed, moved, or deleted, but it
+             still owns top-level folder creation. -->
+        <!-- Open on a read-only shelf only when it still holds something that
+             shelf allows: copying the folder out. Every item below states its
+             own condition, so the trigger is not what keeps writes off it. -->
+        <ContextMenuTrigger as-child :disabled="readOnly && !canTransferFolder">
           <TreeItem
             v-slot="{ isExpanded, handleToggle }"
             v-bind="item.bind"
@@ -67,6 +83,13 @@
         <ContextMenuPortal>
           <ContextMenuContent class="reka-menu">
             <ContextMenuItem
+              v-if="!readOnly"
+              class="reka-menu-item"
+              @select="emit('create-folder', item.value.path)"
+            >
+              {{ t('layout.createFolder.add') }}
+            </ContextMenuItem>
+            <ContextMenuItem
               v-if="props.canOpenFolder && canManageFolder(item.value)"
               class="reka-menu-item"
               @select="emit('open-folder', item.value.path)"
@@ -77,6 +100,7 @@
               @select="emit('transfer-folder', item.value.path)"
             >{{ t('layout.transferFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
+              v-if="canManageFolder(item.value) && !readOnly"
               class="reka-menu-item"
               @select="emit('rename-folder', item.value.path)"
             >{{ t('layout.renameFolder.shortAction') }}</ContextMenuItem>
@@ -134,6 +158,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [path: string];
+  'create-folder': [parentPath: string];
   'move-book': [payload: { bookIds: string[]; targetFolder: string; batch: boolean }];
   'delete-folder': [path: string];
   'rename-folder': [path: string];

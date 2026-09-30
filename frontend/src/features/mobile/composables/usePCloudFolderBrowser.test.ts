@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { PCloudError } from '@/api/pcloud/errors';
 import type { PCloudItem } from '@/api/pcloud/types';
+import { useErrorIncident } from '@/composables/useErrorIncident';
 import {
   usePCloudFolderBrowser,
   type PCloudFolderClient,
@@ -183,6 +185,51 @@ describe('usePCloudFolderBrowser', () => {
 
     expect(browser.error.value).toBe('');
     expect(browser.folders.value).toEqual([]);
+  });
+
+  // The picker talks to pCloud directly, so nothing between this failure and
+  // the alert region publishes the reference it minted.
+  it('publishes the reference of a failed listing', async () => {
+    const { incident, dismissIncident } = useErrorIncident();
+    dismissIncident();
+
+    const client = fakeClient(TREE);
+    const browser = usePCloudFolderBrowser(() => client);
+    await browser.open('/');
+
+    const failure = new PCloudError('pCloud listfolder failed.');
+    client.listFolder.mockRejectedValueOnce(failure);
+    await browser.enter({ name: 'Photos', folderid: 20 });
+
+    expect(browser.error.value).toBe('pCloud listfolder failed.');
+    expect(incident.value).toBe(failure.incident);
+    expect(incident.value).toMatch(/^c-/);
+  });
+
+  // A reply the user has navigated away from lands nowhere, and its reference
+  // must not either.
+  it('publishes nothing for a listing the user navigated away from', async () => {
+    const { incident, dismissIncident } = useErrorIncident();
+    dismissIncident();
+
+    const client = fakeClient(TREE);
+    const browser = usePCloudFolderBrowser(() => client);
+    await browser.open('/');
+
+    let failSlow = (): void => {};
+    client.listFolder.mockImplementationOnce(
+      async () =>
+        await new Promise<PCloudItem>((_resolve, reject) => {
+          failSlow = () => reject(new PCloudError('pCloud listfolder failed.'));
+        })
+    );
+
+    const slow = browser.enter({ name: 'PlainShelf', folderid: 10 });
+    await browser.goTo(-1);
+    failSlow();
+    await slow;
+
+    expect(incident.value).toBe('');
   });
 
   // Two taps in a row must not let the first, slower reply repaint the level

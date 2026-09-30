@@ -127,7 +127,7 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 // The two shelves must be distinct: a transfer within one shelf is CopyBook or
 // MoveBook, and locking the same shelf as both source and target would deadlock.
 func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetFolder FolderPath, preserveID bool) (*Book, error) {
-	if err := validateFolderPath(targetFolder); err != nil {
+	if err := target.ValidateFolderPath(targetFolder); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 

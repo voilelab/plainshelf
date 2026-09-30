@@ -4,7 +4,7 @@ import { useBookActions } from '@/composables/useBookActions';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import type { Book } from '@/types/book';
 
-export interface UseBookCollectionActionsOptions {
+interface UseBookCollectionActionsOptions {
   /** The list the emitted ids are resolved against. */
   books: Ref<Book[]> | ComputedRef<Book[]>;
   /** Called after a delete succeeds, to reload the list. */

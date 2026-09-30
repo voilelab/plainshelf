@@ -18,10 +18,29 @@
       @cancel="cancelPendingRenameFolder"
       @submit="confirmRenameFolder"
     />
+    <!-- Sits above the rename/move/transfer flows rather than inside any of
+         them: all three can unmark a folder subtree, and the question is the
+         same one. Danger variant, because the mark cannot be put back from the
+         app - shelf.json is the user's file and PlainShelf only reads it. -->
+    <ConfirmModal
+      :open="pendingNsfwReveal !== null"
+      :title="t('layout.folderReveal.title')"
+      :confirm-text="t('layout.folderReveal.confirm')"
+      variant="danger"
+      @cancel="cancelNsfwReveal"
+      @confirm="confirmNsfwReveal"
+    >
+      <p>
+        {{
+          pendingNsfwReveal && pendingNsfwReveal.hiddenBooks > 0
+            ? t('layout.folderReveal.bookCount', { count: pendingNsfwReveal.hiddenBooks })
+            : t('layout.folderReveal.folderOnly')
+        }}
+      </p>
+      <p>{{ t('layout.folderReveal.note') }}</p>
+    </ConfirmModal>
     <CreateFolderModal
       :open="showCreateFolderModal"
-      :parent-options="createFolderParentOptions"
-      :default-parent="createFolderDefaultParent"
       :busy="creatingFolder"
       :error="createFolderError"
       @cancel="closeCreateFolderModal"
@@ -211,7 +230,7 @@
               </SelectPortal>
             </SelectRoot>
           </label>
-          <RouterLink v-if="shelfPicker.managed" :to="{ path: '/connect', query: route.query }" class="sidebar-shelf-manage">
+          <RouterLink v-if="shelfManageTo" :to="shelfManageTo" class="sidebar-shelf-manage">
             {{ t('layout.shelf.manage') }}
           </RouterLink>
           <p v-if="shelfPicker.error.value" class="sidebar-error" role="alert">{{ shelfPicker.error.value }}</p>
@@ -247,6 +266,7 @@
                 <span>{{ t('layout.dashboard') }}</span>
               </RouterLink>
               <RouterLink
+                v-if="!isMobileShell"
                 to="/read-history"
                 class="sidebar-nav-item"
                 exact-active-class="active"
@@ -281,16 +301,6 @@
                 <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.folders') }}</span>
                 <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.folders ? '▸' : '▾' }}</span>
               </button>
-              <button
-                v-if="libraryEditingAvailable"
-                type="button"
-                class="create-folder-toggle"
-                aria-haspopup="dialog"
-                :disabled="readOnly || creatingFolder || foldersLoading || foldersError.length > 0"
-                @click="openCreateFolderModal"
-              >
-                {{ t('layout.createFolder.add') }}
-              </button>
             </div>
 
             <div v-show="!collapsedSidebarSections.folders" id="sidebar-section-folders" class="sidebar-foldable-content">
@@ -308,6 +318,7 @@
                 :can-open-folder="canOpenFolder"
                 :can-transfer-folder="canTransferFolder"
                 @select="onSelectFolder"
+                @create-folder="openCreateFolderModal"
                 @move-book="onMoveBook"
                 @delete-folder="requestDeleteFolder"
                 @rename-folder="requestRenameFolder"
@@ -365,7 +376,10 @@
           </section>
         </template>
 
-        <template v-if="hasDownloadsStore">
+        <!-- Downloads and the admin section (Logs + Settings) are reached from
+             the bottom tab bar on the mobile shell, so the drawer drops them
+             there and keeps only shelf switching and the folder tree. -->
+        <template v-if="hasDownloadsStore && !isMobileShell">
           <div class="sidebar-nav-divider" role="presentation"></div>
           <section class="sidebar-section" :aria-label="t('layout.downloads')">
             <nav class="sidebar-nav-list" :aria-label="t('layout.downloads')">
@@ -377,9 +391,13 @@
           </section>
         </template>
 
-        <div class="sidebar-nav-divider" role="presentation"></div>
+        <div v-if="!isMobileShell" class="sidebar-nav-divider" role="presentation"></div>
 
-        <section class="sidebar-section" :aria-label="t('layout.sections.admin')">
+        <section
+          v-if="!isMobileShell"
+          class="sidebar-section"
+          :aria-label="t('layout.sections.admin')"
+        >
           <button
             type="button"
             class="sidebar-section-toggle"
@@ -427,8 +445,8 @@
       <!-- SplitterPanel forces inline overflow:hidden, so scrolling lives on
            this inner wrapper (same pattern as .sidebar-inner). -->
       <div class="main-scroll">
-      <div v-if="showReadOnlyBanner" class="read-only-banner" role="status">
-        {{ t('layout.readOnly.banner') }}
+      <div v-if="readOnlyBannerKey" class="read-only-banner" role="status">
+        {{ t(readOnlyBannerKey) }}
       </div>
       <header class="topbar">
         <div class="topbar-left">
@@ -444,8 +462,16 @@
           </button>
           <h1 class="brand">
             <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
-            <span>{{ t('app.name') }}</span>
+            <span class="brand-name">{{ t('app.name') }}</span>
           </h1>
+          <!-- On a narrow viewport the brand collapses to its icon and this
+               takes the freed space to answer "where am I" — the current folder
+               or page — which the full sidebar otherwise carries on wide. -->
+          <span
+            v-if="isNarrowViewport && currentLocationLabel"
+            class="topbar-location"
+            :title="currentLocationLabel"
+          >{{ currentLocationLabel }}</span>
           <nav
             v-if="showHistoryControls"
             class="history-controls"
@@ -480,7 +506,7 @@
         </div>
       </header>
 
-      <div class="page-area">
+      <div class="page-area" :class="{ 'page-area-tabbar': isMobileShell }">
         <RouterView v-if="canShowRouteContent" />
         <section v-else class="no-shelf-panel" role="status">
           <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
@@ -491,12 +517,14 @@
       </div>
     </SplitterPanel>
     </SplitterGroup>
+
+    <MobileTabBar v-if="isMobileShell" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import {
   SelectContent,
   SelectItem,
@@ -518,13 +546,15 @@ import {
 } from 'reka-ui';
 import CreateFolderModal from '@/components/CreateFolderModal.vue';
 import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import Icon from '@/components/Icon.vue';
 import FolderTree from '@/components/FolderTree.vue';
+import MobileTabBar from '@/components/MobileTabBar.vue';
 import RenameFolderModal from '@/components/RenameFolderModal.vue';
 import TransferFolderModal from '@/components/TransferFolderModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
-import { getBookshelfProvider, isWailsRuntime } from '@/providers';
+import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderManagement } from '@/composables/useFolderManagement';
 import { useFolderStore } from '@/composables/useFolderStore';
@@ -569,6 +599,13 @@ const hasDownloadsStore = computed(() =>
 // mean previous/next chapter.
 const showHistoryControls = computed(() => isWailsRuntime());
 
+// The mobile shell gets a bottom tab bar for its frequent destinations. Gated
+// on the mobile *runtime* (not merely a narrow viewport) because the Downloads
+// tab only exists on the mobile provider, and because a narrow desktop browser
+// should keep the existing drawer. Latched like the runtime itself, so read it
+// once rather than reactively.
+const isMobileShell = isMobileRuntime();
+
 function goToPreviousPage(): void {
   window.history.back();
 }
@@ -592,8 +629,6 @@ const {
   currentFolder,
   folderTree,
   canOpenFolder,
-  createFolderParentOptions,
-  createFolderDefaultParent,
   isDeletingPendingFolder,
   pendingRenameFolderName,
   isRenamingPendingFolder,
@@ -606,6 +641,9 @@ const {
   requestRenameFolder,
   cancelPendingRenameFolder,
   confirmRenameFolder,
+  pendingNsfwReveal,
+  cancelNsfwReveal,
+  confirmNsfwReveal,
   canTransferFolder,
   transferFolderTarget,
   transferFolderName,
@@ -635,8 +673,17 @@ const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdmin
   useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 // The Android client being read-only is its normal state, not a condition to
-// warn about, so the banner stays reserved for a server in read-only mode.
-const showReadOnlyBanner = computed(() => writeDisabledReason.value === 'server-read-only');
+// warn about, so the banner stays reserved for the two settings an operator
+// chose: a read-only server, and a shelf opened read-only on a writable one.
+const readOnlyBannerKey = computed(() => {
+  if (writeDisabledReason.value === 'server-read-only') {
+    return 'layout.readOnly.banner' as const;
+  }
+  if (writeDisabledReason.value === 'shelf-read-only') {
+    return 'layout.readOnly.shelfBanner' as const;
+  }
+  return null;
+});
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'
@@ -656,6 +703,53 @@ const shelfPicker = useShelfPicker({
     await Promise.all([fetchFolders(), fetchBooks()]);
     await router.push({ path: '/books', query: { page: '1' } });
   }
+});
+
+// The picker names where "manage shelves" points (or null for none); merge the
+// current route query in so the mobile shell-preview flag survives the jump,
+// while the picker's own query (the desktop settings tab) still wins.
+const shelfManageTo = computed<RouteLocationRaw | null>(() => {
+  const to = shelfPicker.manageTo;
+  if (!to || typeof to === 'string') {
+    return to;
+  }
+  return { ...to, query: { ...route.query, ...(to.query ?? {}) } };
+});
+
+// The narrow-viewport top bar shows where the user is instead of the language
+// picker. Most MainLayout routes map to their existing sidebar label; the
+// library route prefers the open folder's leaf name so "which folder" reads
+// literally. A book's detail page is deliberately left out: it already shows
+// its own live title on the page, and mirroring it here would have to read the
+// shared books list, which a rename in the metadata editor does not refresh.
+// Reader and source-edit live on ReaderLayout, so they never reach this bar.
+const ROUTE_LOCATION_LABEL_KEYS: Record<string, string> = {
+  home: 'layout.dashboard',
+  library: 'layout.library',
+  'read-history': 'layout.recentlyRead',
+  trash: 'layout.trash',
+  downloads: 'layout.downloads',
+  'admin-logs': 'layout.adminLogs',
+  settings: 'layout.settings',
+  'duplicate-content': 'maintenance.duplicateContent',
+  'similar-content': 'maintenance.similarContent',
+  'not-found': 'notFound.title'
+};
+
+const currentFolderLeaf = computed(() => {
+  const segments = (currentFolder.value ?? '').split('/').filter((segment) => segment.length > 0);
+  return segments[segments.length - 1] ?? '';
+});
+
+const currentLocationLabel = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : '';
+
+  if (name === 'library' && currentFolderLeaf.value) {
+    return currentFolderLeaf.value;
+  }
+
+  const key = ROUTE_LOCATION_LABEL_KEYS[name];
+  return key ? t(key) : '';
 });
 
 function onLocaleSelect(value: AcceptableValue): void {
@@ -831,22 +925,6 @@ onMounted(async () => {
   gap: 6px;
 }
 
-.create-folder-toggle {
-  background: #f1f5f9;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: #334155;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-}
-
-.create-folder-toggle:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
 .sidebar-folder-error {
   display: grid;
   gap: 8px;
@@ -1011,6 +1089,16 @@ onMounted(async () => {
   display: block;
 }
 
+.topbar-location {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The scrolling content reaches the bottom and side edges of the window, so it
    needs those insets to keep the last row — pagination, the mobile action bar's
    neighbours — clear of the gesture bar and of a landscape cutout. No top
@@ -1019,6 +1107,13 @@ onMounted(async () => {
 .page-area {
   padding: 16px calc(24px + env(safe-area-inset-right, 0px))
     calc(16px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
+}
+
+/* On the mobile shell a fixed bottom tab bar (MobileTabBar) overlays the
+   viewport, so the last row of scrolled content needs room to clear it: the
+   bar's own height plus the bottom inset it already carries. */
+.page-area-tabbar {
+  padding-bottom: calc(var(--mobile-tab-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
 }
 
 .no-shelf-panel {
@@ -1120,7 +1215,25 @@ onMounted(async () => {
       10px calc(12px + env(safe-area-inset-left, 0px));
   }
 
-  .language-select > span {
+  /* Language is a set-once preference; on a narrow screen it moves into the
+     Settings page (its own tab) and the top bar spends that space on the
+     brand-icon-plus-location pairing instead. The brand text collapses to the
+     icon on a platform where the user already knows the app — but stays in the
+     accessibility tree (visually hidden, not display:none) so the <h1> keeps a
+     non-empty accessible name for screen readers. */
+  .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .topbar-controls {
     display: none;
   }
 }

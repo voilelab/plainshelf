@@ -9,24 +9,56 @@ fi
 VERSION_NUM="${1#v}"
 VERSION_TAG="v${VERSION_NUM}"
 
-CASK_FILE="Casks/plainshelf.rb"
-ASSET="plainshelf-desktop_${VERSION_TAG}_darwin_arm64.zip"
-URL="https://github.com/voilelab/plainshelf/releases/download/${VERSION_TAG}/${ASSET}"
+BASE_URL="https://github.com/voilelab/plainshelf/releases/download/${VERSION_TAG}"
+
+# Both casks ship from the same release at the same tag, and the plainshelf
+# cask depends on bookpkg-reader at the matching version, so they are pinned
+# together to keep the pair in sync. Format: "<cask file>:<release asset>".
+CASKS=(
+  "Casks/plainshelf.rb:plainshelf-desktop_${VERSION_TAG}_darwin_arm64.zip"
+  "Casks/bookpkg-reader.rb:bookpkg-reader_${VERSION_TAG}_darwin_arm64.zip"
+)
+
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+sed_inplace() {
+  # BSD sed (macOS) needs an argument to -i; GNU sed does not.
+  if sed --version >/dev/null 2>&1; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
 
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
-echo "Downloading $URL"
-curl -fSL -o "$tmp" "$URL"
+# Download and hash every artifact first, so a failed download (e.g. a
+# transient network error) never leaves one cask rewritten and the other at
+# its old version -- the mismatched pair this script exists to prevent. Only
+# once all hashes are in hand do we rewrite any cask file.
+shas=()
+for entry in "${CASKS[@]}"; do
+  asset="${entry#*:}"
+  url="${BASE_URL}/${asset}"
 
-if [[ "$OSTYPE" == darwin* ]]; then
-  SHA=$(shasum -a 256 "$tmp" | awk '{print $1}')
-  sed -i '' "s/^  version \".*\"/  version \"${VERSION_NUM}\"/" "$CASK_FILE"
-  sed -i '' "s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" "$CASK_FILE"
-else
-  SHA=$(sha256sum "$tmp" | awk '{print $1}')
-  sed -i "s/^  version \".*\"/  version \"${VERSION_NUM}\"/" "$CASK_FILE"
-  sed -i "s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" "$CASK_FILE"
-fi
+  echo "Downloading $url"
+  curl -fSL -o "$tmp" "$url"
+  shas+=("$(sha256_of "$tmp")")
+done
 
-echo "Updated ${CASK_FILE} -> version ${VERSION_NUM}, sha256 ${SHA}"
+for i in "${!CASKS[@]}"; do
+  cask_file="${CASKS[$i]%%:*}"
+  sha="${shas[$i]}"
+
+  sed_inplace "s/^  version \".*\"/  version \"${VERSION_NUM}\"/" "$cask_file"
+  sed_inplace "s/^  sha256 \".*\"/  sha256 \"${sha}\"/" "$cask_file"
+
+  echo "Updated ${cask_file} -> version ${VERSION_NUM}, sha256 ${sha}"
+done

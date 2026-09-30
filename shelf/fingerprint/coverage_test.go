@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// Lookup answers from the loaded index and entries alone: a source that was
-// resolved is found, and anything the cache has no record of is a clean miss.
+// Lookup answers from the loaded index and entries alone.
 func TestFingerprintCacheLookup(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -31,9 +30,8 @@ func TestFingerprintCacheLookup(t *testing.T) {
 	}
 }
 
-// CoverageFor counts coverage from the loaded cache and the book list it is
-// handed without opening a single source.txt - the property the maintenance
-// page's status bar depends on, since it loads on every visit.
+// The maintenance page's status bar loads on every visit, so the count must not
+// open a single source.txt.
 func TestCoverageForReadsNoSources(t *testing.T) {
 	ts := newTestShelf(t)
 	dune := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)

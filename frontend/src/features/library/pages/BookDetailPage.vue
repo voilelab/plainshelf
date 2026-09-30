@@ -46,6 +46,36 @@
         @cancel="cancelDelete"
         @confirm="confirmDelete"
       />
+      <MetaEditorModal
+        v-if="!readOnly"
+        :open="metadataEditorOpen"
+        :book-id="id"
+        @close="closeMetadataEditor"
+        @dirty-change="metadataEditorDirty = $event"
+        @saved="onMetadataSaved"
+      />
+      <ConfirmModal
+        v-if="!readOnly"
+        :open="!!importNoteTarget"
+        variant="danger"
+        :title="t('bookDetail.importNote.confirm.title')"
+        :confirm-text="t('bookDetail.importNote.confirm.confirm')"
+        :busy="removingImportNote"
+        @cancel="cancelRemoveImportNote"
+        @confirm="confirmRemoveImportNote"
+      >
+        <p>{{ t('bookDetail.importNote.confirm.message') }}</p>
+        <p v-if="importNoteError" class="import-note-error" role="alert">{{ importNoteError }}</p>
+      </ConfirmModal>
+      <ConfirmModal
+        :open="showMetadataLeaveConfirmation"
+        :title="t('libraryForms.editBook.discard.title')"
+        :message="t('libraryForms.editBook.discard.message')"
+        :confirm-text="t('libraryForms.editBook.discard.confirm')"
+        :cancel-text="t('libraryForms.editBook.discard.cancel')"
+        @cancel="cancelMetadataLeave"
+        @confirm="confirmMetadataLeave"
+      />
 
       <div v-if="showImportedMessage" class="loading detail-notice" role="status">
         {{ t('bookDetail.messages.imported') }}
@@ -89,7 +119,10 @@
           :progress="progress"
           :current-source="currentSource"
           :chapters="chapters"
+          :read-only="readOnly"
+          :removing-import-note="removingImportNote"
           @select-chapter="goRead(id, $event)"
+          @remove-import-note="requestRemoveImportNote"
         >
           <template #reading>
             <section class="reading-card" :aria-label="t('bookDetail.progress.sectionLabel')">
@@ -137,7 +170,7 @@
                       <DropdownMenuItem
                         v-if="!readOnly"
                         class="reka-menu-item"
-                        @select="goEdit(id)"
+                        @select="openMetadataEditor"
                       >
                         {{ t('bookDetail.actions.editMetadata') }}
                       </DropdownMenuItem>
@@ -178,7 +211,7 @@
                         {{ t('bookDetail.actions.moveTo') }}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        v-if="!readOnly && hasTransferDestinations"
+                        v-if="outgoingCopyEnabled && hasTransferDestinations"
                         class="reka-menu-item"
                         @select="onRequestTransfer"
                       >
@@ -222,7 +255,9 @@ import {
 } from 'reka-ui';
 import BookCover from '@/features/library/components/BookCover.vue';
 import BookDetail from '@/features/library/components/BookDetail.vue';
+import MetaEditorModal from '@/features/library/components/MetaEditorModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
 import TransferBookModal from '@/features/library/components/TransferBookModal.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
@@ -233,17 +268,21 @@ import { getReadingAction, resolveReadingPercent } from '@/features/library/util
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
+import { useSafeBackNavigation } from '@/composables/useSafeBackNavigation';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { booksRouteForFolderPath, getFolderPath } from '@/utils/folders';
 import { useI18n } from '@/i18n';
+import { isBookNsfw, type Book } from '@/types/book';
 
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
-const showSavedMessage = computed(() => route.query.saved === '1');
+const metadataSaved = ref(false);
+const showSavedMessage = computed(() => route.query.saved === '1' || metadataSaved.value);
 const showCopiedMessage = computed(() => route.query.copied === '1');
-const { writesEnabled } = useWriteAccess();
+const { writesEnabled, outgoingCopyEnabled } = useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 const { t } = useI18n();
 
@@ -257,6 +296,47 @@ const {
   error,
   fetchDetail
 } = useBookDetail(() => id.value);
+
+// The note the open dialog is about, captured when it opens. The router reuses
+// this page across /books/:id, so reading the live id on confirm would delete
+// whichever book the user has since navigated to.
+const importNoteTarget = ref<{ bookID: string; sourceID: string } | null>(null);
+const removingImportNote = ref(false);
+const importNoteError = ref('');
+
+function requestRemoveImportNote(): void {
+  const sourceID = currentSource.value?.id;
+  if (!sourceID) return;
+
+  importNoteError.value = '';
+  importNoteTarget.value = { bookID: id.value, sourceID };
+}
+
+function cancelRemoveImportNote(): void {
+  if (removingImportNote.value) return;
+  importNoteTarget.value = null;
+}
+
+// Removal is the only edit the note allows, so there is nothing to save back:
+// the source is re-read afterwards and the row simply stops being rendered.
+async function confirmRemoveImportNote(): Promise<void> {
+  const target = importNoteTarget.value;
+  if (!target || removingImportNote.value) return;
+
+  removingImportNote.value = true;
+  importNoteError.value = '';
+  try {
+    await bookshelfWriter().deleteSourceComment(target.bookID, target.sourceID);
+    await fetchDetail();
+    importNoteTarget.value = null;
+  } catch (err) {
+    importNoteError.value = err instanceof Error && err.message.trim().length > 0
+      ? err.message
+      : t('bookDetail.importNote.removeFailed');
+  } finally {
+    removingImportNote.value = false;
+  }
+}
 
 const {
   downloading,
@@ -282,7 +362,6 @@ const {
   submitTransfer,
   canOpenBookFolder,
   goRead,
-  goEdit,
   openBookFolder,
   downloadBook,
   requestMove,
@@ -311,12 +390,10 @@ const {
   }
 });
 
-// The transfer picker needs at least one shelf other than the active one, so the
-// menu entry stays hidden until the shelf list proves a destination exists.
-const { shelves, selectedShelfID, ensureShelvesLoaded } = useShelvesStore();
-const hasTransferDestinations = computed(() =>
-  shelves.value.some((shelf) => shelf.id !== selectedShelfID.value)
-);
+// The transfer picker needs a shelf that can actually receive the book, so the
+// menu entry stays hidden until the shelf list proves one exists.
+const { transferDestinationShelves, ensureShelvesLoaded } = useShelvesStore();
+const hasTransferDestinations = computed(() => transferDestinationShelves.value.length > 0);
 
 const readingPercent = computed(() => resolveReadingPercent(
   progress.value,
@@ -330,7 +407,14 @@ const readingActionLabel = computed(() => {
   return t(`bookDetail.actions.${readingAction.value === 'reread' ? 'reread' : 'startReading'}`);
 });
 const readingStatusLabel = computed(() => t(`bookDetail.progress.${readingAction.value}`));
-const showManagementMenu = computed(() => !readOnly.value || canOpenBookFolder.value);
+// The menu survives a read-only shelf when it still holds something the shelf
+// allows: opening its folder, or copying the book out to another shelf.
+const showManagementMenu = computed(
+  () =>
+    !readOnly.value ||
+    canOpenBookFolder.value ||
+    (outgoingCopyEnabled.value && hasTransferDestinations.value)
+);
 const restartingRead = ref(false);
 
 async function onReadClick(): Promise<void> {
@@ -405,6 +489,56 @@ const showDownloadRequiredMessage = computed(
 );
 
 const refreshingStats = ref(false);
+const metadataEditorOpen = ref(false);
+const metadataEditorDirty = ref(false);
+const { goBack: goBackFromDetail } = useSafeBackNavigation(() =>
+  book.value ? booksRouteForFolderPath(getFolderPath(book.value)) : '/books'
+);
+const {
+  showDiscardConfirmation: showMetadataLeaveConfirmation,
+  cancelLeave: cancelMetadataLeave,
+  confirmLeave: confirmMetadataLeave
+} = useUnsavedChangesGuard(metadataEditorDirty, { goBack: goBackFromDetail });
+
+function openMetadataEditor(): void {
+  if (readOnly.value) {
+    return;
+  }
+  metadataSaved.value = false;
+  metadataEditorDirty.value = false;
+  metadataEditorOpen.value = true;
+}
+
+function closeMetadataEditor(): void {
+  metadataEditorOpen.value = false;
+  metadataEditorDirty.value = false;
+}
+
+async function onMetadataSaved(updatedBook: Book): Promise<void> {
+  const wasNSFW = book.value !== null && isBookNsfw(book.value);
+
+  // The metadata endpoint returns the complete book. Applying it directly keeps
+  // the detail page, reading progress, chapter expansion, and other modal state
+  // intact while updating every metadata field in the same render cycle.
+  book.value = updatedBook;
+  metadataEditorDirty.value = false;
+  metadataSaved.value = true;
+
+  // Marking a book is the one metadata edit that can take it off this server's
+  // shelf: with `show_nsfw` off the API answers 404 for it from here on, and
+  // the page would otherwise keep rendering a book every later request denies
+  // until something else reloaded it. The list page has this covered by the
+  // full refresh it runs after every save; a detail page has no listing to
+  // re-evaluate, so it re-reads itself.
+  //
+  // Re-reading is also the whole test: with `show_nsfw` on the same request
+  // simply returns the book again, so this needs no opinion about the setting.
+  // A 404 lands on the page's own error state, where an address typed for a
+  // hidden book already lands.
+  if (!wasNSFW && isBookNsfw(updatedBook)) {
+    await fetchDetail();
+  }
+}
 
 async function onRefreshStats(): Promise<void> {
   const src = currentSource.value;
@@ -449,7 +583,9 @@ function onRequestCopy(): void {
 }
 
 function onRequestTransfer(): void {
-  if (readOnly.value || !book.value) {
+  // outgoingCopyEnabled, not readOnly: a read-only shelf still allows the copy
+  // out, and the modal is what withdraws the move.
+  if (!outgoingCopyEnabled.value || !book.value) {
     return;
   }
   requestTransfer(book.value);
@@ -477,6 +613,9 @@ function onRequestDelete(): void {
 }
 
 watch(id, () => {
+  closeMetadataEditor();
+  cancelRemoveImportNote();
+  metadataSaved.value = false;
   dismissActionError();
   void fetchDetail();
   if (offlineDownloadSupported.value) {
@@ -543,6 +682,12 @@ if (!readOnly.value) {
 
 .detail-notice {
   margin-bottom: 18px;
+}
+
+.import-note-error {
+  color: #991b1b;
+  font-size: 13px;
+  margin: 8px 0 0;
 }
 
 .download-required-notice {

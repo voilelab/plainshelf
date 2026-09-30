@@ -1,14 +1,13 @@
 package shelf
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -49,18 +48,16 @@ func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
 	}
 
 	writes := map[string]func() error{
-		"SetMeta":           func() error { return book.SetMeta(book.GetMeta()) },
-		"SetCover":          func() error { return book.SetCover([]byte("png data"), ".png") },
-		"DeleteCover":       func() error { return book.DeleteCover() },
-		"SetCurrentSource":  func() error { return book.SetCurrentSource("20260315-a1") },
-		"NewSource":         func() error { _, err := book.NewSource(nil); return err },
-		"DeleteSource":      func() error { return book.DeleteSource("20260315-a1") },
-		"UpdateContent":     func() error { return source.UpdateContent(strings.NewReader("new text")) },
-		"UpdateComment":     func() error { return source.UpdateComment("comment") },
-		"UpdateHash":        func() error { return source.UpdateHash() },
-		"WriteAsset":        func() error { return source.WriteAsset("img-0001.png", []byte("png data")) },
-		"DeleteAsset":       func() error { return source.DeleteAsset("img-0001.png") },
-		"UpgradeLegacyToV1": func() error { return source.UpgradeLegacyToSchemaV1(BookFormatMarkdown, nil) },
+		"SetMeta":          func() error { return book.SetMeta(book.GetMeta()) },
+		"SetCover":         func() error { return book.SetCover([]byte("png data"), ".png") },
+		"DeleteCover":      func() error { return book.DeleteCover() },
+		"SetCurrentSource": func() error { return book.SetCurrentSource("20260315-a1") },
+		"NewSource":        func() error { _, err := book.NewSource(nil); return err },
+		"DeleteSource":     func() error { return book.DeleteSource("20260315-a1") },
+		"UpdateContent":    func() error { return source.UpdateContent(strings.NewReader("new text")) },
+		"UpdateComment":    func() error { return source.UpdateComment("comment") },
+		"WriteAsset":       func() error { return source.WriteAsset("img-0001.png", []byte("png data")) },
+		"DeleteAsset":      func() error { return source.DeleteAsset("img-0001.png") },
 	}
 
 	for name, write := range writes {
@@ -90,9 +87,7 @@ func TestRefusedSourceWriteLeavesMetaUntouched(t *testing.T) {
 	before := source.GetMeta()
 
 	writes := map[string]func() error{
-		"UpdateComment":     func() error { return source.UpdateComment("comment that cannot be stored") },
-		"UpdateHash":        func() error { return source.UpdateHash() },
-		"UpgradeLegacyToV1": func() error { return source.UpgradeLegacyToSchemaV1(BookFormatMarkdown, nil) },
+		"UpdateComment": func() error { return source.UpdateComment("comment that cannot be stored") },
 	}
 
 	for name, write := range writes {
@@ -242,7 +237,7 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 			s.Close()
 		}
 	})
-	if err := s.WaitReady(context.Background()); err != nil {
+	if err := s.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady: %v", err)
 	}
 	if !s.ReadOnly() {
@@ -347,7 +342,7 @@ func snapshotDiff(before, after map[string]string) string {
 			lines = append(lines, fmt.Sprintf("- %s", pth))
 		}
 	}
-	sort.Strings(lines)
+	slices.Sort(lines)
 	return strings.Join(lines, "\n")
 }
 
@@ -373,10 +368,10 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 		"MoveBook":           func() error { _, err := s.MoveBook(bookID, FolderPath{"moved"}); return err },
 		"CopyBook":           func() error { _, err := s.CopyBook(bookID, FolderPath{"copied"}); return err },
 		"DeleteBook":         func() error { return s.DeleteBook(bookID) },
-		"NewFolder":           func() error { return s.NewFolder(FolderPath{}, "added") },
-		"DeleteFolder":        func() error { return s.DeleteFolder(FolderPath{"fiction"}) },
-		"RenameFolder":        func() error { return s.RenameFolder(FolderPath{"fiction"}, "renamed") },
-		"MoveFolder":          func() error { return s.MoveFolder(FolderPath{"fiction"}, FolderPath{}) },
+		"NewFolder":          func() error { return s.NewFolder(FolderPath{}, "added") },
+		"DeleteFolder":       func() error { return s.DeleteFolder(FolderPath{"fiction"}) },
+		"RenameFolder":       func() error { return s.RenameFolder(FolderPath{"fiction"}, "renamed") },
+		"MoveFolder":         func() error { return s.MoveFolder(FolderPath{"fiction"}, FolderPath{}) },
 		"RestoreTrashedBook": func() error { return s.RestoreTrashedBook(bookID) },
 		"DeleteTrashedBook":  func() error { return s.DeleteTrashedBook(bookID) },
 		"Book.SetMeta":       func() error { return book.SetMeta(book.GetMeta()) },

@@ -1,14 +1,13 @@
 package shelf
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"path"
 	"strings"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
@@ -25,7 +24,7 @@ const MaxBookIDCreationAttempts = 10
 
 func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	for range MaxTempDirCreationAttempts {
-		tmpDirName := fmt.Sprintf("%s-%s-%s", prefix, time.Now().Format("20060102-150405"), shelfutil.RandomString(6))
+		tmpDirName := fmt.Sprintf("%s-%s-%s", prefix, time.Now().Format("20060102-150405"), fsutil.RandomString(6))
 		err := root.Mkdir(tmpDirName)
 		if err == nil {
 			return tmpDirName, nil
@@ -35,20 +34,16 @@ func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	return "", util.NewError("failed to create temp directory after multiple attempts")
 }
 
-// copyTreeAcross recursively copies the tree rooted at src in srcRoot onto dst in
-// dstRoot, reproducing every file and subdirectory. dst is created if it does not
-// exist. The two roots may be the same filesystem (a same-shelf copy) or two
-// different ones: a book copied whole stays self-contained, so the relative asset
-// paths a source records need no rewriting, which is what lets a book move between
-// two shelves - including across a filesystem boundary that os.Rename cannot
-// cross.
+// copyTreeAcross copies the tree rooted at src onto dst, creating dst if needed.
+// The two roots may be one filesystem or two: a book copied whole stays
+// self-contained, so the relative asset paths a source records need no
+// rewriting, which is what lets a book cross a boundary os.Rename cannot.
 //
-// Whether a child is a directory is decided by Stat, not by the directory
-// entry's own type, so that a symlinked directory is descended into and copied
-// as a real one - the same way the shelf scanner (scancache.ChildIsDir) treats
-// it. A
-// listing reports a symlink as a non-directory, but opening it as a file fails,
-// so keying the copy on the entry type would break a package that holds one.
+// Whether a child is a directory is decided by Stat rather than by the entry's
+// own type, so a symlinked directory is descended into and copied as a real one
+// — the same way scancache.ChildIsDir treats it. A listing reports a symlink as
+// a non-directory but opening it as a file fails, so keying on the entry type
+// would break a package that holds one.
 func copyTreeAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst string) error {
 	info, err := srcRoot.Stat(src)
 	if err != nil {
@@ -109,18 +104,33 @@ func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst st
 var ErrInvalidFolder = util.NewError("invalid folder name")
 
 // ErrIgnoredFolderName is the ErrInvalidFolder case where the name is well formed
-// but names a directory the scanners skip. It wraps ErrInvalidFolder, so callers
-// that only classify folder errors keep matching it, while the API can tell this
-// reason apart and explain it: a user filing an existing "@eaDir" under
-// PlainShelf is not making a typo, they are hitting a deliberate rule.
-var ErrIgnoredFolderName = util.Errorf("%w: hidden or system directory name", ErrInvalidFolder)
+// but names a directory this shelf's scanners skip. It wraps ErrInvalidFolder so
+// callers that only classify folder errors keep matching it, while the API can
+// tell this reason apart: a user filing an existing "@eaDir" under PlainShelf is
+// not making a typo, they are hitting a rule this shelf may have chosen.
+var ErrIgnoredFolderName = util.Errorf("%w: directory name the shelf scanners skip", ErrInvalidFolder)
+
+// IgnoredFolderNameError carries the two things the user needs: which segment
+// was refused, and why that name is skipped. The reason comes from the shelf's
+// own rules, so the API turns this into its message rather than listing names
+// that may not be the ones this shelf uses.
+type IgnoredFolderNameError struct {
+	Folder string
+	Reason string
+}
+
+func (e *IgnoredFolderNameError) Error() string {
+	if e.Reason == "" {
+		return fmt.Sprintf("%s %q", ErrIgnoredFolderName, e.Folder)
+	}
+	return fmt.Sprintf("%s %q: %s", ErrIgnoredFolderName, e.Folder, e.Reason)
+}
+
+func (e *IgnoredFolderNameError) Unwrap() error { return ErrIgnoredFolderName }
 
 func validateFolderPath(folders FolderPath) error {
 	for _, folder := range folders {
-		if err := shelfutil.ValidatePathSegment(folder); err != nil {
-			if errors.Is(err, shelfutil.ErrIgnoredPathSegment) {
-				return util.Errorf("%w %q: %w", ErrIgnoredFolderName, folder, err)
-			}
+		if err := shelfutil.ValidateFolderSegment(folder); err != nil {
 			return util.Errorf("%w %q: %w", ErrInvalidFolder, folder, err)
 		}
 		if strings.Contains(folder, bookExtension) {
@@ -130,33 +140,20 @@ func validateFolderPath(folders FolderPath) error {
 	return nil
 }
 
-// ValidateFolderPath reports whether every folder path segment is safe to use.
-// API handlers use this before scheduling background work so malformed batch
-// requests fail synchronously rather than becoming failed worker tasks.
-func ValidateFolderPath(folders FolderPath) error {
-	return validateFolderPath(folders)
-}
-
 // newBookID draws a random book ID as a version 4 UUID.
 //
-// The ID is opaque: generated once at creation, persisted in book.json, and
-// never recomputed, so renaming the title, moving the book, or restoring it
-// from trash all leave it alone. Older builds derived it from folders and title,
-// which read as if it could be recomputed and gave two books the same ID
+// The ID is opaque: generated once, persisted in book.json, and never
+// recomputed, so a retitle, a move or a restore from trash all leave it alone.
+// Older builds derived it from folders and title, which gave two books one ID
 // whenever they shared a folder path and title — routine on a shared shelf.
 //
-// A v4 UUID's 122 random bits make the ID unique on its own rather than by
-// agreement: the creation-time collision probe cannot see a book another
-// machine just wrote into a shared shelf, or one copied in with a file manager,
-// so the ID has to stand alone. Its canonical form is lowercase hex with
-// hyphens, which survives a case-insensitive filesystem (the trash names a
-// folder after the book ID) and sits in a URL path without escaping.
-func newBookID() (string, error) {
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	return id.String(), nil
+// A v4 UUID's 122 random bits make it unique on its own rather than by
+// agreement: the creation-time probe cannot see a book another machine just
+// wrote into a shared shelf. Lowercase hex with hyphens survives a
+// case-insensitive filesystem (the trash names a folder after the ID) and sits
+// in a URL path without escaping.
+func newBookID() string {
+	return uuid.NewV4().String()
 }
 
 // validateBookID reports whether a caller-supplied ID is usable as one.

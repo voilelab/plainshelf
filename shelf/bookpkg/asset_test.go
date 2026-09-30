@@ -9,9 +9,8 @@ import (
 	"testing"
 )
 
-// writeAsset places a file under a source's assets/ directory the way a user
-// dropping an illustration into the shelf by hand would, bypassing WriteAsset
-// so the read path is exercised against a file it did not write itself.
+// writeAsset bypasses WriteAsset, so the read path is exercised against a file
+// dropped into the shelf by hand.
 func writeAsset(t *testing.T, libRoot string, source *Source, name string, data []byte) string {
 	t.Helper()
 
@@ -27,9 +26,6 @@ func writeAsset(t *testing.T, libRoot string, source *Source, name string, data 
 	return assetPath
 }
 
-// newBookWithSource returns a book carrying one source, that source, and the
-// on-disk library path the book lives under, which the asset assertions stat
-// directly.
 func newBookWithSource(t *testing.T, title, content string) (*Book, *Source, string) {
 	t.Helper()
 
@@ -111,8 +107,8 @@ func TestSourceWriteAsset(t *testing.T) {
 	}
 }
 
-// A name the read path would refuse must never reach the filesystem: writing it
-// would create a file the server can never serve.
+// Writing a name the read path would refuse would create a file the server can
+// never serve.
 func TestSourceWriteAssetRejectsUnsafeNames(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "Unsafe Writes", "body")
 
@@ -144,8 +140,7 @@ func TestSourceDeleteAsset(t *testing.T) {
 		t.Fatalf("OpenAsset after delete: error = %v, want ErrAssetNotFound", err)
 	}
 
-	// An asset is addressed by name, so deleting one that is not there is a
-	// miss rather than a quiet success: it would otherwise hide a typo.
+	// A quiet success would hide a typo.
 	if err := source.DeleteAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
 		t.Fatalf("second DeleteAsset: error = %v, want ErrAssetNotFound", err)
 	}
@@ -156,8 +151,7 @@ func TestSourceDeleteAsset(t *testing.T) {
 		}
 	}
 
-	// Deleting an illustration leaves the text alone; a link to it renders as
-	// alt text rather than the prose being rewritten underneath the reader.
+	// The text is left alone; a dead link renders as its alt text.
 	content, err := os.ReadFile(path.Join(libRoot, source.FolderPath(), SourceFile))
 	if err != nil {
 		t.Fatalf("read source.txt: %v", err)
@@ -170,8 +164,7 @@ func TestSourceDeleteAsset(t *testing.T) {
 func TestSourceOpenAssetMissing(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "No Pictures", "body")
 
-	// Neither an absent assets/ directory nor an absent file inside one is a
-	// server fault; both must be reported as a missing asset.
+	// Neither an absent assets/ directory nor an absent file is a server fault.
 	if _, err := source.OpenAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
 		t.Fatalf("OpenAsset with no assets dir: error = %v, want ErrAssetNotFound", err)
 	}
@@ -183,8 +176,7 @@ func TestSourceOpenAssetMissing(t *testing.T) {
 	}
 }
 
-// A name that resolves to a directory must read as a missing asset rather than
-// surfacing the read failure as a server error.
+// A name resolving to a directory is a missing asset, not a server error.
 func TestSourceOpenAssetRejectsDirectory(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "Directory Trap", "body")
 
@@ -205,9 +197,8 @@ func TestSourceOpenAssetRejectsUnsafeNames(t *testing.T) {
 	// assets/ directory happening to answer the same way.
 	writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))
 
-	// The text file sits beside assets/, one level up: the traversal cases
-	// below name a file that genuinely exists, so a passing test proves the
-	// name was refused rather than merely missing its target.
+	// source.txt sits one level up, so the traversal cases below name a file
+	// that genuinely exists: a pass proves refusal, not a missing target.
 	cases := map[string]string{
 		"empty":              "",
 		"dot":                ".",
@@ -265,10 +256,7 @@ func TestSourceAssetETagTracksContent(t *testing.T) {
 }
 
 // validateAssetName shares the ignored-name rule with layer and source-id
-// validation through shelfutil, but must wrap it in the asset sentinel: an
-// ignored directory name used as an asset reads as ErrInvalidAssetName. The
-// package split makes the domain separation structural — bookpkg cannot even
-// name the shelf's layer sentinels — but the positive case still needs pinning.
+// validation through shelfutil, but must report it as ErrInvalidAssetName.
 func TestIgnoredAssetNamesStayAssetErrors(t *testing.T) {
 	err := validateAssetName("@eaDir")
 	if !errors.Is(err, ErrInvalidAssetName) {
@@ -307,9 +295,7 @@ func TestSourceListAssets(t *testing.T) {
 	writeAsset(t, libRoot, source, "img-0002.png", []byte("two"))
 	writeAsset(t, libRoot, source, "img-0001.webp", []byte("one"))
 
-	// A file the read path could not serve is excluded, so the list is exactly
-	// what a per-name request could open: a non-image extension, a hidden file,
-	// and a sub-directory are all skipped.
+	// The list is exactly what a per-name request could open.
 	writeAsset(t, libRoot, source, "notes.txt", []byte("prose"))
 	writeAsset(t, libRoot, source, ".hidden.png", []byte("dot"))
 	subDir := path.Join(libRoot, source.FolderPath(), SourceAssetsFolder, "nested")
@@ -322,7 +308,6 @@ func TestSourceListAssets(t *testing.T) {
 		t.Fatalf("ListAssets: %v", err)
 	}
 
-	// Sorted, and only the two servable images.
 	want := []string{"img-0001.webp", "img-0002.png"}
 	if len(names) != len(want) {
 		t.Fatalf("ListAssets = %v, want %v", names, want)
@@ -334,8 +319,7 @@ func TestSourceListAssets(t *testing.T) {
 	}
 }
 
-// Deleting a source takes its assets with it. This is the property that makes
-// a separate orphan-collection pass unnecessary.
+// The property that makes a separate orphan-collection pass unnecessary.
 func TestDeleteSourceRemovesItsAssets(t *testing.T) {
 	book, source, libRoot := newBookWithSource(t, "Doomed Art", "body")
 	assetPath := writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))
@@ -349,8 +333,7 @@ func TestDeleteSourceRemovesItsAssets(t *testing.T) {
 	}
 }
 
-// An assets/ directory must be inert to the code that walks a book's sources: it
-// is not a source, and it must not stop the book from listing the real one.
+// An assets/ directory must not stop the book from listing its real source.
 func TestAssetsDirIsNotMistakenForASource(t *testing.T) {
 	book, source, libRoot := newBookWithSource(t, "One Source Only", "body")
 	writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))

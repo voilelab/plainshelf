@@ -2,13 +2,15 @@ package shelf
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"log"
 	"os"
 	"path"
 	"testing"
 	"time"
+
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
 func TestShelfNewShelf(t *testing.T) {
@@ -79,11 +81,36 @@ func TestShelfRuntimeStateAndScanInterval(t *testing.T) {
 	if bookCheckInterval != 3*time.Minute {
 		t.Fatalf("book check interval = %v, want %v", bookCheckInterval, 3*time.Minute)
 	}
+
+	if err := shelf.SetBookCheckInterval("invalid"); err == nil {
+		t.Fatal("SetBookCheckInterval accepted an invalid duration")
+	}
+	if err := shelf.SetBookCheckInterval("5m"); err != nil {
+		t.Fatalf("SetBookCheckInterval(5m): %v", err)
+	}
+	shelf.bookCache.RLock()
+	bookCheckInterval = shelf.bookCache.bookCheckInterval
+	shelf.bookCache.RUnlock()
+	if bookCheckInterval != 5*time.Minute {
+		t.Fatalf("book check interval = %v, want %v", bookCheckInterval, 5*time.Minute)
+	}
+
+	// An empty value falls back to whichever scan interval is in effect now
+	// (a minute, set above), not the 3m it was opened with.
+	if err := shelf.SetBookCheckInterval(""); err != nil {
+		t.Fatalf("SetBookCheckInterval(default): %v", err)
+	}
+	shelf.bookCache.RLock()
+	bookCheckInterval = shelf.bookCache.bookCheckInterval
+	shelf.bookCache.RUnlock()
+	if bookCheckInterval != time.Minute {
+		t.Fatalf("book check interval after default = %v, want %v", bookCheckInterval, time.Minute)
+	}
 }
 
 func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	shelf := &Shelf{readyCh: make(chan struct{})}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if err := shelf.WaitReady(ctx); !errors.Is(err, context.Canceled) {
@@ -94,9 +121,6 @@ func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	}
 	if _, err := shelf.GetBook("book"); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("GetBook error = %v, want ErrShelfInitializing", err)
-	}
-	if _, err := shelf.GetBooksByFolder(nil); !errors.Is(err, ErrShelfInitializing) {
-		t.Fatalf("GetBooksByFolder error = %v, want ErrShelfInitializing", err)
 	}
 	// The folder tree comes from the same cache, so an empty list before the
 	// first scan would read as "no folders" instead of "not scanned yet".
@@ -204,10 +228,7 @@ func TestShelfGetAllFolders(t *testing.T) {
 func TestShelfGetBookByFolder(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: path.Join("testdata", "lib")})
 
-	books, err := shelf.GetBooksByFolder([]string{"default", "test"})
-	if err != nil {
-		t.Fatalf("Failed to get book by layer: %v", err)
-	}
+	books := booksInFolder(t, shelf, FolderPath{"default", "test"})
 
 	if len(books) != 1 {
 		t.Fatalf("Expected 1 book in layer 'default/test', got %d", len(books))
@@ -364,18 +385,12 @@ func TestShelfMoveBook(t *testing.T) {
 		t.Errorf("Expected book title 'Book to Move', got '%s'", movedBook.Title())
 	}
 
-	booksInFolder1, err := shelf.GetBooksByFolder([]string{"layer1"})
-	if err != nil {
-		t.Fatalf("Failed to get books in layer1: %v", err)
-	}
+	booksInFolder1 := booksInFolder(t, shelf, FolderPath{"layer1"})
 	if len(booksInFolder1) != 0 {
 		t.Errorf("Expected 0 books in layer1 after move, got %d", len(booksInFolder1))
 	}
 
-	booksInFolder2, err := shelf.GetBooksByFolder([]string{"layer2"})
-	if err != nil {
-		t.Fatalf("Failed to get books in layer2: %v", err)
-	}
+	booksInFolder2 := booksInFolder(t, shelf, FolderPath{"layer2"})
 	if len(booksInFolder2) != 1 {
 		t.Errorf("Expected 1 book in layer2 after move, got %d", len(booksInFolder2))
 	}
@@ -397,18 +412,12 @@ func TestShelfRenameFolder(t *testing.T) {
 		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInOld, err := shelf.GetBooksByFolder([]string{"oldlayer"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder(oldlayer) failed: %v", err)
-	}
+	booksInOld := booksInFolder(t, shelf, FolderPath{"oldlayer"})
 	if len(booksInOld) != 0 {
 		t.Errorf("Expected 0 books in oldlayer after rename, got %d", len(booksInOld))
 	}
 
-	booksInNew, err := shelf.GetBooksByFolder([]string{"newlayer"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder(newlayer) failed: %v", err)
-	}
+	booksInNew := booksInFolder(t, shelf, FolderPath{"newlayer"})
 	if len(booksInNew) != 1 {
 		t.Fatalf("Expected 1 book in newlayer after rename, got %d", len(booksInNew))
 	}
@@ -430,10 +439,7 @@ func TestShelfRenameFolderNested(t *testing.T) {
 		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInNew, err := shelf.GetBooksByFolder([]string{"parent", "renamed"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder failed: %v", err)
-	}
+	booksInNew := booksInFolder(t, shelf, FolderPath{"parent", "renamed"})
 	if len(booksInNew) != 1 {
 		t.Fatalf("Expected 1 book in parent/renamed, got %d", len(booksInNew))
 	}
@@ -458,18 +464,12 @@ func TestShelfRenameFolderStaysUnderSameParent(t *testing.T) {
 		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInNew, err := shelf.GetBooksByFolder([]string{"alpha", "delta"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder failed: %v", err)
-	}
+	booksInNew := booksInFolder(t, shelf, FolderPath{"alpha", "delta"})
 	if len(booksInNew) != 1 || booksInNew[0].ID() != book.ID() {
 		t.Fatalf("Expected book in alpha/delta, got %#v", booksInNew)
 	}
 
-	booksElsewhere, err := shelf.GetBooksByFolder([]string{"gamma", "delta"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder failed: %v", err)
-	}
+	booksElsewhere := booksInFolder(t, shelf, FolderPath{"gamma", "delta"})
 	if len(booksElsewhere) != 0 {
 		t.Fatalf("book unexpectedly landed under a different parent: %#v", booksElsewhere)
 	}
@@ -491,10 +491,7 @@ func TestShelfMoveFolderUnderExistingFolder(t *testing.T) {
 		t.Fatalf("MoveFolder failed: %v", err)
 	}
 
-	booksInNew, err := shelf.GetBooksByFolder([]string{"gamma", "beta"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder failed: %v", err)
-	}
+	booksInNew := booksInFolder(t, shelf, FolderPath{"gamma", "beta"})
 	if len(booksInNew) != 1 || booksInNew[0].ID() != book.ID() {
 		t.Fatalf("Expected book in gamma/beta, got %#v", booksInNew)
 	}
@@ -588,7 +585,7 @@ func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 	}
 	meta.Title = "Book Title Updated On Disk"
 
-	updatedMetaBytes, err := json.MarshalIndent(meta, "", "  ")
+	updatedMetaBytes, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("Failed to marshal updated book meta: %v", err)
 	}
@@ -635,7 +632,7 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 		t.Fatalf("Failed to unmarshal existing book meta: %v", err)
 	}
 	meta.Title = "List Refresh Title"
-	updatedMetaBytes, err := json.MarshalIndent(meta, "", "  ")
+	updatedMetaBytes, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("Failed to marshal existing book meta: %v", err)
 	}
@@ -650,7 +647,7 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 	}
 
 	newMeta := BookMeta{ID: "book-new", Title: "Brand New Book", Language: "en"}
-	newMetaBytes, err := json.MarshalIndent(newMeta, "", "  ")
+	newMetaBytes, err := json.Marshal(newMeta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("Failed to marshal new book meta: %v", err)
 	}

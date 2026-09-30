@@ -1,12 +1,13 @@
 package logutil
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,6 +25,14 @@ const (
 	LogFileTypeNameRotate LogFileType = "filename_rotate"
 )
 
+// logDateLayout is the date stamp a rotated file carries in its name.
+const logDateLayout = "2006-01-02"
+
+// DefaultRetentionDays is how long rotated log files are kept when the
+// configuration does not say. Logs are written on every request and nothing
+// else ever deletes them, so an unconfigured deployment needs a bound.
+const DefaultRetentionDays = 30
+
 type LogFileConf struct {
 	// Type specifies the type of log file.
 	// Valid values are "stderr", "stdout", "none", "filename", and "filename_rotate". Default is "stderr".
@@ -35,6 +44,29 @@ type LogFileConf struct {
 	// Dir and Prefix are used when Type is "filename_rotate".
 	Dir    string `yaml:"dir"`
 	Prefix string `yaml:"prefix"`
+
+	// RetentionDays is how many days of rotated files to keep, and is used
+	// when Type is "filename_rotate". Unset applies DefaultRetentionDays;
+	// 0 keeps every file forever. Expired files are removed when the writer
+	// rotates, so nothing is deleted while the server is idle.
+	RetentionDays *int `yaml:"retention_days"`
+
+	// Retention, when set, overrides RetentionDays while the server runs. It
+	// is how the log-retention setting reaches a writer that was built before
+	// the setting could be read, and is shared by every logger an app builds
+	// so one change reaches all of them. It is not configuration and is never
+	// read from YAML.
+	Retention *Retention `yaml:"-"`
+}
+
+// ResolvedRetentionDays is the window this configuration alone names, treating
+// unset as the default. The runtime override in Retention, when present, wins
+// over it.
+func (conf LogFileConf) ResolvedRetentionDays() int {
+	if conf.RetentionDays == nil {
+		return DefaultRetentionDays
+	}
+	return *conf.RetentionDays
 }
 
 type LogFile struct {
@@ -54,6 +86,11 @@ type Entry struct {
 	Filename string `json:"filename"`
 	Date     string `json:"date"`
 
+	// Size is the file size in bytes. The log viewer reads a bounded tail of
+	// the file, so it needs the full size to know that what it holds is only
+	// the end of a larger file.
+	Size int64 `json:"size"`
+
 	path string
 }
 
@@ -72,7 +109,17 @@ func NewLogFile(conf LogFileConf) (*LogFile, error) {
 		}
 		return &LogFile{conf: &conf, writer: fp, fp: fp}, nil
 	case LogFileTypeNameRotate:
-		writer := NewDailyFileWriter(conf.Dir, conf.Prefix)
+		// Without a dir the writer would fail its first MkdirAll, and slog
+		// discards a handler's error, so the loss would be silent. There is no
+		// safe default: the working directory is wherever the server happened
+		// to be started from.
+		if strings.TrimSpace(conf.Dir) == "" {
+			return nil, util.Errorf("missing log dir: %s requires dir", LogFileTypeNameRotate)
+		}
+		if conf.RetentionDays != nil && *conf.RetentionDays < 0 {
+			return nil, util.Errorf("invalid log retention days: %d", *conf.RetentionDays)
+		}
+		writer := NewDailyFileWriter(conf)
 		return &LogFile{conf: &conf, writer: writer}, nil
 	default:
 		return nil, util.Errorf("invalid log file type: %s", conf.Type)
@@ -92,10 +139,6 @@ func (lf *LogFile) Close() error {
 		}
 	}
 	return nil
-}
-
-func ListLogFiles(conf LogFileConf) ([]Entry, error) {
-	return listLogFilesForSource("", conf)
 }
 
 func ListLogFilesForSources(confs []SourceConf) ([]Entry, error) {
@@ -148,10 +191,9 @@ func listLogFilesForSource(source string, conf LogFileConf) ([]Entry, error) {
 }
 
 func listRotatedLogFiles(source string, conf LogFileConf) ([]Entry, error) {
+	// The dir is used exactly as the writer uses it: a default here and none
+	// there would send the reader looking somewhere nothing was ever written.
 	dir := conf.Dir
-	if dir == "" {
-		dir = "."
-	}
 	prefix := conf.Prefix
 	if prefix == "" {
 		prefix = "log"
@@ -181,11 +223,18 @@ func listRotatedLogFiles(source string, conf LogFileConf) ([]Entry, error) {
 		}
 
 		date := strings.TrimSuffix(strings.TrimPrefix(name, prefixPart), ".log")
-		if _, err := time.Parse("2006-01-02", date); err != nil {
+		if _, err := time.Parse(logDateLayout, date); err != nil {
 			continue
 		}
 
-		logs = append(logs, newEntry(source, name, date, filepath.Join(dir, name)))
+		info, err := entry.Info()
+		if err != nil {
+			// The file went away between the read and the stat, which a
+			// rotation cleanup can do; it is simply no longer listable.
+			continue
+		}
+
+		logs = append(logs, newEntry(source, name, date, filepath.Join(dir, name), info.Size()))
 	}
 
 	sortEntries(logs)
@@ -208,15 +257,16 @@ func listNamedLogFile(source string, conf LogFileConf) ([]Entry, error) {
 		return []Entry{}, nil
 	}
 
-	return []Entry{newEntry(source, filepath.Base(conf.Filename), info.ModTime().Format("2006-01-02"), conf.Filename)}, nil
+	return []Entry{newEntry(source, filepath.Base(conf.Filename), info.ModTime().Format(logDateLayout), conf.Filename, info.Size())}, nil
 }
 
-func newEntry(source, filename, date, path string) Entry {
+func newEntry(source, filename, date, path string, size int64) Entry {
 	return Entry{
 		ID:       makeEntryID(source, path),
 		Source:   source,
 		Filename: filename,
 		Date:     date,
+		Size:     size,
 		path:     cleanLogPath(path),
 	}
 }
@@ -235,16 +285,12 @@ func cleanLogPath(path string) string {
 }
 
 func sortEntries(logs []Entry) {
-	sort.Slice(logs, func(i, j int) bool {
-		if logs[i].Date != logs[j].Date {
-			return logs[i].Date > logs[j].Date
-		}
-		if logs[i].Filename != logs[j].Filename {
-			return logs[i].Filename < logs[j].Filename
-		}
-		if logs[i].Source != logs[j].Source {
-			return logs[i].Source < logs[j].Source
-		}
-		return logs[i].ID < logs[j].ID
+	slices.SortFunc(logs, func(a, b Entry) int {
+		return cmp.Or(
+			cmp.Compare(b.Date, a.Date),
+			cmp.Compare(a.Filename, b.Filename),
+			cmp.Compare(a.Source, b.Source),
+			cmp.Compare(a.ID, b.ID),
+		)
 	})
 }

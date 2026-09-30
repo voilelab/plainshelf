@@ -6,21 +6,30 @@ import { getShell } from '@/providers/shell';
 export interface ShelfInfo {
   id: string;
   name: string;
+
+  /**
+   * Whether this shelf refuses writes. It exists so the UI can drop the write
+   * affordances a read-only shelf has no use for; the server still answers 409
+   * either way, so this is never the gate.
+   *
+   * Absent means writable: an older server that does not send the field is the
+   * one that had no read-only shelves to describe.
+   */
+  readOnly?: boolean;
 }
 
 const mockShelves: ShelfInfo[] = [
   {
     id: 'default_shelf',
-    name: 'Default Shelf'
+    name: 'Default Shelf',
+    readOnly: false
   }
 ];
 
 /**
- * Enumerates the shelves a PlainShelf server offers.
- *
  * Separate from listShelves() because the mobile shelf-entry form has to ask a
- * server the user is still typing in which shelves it has, which is the one
- * place that must not collapse to the active entry.
+ * server the user is still typing in which shelves it has — the one place that
+ * must not collapse to the active entry.
  */
 export async function listServerShelves(): Promise<ShelfInfo[]> {
   if (isMockApiMode()) {
@@ -44,7 +53,10 @@ export async function listServerShelves(): Promise<ShelfInfo[]> {
         return [];
       }
 
-      return [{ id, name }];
+      // Defaulted rather than required: a server predating the field describes
+      // shelves it never opened read-only, and treating those as read-only
+      // would hide every write button against a shelf that accepts writes.
+      return [{ id, name, readOnly: shelf.read_only === true }];
     });
 }
 
@@ -68,7 +80,7 @@ const SCAN_TIMEOUT_MS = 300_000;
 /**
  * What one shelf rescan found.
  */
-export interface ShelfScanResult {
+interface ShelfScanResult {
   bookCount: number;
   folderCount: number;
 }
@@ -88,16 +100,26 @@ export class ShelfScanInProgressError extends Error {
 }
 
 /**
- * Walks the shelf now and rebuilds the server's book cache, reporting what it
- * found.
+ * Thrown when this client asked for walks faster than the server performs them.
+ * Distinct from {@link ShelfScanInProgressError}, which ends on its own: this
+ * one is about the pace of the asking.
+ */
+export class ShelfScanRateLimitedError extends Error {
+  readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number) {
+    super('Rescans of this shelf are being requested too quickly.');
+    this.name = 'ShelfScanRateLimitedError';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
+ * The answer to "I put a book in the folder and it is not there": the server
+ * discovers external changes on its own only every `scan_interval`, and an SMB
+ * or cloud mount sends no change notification.
  *
- * This is the answer to "I put a book in the folder and it is not there": the
- * server discovers external changes on its own only every `scan_interval`, and
- * on an SMB or cloud-mounted shelf there is no change notification that could
- * make it sooner.
- *
- * A POST that writes nothing, which is why it is marked `readOnlySafe` — a
- * read-only server accepts it, and so does the mobile shell.
+ * A POST that writes nothing, hence `readOnlySafe`.
  */
 export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
   if (isMockApiMode()) {
@@ -106,11 +128,22 @@ export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
     return { bookCount: mockListBooks(1, Number.MAX_SAFE_INTEGER).total, folderCount: getMockFolders().length };
   }
 
-  const res = await fetchJson<{ scan_id?: string; book_count?: number; folder_count?: number }>(
+  const res = await fetchJson<{
+    scan_id?: string;
+    book_count?: number;
+    folder_count?: number;
+    retry_after_seconds?: number;
+  }>(
     buildShelfApiPath('/scans', shelfID),
     { method: 'POST' },
-    { readOnlySafe: true, acceptStatuses: [409], timeoutMs: SCAN_TIMEOUT_MS }
+    { readOnlySafe: true, acceptStatuses: [409, 429], timeoutMs: SCAN_TIMEOUT_MS }
   );
+
+  // Checked before the counts, because the 429 body has none either and would
+  // otherwise be reported as a walk that is running when none is.
+  if (res?.retry_after_seconds !== undefined) {
+    throw new ShelfScanRateLimitedError(res.retry_after_seconds);
+  }
 
   // The 409 body carries only the running walk's ID; the counts are absent
   // because they belong to a walk this request did not perform.
@@ -125,12 +158,10 @@ export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
 }
 
 /**
- * Rewrites the shelf's exported book cache now, and reports when the shelf was
- * walked (epoch seconds).
- *
- * The server refreshes that file on its own schedule; this is for a user who
- * has just changed something and does not want to wait before a phone reading
- * the same shelf from cloud storage sees it.
+ * Rewrites the exported book cache now, reporting when the shelf was walked
+ * (epoch seconds). The server refreshes it on its own schedule; this is for a
+ * user who does not want to wait before a phone reading the same shelf from
+ * cloud storage sees the change.
  */
 export async function exportShelfBookCache(shelfID?: string): Promise<number> {
   if (isMockApiMode()) {

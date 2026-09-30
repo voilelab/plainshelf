@@ -1,4 +1,5 @@
 import type { ComputedRef, Ref } from 'vue';
+import type { RouteLocationRaw } from 'vue-router';
 
 export interface ShelfPickerItem {
   id: string;
@@ -23,7 +24,14 @@ export interface ShelfPicker {
   loading: Ref<boolean>;
   error: ComputedRef<string>;
   placeholder: ComputedRef<string>;
-  /** Whether the picker offers a link out to shelf management. */
-  managed: boolean;
+  /**
+   * Where the "manage shelves" link points, or null when this shell offers no
+   * such link. The mobile shell sends it to the connection page; the desktop
+   * build sends it to the settings shelves tab so a first-time user reaches
+   * shelf management without opening settings and hunting for the tab. The
+   * layout merges the current route query into it (preserving the mobile
+   * shell-preview flag).
+   */
+  manageTo: RouteLocationRaw | null;
   select: (id: string) => Promise<void>;
 }

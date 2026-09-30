@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
 import Icons from 'unplugin-icons/vite';
 
@@ -9,6 +9,11 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
+  },
+  // PSW-76: `default` keeps Vitest's own output; the second reporter appends the
+  // ten slowest cases so a slowdown is readable at the tail of the CI log.
+  test: {
+    reporters: ['default', './scripts/slowest-tests-reporter.mjs']
   },
   server: {
     port: 5173,

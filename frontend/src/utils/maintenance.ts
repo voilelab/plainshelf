@@ -1,10 +1,10 @@
 import type { SidebarNavIconName } from '@/types/sidebarNavIcon';
 
-export type MaintenanceNavKey = 'duplicate-content' | 'similar-content';
+type MaintenanceNavKey = 'duplicate-content' | 'similar-content';
 
-export type MaintenanceNavIcon = Extract<MaintenanceNavKey, SidebarNavIconName>;
+type MaintenanceNavIcon = Extract<MaintenanceNavKey, SidebarNavIconName>;
 
-export interface MaintenanceNavItem {
+interface MaintenanceNavItem {
   key: MaintenanceNavKey;
   labelKey: string;
   to: string;

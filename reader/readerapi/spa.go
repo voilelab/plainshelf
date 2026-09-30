@@ -2,11 +2,13 @@ package readerapi
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"io/fs"
 	"net/http"
+	"slices"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -68,12 +70,13 @@ func indexHTML(assets fs.FS, boot BootConfig) ([]byte, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	encoded, err := json.Marshal(boot)
+	encoded, err := json.Marshal(boot, jsonopt.API())
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	// A book ID cannot close the script element: "<" is the only character that
-	// could, and a \u003c escape survives JSON.parse unchanged.
+	// could, and a \u003c escape survives JSON.parse unchanged. v2 does not
+	// escape "<" itself, so this replacement is the only thing standing there.
 	encoded = bytes.ReplaceAll(encoded, []byte("<"), []byte(`\u003c`))
 
 	script := []byte("<script>" + bootMarker + " = " + string(encoded) + ";</script>")
@@ -81,7 +84,7 @@ func indexHTML(assets fs.FS, boot BootConfig) ([]byte, error) {
 	// Before </head>, so the flag is set before main.js runs and bootstrap can
 	// decide which shell to install without waiting for a request.
 	if index := bytes.Index(page, []byte("</head>")); index >= 0 {
-		return bytes.Join([][]byte{page[:index], script, page[index:]}, nil), nil
+		return slices.Concat(page[:index], script, page[index:]), nil
 	}
-	return bytes.Join([][]byte{script, page}, nil), nil
+	return slices.Concat(script, page), nil
 }

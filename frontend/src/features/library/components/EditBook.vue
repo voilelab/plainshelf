@@ -1,24 +1,25 @@
 <template>
-  <article class="panel edit-panel">
-    <header class="edit-header">
+  <article :class="['edit-panel', { panel: !embedded, 'edit-panel-embedded': embedded }]">
+    <header v-if="!embedded" class="edit-header">
       <h2>{{ t('libraryForms.editBook.title') }}</h2>
       <p class="meta">{{ t('libraryForms.editBook.description') }}</p>
     </header>
 
-    <form class="edit-form" @submit.prevent="onSubmit">
-      <section class="section-block">
-        <h3>{{ t('libraryForms.editBook.basicInfo') }}</h3>
-        <label class="field">
-          <span class="label">{{ t('libraryForms.editBook.titleLabel') }}</span>
-          <input v-model="title" class="input" type="text" :placeholder="t('libraryForms.editBook.titlePlaceholder')" />
-        </label>
+    <form class="edit-form" :aria-busy="saving" @submit.prevent="onSubmit">
+      <div class="edit-form-fields" :inert="saving ? true : undefined">
+        <section class="section-block">
+          <h3>{{ t('libraryForms.editBook.basicInfo') }}</h3>
+          <label class="field">
+            <span class="label">{{ t('libraryForms.editBook.titleLabel') }}</span>
+            <input v-model="title" class="input" type="text" :placeholder="t('libraryForms.editBook.titlePlaceholder')" />
+          </label>
 
-        <label class="field">
-          <span class="label">{{ t('libraryForms.editBook.authorsLabel') }}</span>
-          <input v-model="authorsInput" class="input" type="text" :placeholder="t('libraryForms.editBook.authorsPlaceholder')" />
-        </label>
+          <label class="field">
+            <span class="label">{{ t('libraryForms.editBook.authorsLabel') }}</span>
+            <input v-model="authorsInput" class="input" type="text" :placeholder="t('libraryForms.editBook.authorsPlaceholder')" />
+          </label>
 
-      </section>
+        </section>
 
       <section class="section-block">
         <h3>{{ t('libraryForms.editBook.organization') }}</h3>
@@ -26,6 +27,24 @@
           <span class="label">{{ t('libraryForms.editBook.publishedAt') }}</span>
           <input v-model="publishedAtInput" class="input" type="date" />
         </label>
+
+        <!-- Same row-as-label shape the settings panels use: the switch is a
+             <button>, so `for` is what keeps the help text a click target. -->
+        <div class="field">
+          <label class="nsfw-row" :for="nsfwSwitchId">
+            <div>
+              <span :id="nsfwLabelId" class="label">{{ t('libraryForms.editBook.nsfw.label') }}</span>
+              <p :id="nsfwHelpId" class="field-help">{{ nsfwHelpText }}</p>
+            </div>
+            <BaseSwitch
+              :id="nsfwSwitchId"
+              v-model="nsfwShown"
+              :disabled="folderNsfwRule !== undefined"
+              :aria-labelledby="nsfwLabelId"
+              :aria-describedby="nsfwHelpId"
+            />
+          </label>
+        </div>
 
         <fieldset class="field rating-field">
           <legend class="label">{{ t('libraryForms.editBook.starRating') }}</legend>
@@ -115,36 +134,30 @@
             :placeholder="t('libraryForms.editBook.commentPlaceholder')"
           ></textarea>
           <p class="field-help">{{ t('libraryForms.editBook.commentHelp') }}</p>
-          <button
-            class="comment-preview-toggle"
-            type="button"
-            :aria-expanded="showCommentPreview"
-            :aria-controls="commentPreviewId"
-            @click="showCommentPreview = !showCommentPreview"
-          >
-            {{
-              showCommentPreview
-                ? t('libraryForms.editBook.commentPreviewHide')
-                : t('libraryForms.editBook.commentPreviewShow')
-            }}
-          </button>
-          <div
-            v-if="showCommentPreview"
-            :id="commentPreviewId"
-            class="comment-preview"
-            role="region"
-            :aria-label="t('libraryForms.editBook.commentPreviewLabel')"
-          >
-            <SafeHtml
-              v-if="commentPreviewHtml"
-              class="description-body"
-              :html="commentPreviewHtml"
-              profile="summary"
-            />
-            <p v-else class="comment-preview-empty">
-              {{ t('libraryForms.editBook.commentPreviewEmpty') }}
-            </p>
-          </div>
+          <CollapsibleRoot v-model:open="showCommentPreview" class="comment-preview-collapsible">
+            <CollapsibleTrigger class="comment-preview-toggle">
+              {{
+                showCommentPreview
+                  ? t('libraryForms.editBook.commentPreviewHide')
+                  : t('libraryForms.editBook.commentPreviewShow')
+              }}
+            </CollapsibleTrigger>
+            <CollapsibleContent
+              class="comment-preview"
+              role="region"
+              :aria-label="t('libraryForms.editBook.commentPreviewLabel')"
+            >
+              <SafeHtml
+                v-if="commentPreviewHtml"
+                class="description-body"
+                :html="commentPreviewHtml"
+                profile="summary"
+              />
+              <p v-else class="comment-preview-empty">
+                {{ t('libraryForms.editBook.commentPreviewEmpty') }}
+              </p>
+            </CollapsibleContent>
+          </CollapsibleRoot>
         </div>
 
         <div class="field">
@@ -177,7 +190,8 @@
           </div>
           <button class="button" type="button" @click="addIdentifierRow">{{ t('libraryForms.editBook.addIdentifier') }}</button>
         </div>
-      </section>
+        </section>
+      </div>
 
       <p v-if="error" class="error submit-error">{{ error }}</p>
 
@@ -194,6 +208,9 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch } from 'vue';
 import {
+  CollapsibleContent,
+  CollapsibleRoot,
+  CollapsibleTrigger,
   RatingItem,
   RatingItemIndicator,
   RatingRoot,
@@ -212,6 +229,7 @@ import {
   TagsInputRoot,
   type AcceptableValue
 } from 'reka-ui';
+import BaseSwitch from '@/components/BaseSwitch.vue';
 import SafeHtml from '@/components/SafeHtml.vue';
 import type { Book, BookUpdateRequest } from '@/types/book';
 import {
@@ -253,11 +271,13 @@ const props = defineProps<{
   book: Book;
   saving: boolean;
   error?: string;
+  embedded?: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: 'submit', payload: BookUpdateRequest): void;
   (event: 'cancel'): void;
+  (event: 'dirty-change', dirty: boolean): void;
 }>();
 
 const title = ref('');
@@ -279,7 +299,6 @@ const languageTagInvalid = ref(false);
 const languageError = computed(() => (languageTagInvalid.value ? t('language.book.invalidTag') : ''));
 const comment = ref('');
 const commentFieldId = useId();
-const commentPreviewId = useId();
 const showCommentPreview = ref(false);
 // The same render the detail page runs, so what is previewed here and what is
 // shown there are one output of one function; `SafeHtml` sanitizes it under the
@@ -288,7 +307,36 @@ const showCommentPreview = ref(false);
 const commentPreviewHtml = computed(() => renderDescriptionHtml(comment.value));
 const publishedAtInput = ref('');
 const star = ref(0);
+// The book's own half of the adult-content mark. The folder rule is the other
+// half and is not editable here, so a folder-marked book shows the switch on
+// and disabled — a control that could be turned off without the book becoming
+// visible would be a lie about what the shelf does.
+const nsfw = ref(false);
+const nsfwSwitchId = useId();
+const nsfwLabelId = useId();
+const nsfwHelpId = useId();
+const folderNsfwRule = computed(() => props.book.nsfw_folder);
+// What the switch renders is the whole mark; what the payload carries is only
+// the book's own half. They differ for a folder-marked book, and keeping them
+// one value would either show it as unmarked or write the folder's mark into
+// its book.json, where clearing the folder rule would then leave it behind.
+const nsfwShown = computed<boolean>({
+  get: () => folderNsfwRule.value !== undefined || nsfw.value,
+  set: (value) => {
+    nsfw.value = value;
+  }
+});
+const nsfwHelpText = computed(() => {
+  const rule = folderNsfwRule.value;
+  if (!rule) {
+    return t('libraryForms.editBook.nsfw.help');
+  }
+  return rule.reason
+    ? t('libraryForms.editBook.nsfw.fromFolderReason', { path: rule.path, reason: rule.reason })
+    : t('libraryForms.editBook.nsfw.fromFolder', { path: rule.path });
+});
 const identifierRows = ref<{ key: string; value: string }[]>([]);
+const initialDraft = ref('');
 // languageSelectOptions() resolves its labels through t(), so reading it inside
 // a computed is what keeps them following a locale change.
 const languageSelectItems = computed(() =>
@@ -325,10 +373,19 @@ watch(
     comment.value = book.comment ?? '';
     publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
+    // A folder rule already marks the book, so the switch reads on whatever
+    // book.json says; the payload below still sends the book's own value, so
+    // saving cannot silently write the folder's mark into the book.
+    nsfw.value = book.nsfw === true;
     identifierRows.value = Object.entries(book.identifiers ?? {}).map(([key, value]) => ({ key, value }));
+    initialDraft.value = serializeDraft();
   },
   { immediate: true }
 );
+
+const isDirty = computed(() => serializeDraft() !== initialDraft.value);
+
+watch(isDirty, (dirty) => emit('dirty-change', dirty), { immediate: true });
 
 watch(languagePreset, (nextPreset) => {
   if (nextPreset !== CUSTOM_LANGUAGE_VALUE) {
@@ -374,6 +431,21 @@ function buildIdentifiersPayload(): Record<string, string> {
   return Object.fromEntries(entries);
 }
 
+function serializeDraft(): string {
+  return JSON.stringify({
+    title: title.value,
+    authorsInput: authorsInput.value,
+    tags: tagsSource.value,
+    languagePreset: languagePreset.value,
+    customLanguage: customLanguage.value,
+    comment: comment.value,
+    publishedAtInput: publishedAtInput.value,
+    star: star.value,
+    nsfw: nsfw.value,
+    identifierRows: identifierRows.value
+  });
+}
+
 function onSubmit(): void {
   const rawLanguage = languagePreset.value === CUSTOM_LANGUAGE_VALUE ? customLanguage.value : languagePreset.value;
   if (languagePreset.value === CUSTOM_LANGUAGE_VALUE && !isValidLanguageTag(rawLanguage)) {
@@ -391,6 +463,7 @@ function onSubmit(): void {
     comment: comment.value.trim(),
     published_at: publishedAtInput.value || undefined,
     star: star.value,
+    nsfw: nsfw.value,
     identifiers: buildIdentifiersPayload()
   });
 }
@@ -431,6 +504,21 @@ function toFormDateValue(rawValue?: string): string {
 .edit-form {
   display: grid;
   gap: 14px;
+}
+
+.edit-form-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.edit-form-fields[inert] {
+  opacity: 0.72;
+}
+
+.edit-panel-embedded {
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
 .section-block {
@@ -622,6 +710,17 @@ function toFormDateValue(rawValue?: string): string {
   font-size: 12px;
 }
 
+.nsfw-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nsfw-row .field-help {
+  margin-top: 4px;
+}
+
 .field-error {
   margin: 0;
 }
@@ -629,6 +728,13 @@ function toFormDateValue(rawValue?: string): string {
 .textarea {
   resize: vertical;
   min-height: 120px;
+}
+
+/* The collapsible only groups the trigger and its panel for reka; it must not
+   become a grid item of its own, or the toggle and preview would share one
+   cell instead of stacking as the surrounding fields do. */
+.comment-preview-collapsible {
+  display: contents;
 }
 
 .comment-preview-toggle {
@@ -679,6 +785,15 @@ function toFormDateValue(rawValue?: string): string {
   gap: 8px;
 }
 
+.edit-panel-embedded .form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 12px 0 2px;
+  background: var(--surface);
+  box-shadow: 0 -10px 16px -16px rgba(15, 23, 42, 0.45);
+}
+
 @media (max-width: 720px) {
   .edit-panel {
     padding: 14px;
@@ -686,6 +801,27 @@ function toFormDateValue(rawValue?: string): string {
 
   .form-actions {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .identifier-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .identifier-key,
+  .identifier-value {
+    grid-column: 1;
+  }
+
+  .identifier-remove {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .edit-panel-embedded .form-actions .button {
+    flex: 1 1 140px;
   }
 }
 </style>

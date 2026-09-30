@@ -1,17 +1,22 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import type { CreateFolderParentOption } from '@/components/CreateFolderModal.vue';
-import { createFolder, deleteFolder, FolderTransferConflictError, moveFolder, renameFolder } from '@/api/folders';
+import {
+  createFolder,
+  deleteFolder,
+  FolderTransferConflictError,
+  moveFolder,
+  NsfwRevealConfirmationError,
+  renameFolder
+} from '@/api/folders';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { bookshelfWriter, getBookshelfProvider, isWritableProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import {
   booksRouteForFolderPath,
   buildFolderTreeNodes,
-  flattenFolderTreePaths,
   getFolderPath,
   normalizeFolderPath
 } from '@/utils/folders';
@@ -63,6 +68,11 @@ export function movedFolderDestination(
   return current === folderPath ? movedPath : `${movedPath}${current.slice(folderPath.length)}`;
 }
 
+/** Resolves a context-menu parent and a folder name to the path sent to the API. */
+export function createdFolderDestination(parentPath: string, name: string): string {
+  return normalizeFolderPath(`${parentPath}/${name}`);
+}
+
 /**
  * The sidebar's folder tree operations: create, rename, move, delete, open the
  * folder on desktop, and move a book between folders. Owns the busy/error state
@@ -75,12 +85,13 @@ export function useFolderManagement() {
   const { t } = useI18n();
   const { books, fetchBooks } = useBookStore();
   const { folders, fetchFolders } = useFolderStore();
-  const { writesEnabled } = useWriteAccess();
+  const { writesEnabled, writeDisabledMessageKey, outgoingCopyEnabled } = useWriteAccess();
   const readOnly = computed(() => !writesEnabled.value);
   const batchOperations = useBookBatchOperations();
 
   const moveBookError = ref('');
   const showCreateFolderModal = ref(false);
+  const pendingCreateFolderParentPath = ref('/');
   const creatingFolder = ref(false);
   const createFolderError = ref('');
   const deleteFolderError = ref('');
@@ -91,6 +102,41 @@ export function useFolderManagement() {
   const deletingFolderMap = ref<Record<string, boolean>>({});
   const pendingDeleteFolderPath = ref('');
 
+  /*
+   * A folder rule in shelf.json marks a path, so moving or renaming the folder
+   * out from under that path unmarks everything below it in one action. The
+   * server refuses such a change until it is confirmed and says how many hidden
+   * books it would serve; this holds that answer, and the retry that goes ahead.
+   *
+   * One piece of state for all three changes (rename, move, cross-shelf
+   * transfer) because only one of them can be in flight from this sidebar at a
+   * time, and the question the user is asked is the same one.
+   */
+  const pendingNsfwReveal = ref<{ hiddenBooks: number; retry: () => Promise<void> } | null>(null);
+
+  // Records the refusal and reports it, so each caller reads as
+  // "confirm-and-return" rather than repeating the instanceof check.
+  function askToConfirmReveal(err: unknown, retry: () => Promise<void>): boolean {
+    if (!(err instanceof NsfwRevealConfirmationError)) {
+      return false;
+    }
+    pendingNsfwReveal.value = { hiddenBooks: err.hiddenBooks, retry };
+    return true;
+  }
+
+  function cancelNsfwReveal(): void {
+    pendingNsfwReveal.value = null;
+  }
+
+  async function confirmNsfwReveal(): Promise<void> {
+    const pending = pendingNsfwReveal.value;
+    if (!pending) {
+      return;
+    }
+    pendingNsfwReveal.value = null;
+    await pending.retry();
+  }
+
   const currentFolder = computed(() => {
     const q = route.query.folders;
     return typeof q === 'string' && q.length > 0 ? q : undefined;
@@ -98,15 +144,6 @@ export function useFolderManagement() {
 
   const folderTree = computed(() => buildFolderTreeNodes(folders.value));
   const canOpenFolder = computed(() => Boolean(getBookshelfProvider().openDesktopFolder));
-  const createFolderParentOptions = computed<CreateFolderParentOption[]>(() => [
-    { value: '/', label: t('layout.createFolder.rootOption'), depth: 0 },
-    ...flattenFolderTreePaths(folderTree.value).map((option) => ({
-      value: option.path,
-      label: option.path,
-      depth: option.depth + 1
-    }))
-  ]);
-  const createFolderDefaultParent = computed(() => normalizeFolderPath(currentFolder.value ?? '') || '/');
   const isDeletingPendingFolder = computed(
     () => pendingDeleteFolderPath.value.length > 0 && (deletingFolderMap.value[pendingDeleteFolderPath.value] ?? false)
   );
@@ -147,11 +184,12 @@ export function useFolderManagement() {
     goToFolder(normalizeFolderSelectionPath(path));
   }
 
-  function openCreateFolderModal(): void {
+  function openCreateFolderModal(parentPath: string): void {
     if (readOnly.value) {
       return;
     }
 
+    pendingCreateFolderParentPath.value = normalizeFolderPath(parentPath) || '/';
     createFolderError.value = '';
     showCreateFolderModal.value = true;
   }
@@ -165,9 +203,9 @@ export function useFolderManagement() {
     createFolderError.value = '';
   }
 
-  async function onSubmitCreateFolder(payload: { parentPath: string; name: string }): Promise<void> {
+  async function onSubmitCreateFolder(payload: { name: string }): Promise<void> {
     if (readOnly.value) {
-      createFolderError.value = t('layout.readOnly.writeDisabled');
+      createFolderError.value = t(writeDisabledMessageKey.value);
       return;
     }
 
@@ -177,8 +215,7 @@ export function useFolderManagement() {
       return;
     }
 
-    // normalizeFolderPath drops empty segments, so a '/' parent joins cleanly.
-    const normalized = normalizeFolderPath(`${payload.parentPath}/${name}`);
+    const normalized = createdFolderDestination(pendingCreateFolderParentPath.value, name);
     if (!normalized) {
       createFolderError.value = t('layout.folderErrors.emptyPath');
       return;
@@ -210,7 +247,7 @@ export function useFolderManagement() {
 
   async function onMoveBook(payload: { bookIds: string[]; targetFolder: string; batch: boolean }): Promise<void> {
     if (readOnly.value) {
-      moveBookError.value = t('layout.readOnly.writeDisabled');
+      moveBookError.value = t(writeDisabledMessageKey.value);
       return;
     }
     moveBookError.value = '';
@@ -247,7 +284,7 @@ export function useFolderManagement() {
 
   function requestRenameFolder(path: string): void {
     if (readOnly.value) {
-      folderOperationError.value = t('layout.readOnly.writeDisabled');
+      folderOperationError.value = t(writeDisabledMessageKey.value);
       return;
     }
 
@@ -265,7 +302,7 @@ export function useFolderManagement() {
     renameFolderError.value = '';
   }
 
-  async function confirmRenameFolder(nextName: string): Promise<void> {
+  async function confirmRenameFolder(nextName: string, confirmReveal = false): Promise<void> {
     const path = pendingRenameFolderPath.value;
     if (!path || renamingFolder.value) {
       return;
@@ -281,7 +318,7 @@ export function useFolderManagement() {
     folderOperationError.value = '';
 
     try {
-      await renameFolder(path, nextName);
+      await renameFolder(path, nextName, { confirm: confirmReveal });
       await Promise.all([fetchFolders(), fetchBooks()]);
 
       const destination = renamedFolderDestination(currentFolder.value, path, nextName);
@@ -291,6 +328,12 @@ export function useFolderManagement() {
 
       pendingRenameFolderPath.value = '';
     } catch (err) {
+      // The rename modal stays open behind the confirmation, so confirming
+      // retries the same rename rather than asking the user to retype it.
+      if (askToConfirmReveal(err, () => confirmRenameFolder(nextName, true))) {
+        return;
+      }
+
       const message = err instanceof Error ? err.message : '';
       if (message === 'Invalid folder name') {
         renameFolderError.value = t('layout.renameFolder.invalid');
@@ -302,15 +345,18 @@ export function useFolderManagement() {
     }
   }
 
-  async function onMoveFolder(payload: { folderPath: string; targetFolder: string }): Promise<void> {
+  async function onMoveFolder(
+    payload: { folderPath: string; targetFolder: string },
+    confirmReveal = false
+  ): Promise<void> {
     if (readOnly.value) {
-      folderOperationError.value = t('layout.readOnly.writeDisabled');
+      folderOperationError.value = t(writeDisabledMessageKey.value);
       return;
     }
     folderOperationError.value = '';
 
     try {
-      await moveFolder(payload.folderPath, payload.targetFolder);
+      await moveFolder(payload.folderPath, payload.targetFolder, { confirm: confirmReveal });
       await Promise.all([fetchFolders(), fetchBooks()]);
 
       const destination = movedFolderDestination(currentFolder.value, payload.folderPath, payload.targetFolder);
@@ -318,6 +364,10 @@ export function useFolderManagement() {
         goToFolder(destination);
       }
     } catch (err) {
+      if (askToConfirmReveal(err, () => onMoveFolder(payload, true))) {
+        return;
+      }
+
       const message = err instanceof Error ? err.message : '';
       folderOperationError.value = message || t('layout.moveFolder.failed');
     }
@@ -347,9 +397,11 @@ export function useFolderManagement() {
   const transferFolderMode = ref<BookTransferMode>('copy');
 
   // The entry is offered only where a folder can actually be transferred: a
-  // writable multi-shelf backend (server/desktop) that is not read-only. A
-  // reader provider (mobile/pCloud) is not writable, so it never shows.
-  const canTransferFolder = computed(() => !readOnly.value && isWritableProvider(getBookshelfProvider()));
+  // writable multi-shelf backend (server/desktop) on a server that accepts
+  // writes. A reader provider (mobile/pCloud) is not writable, so it never
+  // shows. A read-only *shelf* keeps it: copying a folder out only reads this
+  // shelf, and the modal drops the move mode that would delete the original.
+  const canTransferFolder = outgoingCopyEnabled;
 
   const {
     chain: transferFolderChain,
@@ -417,6 +469,9 @@ export function useFolderManagement() {
   // become their own readable strings (a book-ID clash lists every colliding ID),
   // and anything else keeps the server's own message.
   function describeTransferFolderError(err: unknown): Error {
+    if (err instanceof NsfwRevealConfirmationError) {
+      return new Error(t('layout.folderReveal.transferHeld'));
+    }
     if (err instanceof FolderTransferConflictError) {
       if (err.kind === 'book_id_conflict') {
         return new Error(
@@ -428,11 +483,14 @@ export function useFolderManagement() {
     return err instanceof Error ? err : new Error(t('layout.transferFolder.errors.failed'));
   }
 
-  async function submitTransferFolder(payload: {
-    targetShelfId: string;
-    targetParentFolder: string;
-    mode: BookTransferMode;
-  }): Promise<void> {
+  async function submitTransferFolder(
+    payload: {
+      targetShelfId: string;
+      targetParentFolder: string;
+      mode: BookTransferMode;
+    },
+    confirmReveal = false
+  ): Promise<void> {
     const source = transferFolderTarget.value;
     if (!source || transferFolderStarted.value) {
       return;
@@ -450,8 +508,15 @@ export function useFolderManagement() {
     // so this attaches to the existing progress instead of scheduling a second.
     await beginTransferFolder(async () => {
       try {
-        return await bookshelfWriter().transferFolder(source, payload.targetShelfId, targetPath, payload.mode);
+        return await bookshelfWriter().transferFolder(source, payload.targetShelfId, targetPath, payload.mode, {
+          confirm: confirmReveal
+        });
       } catch (err) {
+        // The transfer never started, so the progress view has to say something.
+        // It says the transfer is waiting on the confirmation, which is what the
+        // dialog on top of it is asking for; declining leaves that explanation
+        // in place, and confirming resets it by starting the chain again.
+        askToConfirmReveal(err, () => submitTransferFolder(payload, true));
         throw describeTransferFolderError(err);
       }
     });
@@ -459,7 +524,7 @@ export function useFolderManagement() {
 
   function requestDeleteFolder(path: string): void {
     if (readOnly.value) {
-      deleteFolderError.value = t('layout.readOnly.writeDisabled');
+      deleteFolderError.value = t(writeDisabledMessageKey.value);
       return;
     }
     if (deletingFolderMap.value[path]) {
@@ -529,8 +594,6 @@ export function useFolderManagement() {
     currentFolder,
     folderTree,
     canOpenFolder,
-    createFolderParentOptions,
-    createFolderDefaultParent,
     isDeletingPendingFolder,
     pendingRenameFolderName,
     isRenamingPendingFolder,
@@ -543,6 +606,9 @@ export function useFolderManagement() {
     requestRenameFolder,
     cancelPendingRenameFolder,
     confirmRenameFolder,
+    pendingNsfwReveal,
+    cancelNsfwReveal,
+    confirmNsfwReveal,
     onMoveFolder,
     onOpenFolder,
     canTransferFolder,

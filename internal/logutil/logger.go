@@ -77,7 +77,23 @@ func NewLogger(conf *LogConf) (*Logger, error) {
 	}, nil
 }
 
+// With returns a logger that adds args to every record it writes.
+//
+// The derived logger shares the underlying file but does not own it: Close on
+// it is a no-op, so a caller that scopes a logger to one request or one task
+// chain cannot close the log file the whole process writes to.
+func (l *Logger) With(args ...any) *Logger {
+	if l == nil {
+		return nil
+	}
+	return &Logger{Logger: l.Logger.With(args...)}
+}
+
 func (l *Logger) Close() error {
+	if l.logFile == nil {
+		return nil
+	}
+
 	err := l.logFile.Close()
 	if err != nil {
 		return util.Errorf("%w", err)

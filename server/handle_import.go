@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -68,6 +69,16 @@ func isSupportedImportExt(ext string) bool {
 // path rather than being stored as-is.
 func isEPUBExt(ext string) bool {
 	return ext == ".epub"
+}
+
+// deriveTitleFromFilename strips a filename's extension to use it as a book title.
+func deriveTitleFromFilename(filename string) string {
+	base := filepath.Base(filename)
+	title := strings.TrimSuffix(base, filepath.Ext(base))
+	if title == "" {
+		return base
+	}
+	return title
 }
 
 // bookFormatFromFilename derives the BookMeta.Format value ("txt" or "md") from a
@@ -254,11 +265,11 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		// rather than buffered whole.
 		newBook, err := h.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), folderParts, strategy)
 		if err != nil {
-			h.writeEPUBImportError(w, err)
+			h.writeEPUBImportError(w, r, err)
 			return
 		}
 
-		h.writeImportedBook(w, newBook, folderParts)
+		h.writeImportedBook(w, shelfData, newBook, folderParts)
 		return
 	}
 
@@ -266,6 +277,13 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 	// initializer runs while the exclusive shelf lock is held.
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
+		if unsupported, ok := errors.AsType[*util.UnsupportedEncodingError](err); ok {
+			// The file's encoding is the problem, not the server: report it as a
+			// client error and name the detected encoding so the user knows why.
+			h.Warn("rejected import upload: unsupported encoding", "error", err)
+			http.Error(w, "unsupported text encoding: "+unsupported.Encoding, http.StatusBadRequest)
+			return
+		}
 		h.Error("failed to re-encode uploaded file to UTF-8", "error", err)
 		http.Error(w, "failed to re-encode uploaded file to UTF-8", http.StatusInternalServerError)
 		return
@@ -273,33 +291,30 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 
 	newBook, err := newPlainTextBook(shelfData, utf8File, folderParts, title, header.Filename)
 	if err != nil {
-		h.writeErr(w, err, "failed to import book")
+		h.writeErr(w, r, err, "failed to import book")
 		return
 	}
 
-	h.writeImportedBook(w, newBook, folderParts)
+	h.writeImportedBook(w, shelfData, newBook, folderParts)
 }
 
 // writeEPUBImportError reports a bad archive with its detail, because the
 // client is the only one who can act on it, and maps everything else.
-func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, err error) {
+func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, r *http.Request, err error) {
 	if isEPUBInputError(err) {
 		h.Error("failed to import epub", "error", err)
 		http.Error(w, "failed to import epub: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	h.writeErr(w, err, "failed to import epub")
+	h.writeErr(w, r, err, "failed to import epub")
 }
 
 // writeImportedBook responds with the freshly imported book. The book was
 // created under folderParts, which is where it now sits; the book itself does
 // not carry its folder back.
-func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book, folderParts shelf.FolderPath) {
-	h.writeJSON(w, http.StatusCreated, Book{
-		Meta:  newBook.GetMeta(),
-		Folder: folderParts,
-	})
+func (h *importHandlers) writeImportedBook(w http.ResponseWriter, shelfData *shelf.ShelfData, newBook *shelf.Book, folderParts shelf.FolderPath) {
+	h.writeJSON(w, http.StatusCreated, newBookResponse(shelfData, newBook.GetMeta(), folderParts))
 }
 
 // fromLocalPath imports a book from a local file path on the server.
@@ -344,7 +359,12 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderP
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := newPlainTextBook(shelfData, utf8Reader, folderParts, filepath.Base(cleanPath), cleanPath)
+	// Strip the extension so the desktop local-path import yields "遮天" rather
+	// than "遮天.txt", matching the web-upload path (the frontend already sends a
+	// de-extensioned title).
+	title := deriveTitleFromFilename(cleanPath)
+
+	newBook, err := newPlainTextBook(shelfData, utf8Reader, folderParts, title, cleanPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

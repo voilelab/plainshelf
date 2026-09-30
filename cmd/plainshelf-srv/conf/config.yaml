@@ -19,6 +19,10 @@ app_conf:
       type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
       dir: ./logs
       prefix: root
+      # Rotated files older than this are deleted on the next rotation.
+      # Defaults to 30 days; set to 0 to keep every file. A value saved from
+      # Settings -> Logs takes precedence over this one.
+      # retention_days: 30
   shelves:
     - id: default_shelf
       name: Default Shelf
@@ -29,6 +33,10 @@ app_conf:
           type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
           dir: ./logs
           prefix: shelf
+          # Rotated files older than this are deleted on the next rotation.
+          # Defaults to 30 days; set to 0 to keep every file. A value saved from
+          # Settings -> Logs takes precedence over this one.
+          # retention_days: 30
       lib_root: "./shelf"
       # For SMB-mounted shelves, increase scan_interval to reduce network I/O (e.g. "10m").
       # scan_interval: 1m
@@ -39,6 +47,9 @@ app_conf:
   read_only: false
   security:
     mode: "local_token"
+    # Reads of the shelf are open by default. The log API is not covered by this:
+    # it always requires the token, because logs carry request paths, access
+    # times and remote addresses rather than shelf content.
     protect_read: false
     token_header: "X-PlainShelf-Token"
     allow_missing_origin_with_token: true

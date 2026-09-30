@@ -88,14 +88,3 @@ export function hasMarkdownStyling(page: Page): Promise<boolean> {
     (node) => getComputedStyle(node).fontWeight
   ).some((weight) => Number(weight) >= 700)`) as Promise<boolean>;
 }
-
-/**
- * The document ranges the editor is dimming, i.e. everything outside the
- * chapter the outline focused. Empty when the whole source is shown.
- */
-export function dimmedRanges(page: Page): Promise<string[]> {
-  return page.evaluate(`Array.from(
-    document.querySelectorAll('.source-content-editor .cm-source-dimmed'),
-    (node) => node.textContent
-  )`) as Promise<string[]>;
-}

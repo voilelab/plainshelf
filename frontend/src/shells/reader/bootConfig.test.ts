@@ -21,7 +21,7 @@ describe('reader boot config', () => {
 
     expect(readerBootConfig()).toEqual({ shelf_id: 'book', book_id: 'dune1234', section: null });
     expect(isReaderRuntime()).toBe(true);
-    expect(activeReaderShelfInfo()).toEqual({ id: 'book', name: 'Book' });
+    expect(activeReaderShelfInfo()).toEqual({ id: 'book', name: 'Book', readOnly: false });
   });
 
   // A reader launched for a specific chapter carries its section; section 0 (the
@@ -59,7 +59,7 @@ describe('reader boot config', () => {
 
     expect(isReaderRuntime()).toBe(true);
     expect(readerBootConfig()).toEqual({ shelf_id: 'book', book_id: '', section: null });
-    expect(activeReaderShelfInfo()).toEqual({ id: 'book', name: 'Book' });
+    expect(activeReaderShelfInfo()).toEqual({ id: 'book', name: 'Book', readOnly: false });
   });
 
   it('ignores an injected value of the wrong shape', () => {

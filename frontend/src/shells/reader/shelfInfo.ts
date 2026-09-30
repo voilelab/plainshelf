@@ -16,5 +16,7 @@ export function activeReaderShelfInfo(): ShelfInfo | null {
     return null;
   }
 
-  return { id: boot.shelf_id, name: 'Book' };
+  // Not read-only: the reader edits the package it opened, and the one thing
+  // it cannot write is decided by the package itself, not by a shelf setting.
+  return { id: boot.shelf_id, name: 'Book', readOnly: false };
 }

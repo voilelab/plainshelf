@@ -20,7 +20,7 @@ func (h *batchHandlers) fingerprintSources(w http.ResponseWriter, r *http.Reques
 	}
 	// Before force is even read: force must not offer a way around the read-only
 	// boundary, so the shelf is gated whatever the flag says.
-	if h.rejectReadOnlyShelf(w, shelfData) {
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
 		return
 	}
 
@@ -29,8 +29,16 @@ func (h *batchHandlers) fingerprintSources(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.submitTaskChain(w,
-		task.NewFingerprintSourcesChain(shelfData.ID, shelfData.Shelf, force, h.Logger),
+	// The sweep runs after this response, so what it may read is decided here,
+	// the same way the content-stats sweep decides it.
+	visible, err := h.visibility(shelfData).visibleBookIDs()
+	if err != nil {
+		h.writeErr(w, r, err, "failed to list books")
+		return
+	}
+
+	h.submitTaskChain(w, r,
+		task.NewFingerprintSourcesChain(shelfData.ID, shelfData.Shelf, force, h.requestLogger(r), visible),
 		"failed to schedule source fingerprint task")
 }
 

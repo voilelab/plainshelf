@@ -1,20 +1,16 @@
 /**
- * URL value grammar shared by the declarative book filters.
- *
- * A filter field is carried in the query string as a single opaque token so a
- * new presence/equality condition can be added without inventing (and later
- * having to migrate) its own encoding. Three forms are understood:
+ * URL value grammar shared by the declarative book filters: one opaque token per
+ * field, so a new presence/equality condition needs no encoding of its own.
  *
  * - `none` — the field is absent/empty on the book.
  * - `has`  — the field is present on the book.
  * - `eq:<value>` — the field equals `<value>`, taken verbatim after the first
  *   `eq:`. The prefix is what disambiguates a literal value from the sentinels,
- *   so `eq:none` round-trips back to the string "none" rather than the "absent"
- *   sentinel, and colons or commas inside `<value>` need no escaping.
+ *   so `eq:none` round-trips to the string "none", and colons or commas inside
+ *   `<value>` need no escaping.
  *
- * Anything else parses to `undefined` so a hand-edited or stale `?field=garbage`
- * is ignored rather than throwing — the same forgiving contract `toBookSort`
- * gives an unknown sort key.
+ * Anything else parses to `undefined`, so a stale `?field=garbage` is ignored
+ * rather than throwing — the contract `toBookSort` gives an unknown sort key.
  */
 
 export type FilterFieldValue =
@@ -24,7 +20,6 @@ export type FilterFieldValue =
 
 const EQ_PREFIX = 'eq:';
 
-/** Encodes a field value into its single query-string token. */
 export function serializeFilterField(value: FilterFieldValue): string {
   switch (value.kind) {
     case 'none':
@@ -37,9 +32,8 @@ export function serializeFilterField(value: FilterFieldValue): string {
 }
 
 /**
- * Decodes a query-string token back into a field value, or `undefined` when the
- * token is not one of the three understood forms. `parse(serialize(v))` returns
- * a value deep-equal to `v` for every `v`.
+ * `undefined` when the token is not one of the three forms above.
+ * `parse(serialize(v))` is deep-equal to `v` for every `v`.
  */
 export function parseFilterField(raw: string | undefined): FilterFieldValue | undefined {
   if (raw === undefined) {
@@ -58,18 +52,14 @@ export function parseFilterField(raw: string | undefined): FilterFieldValue | un
 }
 
 /**
- * Multi-value combine operator carried in the sibling `<field>Op` key.
- *
- * Only `all` (every listed value must match — AND) is accepted today, but the
- * key is parsed now so the default multi-value meaning stays explicit. Both
- * intuitions for repeated values exist in the wild (GitHub treats repetition as
- * AND, faceted-search UIs as OR); pinning the operator in the URL means a later
- * `any` (OR) can be added as a new value instead of silently redefining what an
- * existing bookmark meant.
+ * Multi-value combine operator carried in the sibling `<field>Op` key. Only
+ * `all` (AND) is accepted today, but the key is parsed now because both
+ * intuitions for repeated values exist in the wild — GitHub reads repetition as
+ * AND, faceted search as OR — and pinning it in the URL means a later `any` can
+ * be a new value instead of silently redefining an existing bookmark.
  */
 export type FilterFieldOp = 'all';
 
-/** Encodes the combine operator into its `<field>Op` token. */
 export function serializeFilterFieldOp(op: FilterFieldOp): string {
   return op;
 }
@@ -79,7 +69,6 @@ export function parseFilterFieldOp(raw: string | undefined): FilterFieldOp | und
   return raw === 'all' ? 'all' : undefined;
 }
 
-/** The sibling query key that carries a field's combine operator. */
 export function filterFieldOpKey(field: string): string {
   return `${field}Op`;
 }

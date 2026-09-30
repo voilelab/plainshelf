@@ -5,9 +5,10 @@ import { MOBILE_BLOCKED_ROUTES, stripMobileBlockedQuery } from './blockedRoutes'
 // The guard wiring itself needs a mounted router with a live mobile runtime,
 // which the e2e mobile suite covers. This pins the policy: which named routes
 // the mobile shell refuses, and — just as importantly — which it must keep.
+// The metadata editor is absent from both lists: it has no route of its own,
+// only a modal on `book-detail`, which the shell keeps and renders read-only.
 describe('MOBILE_BLOCKED_ROUTES', () => {
   it.each([
-    'book-edit',
     'book-sources-edit',
     'admin-logs',
     'trash',

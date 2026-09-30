@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { movedFolderDestination, renamedFolderDestination } from './useFolderManagement';
+import { createdFolderDestination, movedFolderDestination, renamedFolderDestination } from './useFolderManagement';
+
+describe('createdFolderDestination', () => {
+  it('creates a child beneath the folder whose context menu was used', () => {
+    expect(createdFolderDestination('fiction/classics', 'Novellas')).toBe('fiction/classics/Novellas');
+  });
+
+  it('creates a top-level folder from the All books context menu', () => {
+    expect(createdFolderDestination('/', 'Fiction')).toBe('Fiction');
+  });
+});
 
 describe('renamedFolderDestination', () => {
   it('follows the renamed folder itself', () => {

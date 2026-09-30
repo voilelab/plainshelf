@@ -59,7 +59,7 @@ function fieldValueLabel(value: FilterFieldValue, t: Translator): string {
 }
 
 /** A character range as "100–5000", "≥100", or "≤5000". */
-export function charCountRangeLabel(range: CharCountRange): string {
+function charCountRangeLabel(range: CharCountRange): string {
   const { min, max } = range;
   if (min !== undefined && max !== undefined) {
     return `${min}–${max}`;

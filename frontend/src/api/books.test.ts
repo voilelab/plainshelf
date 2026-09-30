@@ -18,7 +18,54 @@ vi.mock('./client', async () => {
 });
 
 const { ApiError } = await import('./client');
-const { transferBook, startFingerprintSources, FingerprintSweepBusyError } = await import('./books');
+const {
+  transferBook,
+  startFingerprintSources,
+  getSimilarBookPairs,
+  FingerprintSweepBusyError
+} = await import('./books');
+
+describe('getSimilarBookPairs', () => {
+  beforeEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it('surfaces every over-budget estimate field to the caller', async () => {
+    fetchJsonMock.mockResolvedValueOnce({
+      status: 'too_large',
+      total: 12,
+      fingerprinted: 10,
+      pairs: 45,
+      work: 2_000_000_000,
+      seconds: 60,
+      budget: 1_073_741_824
+    });
+
+    const result = getSimilarBookPairs(0.15);
+    await expect(result).rejects.toMatchObject({
+      name: 'SimilarTooLargeError',
+      total: 12,
+      fingerprinted: 10,
+      pairs: 45,
+      work: 2_000_000_000,
+      seconds: 60,
+      budget: 1_073_741_824
+    });
+    expect(fetchJsonMock).toHaveBeenCalledWith('/books/similar?floor=0.15', undefined, undefined);
+  });
+
+  it('adds confirm=1 and a five-minute timeout only to confirmed comparisons', async () => {
+    fetchJsonMock.mockResolvedValueOnce([]);
+
+    await expect(getSimilarBookPairs(0.15, true)).resolves.toEqual([]);
+
+    expect(fetchJsonMock).toHaveBeenCalledWith(
+      '/books/similar?floor=0.15&confirm=1',
+      undefined,
+      { timeoutMs: 300_000 }
+    );
+  });
+});
 
 describe('transferBook', () => {
   beforeEach(() => {

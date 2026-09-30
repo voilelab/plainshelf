@@ -157,7 +157,8 @@ func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			app.handlers.imports.writeEPUBImportError(rec, tt.err)
+			app.handlers.imports.writeEPUBImportError(rec,
+				httptest.NewRequest(http.MethodPost, "/api/shelves/s/books/import", nil), tt.err)
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %q", rec.Code, tt.wantStatus, rec.Body.String())
@@ -199,6 +200,27 @@ func TestMultipartDefaultFileContentTypeIsRejected(t *testing.T) {
 	}
 	if _, err := validateImportFileHeader(files[0]); err == nil {
 		t.Fatal("expected default application/octet-stream upload to be rejected")
+	}
+}
+
+// TestImportFromLocalPathStripsExtensionFromTitle pins that the desktop local-path
+// import derives the book title from the filename with its extension removed, so
+// "遮天.txt" becomes "遮天" rather than "遮天.txt" — matching the web-upload path,
+// whose frontend already sends a de-extensioned title.
+func TestImportFromLocalPathStripsExtensionFromTitle(t *testing.T) {
+	app := newTestApp(t)
+
+	srcPath := filepath.Join(t.TempDir(), "遮天.txt")
+	if err := os.WriteFile(srcPath, []byte("第一章\n\n內文。\n"), 0o600); err != nil {
+		t.Fatalf("write source book: %v", err)
+	}
+
+	book, err := app.ImportFromLocalPath("default_shelf", srcPath, nil)
+	if err != nil {
+		t.Fatalf("ImportFromLocalPath returned error: %v", err)
+	}
+	if got := book.GetMeta().Title; got != "遮天" {
+		t.Fatalf("title = %q, want 遮天", got)
 	}
 }
 

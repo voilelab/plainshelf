@@ -10,15 +10,21 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { bookPackagePath, findBookCacheFiles, parseBookCacheFile } from './bookCacheFile';
-import type { BookJson, PCloudFileRef } from './bookpkg';
+import type { BookJson, PCloudFileRef, ShelfConfig } from './bookpkg';
 import {
   collectBookPackages,
   collectFolders,
+  createIgnoreRules,
+  createNSFWRules,
+  DEFAULT_IGNORED_DIRS,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
+  findShelfConfigFile,
+  isBookNSFW,
   isSchemaNewerThanSupported,
   parseBookJson,
+  parseShelfConfig,
   toSourceMeta
 } from './bookpkg';
 import type { PCloudItem } from './types';
@@ -35,7 +41,7 @@ import type { PCloudItem } from './types';
  */
 
 /** The expected.json shape this harness understands (schema_version in manifest.json). */
-const DATASET_VERSION = 1;
+const DATASET_VERSION = 3;
 
 const DATASET_ROOT = fileURLToPath(new URL('../../../../shelf/testdata/conformance/', import.meta.url));
 
@@ -51,7 +57,13 @@ interface Manifest {
 
 interface ExpectedSource {
   id: string;
+  schema_version: number;
+  created_at: string;
+  comment: string;
+  format: string;
+  md5_hash: string;
   has_content: boolean;
+  line_count: number;
   char_count: number;
   assets: string[];
 }
@@ -64,11 +76,18 @@ interface ExpectedBook {
   format: string;
   authors: string[];
   tags: string[];
+  identifiers: Record<string, string>;
+  language: string;
+  comments: string;
   star: number;
+  created_at: string;
+  updated_at: string;
+  published_at: string;
   cover: string;
   cover_present: boolean;
   schema_version_on_disk: number;
   read_only: boolean;
+  nsfw: boolean;
   current_source_field: string;
   current_source: string | null;
   sources: ExpectedSource[];
@@ -145,8 +164,15 @@ function readCase(shelfDir: string): ExpectedReading {
     throw new Error(`${shelfDir} has no books folder`);
   }
 
+  // The shelf's own settings decide which directories are skipped, so they are
+  // read before the walk, exactly as the provider does.
+  const configRef = findShelfConfigFile(root);
+  const config: ShelfConfig = configRef ? parseShelfConfig(readListedJson(contents, configRef)) : {};
+  const ignore = createIgnoreRules(config.ignoredDirs ?? DEFAULT_IGNORED_DIRS);
+  const isNSFWFolder = createNSFWRules(config.nsfwFolders ?? []);
+
   const books: ExpectedBook[] = [];
-  for (const pkg of collectBookPackages(booksFolder)) {
+  for (const pkg of collectBookPackages(booksFolder, ignore)) {
     if (!pkg.meta) {
       // A package with no book.json is skipped by the provider that consumes
       // this walk, and the dataset deliberately holds none — see the README.
@@ -162,21 +188,37 @@ function readCase(shelfDir: string): ExpectedReading {
       format: meta.format ?? '',
       authors: meta.authors ?? [],
       tags: meta.tags ?? [],
+      identifiers: meta.identifiers ?? {},
+      language: meta.language ?? '',
+      comments: meta.comments ?? '',
       star: meta.star ?? 0,
+      created_at: meta.created_at ?? '',
+      updated_at: meta.updated_at ?? '',
+      published_at: meta.published_at ?? '',
       cover: meta.cover ?? '',
       cover_present: findCoverFile(pkg, meta) !== undefined,
       schema_version_on_disk: meta.schema_version ?? 0,
       read_only: isSchemaNewerThanSupported(meta),
+      nsfw: isBookNSFW(isNSFWFolder, pkg.folders, meta),
       current_source_field: meta.current_source ?? '',
       current_source: findCurrentSource(pkg, meta)?.id ?? null,
-      sources: pkg.sources.map((source) => ({
-        id: source.id,
-        has_content: source.content !== undefined,
-        char_count: source.meta
-          ? (toSourceMeta(readListedJson(contents, source.meta), source.id).char_count ?? 0)
-          : 0,
-        assets: Object.keys(source.assets).sort()
-      }))
+      sources: pkg.sources.map((source) => {
+        const sourceMeta = source.meta
+          ? toSourceMeta(readListedJson(contents, source.meta), source.id)
+          : undefined;
+        return {
+          id: source.id,
+          schema_version: sourceMeta?.schema_version ?? 0,
+          created_at: sourceMeta?.created_at ?? '',
+          comment: sourceMeta?.comment ?? '',
+          format: sourceMeta?.format ?? '',
+          md5_hash: sourceMeta?.md5_hash ?? '',
+          has_content: source.content !== undefined,
+          line_count: sourceMeta?.line_count ?? 0,
+          char_count: sourceMeta?.char_count ?? 0,
+          assets: Object.keys(source.assets).sort()
+        };
+      })
     });
   }
   books.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
@@ -191,7 +233,7 @@ function readCase(shelfDir: string): ExpectedReading {
   });
   bookCaches.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
-  return { folders: collectFolders(booksFolder), books, book_caches: bookCaches };
+  return { folders: collectFolders(booksFolder, ignore), books, book_caches: bookCaches };
 }
 
 const manifest = readJsonFile<Manifest>(join(DATASET_ROOT, 'manifest.json'));

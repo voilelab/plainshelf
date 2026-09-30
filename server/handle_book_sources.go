@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -66,7 +65,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := book.EnsureWritable(); err != nil {
-		h.writeErr(w, err, "failed to create book source")
+		h.writeErr(w, r, err, "failed to create book source")
 		return
 	}
 
@@ -122,23 +121,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 	} else if strings.HasPrefix(contentType, "application/json") {
 		r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 		var request createSourceJSONRequest
-		decoder := json.NewDecoder(r.Body)
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&request); err != nil {
-			if isRequestBodyTooLarge(err) {
-				http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
-				return
-			}
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
-			return
-		}
-		var extra any
-		if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-			if isRequestBodyTooLarge(err) {
-				http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
-				return
-			}
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+		if !decodeStrictJSON(w, r, &request) {
 			return
 		}
 
@@ -152,7 +135,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 
 	sourceMeta, err := book.NewSourceWithOptions(content, options)
 	if err != nil {
-		h.writeErr(w, err, "failed to create book source")
+		h.writeErr(w, r, err, "failed to create book source")
 		return
 	}
 	if setCurrent {
@@ -160,7 +143,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 			if cleanupErr := book.DeleteSource(sourceMeta.ID()); cleanupErr != nil {
 				h.Error("failed to roll back derived source", "source_id", sourceMeta.ID(), "error", cleanupErr)
 			}
-			h.writeErr(w, err, "failed to activate new book source")
+			h.writeErr(w, r, err, "failed to activate new book source")
 			return
 		}
 		shelfData.RefreshBookCharCount(book.ID())
@@ -186,7 +169,7 @@ func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, ok := h.lookupBook(w, shelfData, bookID)
+	book, ok := h.lookupBook(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
@@ -194,13 +177,34 @@ func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 	// DeleteSource reports a missing source itself, so the source is not
 	// loaded up front here.
 	if err := book.DeleteSource(sourceID); err != nil {
-		h.writeErr(w, err, "failed to delete book source")
+		h.writeErr(w, r, err, "failed to delete book source")
 		return
 	}
 
 	// Deleting the current source hands the pointer to another one, so the
 	// cached character count is now somebody else's.
 	shelfData.RefreshBookCharCount(book.ID())
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/comment
+//
+// Clears the source's comment. The note is written by an import or a conversion
+// to record where this text came from, never by the user, so the only thing a
+// client can do to it is remove one it no longer wants on the book page. There
+// is deliberately no way to rewrite it: an editable note would no longer be a
+// record of what actually happened.
+func (h *sourceHandlers) deleteSourceComment(w http.ResponseWriter, r *http.Request) {
+	_, _, source, ok := h.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	if err := source.UpdateComment(""); err != nil {
+		h.writeErr(w, r, err, "failed to delete book source comment")
+		return
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -219,7 +223,7 @@ func (h *sourceHandlers) setCurrentSource(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := book.SetCurrentSource(sourceID); err != nil {
-		h.writeErr(w, err, "failed to set current book source")
+		h.writeErr(w, r, err, "failed to set current book source")
 		return
 	}
 
@@ -254,7 +258,7 @@ func (h *sourceHandlers) refreshSourceMeta(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := source.RefreshContentMetadata(); err != nil {
-		h.writeErr(w, err, "failed to refresh source metadata")
+		h.writeErr(w, r, err, "failed to refresh source metadata")
 		return
 	}
 
@@ -286,7 +290,7 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := source.UpdateContent(utf8Reader); err != nil {
-		h.writeErr(w, err, "failed to update book source content")
+		h.writeErr(w, r, err, "failed to update book source content")
 		return
 	}
 

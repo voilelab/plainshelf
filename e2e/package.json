@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
     "test:headed": "playwright test --headed"
   },
   "keywords": [],
@@ -15,7 +16,7 @@
   "license": "BSD-3-Clause",
   "type": "commonjs",
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@playwright/test": "^1.62.1"
   },
   "private": true
 }

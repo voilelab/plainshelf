@@ -45,10 +45,23 @@
 
       <label v-if="focused" class="control-field scope-field">
         <span class="field-label">{{ t('sources.editor.find.scopeLabel') }}</span>
-        <select v-model="findScope" class="control-input" :disabled="isEditorDisabled">
-          <option value="section">{{ t('sources.editor.find.scopeSection') }}</option>
-          <option value="source">{{ t('sources.editor.find.scopeSource') }}</option>
-        </select>
+        <SelectRoot :model-value="findScope" :disabled="isEditorDisabled" @update:model-value="onFindScopeChange">
+          <SelectTrigger class="control-input select-trigger">
+            <SelectValue>{{ scopeLabel }}</SelectValue>
+          </SelectTrigger>
+          <SelectPortal>
+            <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+              <SelectViewport>
+                <SelectItem class="reka-menu-item" value="section">
+                  <SelectItemText>{{ t('sources.editor.find.scopeSection') }}</SelectItemText>
+                </SelectItem>
+                <SelectItem class="reka-menu-item" value="source">
+                  <SelectItemText>{{ t('sources.editor.find.scopeSource') }}</SelectItemText>
+                </SelectItem>
+              </SelectViewport>
+            </SelectContent>
+          </SelectPortal>
+        </SelectRoot>
       </label>
 
       <div class="find-actions">
@@ -88,6 +101,17 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
+} from 'reka-ui';
 import { useSourceCodeMirror } from '@/features/sources/composables/useSourceCodeMirror';
 import type {
   SourceDocumentEdit,
@@ -120,6 +144,21 @@ const emit = defineEmits<{
 
 const isEditorDisabled = computed(() => !props.sourceId || props.loading || props.saving);
 const findScope = ref<SourceFindScope>(props.focused ? 'section' : 'source');
+
+// Rendered into the SelectValue slot so the closed trigger follows a locale
+// change: reka-ui snapshots each SelectItemText at mount and does not refresh
+// the trigger label on a runtime i18n switch.
+const scopeLabel = computed(() =>
+  findScope.value === 'source'
+    ? t('sources.editor.find.scopeSource')
+    : t('sources.editor.find.scopeSection')
+);
+
+function onFindScopeChange(value: AcceptableValue): void {
+  if (value === 'section' || value === 'source') {
+    findScope.value = value;
+  }
+}
 
 watch(
   () => props.focused,
@@ -264,6 +303,18 @@ defineExpose<SourceEditorHandle>({
   border-radius: 6px;
   padding: 0 10px;
   font: inherit;
+}
+
+/* The Reka SelectTrigger is a <button>; give it the white field surface and
+   left alignment the native <select> had while keeping .control-input sizing. */
+.select-trigger {
+  align-items: center;
+  background: var(--bg, #fff);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  text-align: left;
+  width: 100%;
 }
 
 .find-actions {

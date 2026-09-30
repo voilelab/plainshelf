@@ -37,7 +37,15 @@
 
     <Transition name="reader-chrome">
       <header v-if="chromeVisible" class="mobile-reader-topbar">
-        <RouterLink :to="`/books/${bookId}`" class="mobile-reader-back">{{ t('reader.backToDetail') }}</RouterLink>
+        <button
+          v-if="showBackNavigation"
+          class="mobile-reader-back"
+          type="button"
+          @click="emit('back')"
+        >
+          {{ t('common.back') }}
+        </button>
+        <span v-else aria-hidden="true"></span>
         <div class="mobile-reader-chapter">
           <strong>{{ currentSection?.title || title || bookId }}</strong>
           <span>{{ currentSectionIndex + 1 }} / {{ sections.length }}</span>
@@ -88,11 +96,26 @@
         >
           <Icon name="menu" />
         </button>
+        <button
+          class="button mobile-reader-tool mobile-reader-help-tool"
+          type="button"
+          :aria-label="t('reader.mobile.showGestureHint')"
+          @click="showHint"
+        >
+          ?
+        </button>
       </div>
     </Transition>
 
     <Transition name="reader-message">
-      <p v-if="showGestureHint" class="mobile-reader-hint" role="status">{{ t('reader.mobile.gestureHint') }}</p>
+      <p
+        v-if="showGestureHint"
+        class="mobile-reader-hint"
+        :class="{ 'mobile-reader-hint-above-chrome': chromeVisible }"
+        role="status"
+      >
+        {{ t('reader.mobile.gestureHint') }}
+      </p>
     </Transition>
     <p class="mobile-reader-live" aria-live="polite">{{ boundaryMessage }}</p>
     <Transition name="reader-message">
@@ -130,12 +153,14 @@ const props = defineProps<{
   loading: boolean;
   error: string;
   saveError: string;
+  showBackNavigation: boolean;
   isAtMinFontSize: boolean;
   isAtMaxFontSize: boolean;
 }>();
 
 const emit = defineEmits<{
   retry: [];
+  back: [];
   scroll: [];
   readerReady: [element: HTMLDivElement | null];
   previousSection: [];
@@ -164,6 +189,14 @@ const boundaryMessage = ref('');
 let activePointer: ActivePointer | null = null;
 let hintTimer: ReturnType<typeof setTimeout> | undefined;
 let boundaryTimer: ReturnType<typeof setTimeout> | undefined;
+
+function showHint(): void {
+  if (hintTimer !== undefined) {
+    clearTimeout(hintTimer);
+  }
+  showGestureHint.value = true;
+  hintTimer = setTimeout(clearHint, GESTURE_HINT_DURATION_MS);
+}
 
 function clearHint(): void {
   showGestureHint.value = false;
@@ -331,8 +364,7 @@ function finishGesture(pointer: ActivePointer, clientX: number, clientY: number)
 onMounted(() => {
   if (window.localStorage.getItem(GESTURE_HINT_STORAGE_KEY) === '1') return;
   window.localStorage.setItem(GESTURE_HINT_STORAGE_KEY, '1');
-  showGestureHint.value = true;
-  hintTimer = setTimeout(clearHint, GESTURE_HINT_DURATION_MS);
+  showHint();
 });
 
 watch(() => props.bookId, () => {
@@ -447,7 +479,13 @@ onBeforeUnmount(() => {
 }
 
 .mobile-reader-back {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
   color: #5d513f;
+  cursor: pointer;
+  font: inherit;
   font-size: 0.86rem;
   text-decoration: none;
 }
@@ -513,6 +551,11 @@ onBeforeUnmount(() => {
   font-weight: 650;
 }
 
+.mobile-reader-help-tool {
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
 .mobile-reader-tool svg {
   width: 20px;
   height: 20px;
@@ -537,6 +580,12 @@ onBeforeUnmount(() => {
 
 .mobile-reader-hint {
   bottom: calc(28px + env(safe-area-inset-bottom));
+}
+
+/* The toolbar occupies the bottom 70px once the chrome is up; a hint recalled
+   from it would otherwise land underneath its own button. */
+.mobile-reader-hint-above-chrome {
+  bottom: calc(82px + env(safe-area-inset-bottom));
 }
 
 .mobile-reader-boundary {

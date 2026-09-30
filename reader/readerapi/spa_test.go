@@ -120,3 +120,23 @@ func TestSPAMarksTheReaderRuntimeWithNoBook(t *testing.T) {
 		t.Errorf("expected an empty book id, got:\n%s", body)
 	}
 }
+
+// The boot config is marshalled with encoding/json/v2, which - unlike v1 -
+// writes "<" as itself, so the injector's own escaping is what keeps a book ID
+// from closing the inline <script>. A book ID is the directory name on disk,
+// which the user chooses.
+func TestSPAEscapesScriptCloseInTheBootConfig(t *testing.T) {
+	boot := readerapi.BootConfig{
+		ShelfID: readerapi.ShelfID,
+		BookID:  `b</script><script>alert(1)</script>`,
+	}
+
+	body := serveSPA(t, boot, "/").Body.String()
+
+	if strings.Contains(body, "</script><script>") {
+		t.Errorf("the book ID closed the boot script:\n%s", body)
+	}
+	if !strings.Contains(body, `b\u003c/script`) {
+		t.Errorf("expected the book ID escaped, got:\n%s", body)
+	}
+}

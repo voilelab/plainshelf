@@ -9,30 +9,27 @@
         <button class="icon-close" type="button" :aria-label="t('reader.fontDialog.close')" @click="emit('close')">×</button>
       </header>
 
-      <div class="font-selection-list" role="radiogroup" :aria-label="t('reader.fontDialog.optionsLabel')">
-        <label
+      <RadioGroupRoot
+        class="font-selection-list"
+        :model-value="fontFamily"
+        :aria-label="t('reader.fontDialog.optionsLabel')"
+        @update:model-value="onSelect"
+      >
+        <RadioGroupItem
           v-for="option in fontOptions"
           :key="option.id"
           class="font-selection-option"
-          :class="{ active: option.id === fontFamily }"
+          :value="option.id"
           :style="{ fontFamily: option.cssFamily }"
         >
-          <input
-            class="font-selection-radio"
-            type="radio"
-            name="reader-font-family"
-            :value="option.id"
-            :checked="option.id === fontFamily"
-            @change="emit('select', option.id)"
-          />
           <span class="font-selection-option-copy">
             <strong>{{ t(option.labelKey) }}</strong>
             <span>{{ t(option.descriptionKey) }}</span>
             <span class="font-selection-sample" lang="zh-Hant">{{ t('reader.fontDialog.sample') }}</span>
           </span>
-          <span class="font-selection-check" aria-hidden="true">{{ option.id === fontFamily ? '✓' : '' }}</span>
-        </label>
-      </div>
+          <RadioGroupIndicator class="font-selection-check" aria-hidden="true">✓</RadioGroupIndicator>
+        </RadioGroupItem>
+      </RadioGroupRoot>
 
       <button class="button font-selection-done" type="button" @click="emit('close')">
         {{ t('reader.fontDialog.done') }}
@@ -42,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import { RadioGroupIndicator, RadioGroupItem, RadioGroupRoot } from 'reka-ui';
 import BaseDialog from '@/components/BaseDialog.vue';
 import {
   READER_FONT_OPTIONS,
@@ -66,6 +64,15 @@ const fontOptions = READER_FONT_OPTIONS.map((option) => ({
   labelKey: `reader.fontDialog.fonts.${option.id}.label`,
   descriptionKey: `reader.fontDialog.fonts.${option.id}.description`
 }));
+
+// RadioGroupRoot carries its model value as `unknown`, so narrow it back to a
+// known font id before forwarding the selection.
+function onSelect(value: unknown): void {
+  const option = fontOptions.find((candidate) => candidate.id === value);
+  if (option) {
+    emit('select', option.id);
+  }
+}
 </script>
 
 <style scoped src="../styles/reader-modal.css"></style>

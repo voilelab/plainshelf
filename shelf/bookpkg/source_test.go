@@ -2,14 +2,16 @@ package bookpkg
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/hashutil"
 )
 
 func TestOpenSource(t *testing.T) {
@@ -130,12 +132,8 @@ func TestUpdateSource(t *testing.T) {
 		t.Error("Expected character count to change after source content update")
 	}
 
-	verified, err := source.VerifyContent()
-	if err != nil {
-		t.Fatalf("Failed to verify updated source content: %v", err)
-	}
-	if !verified {
-		t.Fatal("Expected updated source content to match stored MD5 hash")
+	if got := contentMD5(t, source); got != updatedMeta.MD5Hash {
+		t.Fatalf("meta md5_hash = %q, want the updated content's %q", updatedMeta.MD5Hash, got)
 	}
 }
 
@@ -205,13 +203,6 @@ func TestCreateRootSource(t *testing.T) {
 	if meta.CharCount != len(sourceContent) {
 		t.Errorf("Expected character count %d, got %d", len(sourceContent), meta.CharCount)
 	}
-
-	// A fresh source has no chapter config, so meta.json must not carry an empty
-	// split_config that no schema-versioned reader consults.
-	persisted := readPersistedJSON(t, rootFS, path.Join(source.FolderPath(), SourceMetaFile))
-	if _, ok := persisted["split_config"]; ok {
-		t.Errorf("new source wrote split_config: %v", persisted["split_config"])
-	}
 }
 
 func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
@@ -221,7 +212,10 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
-	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","split_config":{"type":"line_count","line_count":20}}`
+	// Opening a pre-schema-version source decodes only the fields this build
+	// models, so a rewrite neither resurrects the unknown ones nor upgrades the
+	// source by adding format/schema_version.
+	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","legacy_extra":"ignored"}`
 	if err := rootFS.WriteFile(metaPath, []byte(legacy)); err != nil {
 		t.Fatalf("write legacy meta: %v", err)
 	}
@@ -252,12 +246,11 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 	if _, ok := persisted["schema_version"]; ok {
 		t.Fatalf("ordinary save added schema_version to legacy source: %s", raw)
 	}
-	split, ok := persisted["split_config"].(map[string]any)
-	if !ok {
-		t.Fatalf("ordinary save dropped the legacy split_config: %s", raw)
+	if _, ok := persisted["legacy_extra"]; ok {
+		t.Fatalf("ordinary save preserved an unknown legacy field: %s", raw)
 	}
-	if split["type"] != "line_count" || split["line_count"] != float64(20) {
-		t.Fatalf("ordinary save mangled the legacy split_config: %v", split)
+	if persisted["comment"] != "legacy" {
+		t.Fatalf("ordinary save changed a known field: %s", raw)
 	}
 }
 
@@ -268,7 +261,7 @@ func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
-	future := `{"schema_version":99,"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"future","format":"md","future_key":true,"split_config":{"type":"none"}}`
+	future := `{"schema_version":99,"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"future","format":"md","future_key":true}`
 	if err := rootFS.WriteFile(metaPath, []byte(future)); err != nil {
 		t.Fatalf("write future meta: %v", err)
 	}
@@ -293,7 +286,7 @@ func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
 	}
 }
 
-func TestSourceHashPersists(t *testing.T) {
+func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "hash-book", "Source Metadata")
 	source, err := book.NewSource(bytes.NewBufferString("original\n"))
 	if err != nil {
@@ -302,25 +295,95 @@ func TestSourceHashPersists(t *testing.T) {
 	if source.FolderPath() == "" {
 		t.Fatal("FolderPath returned an empty path")
 	}
+	stored := source.GetMeta().MD5Hash
+	if stored == "" {
+		t.Fatal("a new source was written without an md5_hash")
+	}
 
+	// Edited outside PlainShelf: the content moves, meta.json does not.
 	if err := rootFS.WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("changed\n")); err != nil {
 		t.Fatalf("replace source content: %v", err)
 	}
-	verified, err := source.VerifyContent()
+	edited := contentMD5(t, source)
+	if edited == stored {
+		t.Fatal("the fixture did not actually change the content")
+	}
+	if got := source.GetMeta().MD5Hash; got != stored {
+		t.Fatalf("md5_hash = %q before any repair, want the stale %q", got, stored)
+	}
+
+	repaired, err := source.RepairContentHash(edited)
 	if err != nil {
-		t.Fatalf("VerifyContent(changed): %v", err)
+		t.Fatalf("RepairContentHash: %v", err)
 	}
-	if verified {
-		t.Fatal("VerifyContent accepted content with a stale hash")
+	if !repaired {
+		t.Fatal("RepairContentHash reported no write for a hash that disagreed")
 	}
-	if err := source.UpdateHash(); err != nil {
-		t.Fatalf("UpdateHash: %v", err)
+	if got := source.GetMeta().MD5Hash; got != edited {
+		t.Fatalf("md5_hash = %q after repair, want %q", got, edited)
 	}
-	verified, err = source.VerifyContent()
+
+	// The write reached meta.json, not just the in-memory source.
+	reopened, err := book.GetSource(source.GetMeta().ID)
 	if err != nil {
-		t.Fatalf("VerifyContent(updated): %v", err)
+		t.Fatalf("GetSource: %v", err)
 	}
-	if !verified {
-		t.Fatal("VerifyContent rejected content after UpdateHash")
+	if got := reopened.GetMeta().MD5Hash; got != edited {
+		t.Fatalf("md5_hash = %q after reopening, want the persisted %q", got, edited)
+	}
+
+	// Agreeing hashes are a no-op rather than a second write.
+	again, err := reopened.RepairContentHash(edited)
+	if err != nil {
+		t.Fatalf("RepairContentHash (agreeing): %v", err)
+	}
+	if again {
+		t.Error("RepairContentHash rewrote meta.json for a hash that already agreed")
+	}
+}
+
+// contentMD5 is the hash meta.json should be carrying for a source.
+func contentMD5(t *testing.T, source *Source) string {
+	t.Helper()
+	f, err := source.Open()
+	if err != nil {
+		t.Fatalf("Open source content: %v", err)
+	}
+	defer f.Close()
+	sum, err := hashutil.MD5Hash(f)
+	if err != nil {
+		t.Fatalf("MD5Hash: %v", err)
+	}
+	return sum
+}
+
+// json/v2 leaves &, < and > alone where v1 escaped them, in a file whose point
+// is that a text editor shows what you typed.
+func TestCreateSourceWritesCommentLiterally(t *testing.T) {
+	const comment = `imported from "A & B" <draft>`
+
+	tmpDir := t.TempDir()
+	tmpRoot, err := os.OpenRoot(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	source, err := createSource(rootFS, newLoggerForTest(), "commented-source", "20260315-a5",
+		bytes.NewBufferString("body"), BookFormatText, comment)
+	if err != nil {
+		t.Fatalf("Failed to create source: %v", err)
+	}
+
+	raw, err := os.ReadFile(path.Join(tmpDir, "commented-source", SourceMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read meta.json: %v", err)
+	}
+	if !strings.Contains(string(raw), `"comment": "imported from \"A & B\" <draft>"`) {
+		t.Errorf("meta.json does not carry the comment literally:\n%s", raw)
+	}
+	if got := source.GetMeta().Comment; got != comment {
+		t.Errorf("Comment did not round-trip: got %q, want %q", got, comment)
 	}
 }

@@ -26,7 +26,7 @@ RUN npm run build
 
 FROM ubuntu:24.04 AS server-build
 
-ARG GO_VERSION=1.26.6
+ARG GO_VERSION=1.27.1
 ARG VERSION=dev
 ENV PATH="/usr/local/go/bin:${PATH}"
 

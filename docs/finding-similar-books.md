@@ -42,9 +42,9 @@ all of the shorter text is contained in the longer one. When it is on, your leve
 selection is ignored and only trimmed copies are shown, with the fuller copy
 listed first and a note of how much content the shorter one is missing.
 
-One limit is worth knowing: the page only ever compares pairs that clear the
-widest level's floor (15% similar), and the checkbox narrows that same set rather
-than widening it. For a straight excerpt that means the shorter copy has to be at
+One limit, though: the page only ever compares pairs that clear the widest
+level's floor (15% similar), and the checkbox narrows that same set rather than
+widening it. For a straight excerpt that means the shorter copy has to be at
 least roughly a sixth of the fuller text's length to be compared at all — so a
 brief sample, such as a single chapter lifted from a long book, can be too short
 to surface even with the checkbox on. Trimmed copies that kept most of the book

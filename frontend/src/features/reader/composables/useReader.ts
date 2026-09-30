@@ -1,4 +1,5 @@
 import { computed, nextTick, ref } from 'vue';
+import { stageDesktopReadingProgress } from '@/api/desktop';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
@@ -21,7 +22,7 @@ function buildSingleSection(content: string): ReaderSection[] {
       index: 0,
       startOffset: 0,
       endOffset: content.length,
-      title: 'Part 1',
+      title: t('reader.sections.singleSectionTitle'),
       text: content
     }
   ];
@@ -69,9 +70,15 @@ export function useReader(bookID: () => string) {
     flush: flushReadingProgress,
     start: startProgressAutosave,
     stop: stopProgressAutosave
-  } = useReadingProgressAutosave(async (savedBookID, offset, at) => {
-    await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset, at });
-  });
+  } = useReadingProgressAutosave(
+    async (savedBookID, offset, at) => {
+      await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset, at });
+    },
+    // On the desktop and reader apps, hand each position change to the native
+    // shell so a window close before the next interval save still records it.
+    // A no-op elsewhere.
+    (stagedBookID, offset, at) => stageDesktopReadingProgress(stagedBookID, offset, at)
+  );
 
   function normalizeProgress(next: ReadingProgress): ReadingProgress {
     const total = content.value.length;
@@ -243,6 +250,11 @@ export function useReader(bookID: () => string) {
     currentSectionIndex.value = clampedIndex;
     const section = sections.value[clampedIndex];
     updateProgressByOffset(section.startOffset);
+    // A chapter boundary is a semantically valuable checkpoint, so persist it
+    // now instead of waiting up to a full autosave interval. Not awaited: the
+    // jump's UI response must not wait on a disk write, and a queued flush that
+    // finds the snapshot already clean is a no-op.
+    void flushReadingProgress();
     await syncScrollToOffset(section.startOffset);
     readerRef.value?.focus();
   }

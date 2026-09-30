@@ -1,14 +1,11 @@
 import { Capacitor } from '@capacitor/core';
 
-// Latched on first read for the same reason as the mobile flag below: an
-// in-app `router.push` drops the query string, which would otherwise turn the
-// desktop preview off mid-session and leave the browser preview — and the e2e
-// suite built on it — indistinguishable from a plain web build.
+// Latched for the same reason as the mobile flag below: an in-app `router.push`
+// drops the query string, which would turn the preview off mid-session.
 //
 // Only the URL flag is latched. The three real-runtime signals stay live per
-// call, so a Wails binding that lands after the first read (the first read is
-// initAppZoom() in main.ts) still switches desktop mode on, instead of being
-// frozen out by a latch taken too early.
+// call, so a Wails binding that lands after the first read still switches
+// desktop mode on rather than being frozen out by a latch taken too early.
 let desktopPreview: boolean | undefined;
 
 function hasDesktopPreviewFlag(): boolean {
@@ -34,18 +31,13 @@ export function isWailsRuntime(): boolean {
   );
 }
 
-// Desktop-browser preview of the mobile shell, mirroring the Wails
-// `?desktop-shell-preview=1` escape hatch above.
+// Desktop-browser preview of the mobile shell, mirroring the Wails escape
+// hatch above.
 //
-// Latched on first read: the flag lives in the URL, and an in-app `router.push`
-// (e.g. MobileConnectPage.onSave → '/books') drops the query — which would
-// otherwise silently disengage every mobile guard for the rest of the session
-// and leave the browser preview, and the e2e suite built on it, writable.
-// Native Android was never affected: Capacitor.isNativePlatform() ignores the
-// URL.
-//
-// One latch serves both readers below, so the runtime and the preview cannot
-// disagree about the same query string.
+// Latched on first read: an in-app `router.push` (MobileConnectPage.onSave →
+// '/books') drops the query, which would silently disengage every mobile guard
+// for the rest of the session and leave the browser preview writable. One latch
+// serves both readers below, so they cannot disagree about the same query.
 let mobilePreview: boolean | undefined;
 
 function hasMobilePreviewFlag(): boolean {
@@ -60,12 +52,9 @@ function hasMobilePreviewFlag(): boolean {
 }
 
 /**
- * Whether the mobile shell is being previewed in an ordinary browser rather
- * than running natively.
- *
  * True only for `?mobile-shell-preview=1`; a native Capacitor shell is a mobile
- * runtime but never a preview. That distinction is what keeps browser-only
- * affordances — the e2e provider hooks in main.ts — out of shipped app builds.
+ * runtime but never a preview. That distinction keeps browser-only affordances —
+ * the e2e provider hooks in main.ts — out of shipped app builds.
  */
 export function isMobileShellPreview(): boolean {
   return hasMobilePreviewFlag();
@@ -76,9 +65,8 @@ function detectMobileRuntime(): boolean {
     return false;
   }
 
-  // Prefer Capacitor's own platform check over UA sniffing: it is true only
-  // inside a native iOS/Android shell, so an ordinary mobile browser (or PWA)
-  // is not mistaken for the native runtime.
+  // Capacitor's own check rather than UA sniffing: true only inside a native
+  // shell, so an ordinary mobile browser or PWA is not mistaken for one.
   if (Capacitor.isNativePlatform()) {
     return true;
   }
@@ -86,12 +74,8 @@ function detectMobileRuntime(): boolean {
   return hasMobilePreviewFlag();
 }
 
-// Latched on first call rather than re-read per call, so the runtime cannot
-// flip mid-session. The URL half of the decision is latched by
-// hasMobilePreviewFlag() above — see the reasoning there; this second latch
-// covers the Capacitor half, which is stable for a page lifetime anyway.
-//
-// Lazy rather than evaluated at module load so `window` is ready.
+// Latched so the runtime cannot flip mid-session, and lazy so `window` is ready.
+// The URL half is latched by hasMobilePreviewFlag() above.
 let mobileRuntime: boolean | undefined;
 
 export function isMobileRuntime(): boolean {
@@ -102,16 +86,12 @@ export function isMobileRuntime(): boolean {
 }
 
 /**
- * Whether this is the standalone reader app rather than the desktop client or a
- * browser.
- *
  * The reader injects its boot config into index.html before the app's scripts
  * run (see shells/reader/bootConfig), so this is answerable during bootstrap —
- * which is what lets main.ts install the reader shell before the first
- * navigation, instead of after a request has come back.
+ * which lets main.ts install the reader shell before the first navigation.
  *
- * Not latched: the flag is written into the page itself, and the app reloads
- * the window when a book is opened, so it cannot change under a running app.
+ * Not latched: the flag is written into the page itself, so it cannot change
+ * under a running app.
  */
 export function isReaderRuntime(): boolean {
   if (typeof window === 'undefined') {
@@ -122,14 +102,9 @@ export function isReaderRuntime(): boolean {
 }
 
 /**
- * Whether this is a plain web-server build running in an ordinary browser — the
- * frontend that `frontend/web.go` embeds, served over HTTP — rather than the
- * Wails desktop client, a native or previewed mobile shell, or the standalone
- * reader app.
- *
- * Defined as the negation of the three real shells so a shell added later is
- * excluded here the moment its own predicate reports it, instead of silently
- * counting as web.
+ * The plain web build `frontend/web.go` embeds. Defined as the negation of the
+ * three real shells, so a shell added later is excluded here the moment its own
+ * predicate reports it instead of silently counting as web.
  */
 export function isWebRuntime(): boolean {
   if (typeof window === 'undefined') {

@@ -147,6 +147,28 @@ func TestStrategyValidate(t *testing.T) {
 	}
 }
 
+// Normalized fills each unset field with its own default, which is what lets a
+// caller accept a partially written strategy instead of discarding it.
+func TestStrategyNormalizedFillsUnsetFields(t *testing.T) {
+	got := Strategy{IncludeDescription: false}.Normalized()
+
+	if got.Preset != DefaultStrategy().Preset {
+		t.Errorf("preset = %q, want the %q default", got.Preset, DefaultStrategy().Preset)
+	}
+	if got.KeepImages == nil || !*got.KeepImages {
+		t.Errorf("keep_images = %v, want the default true", got.KeepImages)
+	}
+	if got.IncludeDescription {
+		t.Error("include_description = true, want the written false to survive")
+	}
+
+	// Normalizing is filling in, not correcting: an unknown preset stays
+	// unknown so Validate can still reject it.
+	if err := (Strategy{Preset: "nonsense"}).Normalized().Validate(); err == nil {
+		t.Error("Normalized().Validate() on an unknown preset = nil, want an error")
+	}
+}
+
 func TestStrategyDerivedValues(t *testing.T) {
 	keep, drop := true, false
 

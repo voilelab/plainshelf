@@ -1,12 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -17,12 +18,30 @@ type desktopShelfEntry struct {
 	Name         string `json:"name"`
 	LibRoot      string `json:"lib_root"`
 	ScanInterval string `json:"scan_interval,omitempty"`
+
+	// BookCheckInterval controls how often per-book staleness checks run; see
+	// shelf.ShelfConf. Empty means "same as scan_interval" (the default), so it is
+	// omitted from shelves.json until the user sets it.
+	BookCheckInterval string `json:"book_check_interval,omitempty"`
+
+	// ReadOnly opens the shelf without writing to it; see shelf.ShelfConf.
+	//
+	// This file is not inside any shelf, so a shelf being read-only never makes
+	// its own entry here unwritable: a shelf that was opened read-only can
+	// always be edited back. See DesktopApp.ModifyShelf.
+	ReadOnly bool `json:"read_only,omitzero"`
 }
 
 const (
 	desktopLegacyDefaultShelfID   = "default_shelf"
 	desktopLegacyDefaultShelfName = "Default Shelf"
 	desktopLegacyShelfDirName     = "shelf"
+
+	// desktopShelvesDirName holds the shelves the user creates from the add-shelf
+	// form without choosing a directory. It is a level below the data root rather
+	// than beside it, so a shelf whose name slugifies to "shelf" cannot land on
+	// the legacy default shelf's own directory (desktopLegacyShelfDirName).
+	desktopShelvesDirName = "shelves"
 )
 
 type desktopShelvesConfig struct {
@@ -77,7 +96,7 @@ func defaultDesktopShelvesConfig(dataRoot string) *desktopShelvesConfig {
 }
 
 func saveDesktopShelves(configPath string, conf *desktopShelvesConfig) error {
-	data, err := json.MarshalIndent(conf, "", "  ")
+	data, err := json.Marshal(conf, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -92,10 +111,20 @@ func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 		ID:   entry.ID,
 		Name: entry.Name,
 		ShelfConf: shelf.ShelfConf{
-			LibRoot:      entry.LibRoot,
-			ScanInterval: entry.ScanInterval,
+			LibRoot:           entry.LibRoot,
+			ScanInterval:      entry.ScanInterval,
+			BookCheckInterval: entry.BookCheckInterval,
+			ReadOnly:          entry.ReadOnly,
 		},
 	}
+}
+
+// defaultDesktopShelfDir is where a shelf with the given id is created when the
+// user does not pick a directory. shelves.json sits directly in the desktop data
+// root (see startServer), which is what makes that root recoverable from the
+// config path alone instead of being threaded through as a second field.
+func defaultDesktopShelfDir(shelvesConfigPath, shelfID string) string {
+	return filepath.Join(filepath.Dir(shelvesConfigPath), desktopShelvesDirName, shelfID)
 }
 
 func normalizeDesktopShelfDirectory(dir string) (string, error) {

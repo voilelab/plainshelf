@@ -1,7 +1,7 @@
 package server
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"net/http"
 	"strings"
@@ -26,7 +26,42 @@ type Book struct {
 	// CharCount is only populated when the request includes
 	// include=char_count; it is omitted otherwise, so the default response
 	// shape is unchanged.
-	CharCount int `json:"char_count,omitempty"`
+	CharCount int `json:"char_count,omitzero"`
+
+	// NSFWFolder is the shelf.json rule marking this book's folder, absent when
+	// none reaches it.
+	//
+	// Meta.NSFW is the book's own half of the mark and a client may write it
+	// back; this half belongs to the shelf and it may not. A client that offered
+	// one checkbox for both would let a user clear a mark that then reappears on
+	// the next read, so the two halves are reported separately - and the whole
+	// answer, the one the filter acts on, is Meta.NSFW or this being present.
+	NSFWFolder *NSFWFolderRule `json:"nsfw_folder,omitzero"`
+}
+
+// NSFWFolderRule is one content.nsfw_folders entry, as written in shelf.json.
+type NSFWFolderRule struct {
+	Path string `json:"path"`
+
+	// Reason is what the person who wrote the entry noted, and is often absent;
+	// a client with nothing here names the path instead.
+	Reason string `json:"reason,omitempty"`
+}
+
+// nsfwFolderRule is the rule marking this folder, or nil. Every Book response
+// goes through it so no route can report a book as unmarked that another
+// reports as marked.
+func nsfwFolderRule(shelfData *shelf.ShelfData, folder shelf.FolderPath) *NSFWFolderRule {
+	rule, ok := shelfData.NSFWFolderRule(folder)
+	if !ok {
+		return nil
+	}
+	return &NSFWFolderRule{Path: rule.Path, Reason: rule.Reason}
+}
+
+// newBookResponse assembles the response for one book sitting at folder.
+func newBookResponse(shelfData *shelf.ShelfData, meta *shelf.BookMeta, folder shelf.FolderPath) Book {
+	return Book{Meta: meta, Folder: folder, NSFWFolder: nsfwFolderRule(shelfData, folder)}
 }
 
 type UpdateBookRequest struct {
@@ -40,6 +75,11 @@ type UpdateBookRequest struct {
 	Format      *string            `json:"format"`
 	PublishedAt *util.JSONDate     `json:"published_at"`
 	Folder      *shelf.FolderPath  `json:"folder"`
+
+	// NSFW writes the book's own half of the adult-content mark. It cannot
+	// clear a mark the book's folder carries: shelf.json decides that one, and
+	// Shelf.IsBookNSFW adds the two rather than letting either override.
+	NSFW *bool `json:"nsfw"`
 }
 
 // folderPath locates a book on disk for the desktop client's "show in file
@@ -78,9 +118,9 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	// The listing carries the character counts whether or not this request
 	// asked for them: they come out of the book cache, so fetching them costs
 	// nothing beyond the listing itself.
-	books, err := shelfData.ListBooksWithCharCount()
+	books, err := h.visibility(shelfData).listBooks()
 	if err != nil {
-		h.writeErr(w, err, "failed to list books")
+		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
 
@@ -94,12 +134,9 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 
 	jsonBooks := make([]Book, len(books))
 	for i, b := range books {
-		jsonBooks[i] = Book{
-			Meta:   b.Book.GetMeta(),
-			Folder: b.Folders,
-		}
+		jsonBooks[i] = newBookResponse(shelfData, b.Book.GetMeta(), b.Folders)
 		if includeCharCount {
-			// A book with a broken or missing source reports 0, which omitempty
+			// A book with a broken or missing source reports 0, which omitzero
 			// drops: one damaged book must not fail the whole listing.
 			jsonBooks[i].CharCount = b.CharCount
 		}
@@ -143,16 +180,13 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 		return book.SetCurrentSource(source.ID())
 	})
 	if err != nil {
-		h.writeErr(w, err, "failed to create new book")
+		h.writeErr(w, r, err, "failed to create new book")
 		return
 	}
 
 	// The book was created under req.Folder, so that is where it now sits; the
 	// book itself does not carry its folder back.
-	h.writeJSON(w, http.StatusCreated, Book{
-		Meta:   newBook.GetMeta(),
-		Folder: req.Folder,
-	})
+	h.writeJSON(w, http.StatusCreated, newBookResponse(shelfData, newBook.GetMeta(), req.Folder))
 }
 
 // CopyBookRequest carries the optional destination for a copy. When the field is
@@ -179,7 +213,7 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	listing, ok := h.lookupBookListing(w, shelfData, bookID)
+	listing, ok := h.lookupBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
@@ -192,28 +226,22 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 
 	copied, err := shelfData.CopyBook(bookID, target)
 	if err != nil {
-		h.writeErr(w, err, "failed to copy book")
+		h.writeErr(w, r, err, "failed to copy book")
 		return
 	}
 
 	// The copy landed under target, so that is its folder.
-	h.writeJSON(w, http.StatusCreated, Book{
-		Meta:   copied.GetMeta(),
-		Folder: target,
-	})
+	h.writeJSON(w, http.StatusCreated, newBookResponse(shelfData, copied.GetMeta(), target))
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}
 func (h *bookHandlers) getBook(w http.ResponseWriter, r *http.Request) {
-	_, listing, ok := h.loadBookListing(w, r)
+	shelfData, listing, ok := h.loadBookListing(w, r)
 	if !ok {
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, Book{
-		Meta:   listing.Book.GetMeta(),
-		Folder: listing.Folders,
-	})
+	h.writeJSON(w, http.StatusOK, newBookResponse(shelfData, listing.Book.GetMeta(), listing.Folders))
 }
 
 // PATCH /api/shelves/{shelf_id}/books/{book_id}
@@ -235,7 +263,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	listing, ok := h.lookupBookListing(w, shelfData, bookID)
+	listing, ok := h.lookupBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
@@ -245,7 +273,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	// Refuse a book this build must not modify before doing anything, otherwise
 	// a folder move would be applied to disk and then reported as a failure.
 	if err := book.EnsureWritable(); err != nil {
-		h.writeErr(w, err, "failed to update book metadata")
+		h.writeErr(w, r, err, "failed to update book metadata")
 		return
 	}
 
@@ -253,7 +281,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		moveTo := append(shelf.FolderPath(nil), (*req.Folder)...)
 		movedBook, err := shelfData.MoveBook(bookID, moveTo)
 		if err != nil {
-			h.writeErr(w, err, "failed to move book folder")
+			h.writeErr(w, r, err, "failed to move book folder")
 			return
 		}
 		// The book now sits where it was moved to.
@@ -265,11 +293,11 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	applyBookPatch(&meta, &req)
 
 	if err := book.SetMeta(&meta); err != nil {
-		h.writeErr(w, err, "failed to update book metadata")
+		h.writeErr(w, r, err, "failed to update book metadata")
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, Book{Meta: &meta, Folder: folder})
+	h.writeJSON(w, http.StatusOK, newBookResponse(shelfData, &meta, folder))
 }
 
 // applyBookPatch validates nothing: the field rules belong to shelf, which
@@ -302,6 +330,9 @@ func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {
 	if req.Format != nil {
 		meta.Format = *req.Format
 	}
+	if req.NSFW != nil {
+		meta.NSFW = *req.NSFW
+	}
 
 	meta.UpdatedAt = util.JSONTime(time.Now())
 }
@@ -315,7 +346,7 @@ func (h *bookHandlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 
 	source, err := book.ResolveCurrentSource()
 	if err != nil {
-		h.writeErr(w, err, "failed to get book source")
+		h.writeErr(w, r, err, "failed to get book source")
 		return
 	}
 
@@ -338,13 +369,14 @@ func (h *bookHandlers) findDuplicateBooks(w http.ResponseWriter, r *http.Request
 	}
 
 	md5Groups := map[string][]string{}
-	books, err := shelfData.ListBooks()
+	books, err := h.visibility(shelfData).listBooks()
 	if err != nil {
-		h.writeErr(w, err, "failed to list books")
+		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
 
-	for _, b := range books {
+	for _, listing := range books {
+		b := listing.Book
 		source, err := b.GetSource(b.CurrentSource())
 		if err != nil {
 			h.Warn("failed to get source for book", "book_id", b.ID(), "error", err)

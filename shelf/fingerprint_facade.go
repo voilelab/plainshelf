@@ -10,8 +10,8 @@ import (
 // on its own - a new algorithm, a forced rebuild, a future read from the pcloud
 // client - without being tied to the shelf's lifecycle or its scan-ready state.
 // It holds no *Shelf: everything it needs arrives through fingerprint.Config.
-// These aliases and facade methods keep every symbol reachable as shelf.X and
-// every call site - server, server/task, handlers - unchanged by the split.
+// These aliases and facade methods keep the symbols call sites name reachable as
+// shelf.X.
 
 // Fingerprint cache types.
 type (
@@ -20,7 +20,11 @@ type (
 	FingerprintEntry      = fingerprint.Entry
 	FingerprintCacheStats = fingerprint.Stats
 	FingerprintCoverage   = fingerprint.Coverage
-	FingerprintBuilder    = fingerprint.Builder
+
+	// FingerprintBookSource names one book and the source of it a coverage
+	// count asks about. The caller assembles the list, which is what keeps this
+	// shelf out of the question of which books a given request may count.
+	FingerprintBookSource = fingerprint.BookSource
 )
 
 // ErrIncompleteFingerprintAlgo is raised by OpenFingerprintCache for an
@@ -39,7 +43,7 @@ func (s *Shelf) OpenFingerprintCache(algo FingerprintAlgo) (*FingerprintCache, e
 		Algo:       algo,
 		Logger:     s.Logger,
 		LiveBooks:  s.liveBookIDs,
-		RepairHash: repairSourceContentHash,
+		RepairHash: (*Source).RepairContentHash,
 	})
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -47,37 +51,23 @@ func (s *Shelf) OpenFingerprintCache(algo FingerprintAlgo) (*FingerprintCache, e
 	return cache, nil
 }
 
-// FingerprintStatus reports how many books already have a fingerprint for their
-// current source under algo, reading only app/fingerprint-cache.json and the
-// books the shelf holds in memory - never a source.txt. A cache built under
-// different rules answers for none, which is what tells the UI a rebuild is due.
-func (s *Shelf) FingerprintStatus(algo FingerprintAlgo) (FingerprintCoverage, error) {
+// FingerprintCoverageFor reports how many of these books already have a
+// fingerprint for the named source under algo, reading only
+// app/fingerprint-cache.json and what is already in memory - never a
+// source.txt. A cache built under different rules answers for none, which is
+// what tells the UI a rebuild is due.
+//
+// The books are the caller's to choose rather than the whole shelf's listing,
+// because a count is a listing in miniature: a total taken over books the
+// requester cannot see would report that they exist. Which books a request may
+// count is a server-side question the shelf has no business answering.
+func (s *Shelf) FingerprintCoverageFor(algo FingerprintAlgo, books []FingerprintBookSource) (FingerprintCoverage, error) {
 	cache, err := s.OpenFingerprintCache(algo)
 	if err != nil {
 		return FingerprintCoverage{}, util.Errorf("%w", err)
 	}
 
-	books, err := s.ListBooks()
-	if err != nil {
-		return FingerprintCoverage{}, util.Errorf("%w", err)
-	}
-
-	refs := make([]fingerprint.BookSource, 0, len(books))
-	for _, book := range books {
-		refs = append(refs, fingerprint.BookSource{BookID: book.ID(), SourceID: book.CurrentSource()})
-	}
-
-	return cache.CoverageFor(refs), nil
-}
-
-// repairSourceContentHash is the write the fingerprint cache delegates back to
-// the shelf: when a source's content hashes to something its meta.json does not
-// record, the stored hash is stale and repaired here. Keeping the write on this
-// side is what lets fingerprint.Cache stay pure computation over its own file -
-// it computes and caches, the shelf owns the source data. See
-// Source.RepairContentHash.
-func repairSourceContentHash(source *Source, contentMD5 string) (bool, error) {
-	return source.RepairContentHash(contentMD5)
+	return cache.CoverageFor(books), nil
 }
 
 // liveBookIDs reports the books the shelf currently holds, for the cache to

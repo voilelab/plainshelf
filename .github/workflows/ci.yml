@@ -13,6 +13,11 @@ jobs:
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
+    # PSW-76: derived from three measured `dev` runs, not guessed — twice the
+    # slowest, rounded up to a whole minute, never under 5. The table and the
+    # rule are in docs/development/testing-levels.md; a job that hits its cap
+    # is a regression to explain, not a number to raise.
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: frontend
@@ -43,11 +48,17 @@ jobs:
       - name: Check module boundaries
         run: npm run check-boundaries
 
+      - name: Check unused exports
+        run: npm run check-exports
+
+      - name: Check style contracts
+        run: npm run check-style-contracts
+
       - name: Check dependency licenses
         run: npm run check-licenses
 
       - name: Upload frontend dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist
@@ -56,6 +67,7 @@ jobs:
   lint:
     name: Go lint
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: frontend
     steps:
       - name: Checkout
@@ -93,6 +105,7 @@ jobs:
   go:
     name: Go tests
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: frontend
     steps:
       - name: Checkout
@@ -110,18 +123,31 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # -timeout replaces `go test`'s 10-minute default, which outlives this
+      # job's own cap: a hung test has to panic with its goroutine dump while the
+      # runner is still alive, or the only evidence is a cancelled job.
       - name: Run tests
-        run: go test ./...
+        run: go test -timeout 2m ./...
 
       - name: Run desktop tests
-        run: cd desktop && go test ./...
+        run: cd desktop && go test -timeout 2m ./...
 
       - name: Run reader tests
-        run: cd reader && go test ./...
+        run: cd reader && go test -timeout 2m ./...
 
   e2e:
+    # The name is the required-check name in the branch protection rule, so it
+    # stays "Frontend E2E" even though the job now runs only the smoke tier —
+    # internal/repocheck's TestCIJobNamesAreStable enforces that.
     name: Frontend E2E
     runs-on: ubuntu-latest
+    # PSW-77: provisional. The tier split changed the shape of this job — 15
+    # smoke cases instead of 101, at two workers — so the measured 6:27 that
+    # justified 13 no longer describes it. The subset ran in 20s on a 4-core
+    # container, leaving the browser install as the variable part (23s to 3:05
+    # across the three measured runs). Re-measure over three `dev` runs and
+    # tighten this per docs/development/testing-levels.md.
+    timeout-minutes: 10
     needs: frontend
     steps:
       - name: Checkout
@@ -154,13 +180,17 @@ jobs:
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
-      - name: Run frontend E2E tests
+      # The `@smoke` subset only: the whole suite runs nightly (nightly.yml),
+      # where it gates the release instead of the merge. The tagged cases are
+      # listed in docs/development/testing-levels.md.
+      - name: Run frontend E2E smoke tests
         working-directory: e2e
-        run: npm test
+        run: npm run test:smoke
 
   android:
     name: Android build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: frontend
     # Not a merge gate yet: this job is new, and its SDK/Gradle setup has not
     # run often enough here to tell a real break from its own flakiness. Drop
@@ -186,7 +216,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Setup JDK
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -206,8 +236,122 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plainshelf-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+  vulncheck:
+    name: Go vulnerability scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: frontend
+    # A gate, deliberately: govulncheck reports a module's advisory only when a
+    # vulnerable symbol is reachable from this code, so red here is an exposure
+    # rather than noise. It gates merges once the check is added to the branch
+    # protection rule for `dev`; the workflow alone cannot do that.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # All three modules reach frontend/web.go and its embed, and govulncheck
+      # type-checks packages before scanning them.
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      # go-version-file matters beyond convenience here: govulncheck has to be
+      # built by a Go at least as new as go.mod's, or it fails while loading
+      # packages ("requires newer Go version") instead of while scanning.
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      # Two scans per module, one per GOOS release.yml ships (linux for the
+      # server binaries and the Docker image, darwin/arm64 for those plus both
+      # Wails apps). Source mode resolves build tags for the target it runs as,
+      # so a linux-only scan cannot see a vulnerability reachable through a
+      # darwin-only file. GOARCH is not split: the released arm64 and amd64
+      # builds share their Go source. Every step runs even after one fails, so
+      # a round reports all six scans instead of stopping at the first.
+      - name: Scan main module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: govulncheck ./...
+
+      - name: Scan main module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: govulncheck ./...
+
+      - name: Scan desktop module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: cd desktop && govulncheck ./...
+
+      - name: Scan desktop module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: cd desktop && govulncheck ./...
+
+      - name: Scan reader module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: cd reader && govulncheck ./...
+
+      - name: Scan reader module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: cd reader && govulncheck ./...
+
+  audit:
+    name: npm audit (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Informational, deliberately: npm audit flags every advisory in the tree
+    # whether or not the code path is reachable, and most of this tree is
+    # build-time tooling that never ships. Both lockfiles are clean at
+    # --audit-level=high today, so start non-blocking and revisit gating once a
+    # few weeks of runs show what the real noise level is.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # npm audit resolves from the lockfile, so neither directory needs npm ci.
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
+        working-directory: frontend
+
+      # Job-level continue-on-error keeps a failure off the workflow result, but
+      # it does not un-skip later steps: without this the E2E lockfile stops
+      # being audited exactly when the frontend one turns up something.
+      - name: Audit E2E dependencies
+        if: ${{ !cancelled() }}
+        run: npm audit --audit-level=high
+        working-directory: e2e

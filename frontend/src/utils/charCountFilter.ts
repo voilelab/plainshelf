@@ -7,8 +7,6 @@ export interface CharCountRange {
   max?: number;
 }
 
-export const EMPTY_CHAR_COUNT_RANGE: CharCountRange = {};
-
 /** Step used by the range inputs, matching the old maintenance threshold control. */
 export const CHAR_COUNT_STEP = 100;
 

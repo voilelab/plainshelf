@@ -2,7 +2,7 @@ import { onScopeDispose, ref, watch, type Ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { acquireObjectUrl, releaseObjectUrl } from '@/composables/objectUrlCache';
 
-export interface UseAssetSrcResult {
+interface UseAssetSrcResult {
   /** Empty until the illustration has loaded, and whenever it failed. */
   src: Ref<string>;
   failed: Ref<boolean>;

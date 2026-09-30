@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "content": {
+    "nsfw_folders": [
+      {
+        "path": "fiction/成人",
+        "reason": "the adult shelf"
+      }
+    ]
+  }
+}

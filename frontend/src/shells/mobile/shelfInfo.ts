@@ -29,5 +29,9 @@ export function activeMobileShelfInfo(): ShelfInfo | null {
   if (!shelfID) {
     return null;
   }
-  return { id: shelfID, name: shelfEntryDisplayName(entry) };
+  // A pCloud entry is read-only, but that is the provider's own missing write
+  // surface — the `platform` reason in useWriteAccess — not a shelf setting
+  // this device could read. Converging the two is left to whoever unifies the
+  // provider abstraction.
+  return { id: shelfID, name: shelfEntryDisplayName(entry), readOnly: false };
 }

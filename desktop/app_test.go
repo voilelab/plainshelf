@@ -191,6 +191,198 @@ func TestDesktopShelfEntryIncludesScanInterval(t *testing.T) {
 	}
 }
 
+func TestDesktopShelfEntryIncludesReadOnly(t *testing.T) {
+	entry := desktopShelfEntry{
+		ID:       "archive",
+		Name:     "Archive",
+		LibRoot:  "/mnt/archive",
+		ReadOnly: true,
+	}
+
+	conf := toShelfConfWithID(entry)
+	if !conf.ReadOnly {
+		t.Fatal("read_only was not carried into the shelf configuration")
+	}
+}
+
+// The shelf setting that opens a shelf without writing to it has to be
+// reachable from the desktop UI, and reversible from it: shelves.json lives in
+// the desktop data directory, outside every shelf, so a shelf's own read_only
+// never governs whether its settings can be edited. See DesktopApp.ModifyShelf.
+func TestModifyShelfTogglesReadOnlyBothWays(t *testing.T) {
+	const shelfID = "archive"
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "shelves.json")
+	libRoot := filepath.Join(tempDir, "archive-shelf")
+	if err := os.MkdirAll(libRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(libRoot): %v", err)
+	}
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		StorePath: filepath.Join(tempDir, "store"),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() { serverApp.Close() })
+
+	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
+	if err := desktopApp.AddShelf(AddShelfParams{Name: "Archive", LibRoot: libRoot}); err != nil {
+		t.Fatalf("AddShelf: %v", err)
+	}
+
+	if err := desktopApp.ModifyShelf(ModifyShelfParams{ShelfID: shelfID, Name: "Archive", ReadOnly: true}); err != nil {
+		t.Fatalf("ModifyShelf to read-only: %v", err)
+	}
+	assertShelfReadOnly(t, desktopApp, shelfID, true)
+
+	// The modify form reads its initial state from here, so a shelf that could
+	// be turned read-only but never showed the toggle as on would be a one-way
+	// door in the UI even though the backend can still be told otherwise.
+	details, err := desktopApp.GetShelfDetails(shelfID)
+	if err != nil {
+		t.Fatalf("GetShelfDetails: %v", err)
+	}
+	if !details.ReadOnly {
+		t.Fatal("GetShelfDetails reported read_only = false for a read-only shelf")
+	}
+
+	if err := desktopApp.ModifyShelf(ModifyShelfParams{ShelfID: shelfID, Name: "Archive"}); err != nil {
+		t.Fatalf("ModifyShelf back to writable: %v", err)
+	}
+	assertShelfReadOnly(t, desktopApp, shelfID, false)
+
+	details, err = desktopApp.GetShelfDetails(shelfID)
+	if err != nil {
+		t.Fatalf("GetShelfDetails after turning read_only off: %v", err)
+	}
+	if details.ReadOnly {
+		t.Fatal("GetShelfDetails still reported read_only = true after it was turned off")
+	}
+}
+
+// A read-only shelf is taken exactly as it is found: opening one must leave no
+// app/ directory, no lock file and no exported book cache behind.
+func TestAddShelfReadOnlyWritesNothingToTheShelf(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "shelves.json")
+	libRoot := filepath.Join(tempDir, "archive-shelf")
+	if err := os.MkdirAll(libRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(libRoot): %v", err)
+	}
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		StorePath: filepath.Join(tempDir, "store"),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() { serverApp.Close() })
+
+	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
+	if err := desktopApp.AddShelf(AddShelfParams{Name: "Archive", LibRoot: libRoot, ReadOnly: true}); err != nil {
+		t.Fatalf("AddShelf read-only: %v", err)
+	}
+	assertShelfReadOnly(t, desktopApp, "archive", true)
+
+	entries, err := os.ReadDir(libRoot)
+	if err != nil {
+		t.Fatalf("ReadDir(libRoot): %v", err)
+	}
+	if len(entries) != 0 {
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Fatalf("a read-only shelf wrote into lib_root: %v", names)
+	}
+
+	conf, err := loadDesktopShelves(configPath)
+	if err != nil {
+		t.Fatalf("loadDesktopShelves: %v", err)
+	}
+	if len(conf.Shelves) != 1 || !conf.Shelves[0].ReadOnly {
+		t.Fatalf("read_only was not persisted: %+v", conf.Shelves)
+	}
+}
+
+// book_check_interval is a per-shelf setting the UI now exposes, so it has to
+// survive the same round trip as scan_interval: submitted through AddShelf,
+// persisted in shelves.json, mapped into ShelfConf, and read back by the modify
+// form through GetShelfDetails. An empty value means "same as scan_interval".
+func TestAddAndModifyShelfBookCheckInterval(t *testing.T) {
+	const shelfID = "archive"
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "shelves.json")
+	libRoot := filepath.Join(tempDir, "archive-shelf")
+	if err := os.MkdirAll(libRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(libRoot): %v", err)
+	}
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		StorePath: filepath.Join(tempDir, "store"),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() { serverApp.Close() })
+
+	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
+	if err := desktopApp.AddShelf(AddShelfParams{Name: "Archive", LibRoot: libRoot, ScanInterval: "10m", BookCheckInterval: "5m"}); err != nil {
+		t.Fatalf("AddShelf: %v", err)
+	}
+
+	details, err := desktopApp.GetShelfDetails(shelfID)
+	if err != nil {
+		t.Fatalf("GetShelfDetails: %v", err)
+	}
+	if details.BookCheckInterval != "5m" {
+		t.Fatalf("GetShelfDetails book_check_interval = %q, want %q", details.BookCheckInterval, "5m")
+	}
+
+	conf, err := loadDesktopShelves(configPath)
+	if err != nil {
+		t.Fatalf("loadDesktopShelves: %v", err)
+	}
+	if len(conf.Shelves) != 1 || conf.Shelves[0].BookCheckInterval != "5m" {
+		t.Fatalf("book_check_interval was not persisted: %+v", conf.Shelves)
+	}
+	if got := toShelfConfWithID(conf.Shelves[0]).BookCheckInterval; got != "5m" {
+		t.Fatalf("toShelfConfWithID book_check_interval = %q, want %q", got, "5m")
+	}
+
+	// Clearing it in the modify form falls back to "same as scan_interval", so the
+	// stored value goes back to empty rather than keeping the old override.
+	if err := desktopApp.ModifyShelf(ModifyShelfParams{ShelfID: shelfID, Name: "Archive", ScanInterval: "10m"}); err != nil {
+		t.Fatalf("ModifyShelf: %v", err)
+	}
+	details, err = desktopApp.GetShelfDetails(shelfID)
+	if err != nil {
+		t.Fatalf("GetShelfDetails after modify: %v", err)
+	}
+	if details.BookCheckInterval != "" {
+		t.Fatalf("book_check_interval = %q after clearing, want empty", details.BookCheckInterval)
+	}
+}
+
+func assertShelfReadOnly(t *testing.T, desktopApp *DesktopApp, shelfID string, want bool) {
+	t.Helper()
+
+	shelfData, ok := desktopApp.app.ShelfManager().GetShelf(shelfID)
+	if !ok {
+		t.Fatalf("GetShelf(%q) did not find the shelf", shelfID)
+	}
+	if err := shelfData.WaitReady(t.Context()); err != nil {
+		t.Fatalf("WaitReady(%q): %v", shelfID, err)
+	}
+	if got := shelfData.ReadOnly(); got != want {
+		t.Fatalf("shelf %q ReadOnly() = %v, want %v", shelfID, got, want)
+	}
+}
+
 func TestNormalizeDesktopShelfDirectory(t *testing.T) {
 	cases := []struct {
 		input   string
@@ -260,7 +452,7 @@ func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
 	defer serverApp.Close()
 
 	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
-	if err := desktopApp.AddShelf("Broken Shelf", badShelfPath, "10m"); err == nil {
+	if err := desktopApp.AddShelf(AddShelfParams{Name: "Broken Shelf", LibRoot: badShelfPath, ScanInterval: "10m"}); err == nil {
 		t.Fatal("AddShelf with regular file path: want error, got nil")
 	}
 
@@ -331,8 +523,15 @@ func TestResolveDesktopFolderPath(t *testing.T) {
 func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
-	if _, err := resolveDesktopFolderPath(libRoot, []string{"..", "outside"}); err == nil {
-		t.Fatal("expected traversal folder path to fail, got nil")
+	// The second case only escapes once the path is cleaned, so it separates a
+	// lexical check on the raw relative path from one that cleans first.
+	for _, parts := range [][]string{
+		{"..", "outside"},
+		{"fiction", "..", "..", "outside"},
+	} {
+		if _, err := resolveDesktopFolderPath(libRoot, parts); err == nil {
+			t.Fatalf("expected traversal folder path %v to fail, got nil", parts)
+		}
 	}
 }
 
@@ -370,6 +569,103 @@ func TestOpenFolderDirectoryOpensFinderForFolderPath(t *testing.T) {
 	}
 	if openedPath != folderDir {
 		t.Fatalf("openFinder path = %q, want %q", openedPath, folderDir)
+	}
+}
+
+func TestOpenShelfInFinderOpensLibRoot(t *testing.T) {
+	tempDir := t.TempDir()
+	libRoot := filepath.Join(tempDir, "library")
+	if err := os.MkdirAll(libRoot, 0o755); err != nil {
+		t.Fatalf("create lib root: %v", err)
+	}
+
+	configPath := filepath.Join(tempDir, "shelves.json")
+	conf := &desktopShelvesConfig{
+		Shelves: []desktopShelfEntry{{ID: "shelf-1", Name: "Shelf", LibRoot: libRoot}},
+	}
+	if err := saveDesktopShelves(configPath, conf); err != nil {
+		t.Fatalf("saveDesktopShelves: %v", err)
+	}
+
+	app := &DesktopApp{shelvesConfigPath: configPath}
+	var openedPath string
+	originalOpenFinder := openFinder
+	openFinder = func(path string) error {
+		openedPath = path
+		return nil
+	}
+	t.Cleanup(func() {
+		openFinder = originalOpenFinder
+	})
+
+	if err := app.OpenShelfInFinder(" shelf-1 "); err != nil {
+		t.Fatalf("OpenShelfInFinder returned error: %v", err)
+	}
+	if openedPath != libRoot {
+		t.Fatalf("openFinder path = %q, want %q", openedPath, libRoot)
+	}
+}
+
+func TestOpenShelfInFinderRejectsUnknownShelf(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "shelves.json")
+	if err := saveDesktopShelves(configPath, &desktopShelvesConfig{}); err != nil {
+		t.Fatalf("saveDesktopShelves: %v", err)
+	}
+
+	app := &DesktopApp{shelvesConfigPath: configPath}
+	if err := app.OpenShelfInFinder("missing"); err == nil {
+		t.Fatal("OpenShelfInFinder for unknown shelf: want error, got nil")
+	}
+}
+
+func TestPreviewShelfID(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "shelves.json")
+	conf := &desktopShelvesConfig{
+		Shelves: []desktopShelfEntry{{ID: "shelf", Name: "小說", LibRoot: filepath.Join(t.TempDir(), "novels")}},
+	}
+	if err := saveDesktopShelves(configPath, conf); err != nil {
+		t.Fatalf("saveDesktopShelves: %v", err)
+	}
+
+	shelvesDir := filepath.Join(filepath.Dir(configPath), "shelves")
+
+	app := &DesktopApp{shelvesConfigPath: configPath}
+	cases := []struct {
+		name string
+		want ShelfIDPreview
+	}{
+		{name: "", want: ShelfIDPreview{}},
+		{name: "   ", want: ShelfIDPreview{}},
+		{name: "My Books", want: ShelfIDPreview{ID: "my-books", DefaultPath: filepath.Join(shelvesDir, "my-books")}},
+		// A purely non-ASCII name slugifies to nothing and falls back to
+		// "shelf"; the seeded config already holds "shelf", so the next free id
+		// is "shelf-2" — exactly what the user would silently receive. The
+		// default path carries the same suffix, so it cannot land on the
+		// existing shelf's directory either.
+		{name: "漫畫", want: ShelfIDPreview{ID: "shelf-2", DefaultPath: filepath.Join(shelvesDir, "shelf-2")}},
+	}
+	for _, tc := range cases {
+		got, err := app.PreviewShelfID(tc.name)
+		if err != nil {
+			t.Fatalf("PreviewShelfID(%q) returned error: %v", tc.name, err)
+		}
+		if got != tc.want {
+			t.Errorf("PreviewShelfID(%q) = %+v, want %+v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// The default directory sits under a "shelves" subdirectory rather than beside
+// shelves.json, because a name that slugifies to nothing becomes "shelf" — the
+// legacy default shelf's own directory name, which is not in the id namespace
+// generateDesktopShelfID guards.
+func TestDefaultDesktopShelfDirAvoidsLegacyShelfDir(t *testing.T) {
+	dataRoot := t.TempDir()
+	configPath := filepath.Join(dataRoot, "shelves.json")
+
+	legacy := filepath.Join(dataRoot, desktopLegacyShelfDirName)
+	if got := defaultDesktopShelfDir(configPath, "shelf"); got == legacy {
+		t.Errorf("defaultDesktopShelfDir(%q) = %q, which is the legacy default shelf directory", "shelf", got)
 	}
 }
 

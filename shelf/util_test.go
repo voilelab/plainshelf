@@ -1,7 +1,6 @@
 package shelf
 
 import (
-	"context"
 	"os"
 	"strings"
 	"testing"
@@ -20,7 +19,7 @@ func newTestShelf(t *testing.T, conf *ShelfConf) *Shelf {
 		t.Fatalf("NewShelf: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	if err := s.WaitReady(context.Background()); err != nil {
+	if err := s.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady: %v", err)
 	}
 	return s
@@ -127,4 +126,21 @@ func newLoggerForTest() logutil.Logger {
 	}
 
 	return *logger
+}
+
+// booksInFolder is what GetBooksByFolder used to return: the books sitting
+// directly in one folder, filtered out of the shelf-wide listing.
+func booksInFolder(t *testing.T, s *Shelf, folder FolderPath) []*Book {
+	t.Helper()
+	listings, err := s.ListBooksWithCharCount()
+	if err != nil {
+		t.Fatalf("ListBooksWithCharCount: %v", err)
+	}
+	var books []*Book
+	for _, listing := range listings {
+		if listing.Folders.Equal(folder) {
+			books = append(books, listing.Book)
+		}
+	}
+	return books
 }

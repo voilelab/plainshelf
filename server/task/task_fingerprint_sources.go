@@ -116,6 +116,11 @@ type fingerprintSourcesTask struct {
 	// false the sweep stays incremental and skips what the cache can answer.
 	force bool
 
+	// visible limits the sweep to the books the request that started it was
+	// allowed to see, so its book count and the book and source IDs in its
+	// failures cannot describe a book that request was answered 404 for.
+	visible VisibleBooks
+
 	progress taskutil.Progress
 
 	mu            sync.Mutex
@@ -125,12 +130,13 @@ type fingerprintSourcesTask struct {
 	failures      []fingerprintSourcesFailure
 }
 
-func newFingerprintSourcesTask(shelfID string, s *shelf.Shelf, force bool, logger *logutil.Logger) *fingerprintSourcesTask {
+func newFingerprintSourcesTask(shelfID string, s *shelf.Shelf, force bool, logger *logutil.Logger, visible VisibleBooks) *fingerprintSourcesTask {
 	return &fingerprintSourcesTask{
 		shelfID:  shelfID,
 		shelf:    s,
 		logger:   logger,
 		force:    force,
+		visible:  visible,
 		failures: []fingerprintSourcesFailure{},
 	}
 }
@@ -317,7 +323,10 @@ func (t *fingerprintSourcesTask) Run(ctx context.Context) error {
 
 	// Book IDs rather than the listed books: the sweep re-resolves each one
 	// when it reaches it, so a book moved or retitled while the sweep runs is
-	// read where it is now.
+	// read where it is now. A book added since the snapshot was taken is left
+	// to the next sweep rather than swept without anyone having decided it is
+	// visible.
+	books = t.visible.Only(books)
 	bookIDs := make([]string, 0, len(books))
 	for _, book := range books {
 		bookIDs = append(bookIDs, book.ID())
@@ -370,7 +379,9 @@ func (t *fingerprintSourcesTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func NewFingerprintSourcesChain(shelfID string, s *shelf.Shelf, force bool, logger *logutil.Logger) *taskutil.TaskChain {
+// NewFingerprintSourcesChain builds the sweep over the books the requesting
+// client may see; see VisibleBooks.
+func NewFingerprintSourcesChain(shelfID string, s *shelf.Shelf, force bool, logger *logutil.Logger, visible VisibleBooks) *taskutil.TaskChain {
 	// The key does not vary with force: an incremental sweep and a forced one
 	// both walk the whole shelf and write the same cache, so only one may run at
 	// a time, and a second request is pointed at the running chain either way.
@@ -384,6 +395,6 @@ func NewFingerprintSourcesChain(shelfID string, s *shelf.Shelf, force bool, logg
 		Name:        FingerprintSourcesTaskName,
 		Title:       "Build source fingerprints",
 		Description: description,
-		Tasks:       []taskutil.Task{newFingerprintSourcesTask(shelfID, s, force, logger)},
+		Tasks:       []taskutil.Task{newFingerprintSourcesTask(shelfID, s, force, logger, visible)},
 	}
 }

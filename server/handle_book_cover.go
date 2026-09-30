@@ -86,7 +86,7 @@ func (h *bookHandlers) updateCover(w http.ResponseWriter, r *http.Request) {
 
 	err = book.SetCover(data, ext)
 	if err != nil {
-		h.writeErr(w, err, "failed to update book cover")
+		h.writeErr(w, r, err, "failed to update book cover")
 		return
 	}
 
@@ -101,7 +101,7 @@ func (h *bookHandlers) deleteCover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := book.DeleteCover(); err != nil {
-		h.writeErr(w, err, "failed to delete book cover")
+		h.writeErr(w, r, err, "failed to delete book cover")
 		return
 	}
 

@@ -3,13 +3,16 @@ import { strToU8, unzipSync, zipSync } from 'fflate';
 
 import { ApiError } from '@/api/client';
 import { PCloudClient } from '@/api/pcloud/client';
+import { BOOK_META_SCHEMA_VERSION, MAX_SHELF_CONFIG_BYTES } from '@/api/pcloud/bookpkg';
 import { PCloudError } from '@/api/pcloud/errors';
+import { useErrorIncident } from '@/composables/useErrorIncident';
+import { setShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
 import type { PCloudItem } from '@/api/pcloud/types';
 import type { BookshelfWriter } from './bookshelfProvider';
 import { isWritableProvider } from './index';
 import { PCloudBookshelfProvider, pcloudCoverUrl } from './pcloudBookshelfProvider';
-import { InMemoryShelfSnapshotStore, SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
-import type { ShelfSnapshotStore } from './shelfSnapshotStore';
+import { SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
+import type { PersistedShelfSnapshot, ShelfSnapshotStore } from './shelfSnapshotStore';
 
 vi.mock('@/storage/readHistory', () => ({
   addReadHistory: vi.fn().mockResolvedValue(undefined),
@@ -18,6 +21,24 @@ vi.mock('@/storage/readHistory', () => ({
 }));
 
 const SHELF_ROOT = '/PlainShelf/default-shelf';
+
+/** Stands in for FilesystemShelfSnapshotStore, which needs a device to write to.
+ *  Copies on the way in and out, so a test cannot mutate what it stored. */
+class InMemoryShelfSnapshotStore implements ShelfSnapshotStore {
+  private snapshot: PersistedShelfSnapshot | null = null;
+
+  async load(): Promise<PersistedShelfSnapshot | null> {
+    return this.snapshot ? structuredClone(this.snapshot) : null;
+  }
+
+  async save(snapshot: PersistedShelfSnapshot): Promise<void> {
+    this.snapshot = structuredClone(snapshot);
+  }
+
+  async clear(): Promise<void> {
+    this.snapshot = null;
+  }
+}
 
 let nextFolderID = 100;
 let nextFileID = 1000;
@@ -57,6 +78,10 @@ interface BookSpec {
   currentSource?: string;
   content?: string;
   charCount?: number;
+  /** book.json's declared schema version; defaults to the one this build reads. */
+  schemaVersion?: number;
+  /** The book's own half of the adult-content mark, as book.json spells it. */
+  nsfw?: boolean;
   /** Illustrations in the source's assets/ directory, name to body. */
   assets?: Record<string, string>;
 }
@@ -68,11 +93,12 @@ function bookPackage(spec: BookSpec): PCloudItem {
     file({
       name: 'book.json',
       body: JSON.stringify({
-        schema_version: 1,
+        schema_version: spec.schemaVersion ?? BOOK_META_SCHEMA_VERSION,
         id: spec.id,
         title: spec.title,
         authors: ['Author'],
         cover: spec.cover ?? '',
+        ...(spec.nsfw ? { nsfw: true } : {}),
         current_source: sourceID
       })
     }),
@@ -506,6 +532,34 @@ describe('shelf loading', () => {
     await expect(provider.listBooks(1, 10)).resolves.toMatchObject({ total: 1 });
   });
 
+  it('marks a book whose book.json is newer than this reader, and leaves the rest unmarked', async () => {
+    const { provider } = makeProvider(
+      shelfTree([
+        bookPackage({ id: 'future', title: 'Future', schemaVersion: BOOK_META_SCHEMA_VERSION + 1 }),
+        bookPackage({ id: 'known', title: 'Known' })
+      ])
+    );
+
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.find((book) => book.id === 'future')?.schema_newer_than_supported).toBe(true);
+    expect(page.items.find((book) => book.id === 'known')?.schema_newer_than_supported).toBeUndefined();
+    // The book is still listed and readable; the flag says the read was partial.
+    expect(await provider.getBook('future')).toMatchObject({ id: 'future', title: 'Future' });
+  });
+
+  it('keeps the mark after the listing is restored from the device', async () => {
+    const store = new InMemoryShelfSnapshotStore();
+    const tree = shelfTree([
+      bookPackage({ id: 'future', title: 'Future', schemaVersion: BOOK_META_SCHEMA_VERSION + 1 })
+    ]);
+    await makeProvider(tree, { snapshotStore: store }).provider.listBooks(1, 10);
+
+    const restored = await makeProvider(tree, { snapshotStore: store }).provider.getBook('future');
+
+    expect(restored.schema_newer_than_supported).toBe(true);
+  });
+
   it('skips an unreadable book rather than failing the whole shelf', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const broken = folder('broken.bookpkg', [file({ name: 'book.json', body: '{ not json' })]);
@@ -794,7 +848,7 @@ describe('read-only behaviour', () => {
     const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
     await expect(provider.getDuplicateBookGroups()).resolves.toEqual([]);
-    await expect(provider.listTrashedBooks()).resolves.toEqual([]);
+    await expect(provider.listTrashedBooks()).resolves.toEqual({ books: [], complete: true });
   });
 
   it('requires a shelf path', () => {
@@ -1041,5 +1095,254 @@ describe('PCloudBookshelfProvider listing cost', () => {
     });
 
     expect(provider.supportsCharCountListing()).toBe(false);
+  });
+});
+
+describe('shelf.json', () => {
+  const CONFIG = '{"schema_version":1,"scan":{"ignored_dirs":[{"name":"@Snapshot"}]}}';
+
+  function shelfWithSnapshotDir(config?: PCloudItem): PCloudItem {
+    return folder('default-shelf', [
+      folder('books', [
+        bookPackage({ id: 'kept', title: 'Kept' }),
+        folder('@Snapshot', [bookPackage({ id: 'hidden', title: 'Hidden' })])
+      ]),
+      ...(config ? [config] : [])
+    ]);
+  }
+
+  it('skips the directories the shelf configuration names', async () => {
+    const { provider } = makeProvider(shelfWithSnapshotDir(file({ name: 'shelf.json', body: CONFIG })));
+
+    expect(await provider.listFolders()).toEqual(['/']);
+    expect((await provider.listBooks(1, 10)).items.map((book) => book.id)).toEqual(['kept']);
+  });
+
+  it('reads the built-in rules when the shelf has no configuration', async () => {
+    const { provider } = makeProvider(shelfWithSnapshotDir());
+
+    // localeCompare puts "@Snapshot" before "/", which is the order the pCloud
+    // reader sorts folders in.
+    expect(await provider.listFolders()).toEqual(['@Snapshot', '/']);
+  });
+
+  // A settings file that cannot be read leaves the built-in rules in place
+  // rather than making the shelf unreadable, matching the Go shelf.
+  it('falls back to the built-in rules when the configuration is not JSON', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { provider } = makeProvider(shelfWithSnapshotDir(file({ name: 'shelf.json', body: 'half an edit' })));
+
+    // localeCompare puts "@Snapshot" before "/", which is the order the pCloud
+    // reader sorts folders in.
+    expect(await provider.listFolders()).toEqual(['@Snapshot', '/']);
+  });
+
+  // The listing carries the size, so a mis-named large file is skipped before it
+  // is downloaded: the Go side applies the same limit to the same file.
+  it('skips a configuration larger than the limit without downloading it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const oversized = file({ name: 'shelf.json', body: CONFIG });
+    oversized.size = MAX_SHELF_CONFIG_BYTES + 1;
+
+    const downloaded: number[] = [];
+    const { provider } = makeProvider(shelfWithSnapshotDir(oversized), {
+      onDownload: (fileid) => {
+        downloaded.push(fileid);
+        return null;
+      }
+    });
+
+    // localeCompare puts "@Snapshot" before "/", which is the order the pCloud
+    // reader sorts folders in.
+    expect(await provider.listFolders()).toEqual(['@Snapshot', '/']);
+    expect(downloaded).not.toContain(oversized.fileid);
+  });
+});
+
+// PSW-119: there is no server behind this provider, so the device setting is
+// the only thing the shelf's adult-content marks can be applied against. Its
+// three entry points have to agree — a listing that filtered while getBook did
+// not would still hand the book to anyone holding its id.
+describe('adult content', () => {
+  // "Doujin" holds nothing but a marked book; "Fiction" holds one of each.
+  const NSFW_CONFIG = JSON.stringify({
+    schema_version: 1,
+    content: { nsfw_folders: [{ path: 'Marked', reason: 'the top shelf' }] }
+  });
+
+  function markedShelf(config?: string): PCloudItem {
+    return folder('default-shelf', [
+      folder('books', [
+        bookPackage({ id: 'plain', title: 'Plain' }),
+        folder('Fiction', [
+          bookPackage({ id: 'own-mark', title: 'Own', nsfw: true }),
+          bookPackage({ id: 'sibling', title: 'Sibling' })
+        ]),
+        folder('Doujin', [bookPackage({ id: 'only-marked', title: 'Only', nsfw: true })]),
+        folder('Marked', [bookPackage({ id: 'by-folder', title: 'ByFolder' })]),
+        folder('Empty', [])
+      ]),
+      ...(config ? [file({ name: 'shelf.json', body: config })] : [])
+    ]);
+  }
+
+  async function idsOf(provider: PCloudBookshelfProvider): Promise<string[]> {
+    return (await provider.listBooks(1, 50)).items.map((book) => book.id);
+  }
+
+  afterEach(() => {
+    setShowNsfwOnDevice(false);
+  });
+
+  it('declares that it applies the device setting itself', () => {
+    const { provider } = makeProvider(markedShelf());
+
+    expect(provider.filtersNsfwOnDevice()).toBe(true);
+  });
+
+  it('hides a marked book from the listing, the single book and its content', async () => {
+    const { provider } = makeProvider(markedShelf(NSFW_CONFIG));
+
+    expect(await idsOf(provider)).toEqual(['plain', 'sibling']);
+    await expect(provider.getBook('own-mark')).rejects.toThrow(/not found/i);
+    await expect(provider.getBook('by-folder')).rejects.toThrow(/not found/i);
+    // Every read resolves the book through the same lookup, so nothing reaches
+    // its bytes either.
+    await expect(provider.getBookContent('own-mark')).rejects.toThrow(/not found/i);
+    await expect(provider.listSources('by-folder')).rejects.toThrow(/not found/i);
+  });
+
+  it('counts only the books it serves, so the pages are not short', async () => {
+    const { provider } = makeProvider(markedShelf(NSFW_CONFIG));
+
+    const page = await provider.listBooks(1, 50);
+    expect(page.total).toBe(page.items.length);
+  });
+
+  it('drops a marked folder and one left holding nothing but marked books', async () => {
+    const { provider } = makeProvider(markedShelf(NSFW_CONFIG));
+
+    // "Marked" goes because the shelf marks it; "Doujin" goes because the only
+    // book in it is hidden, and an empty folder named after what it held is the
+    // disclosure. "Empty" was always empty and stays.
+    expect(await provider.listFolders()).toEqual(['/', 'Empty', 'Fiction']);
+  });
+
+  it('serves the marked books, badge fields and all, once the setting is on', async () => {
+    const { provider } = makeProvider(markedShelf(NSFW_CONFIG));
+    setShowNsfwOnDevice(true);
+
+    expect(await idsOf(provider)).toEqual(['by-folder', 'only-marked', 'own-mark', 'plain', 'sibling']);
+    expect(await provider.listFolders()).toEqual(['/', 'Doujin', 'Empty', 'Fiction', 'Marked']);
+
+    // The two halves are reported apart, as the server reports them: BookNsfwBadge
+    // adds them itself through isBookNsfw.
+    const own = await provider.getBook('own-mark');
+    expect(own.nsfw).toBe(true);
+    expect(own.nsfw_folder).toBeUndefined();
+    await expect(provider.getBook('by-folder')).resolves.toMatchObject({
+      nsfw: false,
+      nsfw_folder: { path: 'Marked', reason: 'the top shelf' }
+    });
+  });
+
+  // The reverse case: a shelf that marks nothing must read exactly as it did
+  // before the filter existed, and must not spend a request reaching that answer.
+  it('changes nothing, and asks pCloud for nothing extra, on an unmarked shelf', async () => {
+    const plainShelf = shelfTree([
+      bookPackage({ id: 'a', title: 'A' }),
+      bookPackage({ id: 'b', title: 'B' })
+    ]);
+    const { provider, calls } = makeProvider(plainShelf);
+
+    expect(await idsOf(provider)).toEqual(['a', 'b']);
+    expect(await provider.listFolders()).toEqual(['/']);
+    const spent = { ...calls };
+
+    setShowNsfwOnDevice(true);
+    expect(await idsOf(provider)).toEqual(['a', 'b']);
+    expect(await provider.listFolders()).toEqual(['/']);
+    expect(calls).toEqual(spent);
+  });
+
+  // What repairs a download taken before the marks were stored with it: the
+  // offline cache asks for these from behind a cache read, so the answer has to
+  // come off the device.
+  it('answers the marks from the stored snapshot alone, without walking the shelf', async () => {
+    const store = new InMemoryShelfSnapshotStore();
+    await idsOf(makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store }).provider);
+
+    const second = makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store });
+    const marks = await second.provider.localNsfwMarks();
+
+    expect(second.calls.recursiveListfolder).toBe(0);
+    // Both halves, and a boolean `nsfw` even where the shelf marks nothing —
+    // that is what tells a repaired manifest from one that predates the marks.
+    expect(marks?.get('own-mark')).toEqual({ nsfw: true, nsfw_folder: undefined });
+    expect(marks?.get('by-folder')).toEqual({
+      nsfw: false,
+      nsfw_folder: { path: 'Marked', reason: 'the top shelf' }
+    });
+    expect(marks?.get('plain')).toEqual({ nsfw: false, nsfw_folder: undefined });
+  });
+
+  // Null, not an empty map: "the shelf marks none of these" would repair every
+  // manifest as unmarked and make the gap permanent.
+  it('answers null rather than walk the shelf when the device holds no listing', async () => {
+    const { provider, calls } = makeProvider(markedShelf(NSFW_CONFIG), {
+      snapshotStore: new InMemoryShelfSnapshotStore()
+    });
+
+    await expect(provider.localNsfwMarks()).resolves.toBeNull();
+    expect(calls.recursiveListfolder).toBe(0);
+  });
+
+  it('applies the folder rules a restored snapshot carries, without re-reading shelf.json', async () => {
+    const store = new InMemoryShelfSnapshotStore();
+    const first = makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store });
+    await idsOf(first.provider);
+
+    // A second provider over the same device: the restore never walks pCloud, so
+    // the folder half of the mark can only come from the stored rules.
+    const second = makeProvider(markedShelf(NSFW_CONFIG), { snapshotStore: store });
+    expect(await idsOf(second.provider)).toEqual(['plain', 'sibling']);
+    expect(second.calls.recursiveListfolder).toBe(0);
+
+    setShowNsfwOnDevice(true);
+    await expect(second.provider.getBook('by-folder')).resolves.toMatchObject({
+      nsfw_folder: { path: 'Marked', reason: 'the top shelf' }
+    });
+  });
+});
+
+// pCloud is talked to directly, so a failure here has no server request ID to
+// quote; the provider boundary mints one and marks it `c-` so nobody searches
+// the server log for it.
+describe('error references', () => {
+  const { dismissIncident, incident } = useErrorIncident();
+
+  beforeEach(() => {
+    dismissIncident();
+  });
+
+  it('carries a c- reference across the boundary for a surfaced failure', async () => {
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
+
+    await expect(provider.getBook('missing')).rejects.toMatchObject({
+      name: 'ApiError',
+      incident: expect.stringMatching(/^c-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{8}$/)
+    });
+    expect(incident.value).toMatch(/^c-/);
+  });
+
+  it('raises no reference for an unreachable backend', async () => {
+    // The wrapper answers this one from downloaded books, so the user may never
+    // be told anything failed.
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
+      onDownload: () => Promise.reject(new TypeError('Failed to fetch'))
+    });
+
+    await expect(provider.listBooks(1, 10)).rejects.toMatchObject({ isTimeout: true });
+    expect(incident.value).toBe('');
   });
 });

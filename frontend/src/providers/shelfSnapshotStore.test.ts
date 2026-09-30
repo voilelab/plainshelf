@@ -52,7 +52,6 @@ import { setActiveShelfID, setApiBase } from '@/api/client';
 import { buildDeviceDocumentKey } from '@/storage/deviceDocument';
 import {
   FilesystemShelfSnapshotStore,
-  InMemoryShelfSnapshotStore,
   SHELF_SNAPSHOT_VERSION,
   parseShelfSnapshot
 } from './shelfSnapshotStore';
@@ -113,6 +112,29 @@ describe('parseShelfSnapshot', () => {
     expect(parseShelfSnapshot(makeSnapshot(overrides))).toBeNull();
   });
 
+  // Version 1 carried no nsfw_folders, so reading one as it stands would leave
+  // every book in a marked folder looking unmarked — the direction that shows
+  // what the device was told to hide. Discarding it costs one walk.
+  it('rejects a snapshot from before the folder marks were persisted', () => {
+    expect(parseShelfSnapshot(makeSnapshot({ version: 1, nsfw_folders: undefined }))).toBeNull();
+  });
+
+  it('accepts a snapshot that carries folder marks', () => {
+    const snapshot = makeSnapshot({ nsfw_folders: [{ path: 'Fiction/Adult', reason: 'the top shelf' }] });
+
+    expect(parseShelfSnapshot(snapshot)).toEqual(snapshot);
+  });
+
+  // Same reasoning: a rule this reader cannot read is a mark it would stop
+  // applying, so the snapshot goes rather than the rule.
+  it.each([
+    ['a folder list of the wrong type', { nsfw_folders: 'Adult' as unknown as [] }],
+    ['a rule with no path', { nsfw_folders: [{ reason: 'why' } as never] }],
+    ['a rule whose reason is not text', { nsfw_folders: [{ path: 'Adult', reason: null } as never] }]
+  ])('rejects %s', (_label, overrides) => {
+    expect(parseShelfSnapshot(makeSnapshot(overrides))).toBeNull();
+  });
+
   it('rejects a book with no id, rather than listing a nameless entry', () => {
     const snapshot = makeSnapshot();
     snapshot.books[0].meta = { title: 'A' } as never;
@@ -122,29 +144,6 @@ describe('parseShelfSnapshot', () => {
 
   it.each([[null], [[]], ['{}'], [42]])('rejects the non-object %p', (value) => {
     expect(parseShelfSnapshot(value)).toBeNull();
-  });
-});
-
-describe('InMemoryShelfSnapshotStore', () => {
-  it('round-trips a snapshot and clears it', async () => {
-    const store = new InMemoryShelfSnapshotStore();
-    expect(await store.load()).toBeNull();
-
-    await store.save(makeSnapshot());
-    expect(await store.load()).toEqual(makeSnapshot());
-
-    await store.clear();
-    expect(await store.load()).toBeNull();
-  });
-
-  it('hands out copies, so a caller cannot mutate the stored snapshot', async () => {
-    const store = new InMemoryShelfSnapshotStore();
-    await store.save(makeSnapshot());
-
-    const loaded = await store.load();
-    loaded!.books.length = 0;
-
-    expect((await store.load())!.books).toHaveLength(1);
   });
 });
 

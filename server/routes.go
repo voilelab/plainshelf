@@ -40,12 +40,14 @@ func newAPIHandlers(
 	shelfManager *shelf.ShelfManager,
 	security *Security,
 	storeDB *store.DB,
-	pool taskutil.Pool,
+	pool *taskutil.Pool,
 	spaFS fs.FS,
 	conf *AppConf,
+	// settingsSvc is built by NewApp, which needs it before the handlers exist
+	// to apply the stored log-retention window to the loggers already running.
+	settingsSvc *settings,
 ) *apiHandlers {
-	core := &apiCore{Logger: logger, shelves: shelfManager, security: security}
-	settingsSvc := &settings{Logger: logger, db: storeDB, conf: conf}
+	core := &apiCore{Logger: logger, shelves: shelfManager, security: security, settings: settingsSvc}
 	tasks := &taskSubmitter{apiCore: core, pool: pool}
 
 	return &apiHandlers{
@@ -110,6 +112,7 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", h.sources.getSource)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources", h.sources.createSource)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", h.sources.deleteSource)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/comment", h.sources.deleteSourceComment)
 	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current", h.sources.setCurrentSource)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", h.sources.getSourceContent)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", h.sources.updateSourceContent)
@@ -155,6 +158,12 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/epub_import_strategy", h.setting.getEPUBImportStrategy)
 	mux.HandleFunc("POST /api/setting/epub_import_strategy", h.setting.setEPUBImportStrategy)
 	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", h.setting.deleteEPUBImportStrategy)
+	mux.HandleFunc("GET /api/setting/show_nsfw", h.setting.getShowNSFW)
+	mux.HandleFunc("POST /api/setting/show_nsfw", h.setting.setShowNSFW)
+	mux.HandleFunc("DELETE /api/setting/show_nsfw", h.setting.deleteShowNSFW)
+	mux.HandleFunc("GET /api/setting/log_retention_days", h.setting.getLogRetentionDays)
+	mux.HandleFunc("POST /api/setting/log_retention_days", h.setting.setLogRetentionDays)
+	mux.HandleFunc("DELETE /api/setting/log_retention_days", h.setting.deleteLogRetentionDays)
 
 	// Unknown API paths must not fall through to the SPA index.
 	mux.HandleFunc("GET /api/{path...}", http.NotFound)

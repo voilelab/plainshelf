@@ -1,5 +1,11 @@
 <template>
   <div>
+    <MetaEditorModal
+      :open="metadataEditorOpen"
+      :book-id="selectedMetadataBookId"
+      @close="closeMetadataEditor"
+      @saved="onMetadataSaved"
+    />
     <MoveBooksModal
       :open="moveBooksModalOpen"
       :count="selection.count.value"
@@ -81,7 +87,7 @@
       @batch-move="openBatchMove"
       @batch-delete="openBatchTrash"
       @batch-download="startBatchDownload"
-      @edit="goEdit"
+      @edit="openMetadataEditor"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
       @download="onDownloadBook"
@@ -121,16 +127,26 @@
       <template #toolbar>
         <div class="toolbar-bar sort-bar">
           <label class="toolbar-label sort-label" for="books-sort">{{ t('library.sort') }}</label>
-          <select
-            id="books-sort"
-            class="toolbar-control toolbar-select sort-select"
-            :value="sortBy"
-            @change="onSortSelectChange"
-          >
-            <option value="updated_at">{{ t('library.sortBy.updated') }}</option>
-            <option value="created_at">{{ t('library.sortBy.created') }}</option>
-            <option value="title">{{ t('library.sortBy.title') }}</option>
-          </select>
+          <SelectRoot :model-value="sortBy" @update:model-value="onSortSelectChange">
+            <SelectTrigger id="books-sort" class="toolbar-control toolbar-select sort-select">
+              <SelectValue>{{ sortLabel }}</SelectValue>
+            </SelectTrigger>
+            <SelectPortal>
+              <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                <SelectViewport>
+                  <SelectItem class="reka-menu-item" value="updated_at">
+                    <SelectItemText>{{ t('library.sortBy.updated') }}</SelectItemText>
+                  </SelectItem>
+                  <SelectItem class="reka-menu-item" value="created_at">
+                    <SelectItemText>{{ t('library.sortBy.created') }}</SelectItemText>
+                  </SelectItem>
+                  <SelectItem class="reka-menu-item" value="title">
+                    <SelectItemText>{{ t('library.sortBy.title') }}</SelectItemText>
+                  </SelectItem>
+                </SelectViewport>
+              </SelectContent>
+            </SelectPortal>
+          </SelectRoot>
           <button
             type="button"
             class="button toolbar-control toolbar-button toolbar-regular sort-order-btn"
@@ -225,7 +241,16 @@ import {
   DropdownMenuItem,
   DropdownMenuPortal,
   DropdownMenuRoot,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
 } from 'reka-ui';
 import type { Book } from '@/types/book';
 import BookCollectionPage from '@/components/BookCollectionPage.vue';
@@ -234,6 +259,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import BaseDialog from '@/components/BaseDialog.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
 import ImportBookModal from '@/features/library/components/ImportBookModal.vue';
+import MetaEditorModal from '@/features/library/components/MetaEditorModal.vue';
 import NewEmptyBookModal from '@/features/library/components/NewEmptyBookModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
 import FilterPanel from '@/features/library/components/FilterPanel.vue';
@@ -254,6 +280,7 @@ import { useBooksRouteQuery } from '@/features/library/composables/useBooksRoute
 import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
 import { useContentStatsRefresh } from '@/features/library/composables/useContentStatsRefresh';
+import { useMetadataEditorModal } from '@/features/library/composables/useMetadataEditorModal';
 import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import {
   BOOK_FILTERS,
@@ -268,6 +295,7 @@ import {
   type ActiveBookFilter
 } from '@/utils/bookFilters/apply';
 import { filterValueLabel } from '@/features/library/utils/filterLabels';
+import { retrySelection, runDownloadBatch } from '@/features/library/utils/downloadBatch';
 import { isCharCountRangeActive } from '@/utils/charCountFilter';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 import { normalizeFolderPath } from '@/utils/folders';
@@ -403,7 +431,6 @@ const {
   readOnly,
   goRead,
   openDetail,
-  goEdit,
   cancelDelete,
   confirmDelete,
   onOpenBookFolder,
@@ -415,6 +442,14 @@ const {
     void reloadBooks();
   }
 });
+
+const {
+  selectedBookId: selectedMetadataBookId,
+  open: metadataEditorOpen,
+  openEditor: openMetadataEditor,
+  closeEditor: closeMetadataEditor,
+  onSaved: onMetadataSaved
+} = useMetadataEditorModal({ books, readOnly, refresh: reloadBooks });
 
 // isImportModalOpen comes straight off ?import=1 (useBooksRouteQuery.ts), which
 // the /import route redirects to. Every other way of opening an import flow is
@@ -492,23 +527,23 @@ async function startBatchDownload(): Promise<void> {
   downloadBatchTotal.value = targets.length;
   downloadBatchFailures.value = [];
 
-  for (let index = 0; index < targets.length; index += 1) {
-    const book = targets[index];
-    try {
-      if (book.download_state !== 'downloaded') await provider.downloadBook(book.id);
-      downloadBatchSucceeded.value += 1;
-    } catch {
-      downloadBatchFailures.value.push({
-        id: book.id,
-        title: book.title,
-        message: t('bookCollection.selection.failureCodes.download_failed')
-      });
+  // Called through the provider, not as a detached function: the mobile
+  // provider's downloadBook is a method and needs its own `this`.
+  const outcome = await runDownloadBatch(targets, (id) => provider.downloadBook!(id), {
+    onProgress: (percentage) => {
+      downloadBatchPercentage.value = percentage;
+    },
+    onFailure: (failure) => {
+      downloadBatchFailures.value = [
+        ...downloadBatchFailures.value,
+        { ...failure, message: t('bookCollection.selection.failureCodes.download_failed') }
+      ];
     }
-    downloadBatchPercentage.value = ((index + 1) / targets.length) * 100;
-  }
+  });
+  downloadBatchSucceeded.value = outcome.succeeded;
 
   downloadBatchRunning.value = false;
-  const failedVisible = new Set(downloadBatchFailures.value.map((failure) => failure.id).filter((id) => visibleBookIds.value.includes(id)));
+  const failedVisible = retrySelection(outcome.failures, visibleBookIds.value);
   if (failedVisible.size > 0) selection.replace(failedVisible);
   else selection.clear();
   await reloadBooks();
@@ -786,14 +821,23 @@ function onSortChange(nextSort: BookSortKey): void {
   });
 }
 
-function onSortSelectChange(event: Event): void {
-  const target = event.target;
-  if (!(target instanceof HTMLSelectElement)) {
-    return;
+// Rendered into the SelectValue slot so the closed trigger follows a locale
+// change. reka-ui snapshots each SelectItemText's text into an option registry
+// at mount, and a runtime i18n switch does not refresh it — the popup options
+// retranslate but the trigger would stay stale until the list is reopened.
+const sortLabel = computed(() => {
+  switch (sortBy.value) {
+    case 'created_at':
+      return t('library.sortBy.created');
+    case 'title':
+      return t('library.sortBy.title');
+    default:
+      return t('library.sortBy.updated');
   }
+});
 
-  const value = target.value;
-  if (!SORT_OPTIONS.includes(value as BookSortKey)) {
+function onSortSelectChange(value: AcceptableValue): void {
+  if (typeof value !== 'string' || !SORT_OPTIONS.includes(value as BookSortKey)) {
     return;
   }
 
@@ -1073,8 +1117,15 @@ watch(
   gap: 6px;
 }
 
+/* The Reka SelectTrigger renders a <button>, so it needs the alignment and
+   font a native <select> got for free while keeping the toolbar-control sizing. */
 .sort-select {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
   min-width: 100px;
+  text-align: left;
 }
 
 .sort-order-btn {

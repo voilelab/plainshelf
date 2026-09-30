@@ -3,7 +3,7 @@ import { getBookshelfProvider } from '@/providers';
 import { acquireObjectUrl, releaseObjectUrl } from '@/composables/objectUrlCache';
 import bookcover from '@/assets/bookcover.svg';
 
-export interface UseCoverSrcResult {
+interface UseCoverSrcResult {
   src: Ref<string>;
   handleError: () => void;
 }

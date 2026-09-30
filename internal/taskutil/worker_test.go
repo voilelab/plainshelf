@@ -49,7 +49,7 @@ func (t *blockingTask) Description() string { return "blocking" }
 func (t *blockingTask) Percentage() float64 { return 0 }
 func (t *blockingTask) Status() Status      { return StatusRunning }
 
-func newTestWorker(t *testing.T, maxLen int) *worker {
+func newTestWorker(t *testing.T, maxLen int) *Worker {
 	t.Helper()
 
 	logger, err := logutil.NewLogger(&logutil.LogConf{
@@ -59,11 +59,7 @@ func newTestWorker(t *testing.T, maxLen int) *worker {
 		t.Fatalf("NewLogger returned an error: %v", err)
 	}
 
-	w, ok := NewWorker(maxLen, logger).(*worker)
-	if !ok {
-		t.Fatalf("NewWorker did not return *worker")
-	}
-	return w
+	return NewWorker(maxLen, logger)
 }
 
 func TestWorkerRunsChainInOrder(t *testing.T) {

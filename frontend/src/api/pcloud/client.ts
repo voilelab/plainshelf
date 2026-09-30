@@ -23,9 +23,9 @@ const RETRY_BASE_DELAY_MS = 500;
 /** The account's top-level folder. */
 export const ROOT_FOLDER_ID = 0;
 
-export type PCloudParams = Record<string, string | number | boolean | undefined>;
+type PCloudParams = Record<string, string | number | boolean | undefined>;
 
-export interface PCloudClientOptions {
+interface PCloudClientOptions {
   host: PCloudApiHost | string;
   accessToken: string;
   /** Injectable for tests; defaults to the global fetch. */

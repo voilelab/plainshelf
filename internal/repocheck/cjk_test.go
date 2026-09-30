@@ -29,6 +29,9 @@ var cjkStringAllowlist = map[string]string{
 	// Test fixtures that happen to live outside a _test.go file so several
 	// packages can share them.
 	"internal/testutil/epub.go": "CJK EPUB fixture content for tests",
+	// The API contract harness is a package rather than a _test.go file so the
+	// contract packages under server/contract can share it.
+	"server/contract/apitest/book.go": "non-ASCII tail every imported fixture carries, so the decoding path is exercised",
 }
 
 // skippedDirs are directories with no first-party Go source worth parsing.

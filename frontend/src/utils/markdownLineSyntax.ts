@@ -16,7 +16,7 @@ const FENCE_OPENER_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 export { assetImageFromMarkdownLine, assetNameFromSrc, referencedAssetNames };
 
-export interface MarkdownHeadingLine {
+interface MarkdownHeadingLine {
   level: 1 | 2 | 3 | 4 | 5 | 6;
   title: string;
 }
@@ -26,7 +26,6 @@ export interface MarkdownFenceState {
   length: number;
 }
 
-/** Shared line-level syntax used by both the renderer and chapter scanner. */
 export function parseMarkdownHeadingLine(rawLine: string): MarkdownHeadingLine | null {
   const match = HEADING_RE.exec(rawLine);
   if (!match) {

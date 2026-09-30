@@ -1,0 +1,26 @@
+# Groups the pull request list GitHub generates for release notes
+# (scripts/release-notes.sh). A PR lands in the first category it matches.
+# The labels are listed in docs/development/releasing.md.
+changelog:
+  exclude:
+    labels:
+      - internal
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking
+    - title: Security
+      labels:
+        - security
+    - title: Features
+      labels:
+        - feature
+    - title: Fixes
+      labels:
+        - fix
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other
+      labels:
+        - "*"

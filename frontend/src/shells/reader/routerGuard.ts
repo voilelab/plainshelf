@@ -27,7 +27,7 @@ export function installReaderRouterGuards(router: Router): void {
     component: ReaderEmptyView
   });
 
-  router.beforeEach((to) => {
+  router.beforeEach((to, from) => {
     const boot = readerBootConfig();
     const bookID = boot?.book_id ?? '';
 
@@ -42,6 +42,15 @@ export function installReaderRouterGuards(router: Router): void {
     // chapter change from being dragged back to the launch chapter.
     if (to.name === 'reader' && to.params.id === bookID) {
       return true;
+    }
+
+    // Once the standalone shell is reading its one book, it has nowhere else
+    // inside PlainShelf to go. Cancel browser/mouse back and stray links in
+    // place instead of redirecting them to the same Reader route: redirecting
+    // re-entered ReaderView and could reload the book or repeat its launch
+    // chapter. Closing the native window is the shell's exit action.
+    if (from.name === 'reader' && from.params.id === bookID) {
+      return false;
     }
 
     // A reader launched for a specific chapter (desktop -section) carries it as

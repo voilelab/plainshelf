@@ -2,13 +2,12 @@ package readingprogress
 
 import (
 	"context"
-	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/gofrs/flock"
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -132,49 +131,9 @@ func readFile(path string) (string, error) {
 	if path == "" {
 		return "", util.NewError("reading progress storage is not ready")
 	}
-	bs, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	return string(bs), nil
+	return fsutil.ReadTextFile(path)
 }
 
-// writeAtomic replaces the document with a temp file plus rename, so an
-// interrupted write cannot leave a half-written document behind. It mirrors the
-// desktop app's long-standing device-document write.
 func writeAtomic(path, text string) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	tmp, err := os.CreateTemp(dir, ".reading_progress-*.json")
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	tmpPath := tmp.Name()
-
-	if _, err := tmp.WriteString(text); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return util.Errorf("%w", err)
-	}
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return util.Errorf("%w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return util.Errorf("%w", err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return util.Errorf("%w", err)
-	}
-
-	return nil
+	return fsutil.WriteTextFileAtomic(path, ".reading_progress-*.json", text)
 }

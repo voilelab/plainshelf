@@ -1,0 +1,77 @@
+name: Publish release
+
+# Step 2 of a release: runs when a release PR opened by prepare-release.yml
+# merges into release/<major>.x. Tags the merge commit and publishes everything
+# through release.yml. See docs/development/releasing.md.
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - "release/*"
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check release PR
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release-prep/') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      ref: ${{ steps.check.outputs.ref }}
+    steps:
+      - name: Checkout merge commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Check version, branch and merge method
+        id: check
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          version="${HEAD_REF#release-prep/}"
+          ./scripts/resolve-version.sh validate-tag "$version"
+          branch=$(./scripts/resolve-version.sh release-branch "$version")
+          if [ "$branch" != "$BASE_REF" ]; then
+            echo "::error::$version belongs on $branch, not $BASE_REF"
+            exit 1
+          fi
+          # A squash or rebase merge leaves release/* diverged from dev, and the
+          # next release PR would conflict.
+          if [ "$(git rev-list --parents -n 1 "$MERGE_SHA" | wc -w)" -ne 3 ]; then
+            echo "::error::release PR was not merged with a merge commit"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${version}" >/dev/null; then
+            echo "::error::tag $version already exists"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "ref=$MERGE_SHA" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and publish
+    needs: check
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+      ref: ${{ needs.check.outputs.ref }}
+      publish: true
+

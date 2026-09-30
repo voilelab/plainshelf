@@ -4,6 +4,7 @@ import {
   DEFAULT_READER_FONT,
   getReaderFontFamily,
   parseReaderFont,
+  READER_FONT_OPTIONS,
   useReaderSettings,
   type ReaderFont
 } from './useReaderSettings';
@@ -112,5 +113,21 @@ describe('reader font settings', () => {
     expect(settings.fontSize.value).toBe(28);
 
     scope.stop();
+  });
+});
+
+// The end-to-end case that used to read `font-family` off the rendered reader
+// is gone; what it proved beyond the storage round-trip above was that each id
+// maps to its own stack and that code text opts out of the reading font. The
+// first is pinned here. The second cannot be — jsdom resolves no `var()` — so
+// it is a style contract instead: scripts/check-style-contracts.mjs.
+describe('reader font reaches the rendered text', () => {
+  it('gives each font id its own family stack', () => {
+    expect(getReaderFontFamily('system')).toMatch(/^Georgia,/);
+    expect(getReaderFontFamily('noto-serif-tc')).toMatch(/^'Noto Serif TC Variable',/);
+    expect(getReaderFontFamily('noto-sans-tc')).toMatch(/^'Noto Sans TC Variable',/);
+    expect(new Set(READER_FONT_OPTIONS.map((option) => option.cssFamily)).size).toBe(
+      READER_FONT_OPTIONS.length
+    );
   });
 });

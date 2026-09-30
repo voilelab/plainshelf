@@ -8,9 +8,25 @@ const en = {
       reload: 'Reload'
     }
   },
+  errorIncident: {
+    label: 'Error reference',
+    copy: 'Copy',
+    copied: 'Copied',
+    dismiss: 'Dismiss error reference'
+  },
   toast: {
     label: 'Notifications',
     dismiss: 'Dismiss notification'
+  },
+  security: {
+    insecureWarning: {
+      title: 'API authentication is off',
+      body: 'Anyone who can reach this address can read, change, and delete your entire library.',
+      docsLink: 'How to secure this',
+      collapse: 'Minimize',
+      expand: 'Show security warning',
+      badge: 'No API auth'
+    }
   },
   language: {
     label: 'Language',
@@ -32,6 +48,7 @@ const en = {
     }
   },
   common: {
+    back: 'Back',
     retry: 'Retry',
     cancel: 'Cancel',
     confirm: 'Confirm',
@@ -42,7 +59,11 @@ const en = {
     page: 'Page {page} / {total}',
     inFolder: ' in {folder}',
     taskStartFailed: 'Failed to start the task',
-    taskPollFailed: 'Failed to read task progress'
+    taskPollFailed: 'Failed to read task progress',
+    // Names the stepper buttons of a number field; {label} is the field's own
+    // label, so two fields side by side do not read as the same button.
+    decrease: 'Decrease {label}',
+    increase: 'Increase {label}'
   },
   layout: {
     expandSidebar: 'Expand sidebar',
@@ -71,8 +92,6 @@ const en = {
       title: 'New folder',
       nameLabel: 'Folder name',
       namePlaceholder: 'Folder name',
-      parentLabel: 'Where',
-      rootOption: 'All books (top level)',
       closeLabel: 'Close new folder dialog',
       invalidName: 'Folder name cannot be empty or contain /.',
       creating: 'Creating...',
@@ -102,6 +121,19 @@ const en = {
     moveFolder: {
       failed: 'Failed to move folder. Drag a folder onto an existing target folder.'
     },
+    // The change takes a folder out of a subtree shelf.json marks as adult
+    // content. folderOnly covers the count of 0, which is a real case: an empty
+    // marked folder discloses itself by its name alone.
+    folderReveal: {
+      title: 'Make hidden content visible?',
+      bookCount:
+        'This folder is marked as adult content and the change takes it out of that mark, so {count} hidden books become visible.',
+      folderOnly:
+        'This folder is marked as adult content and the change takes it out of that mark, so the folder becomes visible.',
+      note: 'The mark lives in shelf.json, which PlainShelf only reads. To keep it, edit that file instead.',
+      confirm: 'Change anyway',
+      transferHeld: 'The transfer is waiting for you to confirm that it may make hidden content visible.'
+    },
     openFolder: {
       shortAction: 'Open folder',
       failed: 'Failed to open folder.'
@@ -121,6 +153,7 @@ const en = {
       modeLabel: 'Action',
       modeCopy: 'Copy',
       modeCopyHint: 'Creates new books on the destination shelf. Reading progress is not carried over.',
+      readOnlySource: 'This shelf is read-only, so the folder can only be copied out of it.',
       modeMove: 'Move',
       modeMoveHint: 'Keeps the same books and their reading progress, and removes the folder from this shelf.',
       confirm: 'Transfer',
@@ -161,14 +194,19 @@ const en = {
       manage: 'Manage shelves'
     },
     dashboard: 'Home',
+    library: 'Library',
     recentlyRead: 'Recently Read',
     trash: 'Trash',
     downloads: 'Downloads',
     adminLogs: 'Logs',
     settings: 'Settings',
+    tabNavLabel: 'Primary',
     readOnly: {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
-      writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
+      shelfBanner:
+        'This shelf is read-only. Browsing, reading and rescanning are available, but write operations are disabled.',
+      writeDisabled: 'Server is in read-only mode. Write operations are disabled.',
+      shelfWriteDisabled: 'This shelf is read-only. Write operations are disabled.'
     }
   },
   dashboard: {
@@ -184,7 +222,9 @@ const en = {
       readOnlyDescription:
         'This shelf has no books yet. Anything added to the shelf folder will show up here.',
       import: 'Import books',
-      docs: 'Read the getting started guide'
+      docs: 'Read the getting started guide',
+      pathLabel: 'Shelf folder:',
+      openFolderLabel: 'Open shelf folder'
     },
     stats: {
       totalBooks: 'Total Books',
@@ -237,6 +277,24 @@ const en = {
       label: 'Convert uploaded covers to JPG',
       description: 'Enable this to convert cover images to JPEG when uploading.'
     },
+    nsfw: {
+      title: 'Adult content'
+    },
+    showNsfw: {
+      label: 'Show adult content',
+      description:
+        'When this is off, the books your shelf marks as adult content are not served at all: they are absent from the library, the folder tree, search and the dashboard, and opening one by its address gives "not found".',
+      markingNote:
+        'The marks themselves belong to the shelf, not to this setting. Mark one book in its metadata editor; mark a whole folder by listing it under content.nsfw_folders in shelf.json.'
+    },
+    deviceNsfw: {
+      title: 'Adult content',
+      label: 'Show adult content on this device',
+      description:
+        'When this is off, the books the shelf marks as adult content are treated as absent on this device: they are missing from the library, the folder tree and the downloads list, and opening one by its address gives "not found".',
+      scopeNote:
+        'This preference is stored only on this device, and it is not shared with a PlainShelf server. It applies where this app reads a shelf directly from cloud storage; where a server serves the shelf, that server\'s own setting decides.'
+    },
     readHistory: {
       title: 'Reading history'
     },
@@ -247,6 +305,12 @@ const en = {
         'What pressing Read does. "Open a new reader" launches a new tab on the web, or the standalone reader app on desktop. "Open in this window" navigates in place instead. This preference is stored only on this device.',
       newReader: 'Open a new reader',
       inWindow: 'Open in this window'
+    },
+    language: {
+      title: 'Language',
+      label: 'Display language',
+      description:
+        'The language of the interface. This preference is stored only on this device.'
     },
     import: {
       title: 'Import'
@@ -265,6 +329,17 @@ const en = {
         'Put the book description at the start of the text as well. It is always saved to the book metadata either way.',
       save: 'Save',
       saving: 'Saving...'
+    },
+    logs: {
+      title: 'Logs'
+    },
+    logRetention: {
+      label: 'Log retention',
+      description:
+        'How many days of log files the server keeps. Older files are deleted when the log rotates, which happens the first time the server writes a log line on a new day. Use 0 to keep every file.',
+      keepsEverything: 'No log file is deleted.',
+      deletesOlderThan: 'Log files older than {days} days are deleted.',
+      invalid: 'Log retention must be a whole number of days between 0 and 3650.'
     },
     readHistoryLimit: {
       label: 'Reading history limit',
@@ -317,18 +392,29 @@ const en = {
       removeFailed: 'Failed to remove shelf',
       removeShelfTitle: 'Delete shelf',
       removeConfirmDescription: 'This only removes the shelf from PlainShelf; the directory will not be deleted.',
-      addShelf: 'Add shelf',
+      addShelf: 'Create shelf',
       addShelfTitle: 'Create shelf',
       addShelfCloseLabel: 'Close create shelf dialog',
-      addShelfNamePlaceholder: 'Shelf name',
-      addShelfDirectoryPlaceholder: 'Directory path',
-      addShelfScanIntervalPlaceholder: 'Scan interval (optional, e.g. 10m)',
-      addShelfScanIntervalHelp: 'Leave blank to use the default 1 minute scan interval.',
+      addShelfNameLabel: 'Shelf name',
+      addShelfNamePlaceholder: 'Novels',
+      addShelfDirectoryLabel: 'Folder path',
+      addShelfDirectoryPlaceholder: '/home/you/Books',
       addShelfBrowse: 'Browse...',
-      addShelfSubmit: 'Add shelf',
-      addShelfAdding: 'Adding...',
-      addShelfFailed: 'Failed to add shelf',
+      addShelfSubmit: 'Create shelf',
+      addShelfAdding: 'Creating...',
+      addShelfFailed: 'Failed to create shelf',
+      addShelfIDPreview: 'Shelf ID:',
+      addShelfLocationLabel: 'Shelf location',
+      addShelfLocationNew: 'Create a new folder',
+      addShelfLocationNewHelp: "PlainShelf creates the folder in its own shelves directory. Nothing else on your disk is touched.",
+      addShelfLocationExisting: 'Use a folder I already have',
+      addShelfLocationExistingHelp:
+        'Point PlainShelf at a folder you choose, anywhere on your disk. It is opened as it is.',
+      addShelfDefaultPath: 'Folder to create:',
+      addShelfDirectoryNotAbsolute: 'Enter a full path, starting from the root of the drive.',
       removeConfirmYes: 'Delete shelf',
+      openFolder: 'Open folder',
+      openFolderFailed: 'Failed to open shelf folder',
       modify: 'Modify',
       modifyShelfTitle: 'Modify shelf',
       modifyShelfCloseLabel: 'Close modify shelf dialog',
@@ -337,9 +423,41 @@ const en = {
       modifyShelfFailed: 'Failed to modify shelf',
       modifyShelfIDLabel: 'ID',
       modifyShelfPathLabel: 'Path',
-      modifyShelfNamePlaceholder: 'Shelf name',
-      modifyShelfScanIntervalPlaceholder: 'Scan interval (optional, e.g. 10m)',
-      modifyShelfScanIntervalHelp: 'Leave blank to use the default 1 minute scan interval.'
+      modifyShelfNameLabel: 'Shelf name',
+      modifyShelfNamePlaceholder: 'Novels',
+      readOnlyLabel: 'Read-only shelf',
+      readOnlyHelp:
+        'Open the shelf without writing anything to it — a restored backup, a read-only mount, an archived snapshot. Its books can be browsed and read; nothing can be added, edited or deleted.',
+      readOnlyEffectLock: 'File locking is turned off, because taking the lock is itself a write.',
+      readOnlyEffectBookCache: 'The exported book cache is not written for this shelf.',
+      readOnlyEffectPath:
+        'The directory is never created: the path has to exist already, or the shelf will not open.',
+      scanIntervalLabel: 'Scan interval',
+      scanIntervalModeDefault: 'Use the default (every minute)',
+      scanIntervalModeEvery: 'Scan at most every…',
+      scanIntervalModeAlways: 'Scan on every refresh',
+      scanIntervalAmountLabel: 'Scan interval amount',
+      scanIntervalUnitLabel: 'Scan interval unit',
+      scanIntervalUnitSeconds: 'seconds',
+      scanIntervalUnitMinutes: 'minutes',
+      scanIntervalUnitHours: 'hours',
+      scanIntervalHelpDefault:
+        'A full scan of the shelf runs at most once a minute; books added outside PlainShelf appear at the next one.',
+      scanIntervalHelpEvery:
+        'A longer interval means less disk and network work, and a longer wait before books added outside PlainShelf show up.',
+      scanIntervalHelpAlways:
+        'Every refresh walks the whole shelf. Fine on a local disk, expensive on a network shelf.',
+      scanIntervalAdjusted:
+        'The saved interval {value} cannot be shown exactly by these controls and has been replaced by the value above.',
+      advancedSettings: 'Advanced settings',
+      bookCheckIntervalLabel: 'Per-book check interval',
+      bookCheckIntervalAmountLabel: 'Per-book check interval amount',
+      bookCheckIntervalHelpDefault:
+        'Follows the scan interval. On a network shelf this is where most list-view I/O comes from, so set it higher than the scan interval if list views feel slow.',
+      bookCheckIntervalHelpEvery:
+        'Between checks, list views are served from memory with no filesystem access. A longer interval means fewer network round-trips and a longer wait before edits to a book made outside PlainShelf show up.',
+      bookCheckIntervalHelpAlways:
+        'Every list view re-checks each book on disk. Fine on a local disk, expensive on a network shelf.'
     }
   },
   adminLogs: {
@@ -349,13 +467,18 @@ const en = {
     date: 'Date',
     source: 'Source',
     filename: 'Filename',
-    empty: 'No log files are available.',
+    size: 'Size',
+    empty: 'No log files are available to browse.',
+    emptyHint:
+      'Only loggers with log_file.type set to filename_rotate or filename appear here; loggers writing to stderr or stdout (the default) do not. To browse logs, configure a file type — or, if one is already configured, wait for its first file to be written and reload.',
     emptyContent: 'The selected log file is empty.',
     missingForDate: 'No log file is available for {date}.',
     loadingList: 'Loading log files...',
     loadingContent: 'Loading log content...',
     loadFailed: 'Failed to load log files',
-    loadContentFailed: 'Failed to load log content'
+    loadContentFailed: 'Failed to load log content',
+    truncated: 'Showing the last {shown} of this {total} file.',
+    loadMore: 'Load more'
   },
   maintenance: {
     duplicateContent: 'Duplicate Content',
@@ -381,7 +504,12 @@ const en = {
       empty: 'No similar books at this level.',
       emptyHint: 'Loosen the level, or turn off the trimmed-copies filter, to widen the search.',
       loadFailed: 'Failed to compare books',
-      tooLarge: "This shelf's fingerprinted content is larger than a single synchronous comparison can handle within its budget, so this comparison was skipped.",
+      estimate: {
+        title: 'This comparison is larger than the automatic budget.',
+        counts: '{fingerprinted} of {total} books have fingerprints, producing {pairs} comparisons.',
+        work: 'About {work} merge steps (roughly {seconds} seconds).',
+        confirm: 'Compare anyway'
+      },
       resultCount: '{count} pairs',
       tiersLabel: 'Similarity',
       tiers: {
@@ -528,6 +656,7 @@ const en = {
     neverSynced: 'Never updated',
     scanFound: 'Found {books} books in {folders} folders',
     scanInProgress: 'This shelf is already being scanned. Try again once it finishes.',
+    scanRateLimited: 'Updating too often. Try again in {seconds} seconds.',
     loadFailed: 'Failed to load books',
     refreshFailed: 'Failed to update the book list',
     requestTimeout: 'Request timed out — the shelf may be slow or unavailable.',
@@ -540,6 +669,8 @@ const en = {
     folderPath: 'Book folder path',
     ratingLabel: 'Rated {rating} stars',
     emptyDetails: 'No additional details are available for this book.',
+    newerSchemaNotice:
+      'This book was saved in a newer format than this version of PlainShelf reads, so some of its details may be missing here.',
     sections: {
       publication: 'Publication',
       content: 'Content',
@@ -559,6 +690,16 @@ const en = {
       characters: 'Characters',
       comment: 'Book note',
       importNotes: 'Import note'
+    },
+    importNote: {
+      remove: 'Remove',
+      removeLabel: 'Remove import note',
+      removeFailed: 'Could not remove the import note.',
+      confirm: {
+        title: 'Remove import note?',
+        message: 'The note records how this text was imported or converted. Removing it cannot be undone, and the text itself is untouched.',
+        confirm: 'Remove note'
+      }
     },
     progress: {
       sectionLabel: 'Reading progress and actions',
@@ -631,6 +772,7 @@ const en = {
       modeLabel: 'Action',
       modeCopy: 'Copy',
       modeCopyHint: 'Creates a new book on the destination shelf. Reading progress is not carried over.',
+      readOnlySource: 'This shelf is read-only, so the book can only be copied out of it.',
       modeMove: 'Move',
       modeMoveHint: 'Keeps the same book and its reading progress, and removes it from this shelf.',
       confirm: 'Transfer',
@@ -706,6 +848,17 @@ const en = {
       list: 'List',
       card: 'Card',
       title: 'Title'
+    },
+    nsfwBadge: {
+      label: 'NSFW',
+      title: 'Marked as adult content'
+    },
+    downloadState: {
+      notDownloaded: 'Not downloaded',
+      downloaded: 'Downloaded',
+      updateAvailable: 'Update available',
+      downloading: 'Downloading...',
+      failed: 'Download failed'
     },
     contextMenu: {
       read: 'Read',
@@ -808,7 +961,7 @@ const en = {
       action: 'Empty trash',
       title: 'Empty trash',
       question: 'Permanently delete all {count} books in the trash?',
-      questionUnknownCount: 'Permanently delete everything in the trash? Books whose metadata cannot be read are not listed above, but will also be removed.',
+      questionUnknownCount: 'Permanently delete everything in the trash? Some books are not listed above, but will also be removed.',
       description: 'This permanently removes all data and cannot be undone.',
       confirm: 'Empty trash',
       busy: 'Emptying...',
@@ -863,7 +1016,6 @@ const en = {
     openFailed: 'That folder could not be opened as a book.'
   },
   reader: {
-    backToDetail: 'Back to detail',
     title: 'Reader',
     progress: 'Progress: {percent}%',
     loadingContent: 'Loading content...',
@@ -902,10 +1054,14 @@ const en = {
       title: 'Chapters',
       closeLabel: 'Close chapter dialog'
     },
+    sections: {
+      singleSectionTitle: 'Part 1'
+    },
     imageUnavailable: 'Illustration unavailable',
     autosaveFailed: 'Reading progress could not be saved. PlainShelf will retry automatically.',
     mobile: {
       gestureHint: 'Tap the center for controls · Swipe left or right to change chapters',
+      showGestureHint: 'Show reading gestures',
       firstSection: 'You are at the first chapter',
       lastSection: 'You are at the last chapter'
     }
@@ -987,6 +1143,7 @@ const en = {
   libraryForms: {
     editBook: {
       title: 'Edit metadata',
+      closeLabel: 'Close metadata editor',
       description: 'Update fields supported by the current API.',
       basicInfo: 'Basic info',
       titleLabel: 'Title',
@@ -994,6 +1151,14 @@ const en = {
       authorsLabel: 'Authors (comma separated)',
       authorsPlaceholder: 'Author A, Author B',
       organization: 'Organization',
+      nsfw: {
+        label: 'Adult content',
+        help: 'While "Show adult content" is off in Settings, a marked book is not served at all — it disappears from the library until the setting is turned back on.',
+        fromFolder:
+          'Marked by the folder rule "{path}" in shelf.json, which marks every book below it. Edit that file to change it, or move the book out of the folder.',
+        fromFolderReason:
+          'Marked by the folder rule "{path}" in shelf.json: {reason}. Edit that file to change it, or move the book out of the folder.'
+      },
       publishedAt: 'Published At',
       languageLabel: 'Language',
       starRating: 'Star rating',
@@ -1020,6 +1185,12 @@ const en = {
       addIdentifier: 'Add identifier',
       save: 'Save metadata',
       saving: 'Saving...',
+      discard: {
+        title: 'Discard unsaved changes?',
+        message: 'You have unsaved changes. Discard them?',
+        confirm: 'Discard',
+        cancel: 'Keep editing'
+      },
       loading: 'Loading book metadata...',
       loadFailed: 'Failed to load metadata',
       saveFailed: 'Failed to save metadata'
@@ -1075,6 +1246,14 @@ const en = {
         one: 'Import successful.',
         many: 'Imported {count} files.',
         partial: 'Imported {count} of {total} files.'
+      },
+      chapterSuggestion: {
+        prompt: 'Detected {count} chapters in this text. Convert it into a chaptered version now?',
+        convert: 'Convert to chapters',
+        converting: 'Converting...',
+        dismiss: 'Not now',
+        done: 'Created a chaptered version with {count} chapters and set it as current.',
+        failed: 'Could not convert this book into chapters.'
       }
     }
   },
@@ -1180,9 +1359,11 @@ const en = {
         lineCountMd: '{count} H2 chapter headings will be inserted.',
         plainText: 'A single unstructured TXT section will be created.'
       },
+      hints: {
+        enterPattern: 'Enter a regular expression to preview the chapters it would create.',
+        noMatches: 'No chapter title lines matched. Try a different pattern.'
+      },
       errors: {
-        emptyPattern: 'Enter a regular expression.',
-        patternMatchedNothing: 'The regular expression matched no chapter title lines.',
         invalidLineCount: 'Lines per chapter must be a positive number.',
         previewFailed: 'Unable to preview this conversion.'
       }

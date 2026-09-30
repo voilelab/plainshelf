@@ -14,7 +14,9 @@ brew install --cask voilelab/plainshelf/plainshelf
 open -a PlainShelf
 ```
 
-Use the shelf controls in the app to add a local shelf directory.
+Use the shelf controls in the app to add a shelf. Creating one needs only a
+name — PlainShelf makes the folder in its own shelves directory — or you can
+choose an existing folder to open instead.
 
 ### Prebuilt server
 
@@ -41,10 +43,15 @@ docker run --rm \
 Open <http://127.0.0.1:20000>. The named volume preserves the shelf and
 application store when the container is replaced.
 
-!!! tip "Keep the server private"
-    Bind the port to `127.0.0.1` unless PlainShelf is behind a trusted VPN or
-    authentication boundary. The default Docker configuration does not enable
-    application-level authentication.
+!!! warning "Keep the server private"
+    The default container config protects writes with `local_token`, which is a
+    CSRF boundary and not a login: anything that can reach the port can read the
+    token out of the served page. Keep the port published on `127.0.0.1`, as
+    above, and put a real boundary (reverse proxy auth or a VPN) in front before
+    exposing it — see [Deployment and threat
+    model](deployment-and-threat-model.md). Opening the UI through any other
+    origin needs that origin listed as well; the [Docker](development/docker.md)
+    page has both settings.
 
 ## 2. Configure storage
 
@@ -70,7 +77,9 @@ list is absent there.
 On the Android app and narrow browser screens, the reader uses an immersive
 layout: tap the center of the page to show or hide its controls, swipe left for
 the next chapter, and swipe right for the previous chapter. Vertical swipes
-continue to scroll within the current chapter.
+continue to scroll within the current chapter. These gestures are shown once the
+first time you open a book; the **?** button in the reader's controls brings the
+reminder back at any time.
 
 An EPUB is converted to text as it is imported; see
 [EPUB Import](epub-import.md) for what is kept, what is dropped, and how to
@@ -82,9 +91,9 @@ ID. See [Data Model](concepts/data-model.md) for the on-disk layout.
 
 ## 4. Back up before experimenting
 
-PlainShelf is pre-alpha. Until it reaches 1.0.0, the on-disk format itself can
-still change between releases, so upgrading a v0.x shelf may require a fresh
-start for some data; see
+The on-disk format freezes at `1.0.0-rc1`. Until that release it can still change
+between releases, so upgrading a v0.x shelf may require a fresh start for some
+data; see
 [Compatibility policy](concepts/data-format-versioning.md#compatibility-policy).
 Back up both the configured shelf and application store before upgrades or
 manual filesystem edits. Stop write activity first so the backup captures a

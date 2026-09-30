@@ -37,8 +37,6 @@ func openFixturePackage(t *testing.T, dir string) *BookPackage {
 	return pkg
 }
 
-// The whole point of the package reader: one folder, no shelf around it, and
-// everything a reader displays comes back.
 func TestOpenBookPackageReadsWithoutAShelf(t *testing.T) {
 	const sourceID = "20260315-a1"
 
@@ -51,10 +49,6 @@ func TestOpenBookPackageReadsWithoutAShelf(t *testing.T) {
 	if book.Title() == "" {
 		t.Error("expected the book to carry its title")
 	}
-	// A package opened outside a shelf has no layer: layer is a book's position
-	// in the tree, and there is no tree here. There is nothing to assert about a
-	// layer the book no longer carries — the point is that opening a bare
-	// package needs no layer information at all.
 
 	source, err := book.ResolveCurrentSource()
 	if err != nil {
@@ -91,8 +85,6 @@ func TestOpenBookPackageReadsWithoutAShelf(t *testing.T) {
 	}
 }
 
-// Illustrations live inside the package, so the reader reaches them through the
-// same handle rather than a shelf-relative path.
 func TestOpenBookPackageReadsSourceAssets(t *testing.T) {
 	const sourceID = "20260315-a1"
 
@@ -127,9 +119,8 @@ func TestOpenBookPackageReadsSourceAssets(t *testing.T) {
 	}
 }
 
-// A reader may be pointed at a book on a read-only mount, or at someone else's
-// folder. Reading it must leave the directory byte-for-byte as it was: no
-// app/, no lock file, no lazily upgraded book.json.
+// A reader may be pointed at someone else's folder: no app/, no lock file, no
+// lazily upgraded book.json.
 func TestOpenBookPackageWritesNothing(t *testing.T) {
 	dir := newBookPackageFixture(t)
 	before := treeSnapshot(t, dir)
@@ -147,8 +138,6 @@ func TestOpenBookPackageWritesNothing(t *testing.T) {
 	}
 }
 
-// Read-only is a property of the handle, not a promise the caller keeps: every
-// mutation is refused before it reaches the filesystem.
 func TestOpenBookPackageRefusesWrites(t *testing.T) {
 	dir := newBookPackageFixture(t)
 	book := openFixturePackage(t, dir).Book()
@@ -173,9 +162,8 @@ func TestOpenBookPackageRefusesWrites(t *testing.T) {
 	}
 }
 
-// The three ways a caller can point at the wrong thing have to be
-// distinguishable: a reader says "no such folder", "that is not a book" and
-// "this book is damaged" in three different places in its UI.
+// A reader says "no such folder", "that is not a book" and "this book is
+// damaged" in three different places in its UI.
 func TestOpenBookPackageRejectsNonPackages(t *testing.T) {
 	t.Run("missing directory", func(t *testing.T) {
 		_, err := OpenBookPackage(filepath.Join(t.TempDir(), "absent.bookpkg"), nil)
@@ -212,8 +200,8 @@ func TestOpenBookPackageRejectsNonPackages(t *testing.T) {
 	})
 }
 
-// A book written by a newer build still opens: refusing it would leave the
-// reader with nothing to show, and the package is never written back anyway.
+// Refusing a newer build's book would leave the reader with nothing to show,
+// and the package is never written back anyway.
 func TestOpenBookPackageOpensFutureSchema(t *testing.T) {
 	dir := newBookPackageFixture(t)
 	future, err := os.ReadFile("testdata/schema/v2-future/book.json")
@@ -230,8 +218,6 @@ func TestOpenBookPackageOpensFutureSchema(t *testing.T) {
 	}
 }
 
-// Close releases the directory handle, and stays safe to call twice — a caller
-// that closes in a defer and again on an error path is doing the right thing.
 func TestBookPackageCloseIsIdempotent(t *testing.T) {
 	pkg, err := OpenBookPackage(newBookPackageFixture(t), nil)
 	if err != nil {
@@ -246,15 +232,10 @@ func TestBookPackageCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-// A package whose book.json is newer than this build is refused twice over,
-// and the schema guard is the one that answers: it deliberately runs before
-// the write handle is narrowed, so that a refused write cannot truncate a
-// cover or delete a file on its way to failing.
-//
-// This is Book's behaviour on any read-only shelf, not something the package
-// reader chooses — the point of pinning it here is that "every mutation is
-// refused" is the guarantee, and fsutil.ErrReadOnly is only how most of them
-// say so.
+// Such a book is refused twice over, and the schema guard answers first: it
+// runs before the write handle is narrowed, so a refused write cannot truncate
+// a cover on its way to failing. The guarantee is "every mutation is refused",
+// not any one sentinel.
 func TestOpenBookPackageRefusesWritesToAFutureSchemaBook(t *testing.T) {
 	dir := newBookPackageFixture(t)
 	future, err := os.ReadFile("testdata/schema/v2-future/book.json")
@@ -268,8 +249,8 @@ func TestOpenBookPackageRefusesWritesToAFutureSchemaBook(t *testing.T) {
 	before := treeSnapshot(t, dir)
 	book := openFixturePackage(t, dir).Book()
 
-	// DeleteCover is absent deliberately: this fixture records no cover, so it
-	// has nothing to delete and returns nil without reaching a guard.
+	// DeleteCover is absent: this fixture records no cover, so it returns nil
+	// without reaching a guard.
 	writes := map[string]func() error{
 		"SetMeta":  func() error { return book.SetMeta(book.GetMeta()) },
 		"SetCover": func() error { return book.SetCover([]byte("data"), ".png") },

@@ -13,11 +13,13 @@
     :loading="loading"
     :error="error"
     :save-error="saveError"
+    :show-back-navigation="showBackNavigation"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
     @retry="loadReader"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
+    @back="goBack"
     @previous-section="goPrevSection"
     @next-section="goNextSection"
     @decrease-font-size="decreaseFontSize"
@@ -40,11 +42,13 @@
     :loading="loading"
     :error="error"
     :save-error="saveError"
+    :show-back-navigation="showBackNavigation"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
     @retry="loadReader"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
+    @back="goBack"
     @previous-section="goPrevSection"
     @next-section="goNextSection"
     @decrease-font-size="decreaseFontSize"
@@ -77,6 +81,7 @@ import DesktopReaderView from '@/features/reader/components/DesktopReaderView.vu
 import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
 import MobileReaderView from '@/features/reader/components/MobileReaderView.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useSafeBackNavigation } from '@/composables/useSafeBackNavigation';
 import { useReader } from '@/features/reader/composables/useReader';
 import { useMobileReaderPresentation } from '@/features/reader/composables/useReaderPresentation';
 import {
@@ -88,9 +93,12 @@ import {
 import { useReadingHeartbeat } from '@/features/reader/composables/useReadingHeartbeat';
 import { parseSectionQuery } from '@/features/reader/utils/sectionDeepLink';
 import { useI18n } from '@/i18n';
+import { isReaderRuntime } from '@/providers/runtime';
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
+const { goBack } = useSafeBackNavigation(() => `/books/${id.value}`);
+const showBackNavigation = !isReaderRuntime();
 const isMobileReader = useMobileReaderPresentation();
 const {
   title,
@@ -184,6 +192,10 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   ) {
     return;
   }
+
+  // Claim the key even at the first/last chapter: an unhandled key reaches
+  // AppKit through macOS WKWebView (desktop, reader), which beeps.
+  event.preventDefault();
 
   if (event.key === 'ArrowLeft' && currentSectionIndex.value > 0) {
     void goPrevSection();

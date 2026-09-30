@@ -23,14 +23,24 @@ test-go: build-server-frontend
 	cd desktop && go test ./...
 	cd reader && go test ./...
 
-# Run e2e tests: build frontend and run e2e tests.
+# Run e2e tests: build frontend and run the whole e2e suite.
 # The server is compiled once here and reused by every spec (via
 # PLAINSHELF_E2E_SERVER_BIN) instead of a `go run` cold start per test.
+# This stays the whole suite on purpose: CI only gates on `test-e2e-smoke`, so
+# this recipe is where a change outside the smoke set gets checked before it is
+# pushed and waits for a nightly to say so.
 test-e2e: build-server-frontend
 	npm --prefix {{e2e_test_dir}} ci
 	npx --prefix {{e2e_test_dir}} playwright install --with-deps chromium
 	go build -o {{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv ./cmd/plainshelf-srv/main.go
 	PLAINSHELF_E2E_SERVER_BIN={{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv npm --prefix {{e2e_test_dir}} test
+
+# Run the `@smoke` subset only — what the pull request gate runs (PSW-77).
+test-e2e-smoke: build-server-frontend
+	npm --prefix {{e2e_test_dir}} ci
+	npx --prefix {{e2e_test_dir}} playwright install --with-deps chromium
+	go build -o {{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv ./cmd/plainshelf-srv/main.go
+	PLAINSHELF_E2E_SERVER_BIN={{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv npm --prefix {{e2e_test_dir}} run test:smoke
 
 # Build server: build Go server binary.
 build-server-backend: build-server-frontend
@@ -47,11 +57,14 @@ build-desktop: build-server-frontend
 
 # Run desktop app. On macOS the in-app "read" action shells out to the standalone
 # reader; in dev this points it at your locally built reader
-# (reader/build/bin/PlainShelfReader.app, from `just build-reader`) instead of the
-# brew-installed one, so reads open the dev-line reader. Override with a path or app
-# name — `just run-desktop /path/to/PlainShelfReader.app` — and an already-set
-# PLAINSHELF_READER_APP in the environment wins over both.
-run-desktop reader="": build-server-frontend
+# (reader/build/bin/PlainShelfReader.app), so reads open the dev-line reader
+# instead of the brew-installed one. build-reader runs first so that reader is
+# rebuilt from the current source every time — a stale dev reader would open with
+# yesterday's code. Override the reader with a path or app name —
+# `just run-desktop /path/to/PlainShelfReader.app` — and an already-set
+# PLAINSHELF_READER_APP in the environment wins over both (the rebuilt dev reader
+# is then simply not used).
+run-desktop reader="": build-reader
 	#!/usr/bin/env zsh
 	set -eu
 	dev_reader="{{justfile_directory()}}/reader/build/bin/PlainShelfReader.app"
@@ -137,7 +150,7 @@ run-android-app conf="config.yaml": build-server-frontend
 	done
 	# The ephemeral access token (regenerated every start) is only injected into the
 	# server-served page; the APK shell never sees it, so surface it for the connect page.
-	token=$(curl -s http://127.0.0.1:20000/ | sed -n 's/.*__PLAINSHELF_SECURITY__={token:"\([^"]*\)".*/\1/p')
+	token=$(curl -s http://127.0.0.1:20000/ | sed -n 's/.*__PLAINSHELF_SECURITY__=[^<]*"token":"\([^"]*\)".*/\1/p')
 	# Boot an emulator if none is running (emulator binary is not on PATH).
 	if ! adb devices | grep -q '^emulator-.*device$'; then
 		avd="${PLAINSHELF_AVD:-$("$ANDROID_HOME/emulator/emulator" -list-avds | head -n1)}"

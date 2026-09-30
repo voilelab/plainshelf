@@ -1,4 +1,4 @@
-export interface MobileBackEvent {
+interface MobileBackEvent {
   canGoBack: boolean;
 }
 

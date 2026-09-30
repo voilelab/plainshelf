@@ -1,7 +1,7 @@
 import { t } from '@/i18n';
 import type { Book } from '@/types/book';
 
-export const ROOT_FOLDER_PATH = '';
+const ROOT_FOLDER_PATH = '';
 
 /**
  * The `folders` query value that filters to books sitting directly at the shelf
@@ -10,18 +10,18 @@ export const ROOT_FOLDER_PATH = '';
  */
 export const ROOT_FOLDER_FILTER = '/';
 
-export type FolderTreeNode = {
+type FolderTreeNode = {
   name: string;
   path: string;
   children: FolderTreeNode[];
 };
 
-export type FolderPathOption = {
+type FolderPathOption = {
   path: string;
   depth: number;
 };
 
-export type BooksFolderRoute = {
+type BooksFolderRoute = {
   path: string;
   query: Record<string, string>;
 };
@@ -35,11 +35,11 @@ export function normalizeFolderInput(folders?: string | string[] | null): string
   return rawFolders.map((folder) => folder.trim()).filter((folder) => folder.length > 0);
 }
 
-export function normalizeFolders(folders?: string[]): string[] {
+function normalizeFolders(folders?: string[]): string[] {
   return normalizeFolderInput(folders);
 }
 
-export function foldersToPath(folders?: string[]): string {
+function foldersToPath(folders?: string[]): string {
   const normalized = normalizeFolders(folders);
   if (normalized.length === 0) {
     return ROOT_FOLDER_PATH;
@@ -65,7 +65,7 @@ export function normalizeFolderPath(path: string): string {
   return segments.length === 0 ? ROOT_FOLDER_PATH : segments.join('/');
 }
 
-export function toComparableFolderPath(path: string): string {
+function toComparableFolderPath(path: string): string {
   return normalizeFolderPath(path);
 }
 
@@ -74,15 +74,14 @@ export function folderPathEquals(left: string, right: string): boolean {
 }
 
 /**
- * The library route that lists `folderPath` from its first page. Shared by every
- * caller that navigates into a folder (sidebar tree, breadcrumb, post-delete
- * redirect) so they all emit the same canonical `folders` query.
+ * Shared by every caller that navigates into a folder (sidebar tree, breadcrumb,
+ * post-delete redirect) so they all emit the same canonical `folders` query.
  *
- * Three destinations, not two: an empty path is the unfiltered "All books"
- * view (no `folders` key), `ROOT_FOLDER_FILTER` is the narrower "books sitting
- * directly at the shelf root" filter that the sidebar's root node selects, and
- * anything else is a normalized folder path. `ROOT_FOLDER_FILTER` must survive
- * verbatim — LibraryPage's `matchesFolder` tells it apart from a missing query.
+ * Three destinations, not two: an empty path is the unfiltered "All books" view
+ * (no `folders` key), `ROOT_FOLDER_FILTER` is the narrower "books sitting
+ * directly at the shelf root" filter, and anything else is a normalized folder
+ * path. `ROOT_FOLDER_FILTER` must survive verbatim — LibraryPage's
+ * `matchesFolder` tells it apart from a missing query.
  */
 export function booksRouteForFolderPath(folderPath: string): BooksFolderRoute {
   const trimmed = folderPath.trim();

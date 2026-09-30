@@ -27,6 +27,7 @@ import {
 import {
   createSource,
   deleteSource,
+  deleteSourceComment,
   getSource,
   getSourceAsset,
   getSourceAssetsBundle,
@@ -36,7 +37,7 @@ import {
   setCurrentSource,
   updateSourceContent
 } from '@/api/sources';
-import { getFolders, transferFolder } from '@/api/folders';
+import { type FolderChangeOptions, getFolders, transferFolder } from '@/api/folders';
 import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
@@ -57,7 +58,8 @@ import type {
   BookUpdateRequest,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook
+  TrashedBook,
+  TrashedBookListing
 } from '@/types/book';
 import type { BookTransferMode, FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
@@ -111,9 +113,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     sourceFolder: string,
     targetShelfID: string,
     targetFolder: string,
-    mode: BookTransferMode
+    mode: BookTransferMode,
+    options?: FolderChangeOptions
   ): Promise<string> {
-    return transferFolder(sourceFolder, targetShelfID, targetFolder, mode);
+    return transferFolder(sourceFolder, targetShelfID, targetFolder, mode, options);
   }
 
   deleteBook(bookId: string): Promise<void> {
@@ -178,15 +181,15 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return getDuplicateBookGroups();
   }
 
-  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
-    return getSimilarBookPairs(floor);
+  getSimilarBookPairs(floor?: number, confirm?: boolean): Promise<SimilarBookPair[]> {
+    return getSimilarBookPairs(floor, confirm);
   }
 
   getFingerprintStatus(): Promise<FingerprintStatus> {
     return getFingerprintStatus();
   }
 
-  listTrashedBooks(): Promise<TrashedBook[]> {
+  listTrashedBooks(): Promise<TrashedBookListing> {
     return listTrashedBooks();
   }
 
@@ -248,6 +251,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   deleteSource(bookId: string, sourceId: string): Promise<void> {
     return deleteSource(bookId, sourceId);
+  }
+
+  deleteSourceComment(bookId: string, sourceId: string): Promise<void> {
+    return deleteSourceComment(bookId, sourceId);
   }
 
   setCurrentSource(bookId: string, sourceId: string): Promise<void> {

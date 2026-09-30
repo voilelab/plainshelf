@@ -1,16 +1,18 @@
 package shelf
 
 import (
-	"encoding/json"
+	"cmp"
+	"encoding/json/v2"
 	"errors"
 	"os"
 	"path"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
@@ -22,21 +24,15 @@ var ErrTrashedBookNotFound = util.NewError("trashed book not found")
 
 // TrashMetaSchemaVersion is the trash.json schema version this build writes.
 //
-// trash.json is not a cache: it records where each book came from, so losing or
-// rewriting it restores the book to the wrong place. It follows the same rules
-// as book.json. No schema_version predates versioning ("v0"): read as the
-// current version, normalized in memory, persisted only on the next write (lazy
-// upgrade); opening a shelf never rewrites it. A HIGHER schema_version is still
-// listed and readable, but any operation that would modify the trashed book is
-// refused before touching the filesystem, so an older build cannot clobber a
-// newer one.
+// trash.json is not a cache: it records where each book came from, so rewriting
+// it restores the book to the wrong place. It follows book.json's rules — no
+// schema_version is read as the current one and persisted lazily, a higher one
+// stays listed and readable but refuses any modification.
 //
-// v2 renamed the recorded origin folder key from "original_layer" to
-// "original_folder" (the layer→folder surface rename). It is a hard cut with no
-// dual read: a v1 record's "original_layer" is simply not seen, so a book trashed
-// by a pre-v2 build restores to the top level of books/ rather than its old
-// folder. The bump makes that visible instead of silent — a pre-v2 build reading
-// a v2 record refuses to modify it (ErrUnsupportedTrashSchemaVersion) rather than
+// v2 renamed the origin folder key from "original_layer" to "original_folder".
+// It is a hard cut with no dual read: a v1 record's key is not seen, so a book
+// trashed by a pre-v2 build restores to the top level of books/. The bump makes
+// that visible — a pre-v2 build refuses to modify a v2 record rather than
 // rewriting it and dropping the restore path.
 const TrashMetaSchemaVersion = 2
 
@@ -53,6 +49,13 @@ type TrashedBook struct {
 	OriginalPath   string        `json:"original_path,omitempty"`
 	OriginalFolder FolderPath    `json:"original_folder,omitempty"`
 	DeletedAt      util.JSONTime `json:"deleted_at,omitzero"`
+
+	// NSFW is the shelf's assembled answer for the book while it sits in the
+	// trash — see Shelf.IsBookNSFW. It is computed here rather than left to the
+	// caller because the folder half of the answer needs OriginalFolder, which
+	// only the trash record remembers: trash/ lies outside books/, so the
+	// book's path no longer says where the folder rules reach it.
+	NSFW bool `json:"nsfw,omitempty"`
 }
 
 type trashMeta struct {
@@ -150,29 +153,56 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 			continue
 		}
 
-		meta := s.readTrashMetaTolerant(bookPath)
-
-		item := &TrashedBook{
-			ID:      book.ID(),
-			Title:   book.Title(),
-			Authors: append([]string(nil), book.GetMeta().Authors...),
-		}
-		if meta != nil {
-			item.DeletedAt = meta.DeletedAt
-			item.OriginalPath = meta.OriginalPath
-			item.OriginalFolder = append(FolderPath(nil), meta.OriginalFolder...)
-		}
-		items = append(items, item)
+		items = append(items, s.newTrashedBook(book, s.readTrashMetaTolerant(bookPath)))
 	}
 
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].DeletedAt != items[j].DeletedAt {
-			return time.Time(items[i].DeletedAt).After(time.Time(items[j].DeletedAt))
-		}
-		return items[i].ID < items[j].ID
+	slices.SortFunc(items, func(a, b *TrashedBook) int {
+		return cmp.Or(
+			time.Time(b.DeletedAt).Compare(time.Time(a.DeletedAt)),
+			cmp.Compare(a.ID, b.ID),
+		)
 	})
 
 	return items, nil
+}
+
+// newTrashedBook assembles one trash listing entry from the book package and
+// the trash record beside it. meta may be nil — see readTrashMetaTolerant —
+// in which case the book is treated as having come from the top level, which is
+// also where restoring it would put it back.
+func (s *Shelf) newTrashedBook(book *Book, meta *trashMeta) *TrashedBook {
+	item := &TrashedBook{
+		ID:      book.ID(),
+		Title:   book.Title(),
+		Authors: append([]string(nil), book.GetMeta().Authors...),
+	}
+	if meta != nil {
+		item.DeletedAt = meta.DeletedAt
+		item.OriginalPath = meta.OriginalPath
+		item.OriginalFolder = append(FolderPath(nil), meta.OriginalFolder...)
+	}
+	item.NSFW = s.IsBookNSFW(item.OriginalFolder, book.GetMeta())
+	return item
+}
+
+// GetTrashedBook returns the listing entry for one trashed book, so a caller
+// naming a single book can ask the same questions a listing answers — the
+// adult-content mark above among them — without walking the whole trash.
+//
+// It reports ErrTrashedBookNotFound for an ID that is not in the trash, the
+// same as RestoreTrashedBook and DeleteTrashedBook do.
+func (s *Shelf) GetTrashedBook(bookID string) (*TrashedBook, error) {
+	if err := s.shelfLock.RLock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
+
+	_, book, meta, err := s.findTrashedBook(bookID)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	return s.newTrashedBook(book, meta), nil
 }
 
 // ListTrashedBookIDs returns the ID of every book directory under the trash.
@@ -203,7 +233,7 @@ func (s *Shelf) ListTrashedBookIDs() ([]string, error) {
 		ids = append(ids, strings.TrimSuffix(entry.Name(), bookExtension))
 	}
 
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids, nil
 }
 
@@ -239,7 +269,7 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		}
 	}
 
-	if err := validateFolderPath(targetFolders); err != nil {
+	if err := s.ValidateFolderPath(targetFolders); err != nil {
 		targetFolders = nil
 	}
 
@@ -344,7 +374,7 @@ func (s *Shelf) writeTrashMeta(root fsutil.FS, bookPath string, meta *trashMeta)
 	// cannot write a version this build does not itself produce.
 	meta.SchemaVersion = TrashMetaSchemaVersion
 
-	payload, err := json.MarshalIndent(meta, "", "  ")
+	payload, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -407,15 +437,16 @@ func (s *Shelf) ensureTrashMetaWritable(bookPath string) error {
 }
 
 func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {
-	fp, err := s.dbRoot.Open(path.Join(bookPath, trashMetaFile))
+	metaPath := path.Join(bookPath, trashMetaFile)
+	fp, err := s.dbRoot.Open(metaPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	defer fp.Close()
 
 	var meta trashMeta
-	if err := json.NewDecoder(fp).Decode(&meta); err != nil {
-		return nil, util.Errorf("%w", err)
+	if err := json.UnmarshalRead(fp, &meta); err != nil {
+		return nil, util.Errorf("%w", bookpkg.MetadataReadError(metaPath, err))
 	}
 
 	return &meta, nil

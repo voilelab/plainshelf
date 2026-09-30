@@ -1,6 +1,15 @@
 <template>
   <section class="source-editor-page">
     <ConfirmModal
+      :open="showDiscardConfirmation"
+      :title="t('sources.page.discard.title')"
+      :message="t('sources.page.discard.message')"
+      :confirm-text="t('sources.page.discard.confirm')"
+      :cancel-text="t('sources.page.discard.cancel')"
+      @cancel="cancelLeave"
+      @confirm="confirmLeave"
+    />
+    <ConfirmModal
       :open="showDiscardModal"
       :title="t('sources.page.discard.title')"
       :message="t('sources.page.discard.message')"
@@ -64,7 +73,7 @@
       <p>{{ t('sources.page.mergeChapter.question', { title: pendingMergeChapterTitle }) }}</p>
     </ConfirmModal>
     <header class="source-editor-topbar">
-      <button class="button" type="button" @click="goBack">{{ t('sources.page.back') }}</button>
+      <button class="button" type="button" @click="requestLeave()">{{ t('sources.page.back') }}</button>
 
       <div class="topbar-title" :title="book?.title || bookId">{{ book?.title || bookId }}</div>
       <div class="topbar-sep">/</div>
@@ -179,10 +188,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useSafeBackNavigation } from '@/composables/useSafeBackNavigation';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import {
   buildMarkdownEditorSections,
@@ -223,8 +234,8 @@ const SOURCE_LIST_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 
 const { writesEnabled } = useWriteAccess();
 const route = useRoute();
-const router = useRouter();
 const bookId = computed(() => String(route.params.bookId));
+const { goBack } = useSafeBackNavigation(() => `/books/${bookId.value}`);
 const session = useSourceEditorSession(() => bookId.value, () => writesEnabled.value);
 const {
   book,
@@ -257,6 +268,12 @@ const {
 } = session;
 
 const editorRef = ref<SourceEditorHandle | null>(null);
+const {
+  showDiscardConfirmation,
+  requestLeave,
+  cancelLeave,
+  confirmLeave
+} = useUnsavedChangesGuard(isDirty, { goBack, beforeCheck: syncEditorDocument });
 const mobilePane = ref<'sources' | 'editor' | 'chapters'>('editor');
 const pendingTransition = ref<PendingSourceTransition | null>(null);
 const showDiscardModal = computed(() => pendingTransition.value !== null);
@@ -506,10 +523,6 @@ async function confirmDelete(): Promise<void> {
   const sourceId = pendingDeleteSourceId.value;
   if (!sourceId) return;
   if (await deleteSource(sourceId)) cancelDelete();
-}
-
-function goBack(): void {
-  void router.push(`/books/${bookId.value}`);
 }
 
 watch(activeSourceId, (sourceId, previousSourceId) => {

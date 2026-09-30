@@ -6,10 +6,18 @@
 
 PlainShelf is a local-first, single-user reading library for lightweight text
 content. It stores the library in human-readable files and provides web,
-desktop, and experimental Android clients.
+desktop, and experimental Android clients. Local-first is also a security
+stance: no platform — including this one — holds your library or your reading
+records, and no PlainShelf server holds your credentials. See
+[Deployment and threat model](docs/deployment-and-threat-model.md) for what each
+deployment does and does not protect.
 
-> **Pre-alpha:** APIs, data layout, and UI behavior may change. Back up your
-> shelf before upgrading. See
+> **Before 1.0:** the on-disk format freezes at `1.0.0-rc1` — from that release
+> on, the shelf's user-data files take only backward-compatible changes. Until
+> then a 0.x upgrade can still change them, and the HTTP API and UI stay
+> changeable either way. Back up your shelf before upgrading — see
+> [Backup and Restore](docs/backup-and-restore.md) for what to copy and how to
+> put it back, and
 > [Data Format Versioning](docs/concepts/data-format-versioning.md) for what the
 > on-disk format does and does not guarantee.
 
@@ -30,9 +38,10 @@ multi-user accounts, cloud sync, public sharing, and plugins are outside the
 current scope. The Android client can read a shelf held on pCloud, but that is a
 read-only storage backend, not sync: nothing is written back.
 
-EPUB is supported at import time only: the text is extracted and stored as a
-normal plain-text or Markdown book, and the original `.epub` is not kept.
-Embedded illustrations are not imported.
+EPUB is an import format, not a storage format: the text is extracted and stored
+as an ordinary plain-text or Markdown book, and the original `.epub` is not kept.
+[EPUB Import](docs/epub-import.md) covers what survives the conversion, including
+the illustrations a Markdown import keeps.
 
 ## Install
 
@@ -65,6 +74,7 @@ in the [development guide](docs/development/setup.md).
 - [Getting Started](docs/getting-started.md)
 - [Local shelf configuration](docs/configuring-local-shelf.md)
 - [SMB shelf configuration](docs/configuring-smb-shelf.md)
+- [Deployment and threat model](docs/deployment-and-threat-model.md)
 - [Data model](docs/concepts/data-model.md)
 - [Known issues](docs/known-issue.md)
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -63,7 +64,7 @@ func (f *faultFS) Rename(oldPath, newPath string) error {
 func (f *faultFS) written() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]string(nil), f.writtenPaths...)
+	return slices.Clone(f.writtenPaths)
 }
 
 // errReader fails partway through so streaming writes can be interrupted.

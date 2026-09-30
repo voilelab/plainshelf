@@ -1,14 +1,14 @@
 package readerapi
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"io/fs"
 	"mime"
 	"net/http"
-	"path"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
@@ -90,7 +90,7 @@ func (h *handlers) source(w http.ResponseWriter, r *http.Request, book *bookpkg.
 
 func writeJSON(w http.ResponseWriter, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if err := json.NewEncoder(w).Encode(value); err != nil {
+	if err := json.MarshalWrite(w, value, jsonopt.API()); err != nil {
 		// The status is already written by now, so the response is lost either
 		// way; closing the connection is what tells the client not to parse it.
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
@@ -251,12 +251,6 @@ func (h *handlers) writeAsset(w http.ResponseWriter, source *bookpkg.Source, nam
 // contentTypeForExt keeps the reader from guessing: an illustration the browser
 // cannot type is served as bytes rather than as something it will try to parse.
 func contentTypeForExt(ext string) string {
-	if ext == "" {
-		return "application/octet-stream"
-	}
-	if !path.IsAbs(ext) && ext[0] != '.' {
-		ext = "." + ext
-	}
 	if mimeType := mime.TypeByExtension(ext); mimeType != "" {
 		return mimeType
 	}

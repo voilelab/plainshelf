@@ -25,6 +25,33 @@
       <div v-if="success" class="success">{{ success }}</div>
       <div v-if="error" class="error">{{ error }}</div>
 
+      <section v-if="chapterSuggestion" class="chapter-suggestion" aria-live="polite">
+        <p class="chapter-suggestion-prompt">
+          {{ t('libraryForms.importBook.chapterSuggestion.prompt', { count: chapterSuggestion.chapters }) }}
+        </p>
+        <div class="chapter-suggestion-actions">
+          <button
+            class="button primary"
+            type="button"
+            :disabled="convertingChapters"
+            @click="onConvertChapters"
+          >
+            {{ convertingChapters
+              ? t('libraryForms.importBook.chapterSuggestion.converting')
+              : t('libraryForms.importBook.chapterSuggestion.convert') }}
+          </button>
+          <button
+            class="button"
+            type="button"
+            :disabled="convertingChapters"
+            @click="onDismissChapters"
+          >
+            {{ t('libraryForms.importBook.chapterSuggestion.dismiss') }}
+          </button>
+        </div>
+        <p v-if="chapterConversionError" class="file-error" role="alert">{{ chapterConversionError }}</p>
+      </section>
+
       <form class="import-form" @submit.prevent="onSubmit">
         <label class="field">
           <span class="label">{{ t('libraryForms.importBook.fileLabel') }}</span>
@@ -194,11 +221,17 @@ const {
   error,
   epubStrategy,
   progress,
+  chapterSuggestion,
+  convertingChapters,
+  chapterConversionError,
   setEpubStrategy,
   hasEpubFile,
   setBookFiles,
   submitFiles,
   submitLocalPaths,
+  detectChapterConversion,
+  applyChapterConversion,
+  clearImportSelection,
   abort,
   reset
 } = useImportBook();
@@ -328,13 +361,45 @@ async function finishImport(result: ImportSubmitResult | null): Promise<void> {
 
   emit('imported', result);
 
+  await detectChapterConversion(result);
+
   if (result.cancelled || result.failedCount > 0) {
     return;
   }
 
+  // A detected chapter prompt lives in this results area; resetting now would
+  // wipe the success line and the prompt before the user can act on it. The
+  // form clears when they accept, dismiss, or close the modal instead.
+  if (chapterSuggestion.value) {
+    return;
+  }
+
+  resetImportForm();
+}
+
+function resetImportForm(): void {
   clearFileInputs();
   selectedFiles.value = [];
   reset();
+}
+
+async function onConvertChapters(): Promise<void> {
+  if (!(await applyChapterConversion())) {
+    return;
+  }
+  // Drop the retained payload so the now-empty file chooser cannot reimport the
+  // same File, while applyChapterConversion's success line stays on screen.
+  clearFileInputs();
+  selectedFiles.value = [];
+  clearImportSelection();
+  // The conversion changed the book's current source and format, so refresh the
+  // listing behind the modal to keep any format-dependent card in sync.
+  await fetchBooks();
+}
+
+function onDismissChapters(): void {
+  // Declining returns the modal to the same empty state a clean import ends in.
+  resetImportForm();
 }
 
 async function onSubmit(): Promise<void> {
@@ -607,6 +672,26 @@ watch(
   border-radius: 10px;
   color: #065f46;
   padding: 14px;
+}
+
+.chapter-suggestion {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.chapter-suggestion-prompt {
+  color: #1e3a8a;
+  font-weight: 600;
+  margin: 0;
+}
+
+.chapter-suggestion-actions {
+  display: flex;
+  gap: 8px;
 }
 
 @media (max-width: 720px) {

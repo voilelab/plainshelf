@@ -150,6 +150,12 @@ func TestParseImportStrategy(t *testing.T) {
 		{name: "missing preset is rejected", raw: `{"include_description":true}`, wantErr: true},
 		{name: "unknown field is rejected", raw: `{"preset":"plain","template":"x"}`, wantErr: true},
 		{name: "malformed json is rejected", raw: `{`, wantErr: true},
+		// The field now decodes through decodeRequestJSON, so it is refused on
+		// the same terms as a request body: v2's strict member matching and
+		// duplicate rejection, and no data after the value.
+		{name: "wrong-case field is rejected", raw: `{"Preset":"plain"}`, wantErr: true},
+		{name: "duplicate field is rejected", raw: `{"preset":"plain","preset":"markdown"}`, wantErr: true},
+		{name: "trailing data is rejected", raw: `{"preset":"plain"} {}`, wantErr: true},
 	}
 
 	for _, tt := range tests {

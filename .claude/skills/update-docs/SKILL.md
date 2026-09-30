@@ -6,8 +6,7 @@ argument-hint: "Optional: doc path, feature, or commit range"
 ---
 
 Synchronize user and contributor documentation with verified behavior in the
-current checkout. This skill does not update `CHANGELOG.md` and does not govern
-`CLAUDE.md` or `.claude/rules/*`.
+current checkout. This skill does not govern `CLAUDE.md` or `.claude/rules/*`.
 
 ## Documentation map
 
@@ -35,7 +34,7 @@ it instead of maintaining a second copy.
    current code or tests. Do not document from commit messages alone.
 4. Make the smallest coherent update. Create a new page only when the topic has
    a distinct audience or lifecycle; add it to `mkdocs.yml` in the same change.
-5. Preserve the pre-alpha warning and product boundaries in `docs/index.md`.
+5. Preserve the pre-1.0 warning and product boundaries in `docs/index.md`.
 6. Run `mkdocs build --strict`, check local links, and read back the diff.
 7. Report anything that could not be verified instead of guessing.
 

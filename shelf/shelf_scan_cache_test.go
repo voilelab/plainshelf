@@ -1,7 +1,6 @@
 package shelf
 
 import (
-	"context"
 	"io/fs"
 	"os"
 	"path"
@@ -46,7 +45,7 @@ func openShelf(t *testing.T, conf *ShelfConf) *Shelf {
 	if err != nil {
 		t.Fatalf("NewShelf: %v", err)
 	}
-	if err := s.WaitReady(context.Background()); err != nil {
+	if err := s.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady: %v", err)
 	}
 	return s
@@ -58,7 +57,7 @@ func mustScan(t *testing.T, s *Shelf) scanStats {
 	if err := s.scanToBookCache(); err != nil {
 		t.Fatalf("scanToBookCache: %v", err)
 	}
-	return s.lastScanStats()
+	return s.scanCache.LastStats()
 }
 
 // cachedFolderNames reads the folder list the last scan left in the cache,
@@ -96,7 +95,7 @@ func TestScanCacheReusesUnchangedDirectories(t *testing.T) {
 		t.Errorf("warm scan reused %d of %d directories, want all", warm.ReusedDirs, warm.Dirs)
 	}
 
-	if got, want := len(s.listBooksFromCache()), 3; got != want {
+	if got, want := len(s.listBookListingsFromCache()), 3; got != want {
 		t.Errorf("warm scan found %d books, want %d", got, want)
 	}
 	for _, want := range []string{"", "Fiction", "Fiction/Classics", "Tech"} {
@@ -151,11 +150,11 @@ func TestScanCacheSurvivesReopen(t *testing.T) {
 	}
 
 	second := newTestShelf(t, conf)
-	stats := second.lastScanStats()
+	stats := second.scanCache.LastStats()
 	if stats.ReusedDirs == 0 {
 		t.Errorf("the first scan after reopening reused no directory (%+v)", stats)
 	}
-	if got, want := len(second.listBooksFromCache()), 1; got != want {
+	if got, want := len(second.listBookListingsFromCache()), 1; got != want {
 		t.Errorf("reopened shelf listed %d books, want %d", got, want)
 	}
 }
@@ -180,10 +179,10 @@ func TestScanCacheIgnoresUnreadableSnapshot(t *testing.T) {
 	}
 
 	second := newTestShelf(t, conf)
-	if got, want := len(second.listBooksFromCache()), 1; got != want {
+	if got, want := len(second.listBookListingsFromCache()), 1; got != want {
 		t.Errorf("shelf with a corrupt snapshot listed %d books, want %d", got, want)
 	}
-	if stats := second.lastScanStats(); stats.ReadDirs == 0 {
+	if stats := second.scanCache.LastStats(); stats.ReadDirs == 0 {
 		t.Errorf("shelf with a corrupt snapshot listed no directory (%+v)", stats)
 	}
 }
@@ -292,5 +291,63 @@ func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
 	}
 	if !after.ModTime().Equal(before.ModTime()) {
 		t.Errorf("an unchanged shelf rewrote its snapshot: mtime moved from %s to %s", before.ModTime(), after.ModTime())
+	}
+}
+
+// TestScanCacheWithManyDirectoriesIsNotRewritten is the test above scaled to
+// where its claim can actually break. The snapshot is skipped when
+// scanCacheDigest matches the last one, and that digest hashes
+// map[string]dirSnapshot — so the skip holds only while the encoder sorts map
+// keys, which json/v2 leaves unspecified unless jsonopt says otherwise. Two
+// directories can be ordered one way; sixteen cannot be, eight times running.
+func TestScanCacheWithManyDirectoriesIsNotRewritten(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	conf := &ShelfConf{LibRoot: tmpLib}
+
+	first := openShelf(t, conf)
+	for i := range 16 {
+		folder := FolderPath{"Shelf" + strconv.Itoa(i)}
+		if _, err := first.NewBook(folder, "Book "+strconv.Itoa(i)); err != nil {
+			t.Fatalf("NewBook: %v", err)
+		}
+	}
+	ageShelfDirs(t, tmpLib, time.Minute)
+	mustScan(t, first)
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	snapshotPath := path.Join(tmpLib, appFolder, scanCacheFileName)
+	want, err := os.ReadFile(snapshotPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", snapshotPath, err)
+	}
+
+	for round := range 8 {
+		before, err := os.Stat(snapshotPath)
+		if err != nil {
+			t.Fatalf("stat %s: %v", snapshotPath, err)
+		}
+
+		next := openShelf(t, conf)
+		mustScan(t, next)
+		if err := next.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+
+		after, err := os.Stat(snapshotPath)
+		if err != nil {
+			t.Fatalf("stat %s: %v", snapshotPath, err)
+		}
+		if !after.ModTime().Equal(before.ModTime()) {
+			t.Fatalf("round %d rewrote the snapshot of an unchanged shelf", round)
+		}
+		got, err := os.ReadFile(snapshotPath)
+		if err != nil {
+			t.Fatalf("re-read %s: %v", snapshotPath, err)
+		}
+		if string(got) != string(want) {
+			t.Fatalf("round %d changed the snapshot on disk", round)
+		}
 	}
 }

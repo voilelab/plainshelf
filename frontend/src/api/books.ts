@@ -4,8 +4,10 @@ import type {
   BookContent,
   BookFormat,
   BookUpdateRequest,
+  NsfwFolderRule,
   PaginatedBooks,
   TrashedBook,
+  TrashedBookListing,
 } from '@/types/book';
 import {
   ApiError,
@@ -42,10 +44,13 @@ interface BackendBookMeta {
   schema_version?: number;
   id: string;
   title: string;
+  // authors carries no omitempty, so it always arrives - as [] when there are
+  // none. tags and identifiers do carry it, so an empty one is absent instead,
+  // which is why those two still need a fallback below.
   authors: string[];
   language: string;
   format: string;
-  tags: string[];
+  tags?: string[];
   cover: string;
   comment?: string;
   comments?: string;
@@ -55,15 +60,23 @@ interface BackendBookMeta {
   current_source?: string;
   star?: number;
   identifiers?: Record<string, string>;
+  // Absent rather than false when the book is not marked: the server omits a
+  // zero `nsfw` so a shelf that marks nothing writes the book.json it always did.
+  nsfw?: boolean;
 }
 
 interface BackendBook {
   meta: BackendBookMeta;
-  folder?: string[];
+  // Never absent and never null: the server's Book.Folder carries no omitempty,
+  // and json/v2 writes a book at the shelf root as [].
+  folder: string[];
   // Sibling of `meta`, not nested inside it — matches server/handle_books.go's
   // `Book` struct, which only populates this when the request was made with
   // `include=char_count` (see ListBooksOptions.includeCharCount below).
   char_count?: number;
+  // Sibling of `meta` because it comes from shelf.json rather than book.json:
+  // the folder rule that marks this book, when one does.
+  nsfw_folder?: NsfwFolderRule;
 }
 
 interface BackendTrashedBook {
@@ -126,13 +139,13 @@ async function deleteBookCoverInternal(bookID: string): Promise<void> {
 }
 
 function transformBook(b: BackendBook): Book {
-  const folders = b.folder ?? [];
+  const folders = b.folder;
   const cover = b.meta.cover?.trim() ?? '';
 
   return {
     id: b.meta.id,
     title: b.meta.title,
-    authors: b.meta.authors ?? [],
+    authors: b.meta.authors,
     language: b.meta.language,
     format: (b.meta.format as BookFormat) || 'txt',
     tags: b.meta.tags ?? [],
@@ -146,7 +159,9 @@ function transformBook(b: BackendBook): Book {
     current_source: b.meta.current_source,
     star: b.meta.star ?? 0,
     identifiers: b.meta.identifiers,
-    char_count: b.char_count
+    char_count: b.char_count,
+    nsfw: b.meta.nsfw ?? false,
+    nsfw_folder: b.nsfw_folder
   };
 }
 
@@ -230,7 +245,11 @@ export interface FingerprintStatus {
  *  because the cost is the summed sketch length, not the book count. */
 interface SimilarTooLarge {
   status: 'too_large';
+  total: number;
+  fingerprinted: number;
+  pairs: number;
   work: number;
+  seconds: number;
   budget: number;
 }
 
@@ -244,9 +263,13 @@ interface SimilarTooLarge {
 export class SimilarTooLargeError extends Error {
   constructor(
     readonly work: number,
-    readonly budget: number
+    readonly budget: number,
+    readonly total = 0,
+    readonly fingerprinted = 0,
+    readonly pairs = 0,
+    readonly seconds = 0
   ) {
-    super(`similarity comparison is unavailable: ${work} merge steps exceed the budget of ${budget}`);
+    super(`similarity comparison needs confirmation: ${work} merge steps exceed the budget of ${budget}`);
     this.name = 'SimilarTooLargeError';
   }
 }
@@ -274,18 +297,38 @@ export class FingerprintSweepBusyError extends Error {
  * A shelf whose fingerprints exceed the server's work budget answers 200 with a
  * {@link SimilarTooLarge} body rather than a pair array; that is surfaced as a
  * thrown error so a caller never iterates a non-array as if it were the list.
+ * Passing `confirm` retries past that gate and gives the comparison a five-minute
+ * timeout instead of the normal metadata-request deadline.
  */
-export async function getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
+const SIMILAR_COMPARISON_TIMEOUT_MS = 300_000;
+
+export async function getSimilarBookPairs(floor?: number, confirm = false): Promise<SimilarBookPair[]> {
   if (isMockApiMode()) {
     return delay([]);
   }
 
-  const query = floor === undefined ? '' : `?floor=${encodeURIComponent(floor)}`;
+  const params = new URLSearchParams();
+  if (floor !== undefined) {
+    params.set('floor', String(floor));
+  }
+  if (confirm) {
+    params.set('confirm', '1');
+  }
+  const query = params.size === 0 ? '' : `?${params.toString()}`;
   const result = await fetchJson<SimilarBookPair[] | SimilarTooLarge>(
-    buildShelfApiPath(`/books/similar${query}`)
+    buildShelfApiPath(`/books/similar${query}`),
+    undefined,
+    confirm ? { timeoutMs: SIMILAR_COMPARISON_TIMEOUT_MS } : undefined
   );
   if (!Array.isArray(result)) {
-    throw new SimilarTooLargeError(result.work, result.budget);
+    throw new SimilarTooLargeError(
+      result.work,
+      result.budget,
+      result.total,
+      result.fingerprinted,
+      result.pairs,
+      result.seconds
+    );
   }
   return result;
 }
@@ -529,20 +572,36 @@ export async function deleteBook(id: string): Promise<void> {
   });
 }
 
-export async function listTrashedBooks(): Promise<TrashedBook[]> {
+// The server marks a listing it filtered with this header; see
+// TrashListingPartialHeader in server/handle_trash.go.
+const TRASH_PARTIAL_HEADER = 'X-PlainShelf-Trash-Partial';
+
+export async function listTrashedBooks(): Promise<TrashedBookListing> {
   if (isMockApiMode()) {
-    return delay(mockListTrashedBooks());
+    return delay({ books: mockListTrashedBooks(), complete: true });
   }
 
-  const books = await fetchJson<BackendTrashedBook[]>(buildShelfApiPath('/trash/books'));
-  return books.map((book) => ({
-    id: book.id,
-    title: book.title,
-    authors: book.authors ?? [],
-    original_folder: book.original_folder ?? [],
-    original_path: book.original_path,
-    deleted_at: book.deleted_at
-  }));
+  let complete = true;
+  const books = await fetchJson<BackendTrashedBook[]>(
+    buildShelfApiPath('/trash/books'),
+    undefined,
+    {
+      onResponse: (res) => {
+        complete = res.headers.get(TRASH_PARTIAL_HEADER) !== 'true';
+      }
+    }
+  );
+  return {
+    books: books.map((book) => ({
+      id: book.id,
+      title: book.title,
+      authors: book.authors ?? [],
+      original_folder: book.original_folder ?? [],
+      original_path: book.original_path,
+      deleted_at: book.deleted_at
+    })),
+    complete
+  };
 }
 
 export async function restoreTrashedBook(id: string): Promise<void> {

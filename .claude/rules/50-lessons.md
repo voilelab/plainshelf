@@ -6,7 +6,9 @@ Read the relevant section before working in that area. Add entries according to
 ## Build and runtime
 
 - **Embedded frontend:** Go builds require `frontend/dist`; rebuild the frontend
-  before Go tests when it is missing or stale. (`frontend/web.go`)
+  before Go or end-to-end runs when it is missing or stale. A branch switch
+  leaves the previous branch's bundle in place, so the suite quietly tests the
+  wrong frontend against the new specs. (`frontend/web.go`)
 - **Hidden build assets:** keep `//go:embed all:dist`; plain `dist/*` silently
   omits underscore-prefixed Rolldown chunks and produces a white-screen SPA.
   (`frontend/web.go`)
@@ -20,11 +22,39 @@ Read the relevant section before working in that area. Add entries according to
   once before diagnosing a timeout as a test failure.
 - **Preinstalled golangci-lint is too old:** the container's binary refuses this
   repo with "Go language version used to build golangci-lint is lower than the
-  targeted Go version", and `go install` reproduces it. Download the release
-  build CI uses instead:
-  `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.12.2/golangci-lint-2.12.2-linux-amd64.tar.gz | tar xz`.
+  targeted Go version", and `go install` reproduces it. Download a release build
+  whose own Go *language* version is at least `go.mod`'s target instead; a patch
+  difference does not count. As of Go 1.27.1 (2026-09) the working build is
+  v2.13.1 (built with go1.27.0); v2.12.2 now fails the same way the preinstalled
+  one does. Match the version to `go.mod`:
+  `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.13.1/golangci-lint-2.13.1-linux-amd64.tar.gz | tar xz`.
   CI enables `unused`, so a helper left without callers fails the build even
   when `go vet` and `go test` pass. (`.golangci.yml`, `.github/workflows/ci.yml`)
+- **govulncheck has the same toolchain trap:** `go install
+  golang.org/x/vuln/cmd/govulncheck@latest` builds with whatever the *base* `go`
+  binary resolves, which here is older than `go.mod`'s target, and the binary
+  then dies during package loading — `requires newer Go version go1.27
+  (application built with go1.26)` on this repo's own files, which reads like a
+  repo break rather than a tool one. Prefix the install with
+  `GOTOOLCHAIN=go<go.mod's version>`; CI gets it right via `setup-go`'s
+  `go-version-file: go.mod`. A full local scan is still impossible in the cloud
+  container: the network policy 403s `vuln.go.dev`.
+  (`.github/workflows/ci.yml`)
+- **Frontend suite needs a supported Node:** ten unrelated suites fail at import
+  with `TypeError: Cannot read properties of undefined (reading 'getItem')`
+  pointing at `src/api/client.ts` → from Node 26 the runtime defines its own
+  experimental `localStorage` global, which leaves `window.localStorage`
+  `undefined` inside Vitest's jsdom environment while `'localStorage' in window`
+  stays true. Guarding one access does not fix it: other suites store and read
+  values for real. Run the suite on a Node version `docs/development/setup.md`
+  names as supported. (`docs/development/setup.md`)
+- **Test support in a package is not a `_test.go` file:** moving shared test
+  helpers into an importable package (`server/contract/apitest`) takes them out
+  of every rule that keys on the `_test.go` suffix → `internal/repocheck`'s CJK
+  check then reads a CJK fixture string as shipped text, and staticcheck's
+  `unused` stops reporting the now-exported helpers. Allowlist the fixture file
+  with a reason and keep a caller check for the exported helpers.
+  (`internal/repocheck/cjk_test.go`, `internal/repocheck/contract_test.go`)
 - **Server tests race the initial shelf scan:** a read issued before it finishes
   is answered 503 `ErrShelfInitializing`. Test envs must wait via
   `WaitReady`; do not rely on unrelated startup work to mask it.
@@ -126,25 +156,85 @@ Read the relevant section before working in that area. Add entries according to
 - **Cloud e2e browser revision:** the pinned Playwright may expect a newer
   browser revision than the preinstalled one → do not run `playwright install`;
   run with a throwaway local config that sets
-  `launchOptions.executablePath: '/opt/pw-browsers/chromium'`.
+  `launchOptions.executablePath: '/opt/pw-browsers/chromium'`. Put that config
+  *inside* `e2e/`: Playwright resolves `globalSetup` and reporter paths relative
+  to the config file, so a copy in a scratch directory dies with a bare
+  `MODULE_NOT_FOUND` naming Playwright's own internals rather than the path.
   (`e2e/playwright.config.ts`)
+- **Only chromium is installable in the cloud container:** the egress policy 403s
+  `cdn.playwright.dev` and `playwright.download.prss.microsoft.com`, so
+  `npx playwright install webkit` cannot be worked around locally — the nightly
+  matrix (`E2E_BROWSERS`) can only be exercised on a runner. Dispatch
+  `nightly.yml` on the branch: since PSW-111 a `workflow_dispatch` checks out the
+  ref it was dispatched from, and only the scheduled run files the failure issue.
+  (`.github/workflows/nightly.yml`)
+- **WebKit has no constructible `Touch`:** `new Touch({…})` throws "Illegal
+  constructor" there, so a spec that synthesises touch events passes on chromium
+  and dies on webkit. Use `document.createTouch`/`createTouchList` — page
+  coordinates, real `TouchList` — behind a presence check, the same branch
+  Playwright makes inside its own `dispatchEvent`. Keep the whole gesture in one
+  `evaluate`: a tap needs touchstart and touchend within
+  `MOBILE_READER_TAP_DURATION_MS`. (`e2e/tests/mobile-reader.spec.ts`)
 - **Editing the source editor:** it is not a form control, so `fill`,
   `inputValue` and `selectionStart` do not apply, and only the lines near the
   viewport exist in the DOM. Drive it through `e2e/tests/support/sourceEditor.ts`,
   which reaches CodeMirror's own view the way `EditorView.findFromDOM` does.
+- **Platform-dependent editor keys:** `Control+z` is not undo on macOS, and
+  `End` runs `cursorLineBoundaryForward`, which stops at the end of the *visual*
+  row — the editor pane is a few hundred pixels wide with wrapping on, so
+  whether a line fits in one row comes down to font metrics and differs from CI.
+  Both passed on Linux and failed on a Mac. Use `ControlOrMeta` for CodeMirror's
+  `Mod-` bindings, and place the caret with `setEditorCaret` rather than walking
+  it with arrow keys. (`e2e/tests/source-editor.spec.ts`)
 - **Teardown ENOTEMPTY:** whole-suite runs fail a handful of unrelated specs with
   `ENOTEMPTY … rmdir '<tmp>/shelf/app'` → the temp shelf is deleted while the
   just-signalled server still writes into it, so the failure is teardown-only and
   lands on different specs each run; re-run the spec alone before charging it to
-  the diff. (`e2e/tests/support/server.ts`)
+  the diff. `dispose()` now retries the removal five times with a backoff, so a
+  surviving ENOTEMPTY is a directory still held after half a second — a leaked
+  server process, not this race. (`e2e/tests/support/server.ts`)
+- **A green pull request is not a green E2E suite:** `ci.yml` runs `--grep
+  @smoke` (13 of 37 cases) and `nightly.yml` runs the rest on `dev`. A change
+  outside the smoke set is unproven until `just test-e2e` runs locally or the
+  night after it merges reports; a nightly failure opens one issue rather than
+  landing on whoever pushes next. (`docs/development/testing-levels.md`)
+- **The suite is cheap enough to run before pushing:** the whole of it is 37
+  cases and took 1m21s wall clock in the cloud container (2 workers; 141s of
+  test bodies), on top of 3s for `npm --prefix e2e ci` and 25s for the server
+  binary — `playwright install` is skipped entirely, per the browser-revision
+  entry above. So "e2e is too heavy for routine verification"
+  (`00-diagnosis.md`, written before the container had a preinstalled browser)
+  no longer holds: for a change outside the smoke set, run it rather than
+  waiting on the nightly. Measured 2026-09-04 on PSW-99.
+- **E2E server ports are per worker, not per kernel:** `getFreePort()` takes a
+  port from a band derived from `TEST_PARALLEL_INDEX` instead of asking for port
+  0. Asking for 0 lets two parallel workers be handed the same number, and the
+  loser then finds a *healthy* `/health` on it — the other worker's server, over
+  the other worker's shelf — so it attaches and both specs mutate one shelf.
+  Verified by pinning one start onto a port a second `plainshelf-srv` already
+  held. (`e2e/tests/support/server.ts`)
 
 ## Filesystem and API
 
 - **Mutating API requests:** preserve the `local_token` boundary and review the
-  matching `server/contract/api_*_contract_test.go` whenever routes or request
+  matching contract package under `server/contract/` whenever routes or request
   handling change.
 - **Book identity:** moving or renaming a book must not regenerate its persisted
   ID. The directory name and display title are not identity.
+- **JSON encoding:** marshal through `internal/jsonopt`, not bare
+  `encoding/json/v2` options → v2 leaves map order unspecified, which defeats
+  the three "unchanged, do not rewrite" checks (`fingerprint/cache.go`'s byte
+  compare, `bookCacheDigest`, `scanCacheDigest`) with no compile error and no
+  test failure, costing a re-upload per scan on pCloud or SMB. Importing
+  `encoding/json` at all fails `internal/repocheck` unless the file is on the
+  shrinking allowlist. (`docs/development/json-encoding.md`)
+- **No v1 read compatibility:** the shelf does not promise that a file an older
+  build wrote still reads the same, so do not reach for the v1-compat decode
+  options → json/v2's strict defaults are the decision. A hand-edited `"Title"`
+  now reads as absent, and `setMeta` rewrites `book.json` whole, so the next
+  save drops it; that is accepted, and PSW-93's unknown-member passthrough is
+  what changes it. Proposing a compatibility layer here has already been
+  rejected once. (`internal/jsonopt/jsonopt.go`)
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
   preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
   error propagation. See `docs/concepts/shelf-cache-and-io.md`.

@@ -1,6 +1,7 @@
 import { computed } from 'vue';
 
 import { useShelvesStore } from '@/composables/useShelvesStore';
+import { isWailsRuntime } from '@/providers/runtime';
 import { getShell } from '@/providers/shell';
 import type { ShelfPicker } from '@/types/shelfPicker';
 import { t } from '@/i18n';
@@ -47,7 +48,9 @@ export function useShelfPicker(options: {
       }
       return shelves.value.length === 0 ? t('layout.shelf.empty') : '';
     }),
-    managed: false,
+    // The web build has no shelf-management surface to link to; the desktop
+    // build manages shelves on the settings shelves tab.
+    manageTo: isWailsRuntime() ? { path: '/settings', query: { tab: 'shelves' } } : null,
     select: async (id: string) => {
       selectShelf(id);
       await options.onServerShelfSelected(id);

@@ -50,7 +50,7 @@ export function createMobileShelfPicker(): ShelfPicker {
     // one. Its errors belong to the library view, not to this list.
     error: computed(() => ''),
     placeholder: computed(() => (entries.value.length === 0 ? t('layout.shelf.empty') : '')),
-    managed: true,
+    manageTo: { path: '/connect' },
     select: async (id: string) => {
       await setActiveShelfEntry(id);
       reloadIntoApp();

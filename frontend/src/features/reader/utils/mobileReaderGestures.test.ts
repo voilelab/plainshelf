@@ -47,20 +47,33 @@ describe('mobile reader gestures', () => {
     expect(classifyReaderGesture({ deltaX: 2, deltaY: 3, maxMovement: 10, durationMs: 350 })).toBe('tap');
   });
 
-  it('limits toolbar toggling to the central half of the reader', () => {
+  // The toggle zone is the central horizontal band across the full height, so a
+  // tap anywhere in that band — top, middle, or the bottom edge where a thumb
+  // rests — switches the chrome. The band's own left and right limits stay
+  // inclusive.
+  it('toggles chrome anywhere in the central vertical band', () => {
     const bounds = { left: 20, top: 40, width: 400, height: 800 };
     expect(isInReaderCenter({ clientX: 120, clientY: 240 }, bounds)).toBe(true);
     expect(isInReaderCenter({ clientX: 320, clientY: 640 }, bounds)).toBe(true);
-    expect(isInReaderCenter({ clientX: 119, clientY: 440 }, bounds)).toBe(false);
-    expect(isInReaderCenter({ clientX: 220, clientY: 641 }, bounds)).toBe(false);
+    expect(isInReaderCenter({ clientX: 220, clientY: 41 }, bounds)).toBe(true);
+    expect(isInReaderCenter({ clientX: 220, clientY: 839 }, bounds)).toBe(true);
   });
 
-  // The two far edges are the page-turn zones. A center region that leaked
-  // past them would swallow the taps that navigate.
-  it('excludes the trailing edges of the reader', () => {
+  // Regression: a tap low on the screen used to land past the old center square
+  // (height * 0.75 = 640) and do nothing. It must now toggle the toolbars.
+  it('toggles chrome for a tap near the bottom of the reader', () => {
+    const bounds = { left: 0, top: 0, width: 400, height: 900 };
+    expect(isInReaderCenter({ clientX: 200, clientY: 860 }, bounds)).toBe(true);
+  });
+
+  // The two far horizontal edges are the page-turn zones. Vertical position no
+  // longer excludes a tap, but a tap past either edge must still miss the band.
+  it('excludes the left and right edges of the reader at every height', () => {
     const bounds = { left: 20, top: 40, width: 400, height: 800 };
+    expect(isInReaderCenter({ clientX: 119, clientY: 440 }, bounds)).toBe(false);
     expect(isInReaderCenter({ clientX: 321, clientY: 440 }, bounds)).toBe(false);
-    expect(isInReaderCenter({ clientX: 220, clientY: 239 }, bounds)).toBe(false);
+    expect(isInReaderCenter({ clientX: 119, clientY: 41 }, bounds)).toBe(false);
+    expect(isInReaderCenter({ clientX: 321, clientY: 839 }, bounds)).toBe(false);
   });
 
   // Before the reader has been laid out its box is empty; treating the whole

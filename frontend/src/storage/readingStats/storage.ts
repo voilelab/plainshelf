@@ -10,7 +10,7 @@ import {
 // live in storage/deviceDocument.ts. This module only picks the locations.
 export type ReadingStatsStorage = DeviceDocumentStorage;
 
-export const READING_STATS_STORAGE_KEY = 'plainshelf.readingStats';
+const READING_STATS_STORAGE_KEY = 'plainshelf.readingStats';
 
 /** Browser default. */
 export function createLocalStorageReadingStatsStorage(

@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 import { initAppZoom } from '@/composables/useAppZoom';
+import { reportUnhandledError } from '@/composables/useErrorIncident';
 import {
   bookshelfWriter,
   getBookshelfProvider,
@@ -74,9 +75,10 @@ async function bootstrap(): Promise<void> {
 
   // Vue swallows component errors by default, so a bug in a render function or
   // a lifecycle hook leaves no trace in the console. App.vue's onErrorCaptured
-  // handles what the user sees; this makes the cause diagnosable.
+  // handles what the user sees; this logs the cause and numbers the failure so
+  // the two can be tied together afterwards.
   app.config.errorHandler = (err, _instance, info) => {
-    console.error(`Unhandled Vue error (${info})`, err);
+    reportUnhandledError(err, info);
   };
 
   app.use(router).mount('#app');

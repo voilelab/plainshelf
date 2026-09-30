@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,8 +24,8 @@ func (e *epubInputError) Error() string { return e.cause.Error() }
 func (e *epubInputError) Unwrap() error { return e.cause }
 
 func isEPUBInputError(err error) bool {
-	var inputErr *epubInputError
-	return errors.As(err, &inputErr)
+	_, ok := errors.AsType[*epubInputError](err)
+	return ok
 }
 
 // parseImportStrategy reads the optional per-import strategy field. An absent or
@@ -38,11 +37,8 @@ func parseImportStrategy(raw string, fallback epub.Strategy) (epub.Strategy, str
 		return fallback, "", nil
 	}
 
-	dec := json.NewDecoder(strings.NewReader(raw))
-	dec.DisallowUnknownFields()
-
 	var strategy epub.Strategy
-	if err := dec.Decode(&strategy); err != nil {
+	if err := decodeRequestJSON(strings.NewReader(raw), &strategy, false); err != nil {
 		return epub.Strategy{}, "invalid strategy field", util.Errorf("%w", err)
 	}
 	if err := strategy.Validate(); err != nil {

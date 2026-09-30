@@ -1,28 +1,27 @@
 import { computed } from 'vue';
 
 import { useServerMode } from '@/composables/useServerMode';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import { getBookshelfProvider, isWritableProvider } from '@/providers';
 
 /**
  * Why write operations are unavailable, in precedence order. `platform` wins
- * over `server-read-only` so user-facing copy names the reason the user can
- * actually act on.
+ * over the two server-side reasons so user-facing copy names the reason the
+ * user can actually act on, and `server-read-only` wins over
+ * `shelf-read-only` because a read-only server opens every shelf read-only —
+ * naming the shelf there would send the user to fix the narrower of the two
+ * settings.
  */
-export type WriteDisabledReason = 'platform' | 'server-read-only' | null;
+type WriteDisabledReason = 'platform' | 'server-read-only' | 'shelf-read-only' | null;
 
 /**
  * Whether this client can mutate the shelf at all.
  *
  * Asks the active provider rather than the runtime: a reading client is one
- * whose provider does not implement the write surface, which is the same thing
- * `bookshelfWriter()` refuses on. Today that is the Android shell and the
- * pCloud backend — both browse, read, download for offline use and record
- * reading progress, but never mutate the shelf — while the server and desktop
- * providers are writable.
- *
- * Deliberately separate from the server's `read_only` config (see
- * useServerMode). Both can be true at once, and the two carry different
- * user-facing meanings.
+ * whose provider does not implement the write surface, which is what
+ * `bookshelfWriter()` refuses on. Deliberately separate from the server's
+ * `read_only` config and from the shelf's own — all three can be true at once,
+ * and each means something different to the user.
  */
 export function isLibraryEditingSupported(): boolean {
   return isWritableProvider(getBookshelfProvider());
@@ -31,20 +30,28 @@ export function isLibraryEditingSupported(): boolean {
 /**
  * Write access plus the named platform capabilities that depend on it.
  *
- * The capability flags below answer "what can a reading client not do", and
- * they live here rather than in each component so that question has one answer.
- * They are deliberately *not* interchangeable with a runtime check:
- * `isMobileRuntime()` stays the right tool for mobile UX branching — tap-to-
- * select in the book grid, the Android back button — which is about how a
- * screen behaves, not about what the client is allowed to do.
+ * The capability flags below answer "what can a reading client not do", in one
+ * place rather than in each component. They are deliberately not interchangeable
+ * with `isMobileRuntime()`, which stays the tool for mobile UX branching — how a
+ * screen behaves, not what the client is allowed to do.
+ *
+ * The three libraryEditing* flags are separate from `writesEnabled` on purpose:
+ * a read-only server, or a read-only shelf, still shows those views, because
+ * the lists themselves are useful and the settings are still worth reading.
  */
 export function useWriteAccess() {
   const { readOnly } = useServerMode();
+  // Folded in here rather than checked at each write affordance, so a shelf
+  // opened read-only withdraws the whole write surface in one place instead of
+  // each component growing a condition one of them then forgets.
+  const { selectedShelfReadOnly } = useShelvesStore();
 
   // isLibraryEditingSupported() is called inside the computed rather than
   // hoisted: the provider is created lazily on first use, so reading it at
   // module scope could resolve before the shell has finished configuring it.
-  const writesEnabled = computed(() => !readOnly.value && isLibraryEditingSupported());
+  const writesEnabled = computed(
+    () => !readOnly.value && !selectedShelfReadOnly.value && isLibraryEditingSupported()
+  );
 
   const writeDisabledReason = computed<WriteDisabledReason>(() => {
     if (!isLibraryEditingSupported()) {
@@ -53,33 +60,47 @@ export function useWriteAccess() {
     if (readOnly.value) {
       return 'server-read-only';
     }
+    if (selectedShelfReadOnly.value) {
+      return 'shelf-read-only';
+    }
     return null;
   });
 
+  // Copying *out of* a shelf only reads it: the write lands on the target, and
+  // the server refuses a read-only source for a move alone, since a move ends by
+  // deleting the original. So the transfer entry survives a read-only shelf and
+  // the modals drop the move mode instead of hiding it.
+  const outgoingCopyEnabled = computed(() => !readOnly.value && isLibraryEditingSupported());
+
+  // The message a refused write reports, so a shelf-level refusal does not
+  // blame the server the user would then find writable. A key rather than a
+  // string: the caller translates it with its own `t`, which follows a locale
+  // change this composable would not see.
+  const writeDisabledMessageKey = computed(() =>
+    writeDisabledReason.value === 'shelf-read-only'
+      ? ('layout.readOnly.shelfWriteDisabled' as const)
+      : ('layout.readOnly.writeDisabled' as const)
+  );
+
   // Trash and the maintenance views exist only to fix up the library, so they
-  // are hidden on the platform that cannot write. Kept separate from
-  // `writesEnabled`: a read-only server still shows them, since the lists
-  // themselves are useful.
+  // are hidden on the platform that cannot write.
   const libraryEditingAvailable = computed(() => isLibraryEditingSupported());
 
-  // The cover, reader, and import settings tabs POST to /api/setting/*, which
-  // the read-only mobile client cannot do. The read-history tab only writes
-  // device-local state and stays available everywhere. Separate from
-  // `writesEnabled` for the same reason as above: these are server-wide
-  // settings, and a read-only server still renders them read-only rather than
-  // dropping the tabs.
+  // The cover, reader and import settings tabs POST to /api/setting/*, which the
+  // read-only mobile client cannot do; the read-history tab writes device-local
+  // state and stays everywhere. A read-only *shelf* does not touch these at all:
+  // they are server-wide and outlive whichever shelf is browsed.
   const serverSettingsEditable = computed(() => isLibraryEditingSupported());
 
-  // Server administration is not part of a reading client, so the logs view is
-  // unreachable on mobile (see features/mobile/utils/blockedRoutes.ts). This
-  // hides its nav entries to match. Not folded into the two flags above: a
-  // read-only server still administers itself, and reading the logs is not a
-  // write.
+  // The logs view is unreachable on mobile (features/mobile/utils/blockedRoutes.ts);
+  // this hides its nav entries to match. Reading the logs is not a write.
   const serverAdminAvailable = computed(() => isLibraryEditingSupported());
 
   return {
     writesEnabled,
     writeDisabledReason,
+    writeDisabledMessageKey,
+    outgoingCopyEnabled,
     libraryEditingAvailable,
     serverSettingsEditable,
     serverAdminAvailable

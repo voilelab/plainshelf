@@ -4,9 +4,9 @@ import type { BookActivation } from '@/types/bookSelection';
 
 const LONG_PRESS_MS = 450;
 const LONG_PRESS_MOVE_TOLERANCE = 10;
-export const BOOK_IDS_DRAG_TYPE = 'application/x-plainshelf-book-ids';
+const BOOK_IDS_DRAG_TYPE = 'application/x-plainshelf-book-ids';
 
-export interface UseBookItemInteractionsOptions {
+interface UseBookItemInteractionsOptions {
   mobile: MaybeRefOrGetter<boolean>;
   selectedIds: MaybeRefOrGetter<ReadonlySet<string>>;
   onActivate: (payload: BookActivation) => void;

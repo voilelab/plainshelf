@@ -21,11 +21,11 @@ import type { PCloudItem } from './types';
 /** The exported format this reader understands (BookCacheSchemaVersion in Go). */
 export const BOOK_CACHE_SCHEMA_VERSION = 2;
 
-export const APP_FOLDER = 'app';
-export const BOOK_CACHE_FILE_PREFIX = 'book-cache-';
-export const BOOK_CACHE_FILE_SUFFIX = '.json';
+const APP_FOLDER = 'app';
+const BOOK_CACHE_FILE_PREFIX = 'book-cache-';
+const BOOK_CACHE_FILE_SUFFIX = '.json';
 
-export interface BookCacheEntry {
+interface BookCacheEntry {
   /** Package directory relative to the shelf root, e.g. `books/Fiction/dune.bookpkg`. */
   path: string;
   meta: BookJson;

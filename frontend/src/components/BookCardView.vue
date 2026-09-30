@@ -22,9 +22,13 @@
             @toggle="emit('toggle-selection', book.id)"
           />
           <BookCoverImg :book-id="book.id" :cover-url="book.cover_url" :alt="book.title" class="book-card-cover" />
+          <BookDownloadBadge :state="book.download_state" class="book-card-download" />
 
           <div class="book-card-body">
-            <p class="book-card-folder">{{ folderLabel(book) }}</p>
+            <div class="book-card-folder-row">
+              <p class="book-card-folder">{{ folderLabel(book) }}</p>
+              <BookNsfwBadge :book="book" />
+            </div>
             <h3 class="book-card-title">{{ book.title }}</h3>
             <p class="book-card-summary">{{ summaryText(book) }}</p>
             <p class="book-card-meta">
@@ -92,6 +96,8 @@ import {
   ContextMenuTrigger
 } from 'reka-ui';
 import BookCoverImg from './BookCoverImg.vue';
+import BookDownloadBadge from './BookDownloadBadge.vue';
+import BookNsfwBadge from './BookNsfwBadge.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
 import { useBookSummaries } from '@/composables/useBookSummaries';
@@ -205,6 +211,29 @@ function primaryDateLabel(book: Book): string {
   height: 220px;
   object-fit: cover;
   background: #eef3f8;
+}
+
+/* Over the cover, opposite the selection checkbox (top-left, styles.css), so
+   neither the cover nor the body grid row has to give up space for it. */
+.book-card-download {
+  /* Anchored right, so its own max-width has to stop at the cover's left inset;
+     the card clips its overflow and would otherwise cut the label's start off. */
+  max-width: calc(100% - 16px);
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 2;
+}
+
+/* The badge shares the folder line rather than a row of its own: the card body
+   is a fixed-height grid and an extra row would shorten the title and summary
+   on every card, marked or not. */
+.book-card-folder-row {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  min-width: 0;
 }
 
 .book-card-body {

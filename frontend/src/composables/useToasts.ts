@@ -1,14 +1,14 @@
 import { readonly, ref } from 'vue';
 
-export type ToastVariant = 'info' | 'danger';
+type ToastVariant = 'info' | 'danger';
 
-export interface Toast {
+interface Toast {
   id: number;
   message: string;
   variant: ToastVariant;
 }
 
-export interface ShowToastOptions {
+interface ShowToastOptions {
   variant?: ToastVariant;
 }
 

@@ -4,12 +4,12 @@ PlainShelf is a local-first personal reading library. It is designed for single-
 
 ## Supported Versions
 
-PlainShelf is currently in pre-alpha development. Security fixes are provided for the current `major.minor` release line and the `main` branch. Maintainers do not backport security fixes to earlier `major.minor` release lines.
+PlainShelf is approaching its first release candidate. Security fixes are provided for the current `major.minor` release line and the `dev` branch, which is where development and releases are cut from. Maintainers do not backport security fixes to earlier `major.minor` release lines.
 
 | Version | Supported |
 | ------- | --------- |
 | Current `major.minor` release line | Yes |
-| `main`  | Yes       |
+| `dev`   | Yes       |
 | Earlier `major.minor` release lines, commits, forks, or experimental builds | No guarantee |
 
 ## Reporting a Vulnerability
@@ -58,17 +58,22 @@ Out of scope unless they demonstrate a concrete PlainShelf impact:
 
 ## Secure Usage Guidance
 
-PlainShelf now enables `local_token` protection in the default localhost config: mutating `/api` requests require an ephemeral startup token and allowed `Origin`/`Referer` values. This mitigates web-origin CSRF against localhost but is not a full multi-user authentication system.
+How to bind and configure PlainShelf for each deployment — loopback single user, home LAN / NAS, and why the public internet is not yet supported — is documented in one place so the guidance does not drift: [Deployment and threat model](docs/deployment-and-threat-model.md). That page also states two standing boundaries: `local_token` is a CSRF mitigation, not access control, and no PlainShelf server holds your credentials (a pCloud token you grant stays on your own device).
 
-Until PlainShelf gains password/session auth for shared or internet-facing deployments:
+The essentials, at every tier:
 
-- Run the web server bound to `127.0.0.1` unless you have a trusted reverse proxy, VPN, and authentication boundary.
-- Do not expose PlainShelf directly to the public internet.
-- If binding to a non-loopback address, set `app_conf.security.mode` explicitly and avoid `mode: "none"` unless another trusted layer protects access.
-- Keep shelf and store directories backed up before testing new builds.
+- Follow [Deployment and threat model](docs/deployment-and-threat-model.md) for the bind address, `app_conf.security.mode`, and origin allowlist your deployment needs. Do not expose PlainShelf directly to the public internet: it has no login yet.
+- Keep shelf and store directories backed up before testing new builds; [Backup and Restore](docs/backup-and-restore.md) covers what to copy and how to restore it.
 - Treat imported books, metadata, and covers as untrusted input.
 - Review Docker volume mounts and custom configuration files before sharing them.
 
 ## Dependency Updates
 
-Security updates for Go, npm, Docker base images, and other dependencies should be handled promptly when they affect PlainShelf. Reports that identify vulnerable dependencies are most helpful when they include the affected package, installed version, fixed version, and whether the vulnerable code path is reachable in PlainShelf.
+Security updates for Go, npm, Docker base images, and other dependencies should be handled promptly when they affect PlainShelf. Two mechanisms back that up rather than leaving it to a maintainer remembering to look:
+
+- **Detection.** Every pull request runs `govulncheck` over all three Go modules, once per operating system the release ships (Linux and macOS), since it resolves build tags for the platform it runs as. It reports an advisory only when a vulnerable symbol is actually reachable from PlainShelf's code, so it is a merge gate. A second job audits the `frontend` and `e2e` npm lockfiles with `npm audit --audit-level=high`; that job is informational and does not block a merge, because `npm audit` flags advisories anywhere in the dependency tree without checking reachability, and most of that tree is build-time tooling that never ships.
+- **Updates.** [Dependabot](.github/dependabot.yml) opens grouped pull requests for the three Go modules, both npm lockfiles, the Dockerfile base images, the documentation build requirements, and the GitHub Actions workflows. What is compiled into a shipped artifact runs weekly: the three Go modules, the `frontend` lockfile, and the workflows. The `e2e` lockfile and the documentation requirements run monthly because they are test- and build-time only. The Dockerfile runs monthly for a different reason: its runtime stage does ship — the published image carries an `ubuntu:24.04` filesystem — but that tag is unpinned, so every release build already pulls the current `24.04` content, which leaves Dependabot only the next LTS to open a pull request about. Cadence is a review-noise decision, not a security one: an actual advisory arrives through Dependabot security updates, a separate mechanism that ignores this schedule entirely.
+
+Neither mechanism covers everything: the Go and Node versions pinned as build arguments in the `Dockerfile` are not visible to Dependabot and are still updated by hand.
+
+Reports that identify vulnerable dependencies are most helpful when they include the affected package, installed version, fixed version, and whether the vulnerable code path is reachable in PlainShelf.

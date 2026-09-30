@@ -4,7 +4,7 @@ export const SIDEBAR_MODE_STORAGE_KEY = 'plainshelf.sidebar.mode';
 export const SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY = 'plainshelf.sidebar.expandedWidth';
 
 export const MIN_EXPANDED_SIDEBAR_WIDTH = 200;
-export const MAX_EXPANDED_SIDEBAR_WIDTH = 300;
+const MAX_EXPANDED_SIDEBAR_WIDTH = 300;
 
 const SIDEBAR_MODES: SidebarMode[] = ['expanded', 'rail'];
 

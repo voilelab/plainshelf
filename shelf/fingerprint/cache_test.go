@@ -1,8 +1,9 @@
 package fingerprint
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -78,8 +79,7 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 	}
 }
 
-// A book moved between layers keeps its fingerprints: the index is keyed on the
-// book ID, which survives the move, and not on the path, which does not.
+// The index is keyed on the book ID, which survives a move; a path would not.
 func TestFingerprintCacheSurvivesMovingABook(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("a.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -181,8 +181,8 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 	shiftModTime(t, sourcePath, -30*time.Minute)
 
 	_, staleSource := reopen(t, counting, bookPath)
-	if ok, err := staleSource.VerifyContent(); err != nil || ok {
-		t.Fatalf("the edited source should carry a stale hash: ok=%v err=%v", ok, err)
+	if metaMatchesContent(t, staleSource) {
+		t.Fatal("the edited source should carry a stale hash")
 	}
 
 	second := openCache(t, ts, counting, testAlgo)
@@ -199,14 +199,13 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 	}
 
 	_, repaired := reopen(t, counting, bookPath)
-	if ok, err := repaired.VerifyContent(); err != nil || !ok {
-		t.Errorf("meta.json still disagrees with the content: ok=%v err=%v", ok, err)
+	if !metaMatchesContent(t, repaired) {
+		t.Error("meta.json still disagrees with the content")
 	}
 }
 
-// A cache built with other rules is discarded whole rather than partly reused:
-// nothing can vouch for the comparability of an entry whose normalization or
-// sketch parameters are not the ones in use.
+// Discarded whole rather than partly reused: nothing can vouch for an entry
+// whose normalization or sketch parameters are not the ones in use.
 func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -245,8 +244,7 @@ func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
 	}
 }
 
-// Two machines sharing a shelf must not overwrite each other: entries are a
-// union, so neither side loses work it computed.
+// Entries are a union, so neither machine loses work it computed.
 func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	ts := newTestShelf(t)
 	mine := ts.addBook("mine.bookpkg", "book-mine", "Mine", "a book only this machine has read", -time.Hour)
@@ -333,9 +331,8 @@ func TestMergeIndexKeepsTheNewerRecord(t *testing.T) {
 	}
 }
 
-// Records for books the shelf no longer holds are collected on the next save,
-// along with the entries nothing points at any more. An entry a surviving book
-// still hashes to stays.
+// Collected along with the entries nothing points at any more; an entry a
+// surviving book still hashes to stays.
 func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 	ts := newTestShelf(t)
 
@@ -602,9 +599,8 @@ func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
 	}
 }
 
-// A source too freshly written to index still has its fingerprint kept: it was
-// computed by this very run, so collecting it would mean building it again next
-// time for nothing.
+// It was computed by this very run, so collecting it would mean building it
+// again next time for nothing.
 func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("fresh.bookpkg", "book-fresh", "Just Written", "written moments ago", 0)
@@ -686,5 +682,102 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	}
 	if got := builder.calls.Load(); got != 2 {
 		t.Errorf("the restored source was fingerprinted again: builds %d, want 2", got)
+	}
+}
+
+// The write is skipped by comparing the freshly encoded file against the bytes
+// on disk, so the skip is only real while the encoder sorts cacheFile's two
+// maps. json/v2 does not unless the option set says so, and dropping that fails
+// nothing loudly - the file round-trips, and one entry has no order to vary.
+// Twelve do, so this is where a missing Deterministic shows up as what it costs:
+// a re-upload of an unchanged cache on every scan.
+func TestFingerprintCacheWithManyEntriesIsByteStable(t *testing.T) {
+	ts := newTestShelf(t)
+
+	counting := ts.countSourceReads()
+	builder := &fakeFingerprint{label: "v1"}
+
+	bookPaths := make([]string, 0, 12)
+	for i := range 12 {
+		id := fmt.Sprintf("book-%02d", i)
+		book := ts.addBook(id+".bookpkg", id, "Title "+id, "content "+id, -time.Hour)
+		bookPaths = append(bookPaths, book.PackagePath())
+	}
+
+	first := openCache(t, ts, counting, testAlgo)
+	for _, bookPath := range bookPaths {
+		resolveFingerprint(t, first, counting, bookPath, builder)
+	}
+	saveCache(t, first)
+
+	cachePath := path.Join(ts.libRoot, appDir, cacheFileName)
+	want, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("reading the fingerprint cache: %v", err)
+	}
+
+	// Repeated because a random map order agrees with the first one now and
+	// then; eight rounds of twelve entries do not agree by luck.
+	for round := range 8 {
+		cache := openCache(t, ts, counting, testAlgo)
+		for _, bookPath := range bookPaths {
+			resolveFingerprint(t, cache, counting, bookPath, builder)
+		}
+		writtenAt := shiftedModTime(t, cachePath, -time.Hour)
+		saveCache(t, cache)
+
+		got, err := os.ReadFile(cachePath)
+		if err != nil {
+			t.Fatalf("re-reading the fingerprint cache: %v", err)
+		}
+		if string(got) != string(want) {
+			wantAt, gotAt := firstDifference(string(want), string(got))
+			t.Fatalf("round %d re-encoded the same cache differently, from %q to %q", round, wantAt, gotAt)
+		}
+		if info, err := os.Stat(cachePath); err != nil {
+			t.Fatalf("stat: %v", err)
+		} else if !info.ModTime().Equal(writtenAt) {
+			t.Fatalf("round %d rewrote an unchanged cache", round)
+		}
+	}
+}
+
+// firstDifference returns a short window of a and b around the first byte they
+// disagree on. The cache is one long line, so printing both in full turns a
+// one-key order change into a screenful of identical hashes.
+func firstDifference(a, b string) (string, string) {
+	i := 0
+	for i < min(len(a), len(b)) && a[i] == b[i] {
+		i++
+	}
+	return a[i:min(i+60, len(a))], b[i:min(i+60, len(b))]
+}
+
+// The cache is rebuildable, so the strictness the hand-editable files gained is
+// deliberately not applied here: a duplicate member is a cache miss, not a
+// failure a user has to repair.
+func TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported(t *testing.T) {
+	ts := newTestShelf(t)
+
+	writeCacheAt(t, ts.libRoot, cacheFile{
+		SchemaVersion: schemaVersion,
+		Algo:          testAlgo,
+		Index:         map[string]indexEntry{"sources/20260315-a1/source.txt": {MD5: "abc"}},
+		Entries:       map[string]Entry{"abc": {NormMD5: "abc"}},
+	})
+	if got := len(openCache(t, ts, ts.base, testAlgo).entries); got != 1 {
+		t.Fatalf("entries = %d before the file is broken, want 1", got)
+	}
+
+	// Not a typo a person makes in this file - a merge by a sync tool, or two
+	// writes interleaved - but it is what the strict decoder now refuses.
+	raw := `{"schema_version": 1, "schema_version": 1}`
+	if err := os.WriteFile(path.Join(ts.libRoot, appDir, cacheFileName), []byte(raw), 0644); err != nil {
+		t.Fatalf("writing a fingerprint cache: %v", err)
+	}
+
+	cache := openCache(t, ts, ts.base, testAlgo)
+	if got := len(cache.entries); got != 0 {
+		t.Errorf("entries = %d, want the unreadable cache discarded", got)
 	}
 }

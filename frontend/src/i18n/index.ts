@@ -6,8 +6,8 @@ interface Messages {
   [key: string]: string | Messages;
 }
 
-export const SUPPORTED_LOCALES = ['en', 'zh-Hant'] as const;
-export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+const SUPPORTED_LOCALES = ['en', 'zh-Hant'] as const;
+type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 const FALLBACK_LOCALE: SupportedLocale = 'en';
 const LOCALE_STORAGE_KEY = 'plainshelf.locale';

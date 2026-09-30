@@ -19,8 +19,14 @@
 }
 
 .reader-back {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
   justify-self: start;
   color: #6b5f4a;
+  cursor: pointer;
+  font: inherit;
   text-decoration: none;
   font-size: 0.95rem;
   letter-spacing: 0.02em;

@@ -238,6 +238,26 @@ export async function deleteSource(bookId: string, sourceId: string): Promise<vo
   );
 }
 
+/**
+ * Clears the source's import note. The note records where the text came from,
+ * so the API only removes one — there is no rewrite to pair with this.
+ */
+export async function deleteSourceComment(bookId: string, sourceId: string): Promise<void> {
+  if (isMockApiMode()) {
+    const item = ensureMockSource(bookId).find((source) => source.meta.id === sourceId);
+    if (!item) {
+      throw new Error('Source not found');
+    }
+    item.meta = { ...item.meta, comment: '' };
+    return;
+  }
+
+  await fetchJson<void>(
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/comment`),
+    { method: 'DELETE' }
+  );
+}
+
 export async function setCurrentSource(bookId: string, sourceId: string): Promise<void> {
   if (isMockApiMode()) {
     const sources = ensureMockSource(bookId);

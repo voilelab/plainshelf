@@ -211,6 +211,7 @@ import {
   SelectViewport,
   type AcceptableValue
 } from 'reka-ui';
+import { surfaceError } from '@/composables/useErrorIncident';
 import { useI18n } from '@/i18n';
 import { setApiBase } from '@/api/client';
 import { listServerShelves, type ShelfInfo } from '@/api/shelves';
@@ -308,7 +309,7 @@ onMounted(async () => {
         const account = await loadPCloudAccountIdentity(existing.pcloudHost, secret);
         pcloudAccountIdentity.value = account.label;
       } catch (err) {
-        localError.value = err instanceof Error ? err.message : String(err);
+        localError.value = surfaceError(err);
       }
     }
     return;
@@ -363,7 +364,7 @@ async function loadShelves(): Promise<void> {
   } catch (err) {
     shelves.value = [];
     shelfId.value = '';
-    localError.value = err instanceof Error ? err.message : String(err);
+    localError.value = surfaceError(err);
   } finally {
     shelvesLoading.value = false;
   }
@@ -434,7 +435,7 @@ async function onAuthorize(): Promise<void> {
     pcloudBookCount.value = null;
     await closeBrowser();
   } catch (err) {
-    localError.value = err instanceof Error ? err.message : String(err);
+    localError.value = surfaceError(err);
   } finally {
     authorizing.value = false;
     authAbort = null;
@@ -481,7 +482,7 @@ async function onVerifyPCloudShelf(): Promise<void> {
     }
     pcloudBookCount.value = collectBookPackages(booksFolder).length;
   } catch (err) {
-    localError.value = err instanceof Error ? err.message : String(err);
+    localError.value = surfaceError(err);
   } finally {
     verifying.value = false;
   }
@@ -551,7 +552,7 @@ async function onSave(): Promise<void> {
     await upsertShelfEntry(draft.entry, draft.secret);
     reloadIntoApp();
   } catch (err) {
-    localError.value = err instanceof Error ? err.message : String(err);
+    localError.value = surfaceError(err);
     saving.value = false;
   }
 }

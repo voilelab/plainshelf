@@ -8,9 +8,25 @@ const zhHant = {
       reload: '重新載入'
     }
   },
+  errorIncident: {
+    label: '事件編號',
+    copy: '複製',
+    copied: '已複製',
+    dismiss: '關閉事件編號'
+  },
   toast: {
     label: '通知',
     dismiss: '關閉通知'
+  },
+  security: {
+    insecureWarning: {
+      title: 'API 未啟用驗證',
+      body: '任何能連到這個位址的裝置，都可以讀取、修改、刪除你的整個書庫。',
+      docsLink: '如何保護',
+      collapse: '收合',
+      expand: '顯示安全警示',
+      badge: 'API 無驗證'
+    }
   },
   language: {
     label: '語言',
@@ -32,6 +48,7 @@ const zhHant = {
     }
   },
   common: {
+    back: '返回',
     retry: '重試',
     cancel: '取消',
     confirm: '確認',
@@ -42,7 +59,9 @@ const zhHant = {
     page: '第 {page} / {total} 頁',
     inFolder: '（在 {folder}）',
     taskStartFailed: '啟動工作失敗',
-    taskPollFailed: '讀取工作進度失敗'
+    taskPollFailed: '讀取工作進度失敗',
+    decrease: '減少{label}',
+    increase: '增加{label}'
   },
   layout: {
     expandSidebar: '展開側欄',
@@ -71,8 +90,6 @@ const zhHant = {
       title: '新增資料夾',
       nameLabel: '資料夾名稱',
       namePlaceholder: '資料夾名稱',
-      parentLabel: '位置',
-      rootOption: '所有書籍（最上層）',
       closeLabel: '關閉新增資料夾對話框',
       invalidName: '資料夾名稱不得為空，也不能包含 /。',
       creating: '建立中...',
@@ -101,6 +118,14 @@ const zhHant = {
     moveFolder: {
       failed: '移動資料夾失敗。請將資料夾拖曳到既有的目標資料夾上。'
     },
+    folderReveal: {
+      title: '要讓隱藏的內容變成可見嗎？',
+      bookCount: '這個資料夾被標記為成人內容，這次變更會讓它脫離該標記，{count} 本原本隱藏的書會變成可見。',
+      folderOnly: '這個資料夾被標記為成人內容，這次變更會讓它脫離該標記，資料夾本身會變成可見。',
+      note: '標記寫在 shelf.json，PlainShelf 只讀不寫。想保留標記請改編輯那個檔案。',
+      confirm: '仍要變更',
+      transferHeld: '這次轉移正在等你確認是否可以讓隱藏的內容變成可見。'
+    },
     openFolder: {
       shortAction: '開啟資料夾',
       failed: '開啟資料夾失敗。'
@@ -120,6 +145,7 @@ const zhHant = {
       modeLabel: '動作',
       modeCopy: '複製',
       modeCopyHint: '在目標書庫產生新書，不會帶走閱讀進度。',
+      readOnlySource: '這個書架是唯讀的，只能把資料夾複製出去。',
       modeMove: '搬移',
       modeMoveHint: '保留同一批書與其閱讀進度，並從目前書庫移除整個資料夾。',
       confirm: '轉移',
@@ -158,14 +184,18 @@ const zhHant = {
       manage: '管理書架'
     },
     dashboard: '首頁',
+    library: '書庫',
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
     downloads: '已下載',
     adminLogs: '日誌',
     settings: '設定',
+    tabNavLabel: '主導覽',
     readOnly: {
       banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
-      writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。'
+      shelfBanner: '這個書架是唯讀的。仍可瀏覽、閱讀與重新掃描，但寫入操作已停用。',
+      writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。',
+      shelfWriteDisabled: '這個書架是唯讀的，寫入操作已停用。'
     }
   },
   dashboard: {
@@ -179,7 +209,9 @@ const zhHant = {
       description: 'PlainShelf 會直接從你的書架資料夾讀取書籍。把檔案放進那個資料夾，或直接在這裡匯入，就能開始使用。',
       readOnlyDescription: '這個書架還沒有書。之後放進書架資料夾的書都會出現在這裡。',
       import: '匯入書籍',
-      docs: '閱讀新手指南'
+      docs: '閱讀新手指南',
+      pathLabel: '書架資料夾：',
+      openFolderLabel: '開啟書架資料夾'
     },
     stats: {
       totalBooks: '藏書總數',
@@ -232,6 +264,24 @@ const zhHant = {
       label: '將上傳封面轉為 JPG',
       description: '啟用後，封面圖片上傳時會轉換為 JPEG。'
     },
+    nsfw: {
+      title: '成人內容'
+    },
+    showNsfw: {
+      label: '顯示成人內容',
+      description:
+        '關閉時，書架標記為成人內容的書完全不會被提供：書庫、資料夾樹、搜尋與首頁都看不到，直接輸入網址開啟也會得到「找不到」。',
+      markingNote:
+        '標記本身屬於書架，不屬於這個開關。單本書在它的中繼資料編輯器裡標；整個資料夾則是在 shelf.json 的 content.nsfw_folders 裡列出。'
+    },
+    deviceNsfw: {
+      title: '成人內容',
+      label: '在這台裝置顯示成人內容',
+      description:
+        '關閉時，書架標記為成人內容的書在這台裝置上等同不存在：書庫、資料夾樹與下載清單都看不到，直接輸入網址開啟也會得到「找不到」。',
+      scopeNote:
+        '這個偏好只存在這台裝置，不會與 PlainShelf 伺服器同步。它適用於本 app 直接讀取雲端儲存的書架；由伺服器提供的書架，仍以伺服器自己的設定為準。'
+    },
     readHistory: {
       title: '閱讀紀錄'
     },
@@ -242,6 +292,11 @@ const zhHant = {
         '決定按下「閱讀」時如何開啟。「開新 reader」在網頁版會開新分頁，在桌面版會啟動獨立的 reader 應用程式；「在目前視窗開」則直接在目前視窗切換。此偏好只保存在這台裝置。',
       newReader: '開新 reader',
       inWindow: '在目前視窗開'
+    },
+    language: {
+      title: '語言',
+      label: '介面語言',
+      description: '介面顯示的語言。此偏好只保存在這台裝置。'
     },
     import: {
       title: '匯入'
@@ -259,6 +314,17 @@ const zhHant = {
       includeDescriptionHelp: '把書籍簡介也寫在正文開頭。無論是否勾選，簡介都會存進書籍中繼資料。',
       save: '儲存',
       saving: '儲存中...'
+    },
+    logs: {
+      title: '日誌'
+    },
+    logRetention: {
+      label: '日誌保留期限',
+      description:
+        '伺服器保留幾天份的日誌檔。更舊的檔案會在日誌旋轉時刪除，也就是跨日後伺服器第一次寫入日誌的時候。填 0 表示不刪除任何檔案。',
+      keepsEverything: '不會刪除任何日誌檔。',
+      deletesOlderThan: '超過 {days} 天的日誌檔會被刪除。',
+      invalid: '日誌保留期限必須是 0 到 3650 之間的整數天數。'
     },
     readHistoryLimit: {
       label: '閱讀紀錄數量限制',
@@ -311,18 +377,28 @@ const zhHant = {
       removeFailed: '移除書架失敗',
       removeShelfTitle: '刪除書架',
       removeConfirmDescription: '此操作只會從 PlainShelf 中移除書架，不會刪除目錄。',
-      addShelf: '新增書架',
+      addShelf: '建立書架',
       addShelfTitle: '建立書架',
       addShelfCloseLabel: '關閉建立書架對話框',
-      addShelfNamePlaceholder: '書架名稱',
-      addShelfDirectoryPlaceholder: '目錄路徑',
-      addShelfScanIntervalPlaceholder: '掃描間隔（選填，例如 10m）',
-      addShelfScanIntervalHelp: '留空會使用預設的 1 分鐘掃描間隔。',
+      addShelfNameLabel: '書架名稱',
+      addShelfNamePlaceholder: '小說',
+      addShelfDirectoryLabel: '資料夾路徑',
+      addShelfDirectoryPlaceholder: '/home/you/Books',
       addShelfBrowse: '瀏覽…',
-      addShelfSubmit: '新增書架',
-      addShelfAdding: '新增中...',
-      addShelfFailed: '新增書架失敗',
+      addShelfSubmit: '建立書架',
+      addShelfAdding: '建立中...',
+      addShelfFailed: '建立書架失敗',
+      addShelfIDPreview: '書架 ID：',
+      addShelfLocationLabel: '書架位置',
+      addShelfLocationNew: '建立新資料夾',
+      addShelfLocationNewHelp: 'PlainShelf 會在自己的書架目錄下建立資料夾，不會動到硬碟上的其他東西。',
+      addShelfLocationExisting: '使用我已經有的資料夾',
+      addShelfLocationExistingHelp: '讓 PlainShelf 指向你自己選定的資料夾，硬碟上任何位置都可以，直接照原樣開啟。',
+      addShelfDefaultPath: '將建立的資料夾：',
+      addShelfDirectoryNotAbsolute: '請輸入從磁碟根目錄開始的完整路徑。',
       removeConfirmYes: '刪除書架',
+      openFolder: '開啟資料夾',
+      openFolderFailed: '無法開啟書架資料夾',
       modify: '修改',
       modifyShelfTitle: '修改書架',
       modifyShelfCloseLabel: '關閉修改書架對話框',
@@ -331,9 +407,40 @@ const zhHant = {
       modifyShelfFailed: '修改書架失敗',
       modifyShelfIDLabel: 'ID',
       modifyShelfPathLabel: '路徑',
-      modifyShelfNamePlaceholder: '書架名稱',
-      modifyShelfScanIntervalPlaceholder: '掃描間隔（選填，例如 10m）',
-      modifyShelfScanIntervalHelp: '留空會使用預設的 1 分鐘掃描間隔。'
+      modifyShelfNameLabel: '書架名稱',
+      modifyShelfNamePlaceholder: '小說',
+      readOnlyLabel: '唯讀書架',
+      readOnlyHelp:
+        '開啟書架但完全不寫入 —— 還原的備份、唯讀掛載點、封存快照。書可以瀏覽與閱讀，但不能新增、修改或刪除。',
+      readOnlyEffectLock: '停用檔案鎖定，因為取得鎖本身就是一次寫入。',
+      readOnlyEffectBookCache: '不會為這個書架輸出書籍快取檔。',
+      readOnlyEffectPath: '不會建立目錄：路徑必須已經存在，否則書架無法開啟。',
+      scanIntervalLabel: '掃描間隔',
+      scanIntervalModeDefault: '使用預設值（每 1 分鐘）',
+      scanIntervalModeEvery: '最多每…掃描一次',
+      scanIntervalModeAlways: '每次重新整理都完整掃描',
+      scanIntervalAmountLabel: '掃描間隔數值',
+      scanIntervalUnitLabel: '掃描間隔單位',
+      scanIntervalUnitSeconds: '秒',
+      scanIntervalUnitMinutes: '分鐘',
+      scanIntervalUnitHours: '小時',
+      scanIntervalHelpDefault:
+        '最多每 1 分鐘完整掃描一次書庫；在 PlainShelf 之外新增的書最晚在下次掃描時出現。',
+      scanIntervalHelpEvery:
+        '間隔越長越省磁碟與網路 I/O，但在 PlainShelf 之外新增的書也要等更久才會出現。',
+      scanIntervalHelpAlways:
+        '每次重新整理都走一遍整個書庫。本機磁碟沒問題，網路書庫會很吃資源。',
+      scanIntervalAdjusted:
+        '已存的間隔 {value} 無法用這組控制項精確表示，已改為上面的值。',
+      advancedSettings: '進階設定',
+      bookCheckIntervalLabel: '單本過期檢查間隔',
+      bookCheckIntervalAmountLabel: '單本過期檢查間隔數值',
+      bookCheckIntervalHelpDefault:
+        '跟隨掃描間隔。在網路書庫上，列表操作的 I/O 主要來自這裡；若列表變慢，可把它設得比掃描間隔更長。',
+      bookCheckIntervalHelpEvery:
+        '兩次檢查之間，列表直接由記憶體提供、不碰檔案系統。間隔越長，網路往返越少，但在 PlainShelf 之外改動的書也要等更久才會反映。',
+      bookCheckIntervalHelpAlways:
+        '每次列表都重新檢查每一本書。本機磁碟沒問題，網路書庫會很吃資源。'
     }
   },
   adminLogs: {
@@ -343,13 +450,18 @@ const zhHant = {
     date: '日期',
     source: '來源',
     filename: '檔名',
-    empty: '目前沒有可用的日誌檔。',
+    size: '大小',
+    empty: '目前沒有可瀏覽的日誌檔。',
+    emptyHint:
+      '只有將 log_file.type 設為 filename_rotate 或 filename 的 logger 才會出現在這裡；寫到 stderr 或 stdout（預設）的 logger 不會。若要瀏覽日誌，請設定檔案型別；若已經設定，請待它寫入第一個檔案後再重新載入。',
     emptyContent: '所選日誌檔沒有內容。',
     missingForDate: '{date} 沒有可用的日誌檔。',
     loadingList: '載入日誌檔中...',
     loadingContent: '載入日誌內容中...',
     loadFailed: '載入日誌檔失敗',
-    loadContentFailed: '載入日誌內容失敗'
+    loadContentFailed: '載入日誌內容失敗',
+    truncated: '僅顯示這個 {total} 檔案的最後 {shown}。',
+    loadMore: '載入更多'
   },
   maintenance: {
     duplicateContent: '重複內容',
@@ -375,7 +487,12 @@ const zhHant = {
       empty: '此檔位下沒有相似的書。',
       emptyHint: '放寬檔位，或關掉「只顯示節本」，就能擴大範圍。',
       loadFailed: '比對書籍失敗',
-      tooLarge: '這個書架已建立指紋的內容超出單次同步比對的預算，因此略過了這次比對。',
+      estimate: {
+        title: '這次比對超出自動執行的預算。',
+        counts: '共 {total} 本書，其中 {fingerprinted} 本已有指紋，會進行 {pairs} 組比對。',
+        work: '約需 {work} 個合併步驟（大約 {seconds} 秒）。',
+        confirm: '仍要比對'
+      },
       resultCount: '{count} 組',
       tiersLabel: '相似程度',
       tiers: {
@@ -522,6 +639,7 @@ const zhHant = {
     neverSynced: '尚未更新',
     scanFound: '找到 {books} 本書、{folders} 個資料夾',
     scanInProgress: '這個書架正在掃描中，請等這次掃描結束後再試。',
+    scanRateLimited: '更新得太頻繁了，請在 {seconds} 秒後再試。',
     loadFailed: '載入書籍失敗',
     refreshFailed: '更新書單失敗',
     requestTimeout: '請求逾時——書架可能較慢或無法連線。',
@@ -534,6 +652,7 @@ const zhHant = {
     folderPath: '書籍所在資料夾',
     ratingLabel: '評分 {rating} 顆星',
     emptyDetails: '這本書目前沒有其他詳細資料。',
+    newerSchemaNotice: '這本書是由較新版本的 PlainShelf 寫成的，這個版本讀不到的部分不會顯示在這裡。',
     sections: {
       publication: '出版資訊',
       content: '內容資訊',
@@ -553,6 +672,16 @@ const zhHant = {
       characters: '字數',
       comment: '書籍備註',
       importNotes: '匯入備註'
+    },
+    importNote: {
+      remove: '刪除',
+      removeLabel: '刪除匯入備註',
+      removeFailed: '無法刪除匯入備註。',
+      confirm: {
+        title: '刪除匯入備註？',
+        message: '這則備註記錄了這份文字是怎麼匯入或轉換來的。刪除後無法復原，但不會動到文字本身。',
+        confirm: '刪除備註'
+      }
     },
     progress: {
       sectionLabel: '閱讀進度與操作',
@@ -623,6 +752,7 @@ const zhHant = {
       modeLabel: '動作',
       modeCopy: '複製',
       modeCopyHint: '在目標書庫產生一本新書，不會帶走閱讀進度。',
+      readOnlySource: '這個書架是唯讀的，只能把書複製出去。',
       modeMove: '搬移',
       modeMoveHint: '保留同一本書與其閱讀進度，並從目前書庫移除。',
       confirm: '轉移',
@@ -698,6 +828,17 @@ const zhHant = {
       list: '列表',
       card: '卡片',
       title: '標題'
+    },
+    nsfwBadge: {
+      label: '成人內容',
+      title: '已標記為成人內容'
+    },
+    downloadState: {
+      notDownloaded: '未下載',
+      downloaded: '已下載',
+      updateAvailable: '有更新',
+      downloading: '下載中…',
+      failed: '下載失敗'
     },
     contextMenu: {
       read: '閱讀',
@@ -800,7 +941,7 @@ const zhHant = {
       action: '清空垃圾桶',
       title: '清空垃圾桶',
       question: '確定要永久刪除垃圾桶中的 {count} 本書嗎？',
-      questionUnknownCount: '確定要永久刪除垃圾桶中的所有內容嗎？中繼資料無法讀取的書籍不會列在上方，但同樣會被移除。',
+      questionUnknownCount: '確定要永久刪除垃圾桶中的所有內容嗎？部分書籍不會列在上方，但同樣會被移除。',
       description: '此操作會永久刪除資料，且無法復原。',
       confirm: '清空垃圾桶',
       busy: '清空中...',
@@ -855,7 +996,6 @@ const zhHant = {
     openFailed: '無法以書籍格式開啟這個資料夾。'
   },
   reader: {
-    backToDetail: '返回詳情',
     title: '閱讀器',
     progress: '進度：{percent}%',
     loadingContent: '內容載入中...',
@@ -894,10 +1034,14 @@ const zhHant = {
       title: '章節',
       closeLabel: '關閉章節對話框'
     },
+    sections: {
+      singleSectionTitle: '全文'
+    },
     imageUnavailable: '插圖無法載入',
     autosaveFailed: '閱讀進度無法儲存，PlainShelf 將自動重試。',
     mobile: {
       gestureHint: '點按中央顯示工具列 · 左右滑動切換章節',
+      showGestureHint: '顯示手勢說明',
       firstSection: '已是第一章',
       lastSection: '已是最後一章'
     }
@@ -979,6 +1123,7 @@ const zhHant = {
   libraryForms: {
     editBook: {
       title: '編輯中繼資料',
+      closeLabel: '關閉中繼資料編輯器',
       description: '可更新目前 API 支援的欄位。',
       basicInfo: '基本資訊',
       titleLabel: '書名',
@@ -986,6 +1131,14 @@ const zhHant = {
       authorsLabel: '作者（以逗號分隔）',
       authorsPlaceholder: '作者 A, 作者 B',
       organization: '整理',
+      nsfw: {
+        label: '成人內容',
+        help: '設定頁的「顯示成人內容」關閉時，被標記的書完全不會被提供 —— 在開關重新打開前，它會從書庫消失。',
+        fromFolder:
+          '由 shelf.json 的資料夾規則「{path}」標記，該規則涵蓋其下所有書。要更動請編輯該檔案，或把這本書移出該資料夾。',
+        fromFolderReason:
+          '由 shelf.json 的資料夾規則「{path}」標記：{reason}。要更動請編輯該檔案，或把這本書移出該資料夾。'
+      },
       publishedAt: '出版日期',
       languageLabel: '語言',
       starRating: '星等',
@@ -1012,6 +1165,12 @@ const zhHant = {
       addIdentifier: '新增識別碼',
       save: '儲存中繼資料',
       saving: '儲存中...',
+      discard: {
+        title: '要捨棄未儲存的變更嗎？',
+        message: '你有尚未儲存的變更，要捨棄嗎？',
+        confirm: '捨棄',
+        cancel: '繼續編輯'
+      },
       loading: '載入書籍中繼資料中...',
       loadFailed: '載入中繼資料失敗',
       saveFailed: '儲存中繼資料失敗'
@@ -1066,6 +1225,14 @@ const zhHant = {
         one: '匯入成功。',
         many: '已匯入 {count} 個檔案。',
         partial: '已匯入 {count} 個檔案，共 {total} 個。'
+      },
+      chapterSuggestion: {
+        prompt: '在這份文字裡偵測到 {count} 章，要現在轉成有章節的版本嗎？',
+        convert: '轉成章節',
+        converting: '轉換中...',
+        dismiss: '先不要',
+        done: '已建立含 {count} 章的版本，並設為使用中來源。',
+        failed: '無法把這本書轉成章節。'
       }
     }
   },
@@ -1165,9 +1332,11 @@ const zhHant = {
         lineCountMd: '會插入 {count} 個 H2 章節標題。',
         plainText: '會建立一個沒有章節結構的 TXT 段落。'
       },
+      hints: {
+        enterPattern: '輸入正規表示式即可預覽會建立的章節。',
+        noMatches: '沒有比對到章節標題行，換一個 pattern 試試。'
+      },
       errors: {
-        emptyPattern: '請輸入正規表示式。',
-        patternMatchedNothing: '這個正規表示式沒有比對到任何章節標題行。',
         invalidLineCount: '每章行數必須是正整數。',
         previewFailed: '無法預覽這個轉換。'
       }

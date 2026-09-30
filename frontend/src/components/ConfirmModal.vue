@@ -1,13 +1,10 @@
 <template>
-  <BaseDialog
-    :open="open"
-    :title="title"
-    :dismissible="closeOnBackdrop"
-    :busy="busy"
-    :described-by="descriptionId"
+  <component
+    :is="shell"
+    v-bind="shellProps"
     @close="emit('cancel')"
   >
-    <section class="panel confirm-modal">
+    <section ref="panel" class="panel confirm-modal">
       <header class="confirm-modal-header">
         <h2>{{ title }}</h2>
         <button
@@ -28,9 +25,22 @@
       </div>
 
       <footer class="confirm-modal-actions">
-        <button class="button" type="button" :disabled="busy" @click="emit('cancel')">
+        <!-- On the destructive path the cancel button must be the element
+             AlertDialogCancel registers, because AlertDialogContent focuses
+             exactly that element when the dialog opens. Closing then travels
+             the same route as ESC — AlertDialogRoot's update:open — so this
+             button deliberately has no click handler of its own. -->
+        <AlertDialogCancel v-if="destructive" as-child>
+          <button class="button" type="button" :disabled="busy">
+            {{ cancelText }}
+          </button>
+        </AlertDialogCancel>
+        <button v-else class="button" type="button" :disabled="busy" @click="emit('cancel')">
           {{ cancelText }}
         </button>
+        <!-- Not AlertDialogAction: that closes the dialog on click, and several
+             callers keep it open after confirming to show progress (see the
+             empty-trash flow in TrashPage.vue). The parent owns the close. -->
         <button
           ref="confirmButton"
           class="button"
@@ -43,11 +53,13 @@
         </button>
       </footer>
     </section>
-  </BaseDialog>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from 'vue';
+import { AlertDialogCancel } from 'reka-ui';
+import BaseAlertDialog from './BaseAlertDialog.vue';
 import BaseDialog from './BaseDialog.vue';
 import { useI18n } from '@/i18n';
 
@@ -66,13 +78,15 @@ const props = withDefaults(
     closeOnBackdrop?: boolean;
     closeLabel?: string;
     variant?: 'primary' | 'danger';
+    initialFocus?: string;
   }>(),
   {
     message: '',
     busy: false,
     confirmDisabled: false,
     closeOnBackdrop: true,
-    variant: 'primary'
+    variant: 'primary',
+    initialFocus: undefined
   }
 );
 
@@ -92,19 +106,53 @@ const emit = defineEmits<{
 
 const descriptionId = `confirm-modal-description-${useId()}`;
 const confirmButton = ref<HTMLButtonElement | null>(null);
+const panel = ref<HTMLElement | null>(null);
 const confirmVariant = computed(() => ({
   primary: props.variant === 'primary',
   danger: props.variant === 'danger'
 }));
 
+// The danger variant is the irreversible one, so it gets alert-dialog
+// semantics: role="alertdialog", no backdrop dismissal, focus on cancel.
+// Everything else — editing, importing, choosing a font — stays an ordinary
+// dialog on BaseDialog.
+const destructive = computed(() => props.variant === 'danger');
+const shell = computed(() => (destructive.value ? BaseAlertDialog : BaseDialog));
+const shellProps = computed(() => ({
+  open: props.open,
+  title: props.title,
+  busy: props.busy,
+  describedBy: descriptionId,
+  // BaseAlertDialog has no such prop: an alert dialog is never dismissed by
+  // its backdrop, whatever the caller asks for.
+  ...(destructive.value ? {} : { dismissible: props.closeOnBackdrop })
+}));
+
 watch(
   () => props.open,
   async (open) => {
-    if (!open) {
+    // Destructive dialogs must open on cancel, and AlertDialogContent already
+    // puts focus there; stealing it back to confirm would defeat the point.
+    // That holds even for a caller that asked for initialFocus: the alert
+    // dialog's own focus contract is not opt-out.
+    if (!open || destructive.value) {
       return;
     }
 
     await nextTick();
+
+    // Opt-in: a form dialog names the field it wants the caret in, because the
+    // confirm button below is disabled until that field is filled and focusing
+    // a disabled button leaves the focus nowhere. Callers that name nothing
+    // keep the original behaviour exactly.
+    if (props.initialFocus) {
+      const target = panel.value?.querySelector<HTMLElement>(props.initialFocus);
+      if (target) {
+        target.focus();
+        return;
+      }
+    }
+
     if (confirmButton.value && !confirmButton.value.disabled) {
       confirmButton.value.focus();
     }
@@ -158,6 +206,12 @@ watch(
   color: var(--muted);
   font-size: 14px;
   line-height: 1.5;
+  /* Callers put unbroken strings here — a dropped file name, a shelf path. The
+     panel is a grid, so such a string widens the column track past the panel's
+     own 440px and pushes the header's close button outside the painted card.
+     `anywhere` rather than `break-word`: only the former shrinks the
+     min-content width the track is sized from. */
+  overflow-wrap: anywhere;
 }
 
 .confirm-modal-body :deep(p) {

@@ -41,6 +41,21 @@ startup and carried in the `X-PlainShelf-Token` header; origin checking is
 applied alongside it. `protect_read` extends the same requirement to reads. The
 `password` and `external` modes are reserved names and are not implemented.
 
+A shelf rescan (`POST /api/shelves/{id}/scans`) is the one `POST` the token
+treats as a read: it walks the shelf and rebuilds the cache without writing, so
+`protect_read` governs it, and read-only mode accepts it for the same reason.
+The origin check still applies, so it is exempt from the token but not from
+CSRF.
+
+The log API (`/api/logs`) is the one read that always needs the token, whatever
+`protect_read` says. Logs are server internals rather than shelf content: they
+record every request path, so reading them yields the shelf's structure along
+with access times and remote addresses. Turning `protect_read` off to let the
+household read books over the LAN is not a decision to publish that. The origin
+check rides along with the token as it does for a write, so a browser reading
+the logs must also come from an allowed origin. Security mode `none` still opens
+everything, because it is an explicit choice not to authenticate.
+
 ---
 
 ## Reading state is not part of the shelf
@@ -78,7 +93,11 @@ Mock API mode and unit tests use the in-memory backend for all three.
 The standalone reader binds only the reading-progress methods, so its read
 history and reading stats fall back to WebView localStorage; its reading
 progress goes to the same JSON file the desktop app uses, which is what lets it
-reach the desktop library (below).
+reach the desktop library (below). The reader's read history still lives in its
+own localStorage, but when the desktop shells out to it the launching side
+(`WailsBookshelfProvider.openDesktopReader`) writes the entry into the desktop's
+own `readHistory` after the launch succeeds, so the desktop app's "recent
+reading" sees a book read this way.
 
 `readingProgress` has no Android-specific path today: it stays on the WebView's
 localStorage there, while read history and reading stats do not. That matters,
@@ -151,7 +170,7 @@ folded in by projection; progress recorded in the desktop app does not appear
 there because it never carried that book's real shelf id. Nothing here is written
 into the shelf; reading progress stays device-local convenience state.
 
-Two more details the diagram cannot show:
+The diagram cannot show either of these:
 
 - **Mutations are queued.** Every change is a read-modify-write chained behind
   the previous one. Without that, opening the reader while a reading-time tick

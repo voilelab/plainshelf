@@ -21,7 +21,7 @@ function normalizeTitleSegment(segment: unknown): string | null {
   return normalized;
 }
 
-export function buildDocumentTitle(segments: readonly unknown[]): string {
+function buildDocumentTitle(segments: readonly unknown[]): string {
   const normalizedSegments = segments
     .map((segment) => normalizeTitleSegment(segment))
     .filter((segment): segment is string => segment !== null);
@@ -29,7 +29,7 @@ export function buildDocumentTitle(segments: readonly unknown[]): string {
   return normalizedSegments.length > 0 ? normalizedSegments.join(TITLE_SEPARATOR) : APP_TITLE;
 }
 
-export function setDocumentTitle(segments: readonly unknown[]): void {
+function setDocumentTitle(segments: readonly unknown[]): void {
   document.title = buildDocumentTitle(segments);
 }
 

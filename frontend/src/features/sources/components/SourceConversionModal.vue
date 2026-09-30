@@ -15,7 +15,7 @@
       <label v-if="kind === 'regex-md'" class="conversion-field">
         <span>{{ t('sources.conversion.patternLabel') }}</span>
         <input
-          ref="primaryInput"
+          ref="patternInput"
           v-model="pattern"
           class="input"
           type="text"
@@ -25,22 +25,27 @@
         <small>{{ t('sources.conversion.patternHelp') }}</small>
       </label>
 
-      <label v-else-if="kind === 'line-count-md'" class="conversion-field">
-        <span>{{ t('sources.conversion.lineCountLabel') }}</span>
-        <input
-          ref="primaryInput"
+      <div v-else-if="kind === 'line-count-md'" class="conversion-field">
+        <label :for="LINE_COUNT_ID">{{ t('sources.conversion.lineCountLabel') }}</label>
+        <NumberFieldRoot
+          :id="LINE_COUNT_ID"
           v-model="lineCount"
-          class="input"
-          type="number"
-          min="1"
-          step="1"
+          class="number-field"
+          :min="1"
+          :step="1"
+          :format-options="INTEGER_FORMAT_OPTIONS"
           :disabled="busy"
         >
-      </label>
+          <NumberFieldDecrement class="number-field-step" :aria-label="decreaseLineCountLabel">−</NumberFieldDecrement>
+          <NumberFieldInput ref="lineCountInput" class="number-field-input" />
+          <NumberFieldIncrement class="number-field-step" :aria-label="increaseLineCountLabel">+</NumberFieldIncrement>
+        </NumberFieldRoot>
+      </div>
 
       <div class="conversion-preview" aria-live="polite">
         <strong>{{ t('sources.conversion.previewTitle') }}</strong>
         <p v-if="preview.error" class="conversion-error" role="alert">{{ preview.error }}</p>
+        <p v-else-if="preview.hint" class="conversion-hint">{{ preview.hint }}</p>
         <template v-else>
           <p>{{ preview.summary }}</p>
           <pre>{{ preview.excerpt }}</pre>
@@ -58,17 +63,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import {
+  NumberFieldDecrement,
+  NumberFieldIncrement,
+  NumberFieldInput,
+  NumberFieldRoot
+} from 'reka-ui';
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { scanMarkdownH2Headings } from '@/utils/markdownChapters';
 import {
+  DEFAULT_CHAPTER_PATTERN,
   markdownToPlainText,
   textToMarkdownByLineCount,
   textToMarkdownByRegex
 } from '@/features/sources/utils/sourceConversions';
 import { useI18n } from '@/i18n';
+import { INTEGER_FORMAT_OPTIONS } from '@/utils/numberField';
+import '@/styles/numeric-controls.css';
 
 const { t } = useI18n();
+
+const LINE_COUNT_ID = 'source-conversion-line-count';
+const DEFAULT_LINE_COUNT = 1000;
 
 export type SourceConversionKind =
   | 'manual-md'
@@ -94,10 +111,26 @@ const emit = defineEmits<{
   create: [payload: { content: string; format: 'txt' | 'md'; comment: string; setCurrent: boolean }];
 }>();
 
-const pattern = ref('^(Chapter\\s+.+)$');
-const lineCount = ref('1000');
+const pattern = ref(DEFAULT_CHAPTER_PATTERN);
+// `undefined` once the box is emptied, which the preview reports as an invalid
+// line count rather than silently converting with a default.
+const lineCount = ref<number | undefined>(DEFAULT_LINE_COUNT);
 const setCurrent = ref(true);
-const primaryInput = ref<HTMLInputElement | null>(null);
+const patternInput = ref<HTMLInputElement | null>(null);
+const lineCountInput = ref<ComponentPublicInstance | null>(null);
+
+const decreaseLineCountLabel = computed(() =>
+  t('common.decrease', { label: t('sources.conversion.lineCountLabel') })
+);
+const increaseLineCountLabel = computed(() =>
+  t('common.increase', { label: t('sources.conversion.lineCountLabel') })
+);
+
+// Reka's NumberFieldInput is a component, so its element comes from `$el`
+// rather than the ref itself; the two branches are mutually exclusive.
+function primaryInputElement(): HTMLInputElement | null {
+  return patternInput.value ?? (lineCountInput.value?.$el as HTMLInputElement | undefined) ?? null;
+}
 
 const title = computed(() => {
   switch (props.kind) {
@@ -125,11 +158,18 @@ type ConversionPreview = {
   summary: string;
   excerpt: string;
   error: string;
+  // A neutral note (e.g. "no lines matched, try another pattern") shown instead
+  // of the red error when the conversion simply has nothing to preview yet.
+  hint: string;
 };
 
 function excerpt(value: string): string {
   const normalized = value.slice(0, 800).trim();
   return value.length > 800 ? `${normalized}\n…` : normalized || t('sources.conversion.emptySource');
+}
+
+function emptyPreview(format: 'txt' | 'md', hint: string): ConversionPreview {
+  return { canSubmit: false, content: '', format, comment: '', summary: '', excerpt: '', error: '', hint };
 }
 
 const preview = computed<ConversionPreview>(() => {
@@ -149,10 +189,14 @@ const preview = computed<ConversionPreview>(() => {
         break;
       }
       case 'regex-md': {
-        if (!pattern.value.trim()) throw new Error(t('sources.conversion.errors.emptyPattern'));
+        if (!pattern.value.trim()) {
+          return emptyPreview('md', t('sources.conversion.hints.enterPattern'));
+        }
         const converted = textToMarkdownByRegex(props.content, pattern.value);
         if (converted.chapters === 0) {
-          throw new Error(t('sources.conversion.errors.patternMatchedNothing'));
+          // Zero matches is an ordinary "keep tweaking the pattern" state, not a
+          // failure — a red alert here reads as if the user did something wrong.
+          return emptyPreview('md', t('sources.conversion.hints.noMatches'));
         }
         nextContent = converted.content;
         comment = `Regex chapter conversion of ${props.sourceId}: ${pattern.value}`;
@@ -161,6 +205,7 @@ const preview = computed<ConversionPreview>(() => {
       }
       case 'line-count-md': {
         const size = Number(lineCount.value);
+        // `Number(undefined)` is NaN, so an emptied box lands here too.
         if (!Number.isFinite(size) || size < 1) {
           throw new Error(t('sources.conversion.errors.invalidLineCount'));
         }
@@ -186,7 +231,8 @@ const preview = computed<ConversionPreview>(() => {
       comment,
       summary,
       excerpt: excerpt(nextContent),
-      error: ''
+      error: '',
+      hint: ''
     };
   } catch (err) {
     return {
@@ -196,7 +242,8 @@ const preview = computed<ConversionPreview>(() => {
       comment: '',
       summary: '',
       excerpt: '',
-      error: err instanceof Error ? err.message : t('sources.conversion.errors.previewFailed')
+      error: err instanceof Error ? err.message : t('sources.conversion.errors.previewFailed'),
+      hint: ''
     };
   }
 });
@@ -213,13 +260,14 @@ function submit(): void {
 
 watch(() => props.open, async (open) => {
   if (!open) return;
-  pattern.value = '^(Chapter\\s+.+)$';
-  lineCount.value = '1000';
+  pattern.value = DEFAULT_CHAPTER_PATTERN;
+  lineCount.value = DEFAULT_LINE_COUNT;
   setCurrent.value = true;
   await nextTick();
   await nextTick();
-  primaryInput.value?.focus();
-  primaryInput.value?.select();
+  const element = primaryInputElement();
+  element?.focus();
+  element?.select();
 });
 </script>
 
@@ -236,10 +284,17 @@ watch(() => props.open, async (open) => {
   margin: 0;
 }
 
+.conversion-field > label,
 .conversion-field > span,
 .conversion-preview > strong {
   color: var(--text);
   font-weight: 700;
+}
+
+/* The grid row would otherwise stretch the field across the modal. */
+.conversion-field > .number-field {
+  justify-self: start;
+  width: 160px;
 }
 
 .conversion-field small {
@@ -278,6 +333,11 @@ watch(() => props.open, async (open) => {
 
 .conversion-error {
   color: #b91c1c;
+  white-space: pre-line;
+}
+
+.conversion-hint {
+  color: var(--muted);
   white-space: pre-line;
 }
 </style>

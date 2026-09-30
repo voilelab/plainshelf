@@ -2,7 +2,7 @@ package server
 
 import (
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/server/task"
@@ -36,9 +36,12 @@ type folderTransferRequest struct {
 // conflict lists every colliding ID at once so the user sees the whole set rather
 // than one failed transfer at a time.
 type folderTransferConflict struct {
-	Error              string   `json:"error"`
-	Message            string   `json:"message"`
-	ConflictingBookIDs []string `json:"conflicting_book_ids,omitempty"`
+	Error   string `json:"error"`
+	Message string `json:"message"`
+
+	// Not omitempty: a folder conflict carries no IDs, and the client should
+	// read an empty list rather than an absent field.
+	ConflictingBookIDs []string `json:"conflicting_book_ids"`
 }
 
 const (
@@ -69,8 +72,8 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		http.Error(w, "source_folder is required", http.StatusBadRequest)
 		return
 	}
-	if err := shelf.ValidateFolderPath(sourceFolder); err != nil {
-		h.writeErrStatus(w, err, "invalid source_folder", http.StatusBadRequest)
+	if err := sourceShelf.ValidateFolderPath(sourceFolder); err != nil {
+		h.writeErrStatus(w, r, err, "invalid source_folder", http.StatusBadRequest)
 		return
 	}
 
@@ -104,20 +107,20 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		http.Error(w, "target_folder cannot be the root folder", http.StatusBadRequest)
 		return
 	}
-	if err := shelf.ValidateFolderPath(targetFolder); err != nil {
-		h.writeErrStatus(w, err, "invalid target_folder", http.StatusBadRequest)
+	if err := targetShelf.ValidateFolderPath(targetFolder); err != nil {
+		h.writeErrStatus(w, r, err, "invalid target_folder", http.StatusBadRequest)
 		return
 	}
 
 	// A write to a read-only target is refused here rather than in a task the
 	// caller would otherwise have to read to learn the work never happened.
-	if h.rejectReadOnlyShelf(w, targetShelf) {
+	if h.rejectReadOnlyShelf(w, r, targetShelf) {
 		return
 	}
 
 	// A move ends by deleting from the source, so a read-only source is refused
 	// too. A copy only reads the source, so a read-only source is fine for it.
-	if operation == task.BookTransferOperationMove && h.rejectReadOnlyShelf(w, sourceShelf) {
+	if operation == task.BookTransferOperationMove && h.rejectReadOnlyShelf(w, r, sourceShelf) {
 		return
 	}
 
@@ -128,27 +131,27 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	// created folder. This mirrors the shelf-level folder-transfer preflight, which
 	// forces the same scan. ErrRescanInProgress means another scan is already
 	// refreshing the cache, so the following reads are as fresh as one here.
-	rescanForTransfer(sourceShelf)
-	rescanForTransfer(targetShelf)
+	rescanForPreflight(sourceShelf)
+	rescanForPreflight(targetShelf)
 
 	// Resolve the transfer plan from a single snapshot of the source: the folders
 	// to reproduce and the books to carry. The same snapshot screens for conflicts
 	// below, so the 409 check and the scheduled work see the same set.
 	sourceFolders, err := sourceShelf.GetAllFolders()
 	if err != nil {
-		h.writeErr(w, err, "failed to read the source shelf")
+		h.writeErr(w, r, err, "failed to read the source shelf")
 		return
 	}
 	subFolders := foldersUnder(sourceFolders, sourceFolder)
 
 	listings, err := sourceShelf.ListBooksWithCharCount()
 	if err != nil {
-		h.writeErr(w, err, "failed to read the source shelf")
+		h.writeErr(w, r, err, "failed to read the source shelf")
 		return
 	}
 	var books []task.FolderTransferBook
 	for _, listing := range listings {
-		if folderHasPrefix(listing.Folders, sourceFolder) {
+		if listing.Folders.HasPrefix(sourceFolder) {
 			books = append(books, task.FolderTransferBook{
 				ID:           listing.Book.ID(),
 				SourceFolder: append(shelf.FolderPath(nil), listing.Folders...),
@@ -167,7 +170,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	// on a folder the target already holds rather than merging into it.
 	targetFolders, err := targetShelf.GetAllFolders()
 	if err != nil {
-		h.writeErr(w, err, "failed to read the target shelf")
+		h.writeErr(w, r, err, "failed to read the target shelf")
 		return
 	}
 	if len(foldersUnder(targetFolders, targetFolder)) > 0 {
@@ -184,7 +187,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	if operation == task.BookTransferOperationMove {
 		existing, err := targetBookIDs(targetShelf)
 		if err != nil {
-			h.writeErr(w, err, "failed to read the target shelf")
+			h.writeErr(w, r, err, "failed to read the target shelf")
 			return
 		}
 		var conflicts []string
@@ -194,7 +197,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 			}
 		}
 		if len(conflicts) > 0 {
-			sort.Strings(conflicts)
+			slices.Sort(conflicts)
 			h.writeJSON(w, http.StatusConflict, folderTransferConflict{
 				Error:              folderTransferConflictBookID,
 				Message:            "the target shelf already holds books with these IDs; the move would overwrite them",
@@ -204,8 +207,14 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	h.submitTaskChain(w,
-		task.NewFolderTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.Logger, operation, sourceFolder, targetFolder, books, subFolders),
+	// Last of the pre-flights, so the user is never asked to confirm a disclosure
+	// for a transfer that one of the checks above would have refused anyway.
+	if h.refuseUnconfirmedReveal(w, r, sourceShelf, folderLeavingTheShelf(sourceFolder)) {
+		return
+	}
+
+	h.submitTaskChain(w, r,
+		task.NewFolderTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.requestLogger(r), operation, sourceFolder, targetFolder, books, subFolders),
 		"failed to schedule folder transfer task")
 }
 
@@ -214,33 +223,25 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 func foldersUnder(all []shelf.FolderPath, root shelf.FolderPath) []shelf.FolderPath {
 	var under []shelf.FolderPath
 	for _, l := range all {
-		if folderHasPrefix(l, root) {
-			under = append(under, append(shelf.FolderPath(nil), l...))
+		if l.HasPrefix(root) {
+			under = append(under, slices.Clone(l))
 		}
 	}
 	return under
 }
 
-// folderHasPrefix reports whether folder is prefix itself or sits beneath it.
-func folderHasPrefix(folder, prefix shelf.FolderPath) bool {
-	if len(folder) < len(prefix) {
-		return false
-	}
-	for i := range prefix {
-		if folder[i] != prefix[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// rescanForTransfer forces a shelf to rebuild its book cache now, so the plan and
-// the conflict checks read an authoritative listing rather than a throttled one.
+// rescanForPreflight forces a shelf to rebuild its book cache now, so a check made
+// before the work reads an authoritative listing rather than a throttled one.
 // It is best-effort: a rescan already in progress is refreshing the cache anyway,
 // and any other failure is left for the reads that follow to surface, since they
 // answer with a real error a caller can act on.
-func rescanForTransfer(shelfData *shelf.ShelfData) {
-	_, _ = shelfData.Rescan()
+//
+// Unthrottled deliberately, and not best-effort about that one refusal: the
+// rescan rate limit belongs to the button a user presses, so a transfer must
+// neither spend its budget nor quietly plan from a stale cache when the budget
+// is gone. See Shelf.RescanUnthrottled.
+func rescanForPreflight(shelfData *shelf.ShelfData) {
+	_, _ = shelfData.RescanUnthrottled()
 }
 
 // targetBookIDs is the set of book IDs the target shelf already holds, whether

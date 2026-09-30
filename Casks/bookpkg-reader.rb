@@ -1,10 +1,11 @@
 cask "bookpkg-reader" do
   # Experimental. version and sha256 are placeholders until the first tagged
   # release that ships the reader build job's artifact
-  # (bookpkg-reader_v<version>_darwin_arm64.zip); update both from that
-  # release's SHA256SUMS, the same manual step the plainshelf cask uses.
-  version "0.0.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  # (bookpkg-reader_v<version>_darwin_arm64.zip); pin both by running
+  # scripts/update-cask.sh <tag>, which updates this cask and plainshelf.rb
+  # together so the dependency pair stays in sync.
+  version "0.10.0"
+  sha256 "7640b793d3f5e0d376ad2cce2f2f5e3d7dad58a3eb6e3eeada8ea29364e82049"
 
   url "https://github.com/voilelab/plainshelf/releases/download/v#{version}/bookpkg-reader_v#{version}_darwin_arm64.zip"
   name "PlainShelf Reader"
@@ -16,11 +17,11 @@ cask "bookpkg-reader" do
 
   app "PlainShelfReader.app"
 
-  postflight do
+  postflight_steps do
     # The .app is unsigned and unnotarized until code signing lands; clear the
     # quarantine attribute so it opens without a right-click on first launch.
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/PlainShelfReader.app"]
+    run "/usr/bin/xattr",
+        args: ["-dr", "com.apple.quarantine", "{{appdir}}/PlainShelfReader.app"]
   end
 
   uninstall quit: "com.voilelab.plainshelf-reader"

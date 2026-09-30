@@ -1,6 +1,6 @@
 import type { ReadingProgress } from '@/types/book';
 
-export type ReadingAction = 'start' | 'continue' | 'reread';
+type ReadingAction = 'start' | 'continue' | 'reread';
 
 export function normalizeReadingPercent(percent?: number): number {
   if (typeof percent !== 'number' || !Number.isFinite(percent)) {

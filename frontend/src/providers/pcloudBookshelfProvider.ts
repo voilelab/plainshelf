@@ -1,14 +1,28 @@
 import {
   collectBookPackages,
   collectFolders,
+  createIgnoreRules,
+  createNSFWFolderLookup,
+  DEFAULT_IGNORED_DIRS,
+  MAX_SHELF_CONFIG_BYTES,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
+  findShelfConfigFile,
   parseBookJson,
+  parseShelfConfig,
   toBook,
   toSourceMeta,
 } from '@/api/pcloud/bookpkg';
-import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef } from '@/api/pcloud/bookpkg';
+import type {
+  BookJson,
+  BookPackageRef,
+  BookSourceRef,
+  NSFWFolder,
+  NSFWFolderLookup,
+  PCloudFileRef,
+  ShelfConfig
+} from '@/api/pcloud/bookpkg';
 import {
   bookPackagePath,
   findBookCacheFiles,
@@ -22,6 +36,9 @@ import { zipSync } from 'fflate';
 import { PCloudClient } from '@/api/pcloud/client';
 import type { PCloudItem } from '@/api/pcloud/types';
 import { PCloudDataError, PCloudError, isRetryablePCloudError } from '@/api/pcloud/errors';
+import { reportIncident } from '@/composables/useErrorIncident';
+import { getShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
+import { ShelfVisibility } from './shelfVisibility';
 import { ApiError } from '@/api/client';
 import {
   addReadHistory as addLocalReadHistory,
@@ -34,9 +51,11 @@ import type {
   BookmarkPayload,
   Book,
   BookContent,
+  NsfwMarks,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook
+  TrashedBook,
+  TrashedBookListing
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
@@ -61,14 +80,10 @@ const METADATA_CONCURRENCY = 8;
 const PAGE_SIZE_DEFAULT = 8;
 
 /**
- * Marks a book as having a cover without naming a fetchable address.
- *
- * `useCoverSrc` treats `cover_url` as a presence flag on mobile — falsy means
- * "no cover, show the placeholder" — and then resolves the bytes through
- * `getBookCover()`. A real URL cannot be used here: pCloud download links come
- * from a per-file request and expire, so producing one per book during a
- * listing would cost an extra round trip each and be stale by the time it
- * rendered.
+ * Marks a book as having a cover without naming a fetchable address:
+ * `useCoverSrc` treats `cover_url` as a presence flag on mobile and resolves the
+ * bytes through `getBookCover()`. A real URL cannot be used, because pCloud
+ * download links come from a per-file request and expire.
  */
 export function pcloudCoverUrl(bookId: string): string {
   return `pcloud:cover/${bookId}`;
@@ -86,6 +101,10 @@ interface ShelfSnapshot {
   byID: Map<string, LoadedBook>;
   /** Every folder directory, including ones holding no books. */
   folders: string[];
+  /** The shelf.json adult-content rules this listing was read with. */
+  nsfwFolders: NSFWFolder[];
+  /** {@link nsfwFolders} compiled once, since a listing asks per book. */
+  isNsfwFolder: NSFWFolderLookup;
 }
 
 /**
@@ -103,7 +122,7 @@ interface CachedJson {
   value: unknown;
 }
 
-export interface PCloudBookshelfProviderOptions {
+interface PCloudBookshelfProviderOptions {
   client: PCloudClient;
   /** Path of the shelf directory on pCloud, e.g. `/PlainShelf/default-shelf`. */
   shelfRoot: string;
@@ -121,17 +140,11 @@ export interface PCloudBookshelfProviderOptions {
 /**
  * Restates a pCloud failure in the error type the provider stack speaks.
  *
- * MobileBookshelfProvider decides whether to fall back to downloaded books by
- * asking whether the backend was reachable, and it reads that off `ApiError`:
- * anything else it assumes is unreachable. A raw PCloudError would therefore
- * send every failure — an expired token, a shelf that no longer exists, a book
- * that was deleted — down the offline-cache path, quietly showing stale content
- * instead of reporting the problem.
- *
- * So the transient/permanent distinction the pCloud folder already draws is
- * carried across the boundary: retryable failures become "unreachable", and
- * everything else is surfaced. Translating here rather than teaching the
- * wrapper about pCloud keeps that wrapper backend-agnostic.
+ * MobileBookshelfProvider reads reachability off `ApiError` and assumes anything
+ * else is unreachable, so a raw PCloudError would send every failure — expired
+ * token, deleted book — down the offline-cache path and quietly show stale
+ * content. Carrying the pCloud folder's transient/permanent distinction across
+ * the boundary here keeps that wrapper backend-agnostic.
  */
 function toProviderError(err: unknown): unknown {
   if (!(err instanceof PCloudError)) {
@@ -139,10 +152,14 @@ function toProviderError(err: unknown): unknown {
   }
 
   if (isRetryablePCloudError(err)) {
+    // "Unreachable" is where the wrapper falls back to downloaded books, so the
+    // user may never be told anything failed; raising a reference for it would
+    // put a number on screen next to content that loaded fine.
     return new ApiError(err.message, { isTimeout: true, cause: err });
   }
 
-  return new ApiError(err.message, { status: err.status, cause: err });
+  reportIncident(err.incident);
+  return new ApiError(err.message, { status: err.status, cause: err, incident: err.incident });
 }
 
 /**
@@ -300,6 +317,9 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       return null;
     }
 
+    const nsfwFolders = persisted.nsfw_folders ?? [];
+    const isNsfwFolder = createNSFWFolderLookup(nsfwFolders);
+
     const books = persisted.books.map(({ pkg, meta }) => {
       if (pkg.meta) {
         this.jsonCache.set(pkg.meta.fileid, {
@@ -308,14 +328,16 @@ export class PCloudBookshelfProvider implements BookshelfReader {
           value: meta
         });
       }
-      return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
+      return { pkg, meta, book: this.buildBook(meta, pkg, isNsfwFolder) } satisfies LoadedBook;
     });
 
     return {
       fetchedAt: persisted.fetched_at,
       books,
       byID: new Map(books.map((entry) => [entry.meta.id, entry])),
-      folders: persisted.folders
+      folders: persisted.folders,
+      nsfwFolders,
+      isNsfwFolder
     };
   }
 
@@ -325,7 +347,8 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       shelf_root: this.shelfRoot,
       fetched_at: snapshot.fetchedAt,
       folders: snapshot.folders,
-      books: snapshot.books.map(({ pkg, meta }) => ({ pkg, meta }))
+      books: snapshot.books.map(({ pkg, meta }) => ({ pkg, meta })),
+      nsfw_folders: snapshot.nsfwFolders
     } satisfies PersistedShelfSnapshot);
   }
 
@@ -354,6 +377,35 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     }
   }
 
+  /**
+   * Reads the shelf's `shelf.json`, if it has one.
+   *
+   * Never throws: an unreadable or malformed settings file reads as a shelf that
+   * said nothing, so the caller applies the defaults — matching the Go shelf,
+   * because refusing to open a library over a typo in an optional file is the
+   * worse failure.
+   */
+  private async loadShelfConfig(ref: PCloudFileRef | undefined): Promise<ShelfConfig> {
+    if (!ref) {
+      return {};
+    }
+
+    // The listing already carries the size, so a file too large to be settings
+    // is skipped before it is downloaded — the Go side applies the same limit to
+    // the same file, and a phone must not spend the data to reach that answer.
+    if (ref.size > MAX_SHELF_CONFIG_BYTES) {
+      console.warn(`Ignoring ${ref.name}: ${ref.size} bytes is larger than a shelf configuration is read at.`);
+      return {};
+    }
+
+    try {
+      return parseShelfConfig(await this.readJson(ref));
+    } catch (err) {
+      console.warn(`Ignoring ${ref.name}: it could not be read.`, err);
+      return {};
+    }
+  }
+
   private async loadSnapshot(): Promise<ShelfSnapshot> {
     const root = await this.client.listFolderRecursive({ path: this.shelfRoot });
     const booksFolder = findBooksFolder(root);
@@ -361,12 +413,23 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       throw new PCloudError(`No books/ folder under ${this.shelfRoot}; this does not look like a PlainShelf shelf.`);
     }
 
-    const packages = collectBookPackages(booksFolder);
+    // The shelf's own settings decide which directories are skipped, so they are
+    // read before the walk. Only a shelf that carries the file pays for it, and
+    // readJson answers from the cache while its size and mtime are unchanged, so
+    // a refresh does not download it again.
+    const configRef = findShelfConfigFile(root);
+    const config = await this.loadShelfConfig(configRef);
+    const ignore = createIgnoreRules(config.ignoredDirs ?? DEFAULT_IGNORED_DIRS);
+    // No built-in list: undefined and empty both mean "marks no folder".
+    const nsfwFolders = config.nsfwFolders ?? [];
+    const isNsfwFolder = createNSFWFolderLookup(nsfwFolders);
+
+    const packages = collectBookPackages(booksFolder, ignore);
     // Folders stay derived from the listing rather than read from the cache. The
     // directories are in the response already, so they cost nothing here and
     // cannot be out of date, which the cache's copy can be.
-    const folders = collectFolders(booksFolder);
-    this.pruneJsonCache(packages);
+    const folders = collectFolders(booksFolder, ignore);
+    this.pruneJsonCache(packages, configRef);
 
     // Only worth two requests when something actually has to be read. A refresh
     // where no book.json changed is already free from jsonCache, and fetching
@@ -397,7 +460,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
               modified: pkg.meta.modified,
               value: cachedMeta
             });
-            return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
+            return { pkg, meta, book: this.buildBook(meta, pkg, isNsfwFolder) } satisfies LoadedBook;
           } catch (err) {
             console.warn(`Ignoring the cached entry for ${pkg.folderName}; reading its book.json instead.`, err);
           }
@@ -406,7 +469,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
 
       try {
         const meta = parseBookJson(await this.readJson(pkg.meta));
-        return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
+        return { pkg, meta, book: this.buildBook(meta, pkg, isNsfwFolder) } satisfies LoadedBook;
       } catch (err) {
         // Only a book that is genuinely broken is skipped. A transport failure
         // says nothing about the book, and swallowing it here would cache a
@@ -431,7 +494,9 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       fetchedAt: this.now(),
       books,
       byID: new Map(books.map((entry) => [entry.meta.id, entry])),
-      folders
+      folders,
+      nsfwFolders,
+      isNsfwFolder
     };
 
     this.snapshot = snapshot;
@@ -478,8 +543,11 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   /** Drops cache entries for files that no longer exist in the shelf. */
-  private pruneJsonCache(packages: BookPackageRef[]): void {
+  private pruneJsonCache(packages: BookPackageRef[], configRef?: PCloudFileRef): void {
     const live = new Set<number>();
+    if (configRef) {
+      live.add(configRef.fileid);
+    }
     for (const pkg of packages) {
       if (pkg.meta) {
         live.add(pkg.meta.fileid);
@@ -524,15 +592,30 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return value;
   }
 
-  private buildBook(meta: BookJson, pkg: BookPackageRef): Book {
-    const book = toBook(meta, pkg.folders);
+  private buildBook(meta: BookJson, pkg: BookPackageRef, isNsfwFolder: NSFWFolderLookup): Book {
+    const book = toBook(meta, pkg.folders, isNsfwFolder(pkg.folders));
     return findCoverFile(pkg, meta) ? { ...book, cover_url: pcloudCoverUrl(meta.id) } : book;
   }
 
+  /**
+   * Built per call, since the provider outlives a change to the setting; fixed
+   * within one read, so a listing and its folder tree cannot disagree.
+   */
+  private visibility(snapshot: ShelfSnapshot): ShelfVisibility {
+    return new ShelfVisibility({
+      showNsfw: getShowNsfwOnDevice(),
+      isNsfwFolder: (folders) => snapshot.isNsfwFolder(folders) !== undefined
+    });
+  }
+
+  /**
+   * The one lookup by id: content, cover and sources all resolve through here,
+   * so a hidden book takes the existing not-found path on every route.
+   */
   private async findBook(bookId: string): Promise<LoadedBook> {
     const snapshot = await this.ensureSnapshot();
     const entry = snapshot.byID.get(bookId);
-    if (!entry) {
+    if (!entry || !this.visibility(snapshot).allows(entry.book)) {
       throw new PCloudError(`Book ${bookId} was not found in the pCloud shelf.`);
     }
     return entry;
@@ -586,8 +669,11 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, options?: ListBooksOptions): Promise<PaginatedBooks> {
     return this.guarded(async () => {
       const snapshot = await this.ensureSnapshot();
+      // Before the slice, not after: otherwise `total` and the pages disagree.
+      const visibility = this.visibility(snapshot);
+      const visible = snapshot.books.filter((entry) => visibility.allows(entry.book));
       const start = Math.max(0, (page - 1) * pageSize);
-      const pageEntries = snapshot.books.slice(start, start + pageSize);
+      const pageEntries = visible.slice(start, start + pageSize);
 
       // char_count lives in the current source's meta.json, so it costs a read
       // per book. It stays opt-in for that reason, and only the requested page
@@ -596,7 +682,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
         ? await mapWithConcurrency(pageEntries, METADATA_CONCURRENCY, (entry) => this.withCharCount(entry))
         : pageEntries.map((entry) => entry.book);
 
-      return { items, total: snapshot.books.length, page, pageSize };
+      return { items, total: visible.length, page, pageSize };
     });
   }
 
@@ -666,6 +752,30 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return false;
   }
 
+  /** True: there is no server to ask, so this reader applies the marks itself. */
+  filtersNsfwOnDevice(): boolean {
+    return true;
+  }
+
+  /**
+   * Not `ensureSnapshot`, which walks the shelf; null, not an empty map, when the device holds none.
+   */
+  async localNsfwMarks(): Promise<ReadonlyMap<string, NsfwMarks> | null> {
+    // Read, never stored as the provider's snapshot: taking the slot here would
+    // race the restore/walk that ensureSnapshot arbitrates through `pending`.
+    const snapshot = this.snapshot ?? (await this.restoreSnapshot());
+    if (!snapshot) {
+      return null;
+    }
+
+    return new Map(
+      snapshot.books.map(({ meta, book }) => [
+        meta.id,
+        { nsfw: book.nsfw, nsfw_folder: book.nsfw_folder } satisfies NsfwMarks
+      ])
+    );
+  }
+
   /**
    * Answering would cost one meta.json download per book, on a metered
    * transport, for a filter the user may not use.
@@ -677,7 +787,13 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   // --- folders --------------------------------------------------------------
 
   listFolders(): Promise<string[]> {
-    return this.guarded(async () => (await this.ensureSnapshot()).folders);
+    return this.guarded(async () => {
+      const snapshot = await this.ensureSnapshot();
+      return this.visibility(snapshot).filterFolders(
+        snapshot.folders,
+        snapshot.books.map((entry) => entry.book)
+      );
+    });
   }
 
   // --- sources -------------------------------------------------------------
@@ -818,7 +934,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return { total: 0, fingerprinted: 0, missing: 0, algo: { normalize: '', shingle: '', hash: '', k: 0 } };
   }
 
-  async listTrashedBooks(): Promise<TrashedBook[]> {
-    return [];
+  async listTrashedBooks(): Promise<TrashedBookListing> {
+    return { books: [], complete: true };
   }
 }

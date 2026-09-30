@@ -12,9 +12,10 @@ Every tagged release publishes:
 Release artifacts live on the
 [GitHub Releases](https://github.com/voilelab/plainshelf/releases) page.
 
-!!! warning "Pre-alpha"
-    PlainShelf is in early development. Pin to a specific release tag and
-    expect data layout and behavior to change between versions.
+!!! warning "Before 1.0"
+    The on-disk format freezes at `1.0.0-rc1`; until that release the data
+    layout can still change between versions, and behavior can change either
+    way. Pin to a specific release tag.
 
 ---
 
@@ -46,7 +47,7 @@ alongside the desktop app. See
 [the reader section below](#experimental-standalone-book-package-reader) for
 what the reader installs and how to remove it.
 
-The bundled `.app` is unsigned and unnotarized; the cask's `postflight`
+The bundled `.app` is unsigned and unnotarized; the cask's `postflight_steps`
 clears Gatekeeper's quarantine attribute so the app opens normally on
 first launch.
 
@@ -76,8 +77,8 @@ You can also install the reader on its own — macOS on Apple Silicon
 brew install --cask voilelab/plainshelf/bookpkg-reader
 ```
 
-The reader `.app` is also unsigned and unnotarized; its `postflight` clears
-the quarantine attribute the same way. Uninstall with
+The reader `.app` is also unsigned and unnotarized; its `postflight_steps`
+clears the quarantine attribute the same way. Uninstall with
 `brew uninstall --cask bookpkg-reader`.
 
 `brew zap --cask bookpkg-reader` removes only the reader's own data (keyed to
@@ -162,7 +163,7 @@ docker pull ghcr.io/voilelab/plainshelf:latest
 
 !!! info "`latest` tag"
     `latest` only follows stable releases. Pre-release tags (those containing
-    a `-`, e.g. `v1.0.0-rc.1`) are published but do **not** update `latest`.
+    a `-`, e.g. `v1.0.0-rc1`) are published but do **not** update `latest`.
 
 Run the server on <http://localhost:20000> with data persisted in a volume:
 
@@ -174,10 +175,17 @@ docker run --rm \
   ghcr.io/voilelab/plainshelf:latest
 ```
 
-!!! tip "Keep it local"
-    The example publishes the port on the loopback address (`127.0.0.1`)
-    only. Do not expose `0.0.0.0:20000` to untrusted networks unless you add
-    an authentication boundary in front of the container.
+!!! warning "Keep it local"
+    The default container config protects writes with `local_token`, which is a
+    CSRF boundary and not a login: anything that can reach the port can read the
+    token out of the served page. Publish the port on the loopback address
+    (`127.0.0.1`) only, and do not expose `0.0.0.0:20000` to an untrusted network
+    without a real boundary (reverse proxy auth or a VPN edge) in front of the
+    container — see [Deployment and threat
+    model](deployment-and-threat-model.md). Reaching the UI through any other
+    origin — another host port, a NAS LAN IP, a custom domain — needs that exact
+    origin in `app_conf.security.allowed_origins` too, or the Origin check
+    rejects writes; the [Docker](development/docker.md) page has both settings.
 
 For custom configuration and the bundled defaults, see the
 [Docker](development/docker.md) page.
@@ -193,9 +201,18 @@ For custom configuration and the bundled defaults, see the
     [v0.8 reading-data breaking change](concepts/data-format-versioning.md#v08-reading-data-breaking-change)
     for details.
 
+!!! warning "Reading progress does not carry into v0.10.0 or later"
+    v0.10.0 changed the per-device reading-progress file to a timestamped format
+    so that the desktop app and the standalone reader can reconcile concurrent
+    writes. The older format is not migrated: on first run of v0.10.0 or later,
+    web and desktop books start at the beginning again on that device. Android's
+    per-book progress files are unaffected.
+
 1. Stop the running server (or `docker stop plainshelf`).
 2. Download/pull the new version using the steps above.
 3. Restart against the **same** data and config.
 
 Because PlainShelf keeps data in human-readable files, back up your shelf and
-application store directories before upgrading across breaking changes.
+application store directories before upgrading across breaking changes. See
+[Backup and Restore](backup-and-restore.md) for what to copy, what a shelf-only
+copy leaves behind, and how to roll back to an older release.

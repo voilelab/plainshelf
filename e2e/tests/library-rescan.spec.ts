@@ -69,32 +69,3 @@ test('Update book list shows a book copied into the shelf from outside', async (
     await server.dispose();
   }
 });
-
-// Adding this button took the toolbar past the width it had left, and a row
-// that cannot wrap does not shrink — it pushes its last control out of the
-// header and clips it, which is how the button becomes unreachable.
-test('the library toolbar fits its header instead of clipping its last control', async ({
-  page
-}) => {
-  const server = await startServer();
-
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-
-    for (const width of [1600, 1280, 1024, 800]) {
-      await page.setViewportSize({ width, height: 800 });
-      // The rescan button is the last control and therefore the first casualty.
-      await expect(page.getByRole('button', { name: 'Update book list' })).toBeInViewport();
-
-      const overflowPx = await page.evaluate(() => {
-        const toolbar = document.querySelector('.bookshelf-toolbar') as HTMLElement;
-        const header = toolbar.parentElement as HTMLElement;
-        return toolbar.getBoundingClientRect().right - header.getBoundingClientRect().right;
-      });
-      expect(overflowPx, `toolbar overflows its header at ${width}px`).toBeLessThanOrEqual(1);
-    }
-  } finally {
-    await server.dispose();
-  }
-});

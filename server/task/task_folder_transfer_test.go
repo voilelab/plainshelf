@@ -54,7 +54,7 @@ func folderTransferPlan(t *testing.T, source *shelf.Shelf, sourceFolder shelf.Fo
 	}
 	var subfolders []shelf.FolderPath
 	for _, l := range allFolders {
-		if folderHasPrefix(l, sourceFolder) {
+		if l.HasPrefix(sourceFolder) {
 			subfolders = append(subfolders, l)
 		}
 	}
@@ -65,7 +65,7 @@ func folderTransferPlan(t *testing.T, source *shelf.Shelf, sourceFolder shelf.Fo
 	}
 	var books []FolderTransferBook
 	for _, listing := range listings {
-		if folderHasPrefix(listing.Folders, sourceFolder) {
+		if listing.Folders.HasPrefix(sourceFolder) {
 			books = append(books, FolderTransferBook{ID: listing.Book.ID(), SourceFolder: listing.Folders})
 		}
 	}
@@ -74,13 +74,15 @@ func folderTransferPlan(t *testing.T, source *shelf.Shelf, sourceFolder shelf.Fo
 
 func bookIDsUnderFolder(t *testing.T, s *shelf.Shelf, folder shelf.FolderPath) []string {
 	t.Helper()
-	books, err := s.GetBooksByFolder(folder)
+	listings, err := s.ListBooksWithCharCount()
 	if err != nil {
-		t.Fatalf("GetBooksByFolder %v: %v", folder, err)
+		t.Fatalf("ListBooksWithCharCount: %v", err)
 	}
-	ids := make([]string, 0, len(books))
-	for _, b := range books {
-		ids = append(ids, b.ID())
+	ids := make([]string, 0, len(listings))
+	for _, listing := range listings {
+		if listing.Folders.Equal(folder) {
+			ids = append(ids, listing.Book.ID())
+		}
 	}
 	return ids
 }
@@ -101,7 +103,7 @@ func TestFolderTransferTaskCopyNested(t *testing.T) {
 	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
 		BookTransferOperationCopy, shelf.FolderPath{"fiction"}, shelf.FolderPath{"imported"}, books, subfolders)
 
-	if err := task.Run(context.Background()); err != nil {
+	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if task.Status() != taskutil.StatusCompleted || task.Percentage() != 100 {
@@ -116,7 +118,7 @@ func TestFolderTransferTaskCopyNested(t *testing.T) {
 	// Every book lands under its remapped folder with a fresh ID.
 	for _, tc := range []struct {
 		original string
-		folder    shelf.FolderPath
+		folder   shelf.FolderPath
 	}{
 		{topID, shelf.FolderPath{"imported"}},
 		{deepID, shelf.FolderPath{"imported", "sci-fi"}},
@@ -160,7 +162,7 @@ func TestFolderTransferTaskMoveNested(t *testing.T) {
 	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
 		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, subfolders)
 
-	if err := task.Run(context.Background()); err != nil {
+	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if task.Status() != taskutil.StatusCompleted || task.Percentage() != 100 {
@@ -202,7 +204,7 @@ func TestFolderTransferTaskCancelledBeforeStart(t *testing.T) {
 	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
 		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, subfolders)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if err := task.Run(ctx); !errors.Is(err, context.Canceled) {
@@ -262,7 +264,7 @@ func TestFolderTransferTaskCancelledMidMove(t *testing.T) {
 	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
 		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, subfolders)
 
-	ctx := &cancelWhenDone{Context: context.Background(), task: task, after: 1}
+	ctx := &cancelWhenDone{Context: t.Context(), task: task, after: 1}
 	if err := task.Run(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run error = %v, want context.Canceled", err)
 	}
@@ -325,7 +327,7 @@ func TestFolderTransferTaskFolderCreateFailureSettlesFailed(t *testing.T) {
 	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
 		BookTransferOperationCopy, shelf.FolderPath{"fiction"}, shelf.FolderPath{"imported"}, books, subfolders)
 
-	if err := task.Run(context.Background()); err != nil {
+	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if task.Status() != taskutil.StatusFailed {

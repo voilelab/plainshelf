@@ -12,6 +12,7 @@ const SHARED_VALUE_KEYS = new Set([
   'language.zhHant',
   'libraryForms.editBook.identifierKeyPlaceholder',
   'libraryForms.editBook.identifierValuePlaceholder',
+  'settings.shelves.addShelfDirectoryPlaceholder',
   'settings.shelves.idColumn',
   'settings.shelves.modifyShelfIDLabel',
   'mobileConnect.modePCloud',

@@ -302,7 +302,11 @@ onMounted(() => {
   background: color-mix(in srgb, #fff 94%, transparent);
   border: 1px solid var(--border);
   border-radius: 14px;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  /* Sits above the mobile shell's bottom tab bar, which is fixed at the same
+     edge and would otherwise overlay this bar and swallow its button's taps
+     (the tab bar only exists on the mobile runtime, the same condition under
+     which this bar renders). */
+  bottom: calc(var(--mobile-tab-bar-height, 0px) + 12px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
   display: flex;
   left: max(12px, env(safe-area-inset-left, 0px));

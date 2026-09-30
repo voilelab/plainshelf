@@ -1,5 +1,5 @@
 export type BookFormat = string;
-export type BookTimestamp = string;
+type BookTimestamp = string;
 export type DownloadState =
   | 'not_downloaded'
   | 'downloaded'
@@ -30,6 +30,28 @@ export interface Book {
    *  mock data; omit rather than guess when unavailable. */
   char_count?: number;
 
+  /**
+   * The book's own adult-content mark, from `nsfw` in its book.json. Editable —
+   * unlike `nsfw_folder`, which the shelf owns. Use {@link isBookNsfw} rather
+   * than this field wherever the question is "is this book marked".
+   */
+  nsfw?: boolean;
+
+  /**
+   * The `content.nsfw_folders` rule in shelf.json that marks this book's folder,
+   * absent when none does. Read-only: the two marks add, so clearing `nsfw` on
+   * the book does not take it out of a marked folder.
+   */
+  nsfw_folder?: NsfwFolderRule;
+
+  /**
+   * Whether book.json declares a schema version this client does not know, so
+   * fields it carries may not be shown. Set by readers that parse book.json
+   * themselves (api/pcloud); a server-backed book never carries it, because the
+   * server answers a newer file by refusing the write rather than the read.
+   */
+  schema_newer_than_supported?: boolean;
+
   // Mobile/offline cache metadata. These fields are optional so existing
   // server and Wails responses remain valid when they do not include local
   // download information.
@@ -39,6 +61,31 @@ export interface Book {
   downloaded_at?: BookTimestamp;
 }
 
+/** One `content.nsfw_folders` entry, as written in shelf.json. */
+export interface NsfwFolderRule {
+  path: string;
+  /** What the person who wrote the entry noted; often absent, in which case a
+   *  caller names the path instead. */
+  reason?: string;
+}
+
+/**
+ * Whether the shelf marks this book as adult content — the book's own `nsfw` or
+ * a folder rule, the same sum the server's `Shelf.IsBookNSFW` computes. The two
+ * halves are reported separately because only one of them is editable here.
+ */
+export function isBookNsfw(book: NsfwMarks): boolean {
+  return book.nsfw === true || book.nsfw_folder !== undefined;
+}
+
+/**
+ * The pair of marks {@link isBookNsfw} reads, on their own.
+ *
+ * Named because they travel without the rest of the book: a listing hands them
+ * to a filter, and a cached download that predates them is repaired from them.
+ */
+export type NsfwMarks = Pick<Book, 'nsfw' | 'nsfw_folder'>;
+
 export interface TrashedBook {
   id: string;
   title: string;
@@ -46,6 +93,19 @@ export interface TrashedBook {
   original_path?: string;
   original_folder?: string[];
   deleted_at?: BookTimestamp;
+}
+
+/**
+ * A trash listing together with whether it is the whole trash.
+ *
+ * `complete: false` means the server withheld at least one book — today, one
+ * the adult-content setting hides. **Empty trash** is not filtered and erases
+ * everything, so a partial listing's length must not be quoted as the number
+ * that sweep will delete.
+ */
+export interface TrashedBookListing {
+  books: TrashedBook[];
+  complete: boolean;
 }
 
 export interface BookDetail extends Book {
@@ -92,14 +152,10 @@ export interface BookUpdateRequest {
   identifiers?: Record<string, string>;
   /** Only 'txt' and 'md' are accepted; the server rejects anything else. */
   format?: BookFormat;
+  /** The book's own adult-content mark. It cannot clear one the book's folder
+   *  carries — that rule lives in shelf.json. */
+  nsfw?: boolean;
 }
-
-/** The formats a book can be stored as. Both read the same bytes on disk: the
- *  value only decides whether the reader parses the text as Markdown. */
-export const BOOK_FORMAT_OPTIONS: { value: BookFormat; label: string }[] = [
-  { value: 'txt', label: 'Plain text' },
-  { value: 'md', label: 'Markdown' }
-];
 
 /** Built-in EPUB output layouts. The preset also decides the stored book format. */
 export type EpubImportPreset = 'markdown' | 'plain';
@@ -130,9 +186,6 @@ export interface BookCreateRequest {
   /** Only meaningful for .epub uploads; ignored by the server for other formats. */
   strategy?: EpubImportStrategy;
 }
-
-export type UpdateBookPayload = BookUpdateRequest;
-export type ImportBookPayload = BookCreateRequest;
 
 export interface PaginatedBooks {
   items: Book[];

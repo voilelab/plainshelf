@@ -62,7 +62,7 @@ async function openImportedBookInReader(page: Page): Promise<Page> {
   return openReaderTab(page, () => page.getByRole('button', { name: 'Start reading' }).click());
 }
 
-test('should import an EPUB and name its sections after the table of contents', async ({ page }) => {
+test('should import an EPUB and name its sections after the table of contents', { tag: '@smoke' }, async ({ page }) => {
   // per-test server: the imported book's title comes from the fixture's fixed
   // dc:title ("Hello EPUB"), which cannot be made unique per test without
   // editing the shared EPUB fixture. The "1 books" count and the by-title reader
@@ -105,44 +105,6 @@ test('should import an EPUB and name its sections after the table of contents', 
     await reader.getByRole('button', { name: 'Next' }).click();
     await expect(reader.getByText('3 / 3')).toBeVisible();
     await expect(sectionTitle).toHaveText(epubFixtureChapters[1]);
-  } finally {
-    await server.dispose();
-  }
-});
-
-test('should honour the plain text conversion option', async ({ page }) => {
-  // per-test server: same fixed dc:title ("Hello EPUB") as above — a shared
-  // shelf would collide with the other EPUB test's identically titled book, so
-  // this test keeps its own pristine server.
-  const server = await startServer();
-
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
-
-    const dialog = await openImportWithEpub(page);
-
-    await dialog.getByRole('combobox').click();
-    await page.getByRole('option', { name: 'Plain text' }).click();
-    await dialog.getByText('Put the book description at the start of the text').click();
-
-    await runImport(dialog);
-
-    await expect(page.getByText('1 books')).toBeVisible();
-    const readerPage = await openImportedBookInReader(page);
-
-    const reader = readerPage.getByRole('article');
-
-    // include_description was turned off, so the description stays in the book
-    // metadata and out of the text.
-    await expect(reader.getByText('1 / 1')).toBeVisible();
-    await expect(reader.getByText(epubFixtureDescription)).not.toBeVisible();
-
-    await expect(reader.getByText('This text came from a real uploaded EPUB file.')).toBeVisible();
-    await expect(reader.getByRole('button', { name: 'Next' })).toBeDisabled();
-    await expect(reader.locator('.reader-chapter-title')).toHaveCount(0);
-    // Chapter names remain ordinary text, without chapter navigation.
-    await expect(reader.getByText(epubFixtureChapters[0], { exact: true }).first()).toBeVisible();
   } finally {
     await server.dispose();
   }

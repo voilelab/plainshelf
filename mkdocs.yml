@@ -30,7 +30,11 @@ nav:
   - Getting Started: getting-started.md
   - EPUB Import: epub-import.md
   - Finding Similar Books: finding-similar-books.md
+  - Logs: logs.md
+  - Backup & Restore: backup-and-restore.md
+  - Deployment & Threat Model: deployment-and-threat-model.md
   - Configuration:
+      - Configuration Reference: reference/configuration.md
       - Local Shelf File Source: configuring-local-shelf.md
       - SMB Shelf File Source: configuring-smb-shelf.md
   - Concepts:
@@ -43,5 +47,7 @@ nav:
       - Local Setup: development/setup.md
       - Android: development/android.md
       - Docker: development/docker.md
+      - Testing Levels: development/testing-levels.md
       - Mutation Testing: development/mutation-testing.md
+      - Releasing: development/releasing.md
   - Known Issues: known-issue.md

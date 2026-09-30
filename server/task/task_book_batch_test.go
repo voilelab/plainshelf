@@ -31,9 +31,9 @@ func TestBookBatchTaskNoOpStillCompletes(t *testing.T) {
 	}
 
 	task := newBookBatchTask("default_shelf", newShelf, logger,
-		BookBatchOperationMove, []string{book.ID()}, shelf.FolderPath{"target"})
+		BookBatchOperationMove, []string{book.ID()}, shelf.FolderPath{"target"}, nil)
 
-	if err := task.Run(context.Background()); err != nil {
+	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if task.Status() != taskutil.StatusCompleted || task.Percentage() != 100 {
@@ -65,9 +65,9 @@ func TestBookBatchTaskAllFailuresStillProcessesEveryBook(t *testing.T) {
 	}
 
 	task := newBookBatchTask("default_shelf", newShelf, logger,
-		BookBatchOperationTrash, []string{"missing-a", "missing-b"}, shelf.FolderPath{})
+		BookBatchOperationTrash, []string{"missing-a", "missing-b"}, shelf.FolderPath{}, nil)
 
-	if err := task.Run(context.Background()); err != nil {
+	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run returned an item error: %v", err)
 	}
 	if task.Status() != taskutil.StatusFailed || task.Percentage() != 100 {
@@ -104,9 +104,9 @@ func TestBookBatchTaskCancelledBeforeStart(t *testing.T) {
 	}
 
 	task := newBookBatchTask("default_shelf", newShelf, logger,
-		BookBatchOperationTrash, []string{book.ID()}, shelf.FolderPath{})
+		BookBatchOperationTrash, []string{book.ID()}, shelf.FolderPath{}, nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	err = task.Run(ctx)
@@ -146,9 +146,9 @@ func TestBookBatchTaskResultSnapshotsAreIndependent(t *testing.T) {
 	}
 
 	task := newBookBatchTask("default_shelf", newShelf, logger,
-		BookBatchOperationMove, []string{book.ID()}, shelf.FolderPath{"target"})
+		BookBatchOperationMove, []string{book.ID()}, shelf.FolderPath{"target"}, nil)
 
-	if err := task.Run(context.Background()); err != nil {
+	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
