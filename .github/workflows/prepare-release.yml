@@ -108,6 +108,11 @@ jobs:
         run: |
           set -euo pipefail
           git push origin "$PREP"
+          ./scripts/release-notes.sh "$VERSION" "$PREP" > notes.md
+          # A PR body holds at most 65536 characters; drop the PR list if needed.
+          if [ "$(wc -c < notes.md)" -gt 60000 ]; then
+            ./scripts/release-changelog.sh notes "$VERSION" > notes.md
+          fi
           {
             echo "Releases \`${VERSION}\` from dev \`$(git rev-parse --short HEAD~1)\`."
             echo
@@ -120,7 +125,7 @@ jobs:
             echo
             echo "## Release notes"
             echo
-            ./scripts/release-changelog.sh notes "$VERSION"
+            cat notes.md
           } > body.md
           url=$(gh pr create --base "$BRANCH" --head "$PREP" --title "Release ${VERSION}" --body-file body.md)
           echo "Release PR: $url" >> "$GITHUB_STEP_SUMMARY"

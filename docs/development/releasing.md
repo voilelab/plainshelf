@@ -40,9 +40,12 @@ calls `release.yml`, which:
 
 1. builds the server tarballs, the macOS desktop and reader apps, and the Docker
    image from the merge commit;
-2. creates the tag and the GitHub Release on that commit, with the tag's
-   CHANGELOG section as the notes and `SHA256SUMS` attached; a tag with a `-`
-   is marked as a prerelease;
+2. creates the tag and the GitHub Release on that commit, with `SHA256SUMS`
+   attached; a tag with a `-` is marked as a prerelease. The notes are the
+   tag's CHANGELOG section followed by GitHub's list of pull requests merged
+   since the previous release tag by SemVer (`scripts/release-notes.sh`); the
+   release PR's description shows the same notes, minus the list if it would
+   exceed the PR size limit;
 3. pushes the Docker image as `ghcr.io/voilelab/plainshelf:<tag>`, plus
    `latest` for a stable tag.
 

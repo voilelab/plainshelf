@@ -118,3 +118,12 @@ if (cd "$temp_repo" && "$resolver" validate-next v1.0.0-3 >/dev/null 2>&1); then
   echo "validate-next accepted 'v1.0.0-3' after v1.0.0-1a" >&2
   exit 1
 fi
+
+# previous-tag: highest release tag below the version, tagged or not.
+for pair in v1.0.0-1a:v1.0.0-2 v1.0.0:v1.0.0-1a v0.9.0:v0.8.0 v0.8.0:v0.8.0-beta.1 v0.7.0:; do
+  actual=$(cd "$temp_repo" && "$resolver" previous-tag "${pair%%:*}")
+  if [ "$actual" != "${pair#*:}" ]; then
+    echo "previous-tag ${pair%%:*}: got '$actual', want '${pair#*:}'" >&2
+    exit 1
+  fi
+done

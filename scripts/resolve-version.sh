@@ -3,7 +3,7 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 <display|native|android-name|validate-tag|validate-next|release-branch|latest-tag> [version]" >&2
+  echo "Usage: $0 <display|native|android-name|validate-tag|validate-next|release-branch|latest-tag|previous-tag> [version]" >&2
   exit 2
 }
 
@@ -203,6 +203,17 @@ case "$mode" in
     ;;
   latest-tag)
     latest_release_tag
+    ;;
+  previous-tag)
+    # Highest release tag below the version, whether or not its own tag exists.
+    previous=
+    for tag in $(git tag --list 'v[0-9]*' 2>/dev/null); do
+      if is_release_tag "$tag" && version_gt "$raw_version" "$tag" &&
+        { [ -z "$previous" ] || version_gt "$tag" "$previous"; }; then
+        previous=$tag
+      fi
+    done
+    [ -z "$previous" ] || printf '%s\n' "$previous"
     ;;
   release-branch)
     if ! split_version "$raw_version"; then
