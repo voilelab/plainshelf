@@ -70,6 +70,21 @@ jobs:
             echo "- Nightly: ${nightly#* }"
           } > gates.md
 
+      - name: Cut CHANGELOG
+        env:
+          PREP: ${{ steps.version.outputs.prep }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "$PREP" >/dev/null; then
+            echo "::error::$PREP already exists; delete it to prepare $VERSION again"
+            exit 1
+          fi
+          git switch -c "$PREP"
+          ./scripts/release-changelog.sh cut "$VERSION" "$(date -u +%F)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Cut CHANGELOG for ${VERSION}"
+
       - name: Create release branch if missing
         env:
           BRANCH: ${{ steps.version.outputs.branch }}
@@ -86,28 +101,13 @@ jobs:
           git push origin "$(git rev-parse "${LATEST}^{commit}"):refs/heads/${BRANCH}"
           echo "Created $BRANCH from $LATEST"
 
-      - name: Cut CHANGELOG and push release-prep branch
-        env:
-          PREP: ${{ steps.version.outputs.prep }}
-        run: |
-          set -euo pipefail
-          if git ls-remote --exit-code --heads origin "$PREP" >/dev/null; then
-            echo "::error::$PREP already exists; delete it to prepare $VERSION again"
-            exit 1
-          fi
-          git switch -c "$PREP"
-          ./scripts/release-changelog.sh cut "$VERSION" "$(date -u +%F)"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Cut CHANGELOG for ${VERSION}"
-          git push origin "$PREP"
-
-      - name: Open release PR
+      - name: Push and open release PR
         env:
           BRANCH: ${{ steps.version.outputs.branch }}
           PREP: ${{ steps.version.outputs.prep }}
         run: |
           set -euo pipefail
+          git push origin "$PREP"
           {
             echo "Releases \`${VERSION}\` from dev \`$(git rev-parse --short HEAD~1)\`."
             echo
