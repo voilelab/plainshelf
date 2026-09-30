@@ -3,7 +3,7 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 <display|native|android-name|validate-tag> [version]" >&2
+  echo "Usage: $0 <display|native|android-name|validate-tag|validate-next|release-branch|latest-tag|previous-tag> [version]" >&2
   exit 2
 }
 
@@ -84,6 +84,65 @@ is_release_tag() {
   split_version "$1"
 }
 
+# Highest by SemVer precedence; git's version sort ranks some prereleases
+# differently (v1.0.0-2 above v1.0.0-1a).
+latest_release_tag() {
+  latest=
+  for tag in $(git tag --list 'v[0-9]*' 2>/dev/null); do
+    if is_release_tag "$tag" && { [ -z "$latest" ] || version_gt "$tag" "$latest"; }; then
+      latest=$tag
+    fi
+  done
+  [ -z "$latest" ] || printf '%s\n' "$latest"
+}
+
+# Succeeds when SemVer identifier $1 sorts after $2.
+identifier_gt() {
+  if is_numeric_identifier "$1" && is_numeric_identifier "$2"; then
+    [ "$1" -gt "$2" ]
+  elif is_numeric_identifier "$1"; then
+    return 1
+  elif is_numeric_identifier "$2"; then
+    return 0
+  else
+    [ "$1" != "$2" ] &&
+      [ "$(printf '%s\n%s\n' "$1" "$2" | LC_ALL=C sort | tail -n 1)" = "$1" ]
+  fi
+}
+
+# Succeeds when version $1 has higher SemVer precedence than $2.
+version_gt() {
+  split_version "$1" || return 1
+  a_core=$core_version a_pre=$version_suffix a_has_pre=$has_version_suffix
+  split_version "$2" || return 1
+  b_core=$core_version b_pre=$version_suffix b_has_pre=$has_version_suffix
+
+  while [ -n "$a_core" ]; do
+    a_part=${a_core%%.*} b_part=${b_core%%.*}
+    if [ "$a_part" -ne "$b_part" ]; then
+      [ "$a_part" -gt "$b_part" ]
+      return
+    fi
+    case "$a_core" in *.*) a_core=${a_core#*.} b_core=${b_core#*.} ;; *) a_core= ;; esac
+  done
+
+  # Equal cores: a release outranks any of its prereleases.
+  [ "$a_has_pre" = "$b_has_pre" ] || { [ "$b_has_pre" = true ]; return; }
+  [ "$a_has_pre" = true ] || return 1
+
+  while :; do
+    [ -n "$a_pre" ] || return 1
+    [ -n "$b_pre" ] || return 0
+    a_part=${a_pre%%.*} b_part=${b_pre%%.*}
+    if [ "$a_part" != "$b_part" ]; then
+      identifier_gt "$a_part" "$b_part"
+      return
+    fi
+    case "$a_pre" in *.*) a_pre=${a_pre#*.} ;; *) a_pre= ;; esac
+    case "$b_pre" in *.*) b_pre=${b_pre#*.} ;; *) b_pre= ;; esac
+  done
+}
+
 resolve_display_version() {
   exact_tag=$(
     for tag in $(git -c versionsort.suffix=- -c versionsort.suffix= tag --points-at HEAD --sort=-version:refname 2>/dev/null); do
@@ -98,14 +157,7 @@ resolve_display_version() {
     return
   fi
 
-  latest_tag=$(
-    for tag in $(git -c versionsort.suffix=- -c versionsort.suffix= tag --list 'v[0-9]*' --sort=-version:refname 2>/dev/null); do
-      if is_release_tag "$tag"; then
-        printf '%s\n' "$tag"
-        break
-      fi
-    done
-  )
+  latest_tag=$(latest_release_tag)
 
   short_commit=$(git rev-parse --short=7 HEAD 2>/dev/null || echo dev)
   dirty_suffix=
@@ -147,6 +199,42 @@ case "$mode" in
       printf '%s\n' "${raw_version#v}"
     else
       printf '%s\n' '0.0.0-dev'
+    fi
+    ;;
+  latest-tag)
+    latest_release_tag
+    ;;
+  previous-tag)
+    # Highest release tag below the version, whether or not its own tag exists.
+    previous=
+    for tag in $(git tag --list 'v[0-9]*' 2>/dev/null); do
+      if is_release_tag "$tag" && version_gt "$raw_version" "$tag" &&
+        { [ -z "$previous" ] || version_gt "$tag" "$previous"; }; then
+        previous=$tag
+      fi
+    done
+    [ -z "$previous" ] || printf '%s\n' "$previous"
+    ;;
+  release-branch)
+    if ! split_version "$raw_version"; then
+      echo "Invalid version: $raw_version" >&2
+      exit 1
+    fi
+    printf 'release/%s.x\n' "${core_version%%.*}"
+    ;;
+  validate-next)
+    if ! is_release_tag "$raw_version"; then
+      echo "Invalid release tag: $raw_version" >&2
+      exit 1
+    fi
+    if git rev-parse -q --verify "refs/tags/$raw_version" >/dev/null; then
+      echo "Tag already exists: $raw_version" >&2
+      exit 1
+    fi
+    latest=$(latest_release_tag)
+    if [ -n "$latest" ] && ! version_gt "$raw_version" "$latest"; then
+      echo "Release tag $raw_version is not newer than $latest" >&2
+      exit 1
     fi
     ;;
   validate-tag)

@@ -110,7 +110,8 @@ Git release tags are the source of truth for the PlainShelf product version.
 Tags must use `vMAJOR.MINOR.PATCH` with an optional SemVer prerelease suffix,
 such as `v0.8.0` or `v0.8.0-beta.1`. Build scripts derive development versions
 from the latest release tag, the number of subsequent commits, and the current
-commit hash.
+commit hash. Tags are created by the release workflows; see
+[Releasing](releasing.md).
 
 The server and the Settings **About** section expose the full build version. A
 macOS bundle uses the numeric `MAJOR.MINOR.PATCH` core required by the platform,
