@@ -1,9 +1,8 @@
 name: Publish release
 
 # Step 2 of a release: runs when a release PR opened by prepare-release.yml
-# merges into release/<major>.x. Tags the merge commit, publishes everything
-# through release.yml, then opens the PR that brings the CHANGELOG cut back to
-# dev. See docs/development/releasing.md.
+# merges into release/<major>.x. Tags the merge commit and publishes everything
+# through release.yml. See docs/development/releasing.md.
 on:
   pull_request:
     types: [closed]
@@ -51,7 +50,8 @@ jobs:
             echo "::error::$version belongs on $branch, not $BASE_REF"
             exit 1
           fi
-          # A squash or rebase merge leaves release/* diverged from dev.
+          # A squash or rebase merge leaves release/* diverged from dev, and the
+          # next release PR would conflict.
           if [ "$(git rev-list --parents -n 1 "$MERGE_SHA" | wc -w)" -ne 3 ]; then
             echo "::error::release PR was not merged with a merge commit"
             exit 1
@@ -60,7 +60,6 @@ jobs:
             echo "::error::tag $version already exists"
             exit 1
           fi
-          ./scripts/release-changelog.sh notes "$version" >/dev/null
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "ref=$MERGE_SHA" >> "$GITHUB_OUTPUT"
 
@@ -76,42 +75,3 @@ jobs:
       ref: ${{ needs.check.outputs.ref }}
       publish: true
 
-  back-merge:
-    name: Open back-merge PR to dev
-    needs: [check, build]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      VERSION: ${{ needs.check.outputs.version }}
-      MERGE_SHA: ${{ needs.check.outputs.ref }}
-      PREP_SHA: ${{ github.event.pull_request.head.sha }}
-      BASE_REF: ${{ github.event.pull_request.base.ref }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      # A branch of its own, so merging the PR can never delete release/*.
-      - name: Open PR
-        run: |
-          set -euo pipefail
-          sync="release-sync/${VERSION}"
-          git push origin "${MERGE_SHA}:refs/heads/${sync}"
-          {
-            echo "Brings the \`${VERSION}\` CHANGELOG cut from \`${BASE_REF}\` back to dev."
-            echo "Merge with a merge commit; otherwise the next release PR conflicts."
-            # The cut was made on dev as of the release-prep commit's parent.
-            if ! git diff --quiet "${PREP_SHA}~1" origin/dev -- CHANGELOG.md; then
-              echo
-              echo "> [!WARNING]"
-              echo "> CHANGELOG.md changed on dev after the release was prepared. Git may"
-              echo "> merge those entries into the \`${VERSION}\` section without a conflict;"
-              echo "> check that they stay under \`[Unreleased]\`."
-            fi
-          } > body.md
-          gh pr create --base dev --head "$sync" \
-            --title "Merge ${VERSION} release back into dev" --body-file body.md

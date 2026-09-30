@@ -29,10 +29,6 @@ jobs:
         working-directory: .
         run: ./scripts/test-resolve-version.sh
 
-      - name: Test release CHANGELOG cut
-        working-directory: .
-        run: ./scripts/test-release-changelog.sh
-
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:

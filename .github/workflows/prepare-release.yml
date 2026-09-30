@@ -1,7 +1,7 @@
 name: Prepare release
 
-# Step 1 of a release: cuts CHANGELOG.md on top of dev and opens the release PR
-# into release/<major>.x. Merging that PR runs publish-release.yml. See
+# Step 1 of a release: opens the release PR from dev's HEAD into
+# release/<major>.x. Merging that PR runs publish-release.yml. See
 # docs/development/releasing.md.
 on:
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # A PR opened with GITHUB_TOKEN starts no CI run, so the gate is checked
-      # here: the release PR is dev's HEAD plus one CHANGELOG commit.
+      # here: the release PR is exactly dev's HEAD.
       - name: Require green CI and nightly on dev
         env:
           SHA: ${{ steps.version.outputs.sha }}
@@ -70,21 +70,6 @@ jobs:
             echo "- Nightly: ${nightly#* }"
           } > gates.md
 
-      - name: Cut CHANGELOG
-        env:
-          PREP: ${{ steps.version.outputs.prep }}
-        run: |
-          set -euo pipefail
-          if git ls-remote --exit-code --heads origin "$PREP" >/dev/null; then
-            echo "::error::$PREP already exists; delete it to prepare $VERSION again"
-            exit 1
-          fi
-          git switch -c "$PREP"
-          ./scripts/release-changelog.sh cut "$VERSION" "$(date -u +%F)"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Cut CHANGELOG for ${VERSION}"
-
       - name: Create release branch if missing
         env:
           BRANCH: ${{ steps.version.outputs.branch }}
@@ -104,17 +89,23 @@ jobs:
       - name: Push and open release PR
         env:
           BRANCH: ${{ steps.version.outputs.branch }}
+          LATEST: ${{ steps.version.outputs.latest }}
           PREP: ${{ steps.version.outputs.prep }}
+          SHA: ${{ steps.version.outputs.sha }}
         run: |
           set -euo pipefail
-          git push origin "$PREP"
+          # The branch name carries the version to publish-release.yml.
+          if ! git push origin "${SHA}:refs/heads/${PREP}"; then
+            echo "::error::could not push $PREP; delete it if it exists and prepare $VERSION again"
+            exit 1
+          fi
           ./scripts/release-notes.sh "$VERSION" "$PREP" > notes.md
-          # A PR body holds at most 65536 characters; drop the PR list if needed.
+          # A PR body holds at most 65536 characters.
           if [ "$(wc -c < notes.md)" -gt 60000 ]; then
-            ./scripts/release-changelog.sh notes "$VERSION" > notes.md
+            echo "Too many changes to list here: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${LATEST}...${SHA}" > notes.md
           fi
           {
-            echo "Releases \`${VERSION}\` from dev \`$(git rev-parse --short HEAD~1)\`."
+            echo "Releases \`${VERSION}\` from dev \`${SHA:0:7}\`."
             echo
             echo "Merging this PR (merge commit only) tags the merge commit, builds the"
             echo "artifacts, publishes the GitHub Release and pushes the Docker image."
@@ -122,8 +113,6 @@ jobs:
             echo "No CI runs on this PR because a bot opened it; these gates passed on dev:"
             echo
             cat gates.md
-            echo
-            echo "## Release notes"
             echo
             cat notes.md
           } > body.md
