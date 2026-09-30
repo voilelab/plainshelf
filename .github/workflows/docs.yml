@@ -1,9 +1,10 @@
 name: Deploy Docs
 
 on:
+  # Releases merge into release/<major>.x; see docs/development/releasing.md.
   push:
     branches:
-      - main
+      - "release/*"
   workflow_dispatch:
 
 permissions:

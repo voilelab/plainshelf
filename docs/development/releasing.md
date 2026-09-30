@@ -19,7 +19,8 @@ It stops before creating anything when:
 - the tag is not `vMAJOR.MINOR.PATCH[-prerelease]`, already exists, or is not
   newer than the latest release tag (`scripts/resolve-version.sh validate-next`);
 - `ci.yml` on `dev`'s current commit, or the latest completed nightly on `dev`,
-  is not green;
+  is not green (a CI run still in progress, as right after a merge, is waited
+  for);
 - a `release-prep/<tag>` branch already exists at another commit.
 
 The release PR's head is `dev`'s current commit, under a branch name that carries
@@ -45,6 +46,9 @@ calls `release.yml`, which:
 3. pushes the Docker image as `ghcr.io/voilelab/plainshelf:<tag>`, plus
    `latest` for a stable tag.
 
+The merge into `release/<major>.x` also deploys the documentation site
+(`docs.yml`), so the published docs follow the latest release.
+
 Nothing needs to go back to `dev`: `release/<major>.x` only ever gains merge
 commits, so the next release PR merges cleanly as long as each one is merged
 with a merge commit.
@@ -61,6 +65,8 @@ ref and publishes nothing.
 - **Ruleset on `release/*`:** require a pull request, allow only the *merge*
   merge method, and block deletion. Do not restrict creation: Prepare release
   creates a new `release/<major>.x` itself.
+- **Repository settings → Environments → `github-pages`:** if its deployment
+  branches are limited, allow `release/*`; the docs site deploys from there.
 
 ## When something fails
 
