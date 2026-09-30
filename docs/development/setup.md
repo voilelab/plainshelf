@@ -158,4 +158,5 @@ See [Docker](docker.md) to build and run the repository's container image.
 - Format Go with `gofmt` and keep `go test` green.
 - Validate Vue and TypeScript with the frontend build.
 - Add or update tests when behavior changes.
-- Keep user-facing behavior in `docs/` and release notes in `CHANGELOG.md`.
+- Keep user-facing behavior in `docs/`; release notes come from pull request
+  titles and labels (see [Releasing](releasing.md#release-notes-labels)).

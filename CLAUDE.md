@@ -82,8 +82,10 @@ web builds; do not use it for Capacitor asset generation.
    static import silently returns the mobile stack to the embedded web build and
    only `npm --prefix frontend run check-boundaries` notices.
 7. Update user-facing docs when setup, configuration, storage, or behavior
-   changes. Update `CHANGELOG.md` only when the task calls for release notes,
-   and use the `update-changelog` skill instead of writing entries by hand.
+   changes. Release notes are pull request titles grouped by label: write the
+   title as the user-visible effect and give the PR one category label
+   (`docs/development/releasing.md`); a compatibility break also gets
+   `breaking`.
 8. Report checks that were not run or could not pass; do not imply verification.
 
 ## Rule routing
@@ -98,5 +100,4 @@ Read only the rule needed for the task:
 - Historical context only: `.claude/rules/00-diagnosis.md` and
   `.claude/rules/90-letter.md`
 
-Project workflows live in `.claude/skills/` (`work-ticket`, `update-changelog`,
-`update-docs`).
+Project workflows live in `.claude/skills/` (`work-ticket`, `update-docs`).

@@ -20,6 +20,8 @@ jobs:
   prepare:
     name: Open release PR
     runs-on: ubuntu-latest
+    # Covers waiting for dev's CI, which caps its own jobs well below this.
+    timeout-minutes: 30
     permissions:
       actions: read
       contents: write
@@ -54,9 +56,14 @@ jobs:
         run: |
           set -euo pipefail
           ci=$(gh run list --workflow ci.yml --branch dev --event push --commit "$SHA" \
-            --limit 1 --json conclusion,url --jq '.[0] // empty | "\(.conclusion) \(.url)"')
-          if [ "${ci%% *}" != "success" ]; then
-            echo "::error::ci.yml on dev ${SHA} is not green: ${ci:-no run found}"
+            --limit 1 --json databaseId,url --jq '.[0] // empty | "\(.databaseId) \(.url)"')
+          if [ -z "$ci" ]; then
+            echo "::error::no ci.yml run for dev ${SHA}"
+            exit 1
+          fi
+          # Right after a merge, dev's CI is usually still running: wait for it.
+          if ! gh run watch "${ci%% *}" --exit-status --interval 30 >/dev/null; then
+            echo "::error::ci.yml on dev ${SHA} did not pass: ${ci#* }"
             exit 1
           fi
           nightly=$(gh run list --workflow nightly.yml --branch dev --status completed \

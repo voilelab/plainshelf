@@ -222,10 +222,10 @@ separately below: the 0.x series is still unstable, and everything from
 ### Before the freeze — the 0.x series
 
 During the v0.x series the on-disk format may still change in breaking ways
-between releases. Such changes are announced in the changelog with a
-`Breaking (pre-1.0)` marker — v0.8's reading data
+between releases. Such changes are announced in the release notes, under
+*Breaking changes*, by a pull request labelled `breaking` — v0.8's reading data
 ([below](#v08-reading-data-breaking-change)) is one of them. That marker is
-retired at `1.0.0-rc1`: from the freeze on there is no such change left to
+retired for the on-disk format at `1.0.0-rc1`: from the freeze on there is no such change left to
 announce, so a new one appearing would be a bug rather than a documented break.
 Concretely, for a shelf you are running on a 0.x build today:
 
@@ -234,7 +234,7 @@ Concretely, for a shelf you are running on a 0.x build today:
   build to reading an earlier one's shelf unchanged.
 - **No data migration is promised.** PlainShelf does not undertake to carry 0.x
   data forward across a breaking change. Where it drops data it says so in the
-  changelog, as it did for v0.8's server-side reading history and reading time.
+  release notes, as it did for v0.8's server-side reading history and reading time.
 - **The refusal to write a newer format already protects you.** This is the one
   guarantee that holds today rather than at the freeze: PlainShelf will not
   write a `book.json`, source `meta.json`, or `trash.json` whose on-disk
@@ -753,7 +753,7 @@ present, it is a layout change — nothing versions it, and it is handled as bel
 **PlainShelf does not introduce a shelf-level manifest** — no `app/shelf.json`
 with a `layout_version`, and no equivalent elsewhere. A layout change is detected
 by looking at what is on disk, and its cross-version consequences are
-communicated in the changelog, not enforced by a version guard.
+communicated in the release notes, not enforced by a version guard.
 
 PlainShelf has made two layout changes so far, and neither used a manifest. The
 earlier one — book folders changing extension from `.novl` to `.bookpkg` — was a
@@ -805,15 +805,15 @@ Presence detection instead of a manifest is not free:
   stops an older build from clobbering a newer `book.json` has no layout
   analogue: an older build meeting a newer directory shape has no version to
   refuse on. Downgrade and cross-version behavior can therefore only be
-  *communicated* — through a `Breaking (pre-1.0)` changelog entry — never
+  *communicated* — through a pull request labelled `breaking` — never
   *enforced*.
 
 What makes the trade acceptable today: layout changes are rare — two in the
 project's history (`.novl` → `.bookpkg`, then `.trash/` → `trash/`) — and each is
 a one-way startup migration that must be idempotent and destroy nothing. Going
-forward this policy requires every layout change to carry a `Breaking (pre-1.0)`
-changelog entry describing its cross-version effect, as the `.trash/` → `trash/`
-rename does. If that frequency ever rises enough that the bespoke conditions
+forward this policy requires every layout change to be a pull request labelled
+`breaking` whose title states its cross-version effect, as the `.trash/` →
+`trash/` rename's `Breaking (pre-1.0)` entry did. If that frequency ever rises enough that the bespoke conditions
 become a burden, revisit this decision — an `app/`-external manifest is the escape
 hatch — but that is a future call made on evidence, and taking it would not
 retrofit any existing shelf. A shelf carrying no layout marker is not one waiting

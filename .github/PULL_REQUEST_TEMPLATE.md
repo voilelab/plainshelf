@@ -6,6 +6,15 @@
 
 <!-- What changed, and why at this layer rather than another. -->
 
+## Release notes
+
+<!--
+The title is this PR's line in the release notes. Label it breaking, security,
+feature, fix, dependencies or internal (docs/development/releasing.md).
+-->
+
+- [ ] Breaking: users must act when upgrading (label `breaking`, and say what in the title)
+
 ## Test levels
 
 <!--
