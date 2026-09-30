@@ -1,10 +1,12 @@
 name: Deploy Docs
 
 on:
-  # Releases merge into release/<major>.x; see docs/development/releasing.md.
-  push:
-    branches:
-      - "release/*"
+  # After a release publishes, not on the merge into release/<major>.x: the
+  # docs must not describe a release that failed or is still building. See
+  # docs/development/releasing.md.
+  workflow_run:
+    workflows: ["Publish release"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -19,10 +21,19 @@ concurrency:
 jobs:
   build:
     name: Build docs
+    # Publish release also runs, and skips everything, for other PRs closed on
+    # release/*; only a published release-prep PR deploys.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_branch, 'release-prep/'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # The released commit; empty on a manual run, which builds its own ref.
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v6

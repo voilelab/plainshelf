@@ -46,8 +46,9 @@ calls `release.yml`, which:
 3. pushes the Docker image as `ghcr.io/voilelab/plainshelf:<tag>`, plus
    `latest` for a stable tag.
 
-The merge into `release/<major>.x` also deploys the documentation site
-(`docs.yml`), so the published docs follow the latest release.
+Once it succeeds, `docs.yml` deploys the documentation site from the released
+commit, so the published docs follow the latest release and never run ahead of
+a failed one.
 
 Nothing needs to go back to `dev`: `release/<major>.x` only ever gains merge
 commits, so the next release PR merges cleanly as long as each one is merged
@@ -87,7 +88,8 @@ a breaking feature carries both `breaking` and `feature`.
   match their names exactly.
 - **Branch protection on `dev`:** make `Release notes label` a required check.
 - **Repository settings → Environments → `github-pages`:** if its deployment
-  branches are limited, allow `release/*`; the docs site deploys from there.
+  branches are limited, allow `dev`: a deploy started by a finished workflow
+  runs on the default branch, whichever commit it builds.
 
 ## When something fails
 
