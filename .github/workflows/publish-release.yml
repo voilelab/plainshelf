@@ -109,7 +109,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Bump Homebrew casks to ${VERSION}"
-          git push origin "$branch"
+          # The branch is this job's own: a re-run after a failed PR step
+          # rebuilds the same bump as a sibling commit, so replace it.
+          git push --force origin "$branch"
+          existing=$(gh pr list --base dev --head "$branch" --state open --json url --jq '.[0].url // empty')
+          if [ -n "$existing" ]; then
+            echo "Cask bump PR already open: $existing"
+            exit 0
+          fi
           {
             echo "Points \`Casks/plainshelf.rb\` and \`Casks/bookpkg-reader.rb\` at the \`${VERSION}\`"
             echo "release assets (\`scripts/update-cask.sh\`). \`brew\` reads the tap from dev, so"
