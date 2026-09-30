@@ -13,7 +13,7 @@
 // Bumped from 1 to 2 for the timestamped shape. A document of any other version
 // is treated as absent (see parse). This file is device-local state, outside the
 // on-disk format commitments, and dropping the untimestamped v1 shipped in
-// v0.10.0 as a documented breaking change (CHANGELOG.md, docs/installation.md) —
+// v0.10.0 as a documented breaking change (its release notes, docs/installation.md) —
 // not a pattern to follow for shelf data.
 export const READING_PROGRESS_DOCUMENT_VERSION = 2;
 

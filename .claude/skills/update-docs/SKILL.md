@@ -6,8 +6,7 @@ argument-hint: "Optional: doc path, feature, or commit range"
 ---
 
 Synchronize user and contributor documentation with verified behavior in the
-current checkout. This skill does not update `CHANGELOG.md` and does not govern
-`CLAUDE.md` or `.claude/rules/*`.
+current checkout. This skill does not govern `CLAUDE.md` or `.claude/rules/*`.
 
 ## Documentation map
 
