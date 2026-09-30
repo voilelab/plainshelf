@@ -84,13 +84,16 @@ is_release_tag() {
   split_version "$1"
 }
 
+# Highest by SemVer precedence; git's version sort ranks some prereleases
+# differently (v1.0.0-2 above v1.0.0-1a).
 latest_release_tag() {
-  for tag in $(git -c versionsort.suffix=- -c versionsort.suffix= tag --list 'v[0-9]*' --sort=-version:refname 2>/dev/null); do
-    if is_release_tag "$tag"; then
-      printf '%s\n' "$tag"
-      return
+  latest=
+  for tag in $(git tag --list 'v[0-9]*' 2>/dev/null); do
+    if is_release_tag "$tag" && { [ -z "$latest" ] || version_gt "$tag" "$latest"; }; then
+      latest=$tag
     fi
   done
+  [ -z "$latest" ] || printf '%s\n' "$latest"
 }
 
 # Succeeds when SemVer identifier $1 sorts after $2.
