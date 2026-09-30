@@ -61,14 +61,9 @@ opens a single `.bookpkg` package. The `plainshelf` desktop cask declares it as
 a dependency (`depends_on cask: "voilelab/plainshelf/bookpkg-reader"`), so you
 normally do not install it directly — installing the desktop app pulls it in.
 
-!!! warning "Requires the first reader release"
-    `Casks/bookpkg-reader.rb` is committed as a placeholder: its `version` and
-    `sha256` are pinned only when the first release ships the reader artifact
-    (`bookpkg-reader_v<version>_darwin_arm64.zip`). Until that release lands the
-    reader cask **cannot be installed** — `brew install` would try to fetch a
-    release that does not exist yet. Because the desktop cask now depends on the
-    reader, `brew install --cask plainshelf` also needs that reader release to
-    be published before it can resolve.
+Both casks are pinned to the same release and move to each new stable
+release together, so the reader always matches the desktop app that depends on
+it.
 
 You can also install the reader on its own — macOS on Apple Silicon
 (`darwin`/`arm64`):
