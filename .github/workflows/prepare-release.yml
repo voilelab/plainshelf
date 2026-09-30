@@ -1,0 +1,126 @@
+name: Prepare release
+
+# Step 1 of a release: cuts CHANGELOG.md on top of dev and opens the release PR
+# into release/<major>.x. Merging that PR runs publish-release.yml. See
+# docs/development/releasing.md.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, e.g. v0.11.0 or v1.0.0-rc1"
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Open release PR
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v7
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Validate version
+        id: version
+        run: |
+          set -euo pipefail
+          ./scripts/resolve-version.sh validate-next "$VERSION"
+          {
+            echo "latest=$(./scripts/resolve-version.sh latest-tag)"
+            echo "branch=$(./scripts/resolve-version.sh release-branch "$VERSION")"
+            echo "prep=release-prep/${VERSION}"
+            echo "sha=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+      # A PR opened with GITHUB_TOKEN starts no CI run, so the gate is checked
+      # here: the release PR is dev's HEAD plus one CHANGELOG commit.
+      - name: Require green CI and nightly on dev
+        env:
+          SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          set -euo pipefail
+          ci=$(gh run list --workflow ci.yml --branch dev --event push --commit "$SHA" \
+            --limit 1 --json conclusion,url --jq '.[0] // empty | "\(.conclusion) \(.url)"')
+          if [ "${ci%% *}" != "success" ]; then
+            echo "::error::ci.yml on dev ${SHA} is not green: ${ci:-no run found}"
+            exit 1
+          fi
+          nightly=$(gh run list --workflow nightly.yml --branch dev --status completed \
+            --limit 1 --json conclusion,url --jq '.[0] // empty | "\(.conclusion) \(.url)"')
+          if [ "${nightly%% *}" != "success" ]; then
+            echo "::error::latest nightly on dev is not green: ${nightly:-no run found}"
+            exit 1
+          fi
+          {
+            echo "- CI: ${ci#* }"
+            echo "- Nightly: ${nightly#* }"
+          } > gates.md
+
+      - name: Create release branch if missing
+        env:
+          BRANCH: ${{ steps.version.outputs.branch }}
+          LATEST: ${{ steps.version.outputs.latest }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            exit 0
+          fi
+          if [ -z "$LATEST" ]; then
+            echo "::error::$BRANCH does not exist and there is no release tag to start it from"
+            exit 1
+          fi
+          git push origin "$(git rev-parse "${LATEST}^{commit}"):refs/heads/${BRANCH}"
+          echo "Created $BRANCH from $LATEST"
+
+      - name: Cut CHANGELOG and push release-prep branch
+        env:
+          PREP: ${{ steps.version.outputs.prep }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "$PREP" >/dev/null; then
+            echo "::error::$PREP already exists; delete it to prepare $VERSION again"
+            exit 1
+          fi
+          git switch -c "$PREP"
+          ./scripts/release-changelog.sh cut "$VERSION" "$(date -u +%F)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Cut CHANGELOG for ${VERSION}"
+          git push origin "$PREP"
+
+      - name: Open release PR
+        env:
+          BRANCH: ${{ steps.version.outputs.branch }}
+          PREP: ${{ steps.version.outputs.prep }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Releases \`${VERSION}\` from dev \`$(git rev-parse --short HEAD~1)\`."
+            echo
+            echo "Merging this PR (merge commit only) tags the merge commit, builds the"
+            echo "artifacts, publishes the GitHub Release and pushes the Docker image."
+            echo
+            echo "No CI runs on this PR because a bot opened it; these gates passed on dev:"
+            echo
+            cat gates.md
+            echo
+            echo "## Release notes"
+            echo
+            ./scripts/release-changelog.sh notes "$VERSION"
+          } > body.md
+          url=$(gh pr create --base "$BRANCH" --head "$PREP" --title "Release ${VERSION}" --body-file body.md)
+          echo "Release PR: $url" >> "$GITHUB_STEP_SUMMARY"
