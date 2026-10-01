@@ -286,7 +286,7 @@ const hasDetailSections = computed(() =>
 .detail-title {
   margin: 2px 0 0;
   max-width: 18ch;
-  font-family: 'Noto Serif TC Variable', 'Noto Serif TC', Georgia, serif;
+  font-family: 'Noto Serif TC Variable', 'Noto Serif SC Variable', 'Noto Serif TC', Georgia, serif;
   font-size: clamp(32px, 4vw, 46px);
   font-weight: 720;
   letter-spacing: -0.035em;

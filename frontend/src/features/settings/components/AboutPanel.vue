@@ -78,6 +78,16 @@ const bundledFonts: BundledFont[] = [
     name: 'Noto Sans TC',
     source: 'https://fontsource.org/fonts/noto-sans-tc',
     license: '/licenses/noto-sans-tc-OFL-1.1.txt'
+  },
+  {
+    name: 'Noto Serif SC',
+    source: 'https://fontsource.org/fonts/noto-serif-sc',
+    license: '/licenses/noto-serif-sc-OFL-1.1.txt'
+  },
+  {
+    name: 'Noto Sans SC',
+    source: 'https://fontsource.org/fonts/noto-sans-sc',
+    license: '/licenses/noto-sans-sc-OFL-1.1.txt'
   }
 ];
 const selectedFontLicense = ref<BundledFont | null>(null);

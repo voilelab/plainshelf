@@ -11,6 +11,16 @@ const fonts = [
     packageName: '@fontsource-variable/noto-sans-tc',
     expectedVersion: '5.3.0',
     noticePath: 'public/licenses/noto-sans-tc-OFL-1.1.txt'
+  },
+  {
+    packageName: '@fontsource-variable/noto-serif-sc',
+    expectedVersion: '5.3.0',
+    noticePath: 'public/licenses/noto-serif-sc-OFL-1.1.txt'
+  },
+  {
+    packageName: '@fontsource-variable/noto-sans-sc',
+    expectedVersion: '5.3.0',
+    noticePath: 'public/licenses/noto-sans-sc-OFL-1.1.txt'
   }
 ];
 
