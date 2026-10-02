@@ -41,9 +41,6 @@ func NewStore(path string) *Store {
 	return &Store{path: path, lockPath: path + ".lock"}
 }
 
-// Path returns the document path the store manages.
-func (s *Store) Path() string { return s.path }
-
 // Read returns the current on-disk document (an empty document when the file
 // does not exist yet) together with its raw text. It takes no lock: writes are
 // atomic, so a read always sees one whole version or another.
