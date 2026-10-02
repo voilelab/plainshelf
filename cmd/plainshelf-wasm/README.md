@@ -22,9 +22,10 @@ To check it in chromium (needs `npm --prefix e2e ci`):
 node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo /tmp/app.png
 ```
 
-`smoke.mjs` opens the app on a fresh browser profile, seeds one book, and
-checks that a reload restores it from OPFS: the same book ID, no second seed,
-one book cache. It then moves and trashes books through the API page and
+`smoke.mjs` opens the app on a fresh browser profile, seeds one book with a
+cover, and checks that the cover renders on that first visit. A reload must
+restore the book from OPFS: the same book ID, no second seed, the cover still
+rendered, one book cache. It then moves and trashes books through the API page and
 checks that both survive another reload with no stale directories left.
 
 ## How it fits together
@@ -34,8 +35,9 @@ checks that both survive another reload with no stale directories left.
 | `main.go` | Builds `server.App` (security `none`, lock mode `none`) and exposes `App.Handler()` as `plainshelfFetch(method, url, headers, body)` |
 | `web/memfs.js` | In-memory stand-in for the Node `fs` API that Go's `syscall/fs_js.go` calls |
 | `web/opfs.js` | Restores the memfs tree from OPFS before Go starts, then writes changed paths back within 200 ms of a change, and tries once more on `pagehide` |
+| `web/sw.js` | Service worker, served as `/plainshelf-sw.js`. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
 | `web/serve.mjs` | Local static server with the SPA fallback, used by `run-wasm-demo` and `smoke.mjs` |
-| `web/boot.js` | Starts the wasm and answers same-origin `/api/*` and `/health` fetches through it; an optional `window.plainshelfSeed(serve)` runs first |
+| `web/boot.js` | Starts the wasm, registers `sw.js`, and answers same-origin `/api/*` and `/health` fetches and relayed requests through it; an optional `window.plainshelfSeed(serve)` runs first |
 | `server/store/options_js.go` | Badger in memory: its files are mmapped, which js/wasm cannot do |
 | `frontend/web_js.go` | Empty `WebFS`: the static host serves the frontend, so it is not embedded twice |
 
@@ -43,9 +45,14 @@ checks that both survive another reload with no stale directories left.
 
 - The wasm is 26.7 MB, 6.0 MB gzipped, and is ready in under a second in
   headless chromium.
-- Cover images do not load: the web build points `<img src>` at `/api/…/cover`,
-  which bypasses `fetch`. Serving them needs a Service Worker or the blob cover
-  path the mobile provider already uses.
+- Covers load through `<img src>`, which the `fetch` patch never sees, so
+  `sw.js` relays them to the page that runs the server; the worker cannot run
+  the wasm itself, since it would hold a second, separate shelf. On a first
+  visit the app's requests wait up to 3 s for the worker to take control, so
+  the first covers are relayed too. A service worker needs a secure context
+  (HTTPS or localhost) and must be served from the site root. An `/api` URL
+  opened directly in a new tab has no server page behind it and is not
+  answered.
 - Persistence keeps `memfs.js` synchronous: the whole shelf is held in memory
   and OPFS is a write-behind copy, so Go never waits on async storage. The cost
   is memory proportional to the shelf, and edits from the last 200 ms can be

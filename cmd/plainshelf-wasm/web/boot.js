@@ -1,4 +1,5 @@
-// Starts plainshelf.wasm and routes the page's /api and /health fetches into it.
+// Starts plainshelf.wasm and routes the page's /api and /health fetches into it,
+// plus the /api requests sw.js relays from elements that bypass fetch.
 // Load after memfs.js, opfs.js and wasm_exec.js, before the app bundle. An optional
 // window.plainshelfSeed(serve) runs once the server is up, before any app request.
 (() => {
@@ -19,8 +20,45 @@
   window.plainshelfFlush = () => window.plainshelfStorage?.flush() ?? Promise.resolve();
 
   const nativeFetch = window.fetch.bind(window);
+  const relayReady = registerRelay();
   let seeded;
-  const whenSeeded = () => (seeded ??= window.plainshelfStarted.then(() => window.plainshelfSeed?.(serve)));
+  // App requests wait for the server, the relay (so first-load covers reach it), and the seed.
+  const whenSeeded = () => (seeded ??= Promise.all([window.plainshelfStarted, relayReady])
+    .then(() => window.plainshelfSeed?.(serve)));
+
+  // Covers and assets load through <img src>, not fetch; sw.js relays those requests here.
+  async function registerRelay() {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    sw.addEventListener('message', async (e) => {
+      if (e.data?.type !== 'plainshelf-fetch') return;
+      const { method, url, headers, body } = e.data;
+      let reply;
+      try {
+        await whenSeeded();
+        const res = await serve(url, { method, headers, body });
+        const out = res.body ? await res.arrayBuffer() : null;
+        reply = { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: out };
+      } catch (err) {
+        reply = { status: 500, headers: {}, body: null };
+        console.error('plainshelf: relayed request failed', url, err);
+      }
+      e.ports[0].postMessage(reply, reply.body ? [reply.body] : []);
+    });
+    sw.startMessages();
+    try {
+      await sw.register(new URL('../plainshelf-sw.js', base));
+    } catch (err) {
+      console.warn('plainshelf: no service worker; covers will not load', err);
+      return;
+    }
+    if (sw.controller) return;
+    // sw.js claims open pages on activation; give it a moment before the app renders.
+    await new Promise((resolve) => {
+      sw.addEventListener('controllerchange', resolve, { once: true });
+      setTimeout(resolve, 3000);
+    });
+  }
 
   async function serve(input, init) {
     const req = new Request(input, init);

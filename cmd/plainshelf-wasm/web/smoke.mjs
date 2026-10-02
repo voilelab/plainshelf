@@ -23,7 +23,7 @@ function check(name, ok, detail = '') {
   if (!ok) failed = true;
 }
 
-// Seeds one book only into an empty shelf, the way a demo would.
+// Seeds one book with a cover, only into an empty shelf, the way a demo would.
 await page.addInitScript(() => {
   window.plainshelfSeed = async (serve) => {
     window.seedRan = false;
@@ -34,9 +34,18 @@ await page.addInitScript(() => {
         continue;
       }
       if ((await r.json()).length > 0) return;
-      await serve('/api/shelves/demo/books', {
+      const created = await serve('/api/shelves/demo/books', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: '在瀏覽器裡建立的書', folder: [] }),
+      });
+      const canvas = new OffscreenCanvas(120, 180);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#3b6ea5';
+      ctx.fillRect(0, 0, 120, 180);
+      const png = await canvas.convertToBlob({ type: 'image/png' });
+      const { meta } = await created.json();
+      await serve(`/api/shelves/demo/books/${meta.id}/cover`, {
+        method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: png,
       });
       window.seedRan = true;
       return;
@@ -51,6 +60,17 @@ const listBooks = () => page.evaluate(async () => {
 const bookCaches = () => page.evaluate(() => new Promise((resolve) => {
   fs.readdir('/plainshelf/shelf/app', (err, names) => resolve(err ? [] : names.filter((n) => n.startsWith('book-cache-'))));
 }));
+// Covers load through <img src>, which only the service worker relay can answer.
+const coverStatus = async () => {
+  const img = page.locator('img[src*="/cover"]').first();
+  try {
+    await img.waitFor({ timeout: 10000 });
+    await page.waitForFunction((el) => el.complete, await img.elementHandle(), { timeout: 10000 });
+  } catch {
+    return 'no cover <img>';
+  }
+  return img.evaluate((el) => `${el.naturalWidth}x${el.naturalHeight}`);
+};
 const openApp = async (reload) => {
   const t0 = Date.now();
   await (reload ? page.reload() : page.goto(`${origin}/`));
@@ -61,12 +81,16 @@ const openApp = async (reload) => {
 const firstMs = await openApp(false);
 const first = await listBooks();
 check('first load seeds one book', first.length === 1 && await page.evaluate(() => window.seedRan), `${firstMs} ms`);
+const firstCover = await coverStatus();
+check('cover renders on first visit', /^[1-9]\d*x[1-9]/.test(firstCover), firstCover);
 await page.waitForTimeout(1000); // no explicit flush: the debounced write must land on its own
 
 const secondMs = await openApp(true);
 const second = await listBooks();
 check('reload keeps the book', JSON.stringify(second) === JSON.stringify(first), `${secondMs} ms, ids ${second.join(',')}`);
 check('reload does not seed again', !(await page.evaluate(() => window.seedRan)));
+const secondCover = await coverStatus();
+check('cover renders after reload', /^[1-9]\d*x[1-9]/.test(secondCover), secondCover);
 await page.waitForTimeout(500); // let the startup scan export its cache
 const caches = await bookCaches();
 check('one book cache across loads', caches.length === 1, caches.join(','));
