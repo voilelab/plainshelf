@@ -1,5 +1,5 @@
 // Starts plainshelf.wasm and routes the page's /api and /health fetches into it.
-// Load after memfs.js and wasm_exec.js, before the app bundle. An optional
+// Load after memfs.js, opfs.js and wasm_exec.js, before the app bundle. An optional
 // window.plainshelfSeed(serve) runs once the server is up, before any app request.
 (() => {
   const base = document.currentScript.src.replace(/[^/]*$/, '');
@@ -7,10 +7,16 @@
 
   (async () => {
     const go = new Go();
-    const bytes = await (await fetch(base + 'plainshelf.wasm')).arrayBuffer();
+    const wasm = fetch(base + 'plainshelf.wasm');
+    // Restore the persisted shelf before Go reads it; on failure run in memory.
+    await window.plainshelfStorage?.load().catch((err) => console.error('plainshelf: restore failed', err));
+    const bytes = await (await wasm).arrayBuffer();
     const { instance } = await WebAssembly.instantiate(bytes, go.importObject);
     go.run(instance);
   })().catch((err) => console.error('plainshelf wasm failed to start', err));
+
+  // Writes changes to storage now instead of after the debounce.
+  window.plainshelfFlush = () => window.plainshelfStorage?.flush() ?? Promise.resolve();
 
   const nativeFetch = window.fetch.bind(window);
   let seeded;

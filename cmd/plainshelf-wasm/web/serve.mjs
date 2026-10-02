@@ -31,5 +31,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(2);
   }
   const srv = await serveStatic(dir, Number(port));
-  console.log(`PlainShelf wasm demo: http://127.0.0.1:${srv.address().port}/ (data lives in the tab; a reload starts empty)`);
+  console.log(`PlainShelf wasm demo: http://127.0.0.1:${srv.address().port}/ (the shelf is kept in this browser's OPFS)`);
 }

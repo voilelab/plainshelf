@@ -10,10 +10,10 @@ rm -rf "$out" && mkdir -p "$out"
 cp -R "$repo/frontend/dist/." "$out/"
 mkdir -p "$out/wasm"
 (cd "$repo" && GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o "$out/wasm/plainshelf.wasm" ./cmd/plainshelf-wasm)
-cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$repo"/cmd/plainshelf-wasm/web/{memfs.js,boot.js,index.html} "$out/wasm/"
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$repo"/cmd/plainshelf-wasm/web/{memfs.js,opfs.js,boot.js,index.html} "$out/wasm/"
 
 # boot.js must patch fetch before the app's module script runs.
-tags='<script src="/wasm/memfs.js"></script><script src="/wasm/wasm_exec.js"></script><script src="/wasm/boot.js"></script>'
+tags='<script src="/wasm/memfs.js"></script><script src="/wasm/opfs.js"></script><script src="/wasm/wasm_exec.js"></script><script src="/wasm/boot.js"></script>'
 python3 - "$out/index.html" "$tags" <<'PY'
 import sys
 p, tags = sys.argv[1], sys.argv[2]

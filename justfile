@@ -46,7 +46,7 @@ test-e2e-smoke: build-server-frontend
 build-wasm-demo: build-server-frontend
 	cmd/plainshelf-wasm/build.sh workspace/wasm-demo
 
-# Serve the browser-only demo locally. Nothing persists: a reload starts empty.
+# Serve the browser-only demo locally. The shelf persists in the browser's OPFS.
 run-wasm-demo port="5180": build-wasm-demo
 	node cmd/plainshelf-wasm/web/serve.mjs workspace/wasm-demo {{port}}
 

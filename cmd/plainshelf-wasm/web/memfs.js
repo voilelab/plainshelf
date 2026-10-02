@@ -1,5 +1,6 @@
 // In-memory stand-in for the Node `fs` callback API that Go's js/wasm
 // syscall layer calls (GOROOT/src/syscall/fs_js.go). Load before wasm_exec.js.
+// globalThis.memfs lets a persistence layer (opfs.js) restore and drain changes.
 (() => {
   const S_IFDIR = 0o040000;
   const S_IFREG = 0o100000;
@@ -12,6 +13,14 @@
   const nodes = new Map(); // normalized path -> node
   const fds = new Map(); // fd -> { node, flags }
   let nextFd = 3;
+
+  // Nodes whose content or children changed since the last takeDirty().
+  const dirty = new Set();
+  let onChange = () => {};
+  function touch(...changed) {
+    for (const n of changed) if (n) dirty.add(n);
+    onChange();
+  }
 
   const fsError = (code) => Object.assign(new Error(code), { code });
 
@@ -71,6 +80,7 @@
     if (size < n.size) n.data.fill(0, size, n.size);
     n.size = size;
     n.mtimeMs = Date.now();
+    touch(n);
   }
   function fdEntry(fd) {
     const e = fds.get(fd);
@@ -121,6 +131,7 @@
         requireParentDir(p);
         n = newNode('file', mode & 0o777);
         nodes.set(p, n);
+        touch(n, nodes.get(parentOf(p)));
       }
       if ((flags & constants.O_DIRECTORY) && n.type !== 'dir') throw fsError('ENOTDIR');
       if (n.type === 'dir' && (flags & 3) !== constants.O_RDONLY) throw fsError('EISDIR');
@@ -150,7 +161,9 @@
       const p = norm(path);
       if (nodes.has(p)) throw fsError('EEXIST');
       requireParentDir(p);
-      nodes.set(p, newNode('dir', perm & 0o777));
+      const n = newNode('dir', perm & 0o777);
+      nodes.set(p, n);
+      touch(n, nodes.get(parentOf(p)));
     }),
     readdir: wrap((path) => {
       const p = norm(path);
@@ -162,11 +175,13 @@
       if (lookup(p).type !== 'dir') throw fsError('ENOTDIR');
       if (childrenOf(p).length) throw fsError('ENOTEMPTY');
       nodes.delete(p);
+      touch(nodes.get(parentOf(p)));
     }),
     unlink: wrap((path) => {
       const p = norm(path);
       if (lookup(p).type === 'dir') throw fsError('EISDIR');
       nodes.delete(p);
+      touch(nodes.get(parentOf(p)));
     }),
     rename: wrap((from, to) => {
       const src = norm(from);
@@ -186,6 +201,7 @@
       }
       for (const [key] of moved) nodes.delete(key);
       for (const [key, node] of moved) nodes.set(dst + key.slice(src.length), node);
+      touch(nodes.get(parentOf(src)), nodes.get(parentOf(dst)), ...moved.map(([, node]) => node));
     }),
     utimes: wrap((path, atime, mtime) => {
       const n = lookup(path);
@@ -211,8 +227,45 @@
     if (at + length > n.size) n.size = at + length;
     n.mtimeMs = Date.now();
     if (position == null) e.pos = at + length;
+    touch(n);
     return length;
   }
+
+  globalThis.memfs = {
+    restoreDir(path) {
+      const p = norm(path);
+      if (!nodes.has(p)) nodes.set(p, newNode('dir', 0o755));
+    },
+    restoreFile(path, bytes, mtimeMs) {
+      const n = newNode('file', 0o644);
+      n.data = bytes;
+      n.size = bytes.length;
+      n.mtimeMs = n.atimeMs = n.ctimeMs = mtimeMs;
+      nodes.set(norm(path), n);
+    },
+    kindOf(path) {
+      return nodes.get(norm(path))?.type;
+    },
+    // Queues a path again without signalling a change.
+    markDirty(path) {
+      const n = nodes.get(norm(path));
+      if (n) dirty.add(n);
+    },
+    onChange(fn) {
+      onChange = fn;
+    },
+    // Changed paths, parents before children, with a copy of each file's bytes.
+    takeDirty() {
+      const out = [];
+      for (const [path, n] of nodes) {
+        if (!dirty.has(n)) continue;
+        out.push({ path, type: n.type, data: n.type === 'file' ? n.data.slice(0, n.size) : null });
+      }
+      dirty.clear();
+      const depth = (p) => (p === '/' ? 0 : p.split('/').length);
+      return out.sort((a, b) => depth(a.path) - depth(b.path));
+    },
+  };
 
   // Go's syscall layer calls process.cwd(); the shim has no working directory but root.
   globalThis.process ??= {

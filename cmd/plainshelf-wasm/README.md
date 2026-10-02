@@ -2,7 +2,8 @@
 
 The unmodified server compiled to `GOOS=js GOARCH=wasm` and run inside the
 browser, so the real frontend can be served as a static site with no backend.
-This is a spike, not a supported build: nothing persists past a page reload.
+This is a spike, not a supported build. The shelf persists in the browser's
+Origin Private File System (OPFS), per origin; clearing site data resets it.
 
 ## Run it
 
@@ -21,8 +22,10 @@ To check it in chromium (needs `npm --prefix e2e ci`):
 node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo /tmp/app.png
 ```
 
-`smoke.mjs` checks a create/list round trip on `/wasm/index.html`, then opens
-the app at `/` with one seeded book and saves a screenshot.
+`smoke.mjs` opens the app on a fresh browser profile, seeds one book, and
+checks that a reload restores it from OPFS: the same book ID, no second seed,
+one book cache. It then moves and trashes books through the API page and
+checks that both survive another reload with no stale directories left.
 
 ## How it fits together
 
@@ -30,6 +33,7 @@ the app at `/` with one seeded book and saves a screenshot.
 |---|---|
 | `main.go` | Builds `server.App` (security `none`, lock mode `none`) and exposes `App.Handler()` as `plainshelfFetch(method, url, headers, body)` |
 | `web/memfs.js` | In-memory stand-in for the Node `fs` API that Go's `syscall/fs_js.go` calls |
+| `web/opfs.js` | Restores the memfs tree from OPFS before Go starts, then writes changed paths back within 200 ms of a change, and tries once more on `pagehide` |
 | `web/serve.mjs` | Local static server with the SPA fallback, used by `run-wasm-demo` and `smoke.mjs` |
 | `web/boot.js` | Starts the wasm and answers same-origin `/api/*` and `/health` fetches through it; an optional `window.plainshelfSeed(serve)` runs first |
 | `server/store/options_js.go` | Badger in memory: its files are mmapped, which js/wasm cannot do |
@@ -42,7 +46,20 @@ the app at `/` with one seeded book and saves a screenshot.
 - Cover images do not load: the web build points `<img src>` at `/api/…/cover`,
   which bypasses `fetch`. Serving them needs a Service Worker or the blob cover
   path the mobile provider already uses.
-- Persistence would need `memfs.js` backed by OPFS or IndexedDB; it is
-  synchronous today, which keeps the shim simple.
-- Only the shelf list, book creation and the home page were exercised. Import,
-  the reader and the source editor are untested here.
+- Persistence keeps `memfs.js` synchronous: the whole shelf is held in memory
+  and OPFS is a write-behind copy, so Go never waits on async storage. The cost
+  is memory proportional to the shelf, and edits from the last 200 ms can be
+  lost when the tab closes, since `pagehide` cannot wait for an async write.
+- OPFS names are stored percent-encoded. Chromium 141 resolves a non-ASCII
+  directory name to its parent, which put every CJK-titled book's files
+  directly under `books/`.
+- The badger store is still in memory, so settings saved through the API reset
+  on reload. The book cache writer ID, which lives there on other builds, is
+  kept in `book-cache-writer-id` instead; otherwise every load would leave
+  another `book-cache-*.json` behind.
+- Two tabs on the same origin each hold their own copy and overwrite each
+  other's writes.
+- Persistence needs `FileSystemFileHandle.createWritable`; where it is missing
+  the demo falls back to memory and logs a warning. Only chromium was tested.
+- Only the shelf list, book creation, move, trash and the home page were
+  exercised. Import, the reader and the source editor are untested here.
