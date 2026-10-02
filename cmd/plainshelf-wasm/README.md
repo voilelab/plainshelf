@@ -7,16 +7,22 @@ This is a spike, not a supported build: nothing persists past a page reload.
 ## Run it
 
 ```sh
-npm --prefix frontend ci && npm --prefix frontend run build
-cmd/plainshelf-wasm/build.sh /tmp/plainshelf-site
-npm --prefix e2e ci     # for Playwright only
-node cmd/plainshelf-wasm/web/smoke.mjs /tmp/plainshelf-site /tmp/app.png
+just run-wasm-demo        # builds the frontend and wasm, serves on http://127.0.0.1:5180/
+just build-wasm-demo      # build only, into workspace/wasm-demo
 ```
 
-`smoke.mjs` serves the site, checks a create/list round trip on
-`/wasm/index.html`, then opens the app at `/` with one seeded book and saves a
-screenshot. Any static host works for the site itself; it needs no rewrites
-beyond an SPA fallback to `index.html`.
+Without `just`, run the recipe's commands from the `justfile` directly.
+Any static host can serve `workspace/wasm-demo`; it needs no rewrites beyond
+an SPA fallback to `index.html`.
+
+To check it in chromium (needs `npm --prefix e2e ci`):
+
+```sh
+node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo /tmp/app.png
+```
+
+`smoke.mjs` checks a create/list round trip on `/wasm/index.html`, then opens
+the app at `/` with one seeded book and saves a screenshot.
 
 ## How it fits together
 
@@ -24,6 +30,7 @@ beyond an SPA fallback to `index.html`.
 |---|---|
 | `main.go` | Builds `server.App` (security `none`, lock mode `none`) and exposes `App.Handler()` as `plainshelfFetch(method, url, headers, body)` |
 | `web/memfs.js` | In-memory stand-in for the Node `fs` API that Go's `syscall/fs_js.go` calls |
+| `web/serve.mjs` | Local static server with the SPA fallback, used by `run-wasm-demo` and `smoke.mjs` |
 | `web/boot.js` | Starts the wasm and answers same-origin `/api/*` and `/health` fetches through it; an optional `window.plainshelfSeed(serve)` runs first |
 | `server/store/options_js.go` | Badger in memory: its files are mmapped, which js/wasm cannot do |
 | `frontend/web_js.go` | Empty `WebFS`: the static host serves the frontend, so it is not embedded twice |

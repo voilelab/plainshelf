@@ -1,26 +1,15 @@
 // Usage: node smoke.mjs <site dir from build.sh> [screenshot.png]
 // Loads the wasm server in chromium, drives a create/read round trip, then
 // opens the real frontend on top of it.
-import http from 'node:http';
-import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { serveStatic } from './serve.mjs';
 
 const require = createRequire(new URL('../../../e2e/package.json', import.meta.url));
 const { chromium } = require('playwright');
 
 const dir = path.resolve(process.argv[2] ?? '.');
-const types = {
-  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm',
-  '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2',
-};
-const srv = http.createServer((req, res) => {
-  let file = path.join(dir, decodeURIComponent(new URL(req.url, 'http://x').pathname));
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(dir, 'index.html'); // SPA fallback
-  res.writeHead(200, { 'content-type': types[path.extname(file)] ?? 'application/octet-stream' });
-  fs.createReadStream(file).pipe(res);
-});
-await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+const srv = await serveStatic(dir);
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium' });
 const page = await browser.newPage();
