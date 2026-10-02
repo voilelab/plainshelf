@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/testutil"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
@@ -222,7 +223,7 @@ func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 		t.Errorf("comments = %q, want a whole run of 1..%d 'x' characters", got, writers)
 	}
 
-	assertNoTempFiles(t, path.Join(tmpLib, bookPath))
+	testutil.AssertNoTempFiles(t, path.Join(tmpLib, bookPath))
 }
 
 // Two books that agree on everything the old MD5 seed derived an ID from - the

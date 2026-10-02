@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/testutil"
 )
 
 // newBookPackageFixture copies the committed book fixture into a temp directory
@@ -123,7 +124,7 @@ func TestOpenBookPackageReadsSourceAssets(t *testing.T) {
 // lazily upgraded book.json.
 func TestOpenBookPackageWritesNothing(t *testing.T) {
 	dir := newBookPackageFixture(t)
-	before := treeSnapshot(t, dir)
+	before := testutil.TreeSnapshot(t, dir)
 
 	book := openFixturePackage(t, dir).Book()
 	if _, err := book.ResolveCurrentSource(); err != nil {
@@ -133,7 +134,7 @@ func TestOpenBookPackageWritesNothing(t *testing.T) {
 		t.Fatalf("OpenCover: %v", err)
 	}
 
-	if diff := snapshotDiff(before, treeSnapshot(t, dir)); diff != "" {
+	if diff := testutil.SnapshotDiff(before, testutil.TreeSnapshot(t, dir)); diff != "" {
 		t.Errorf("opening a package changed the directory:\n%s", diff)
 	}
 }
@@ -246,7 +247,7 @@ func TestOpenBookPackageRefusesWritesToAFutureSchemaBook(t *testing.T) {
 		t.Fatalf("writing future book.json: %v", err)
 	}
 
-	before := treeSnapshot(t, dir)
+	before := testutil.TreeSnapshot(t, dir)
 	book := openFixturePackage(t, dir).Book()
 
 	// DeleteCover is absent: this fixture records no cover, so it returns nil
@@ -266,7 +267,7 @@ func TestOpenBookPackageRefusesWritesToAFutureSchemaBook(t *testing.T) {
 		}
 	}
 
-	if diff := snapshotDiff(before, treeSnapshot(t, dir)); diff != "" {
+	if diff := testutil.SnapshotDiff(before, testutil.TreeSnapshot(t, dir)); diff != "" {
 		t.Errorf("a refused write changed the package:\n%s", diff)
 	}
 }
