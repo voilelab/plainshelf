@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PlainShelf wasm spike</title>
+  <script src="memfs.js"></script>
+  <script src="wasm_exec.js"></script>
+  <script src="boot.js"></script>
+</head>
+<body>
+  <pre id="status">loading…</pre>
+  <script>
+    window.plainshelfStarted.then(() => { document.getElementById('status').textContent = 'ready'; });
+  </script>
+</body>
+</html>
