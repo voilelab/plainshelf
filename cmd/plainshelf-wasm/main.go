@@ -83,7 +83,7 @@ func main() {
 
 // newPromise runs fn off the JS event loop; blocking a js.FuncOf callback deadlocks.
 func newPromise(fn func() (any, error)) js.Value {
-	return js.Global().Get("Promise").New(js.FuncOf(func(_ js.Value, args []js.Value) any {
+	executor := js.FuncOf(func(_ js.Value, args []js.Value) any {
 		resolve, reject := args[0], args[1]
 		go func() {
 			v, err := fn()
@@ -94,5 +94,8 @@ func newPromise(fn func() (any, error)) js.Value {
 			resolve.Invoke(v)
 		}()
 		return nil
-	}))
+	})
+	// The Promise constructor calls the executor synchronously, so it can go now.
+	defer executor.Release()
+	return js.Global().Get("Promise").New(executor)
 }
