@@ -40,7 +40,8 @@ const ROUTES_WITH_OWN_TITLE = new Set([
 // reading client, and the guard that shell installs (shells/mobile/routerGuard)
 // is what keeps it that way.
 const router = createRouter({
-  history: createWebHistory(),
+  // BASE_URL is "/" except where the bundle is served under a path, as the wasm demo is.
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',

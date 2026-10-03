@@ -67,27 +67,29 @@ interface BundledFont {
 const { t } = useI18n();
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
+// Under BASE_URL, so the licenses resolve where the bundle is served under a path.
+const licenseDir = `${import.meta.env.BASE_URL}licenses/`;
 
 const bundledFonts: BundledFont[] = [
   {
     name: 'Noto Serif TC',
     source: 'https://fontsource.org/fonts/noto-serif-tc',
-    license: '/licenses/noto-serif-tc-OFL-1.1.txt'
+    license: licenseDir + 'noto-serif-tc-OFL-1.1.txt'
   },
   {
     name: 'Noto Sans TC',
     source: 'https://fontsource.org/fonts/noto-sans-tc',
-    license: '/licenses/noto-sans-tc-OFL-1.1.txt'
+    license: licenseDir + 'noto-sans-tc-OFL-1.1.txt'
   },
   {
     name: 'Noto Serif SC',
     source: 'https://fontsource.org/fonts/noto-serif-sc',
-    license: '/licenses/noto-serif-sc-OFL-1.1.txt'
+    license: licenseDir + 'noto-serif-sc-OFL-1.1.txt'
   },
   {
     name: 'Noto Sans SC',
     source: 'https://fontsource.org/fonts/noto-sans-sc',
-    license: '/licenses/noto-sans-sc-OFL-1.1.txt'
+    license: licenseDir + 'noto-sans-sc-OFL-1.1.txt'
   }
 ];
 const selectedFontLicense = ref<BundledFont | null>(null);

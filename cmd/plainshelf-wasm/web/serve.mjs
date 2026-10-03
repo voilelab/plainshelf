@@ -1,4 +1,6 @@
-// Static server for a site from build.sh, with an SPA fallback to index.html.
+// Static server for a site from build.sh. An unknown path gets index.html, the
+// SPA fallback, or, when the site has a 404.html, that page with status 404, as
+// GitHub Pages does.
 // Usage: node serve.mjs <site dir> [port]
 import http from 'node:http';
 import fs from 'node:fs';
@@ -14,10 +16,26 @@ const types = {
 export async function serveStatic(siteDir, port = 0) {
   const root = path.resolve(siteDir);
   const srv = http.createServer((req, res) => {
-    let file = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname));
-    if (!file.startsWith(root + path.sep)) file = root; // no escaping the site dir
-    if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, 'index.html');
-    res.writeHead(200, { 'content-type': types[path.extname(file)] ?? 'application/octet-stream' });
+    const { pathname, search } = new URL(req.url, 'http://x');
+    let file = path.join(root, decodeURIComponent(pathname));
+    if (file !== root && !file.startsWith(root + path.sep)) { // no escaping the site dir
+      res.writeHead(404).end();
+      return;
+    }
+    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) {
+      if (!pathname.endsWith('/')) {
+        res.writeHead(301, { location: pathname + '/' + search }).end();
+        return;
+      }
+      file = path.join(file, 'index.html');
+    }
+    let status = 200;
+    if (!fs.existsSync(file)) {
+      const notFound = path.join(root, '404.html');
+      status = fs.existsSync(notFound) ? 404 : 200;
+      file = status === 404 ? notFound : path.join(root, 'index.html');
+    }
+    res.writeHead(status, { 'content-type': types[path.extname(file)] ?? 'application/octet-stream' });
     fs.createReadStream(file).pipe(res);
   });
   await new Promise((ok) => srv.listen(port, '127.0.0.1', ok));

@@ -48,7 +48,8 @@ calls `release.yml`, which:
 
 Once it succeeds, `docs.yml` deploys the documentation site from the released
 commit, so the published docs follow the latest release and never run ahead of
-a failed one.
+a failed one. The same deploy puts the browser-only demo at `/demo/`
+(`cmd/plainshelf-wasm/README.md`), so the demo is the released build too.
 
 For a stable tag it then runs `scripts/update-cask.sh` against the assets it
 just published and opens `cask-bump/<tag>` → `dev`, labelled `internal`: `brew`

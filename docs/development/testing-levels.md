@@ -322,8 +322,9 @@ cases rather than 86; it has no measured baseline either and starts at 25.
 ‡ Added after this measurement, so it has no baseline. It shares the E2E job's
 setup — `npm ci` in `e2e/` and the Playwright browser install — then builds the
 server for `js/wasm` and runs `cmd/plainshelf-wasm/web/smoke.mjs`, whose 17
-checks took about 10s in the cloud container. The cap is provisional on the
-same terms as E2E's.
+checks took about 10s in the cloud container. It then installs the frontend's
+dependencies, rebuilds the demo under `/demo/` as `docs.yml` deploys it, and
+runs the smoke again there. The cap is provisional on the same terms as E2E's.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a
