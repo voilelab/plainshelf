@@ -53,6 +53,7 @@ run-wasm-demo port="5180": build-wasm-demo
 # Run the wasm demo's browser smoke test, the same check CI gates on.
 # Set CHROMIUM to a preinstalled browser to skip Playwright's own download.
 test-wasm-demo: build-wasm-demo
+	env -i PATH="$(go env GOROOT)/lib/wasm:$PATH" HOME="$HOME" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" GOOS=js GOARCH=wasm go test ./server/store/
 	npm --prefix {{e2e_test_dir}} ci
 	[[ -n "${CHROMIUM:-}" ]] || npx --prefix {{e2e_test_dir}} playwright install --with-deps chromium
 	node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo

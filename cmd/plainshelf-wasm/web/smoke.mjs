@@ -115,6 +115,9 @@ const apiCall = (method, url, body) => page.evaluate(async ([method, url, body])
     await new Promise((ok) => setTimeout(ok, 100));
   }
 }, [method, url, body]);
+// Settings live in the store, which the browser build keeps in a file under OPFS.
+const nsfwBefore = await apiCall('GET', '/api/setting/show_nsfw');
+const nsfwSet = await apiCall('POST', '/api/setting/show_nsfw', true); // the body is a bare true or false
 const created = await apiCall('POST', '/api/shelves/demo/books', { title: '測試書', folder: [] });
 const books = await apiCall('GET', '/api/shelves/demo/books');
 check('API page creates a second book', created.status === 201 && books.body.length === 2, `status ${created.status}`);
@@ -130,6 +133,9 @@ const after = (await apiCall('GET', '/api/shelves/demo/books')).body;
 const trash = (await apiCall('GET', '/api/shelves/demo/trash/books')).body;
 check('move survives reload', after.length === 1 && after[0].folder.join('/') === '收藏', JSON.stringify(after.map((x) => x.folder)));
 check('trash survives reload', trash.length === 1, `${trash.length} in trash`);
+const nsfwAfter = await apiCall('GET', '/api/setting/show_nsfw');
+check('a saved setting survives reload', nsfwBefore.body?.value === false && nsfwSet.status < 300 && nsfwAfter.body?.value === true,
+  `${nsfwBefore.body?.value} -> ${nsfwSet.status} -> ${nsfwAfter.body?.value}`);
 const top = await page.evaluate(() => new Promise((ok) => fs.readdir('/plainshelf/shelf/books', (e, l) => ok(l))));
 check('no stale book directories', JSON.stringify(top) === '["收藏"]', JSON.stringify(top));
 

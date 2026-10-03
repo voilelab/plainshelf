@@ -218,6 +218,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # Packages with a js-only implementation, run under node. wasm caps the
+      # size of argv plus environment, and the runner's environment exceeds it.
+      - name: Test browser-build Go packages
+        run: >-
+          env -i PATH="$(go env GOROOT)/lib/wasm:$PATH" HOME="$HOME"
+          GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)"
+          GOOS=js GOARCH=wasm go test ./server/store/
+
       # smoke.mjs drives chromium through the e2e package's Playwright.
       - name: Install E2E dependencies
         working-directory: e2e

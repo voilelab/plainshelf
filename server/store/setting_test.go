@@ -69,3 +69,32 @@ func TestDeleteSetting_NotFound(t *testing.T) {
 		t.Fatalf("expected no error deleting missing key, got: %v", err)
 	}
 }
+
+// Settings outlive the process: the browser build reopens its store on every page load.
+func TestSettingsSurviveReopen(t *testing.T) {
+	dir := t.TempDir()
+	db, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := db.SetSetting("kept", []byte("yes")); err != nil {
+		t.Fatalf("SetSetting: %v", err)
+	}
+	if err := db.SetSetting("dropped", []byte("no")); err != nil {
+		t.Fatalf("SetSetting: %v", err)
+	}
+	if err := db.DeleteSetting("dropped"); err != nil {
+		t.Fatalf("DeleteSetting: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	db = newTestDBAt(t, dir)
+	if val, ok, err := db.GetSetting("kept"); err != nil || !ok || string(val) != "yes" {
+		t.Fatalf("kept = %q, %v, %v; want \"yes\", true, nil", val, ok, err)
+	}
+	if _, ok, err := db.GetSetting("dropped"); err != nil || ok {
+		t.Fatalf("dropped found = %v, err %v; want gone", ok, err)
+	}
+}
