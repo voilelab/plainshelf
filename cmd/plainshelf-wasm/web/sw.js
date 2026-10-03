@@ -3,6 +3,10 @@
 // so its scope covers the whole app.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+// A page loaded past the worker (a hard reload) asks to be taken over.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'plainshelf-claim') event.waitUntil(self.clients.claim());
+});
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -12,11 +16,8 @@ self.addEventListener('fetch', (event) => {
 
 async function relay(event) {
   const req = event.request;
-  // Any window of this origin can answer: each one forwards to the serving tab.
-  // The requesting page comes first, the others cover a clientId that does not resolve.
-  const client = (event.clientId && await self.clients.get(event.clientId)) ||
-    (await self.clients.matchAll({ type: 'window' }))[0];
-  // A navigation with no page open has no server behind it; let the static host answer.
+  // A navigation has no page with a server yet; let the static host answer.
+  const client = event.clientId && await self.clients.get(event.clientId);
   if (!client) return fetch(req);
 
   const body = ['GET', 'HEAD'].includes(req.method) ? undefined : await req.arrayBuffer();

@@ -119,6 +119,17 @@ check('reload keeps the book', JSON.stringify(second) === JSON.stringify(first),
 check('reload does not seed again', !(await page.evaluate(() => window.seedRan)));
 const secondCover = await coverStatus();
 check('cover renders after reload', /^[1-9]\d*x[1-9]/.test(secondCover), secondCover);
+if (engine === 'chromium') {
+  // A hard reload loads the page past the service worker, which then has to be
+  // asked to take it over. Only chromium exposes a cache-bypassing reload here.
+  const cdp = await context.newCDPSession(page);
+  const loaded = page.waitForEvent('load');
+  await cdp.send('Page.reload', { ignoreCache: true });
+  await loaded;
+  await page.getByText('Total Books').first().waitFor({ timeout: 30000 });
+  const hardCover = await coverStatus();
+  check('cover renders after a hard reload', /^[1-9]\d*x[1-9]/.test(hardCover), hardCover);
+}
 await page.waitForTimeout(500); // let the startup scan export its cache
 const caches = await bookCaches();
 check('one book cache across loads', caches.length === 1, caches.join(','));
