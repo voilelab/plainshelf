@@ -1,7 +1,6 @@
 import { computed, nextTick, ref } from 'vue';
 import { stageDesktopReadingProgress } from '@/api/desktop';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
-import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
+import { getBookshelfProvider } from '@/providers';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
 import { resolveReadingFormat } from '@/utils/bookFormat';
 import { buildMarkdownH2Sections } from '@/utils/markdownChapters';

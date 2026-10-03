@@ -14,7 +14,7 @@ const repoRoot = path.resolve(__dirname, '..', '..', '..');
 export const serverBinaryEnvVar = 'PLAINSHELF_E2E_SERVER_BIN';
 
 /**
- * Compiles the server once, before any spec runs, so the 28 spec files spawn a
+ * Compiles the server once, before any spec runs, so every spec file spawns a
  * ready-made executable instead of paying for a `go run` cold compile on every
  * server start. The binary path is published through {@link serverBinaryEnvVar}
  * for `startServer()` to pick up.

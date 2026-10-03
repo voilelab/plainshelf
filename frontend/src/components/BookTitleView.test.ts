@@ -1,30 +1,17 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, type App } from 'vue';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { Book } from '@/types/book';
 import BookTitleView from './BookTitleView.vue';
+import { mount } from '#testing/mount';
 
-const mounted: Array<{ app: App; host: HTMLElement }> = [];
 
 function book(overrides: Partial<Book> = {}): Book {
   return { id: 'book-1', title: 'One', authors: [], tags: [], folders: [], ...overrides };
 }
 
 function mountTitles(books: Book[]): HTMLElement {
-  const host = document.createElement('div');
-  document.body.append(host);
-  const app = createApp(defineComponent({ setup: () => () => h(BookTitleView, { books }) }));
-  app.mount(host);
-  mounted.push({ app, host });
-  return host;
+  return mount(BookTitleView, { props: { books } }).host;
 }
-
-afterEach(() => {
-  for (const entry of mounted.splice(0)) {
-    entry.app.unmount();
-    entry.host.remove();
-  }
-});
 
 describe('BookTitleView download state', () => {
   it('marks each row with the state it carries', () => {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, nextTick } from 'vue';
+import { defineComponent, h, nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { LogFileEntry } from '@/api/logs';
@@ -41,6 +41,7 @@ vi.mock('reka-ui', () => {
 });
 
 import AdminLogsPage from './AdminLogsPage.vue';
+import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
 function logEntry(overrides: Partial<LogFileEntry> = {}): LogFileEntry {
@@ -54,11 +55,8 @@ function logEntry(overrides: Partial<LogFileEntry> = {}): LogFileEntry {
   };
 }
 
-function mount() {
-  const host = document.createElement('div');
-  const app = createApp(AdminLogsPage);
-  app.mount(host);
-  return { host, app };
+function mountPage() {
+  return mount(AdminLogsPage);
 }
 
 // settle lets the two awaited loads (the listing, then the content) and the
@@ -85,19 +83,18 @@ afterEach(() => {
 
 describe('AdminLogsPage', () => {
   it('reads a bounded tail rather than the whole file', async () => {
-    const { host, app } = mount();
+    const { host } = mountPage();
     await settle();
 
     expect(api.getLogContent).toHaveBeenCalledWith('app-1', TAIL_BYTES);
     // A file that fits in the window is not announced as truncated.
     expect(host.querySelector('.truncation')).toBeNull();
 
-    app.unmount();
   });
 
   it('offers to reach further back when the file is larger than the window', async () => {
     api.listLogs.mockResolvedValue([logEntry({ size: TAIL_BYTES * 10 })]);
-    const { host, app } = mount();
+    const { host } = mountPage();
     await settle();
 
     expect(host.querySelector('.truncation')).not.toBeNull();
@@ -107,12 +104,11 @@ describe('AdminLogsPage', () => {
 
     expect(api.getLogContent).toHaveBeenLastCalledWith('app-1', TAIL_BYTES * TAIL_STEP);
 
-    app.unmount();
   });
 
   it('explains why the list is empty and how to fix it instead of a bare message', async () => {
     api.listLogs.mockResolvedValue([]);
-    const { host, app } = mount();
+    const { host } = mountPage();
     await settle();
 
     const emptyState = host.querySelector('.empty-state');
@@ -123,12 +119,11 @@ describe('AdminLogsPage', () => {
     expect(text).toContain('stderr');
     expect(text).toContain('log_file.type');
 
-    app.unmount();
   });
 
   it('distinguishes an empty list from a browsable source with no file for the date', async () => {
     api.listLogs.mockResolvedValue([logEntry({ date: '2024-01-02' })]);
-    const { host, app } = mount();
+    const { host } = mountPage();
     await settle();
 
     const dateInput = host.querySelector<HTMLInputElement>('input[type="date"]');
@@ -144,7 +139,6 @@ describe('AdminLogsPage', () => {
     expect(host.querySelector('.empty-state')).toBeNull();
     expect(host.querySelector('.message.warning')?.textContent).toContain('2024-01-05');
 
-    app.unmount();
   });
 
   it('starts from the end again when a different file is selected', async () => {
@@ -152,7 +146,7 @@ describe('AdminLogsPage', () => {
       logEntry({ size: TAIL_BYTES * 10 }),
       logEntry({ id: 'app-2', filename: 'app-2024-01-03.log', date: '2024-01-03', size: TAIL_BYTES * 10 })
     ]);
-    const { host, app } = mount();
+    const { host } = mountPage();
     await settle();
 
     findButton(host, 'Load more')?.click();
@@ -169,6 +163,5 @@ describe('AdminLogsPage', () => {
 
     expect(api.getLogContent).toHaveBeenLastCalledWith('app-2', TAIL_BYTES);
 
-    app.unmount();
   });
 });
