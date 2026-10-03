@@ -1,19 +1,28 @@
 // Usage: node smoke.mjs <site dir from build.sh> [screenshot.png]
-// Opens the real frontend on the wasm server in chromium, checks that the
+// Opens the real frontend on the wasm server in a browser, checks that the
 // shelf survives a reload through OPFS, then drives the raw API page.
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { serveStatic } from './serve.mjs';
 
 const require = createRequire(new URL('../../../e2e/package.json', import.meta.url));
-const { chromium } = require('playwright');
+const playwright = require('playwright');
+
+// SMOKE_BROWSER picks the engine: chromium (the default and the PR gate),
+// firefox or webkit (nightly, since the public demo has visitors on all three).
+const engine = process.env.SMOKE_BROWSER || 'chromium';
+if (!['chromium', 'firefox', 'webkit'].includes(engine)) {
+  throw new Error(`SMOKE_BROWSER: unknown browser "${engine}"; expected chromium, firefox or webkit`);
+}
 
 const dir = path.resolve(process.argv[2] ?? '.');
 const srv = await serveStatic(dir);
 const origin = `http://127.0.0.1:${srv.address().port}`;
 
-// CHROMIUM points at a preinstalled browser; unset, Playwright uses its own.
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+// CHROMIUM points at a preinstalled chromium; unset, Playwright uses its own.
+const executablePath = engine === 'chromium' ? process.env.CHROMIUM || undefined : undefined;
+const browser = await playwright[engine].launch({ executablePath });
+console.log(`browser: ${engine} ${browser.version()}`);
 const context = await browser.newContext(); // fresh: OPFS starts empty
 const page = await context.newPage();
 page.on('console', (m) => { if (process.env.VERBOSE) console.log('[page]', m.text()); });

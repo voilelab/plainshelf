@@ -125,3 +125,99 @@ jobs:
           else
             gh issue create --title "$title" --body "$body"
           fi
+
+  # The public wasm demo runs in its visitors' browsers, so unlike the app's
+  # E2E matrix this one includes firefox. Chromium is already the PR gate in
+  # ci.yml; here are the other two engines a visitor is likely to bring.
+  wasm-demo-browsers:
+    name: Wasm demo in ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    if: github.repository == 'voilelab/plainshelf'
+    # Provisional, with no measured nights: a frontend build, a browser install
+    # and a smoke run that takes about 10s on chromium.
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'dev' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: e2e
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Build wasm demo
+        run: cmd/plainshelf-wasm/build.sh workspace/wasm-demo
+
+      - name: Run wasm demo smoke test
+        env:
+          SMOKE_BROWSER: ${{ matrix.browser }}
+        run: node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo wasm-demo.png
+
+      - name: Upload screenshot
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-demo-${{ matrix.browser }}-screenshot
+          path: wasm-demo.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # One issue per browser, reopened by comment, as for the E2E suite above.
+      - name: Report the failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BROWSER: ${{ matrix.browser }}
+        run: |
+          set -euo pipefail
+          commit_sha=$(git rev-parse HEAD)
+          title="Nightly wasm demo smoke is failing in $BROWSER"
+          body=$(printf '%s\n' \
+            "The wasm demo smoke test failed in $BROWSER on \`dev\`." \
+            '' \
+            "- Run: $RUN_URL" \
+            "- Commit: \`$commit_sha\`" \
+            '' \
+            'The pull request gate only runs it in chromium, so this is a failure no' \
+            'pull request would have caught. See `cmd/plainshelf-wasm/README.md`.')
+          existing=$(gh issue list --state open --limit 100 --json number,title \
+            --jq "[.[] | select(.title == \"$title\")] | .[0].number // empty")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
