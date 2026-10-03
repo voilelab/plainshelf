@@ -1,8 +1,9 @@
-# plainshelf-wasm (experiment)
+# plainshelf-wasm
 
 The unmodified server compiled to `GOOS=js GOARCH=wasm` and run inside the
 browser, so the real frontend can be served as a static site with no backend.
-This is a spike, not a supported build. The shelf persists in the browser's
+It is the public demo at <https://plainshelf.org/demo/>; its user guide is
+[Try the Demo](../../docs/try-the-demo.md). The shelf persists in the browser's
 Origin Private File System (OPFS), per origin; clearing site data resets it.
 The **Demo** bar in the corner exports the shelf as a zip and imports one back.
 The zip's layout is a lib_root (`books/`, `trash/`), so it unzips into a native
