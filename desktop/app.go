@@ -989,12 +989,11 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 func (a *DesktopApp) startServer() error {
 	log.Println("PlainShelf version:", version.Version)
 
-	// Store desktop app data under the current user's config directory.
-	dataRoot, err := os.UserConfigDir()
+	// Shared with the standalone reader, which writes progress here.
+	dataRoot, err := readingprogress.SharedDataDir()
 	if err != nil {
-		return util.Errorf("%w", err)
+		return err
 	}
-	dataRoot = filepath.Join(dataRoot, "PlainShelf")
 	if err := os.MkdirAll(dataRoot, 0o755); err != nil {
 		return util.Errorf("%w", err)
 	}

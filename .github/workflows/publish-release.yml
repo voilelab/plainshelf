@@ -1,8 +1,9 @@
 name: Publish release
 
 # Step 2 of a release: runs when a release PR opened by prepare-release.yml
-# merges into release/<major>.x. Tags the merge commit and publishes everything
-# through release.yml. See docs/development/releasing.md.
+# merges into release/<major>.x. Tags the merge commit, publishes everything
+# through release.yml, then opens the PR that bumps the Homebrew casks. See
+# docs/development/releasing.md.
 on:
   pull_request:
     types: [closed]
@@ -75,3 +76,54 @@ jobs:
       ref: ${{ needs.check.outputs.ref }}
       publish: true
 
+  casks:
+    name: Open cask bump PR
+    needs: [check, build]
+    # The casks track the latest stable release; a prerelease leaves them be.
+    if: ${{ !contains(needs.check.outputs.version, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      # brew reads the tap from the default branch, so the bump goes to dev.
+      - name: Checkout dev
+        uses: actions/checkout@v7
+        with:
+          ref: dev
+
+      - name: Bump casks and open PR
+        run: |
+          set -euo pipefail
+          # Hashes the zips the build step just attached to the Release.
+          ./scripts/update-cask.sh "$VERSION"
+          if git diff --quiet -- Casks; then
+            echo "Casks already at $VERSION"
+            exit 0
+          fi
+          branch="cask-bump/${VERSION}"
+          git switch -c "$branch"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Bump Homebrew casks to ${VERSION}"
+          # The branch is this job's own: a re-run after a failed PR step
+          # rebuilds the same bump as a sibling commit, so replace it.
+          git push --force origin "$branch"
+          existing=$(gh pr list --base dev --head "$branch" --state open --json url --jq '.[0].url // empty')
+          if [ -n "$existing" ]; then
+            echo "Cask bump PR already open: $existing"
+            exit 0
+          fi
+          {
+            echo "Points \`Casks/plainshelf.rb\` and \`Casks/bookpkg-reader.rb\` at the \`${VERSION}\`"
+            echo "release assets (\`scripts/update-cask.sh\`). \`brew\` reads the tap from dev, so"
+            echo "users get \`${VERSION}\` from \`brew upgrade\` once this merges."
+            echo
+            echo "No CI runs on this PR because a bot opened it; close and reopen it if dev"
+            echo "requires checks."
+          } > body.md
+          gh pr create --base dev --head "$branch" --label internal \
+            --title "Bump Homebrew casks to ${VERSION}" --body-file body.md

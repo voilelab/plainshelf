@@ -52,17 +52,21 @@ describe('AboutPanel font licences', () => {
     const items = [...host.querySelectorAll('.font-license-item')];
     expect(items.map((item) => item.querySelector('strong')?.textContent)).toEqual([
       'Noto Serif TC',
-      'Noto Sans TC'
+      'Noto Sans TC',
+      'Noto Serif SC',
+      'Noto Sans SC'
     ]);
 
-    // One licence per font, not one shared file: the two faces are separate
+    // One licence per font, not one shared file: the faces are separate
     // downloads with separate copyright lines.
     const licences = items.map(
       (item) => item.querySelectorAll<HTMLAnchorElement>('a.setting-link')[1]?.getAttribute('href')
     );
     expect(licences).toEqual([
       '/licenses/noto-serif-tc-OFL-1.1.txt',
-      '/licenses/noto-sans-tc-OFL-1.1.txt'
+      '/licenses/noto-sans-tc-OFL-1.1.txt',
+      '/licenses/noto-serif-sc-OFL-1.1.txt',
+      '/licenses/noto-sans-sc-OFL-1.1.txt'
     ]);
     expect(new Set(licences).size).toBe(licences.length);
   });

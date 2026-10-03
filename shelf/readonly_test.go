@@ -2,16 +2,15 @@ package shelf
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/testutil"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
@@ -144,34 +143,6 @@ func seedReadOnlyShelf(t *testing.T, libRoot string) string {
 
 const readOnlyContent = "# Chapter 1\n\nText that must still be readable.\n"
 
-// treeSnapshot fingerprints every path under root, so that "this shelf was not
-// written to" can be asserted on the shelf itself rather than on the operations
-// that were refused.
-func treeSnapshot(t *testing.T, root string) map[string]string {
-	t.Helper()
-
-	snapshot := map[string]string{}
-	err := filepath.WalkDir(root, func(pth string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, pth)
-		if err != nil {
-			return err
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		snapshot[rel] = fmt.Sprintf("dir=%t size=%d mtime=%d", entry.IsDir(), info.Size(), info.ModTime().UnixNano())
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %q: %v", root, err)
-	}
-	return snapshot
-}
-
 // denyWrites takes the write bit off the whole tree, which is what a read-only
 // mount or a restored backup looks like from the process's side.
 //
@@ -218,7 +189,7 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
 
-	before := treeSnapshot(t, libRoot)
+	before := testutil.TreeSnapshot(t, libRoot)
 	denyWrites(t, libRoot)
 
 	s, err := NewShelf(&ShelfConf{
@@ -319,31 +290,10 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 	}
 	closed = true
 
-	after := treeSnapshot(t, libRoot)
-	if diff := snapshotDiff(before, after); diff != "" {
+	after := testutil.TreeSnapshot(t, libRoot)
+	if diff := testutil.SnapshotDiff(before, after); diff != "" {
 		t.Errorf("a read-only shelf changed the shelf on disk:\n%s", diff)
 	}
-}
-
-// snapshotDiff reports what the second walk saw that the first did not.
-func snapshotDiff(before, after map[string]string) string {
-	var lines []string
-	for pth, state := range after {
-		previous, existed := before[pth]
-		switch {
-		case !existed:
-			lines = append(lines, fmt.Sprintf("+ %s (%s)", pth, state))
-		case previous != state:
-			lines = append(lines, fmt.Sprintf("~ %s (%s -> %s)", pth, previous, state))
-		}
-	}
-	for pth := range before {
-		if _, ok := after[pth]; !ok {
-			lines = append(lines, fmt.Sprintf("- %s", pth))
-		}
-	}
-	slices.Sort(lines)
-	return strings.Join(lines, "\n")
 }
 
 // Every shelf-level mutation is refused with fsutil.ErrReadOnly, and refused
@@ -353,7 +303,7 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
 
-	before := treeSnapshot(t, libRoot)
+	before := testutil.TreeSnapshot(t, libRoot)
 	denyWrites(t, libRoot)
 
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, ReadOnly: true})
@@ -392,7 +342,7 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 		t.Error("ExportBookCache() succeeded on a read-only shelf")
 	}
 
-	if diff := snapshotDiff(before, treeSnapshot(t, libRoot)); diff != "" {
+	if diff := testutil.SnapshotDiff(before, testutil.TreeSnapshot(t, libRoot)); diff != "" {
 		t.Errorf("refused mutations changed the shelf on disk:\n%s", diff)
 	}
 }
@@ -409,7 +359,7 @@ func TestReadOnlyShelfWithoutRuntimeFoldersOpens(t *testing.T) {
 		}
 	}
 
-	before := treeSnapshot(t, libRoot)
+	before := testutil.TreeSnapshot(t, libRoot)
 	denyWrites(t, libRoot)
 
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, ReadOnly: true})
@@ -429,7 +379,7 @@ func TestReadOnlyShelfWithoutRuntimeFoldersOpens(t *testing.T) {
 		t.Errorf("ListTrashedBooks returned %d books, want none", len(trashed))
 	}
 
-	if diff := snapshotDiff(before, treeSnapshot(t, libRoot)); diff != "" {
+	if diff := testutil.SnapshotDiff(before, testutil.TreeSnapshot(t, libRoot)); diff != "" {
 		t.Errorf("opening a shelf without app/ or trash/ changed it:\n%s", diff)
 	}
 }

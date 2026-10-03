@@ -187,6 +187,84 @@ jobs:
         working-directory: e2e
         run: npm run test:smoke
 
+  wasm-demo:
+    name: Wasm demo smoke
+    runs-on: ubuntu-latest
+    # Provisional, like Frontend E2E's: no measured dev runs yet. The smoke itself
+    # took about 10s in the cloud container; the browser install is the variable
+    # part. Re-measure over three `dev` runs per docs/development/testing-levels.md.
+    timeout-minutes: 10
+    needs: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Packages with a js-only implementation, run under node. wasm caps the
+      # size of argv plus environment, and the runner's environment exceeds it.
+      - name: Test browser-build Go packages
+        run: >-
+          env -i PATH="$(go env GOROOT)/lib/wasm:$PATH" HOME="$HOME"
+          GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)"
+          GOOS=js GOARCH=wasm go test ./server/store/
+
+      # smoke.mjs drives chromium through the e2e package's Playwright.
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      # A base other than / rebuilds the frontend for that path.
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build wasm demo
+        run: cmd/plainshelf-wasm/build.sh workspace/wasm-demo
+
+      - name: Run wasm demo smoke test
+        run: node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo wasm-demo.png
+
+      # As docs.yml deploys it: under /demo/, behind the site's 404 page.
+      - name: Build wasm demo under /demo/
+        run: cmd/plainshelf-wasm/build.sh workspace/wasm-site /demo/
+
+      - name: Run wasm demo smoke test under /demo/
+        env:
+          SMOKE_BASE: /demo/
+        run: node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-site wasm-demo-base.png
+
+      - name: Upload screenshot
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-demo-screenshot
+          path: wasm-demo*.png
+          if-no-files-found: ignore
+
   android:
     name: Android build
     runs-on: ubuntu-latest

@@ -8,9 +8,8 @@ import (
 )
 
 // SharedDataDir returns the desktop app's data directory, <UserConfigDir>/PlainShelf.
-// It must stay identical to the dataRoot the desktop app derives in
-// desktop/app.go (startServer): the standalone reader writes progress into the
-// same directory so the desktop app can read and project it.
+// The desktop app (desktop/app.go, startServer) and the standalone reader both
+// use it, so the reader's progress lands where the desktop app reads it.
 func SharedDataDir() (string, error) {
 	root, err := os.UserConfigDir()
 	if err != nil {

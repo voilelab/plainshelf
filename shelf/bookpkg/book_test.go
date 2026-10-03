@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/testutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -170,20 +171,6 @@ func (f *failWriteFS) WriteFile(name string, data []byte) error {
 	return f.FS.WriteFile(name, data)
 }
 
-func assertNoTempFiles(t *testing.T, dir string) {
-	t.Helper()
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("ReadDir(%q): %v", dir, err)
-	}
-	for _, entry := range entries {
-		if strings.HasSuffix(entry.Name(), ".tmp") {
-			t.Errorf("temp file left behind in %s: %s", dir, entry.Name())
-		}
-	}
-}
-
 func newBookForCoverTest(t *testing.T) (*Book, string, string) {
 	t.Helper()
 
@@ -223,7 +210,7 @@ func TestSetCoverLeavesPreviousCoverIntactOnFailure(t *testing.T) {
 	if got := book.GetMeta().Cover; got != "cover.png" {
 		t.Errorf("meta cover = %q, want %q", got, "cover.png")
 	}
-	assertNoTempFiles(t, bookDir)
+	testutil.AssertNoTempFiles(t, bookDir)
 }
 
 // The API converts uploads to JPEG, so replacing a PNG cover changes the file
@@ -254,7 +241,7 @@ func TestSetCoverRemovesReplacedCoverWithDifferentExtension(t *testing.T) {
 	if got := book.GetMeta().Cover; got != "cover.jpg" {
 		t.Errorf("meta cover = %q, want %q", got, "cover.jpg")
 	}
-	assertNoTempFiles(t, bookDir)
+	testutil.AssertNoTempFiles(t, bookDir)
 }
 
 // afterRenameFS runs a hook once, immediately after a rename to a matching
@@ -346,7 +333,7 @@ func TestSetCoverKeepsFileWhenExtensionUnchanged(t *testing.T) {
 	if got := book.GetMeta().Cover; got != "cover.png" {
 		t.Errorf("meta cover = %q, want %q", got, "cover.png")
 	}
-	assertNoTempFiles(t, bookDir)
+	testutil.AssertNoTempFiles(t, bookDir)
 }
 
 func TestDeleteCoverAndETag(t *testing.T) {

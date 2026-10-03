@@ -72,7 +72,7 @@ func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 //     `style="color: …"` attribute (frontend/src/utils/safeHtml.ts), rendered
 //     through v-html; without it the reader loses author text colour. Vite emits
 //     no inline <style> and no inline <script>, so nothing else needs it.
-//   - font-src data: — the build inlines the Noto Sans TC subsets small enough
+//   - font-src data: — the build inlines the Noto font subsets small enough
 //     to fall under Vite's asset-inline limit as data: URIs; the rest load from
 //     'self'. Verified against a real page load, not assumed.
 //
