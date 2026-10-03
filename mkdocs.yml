@@ -26,6 +26,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Try the Demo: try-the-demo.md
   - Installation: installation.md
   - Getting Started: getting-started.md
   - EPUB Import: epub-import.md
