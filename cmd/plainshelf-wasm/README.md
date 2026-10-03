@@ -83,6 +83,9 @@ nothing is lost across the handover or a reload.
   write can apply twice if the old tab died between applying and answering.
 - Persistence needs OPFS and a worker; without them the demo falls back to
   memory and logs a warning. `smoke.mjs` runs in chromium on every pull request
-  and in firefox and webkit nightly (`SMOKE_BROWSER`).
+  and in firefox and webkit nightly (`SMOKE_BROWSER`). Playwright's Linux
+  WebKit has no OPFS, unlike Safari, so its run sets `SMOKE_EXPECT_MEMORY=1`:
+  persistence checks are skipped and the fallback is checked instead. Any other
+  engine without OPFS fails the run rather than skipping.
 - Only the shelf list, book creation, move, trash and the home page were
   exercised. Import, the reader and the source editor are untested here.

@@ -46,8 +46,20 @@ function check(name, ok, detail = '') {
   if (!ok) failed = true;
 }
 
+// Without OPFS the demo runs in memory and says so; that is its documented
+// behavior, so those engines check it instead of persistence. Only an engine
+// declared to lack OPFS (SMOKE_EXPECT_MEMORY=1) may skip persistence, so a
+// regression elsewhere cannot hide behind the fallback.
+const expectMemory = process.env.SMOKE_EXPECT_MEMORY === '1';
+let persistent = true;
+function persisted(name, ok, detail = '') {
+  if (persistent) check(name, ok, detail);
+  else console.log(`skip ${name} — this browser has no OPFS, so nothing persists`);
+}
+
 // Seeds one book with a cover, only into an empty shelf, the way a demo would.
-await page.addInitScript(() => {
+// On the context, so whichever tab ends up serving seeds what it starts with.
+await context.addInitScript(() => {
   window.plainshelfSeed = async (serve) => {
     window.seedRan = false;
     for (let i = 0; i < 50; i++) {
@@ -109,14 +121,23 @@ const openApp = async (reload) => {
 const firstMs = await openApp(false);
 const first = await listBooks();
 check('first load seeds one book', first.length === 1 && await page.evaluate(() => window.seedRan), `${firstMs} ms`);
+persistent = await page.evaluate(() => window.plainshelfStorage?.persistent === true);
+check(expectMemory ? 'runs in memory, as expected without OPFS' : 'persists to OPFS', persistent !== expectMemory,
+  `persistent=${persistent}`);
 const firstCover = await coverStatus();
 check('cover renders on first visit', /^[1-9]\d*x[1-9]/.test(firstCover), firstCover);
 await page.waitForTimeout(1000); // no explicit flush: the debounced write must land on its own
 
 const secondMs = await openApp(true);
 const second = await listBooks();
-check('reload keeps the book', JSON.stringify(second) === JSON.stringify(first), `${secondMs} ms, ids ${second.join(',')}`);
-check('reload does not seed again', !(await page.evaluate(() => window.seedRan)));
+persisted('reload keeps the book', JSON.stringify(second) === JSON.stringify(first), `${secondMs} ms, ids ${second.join(',')}`);
+persisted('reload does not seed again', !(await page.evaluate(() => window.seedRan)));
+if (!persistent) {
+  check('without OPFS it warns and a reload starts over',
+    consoleLog.some((l) => l.includes('the demo will not survive a reload')) && second.length === 1 &&
+      second[0] !== first[0] && await page.evaluate(() => window.seedRan),
+    `ids ${first.join(',')} -> ${second.join(',')}`);
+}
 const secondCover = await coverStatus();
 check('cover renders after reload', /^[1-9]\d*x[1-9]/.test(secondCover), secondCover);
 if (engine === 'chromium') {
@@ -136,7 +157,7 @@ check('one book cache across loads', caches.length === 1, caches.join(','));
 console.log('app text:', (await page.innerText('body')).replace(/\s+/g, ' ').slice(0, 200));
 if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
 
-// The raw API page, on the same persisted shelf.
+// The raw API page, on the same shelf (persisted, or reseeded without OPFS).
 await page.goto(`${origin}/wasm/index.html`);
 await page.waitForFunction(() => document.getElementById('status').textContent !== 'loading…', null, { timeout: 60000 });
 const apiCall = (method, url, body) => page.evaluate(async ([method, url, body]) => {
@@ -160,7 +181,8 @@ const books = await apiCall('GET', '/api/shelves/demo/books');
 check('API page creates a second book', created.status === 201 && books.body.length === 2, `status ${created.status}`);
 
 // A move and a trash are renames in memfs; the old OPFS entries must go.
-const moved = await apiCall('PATCH', `/api/shelves/demo/books/${first[0]}`, { folder: ['收藏'] });
+const seeded = books.body.find((b) => b.meta.id !== created.body.meta.id).meta.id;
+const moved = await apiCall('PATCH', `/api/shelves/demo/books/${seeded}`, { folder: ['收藏'] });
 const trashed = await apiCall('DELETE', `/api/shelves/demo/books/${created.body.meta.id}`);
 check('move and trash succeed', moved.status === 200 && trashed.status < 300, `${moved.status}, ${trashed.status}`);
 await page.evaluate(() => window.plainshelfFlush());
@@ -168,13 +190,13 @@ await page.reload();
 await page.waitForFunction(() => document.getElementById('status').textContent === 'ready', null, { timeout: 60000 });
 const after = (await apiCall('GET', '/api/shelves/demo/books')).body;
 const trash = (await apiCall('GET', '/api/shelves/demo/trash/books')).body;
-check('move survives reload', after.length === 1 && after[0].folder.join('/') === '收藏', JSON.stringify(after.map((x) => x.folder)));
-check('trash survives reload', trash.length === 1, `${trash.length} in trash`);
+persisted('move survives reload', after.length === 1 && after[0].folder.join('/') === '收藏', JSON.stringify(after.map((x) => x.folder)));
+persisted('trash survives reload', trash.length === 1, `${trash.length} in trash`);
 const nsfwAfter = await apiCall('GET', '/api/setting/show_nsfw');
-check('a saved setting survives reload', nsfwBefore.body?.value === false && nsfwSet.status < 300 && nsfwAfter.body?.value === true,
+persisted('a saved setting survives reload', nsfwBefore.body?.value === false && nsfwSet.status < 300 && nsfwAfter.body?.value === true,
   `${nsfwBefore.body?.value} -> ${nsfwSet.status} -> ${nsfwAfter.body?.value}`);
 const top = await page.evaluate(() => new Promise((ok) => fs.readdir('/plainshelf/shelf/books', (e, l) => ok(l))));
-check('no stale book directories', JSON.stringify(top) === '["收藏"]', JSON.stringify(top));
+persisted('no stale book directories', JSON.stringify(top) === '["收藏"]', JSON.stringify(top));
 
 // Two tabs: one runs the server, the other forwards to it, and the second takes
 // over from OPFS when the first closes. Neither may lose the other's writes.
@@ -203,12 +225,12 @@ await tabB.waitForFunction(() => typeof window.plainshelfFetch === 'function', n
 check('the other tab takes over when it closes', true);
 const fromB2 = await callIn(tabB, 'POST', '/api/shelves/demo/books', { title: '接手後的書', folder: [] });
 const afterTakeover = await titles(tabB);
-check('takeover keeps every write', fromB2.status === 201 && afterTakeover.length === 4, afterTakeover.join(','));
+persisted('takeover keeps every write', fromB2.status === 201 && afterTakeover.length === 4, afterTakeover.join(','));
 await tabB.evaluate(() => window.plainshelfFlush());
 await tabB.reload();
 await tabB.waitForFunction(() => document.getElementById('status').textContent === 'ready', null, { timeout: 60000 });
 const afterReload = await titles(tabB);
-check('and they survive a reload', JSON.stringify(afterReload) === JSON.stringify(afterTakeover), afterReload.join(','));
+persisted('and they survive a reload', JSON.stringify(afterReload) === JSON.stringify(afterTakeover), afterReload.join(','));
 
 // A tab without the server still shows covers: sw.js -> that tab -> the serving tab.
 const tabC = await context.newPage();

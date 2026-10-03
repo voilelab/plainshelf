@@ -140,6 +140,11 @@ jobs:
       fail-fast: false
       matrix:
         browser: [firefox, webkit]
+        include:
+          # Playwright's Linux WebKit has no OPFS (Safari does), so there the
+          # demo runs in memory; smoke.mjs checks that fallback instead.
+          - browser: webkit
+            expect-memory: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -183,6 +188,7 @@ jobs:
       - name: Run wasm demo smoke test
         env:
           SMOKE_BROWSER: ${{ matrix.browser }}
+          SMOKE_EXPECT_MEMORY: ${{ matrix.expect-memory }}
         run: node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo wasm-demo.png
 
       - name: Upload screenshot

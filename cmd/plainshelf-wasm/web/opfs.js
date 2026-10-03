@@ -100,6 +100,7 @@
       };
       await restore(rootHandle, '');
       memfs.takeDirty(); // restored nodes are already on disk
+      window.plainshelfStorage.persistent = true;
       // At most DEBOUNCE_MS after the first change, however busy the shelf is.
       memfs.onChange(() => {
         timer ??= setTimeout(flush, DEBOUNCE_MS);
