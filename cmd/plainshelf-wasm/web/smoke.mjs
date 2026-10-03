@@ -13,7 +13,8 @@ const srv = await serveStatic(dir);
 const origin = `http://127.0.0.1:${srv.address().port}`;
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium' });
-const page = await browser.newPage(); // a fresh context: OPFS starts empty
+const context = await browser.newContext(); // fresh: OPFS starts empty
+const page = await context.newPage();
 page.on('console', (m) => { if (process.env.VERBOSE) console.log('[page]', m.text()); });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
@@ -61,11 +62,11 @@ const bookCaches = () => page.evaluate(() => new Promise((resolve) => {
   fs.readdir('/plainshelf/shelf/app', (err, names) => resolve(err ? [] : names.filter((n) => n.startsWith('book-cache-'))));
 }));
 // Covers load through <img src>, which only the service worker relay can answer.
-const coverStatus = async () => {
-  const img = page.locator('img[src*="/cover"]').first();
+const coverStatus = async (tab = page) => {
+  const img = tab.locator('img[src*="/cover"]').first();
   try {
     await img.waitFor({ timeout: 10000 });
-    await page.waitForFunction((el) => el.complete, await img.elementHandle(), { timeout: 10000 });
+    await tab.waitForFunction((el) => el.complete, await img.elementHandle(), { timeout: 10000 });
   } catch {
     return 'no cover <img>';
   }
@@ -105,7 +106,7 @@ const apiCall = (method, url, body) => page.evaluate(async ([method, url, body])
   const headers = enc ? { 'Content-Type': 'application/json' } : {};
   // A read during the initial scan answers 503; retry briefly.
   for (let i = 0; ; i++) {
-    const r = await window.plainshelfFetch(method, url, headers, enc);
+    const r = await window.plainshelfRequest({ method, url, headers, body: enc });
     if (r.status !== 503 || i > 50) {
       const text = new TextDecoder().decode(r.body);
       return { status: r.status, body: text ? JSON.parse(text) : null };
@@ -130,6 +131,47 @@ check('move survives reload', after.length === 1 && after[0].folder.join('/') ==
 check('trash survives reload', trash.length === 1, `${trash.length} in trash`);
 const top = await page.evaluate(() => new Promise((ok) => fs.readdir('/plainshelf/shelf/books', (e, l) => ok(l))));
 check('no stale book directories', JSON.stringify(top) === '["收藏"]', JSON.stringify(top));
+
+// Two tabs: one runs the server, the other forwards to it, and the second takes
+// over from OPFS when the first closes. Neither may lose the other's writes.
+const tabA = page;
+const tabB = await context.newPage();
+await tabB.goto(`${origin}/wasm/index.html`);
+await tabB.waitForFunction(() => document.getElementById('status').textContent === 'ready', null, { timeout: 60000 });
+const callIn = (tab, method, url, body) => tab.evaluate(async ([method, url, body]) => {
+  const enc = body === undefined ? undefined : new TextEncoder().encode(JSON.stringify(body));
+  const r = await window.plainshelfRequest({ method, url, headers: enc ? { 'Content-Type': 'application/json' } : {}, body: enc });
+  const text = new TextDecoder().decode(r.body);
+  return { status: r.status, body: text ? JSON.parse(text) : null };
+}, [method, url, body]);
+const titles = async (tab) => (await callIn(tab, 'GET', '/api/shelves/demo/books')).body.map((x) => x.meta.title).sort();
+const runsServer = (tab) => tab.evaluate(() => typeof window.plainshelfFetch === 'function');
+check('only the first tab runs the server', await runsServer(tabA) && !(await runsServer(tabB)));
+const fromB = await callIn(tabB, 'POST', '/api/shelves/demo/books', { title: '分頁B的書', folder: [] });
+const fromA = await callIn(tabA, 'POST', '/api/shelves/demo/books', { title: '分頁A的書', folder: [] });
+const seenA = await titles(tabA);
+const seenB = await titles(tabB);
+check('both tabs see both writes', fromA.status === 201 && fromB.status === 201 &&
+  JSON.stringify(seenA) === JSON.stringify(seenB) && seenA.length === 3, seenB.join(','));
+await tabA.waitForTimeout(500); // the serving tab's debounced write
+await tabA.close();
+await tabB.waitForFunction(() => typeof window.plainshelfFetch === 'function', null, { timeout: 30000 });
+check('the other tab takes over when it closes', true);
+const fromB2 = await callIn(tabB, 'POST', '/api/shelves/demo/books', { title: '接手後的書', folder: [] });
+const afterTakeover = await titles(tabB);
+check('takeover keeps every write', fromB2.status === 201 && afterTakeover.length === 4, afterTakeover.join(','));
+await tabB.evaluate(() => window.plainshelfFlush());
+await tabB.reload();
+await tabB.waitForFunction(() => document.getElementById('status').textContent === 'ready', null, { timeout: 60000 });
+const afterReload = await titles(tabB);
+check('and they survive a reload', JSON.stringify(afterReload) === JSON.stringify(afterTakeover), afterReload.join(','));
+
+// A tab without the server still shows covers: sw.js -> that tab -> the serving tab.
+const tabC = await context.newPage();
+await tabC.goto(`${origin}/`);
+await tabC.getByText('Total Books').first().waitFor({ timeout: 30000 });
+const forwardedCover = await coverStatus(tabC);
+check('cover renders in a tab that forwards', !(await runsServer(tabC)) && /^[1-9]\d*x[1-9]/.test(forwardedCover), forwardedCover);
 
 await browser.close();
 srv.close();

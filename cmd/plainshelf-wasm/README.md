@@ -26,7 +26,10 @@ node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo /tmp/app.png
 cover, and checks that the cover renders on that first visit. A reload must
 restore the book from OPFS: the same book ID, no second seed, the cover still
 rendered, one book cache. It then moves and trashes books through the API page and
-checks that both survive another reload with no stale directories left.
+checks that both survive another reload with no stale directories left. Last,
+two tabs write at once: only one runs the server, both see both writes, the
+other takes over when it closes, a forwarding tab still shows covers, and
+nothing is lost across the handover or a reload.
 
 ## How it fits together
 
@@ -37,7 +40,7 @@ checks that both survive another reload with no stale directories left.
 | `web/opfs.js` | Restores the memfs tree from OPFS before Go starts, then writes changed paths back within 200 ms of a change, and tries once more on `pagehide` |
 | `web/sw.js` | Service worker, served as `/plainshelf-sw.js`. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
 | `web/serve.mjs` | Local static server with the SPA fallback, used by `run-wasm-demo` and `smoke.mjs` |
-| `web/boot.js` | Starts the wasm, registers `sw.js`, and answers same-origin `/api/*` and `/health` fetches and relayed requests through it; an optional `window.plainshelfSeed(serve)` runs first |
+| `web/boot.js` | Elects one serving tab per origin with a Web Lock; that tab starts the wasm, the others forward to it over a `BroadcastChannel`. Answers same-origin `/api/*` and `/health` fetches and relayed requests; `window.plainshelfRequest(r)` does the same without `fetch`, and an optional `window.plainshelfSeed(serve)` runs before the serving tab answers |
 | `server/store/options_js.go` | Badger in memory: its files are mmapped, which js/wasm cannot do |
 | `frontend/web_js.go` | Empty `WebFS`: the static host serves the frontend, so it is not embedded twice |
 
@@ -64,8 +67,14 @@ checks that both survive another reload with no stale directories left.
   on reload. The book cache writer ID, which lives there on other builds, is
   kept in `book-cache-writer-id` instead; otherwise every load would leave
   another `book-cache-*.json` behind.
-- Two tabs on the same origin each hold their own copy and overwrite each
-  other's writes.
+- Tabs share one shelf: only the tab holding the `plainshelf-demo-server`
+  lock loads OPFS and runs the server, and other tabs forward every request to
+  it, so there is one writer and every tab sees the same data. When that tab
+  closes, the next waiting tab takes the lock and restores from OPFS, so a
+  handover loses whatever the closed tab had not yet written (its last 200 ms).
+  Forwarded requests are resent until a serving tab acknowledges them; one the
+  old tab acknowledged but never answered is sent again to the new one, so a
+  write can apply twice if the old tab died between applying and answering.
 - Persistence needs `FileSystemFileHandle.createWritable`; where it is missing
   the demo falls back to memory and logs a warning. Only chromium was tested.
 - Only the shelf list, book creation, move, trash and the home page were
