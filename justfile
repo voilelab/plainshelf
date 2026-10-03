@@ -50,6 +50,11 @@ build-wasm-demo: build-server-frontend
 run-wasm-demo port="5180": build-wasm-demo
 	node cmd/plainshelf-wasm/web/serve.mjs workspace/wasm-demo {{port}}
 
+# Run the wasm demo's browser smoke test, the same check CI gates on.
+test-wasm-demo: build-wasm-demo
+	npm --prefix {{e2e_test_dir}} ci
+	node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo
+
 # Build server: build Go server binary.
 build-server-backend: build-server-frontend
 	go build -ldflags "-X {{version_pkg}}.Version={{version}}" -o plainshelf-srv cmd/plainshelf-srv/main.go

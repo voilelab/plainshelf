@@ -305,6 +305,7 @@ parallel behind it.
 | Go lint | 0:30 | 0:26 | 0:49 | **0:30** | 5 |
 | Go tests | 0:28 | 0:36 | 0:35 | **0:35** | 5 |
 | Frontend E2E | 3:34 | 6:27 | 3:22 | **3:34** | 10 † |
+| Wasm demo smoke | — | — | — | — | 10 ‡ |
 | Android build | 1:29 | 1:24 | 1:05 | **1:24** | 5 |
 | Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
 | npm audit | 0:07 | 0:07 | 0:10 | **0:07** | 5 |
@@ -317,6 +318,12 @@ it are stale in the same direction. The cap is provisionally 10 — enough for a
 3:05 browser-cache miss plus setup — and has to be re-measured over three `dev`
 runs and tightened, along with this row. `nightly.yml` now carries the other 24
 cases rather than 86; it has no measured baseline either and starts at 25.
+
+‡ Added after this measurement, so it has no baseline. It shares the E2E job's
+setup — `npm ci` in `e2e/` and the Playwright browser install — then builds the
+server for `js/wasm` and runs `cmd/plainshelf-wasm/web/smoke.mjs`, whose 17
+checks took about 10s in the cloud container. The cap is provisional on the
+same terms as E2E's.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a

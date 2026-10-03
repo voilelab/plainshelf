@@ -16,11 +16,16 @@ Without `just`, run the recipe's commands from the `justfile` directly.
 Any static host can serve `workspace/wasm-demo`; it needs no rewrites beyond
 an SPA fallback to `index.html`.
 
-To check it in chromium (needs `npm --prefix e2e ci`):
+To check it in chromium, the same check CI's `Wasm demo smoke` job gates on:
 
 ```sh
+just test-wasm-demo
+# or, after a build and `npm --prefix e2e ci`, with an optional screenshot:
 node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo /tmp/app.png
 ```
+
+Set `CHROMIUM` to a preinstalled browser when Playwright's own revision is not
+installed, as in the cloud container: `CHROMIUM=/opt/pw-browsers/chromium`.
 
 `smoke.mjs` opens the app on a fresh browser profile, seeds one book with a
 cover, and checks that the cover renders on that first visit. A reload must
