@@ -67,12 +67,16 @@ Book IDs, folders, covers and the trash come along.
 
 1. Stop PlainShelf, as for a [backup](backup-and-restore.md#stop-plainshelf-first).
 2. Zip the shelf directory. The zip may have the directory itself at the top.
-   `app/` is ignored, since it holds that install's caches, so you can leave it
-   out.
 3. Click **Import shelf…** and choose the zip.
 
-An import replaces the demo's whole shelf, and every open tab reloads onto the
-imported shelf. A file that is not a shelf zip is refused and changes nothing.
+Only `books/` and `trash/` travel, in either direction. `app/` holds an
+install's caches and is rebuilt. [`shelf.json`](concepts/data-model.md#shelfjson),
+the shelf's own settings such as ignored directories and NSFW folders, is left
+out too, so the demo runs with those settings at their defaults. Moving to a
+real install, copy `shelf.json` across yourself if the original shelf had one.
+
+An import replaces the demo's books and trash, and every open tab reloads onto
+the imported shelf. A file that is not a shelf zip is refused and changes nothing.
 The zip may be at most 512 MiB.
 
 ## Limits
