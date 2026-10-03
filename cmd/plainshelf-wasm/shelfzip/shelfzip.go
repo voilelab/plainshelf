@@ -19,8 +19,9 @@ import (
 // shelfDirs are the parts of a lib_root a zip carries.
 var shelfDirs = []string{"books", "trash"}
 
-// maxImportBytes caps what an import may unpack; the demo holds it all in memory.
-const maxImportBytes = 512 << 20
+// maxImportBytes caps an import's zip and what it unpacks to; the demo holds
+// it all in memory. A variable so tests need not allocate the real limit.
+var maxImportBytes int64 = 512 << 20
 
 var (
 	// ErrNotShelf rejects a zip with nothing under books/.
@@ -170,7 +171,7 @@ func plan(files []*zip.File) ([]entry, error) {
 			continue
 		}
 		total += f.UncompressedSize64
-		if total > maxImportBytes {
+		if total > uint64(maxImportBytes) {
 			return nil, ErrTooLarge
 		}
 		out = append(out, entry{file: f, name: clean})

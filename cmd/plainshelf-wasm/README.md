@@ -52,7 +52,7 @@ reloads onto the exported shelf; a file that is not a shelf zip is refused.
 | `web/opfs-writer.js` | Worker that writes each file with `createSyncAccessHandle`, which every engine with OPFS has; the main-thread `createWritable` only reached Safari in version 26 |
 | `web/sw.js` | Service worker, served as `/plainshelf-sw.js`. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
 | `web/toolbar.js` | The Demo bar, on the app page only: **Export shelf** downloads `GET /_demo/shelf.zip`, **Import shelf…** sends a zip to `PUT /_demo/shelf.zip` and reloads every tab |
-| `shelfzip/` | Zip export and import of `books/` and `trash/`, run by `main.go` behind `/_demo/shelf.zip`. Import checks every entry first (no paths outside the shelf, a `books/` directory present, at most 512 MiB unpacked) and unpacks beside the shelf before swapping it in. Tested natively |
+| `shelfzip/` | Zip export and import of `books/` and `trash/`, and the handler `main.go` puts in front of the app at `/_demo/shelf.zip`. Import checks every entry first (no paths outside the shelf, a `books/` directory present, at most 512 MiB zipped or unpacked) and unpacks beside the shelf before swapping it in. It waits for requests in flight and holds new ones off while it swaps, then answers 503 to everything until the reload. Tested natively |
 | `web/serve.mjs` | Local static server with the SPA fallback, used by `run-wasm-demo` and `smoke.mjs` |
 | `web/boot.js` | Elects one serving tab per origin with a Web Lock; that tab starts the wasm, the others forward to it over a `BroadcastChannel`. Answers same-origin `/api/*` and `/health` fetches and relayed requests; `window.plainshelfRequest(r)` does the same without `fetch`, and an optional `window.plainshelfSeed(serve)` runs before the serving tab answers |
 | `server/store/db_js.go` | The settings store as one JSON file instead of badger, whose files are mmapped, which js/wasm cannot do. The file persists through OPFS like the shelf |
@@ -94,6 +94,9 @@ reloads onto the exported shelf; a file that is not a shelf zip is refused.
   WebKit has no OPFS, unlike Safari, so its run sets `SMOKE_EXPECT_MEMORY=1`:
   persistence checks are skipped and the fallback is checked instead. Any other
   engine without OPFS fails the run rather than skipping.
+- Import is refused where the demo runs in memory, since the reload that
+  follows would lose it; `/_demo/storage` asks the serving tab whether it
+  persists. A zip over 512 MiB is refused before the browser reads it.
 - An import replaces the shelf files and then reloads every tab instead of
   reconciling the running server: the serving tab flushes to OPFS and announces
   it is going, and the others wait for that before reloading, or they would

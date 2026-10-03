@@ -17,7 +17,14 @@
   window.plainshelfFlush = () => window.plainshelfStorage?.flush() ?? Promise.resolve();
 
   // A request is { method, url, headers, body? } and a response { status, headers, body }.
-  const callLocal = (r) => window.plainshelfFetch(r.method, r.url, r.headers, r.body);
+  // /_demo/storage reports whether the serving tab persists, which only it knows.
+  const callLocal = (r) => (r.url === '/_demo/storage'
+    ? Promise.resolve({
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: new TextEncoder().encode(JSON.stringify({ persistent: window.plainshelfStorage?.persistent === true })),
+    })
+    : window.plainshelfFetch(r.method, r.url, r.headers, r.body));
 
   let serving = null; // set when this tab takes the server role; resolves once it answers
   const pending = new Map(); // id -> { r, resolve, acked, timer }, requests sent to the serving tab

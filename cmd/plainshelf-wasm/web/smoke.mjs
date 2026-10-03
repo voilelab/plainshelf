@@ -269,18 +269,31 @@ check('export is a shelf zip', zipNames.length > 0 && zipNames.every((n) => /^(b
   exportedTitles.every((t) => zipNames.some((n) => n.endsWith(`${t.toLowerCase()}.bookpkg/book.json`))),
   `${zipNames.length} entries, ${exportedTitles.length} books`);
 const extra = await callIn(tabB, 'POST', '/api/shelves/demo/books', { title: '匯入後應消失的書', folder: [] });
-tabC.once('dialog', (d) => d.accept());
+const dialogs = [];
+tabC.on('dialog', (d) => {
+  dialogs.push(d.message());
+  d.accept();
+});
 const [chooser] = await Promise.all([
   tabC.waitForEvent('filechooser'),
   tabC.getByRole('button', { name: 'Import shelf…' }).click(),
 ]);
-const reloaded = tabC.waitForEvent('load');
-await chooser.setFiles({ name: 'shelf.zip', mimeType: 'application/zip', buffer: zipBytes });
-await reloaded;
-await tabC.getByText('Total Books').first().waitFor({ timeout: 30000 });
-const importedTitles = await titles(tabC);
-persisted('import restores the exported shelf in every tab', extra.status === 201 &&
-  JSON.stringify(importedTitles) === JSON.stringify(exportedTitles), importedTitles.join(','));
+if (persistent) {
+  const reloaded = tabC.waitForEvent('load');
+  await chooser.setFiles({ name: 'shelf.zip', mimeType: 'application/zip', buffer: zipBytes });
+  await reloaded;
+  await tabC.getByText('Total Books').first().waitFor({ timeout: 30000 });
+  const importedTitles = await titles(tabC);
+  check('import restores the exported shelf in every tab', extra.status === 201 &&
+    JSON.stringify(importedTitles) === JSON.stringify(exportedTitles), importedTitles.join(','));
+} else {
+  // Without OPFS the reload after an import would lose it, so it is refused.
+  await chooser.setFiles({ name: 'shelf.zip', mimeType: 'application/zip', buffer: zipBytes });
+  await tabC.waitForTimeout(500);
+  const after = await titles(tabC);
+  check('without OPFS an import is refused, not lost', dialogs.some((m) => m.includes('cannot keep')) &&
+    after.includes('匯入後應消失的書'), dialogs.join(' | '));
+}
 const badImport = await tabC.evaluate(async () => (await window.plainshelfRequest({
   method: 'PUT', url: '/_demo/shelf.zip', headers: {}, body: new TextEncoder().encode('not a zip'),
 })).status);

@@ -3,6 +3,7 @@
 // Load after boot.js, on the app page.
 (() => {
   const ZIP_URL = '/_demo/shelf.zip';
+  const MAX_IMPORT_BYTES = 512 << 20; // shelfzip's limit, checked before the file is read
 
   function button(label, onClick) {
     const b = document.createElement('button');
@@ -27,13 +28,26 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  // The picker opens straight from the click: an await first could cost the
+  // user activation browsers require for it.
   function importShelf() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.zip,application/zip';
     input.addEventListener('change', async () => {
       const file = input.files?.[0];
-      if (!file || !confirm(`Replace every book in this demo with "${file.name}"?`)) return;
+      if (!file) return;
+      // An import reloads every tab, which only keeps the new shelf if it persists.
+      const storage = await window.plainshelfRequest({ method: 'GET', url: '/_demo/storage', headers: {} });
+      if (!JSON.parse(new TextDecoder().decode(storage.body)).persistent) {
+        alert('This browser cannot keep the demo shelf (no OPFS), so an imported shelf would be lost on reload.');
+        return;
+      }
+      if (file.size > MAX_IMPORT_BYTES) {
+        alert('Import failed: the zip is larger than 512 MiB.');
+        return;
+      }
+      if (!confirm(`Replace every book in this demo with "${file.name}"?`)) return;
       const body = new Uint8Array(await file.arrayBuffer());
       const res = await window.plainshelfRequest({
         method: 'PUT', url: ZIP_URL, headers: { 'Content-Type': 'application/zip' }, body,

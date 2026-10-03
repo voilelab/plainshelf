@@ -182,7 +182,16 @@ func TestImportRejectsWithoutTouchingTheShelf(t *testing.T) {
 	}
 }
 
+// withLimit lowers maxImportBytes for one test.
+func withLimit(t *testing.T, n int64) {
+	t.Helper()
+	old := maxImportBytes
+	maxImportBytes = n
+	t.Cleanup(func() { maxImportBytes = old })
+}
+
 func TestImportRejectsOversizedZip(t *testing.T) {
+	withLimit(t, 4<<20)
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	w, err := zw.CreateHeader(&zip.FileHeader{Name: "books/big.bookpkg/source.txt", Method: zip.Deflate})
