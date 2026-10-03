@@ -11,6 +11,7 @@ import (
 	"os"
 	"syscall/js"
 
+	"github.com/voilelab/plainshelf/cmd/plainshelf-wasm/shelfzip"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
@@ -21,6 +22,7 @@ func main() {
 	if root == "" {
 		root = "/plainshelf"
 	}
+	libRoot := root + "/shelf"
 	stderrLog := logutil.LogConf{Level: "info", Format: "text", LogFile: logutil.LogFileConf{Type: logutil.LogFileTypeStderr}}
 	app, err := server.NewApp(&server.AppConf{
 		Logger: stderrLog,
@@ -28,7 +30,7 @@ func main() {
 			ID:   "demo",
 			Name: "Demo Shelf",
 			ShelfConf: shelf.ShelfConf{
-				LibRoot:  root + "/shelf",
+				LibRoot:  libRoot,
 				LockMode: "none",
 				Logger:   stderrLog,
 			},
@@ -43,7 +45,7 @@ func main() {
 	if err := app.Start(); err != nil {
 		panic(err)
 	}
-	handler := app.Handler()
+	handler := shelfzip.Handler(libRoot, app.Handler())
 
 	// plainshelfFetch(method, url, headers, body?: Uint8Array) -> Promise<{status, headers, body: Uint8Array}>
 	js.Global().Set("plainshelfFetch", js.FuncOf(func(_ js.Value, args []js.Value) any {

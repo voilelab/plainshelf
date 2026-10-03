@@ -12,10 +12,10 @@ mkdir -p "$out/wasm"
 (cd "$repo" && GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o "$out/wasm/plainshelf.wasm" ./cmd/plainshelf-wasm)
 # The relay must sit at the root so its scope covers the app's /api requests.
 cp "$repo/cmd/plainshelf-wasm/web/sw.js" "$out/plainshelf-sw.js"
-cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$repo"/cmd/plainshelf-wasm/web/{memfs.js,opfs.js,opfs-writer.js,boot.js,index.html} "$out/wasm/"
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$repo"/cmd/plainshelf-wasm/web/{memfs.js,opfs.js,opfs-writer.js,boot.js,toolbar.js,index.html} "$out/wasm/"
 
 # boot.js must patch fetch before the app's module script runs.
-tags='<script src="/wasm/memfs.js"></script><script src="/wasm/opfs.js"></script><script src="/wasm/wasm_exec.js"></script><script src="/wasm/boot.js"></script>'
+tags='<script src="/wasm/memfs.js"></script><script src="/wasm/opfs.js"></script><script src="/wasm/wasm_exec.js"></script><script src="/wasm/boot.js"></script><script src="/wasm/toolbar.js"></script>'
 python3 - "$out/index.html" "$tags" <<'PY'
 import sys
 p, tags = sys.argv[1], sys.argv[2]

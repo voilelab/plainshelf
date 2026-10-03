@@ -1,6 +1,7 @@
 // Usage: node smoke.mjs <site dir from build.sh> [screenshot.png]
 // Opens the real frontend on the wasm server in a browser, checks that the
 // shelf survives a reload through OPFS, then drives the raw API page.
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { serveStatic } from './serve.mjs';
@@ -39,6 +40,20 @@ const page = await context.newPage();
 process.on('exit', (code) => {
   if (code !== 0) console.log(`last console lines:\n${consoleLog.slice(-40).join('\n')}`);
 });
+
+// Entry names from a zip's central directory.
+function zipEntryNames(buf) {
+  const end = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (end < 0) return [];
+  const names = [];
+  let at = buf.readUInt32LE(end + 16);
+  for (let i = 0; i < buf.readUInt16LE(end + 10); i++) {
+    const nameLen = buf.readUInt16LE(at + 28);
+    names.push(buf.subarray(at + 46, at + 46 + nameLen).toString('utf8'));
+    at += 46 + nameLen + buf.readUInt16LE(at + 30) + buf.readUInt16LE(at + 32);
+  }
+  return names;
+}
 
 let failed = false;
 function check(name, ok, detail = '') {
@@ -238,6 +253,51 @@ await tabC.goto(`${origin}/`);
 await tabC.getByText('Total Books').first().waitFor({ timeout: 30000 });
 const forwardedCover = await coverStatus(tabC);
 check('cover renders in a tab that forwards', !(await runsServer(tabC)) && /^[1-9]\d*x[1-9]/.test(forwardedCover), forwardedCover);
+
+// Export and import through the demo bar, from the forwarding tab: the zip
+// round trip runs in the serving tab, and an import reloads every tab.
+check('the demo bar is shown', await tabC.locator('#plainshelf-demo-bar').isVisible());
+const [download] = await Promise.all([
+  tabC.waitForEvent('download'),
+  tabC.getByRole('button', { name: 'Export shelf' }).click(),
+]);
+const zipBytes = await fs.readFile(await download.path());
+const exportedTitles = await titles(tabB);
+const zipNames = zipEntryNames(zipBytes);
+// Book directories are named after the title, lower-cased by the shelf.
+check('export is a shelf zip', zipNames.length > 0 && zipNames.every((n) => /^(books|trash)\//.test(n)) &&
+  exportedTitles.every((t) => zipNames.some((n) => n.endsWith(`${t.toLowerCase()}.bookpkg/book.json`))),
+  `${zipNames.length} entries, ${exportedTitles.length} books`);
+const extra = await callIn(tabB, 'POST', '/api/shelves/demo/books', { title: '匯入後應消失的書', folder: [] });
+const dialogs = [];
+tabC.on('dialog', (d) => {
+  dialogs.push(d.message());
+  d.accept();
+});
+const [chooser] = await Promise.all([
+  tabC.waitForEvent('filechooser'),
+  tabC.getByRole('button', { name: 'Import shelf…' }).click(),
+]);
+if (persistent) {
+  const reloaded = tabC.waitForEvent('load');
+  await chooser.setFiles({ name: 'shelf.zip', mimeType: 'application/zip', buffer: zipBytes });
+  await reloaded;
+  await tabC.getByText('Total Books').first().waitFor({ timeout: 30000 });
+  const importedTitles = await titles(tabC);
+  check('import restores the exported shelf in every tab', extra.status === 201 &&
+    JSON.stringify(importedTitles) === JSON.stringify(exportedTitles), importedTitles.join(','));
+} else {
+  // Without OPFS the reload after an import would lose it, so it is refused.
+  await chooser.setFiles({ name: 'shelf.zip', mimeType: 'application/zip', buffer: zipBytes });
+  await tabC.waitForTimeout(500);
+  const after = await titles(tabC);
+  check('without OPFS an import is refused, not lost', dialogs.some((m) => m.includes('cannot keep')) &&
+    after.includes('匯入後應消失的書'), dialogs.join(' | '));
+}
+const badImport = await tabC.evaluate(async () => (await window.plainshelfRequest({
+  method: 'PUT', url: '/_demo/shelf.zip', headers: {}, body: new TextEncoder().encode('not a zip'),
+})).status);
+check('a file that is not a shelf zip is refused', badImport === 400, `status ${badImport}`);
 
 await browser.close();
 srv.close();
