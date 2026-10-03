@@ -44,6 +44,7 @@ nothing is lost across the handover or a reload.
 | `main.go` | Builds `server.App` (security `none`, lock mode `none`) and exposes `App.Handler()` as `plainshelfFetch(method, url, headers, body)` |
 | `web/memfs.js` | In-memory stand-in for the Node `fs` API that Go's `syscall/fs_js.go` calls |
 | `web/opfs.js` | Restores the memfs tree from OPFS before Go starts, then writes changed paths back within 200 ms of a change, and tries once more on `pagehide` |
+| `web/opfs-writer.js` | Worker that writes each file with `createSyncAccessHandle`, which every engine with OPFS has; the main-thread `createWritable` only reached Safari in version 26 |
 | `web/sw.js` | Service worker, served as `/plainshelf-sw.js`. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
 | `web/serve.mjs` | Local static server with the SPA fallback, used by `run-wasm-demo` and `smoke.mjs` |
 | `web/boot.js` | Elects one serving tab per origin with a Web Lock; that tab starts the wasm, the others forward to it over a `BroadcastChannel`. Answers same-origin `/api/*` and `/health` fetches and relayed requests; `window.plainshelfRequest(r)` does the same without `fetch`, and an optional `window.plainshelfSeed(serve)` runs before the serving tab answers |
@@ -80,7 +81,8 @@ nothing is lost across the handover or a reload.
   Forwarded requests are resent until a serving tab acknowledges them; one the
   old tab acknowledged but never answered is sent again to the new one, so a
   write can apply twice if the old tab died between applying and answering.
-- Persistence needs `FileSystemFileHandle.createWritable`; where it is missing
-  the demo falls back to memory and logs a warning. Only chromium was tested.
+- Persistence needs OPFS and a worker; without them the demo falls back to
+  memory and logs a warning. `smoke.mjs` runs in chromium on every pull request
+  and in firefox and webkit nightly (`SMOKE_BROWSER`).
 - Only the shelf list, book creation, move, trash and the home page were
   exercised. Import, the reader and the source editor are untested here.

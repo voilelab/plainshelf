@@ -24,9 +24,21 @@ const executablePath = engine === 'chromium' ? process.env.CHROMIUM || undefined
 const browser = await playwright[engine].launch({ executablePath });
 console.log(`browser: ${engine} ${browser.version()}`);
 const context = await browser.newContext(); // fresh: OPFS starts empty
+// Every tab's console, printed when a check fails: the other engines only fail on CI.
+const consoleLog = [];
+let nextTab = 0;
+context.on('page', (tab) => {
+  const label = `tab${nextTab++}`;
+  tab.on('console', (m) => {
+    consoleLog.push(`[${label} ${m.type()}] ${m.text()}`);
+    if (process.env.VERBOSE) console.log(`[${label}]`, m.text());
+  });
+  tab.on('pageerror', (e) => consoleLog.push(`[${label} pageerror] ${e.message}`));
+});
 const page = await context.newPage();
-page.on('console', (m) => { if (process.env.VERBOSE) console.log('[page]', m.text()); });
-page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+process.on('exit', (code) => {
+  if (code !== 0) console.log(`last console lines:\n${consoleLog.slice(-40).join('\n')}`);
+});
 
 let failed = false;
 function check(name, ok, detail = '') {
@@ -78,7 +90,12 @@ const coverStatus = async (tab = page) => {
     await img.waitFor({ timeout: 10000 });
     await tab.waitForFunction((el) => el.complete, await img.elementHandle(), { timeout: 10000 });
   } catch {
-    return 'no cover <img>';
+    // The app swaps a cover that fails to load for its placeholder, so say what is there.
+    const seen = await tab.evaluate(() => ({
+      controlled: Boolean(navigator.serviceWorker?.controller),
+      imgs: [...document.images].map((i) => i.getAttribute('src')).slice(0, 5),
+    }));
+    return `no cover <img>; controlled=${seen.controlled}, imgs=${JSON.stringify(seen.imgs)}`;
   }
   return img.evaluate((el) => `${el.naturalWidth}x${el.naturalHeight}`);
 };

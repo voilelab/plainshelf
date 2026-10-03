@@ -12,8 +12,11 @@ self.addEventListener('fetch', (event) => {
 
 async function relay(event) {
   const req = event.request;
-  // A navigation has no page with a server yet; let the static host answer.
-  const client = event.clientId && await self.clients.get(event.clientId);
+  // Any window of this origin can answer: each one forwards to the serving tab.
+  // The requesting page comes first, the others cover a clientId that does not resolve.
+  const client = (event.clientId && await self.clients.get(event.clientId)) ||
+    (await self.clients.matchAll({ type: 'window' }))[0];
+  // A navigation with no page open has no server behind it; let the static host answer.
   if (!client) return fetch(req);
 
   const body = ['GET', 'HEAD'].includes(req.method) ? undefined : await req.arrayBuffer();
