@@ -155,10 +155,14 @@
       return;
     }
     if (sw.controller) return;
-    // sw.js claims open pages on activation; give it a moment before the app renders.
-    await new Promise((resolve) => {
+    // sw.js claims open pages when it activates. A page loaded past an already
+    // active worker, as a hard reload is, has to ask; either way give it a
+    // moment before the app renders.
+    const taken = new Promise((resolve) => {
       sw.addEventListener('controllerchange', resolve, { once: true });
       setTimeout(resolve, 3000);
     });
+    (await sw.ready).active?.postMessage({ type: 'plainshelf-claim' });
+    await taken;
   }
 })();

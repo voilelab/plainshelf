@@ -5,8 +5,8 @@
   const ROOT = 'plainshelf-demo';
   const DEBOUNCE_MS = 200;
 
-  const supported = typeof navigator !== 'undefined' && navigator.storage?.getDirectory &&
-    typeof FileSystemFileHandle !== 'undefined' && 'createWritable' in FileSystemFileHandle.prototype;
+  const supported = typeof navigator !== 'undefined' && navigator.storage?.getDirectory && typeof Worker !== 'undefined';
+  const writerUrl = new URL('opfs-writer.js', document.currentScript.src);
 
   // Names are stored percent-encoded: Chromium 141 resolves a non-ASCII OPFS
   // name to the parent directory, which flattened every CJK-titled book.
@@ -20,6 +20,9 @@
   };
 
   let rootHandle;
+  let writer;
+  const writes = new Map(); // id -> { resolve, reject }
+  let nextWrite = 0;
   let timer;
   let queue = Promise.resolve(); // writes run one batch at a time, in order
 
@@ -54,11 +57,12 @@
       for (const name of stale) await h.removeEntry(name, { recursive: true });
       return;
     }
-    const slash = path.lastIndexOf('/');
-    const parent = await dirAt(path.slice(0, slash), true);
-    const writable = await (await parent.getFileHandle(toOPFS(path.slice(slash + 1)), { create: true })).createWritable();
-    await writable.write(data);
-    await writable.close();
+    const parts = path.split('/').filter(Boolean).map(toOPFS);
+    await new Promise((resolve, reject) => {
+      const id = nextWrite++;
+      writes.set(id, { resolve, reject });
+      writer.postMessage({ id, root: ROOT, parts, data }, [data.buffer]);
+    });
   }
 
   // A failed entry stays dirty and is retried with the next change.
@@ -83,12 +87,20 @@
   window.plainshelfStorage = {
     async load() {
       if (!supported) {
-        console.warn('plainshelf: OPFS is unavailable; the demo will not survive a reload');
+        console.warn('plainshelf: OPFS or workers are unavailable; the demo will not survive a reload');
         return;
       }
       rootHandle = await (await navigator.storage.getDirectory()).getDirectoryHandle(ROOT, { create: true });
+      writer = new Worker(writerUrl);
+      writer.onmessage = ({ data: { id, error } }) => {
+        const pending = writes.get(id);
+        writes.delete(id);
+        if (error) pending?.reject(new Error(error));
+        else pending?.resolve();
+      };
       await restore(rootHandle, '');
       memfs.takeDirty(); // restored nodes are already on disk
+      window.plainshelfStorage.persistent = true;
       // At most DEBOUNCE_MS after the first change, however busy the shelf is.
       memfs.onChange(() => {
         timer ??= setTimeout(flush, DEBOUNCE_MS);

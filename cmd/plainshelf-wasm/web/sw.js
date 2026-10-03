@@ -3,6 +3,10 @@
 // so its scope covers the whole app.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+// A page loaded past the worker (a hard reload) asks to be taken over.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'plainshelf-claim') event.waitUntil(self.clients.claim());
+});
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
