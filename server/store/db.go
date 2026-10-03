@@ -10,7 +10,7 @@ type DB struct {
 }
 
 func New(dbPath string) (*DB, error) {
-	opts := badger.DefaultOptions(dbPath).WithLogger(nil)
+	opts := storeOptions(dbPath).WithLogger(nil)
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
