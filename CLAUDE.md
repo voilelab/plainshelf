@@ -53,10 +53,12 @@ tests when that directory is absent or stale.
 | Go lint (all three modules) | `golangci-lint run` in the root, `desktop`, and `reader` |
 | All Go tests with frontend build | `just test-go` |
 | End-to-end tests | `just test-e2e` |
+| Wasm demo smoke | `just test-wasm-demo` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
 
-The boundary, export, license, and version-resolver checks are pull-request
-gates in `.github/workflows/ci.yml`; its Android build job is not a gate yet.
+The boundary, export, license, version-resolver, and wasm demo smoke checks are
+pull-request gates in `.github/workflows/ci.yml`; its Android build job is not a
+gate yet.
 
 `just` uses `zsh`. If either is unavailable, run the underlying commands from
 the `justfile`. In restricted environments where `sharp` cannot download its

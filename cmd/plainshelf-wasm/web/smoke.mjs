@@ -12,7 +12,8 @@ const dir = path.resolve(process.argv[2] ?? '.');
 const srv = await serveStatic(dir);
 const origin = `http://127.0.0.1:${srv.address().port}`;
 
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium' });
+// CHROMIUM points at a preinstalled browser; unset, Playwright uses its own.
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
 const context = await browser.newContext(); // fresh: OPFS starts empty
 const page = await context.newPage();
 page.on('console', (m) => { if (process.env.VERBOSE) console.log('[page]', m.text()); });
