@@ -6,12 +6,9 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
-	"encoding/hex"
 	"io"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"syscall/js"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -24,10 +21,6 @@ func main() {
 	if root == "" {
 		root = "/plainshelf"
 	}
-	writerID, err := loadWriterID(root + "/book-cache-writer-id")
-	if err != nil {
-		panic(err)
-	}
 	stderrLog := logutil.LogConf{Level: "info", Format: "text", LogFile: logutil.LogFileConf{Type: logutil.LogFileTypeStderr}}
 	app, err := server.NewApp(&server.AppConf{
 		Logger: stderrLog,
@@ -38,9 +31,6 @@ func main() {
 				LibRoot:  root + "/shelf",
 				LockMode: "none",
 				Logger:   stderrLog,
-				// The store is in memory, so the ID it would generate changes on
-				// every load; a new ID would leave another book cache each time.
-				BookCacheWriterID: writerID,
 			},
 		}},
 		StorePath:  root + "/store",
@@ -89,22 +79,6 @@ func main() {
 	}))
 	js.Global().Call("plainshelfReady")
 	select {}
-}
-
-// loadWriterID reads the persisted book cache writer ID, creating it on first run.
-func loadWriterID(path string) (string, error) {
-	if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
-		return string(b), nil
-	}
-	buf := make([]byte, 8)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	id := hex.EncodeToString(buf)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
-	}
-	return id, os.WriteFile(path, []byte(id), 0o644)
 }
 
 // newPromise runs fn off the JS event loop; blocking a js.FuncOf callback deadlocks.

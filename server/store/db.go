@@ -1,3 +1,5 @@
+//go:build !(js && wasm)
+
 package store
 
 import (
@@ -10,7 +12,7 @@ type DB struct {
 }
 
 func New(dbPath string) (*DB, error) {
-	opts := storeOptions(dbPath).WithLogger(nil)
+	opts := badger.DefaultOptions(dbPath).WithLogger(nil)
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
