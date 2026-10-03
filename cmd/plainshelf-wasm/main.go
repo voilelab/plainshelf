@@ -5,12 +5,16 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
+	"errors"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"syscall/js"
 
+	"github.com/voilelab/plainshelf/cmd/plainshelf-wasm/shelfzip"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
@@ -21,6 +25,7 @@ func main() {
 	if root == "" {
 		root = "/plainshelf"
 	}
+	libRoot := root + "/shelf"
 	stderrLog := logutil.LogConf{Level: "info", Format: "text", LogFile: logutil.LogFileConf{Type: logutil.LogFileTypeStderr}}
 	app, err := server.NewApp(&server.AppConf{
 		Logger: stderrLog,
@@ -28,7 +33,7 @@ func main() {
 			ID:   "demo",
 			Name: "Demo Shelf",
 			ShelfConf: shelf.ShelfConf{
-				LibRoot:  root + "/shelf",
+				LibRoot:  libRoot,
 				LockMode: "none",
 				Logger:   stderrLog,
 			},
@@ -43,7 +48,7 @@ func main() {
 	if err := app.Start(); err != nil {
 		panic(err)
 	}
-	handler := app.Handler()
+	handler := demoRoutes(libRoot, app.Handler())
 
 	// plainshelfFetch(method, url, headers, body?: Uint8Array) -> Promise<{status, headers, body: Uint8Array}>
 	js.Global().Set("plainshelfFetch", js.FuncOf(func(_ js.Value, args []js.Value) any {
@@ -98,4 +103,40 @@ func newPromise(fn func() (any, error)) js.Value {
 	// The Promise constructor calls the executor synchronously, so it can go now.
 	defer executor.Release()
 	return js.Global().Get("Promise").New(executor)
+}
+
+// demoRoutes adds the demo's shelf zip export and import in front of the app.
+// They sit outside /api: they are not part of the server's API contract.
+func demoRoutes(libRoot string, app http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /_demo/shelf.zip", func(w http.ResponseWriter, _ *http.Request) {
+		var buf bytes.Buffer
+		if err := shelfzip.Export(&buf, libRoot); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(buf.Bytes())
+	})
+	mux.HandleFunc("PUT /_demo/shelf.zip", func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		// The page reloads after an import, so the server restarts on the new shelf
+		// rather than reconciling the one it has in memory.
+		err = shelfzip.Import(bytes.NewReader(body), int64(len(body)), libRoot)
+		switch {
+		case errors.Is(err, shelfzip.ErrNotShelf), errors.Is(err, shelfzip.ErrUnsafePath),
+			errors.Is(err, shelfzip.ErrTooLarge), errors.Is(err, zip.ErrFormat):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case err != nil:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	})
+	mux.Handle("/", app)
+	return mux
 }

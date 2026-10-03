@@ -4,6 +4,9 @@ The unmodified server compiled to `GOOS=js GOARCH=wasm` and run inside the
 browser, so the real frontend can be served as a static site with no backend.
 This is a spike, not a supported build. The shelf persists in the browser's
 Origin Private File System (OPFS), per origin; clearing site data resets it.
+The **Demo** bar in the corner exports the shelf as a zip and imports one back.
+The zip's layout is a lib_root (`books/`, `trash/`), so it unzips into a native
+shelf, and a native shelf zipped with or without its folder imports.
 
 ## Run it
 
@@ -35,7 +38,9 @@ through the API page, and checks that all three survive another reload with no
 stale directories left. Last,
 two tabs write at once: only one runs the server, both see both writes, the
 other takes over when it closes, a forwarding tab still shows covers, and
-nothing is lost across the handover or a reload.
+nothing is lost across the handover or a reload. Finally the forwarding tab
+exports through the Demo bar, adds a book, imports the export, and every tab
+reloads onto the exported shelf; a file that is not a shelf zip is refused.
 
 ## How it fits together
 
@@ -46,6 +51,8 @@ nothing is lost across the handover or a reload.
 | `web/opfs.js` | Restores the memfs tree from OPFS before Go starts, then writes changed paths back within 200 ms of a change, and tries once more on `pagehide` |
 | `web/opfs-writer.js` | Worker that writes each file with `createSyncAccessHandle`, which every engine with OPFS has; the main-thread `createWritable` only reached Safari in version 26 |
 | `web/sw.js` | Service worker, served as `/plainshelf-sw.js`. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
+| `web/toolbar.js` | The Demo bar, on the app page only: **Export shelf** downloads `GET /_demo/shelf.zip`, **Import shelf…** sends a zip to `PUT /_demo/shelf.zip` and reloads every tab |
+| `shelfzip/` | Zip export and import of `books/` and `trash/`, run by `main.go` behind `/_demo/shelf.zip`. Import checks every entry first (no paths outside the shelf, a `books/` directory present, at most 512 MiB unpacked) and unpacks beside the shelf before swapping it in. Tested natively |
 | `web/serve.mjs` | Local static server with the SPA fallback, used by `run-wasm-demo` and `smoke.mjs` |
 | `web/boot.js` | Elects one serving tab per origin with a Web Lock; that tab starts the wasm, the others forward to it over a `BroadcastChannel`. Answers same-origin `/api/*` and `/health` fetches and relayed requests; `window.plainshelfRequest(r)` does the same without `fetch`, and an optional `window.plainshelfSeed(serve)` runs before the serving tab answers |
 | `server/store/db_js.go` | The settings store as one JSON file instead of badger, whose files are mmapped, which js/wasm cannot do. The file persists through OPFS like the shelf |
@@ -87,5 +94,10 @@ nothing is lost across the handover or a reload.
   WebKit has no OPFS, unlike Safari, so its run sets `SMOKE_EXPECT_MEMORY=1`:
   persistence checks are skipped and the fallback is checked instead. Any other
   engine without OPFS fails the run rather than skipping.
-- Only the shelf list, book creation, move, trash and the home page were
-  exercised. Import, the reader and the source editor are untested here.
+- An import replaces the shelf files and then reloads every tab instead of
+  reconciling the running server: the serving tab flushes to OPFS and announces
+  it is going, and the others wait for that before reloading, or they would
+  reload into the old server and see the shelf as it was before the import.
+- Only the shelf list, book creation, move, trash, zip export and import, and
+  the home page were exercised. EPUB import, the reader and the source editor
+  are untested here.

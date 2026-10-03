@@ -64,6 +64,10 @@
       pending.delete(data.id);
       clearTimeout(entry.timer);
       entry.resolve(data.res);
+    } else if (data.type === 'reload') {
+      reloadSelf();
+    } else if (data.type === 'server-down') {
+      for (const resolve of serverDownWaiters.splice(0)) resolve();
     } else if (data.type === 'server-up' && !serving) {
       // A new serving tab: whatever the last one acknowledged but never answered goes again.
       for (const [id, entry] of pending) send(id, entry);
@@ -117,6 +121,28 @@
 
   // For pages and tests that talk to the server without going through fetch.
   window.plainshelfRequest = call;
+
+  // The serving tab writes its changes out, then says it is going; the others
+  // wait for that, or they would reload into the old server and its stale view.
+  const serverDownWaiters = [];
+  async function reloadSelf() {
+    if (serving) {
+      await window.plainshelfFlush().catch(() => {});
+      channel.postMessage({ type: 'server-down' });
+    } else {
+      await new Promise((resolve) => {
+        serverDownWaiters.push(resolve);
+        setTimeout(resolve, 5000);
+      });
+    }
+    location.reload();
+  }
+  // Reloads every tab of the demo, after a change the running server should not
+  // reconcile in memory (an imported shelf).
+  window.plainshelfReloadAll = () => {
+    channel.postMessage({ type: 'reload' });
+    return reloadSelf();
+  };
 
   const nativeFetch = window.fetch.bind(window);
   const relayReady = registerRelay();
