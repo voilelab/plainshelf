@@ -1,6 +1,7 @@
 // Relays /api requests the page's fetch patch never sees (<img src> covers,
-// asset links) to the page that runs the wasm server. Served from the site root
-// so its scope covers the whole app.
+// asset links) to the page that runs the wasm server. Served from the app's base
+// path so its scope covers the app's pages; it sees their /api requests wherever
+// that base is.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 // A page loaded past the worker (a hard reload) asks to be taken over.

@@ -19,13 +19,33 @@ Without `just`, run the recipe's commands from the `justfile` directly.
 Any static host can serve `workspace/wasm-demo`; it needs no rewrites beyond
 an SPA fallback to `index.html`.
 
+The demo can also live under a path of a larger site, as it does on
+plainshelf.org, where `docs.yml` deploys it at `/demo/` beside the docs on
+every release:
+
+```sh
+cmd/plainshelf-wasm/build.sh site /demo/   # into site/demo, after `npm --prefix frontend ci`
+```
+
+A base other than `/` rebuilds the frontend for that path rather than copying
+`frontend/dist`. A host such as GitHub Pages has no per-path fallback, only the
+site's `404.html`, so `build.sh` adds `web/deep-link.js` to that page (creating
+it if the site has none): a link or reload into a demo route lands there and is
+sent to `/demo/?demo-route=<route>`, which `boot.js` turns back into the route
+before the app reads the URL. `serve.mjs` behaves the same way for a site with
+a `404.html`.
+
 To check it in chromium, the same check CI's `Wasm demo smoke` job gates on:
 
 ```sh
 just test-wasm-demo
 # or, after a build and `npm --prefix e2e ci`, with an optional screenshot:
 node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo /tmp/app.png
+# a site built with base /demo/:
+SMOKE_BASE=/demo/ node cmd/plainshelf-wasm/web/smoke.mjs site
 ```
+
+CI runs it both ways.
 
 Set `CHROMIUM` to a preinstalled browser when Playwright's own revision is not
 installed, as in the cloud container: `CHROMIUM=/opt/pw-browsers/chromium`.
@@ -38,9 +58,10 @@ through the API page, and checks that all three survive another reload with no
 stale directories left. Last,
 two tabs write at once: only one runs the server, both see both writes, the
 other takes over when it closes, a forwarding tab still shows covers, and
-nothing is lost across the handover or a reload. Finally the forwarding tab
+nothing is lost across the handover or a reload. Then the forwarding tab
 exports through the Demo bar, adds a book, imports the export, and every tab
 reloads onto the exported shelf; a file that is not a shelf zip is refused.
+Last, a link straight to a route opens it.
 
 ## How it fits together
 
@@ -50,10 +71,11 @@ reloads onto the exported shelf; a file that is not a shelf zip is refused.
 | `web/memfs.js` | In-memory stand-in for the Node `fs` API that Go's `syscall/fs_js.go` calls |
 | `web/opfs.js` | Restores the memfs tree from OPFS before Go starts, then writes changed paths back within 200 ms of a change, and tries once more on `pagehide` |
 | `web/opfs-writer.js` | Worker that writes each file with `createSyncAccessHandle`, which every engine with OPFS has; the main-thread `createWritable` only reached Safari in version 26 |
-| `web/sw.js` | Service worker, served as `/plainshelf-sw.js`. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
+| `web/sw.js` | Service worker, served as `plainshelf-sw.js` at the base. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
 | `web/toolbar.js` | The Demo bar, on the app page only: **Export shelf** downloads `GET /_demo/shelf.zip`, **Import shelf…** sends a zip to `PUT /_demo/shelf.zip` and reloads every tab |
 | `shelfzip/` | Zip export and import of `books/` and `trash/`, and the handler `main.go` puts in front of the app at `/_demo/shelf.zip`. Import checks every entry first (no paths outside the shelf, a `books/` directory present, at most 512 MiB zipped or unpacked) and unpacks beside the shelf before swapping it in. It waits for requests in flight and holds new ones off while it swaps, then answers 503 to everything until the reload. Tested natively |
-| `web/serve.mjs` | Local static server with the SPA fallback, used by `run-wasm-demo` and `smoke.mjs` |
+| `web/serve.mjs` | Local static server with the SPA fallback, or the site's `404.html` like GitHub Pages, used by `run-wasm-demo` and `smoke.mjs` |
+| `web/deep-link.js` | Added to a host's `404.html` for a demo under a path; sends a demo route back to the demo as `?demo-route=` |
 | `web/boot.js` | Elects one serving tab per origin with a Web Lock; that tab starts the wasm, the others forward to it over a `BroadcastChannel`. Answers same-origin `/api/*` and `/health` fetches and relayed requests; `window.plainshelfRequest(r)` does the same without `fetch`, and an optional `window.plainshelfSeed(serve)` runs before the serving tab answers |
 | `server/store/db_js.go` | The settings store as one JSON file instead of badger, whose files are mmapped, which js/wasm cannot do. The file persists through OPFS like the shelf |
 | `frontend/web_js.go` | Empty `WebFS`: the static host serves the frontend, so it is not embedded twice |
@@ -67,7 +89,8 @@ reloads onto the exported shelf; a file that is not a shelf zip is refused.
   the wasm itself, since it would hold a second, separate shelf. On a first
   visit the app's requests wait up to 3 s for the worker to take control, so
   the first covers are relayed too. A service worker needs a secure context
-  (HTTPS or localhost) and must be served from the site root. An `/api` URL
+  (HTTPS or localhost). Its scope is the demo's base path, which is enough:
+  a page it controls routes every request through it, `/api` included. An `/api` URL
   opened directly in a new tab has no server page behind it and is not
   answered.
 - Persistence keeps `memfs.js` synchronous: the whole shelf is held in memory

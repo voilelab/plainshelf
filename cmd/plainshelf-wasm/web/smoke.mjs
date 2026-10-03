@@ -1,4 +1,4 @@
-// Usage: node smoke.mjs <site dir from build.sh> [screenshot.png]
+// Usage: [SMOKE_BASE=/demo/] node smoke.mjs <site dir from build.sh> [screenshot.png]
 // Opens the real frontend on the wasm server in a browser, checks that the
 // shelf survives a reload through OPFS, then drives the raw API page.
 import fs from 'node:fs/promises';
@@ -19,6 +19,9 @@ if (!['chromium', 'firefox', 'webkit'].includes(engine)) {
 const dir = path.resolve(process.argv[2] ?? '.');
 const srv = await serveStatic(dir);
 const origin = `http://127.0.0.1:${srv.address().port}`;
+// SMOKE_BASE is the path the demo is served under: build.sh's base.
+const base = process.env.SMOKE_BASE || '/';
+const app = origin + base;
 
 // CHROMIUM points at a preinstalled chromium; unset, Playwright uses its own.
 const executablePath = engine === 'chromium' ? process.env.CHROMIUM || undefined : undefined;
@@ -128,7 +131,7 @@ const coverStatus = async (tab = page) => {
 };
 const openApp = async (reload) => {
   const t0 = Date.now();
-  await (reload ? page.reload() : page.goto(`${origin}/`));
+  await (reload ? page.reload() : page.goto(app));
   await page.getByText('Total Books').first().waitFor({ timeout: 30000 });
   return Date.now() - t0;
 };
@@ -173,7 +176,7 @@ console.log('app text:', (await page.innerText('body')).replace(/\s+/g, ' ').sli
 if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
 
 // The raw API page, on the same shelf (persisted, or reseeded without OPFS).
-await page.goto(`${origin}/wasm/index.html`);
+await page.goto(`${app}wasm/index.html`);
 await page.waitForFunction(() => document.getElementById('status').textContent !== 'loading…', null, { timeout: 60000 });
 const apiCall = (method, url, body) => page.evaluate(async ([method, url, body]) => {
   const enc = body === undefined ? undefined : new TextEncoder().encode(JSON.stringify(body));
@@ -217,7 +220,7 @@ persisted('no stale book directories', JSON.stringify(top) === '["收藏"]', JSO
 // over from OPFS when the first closes. Neither may lose the other's writes.
 const tabA = page;
 const tabB = await context.newPage();
-await tabB.goto(`${origin}/wasm/index.html`);
+await tabB.goto(`${app}wasm/index.html`);
 await tabB.waitForFunction(() => document.getElementById('status').textContent === 'ready', null, { timeout: 60000 });
 const callIn = (tab, method, url, body) => tab.evaluate(async ([method, url, body]) => {
   const enc = body === undefined ? undefined : new TextEncoder().encode(JSON.stringify(body));
@@ -249,7 +252,7 @@ persisted('and they survive a reload', JSON.stringify(afterReload) === JSON.stri
 
 // A tab without the server still shows covers: sw.js -> that tab -> the serving tab.
 const tabC = await context.newPage();
-await tabC.goto(`${origin}/`);
+await tabC.goto(app);
 await tabC.getByText('Total Books').first().waitFor({ timeout: 30000 });
 const forwardedCover = await coverStatus(tabC);
 check('cover renders in a tab that forwards', !(await runsServer(tabC)) && /^[1-9]\d*x[1-9]/.test(forwardedCover), forwardedCover);
@@ -298,6 +301,13 @@ const badImport = await tabC.evaluate(async () => (await window.plainshelfReques
   method: 'PUT', url: '/_demo/shelf.zip', headers: {}, body: new TextEncoder().encode('not a zip'),
 })).status);
 check('a file that is not a shelf zip is refused', badImport === 400, `status ${badImport}`);
+
+// A link straight to a route; under a base it reaches the host's 404 page first.
+const tabD = await context.newPage();
+const linked = await tabD.goto(`${app}trash`);
+await tabD.waitForFunction(() => document.title.startsWith('Trash'), null, { timeout: 30000 });
+const landed = await tabD.evaluate(() => location.pathname + location.search);
+check('a deep link opens its route', landed === `${base}trash`, `status ${linked.status()}, at ${landed}`);
 
 await browser.close();
 srv.close();

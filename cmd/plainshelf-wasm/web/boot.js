@@ -7,6 +7,10 @@
 // window.plainshelfSeed(serve) runs in the serving tab before it answers anyone.
 (() => {
   const base = document.currentScript.src.replace(/[^/]*$/, '');
+  // A deep link that reached the host's 404 page comes back as ?demo-route=
+  // (deep-link.js); restore it before the router reads the URL.
+  const route = new URLSearchParams(location.search).get('demo-route');
+  if (route !== null) history.replaceState(null, '', new URL('..', base).pathname + route);
   const RESEND_MS = 1000;
   const channel = new BroadcastChannel('plainshelf-demo');
   const tabId = crypto.randomUUID();
