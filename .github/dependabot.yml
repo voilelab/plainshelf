@@ -1,11 +1,19 @@
-# Backs the "Dependency Updates" section of SECURITY.md: this file lands the
-# fix, while ci.yml's vulncheck job reports what is currently vulnerable.
+# Backs the "Dependency Updates" section of SECURITY.md: Dependabot opens pull
+# requests only for security advisories, while ci.yml's vulncheck job reports
+# what is currently vulnerable.
+#
+# `open-pull-requests-limit: 0` turns off routine version updates — they were
+# review noise — but not security updates, which GitHub opens regardless of the
+# limit and the schedule. The entries stay so security updates still cover every
+# manifest and still honour the `ignore` rules below. `schedule` is required by
+# the file format even though nothing runs on it.
 #
 # The repository default branch is `dev`, so these pull requests target `dev`
 # without a `target-branch` override — which also keeps Dependabot's own
 # security updates enabled, as those only ever open against the default branch.
 #
-# internal/repocheck/dependabot_test.go fails if a manifest here goes uncovered.
+# internal/repocheck/dependabot_test.go fails if a manifest here goes uncovered
+# or an entry turns version updates back on.
 version: 2
 
 updates:
@@ -17,76 +25,48 @@ updates:
       - "/reader"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
-    groups:
-      # One pull request per module per week, not one per dependency.
-      go-modules:
-        patterns:
-          - "*"
 
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
-    groups:
-      # Majors stay ungrouped: they need the changelog read before merging.
-      npm-minor-and-patch:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
     ignore:
       # TypeScript 7 is the Go rewrite: its package `exports` drop the JS
       # compiler API, so `vue-tsc` cannot resolve `typescript/lib/tsc` and
       # `npm run build` dies before type-checking anything. Nothing in the
-      # frontend can move until vue-tsc ships a native-compiler backend, so
-      # majors stay ignored; minors and patches still come through.
+      # frontend can move until vue-tsc ships a native-compiler backend.
       - dependency-name: typescript
         update-types:
           - version-update:semver-major
 
       # `@types/node` majors track Node.js majors, and docs/development/setup.md
       # caps the frontend at Node.js 23: from 26 the runtime's own experimental
-      # `localStorage` global breaks the Vitest suite. Typing the tooling against
-      # a Node.js the project cannot run on hides missing-API errors, so majors
-      # stay ignored until that supported range moves.
+      # `localStorage` global breaks the Vitest suite.
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
 
-  # Playwright only, and it never reaches the shipped bundle, so it moves on its
-  # own slower clock than the frontend lockfile above.
   - package-ecosystem: npm
     directory: "/e2e"
     schedule:
-      interval: monthly
-    open-pull-requests-limit: 2
+      interval: weekly
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
-    groups:
-      e2e-minor-and-patch:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
 
-  # The `FROM` images only. The runtime stage ships inside the published image,
-  # but its tag is unpinned, so a release build already pulls the current
-  # `24.04` content and only the next LTS is left to open a pull request about —
-  # hence monthly. The pinned NODE_VERSION and GO_VERSION build args in the
-  # Dockerfile are invisible to Dependabot and still move by hand.
+  # The `FROM` images only. The pinned NODE_VERSION and GO_VERSION build args in
+  # the Dockerfile are invisible to Dependabot and still move by hand.
   - package-ecosystem: docker
     directory: "/"
     schedule:
-      interval: monthly
-    open-pull-requests-limit: 2
+      interval: weekly
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
 
@@ -94,23 +74,15 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(ci)"
-    groups:
-      github-actions:
-        patterns:
-          - "*"
 
   # requirements.txt is what docs.yml builds the published site from.
   - package-ecosystem: pip
     directory: "/"
     schedule:
-      interval: monthly
-    open-pull-requests-limit: 2
+      interval: weekly
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore(deps)"
-    groups:
-      docs:
-        patterns:
-          - "*"

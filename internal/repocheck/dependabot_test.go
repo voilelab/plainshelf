@@ -63,14 +63,15 @@ type ciWorkflow struct {
 
 // TestDependabotCoversEveryManifest is the check that keeps SECURITY.md honest
 // as the repository grows: a fourth Go module or a third lockfile added without
-// a Dependabot entry would go unwatched, and nothing else would notice.
+// a Dependabot entry would go unwatched, and nothing else would notice. It also
+// pins version updates off, so only security updates open pull requests.
 func TestDependabotCoversEveryManifest(t *testing.T) {
 	root := repoRoot(t)
 
 	covered := map[string]bool{}
 	for _, update := range readDependabot(t, root).Updates {
-		if update.Limit == nil {
-			t.Errorf("Dependabot entry for %s has no open-pull-requests-limit; unbounded updates flood dev",
+		if update.Limit == nil || *update.Limit != 0 {
+			t.Errorf("Dependabot entry for %s must set open-pull-requests-limit: 0; only security updates open PRs",
 				update.Ecosystem)
 		}
 		dirs := update.Directories
