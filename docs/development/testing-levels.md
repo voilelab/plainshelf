@@ -308,7 +308,6 @@ parallel behind it.
 | Wasm demo smoke | — | — | — | — | 10 ‡ |
 | Android build | 1:29 | 1:24 | 1:05 | **1:24** | 5 |
 | Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
-| npm audit | 0:07 | 0:07 | 0:10 | **0:07** | 5 |
 | **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
 
 † The E2E row measures the job as it was: 101 cases, one worker. PSW-77 made

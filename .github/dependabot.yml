@@ -1,5 +1,5 @@
 # Backs the "Dependency Updates" section of SECURITY.md: this file lands the
-# fix, while ci.yml's scan jobs report what is currently vulnerable.
+# fix, while ci.yml's vulncheck job reports what is currently vulnerable.
 #
 # The repository default branch is `dev`, so these pull requests target `dev`
 # without a `target-branch` override — which also keeps Dependabot's own
