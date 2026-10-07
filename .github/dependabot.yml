@@ -13,7 +13,7 @@
 # security updates enabled, as those only ever open against the default branch.
 #
 # internal/repocheck/dependabot_test.go fails if a manifest here goes uncovered
-# or an entry turns version updates back on.
+# or an entry other than docker turns version updates back on.
 version: 2
 
 updates:
@@ -60,13 +60,16 @@ updates:
     commit-message:
       prefix: "chore(deps)"
 
-  # The `FROM` images only. The pinned NODE_VERSION and GO_VERSION build args in
-  # the Dockerfile are invisible to Dependabot and still move by hand.
+  # The one entry left on version updates: GitHub's advisory database has no
+  # Docker ecosystem, so security updates never fire here. The only `FROM` is an
+  # unpinned `ubuntu:24.04` that every release build already pulls fresh, so
+  # this opens a pull request only for the next LTS. The pinned NODE_VERSION and
+  # GO_VERSION build args are invisible to Dependabot and still move by hand.
   - package-ecosystem: docker
     directory: "/"
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 0
+      interval: monthly
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps)"
 
