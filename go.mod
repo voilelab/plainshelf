@@ -7,7 +7,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.9.6
 	github.com/gofrs/flock v0.13.1
 	github.com/wlynxg/chardet v1.0.5
-	go.rtnl.ai/x v1.21.0
+	go.rtnl.ai/x v1.22.0
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.59.0
 	golang.org/x/text v0.42.0
