@@ -23,7 +23,6 @@ var ciJobNames = map[string]string{
 	"wasm-demo": "Wasm demo smoke",
 	"android":   "Android build",
 	"vulncheck": "Go vulnerability scan",
-	"audit":     "npm audit (informational)",
 }
 
 // blockingCIJobs records, per job, whether a failure blocks the merge — the
@@ -37,7 +36,6 @@ var blockingCIJobs = map[string]bool{
 	"wasm-demo": true,
 	"android":   false,
 	"vulncheck": true,
-	"audit":     false,
 }
 
 type dependabotConfig struct {
@@ -161,19 +159,19 @@ func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 	}
 }
 
-// TestScanStepsSurviveAnEarlierFailure guards a trap both scan jobs sit in: a
+// TestScanStepsSurviveAnEarlierFailure guards a trap the scan job sits in: a
 // failed step skips the rest of its job by default, so the first vulnerable
-// module or lockfile would mask every one scanned after it. Job-level
+// module would mask every one scanned after it. Job-level
 // continue-on-error does not help — it keeps the failure off the workflow
 // result without un-skipping anything.
 func TestScanStepsSurviveAnEarlierFailure(t *testing.T) {
 	wf := readCIWorkflow(t, repoRoot(t))
 
-	for _, jobID := range []string{"vulncheck", "audit"} {
+	for _, jobID := range []string{"vulncheck"} {
 		seenFallible := false
 		for _, step := range wf.Jobs[jobID].Steps {
 			run := step.Run
-			if !strings.Contains(run, "govulncheck") && !strings.Contains(run, "npm audit") {
+			if !strings.Contains(run, "govulncheck") {
 				continue
 			}
 			if seenFallible && !strings.Contains(step.If, "cancelled") {
