@@ -234,7 +234,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
   DropdownMenuContent,
@@ -249,8 +249,7 @@ import {
   SelectRoot,
   SelectTrigger,
   SelectValue,
-  SelectViewport,
-  type AcceptableValue
+  SelectViewport
 } from 'reka-ui';
 import type { Book } from '@/types/book';
 import BookCollectionPage from '@/components/BookCollectionPage.vue';
@@ -271,17 +270,17 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useCharCountIndex } from '@/composables/useCharCountIndex';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useBookPagination } from '@/composables/useBookPagination';
-import { useBookSelection } from '@/composables/useBookSelection';
-import { useBookBatchOperations } from '@/composables/useBookBatchOperations';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useShelfRefresh } from '@/composables/useShelfRefresh';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBooksRouteQuery } from '@/features/library/composables/useBooksRouteQuery';
 import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
-import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
+import { useBooksSort } from '@/features/library/composables/useBooksSort';
 import { useContentStatsRefresh } from '@/features/library/composables/useContentStatsRefresh';
+import { useLibraryImport } from '@/features/library/composables/useLibraryImport';
+import { ROOT_FOLDER_LABEL, useLibraryNavigation } from '@/features/library/composables/useLibraryNavigation';
+import { useLibrarySelection } from '@/features/library/composables/useLibrarySelection';
 import { useMetadataEditorModal } from '@/features/library/composables/useMetadataEditorModal';
-import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import {
   BOOK_FILTERS,
   PANEL_BOOK_FILTERS,
@@ -295,17 +294,12 @@ import {
   type ActiveBookFilter
 } from '@/utils/bookFilters/apply';
 import { filterValueLabel } from '@/features/library/utils/filterLabels';
-import { retrySelection, runDownloadBatch } from '@/features/library/utils/downloadBatch';
 import { isCharCountRangeActive } from '@/utils/charCountFilter';
-import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
-import { normalizeFolderPath } from '@/utils/folders';
 import { useI18n } from '@/i18n';
 import { getBookshelfProvider } from '@/providers';
 import { isMobileRuntime } from '@/providers/runtime';
-import type { BookActivation } from '@/types/bookSelection';
 import '@/styles/toolbar-controls.css';
 
-const ROOT_FOLDER_LABEL = '/';
 const { t } = useI18n();
 const route = useRoute();
 
@@ -335,38 +329,12 @@ const {
   clearSearch
 } = useBooksSearch(searchQuery.value);
 const booksLoaded = ref<boolean>(false);
-const isNewEmptyBookModalOpen = ref(false);
-const droppedFiles = ref<File[]>([]);
-// Host paths from the desktop native picker, handed to the import modal to
-// auto-start a per-file import. Empty on the web, where there is no picker.
-const desktopImportPaths = ref<string[]>([]);
 // Matches the isMobileEnv pattern in MainLayout.vue and SettingsPage.vue: the
 // runtime does not change during a session, but a computed keeps it consistent
 // with the other environment checks used in the template.
 const isMobileEnv = computed(() => isMobileRuntime());
-const selection = useBookSelection();
-const batchOperations = useBookBatchOperations();
-const moveBooksModalOpen = ref(false);
-const trashBooksModalOpen = ref(false);
-const downloadBatchOpen = ref(false);
-const downloadBatchRunning = ref(false);
-const downloadBatchPercentage = ref(0);
-const downloadBatchSucceeded = ref(0);
-const downloadBatchTotal = ref(0);
-const downloadBatchFailures = ref<Array<{ id: string; title: string; message: string }>>([]);
-const selectionEnabled = computed(() => isMobileEnv.value || !readOnly.value);
 const folderOptions = computed(() => [...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort());
 const visibleBookIds = computed(() => visibleBooks.value.map((book) => book.id));
-const downloadBatchStatusText = computed(() => {
-  if (downloadBatchRunning.value) return t('bookCollection.selection.processing');
-  if (downloadBatchFailures.value.length === 0) {
-    return t('bookCollection.selection.downloadComplete', { count: downloadBatchSucceeded.value });
-  }
-  return t('bookCollection.selection.downloadPartial', {
-    succeeded: downloadBatchSucceeded.value,
-    failed: downloadBatchFailures.value.length
-  });
-});
 
 // Character counts are not part of the shared listing: asking for them makes
 // the backend open every book's current source, so they are fetched lazily and
@@ -457,146 +425,59 @@ const {
 // form on a client that cannot write.
 const importModalOpen = computed(() => isImportModalOpen.value && !readOnly.value);
 
-function selectedBooks(): Book[] {
-  return books.value.filter((book) => selection.selectedIds.value.has(book.id));
-}
+const {
+  selection,
+  batchOperations,
+  selectionEnabled,
+  moveBooksModalOpen,
+  trashBooksModalOpen,
+  downloadBatchOpen,
+  downloadBatchRunning,
+  downloadBatchPercentage,
+  downloadBatchFailures,
+  downloadBatchStatusText,
+  onBookActivate,
+  onToggleSelection,
+  onLongPress,
+  selectVisibleBooks,
+  openBatchMove,
+  openBatchTrash,
+  submitBatchMove,
+  submitBatchTrash,
+  startBatchDownload,
+  closeDownloadBatch
+} = useLibrarySelection({ books, visibleBookIds, isMobileEnv, readOnly, openDetail, reloadBooks });
 
-function selectedTitles(): Record<string, string> {
-  return Object.fromEntries(selectedBooks().map((book) => [book.id, book.title]));
-}
-
-function onBookActivate(payload: BookActivation): void {
-  if (batchOperations.running.value || downloadBatchRunning.value) return;
-  if (!selectionEnabled.value) {
-    openDetail(payload.id);
-    return;
-  }
-  if (!isMobileEnv.value && payload.shiftKey) {
-    selection.selectRange(visibleBookIds.value, payload.id);
-    return;
-  }
-  if (selection.active.value || payload.metaKey || payload.ctrlKey) {
-    selection.toggle(payload.id);
-    return;
-  }
-  openDetail(payload.id);
-}
-
-function onToggleSelection(id: string): void {
-  if (!batchOperations.running.value && !downloadBatchRunning.value) selection.toggle(id);
-}
-
-function onLongPress(id: string): void {
-  if (isMobileEnv.value && !downloadBatchRunning.value) selection.toggle(id);
-}
-
-function selectVisibleBooks(): void {
-  if (!batchOperations.running.value && !downloadBatchRunning.value) selection.selectAll(visibleBookIds.value);
-}
-
-function openBatchMove(): void {
-  if (!isMobileEnv.value && selection.active.value && !readOnly.value) moveBooksModalOpen.value = true;
-}
-
-function openBatchTrash(): void {
-  if (!isMobileEnv.value && selection.active.value && !readOnly.value) trashBooksModalOpen.value = true;
-}
-
-function submitBatchMove(targetFolder: string): void {
-  moveBooksModalOpen.value = false;
-  const ids = [...selection.selectedIds.value];
-  void batchOperations.startMove(ids, targetFolder.split('/').filter(Boolean), selectedTitles());
-}
-
-function submitBatchTrash(): void {
-  trashBooksModalOpen.value = false;
-  const ids = [...selection.selectedIds.value];
-  void batchOperations.startTrash(ids, selectedTitles());
-}
-
-async function startBatchDownload(): Promise<void> {
-  const provider = getBookshelfProvider();
-  if (!provider.downloadBook || downloadBatchRunning.value) return;
-  const targets = selectedBooks();
-  if (targets.length === 0) return;
-
-  downloadBatchOpen.value = true;
-  downloadBatchRunning.value = true;
-  downloadBatchPercentage.value = 0;
-  downloadBatchSucceeded.value = 0;
-  downloadBatchTotal.value = targets.length;
-  downloadBatchFailures.value = [];
-
-  // Called through the provider, not as a detached function: the mobile
-  // provider's downloadBook is a method and needs its own `this`.
-  const outcome = await runDownloadBatch(targets, (id) => provider.downloadBook!(id), {
-    onProgress: (percentage) => {
-      downloadBatchPercentage.value = percentage;
-    },
-    onFailure: (failure) => {
-      downloadBatchFailures.value = [
-        ...downloadBatchFailures.value,
-        { ...failure, message: t('bookCollection.selection.failureCodes.download_failed') }
-      ];
-    }
-  });
-  downloadBatchSucceeded.value = outcome.succeeded;
-
-  downloadBatchRunning.value = false;
-  const failedVisible = retrySelection(outcome.failures, visibleBookIds.value);
-  if (failedVisible.size > 0) selection.replace(failedVisible);
-  else selection.clear();
-  await reloadBooks();
-}
-
-function closeDownloadBatch(): void {
-  if (!downloadBatchRunning.value) downloadBatchOpen.value = false;
-}
-
-function onSelectionKeydown(event: KeyboardEvent): void {
-  if (!selection.active.value || batchOperations.running.value || downloadBatchRunning.value) return;
-  const target = event.target;
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable)) return;
-  if (event.key === 'Escape') {
-    event.preventDefault();
-    selection.clear();
-  } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
-    event.preventDefault();
-    selection.selectAll(visibleBookIds.value);
-  }
-}
-
-let mobileBackHandle: { remove: () => Promise<void> } | null = null;
-
-async function installMobileBackHandler(): Promise<void> {
-  if (!isMobileEnv.value) return;
-  const { App } = await import('@capacitor/app');
-  mobileBackHandle = await App.addListener('backButton', (event) => {
-    handleLibraryMobileBack(event, {
-      selectionActive: selection.active.value,
-      downloadRunning: downloadBatchRunning.value,
-      clearSelection: selection.clear,
-      goBack: () => window.history.back(),
-      exitApp: () => App.exitApp()
-    });
-  });
-}
-
-const isRootFolderSelected = computed(() => selectedFolder.value === ROOT_FOLDER_LABEL);
-
-const selectedFolderTitle = computed(() => {
-  if (!selectedFolder.value) {
-    return t('library.allBooks');
-  }
-  return selectedFolder.value;
+const {
+  isNewEmptyBookModalOpen,
+  droppedFiles,
+  desktopImportPaths,
+  openImportFromFiles,
+  openNewEmptyBookModal,
+  closeNewEmptyBookModal,
+  closeImportModal,
+  onImported
+} = useLibraryImport({
+  readOnly,
+  isImportModalOpen,
+  openImportModalQuery,
+  closeImportModalQuery,
+  reloadAfterImport: reloadBooksAfterImport
 });
 
-const selectedFolderSegments = computed(() => {
-  if (!selectedFolder.value) {
-    return [] as string[];
-  }
-  return selectedFolder.value.split('/').filter((segment) => segment.length > 0);
-});
+const {
+  isRootFolderSelected,
+  selectedFolderTitle,
+  selectedFolderSegments,
+  onSelectAllBooks,
+  onSelectBreadcrumb,
+  onPageChange,
+  onPageSizeChange,
+  sortLabel,
+  onSortSelectChange,
+  toggleOrder
+} = useLibraryNavigation({ selectedFolder, page, sortBy, sortOrder, pushBooksQuery }, setPageSize);
+
 
 const pageTitleSegments = computed(() => {
   const query = searchQuery.value.trim();
@@ -669,10 +550,7 @@ const panelFiltersKey = computed(() =>
 );
 
 const filteredBooks = computed(() => applyBookFilters(books.value, activeFilters.value, augmentBook));
-const {
-  SORT_OPTIONS,
-  sortedBooks
-} = useBooksSort(filteredBooks, sortBy, sortOrder);
+const { sortedBooks } = useBooksSort(filteredBooks, sortBy, sortOrder);
 
 const unknownCharCountCount = computed(() => {
   if (!charCountFilterActive.value || !charCountIndex.ready.value) {
@@ -769,213 +647,13 @@ const emptyMessage = computed(() => {
   return t('library.empty.noBooksYet');
 });
 
-function onSelectAllBooks(): void {
-  if (!selectedFolder.value && page.value === 1) {
-    return;
-  }
-  void pushBooksQuery({ folder: undefined, page: 1 });
-}
-
-function onSelectFolder(folder: string): void {
-  const trimmed = folder.trim();
-  if (trimmed === '') {
-    onSelectAllBooks();
-    return;
-  }
-
-  const normalized = trimmed === ROOT_FOLDER_LABEL ? ROOT_FOLDER_LABEL : normalizeFolderPath(trimmed);
-
-  if (selectedFolder.value === normalized && page.value === 1) {
-    return;
-  }
-  void pushBooksQuery({ folder: normalized, page: 1 });
-}
-
-function onSelectBreadcrumb(index: number): void {
-  const path = selectedFolderSegments.value.slice(0, index + 1).join('/');
-  onSelectFolder(path);
-}
-
-function onPageChange(nextPage: number): void {
-  if (nextPage === page.value) {
-    return;
-  }
-  void pushBooksQuery({ folder: selectedFolder.value, page: nextPage });
-}
-
-function onPageSizeChange(newSize: number): void {
-  setPageSize(newSize);
-  void pushBooksQuery({ folder: selectedFolder.value, page: 1 });
-}
-
-function onSortChange(nextSort: BookSortKey): void {
-  if (nextSort === sortBy.value && page.value === 1) {
-    return;
-  }
-
-  void pushBooksQuery({
-    folder: selectedFolder.value,
-    page: 1,
-    sort: nextSort,
-    order: sortOrder.value
-  });
-}
-
-// Rendered into the SelectValue slot so the closed trigger follows a locale
-// change. reka-ui snapshots each SelectItemText's text into an option registry
-// at mount, and a runtime i18n switch does not refresh it — the popup options
-// retranslate but the trigger would stay stale until the list is reopened.
-const sortLabel = computed(() => {
-  switch (sortBy.value) {
-    case 'created_at':
-      return t('library.sortBy.created');
-    case 'title':
-      return t('library.sortBy.title');
-    default:
-      return t('library.sortBy.updated');
-  }
-});
-
-function onSortSelectChange(value: AcceptableValue): void {
-  if (typeof value !== 'string' || !SORT_OPTIONS.includes(value as BookSortKey)) {
-    return;
-  }
-
-  onSortChange(value as BookSortKey);
-}
-
-function onOrderChange(nextOrder: SortOrder): void {
-  if (nextOrder === sortOrder.value && page.value === 1) {
-    return;
-  }
-
-  void pushBooksQuery({
-    folder: selectedFolder.value,
-    page: 1,
-    sort: sortBy.value,
-    order: nextOrder
-  });
-}
-
-function toggleOrder(): void {
-  onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
-}
-
-async function openImportFromFiles(): Promise<void> {
-  if (readOnly.value) {
-    return;
-  }
-  droppedFiles.value = [];
-  desktopImportPaths.value = [];
-
-  let desktopFiles: string[] | null = null;
-  try {
-    desktopFiles = await getBookshelfProvider().openLocalBookFiles?.() ?? null;
-  } catch {
-    desktopFiles = null;
-  }
-
-  // On the desktop the native picker returns the chosen host paths — an empty
-  // array when the user cancelled. Hand them to the import modal, which
-  // auto-starts a per-file import showing the same N/M progress and abort as the
-  // browser upload. Off the desktop openLocalBookFiles is absent, so desktopFiles
-  // is null and the ordinary browser file-input modal opens instead.
-  if (desktopFiles) {
-    if (desktopFiles.length === 0) {
-      return;
-    }
-    desktopImportPaths.value = desktopFiles;
-  }
-
-  if (isImportModalOpen.value) {
-    return;
-  }
-
-  void openImportModalQuery();
-}
-
-function openNewEmptyBookModal(): void {
-  if (readOnly.value) {
-    return;
-  }
-  isNewEmptyBookModalOpen.value = true;
-}
-
-function closeNewEmptyBookModal(): void {
-  isNewEmptyBookModalOpen.value = false;
-}
-
-function onDocumentDragOver(event: DragEvent): void {
-  if (readOnly.value) {
-    return;
-  }
-  if (!hasFileTransfer(event.dataTransfer)) {
-    return;
-  }
-
-  event.preventDefault();
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'copy';
-  }
-}
-
-function onDocumentDrop(event: DragEvent): void {
-  if (readOnly.value) {
-    return;
-  }
-  if (!hasFileTransfer(event.dataTransfer)) {
-    return;
-  }
-
-  event.preventDefault();
-  const nextDroppedFiles = readDroppedFiles(event);
-  if (nextDroppedFiles.length === 0) {
-    return;
-  }
-
-  // A drop is always a browser-File import, even on the desktop: clear any host
-  // paths so the modal seeds from the dropped files rather than auto-starting a
-  // stale picker selection.
-  desktopImportPaths.value = [];
-  droppedFiles.value = nextDroppedFiles;
-  if (!isImportModalOpen.value) {
-    void openImportModalQuery();
-  }
-}
-
-function closeImportModal(): void {
-  if (!isImportModalOpen.value) {
-    return;
-  }
-
-  droppedFiles.value = [];
-  desktopImportPaths.value = [];
-  void closeImportModalQuery();
-}
-
-async function onImported(result: { successCount: number }): Promise<void> {
-  if (result.successCount > 0) {
-    await reloadBooksAfterImport();
-  }
-}
-
 onMounted(() => {
   // Chained, not concurrent: on a first connection the listing itself is what
   // creates the timestamp, so reading it alongside the initial load would find
   // nothing and leave the toolbar saying "never updated" for the whole session.
   void reloadBooks().then(() => shelfRefresh.loadLastSyncedAt());
-  document.addEventListener('dragover', onDocumentDragOver);
-  document.addEventListener('drop', onDocumentDrop);
-  document.addEventListener('keydown', onSelectionKeydown);
-  void installMobileBackHandler();
 });
 
-onBeforeUnmount(() => {
-  document.removeEventListener('dragover', onDocumentDragOver);
-  document.removeEventListener('drop', onDocumentDrop);
-  document.removeEventListener('keydown', onSelectionKeydown);
-  void mobileBackHandle?.remove();
-});
 
 watch(selectedFolder, async () => {
   await reloadBooks();
@@ -996,16 +674,6 @@ watch(charCountFilterActive, (active) => {
   }
 });
 
-watch(
-  batchOperations.completionVersion,
-  () => {
-    const result = batchOperations.lastResult.value;
-    if (!result) return;
-    const failed = new Set(result.failures.map((failure) => failure.book_id).filter((id) => visibleBookIds.value.includes(id)));
-    if (failed.size > 0) selection.replace(failed);
-    else selection.clear();
-  }
-);
 
 // Watch committed search: keep the URL in sync and reset to page 1.
 // Filtering itself is a pure computed (searchedBooks) — no refetch needed.
