@@ -24,10 +24,11 @@ Read the relevant section before working in that area. Add entries according to
   repo with "Go language version used to build golangci-lint is lower than the
   targeted Go version", and `go install` reproduces it. Download a release build
   whose own Go *language* version is at least `go.mod`'s target instead; a patch
-  difference does not count. As of Go 1.27.1 (2026-09) the working build is
-  v2.13.1 (built with go1.27.0); v2.12.2 now fails the same way the preinstalled
-  one does. Match the version to `go.mod`:
-  `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.13.1/golangci-lint-2.13.1-linux-amd64.tar.gz | tar xz`.
+  difference does not count. A patch bump can still break an older build in a
+  different way: on Go 1.27.2 (2026-10) v2.13.1 fails every package with
+  `typecheck` "export data version 5 is greater than maximum supported version
+  4"; v2.14.0 works. Match the version to `go.mod`:
+  `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.14.0/golangci-lint-2.14.0-linux-amd64.tar.gz | tar xz`.
   CI enables `unused`, so a helper left without callers fails the build even
   when `go vet` and `go test` pass. (`.golangci.yml`, `.github/workflows/ci.yml`)
 - **govulncheck has the same toolchain trap:** `go install
