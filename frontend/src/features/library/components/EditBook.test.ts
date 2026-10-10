@@ -321,3 +321,58 @@ describe('EditBook adult-content mark', () => {
     expect(submitted[0].nsfw).toBe(false);
   });
 });
+
+describe('EditBook field widgets', () => {
+  function input(el: HTMLInputElement | null | undefined, value: string): void {
+    if (!el) throw new Error('missing input');
+    el.value = value;
+    el.dispatchEvent(new Event('input'));
+  }
+
+  function submit(host: HTMLElement): void {
+    host.querySelector<HTMLFormElement>('.edit-form')?.dispatchEvent(
+      new Event('submit', { cancelable: true })
+    );
+  }
+
+  it('submits identifiers added, edited and removed through their rows', async () => {
+    const { host, submitted, dirtyChanges } = mount('');
+    const add = Array.from(host.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === 'Add identifier');
+    add?.click();
+    add?.click();
+    await nextTick();
+
+    const keys = host.querySelectorAll<HTMLInputElement>('.identifier-key');
+    const values = host.querySelectorAll<HTMLInputElement>('.identifier-value');
+    expect(keys).toHaveLength(2);
+    input(keys[0], ' isbn ');
+    input(values[0], '978-0');
+    input(keys[1], 'asin');
+    await nextTick();
+    expect(dirtyChanges.at(-1)).toBe(true);
+
+    host.querySelectorAll<HTMLButtonElement>('.identifier-remove')[1]?.click();
+    await nextTick();
+    expect(host.querySelectorAll('.identifier-row')).toHaveLength(1);
+
+    submit(host);
+    await nextTick();
+    expect(submitted[0]?.identifiers).toEqual({ isbn: '978-0' });
+  });
+
+  it('submits the picked star rating and zero once cleared', async () => {
+    const { host, submitted } = mount('');
+    host.querySelectorAll<HTMLElement>('.star-indicator')[2]?.click();
+    await nextTick();
+    submit(host);
+    await nextTick();
+    expect(submitted[0]?.star).toBe(3);
+
+    host.querySelector<HTMLButtonElement>('.clear-rating')?.click();
+    await nextTick();
+    submit(host);
+    await nextTick();
+    expect(submitted[1]?.star).toBe(0);
+  });
+});
