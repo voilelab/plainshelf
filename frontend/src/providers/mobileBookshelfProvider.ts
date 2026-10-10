@@ -18,6 +18,7 @@ import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
 } from '@/storage/readHistory';
+import { mapWithConcurrency } from '@/utils/concurrency';
 import { referencedAssetNames } from '@/utils/markdownLineSyntax';
 import { currentCacheScopeKey } from './cacheScope';
 import { collectReadHistoryBooks } from './readHistoryBooks';
@@ -635,25 +636,15 @@ export class MobileBookshelfProvider implements BookshelfReader {
     );
 
     let stored = 0;
-    let next = 0;
-
-    const worker = async (): Promise<void> => {
-      while (next < pending.length) {
-        const { sourceId, name } = pending[next];
-        next += 1;
-        try {
-          const blob = await fetchAsset(bookId, sourceId, name);
-          await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
-          stored += blob.size;
-        } catch (err) {
-          console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
-        }
+    await mapWithConcurrency(pending, ASSET_DOWNLOAD_CONCURRENCY, async ({ sourceId, name }) => {
+      try {
+        const blob = await fetchAsset(bookId, sourceId, name);
+        await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
+        stored += blob.size;
+      } catch (err) {
+        console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
       }
-    };
-
-    await Promise.all(
-      Array.from({ length: Math.min(ASSET_DOWNLOAD_CONCURRENCY, pending.length) }, worker)
-    );
+    });
 
     return stored;
   }

@@ -59,6 +59,7 @@ import type {
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
+import { mapWithConcurrency } from '@/utils/concurrency';
 import type { BookshelfReader, ListBooksOptions } from './bookshelfProvider';
 
 const READ_ONLY_MESSAGE = 'A pCloud shelf is read-only.';
@@ -160,32 +161,6 @@ function toProviderError(err: unknown): unknown {
 
   reportIncident(err.incident);
   return new ApiError(err.message, { status: err.status, cause: err, incident: err.incident });
-}
-
-/**
- * Runs `fn` over `items` with a bounded number in flight, preserving order.
- */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    for (;;) {
-      const index = cursor;
-      cursor += 1;
-      if (index >= items.length) {
-        return;
-      }
-      results[index] = await fn(items[index]);
-    }
-  });
-
-  await Promise.all(workers);
-  return results;
 }
 
 /**
