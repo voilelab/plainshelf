@@ -31,6 +31,7 @@ function stubPanel(name: string) {
 
 vi.mock('@/features/settings/components/AboutPanel.vue', () => stubPanel('about'));
 vi.mock('@/features/settings/components/CoverPanel.vue', () => stubPanel('cover'));
+vi.mock('@/features/settings/components/DemoStoragePanel.vue', () => stubPanel('demo-storage'));
 vi.mock('@/features/settings/components/EpubImportPanel.vue', () => stubPanel('import'));
 vi.mock('@/features/settings/components/LanguagePanel.vue', () => stubPanel('language'));
 vi.mock('@/features/settings/components/LogRetentionPanel.vue', () => stubPanel('logs'));
@@ -136,6 +137,7 @@ afterEach(() => {
   active?.app.unmount();
   active?.host.remove();
   active = null;
+  delete window.plainshelfDemo;
   // The router keeps the tab in ?tab=, so nothing else leaks between cases.
   vi.clearAllMocks();
 });
@@ -182,5 +184,28 @@ describe('SettingsPage tabs', () => {
     expect(states.shelves).toBe(false);
     expect(states.cover).toBe(true);
     expect(Object.values(states).filter((hidden) => !hidden)).toHaveLength(1);
+  });
+
+  // Browser storage only exists in the wasm demo, which boot.js marks with
+  // window.plainshelfDemo; a server, desktop or app never shows the tab.
+  it('shows the browser storage tab only in the wasm demo', async () => {
+    const tabLabels = (host: HTMLElement) =>
+      [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim());
+
+    const server = await mountSettings();
+    expect(tabLabels(server.host)).not.toContain('Browser storage');
+    active?.app.unmount();
+    active?.host.remove();
+
+    window.plainshelfDemo = {
+      persistEvent: 'plainshelf-demo-persist',
+      hasStorage: () => Promise.resolve(true),
+      canPersist: () => true,
+      persisted: () => Promise.resolve(false),
+      persist: () => Promise.resolve(true)
+    };
+    const demo = await mountSettings();
+    expect(tabLabels(demo.host)).toContain('Browser storage');
+    expect(mounts.log).toContain('demo-storage');
   });
 });

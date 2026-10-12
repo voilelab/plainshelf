@@ -155,6 +155,26 @@
     return reloadSelf();
   };
 
+  // OPFS is best-effort storage, which the browser may clear when space runs
+  // low. The Demo bar and the app's settings ask to keep it through this, and
+  // both refresh on the event.
+  const PERSIST_EVENT = 'plainshelf-demo-persist';
+  window.plainshelfDemo = {
+    persistEvent: PERSIST_EVENT,
+    // Whether the serving tab keeps the shelf at all, rather than in memory.
+    async hasStorage() {
+      const res = await call({ method: 'GET', url: '/_demo/storage', headers: {} });
+      return JSON.parse(new TextDecoder().decode(res.body)).persistent === true;
+    },
+    canPersist: () => typeof navigator.storage?.persist === 'function',
+    persisted: async () => (await navigator.storage?.persisted?.()) === true,
+    async persist() {
+      const granted = (await navigator.storage.persist()) === true;
+      dispatchEvent(new CustomEvent(PERSIST_EVENT, { detail: { granted } }));
+      return granted;
+    },
+  };
+
   const nativeFetch = window.fetch.bind(window);
   const relayReady = registerRelay();
   const fetchViaServer = asFetch(call);

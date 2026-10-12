@@ -295,6 +295,19 @@ const en = {
       scopeNote:
         'This preference is stored only on this device, and it is not shared with a PlainShelf server. It applies where this app reads a shelf directly from cloud storage; where a server serves the shelf, that server\'s own setting decides.'
     },
+    demoStorage: {
+      title: 'Browser storage',
+      description:
+        'This demo keeps the shelf in this browser. By default the browser may clear it when space runs low; you can ask it not to, and the browser decides whether to agree. Clearing site data still deletes the shelf, so export it to keep a copy.',
+      statusLabel: 'Status',
+      statusPersisted: 'Kept: the browser has agreed not to clear it on its own.',
+      statusBestEffort: 'Not kept: the browser may clear it when space runs low.',
+      statusUnsupported: 'This browser cannot be asked to keep it.',
+      statusMemory: 'Not saved: this browser has no storage for the demo, so a reload starts over.',
+      request: 'Ask to keep it',
+      declined:
+        'The browser declined. Some browsers agree only for a bookmarked, installed or often visited site.'
+    },
     readHistory: {
       title: 'Reading history'
     },
