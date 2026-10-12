@@ -18,7 +18,7 @@ import { resolve } from 'node:path';
 const iconSets = [
   {
     packageName: '@iconify-json/tabler',
-    expectedVersion: '1.2.38',
+    expectedVersion: '1.2.40',
     expectedSpdx: 'MIT',
     noticePath: 'public/licenses/tabler-icons-MIT.txt'
   }

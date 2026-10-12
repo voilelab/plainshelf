@@ -2,7 +2,6 @@ package shelf
 
 import (
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -81,21 +80,6 @@ func TestCreateTempDir(t *testing.T) {
 	_, err = root.Open(tmpName)
 	if err != nil {
 		t.Fatalf("Failed to open created temp dir: %v", err)
-	}
-}
-
-// assertNoTempFiles fails the test if any *.tmp file survived in dir.
-func assertNoTempFiles(t *testing.T, dir string) {
-	t.Helper()
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("ReadDir(%q): %v", dir, err)
-	}
-	for _, entry := range entries {
-		if strings.HasSuffix(entry.Name(), ".tmp") {
-			t.Errorf("temp file left behind in %s: %s", dir, entry.Name())
-		}
 	}
 }
 

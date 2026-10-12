@@ -1,0 +1,28 @@
+name: PR labels
+
+# Release notes are PR titles grouped by label (.github/release.yml), so every
+# PR into dev needs a category label. See docs/development/releasing.md.
+on:
+  pull_request:
+    branches:
+      - dev
+    types: [opened, reopened, labeled, unlabeled, synchronize]
+
+permissions: {}
+
+jobs:
+  release-label:
+    name: Release notes label
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require a category label
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          if ! jq -e 'any(.[]; IN("breaking", "security", "feature", "fix", "dependencies", "internal"))' \
+            <<< "$LABELS" >/dev/null; then
+            echo "::error::label this PR breaking, security, feature, fix, dependencies or internal; see docs/development/releasing.md"
+            exit 1
+          fi

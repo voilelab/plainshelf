@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/json/v2"
 	"io/fs"
 	"net/http"
@@ -47,11 +46,9 @@ func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		nonce, err := generateCSPNonce()
-		if err != nil {
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
+		// A fresh nonce per response: a reused or guessable one would let an
+		// injected inline script claim it and defeat the policy.
+		nonce := rand.Text()
 		w.Header().Set("Content-Security-Policy", contentSecurityPolicy(nonce))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(h.injectSecurityBootstrap(data, nonce))
@@ -59,17 +56,6 @@ func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.files.ServeHTTP(w, r)
-}
-
-// generateCSPNonce returns a fresh base64 nonce for one HTML response's CSP.
-// It must be unpredictable and unique per response: a reused or guessable nonce
-// would let an injected inline script claim it and defeat the policy.
-func generateCSPNonce() (string, error) {
-	nonceBytes := make([]byte, 16)
-	if _, err := rand.Read(nonceBytes); err != nil {
-		return "", err
-	}
-	return base64.RawStdEncoding.EncodeToString(nonceBytes), nil
 }
 
 // contentSecurityPolicy is the browser-side backstop: if the sanitizer is ever
@@ -86,7 +72,7 @@ func generateCSPNonce() (string, error) {
 //     `style="color: …"` attribute (frontend/src/utils/safeHtml.ts), rendered
 //     through v-html; without it the reader loses author text colour. Vite emits
 //     no inline <style> and no inline <script>, so nothing else needs it.
-//   - font-src data: — the build inlines the Noto Sans TC subsets small enough
+//   - font-src data: — the build inlines the Noto font subsets small enough
 //     to fall under Vite's asset-inline limit as data: URIs; the rest load from
 //     'self'. Verified against a real page load, not assumed.
 //

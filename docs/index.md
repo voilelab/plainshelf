@@ -15,6 +15,9 @@ adds a web interface, desktop integration, and an experimental Android client.
 
 ### Use PlainShelf
 
+To look around first, [try the demo](try-the-demo.md) in your browser: the full
+app, with nothing to install and nothing uploaded.
+
 1. [Install a release](installation.md) with Homebrew, a server archive, or Docker.
 2. [Start a library](getting-started.md) and import a TXT, Markdown or EPUB book.
 3. Configure a [local shelf](configuring-local-shelf.md), or review the

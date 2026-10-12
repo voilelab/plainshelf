@@ -96,8 +96,7 @@ undefined (reading 'getItem')` is the Node ceiling, not the diff — see
 `.claude/rules/50-lessons.md` and run it on a Node version
 `docs/development/setup.md` supports.
 
-Then the paperwork: `update-changelog` for `CHANGELOG.md` if the change is
-user-visible, `update-docs` for `docs/`. Read back `git diff` for edits you did
+Then the paperwork: `update-docs` for `docs/`. Read back `git diff` for edits you did
 not intend.
 
 ## 5. Open the pull request
@@ -109,6 +108,11 @@ Base `dev`. Body in 繁體中文, code and commit message in English, structured
 - **驗收** — the card's acceptance criteria, each mapped to how it is verified.
 - **檢查** — commands run, and explicitly what was not run.
 - A link back to the ticket.
+
+Write the title as the user-visible effect: it is the line the release notes
+show. After creating the PR, label it with `issue_write` (`method: "update"`,
+the PR number as `issue_number`, `labels`); `docs/development/releasing.md`
+lists the labels, and the `Release notes label` check fails until one is set.
 
 Claim only what the change actually does. If the fix is a step rather than a
 complete answer to the card's premise, say so in the body under its own heading;

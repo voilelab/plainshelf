@@ -24,7 +24,7 @@ const MaxBookIDCreationAttempts = 10
 
 func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	for range MaxTempDirCreationAttempts {
-		tmpDirName := fmt.Sprintf("%s-%s-%s", prefix, time.Now().Format("20060102-150405"), shelfutil.RandomString(6))
+		tmpDirName := fmt.Sprintf("%s-%s-%s", prefix, time.Now().Format("20060102-150405"), fsutil.RandomString(6))
 		err := root.Mkdir(tmpDirName)
 		if err == nil {
 			return tmpDirName, nil

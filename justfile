@@ -42,6 +42,22 @@ test-e2e-smoke: build-server-frontend
 	go build -o {{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv ./cmd/plainshelf-srv/main.go
 	PLAINSHELF_E2E_SERVER_BIN={{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv npm --prefix {{e2e_test_dir}} run test:smoke
 
+# Build the browser-only demo (frontend + wasm server) into workspace/wasm-demo; see cmd/plainshelf-wasm/README.md.
+build-wasm-demo: build-server-frontend
+	cmd/plainshelf-wasm/build.sh workspace/wasm-demo
+
+# Serve the browser-only demo locally. The shelf persists in the browser's OPFS.
+run-wasm-demo port="5180": build-wasm-demo
+	node cmd/plainshelf-wasm/web/serve.mjs workspace/wasm-demo {{port}}
+
+# Run the wasm demo's browser smoke test, the same check CI gates on.
+# Set CHROMIUM to a preinstalled browser to skip Playwright's own download.
+test-wasm-demo: build-wasm-demo
+	env -i PATH="$(go env GOROOT)/lib/wasm:$PATH" HOME="$HOME" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" GOOS=js GOARCH=wasm go test ./server/store/
+	npm --prefix {{e2e_test_dir}} ci
+	[[ -n "${CHROMIUM:-}" ]] || npx --prefix {{e2e_test_dir}} playwright install --with-deps chromium
+	node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo
+
 # Build server: build Go server binary.
 build-server-backend: build-server-frontend
 	go build -ldflags "-X {{version_pkg}}.Version={{version}}" -o plainshelf-srv cmd/plainshelf-srv/main.go

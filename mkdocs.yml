@@ -26,6 +26,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Try the Demo: try-the-demo.md
   - Installation: installation.md
   - Getting Started: getting-started.md
   - EPUB Import: epub-import.md
@@ -49,4 +50,5 @@ nav:
       - Docker: development/docker.md
       - Testing Levels: development/testing-levels.md
       - Mutation Testing: development/mutation-testing.md
+      - Releasing: development/releasing.md
   - Known Issues: known-issue.md

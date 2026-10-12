@@ -73,8 +73,9 @@ const viewAllTo: RouteLocationRaw = {
 .recently-added-list {
   display: grid;
   gap: 14px;
-  grid-auto-columns: minmax(120px, 1fr);
+  grid-auto-columns: minmax(120px, 160px);
   grid-auto-flow: column;
+  justify-content: start;
   list-style: none;
   margin: 0;
   overflow-x: auto;

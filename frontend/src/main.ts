@@ -15,6 +15,9 @@ import {
 } from './providers';
 import '@fontsource-variable/noto-serif-tc/wght.css';
 import '@fontsource-variable/noto-sans-tc/wght.css';
+// SC fills simplified-only glyphs the TC subsets lack (现, 写).
+import '@fontsource-variable/noto-serif-sc/wght.css';
+import '@fontsource-variable/noto-sans-sc/wght.css';
 import './styles.css';
 
 declare global {

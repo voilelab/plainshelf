@@ -43,6 +43,13 @@ as an ordinary plain-text or Markdown book, and the original `.epub` is not kept
 [EPUB Import](docs/epub-import.md) covers what survives the conversion, including
 the illustrations a Markdown import keeps.
 
+## Try it
+
+[Open the demo](https://plainshelf.org/demo/): the full web app running in your
+browser, with nothing to install and nothing uploaded. See
+[Try the Demo](docs/try-the-demo.md) for where it keeps your library and how to
+move a library between it and a real install.
+
 ## Install
 
 On Apple Silicon macOS:
@@ -70,6 +77,7 @@ in the [development guide](docs/development/setup.md).
 ## Documentation
 
 - [Documentation home](docs/index.md)
+- [Try the demo](docs/try-the-demo.md)
 - [Installation](docs/installation.md)
 - [Getting Started](docs/getting-started.md)
 - [Local shelf configuration](docs/configuring-local-shelf.md)

@@ -48,29 +48,7 @@
 
         <fieldset class="field rating-field">
           <legend class="label">{{ t('libraryForms.editBook.starRating') }}</legend>
-          <div class="star-rating">
-            <RatingRoot v-model="star" as="div" class="star-rating-root" :length="5" clearable :aria-label="t('libraryForms.editBook.starRating')">
-              <RatingItem
-                v-for="value in STAR_VALUES"
-                :key="value"
-                :item="value"
-                as="span"
-                class="star-item"
-                v-slot="{ steps }"
-              >
-                <RatingItemIndicator
-                  v-for="step in steps"
-                  :key="step"
-                  :step="step"
-                  class="star-indicator"
-                  :aria-label="starLabel(value)"
-                >
-                  ★
-                </RatingItemIndicator>
-              </RatingItem>
-            </RatingRoot>
-            <button class="clear-rating" type="button" :disabled="star === 0" @click="star = 0">{{ t('libraryForms.editBook.clearRating') }}</button>
-          </div>
+          <StarRatingInput v-model="star" />
         </fieldset>
 
         <label class="field">
@@ -107,20 +85,7 @@
 
         <label class="field">
           <span class="label">{{ t('libraryForms.editBook.tags') }}</span>
-          <TagsInputRoot
-            v-model="tags"
-            class="tag-input-shell"
-            add-on-blur
-            add-on-paste
-            :convert-value="normalizeTag"
-            @click="focusTagInput"
-          >
-            <TagsInputItem v-for="tag in tags" :key="tag" :value="tag" class="tag-chip">
-              <TagsInputItemText />
-              <TagsInputItemDelete class="tag-remove" :aria-label="t('libraryForms.editBook.removeTag', { tag })">×</TagsInputItemDelete>
-            </TagsInputItem>
-            <TagsInputInput ref="tagsInputRef" class="tag-input" :placeholder="t('libraryForms.editBook.tagsPlaceholder')" />
-          </TagsInputRoot>
+          <TagInput v-model="tags" />
           <p class="field-help">{{ t('libraryForms.editBook.tagsHelp') }}</p>
         </label>
 
@@ -162,33 +127,7 @@
 
         <div class="field">
           <span class="label">{{ t('libraryForms.editBook.identifiers') }}</span>
-          <div class="identifier-rows">
-            <div v-for="(row, index) in identifierRows" :key="index" class="identifier-row">
-              <input
-                v-model="row.key"
-                class="input identifier-key"
-                type="text"
-                :placeholder="t('libraryForms.editBook.identifierKeyPlaceholder')"
-                :aria-label="t('libraryForms.editBook.identifierKeyLabel', { index: index + 1 })"
-              />
-              <input
-                v-model="row.value"
-                class="input identifier-value"
-                type="text"
-                :placeholder="t('libraryForms.editBook.identifierValuePlaceholder')"
-                :aria-label="t('libraryForms.editBook.identifierValueLabel', { index: index + 1 })"
-              />
-              <button
-                class="identifier-remove"
-                type="button"
-                :aria-label="t('libraryForms.editBook.removeIdentifier', { name: row.key || index + 1 })"
-                @click="removeIdentifierRow(index)"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-          <button class="button" type="button" @click="addIdentifierRow">{{ t('libraryForms.editBook.addIdentifier') }}</button>
+          <IdentifierRows v-model="identifierRows" />
         </div>
         </section>
       </div>
@@ -211,9 +150,6 @@ import {
   CollapsibleContent,
   CollapsibleRoot,
   CollapsibleTrigger,
-  RatingItem,
-  RatingItemIndicator,
-  RatingRoot,
   SelectContent,
   SelectItem,
   SelectItemText,
@@ -222,15 +158,13 @@ import {
   SelectTrigger,
   SelectValue,
   SelectViewport,
-  TagsInputInput,
-  TagsInputItem,
-  TagsInputItemDelete,
-  TagsInputItemText,
-  TagsInputRoot,
   type AcceptableValue
 } from 'reka-ui';
 import BaseSwitch from '@/components/BaseSwitch.vue';
 import SafeHtml from '@/components/SafeHtml.vue';
+import IdentifierRows, { type IdentifierRow } from '@/features/library/components/IdentifierRows.vue';
+import StarRatingInput from '@/features/library/components/StarRatingInput.vue';
+import TagInput from '@/features/library/components/TagInput.vue';
 import type { Book, BookUpdateRequest } from '@/types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
@@ -245,21 +179,12 @@ import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 
-// English says "1 star" but "2 stars"; the catalog has no plural rules, so the
-// two forms are separate keys.
-function starLabel(value: number): string {
-  return value === 1
-    ? t('libraryForms.editBook.starValueOne')
-    : t('libraryForms.editBook.starValueMany', { count: value });
-}
-
 // The custom sentinel is not one of these — it only ever exists as a Select
 // choice — so the preset list needs no guard against it beyond dropping the
 // empty "unspecified" entry.
 const COMMON_LANGUAGE_VALUES: Set<string> = new Set(
   LANGUAGE_VALUES.filter((value) => value)
 );
-const STAR_VALUES = [1, 2, 3, 4, 5] as const;
 // reka-ui SelectItem forbids an empty-string value (it's reserved to mean
 // "clear selection / show placeholder"), but languageSelectOptions() uses ''
 // for "unspecified". Map it to this sentinel for the Select only; the
@@ -289,7 +214,6 @@ const tags = computed<string[]>({
     tagsSource.value = next.filter((tag) => tag.length > 0);
   }
 });
-const tagsInputRef = ref<InstanceType<typeof TagsInputInput> | null>(null);
 const languagePreset = ref('');
 const customLanguage = ref('');
 // A flag, not the message. Holding translated text here would leave a shown
@@ -335,7 +259,7 @@ const nsfwHelpText = computed(() => {
     ? t('libraryForms.editBook.nsfw.fromFolderReason', { path: rule.path, reason: rule.reason })
     : t('libraryForms.editBook.nsfw.fromFolder', { path: rule.path });
 });
-const identifierRows = ref<{ key: string; value: string }[]>([]);
+const identifierRows = ref<IdentifierRow[]>([]);
 const initialDraft = ref('');
 // languageSelectOptions() resolves its labels through t(), so reading it inside
 // a computed is what keeps them following a locale change.
@@ -403,25 +327,6 @@ function onLanguageSelect(value: AcceptableValue): void {
   if (typeof value === 'string') {
     languageSelectValue.value = value;
   }
-}
-
-function normalizeTag(rawValue: string): string {
-  return rawValue.trim().replace(/\s+/g, ' ');
-}
-
-function focusTagInput(event: MouseEvent): void {
-  if (event.target !== event.currentTarget) {
-    return;
-  }
-  (tagsInputRef.value as unknown as { $el?: HTMLInputElement } | null)?.$el?.focus();
-}
-
-function addIdentifierRow(): void {
-  identifierRows.value.push({ key: '', value: '' });
-}
-
-function removeIdentifierRow(index: number): void {
-  identifierRows.value.splice(index, 1);
 }
 
 function buildIdentifiersPayload(): Record<string, string> {
@@ -560,150 +465,6 @@ function toFormDateValue(rawValue?: string): string {
   border: 0;
 }
 
-.star-rating {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.star-rating-root {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.star-item {
-  display: inline-flex;
-}
-
-/* :deep() required: reka-ui's Radio renders a fragment, which breaks scoped
-   scope-id inheritance, so the actual star <button> never gets our data-v attr. */
-.star-rating :deep(.star-indicator) {
-  padding: 0 2px;
-  border: 0;
-  background: transparent;
-  color: #c4cad4;
-  cursor: pointer;
-  font-size: 28px;
-  line-height: 1;
-}
-
-.star-rating :deep(.star-indicator[data-state='active']) {
-  color: #f5a623;
-}
-
-.star-rating :deep(.star-indicator:focus-visible),
-.clear-rating:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-.clear-rating {
-  margin-left: 8px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-}
-
-.clear-rating:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.tag-input-shell {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #fff;
-}
-
-.tag-input-shell:focus-within {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(82, 102, 255, 0.12);
-}
-
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #eef2ff;
-  color: #2b3a9a;
-  font-size: 13px;
-}
-
-.tag-chip[data-state='active'] {
-  background: #dbeafe;
-  outline: 1px solid #93c5fd;
-}
-
-.tag-remove {
-  border: none;
-  background: transparent;
-  color: inherit;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-
-.tag-input {
-  flex: 1 1 180px;
-  min-width: 140px;
-  border: none;
-  outline: none;
-  background: transparent;
-  font: inherit;
-  color: inherit;
-  padding: 4px 0;
-}
-
-.identifier-rows {
-  display: grid;
-  gap: 8px;
-}
-
-.identifier-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.identifier-key {
-  flex: 1 1 160px;
-  min-width: 0;
-}
-
-.identifier-value {
-  flex: 2 1 240px;
-  min-width: 0;
-}
-
-.identifier-remove {
-  flex: 0 0 auto;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 4px;
-}
-
-.identifier-remove:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
 .field-help {
   margin: 0;
   color: var(--muted);
@@ -805,21 +566,6 @@ function toFormDateValue(rawValue?: string): string {
 }
 
 @media (max-width: 520px) {
-  .identifier-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .identifier-key,
-  .identifier-value {
-    grid-column: 1;
-  }
-
-  .identifier-remove {
-    grid-column: 2;
-    grid-row: 1 / 3;
-  }
-
   .edit-panel-embedded .form-actions .button {
     flex: 1 1 140px;
   }

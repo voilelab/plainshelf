@@ -7,7 +7,7 @@ installation, see [Installation](../installation.md).
 
 | Tool | Version | Purpose |
 |---|---:|---|
-| Go | 1.27.1 or newer | server, core library, desktop backend |
+| Go | 1.27.2 or newer | server, core library, desktop backend |
 | Node.js | 22.18 to 23 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
@@ -97,12 +97,11 @@ actually verify. It is not part of the checks above.
 
 Dependency vulnerability scanning is CI-only and not in the table either.
 `govulncheck ./...` runs in each of the three Go modules under both `GOOS=linux`
-and `GOOS=darwin`, and gates the merge;
-`npm audit --audit-level=high` runs against the `frontend` and `e2e` lockfiles
-for information only. To reproduce a `govulncheck` failure locally, install it
-with a Go at least as new as the one `go.mod` targets — built by an older Go it
+and `GOOS=darwin`, and gates the merge; npm advisories come from GitHub's
+Dependabot alerts instead of a CI job. To reproduce a `govulncheck` failure
+locally, install it with a Go at least as new as the one `go.mod` targets — built by an older Go it
 fails while loading packages, with `requires newer Go version`, before it scans
-anything. `SECURITY.md` explains why one gates and the other does not.
+anything. `SECURITY.md` explains why npm has no CI scan.
 
 ## Versioning
 
@@ -110,7 +109,8 @@ Git release tags are the source of truth for the PlainShelf product version.
 Tags must use `vMAJOR.MINOR.PATCH` with an optional SemVer prerelease suffix,
 such as `v0.8.0` or `v0.8.0-beta.1`. Build scripts derive development versions
 from the latest release tag, the number of subsequent commits, and the current
-commit hash.
+commit hash. Tags are created by the release workflows; see
+[Releasing](releasing.md).
 
 The server and the Settings **About** section expose the full build version. A
 macOS bundle uses the numeric `MAJOR.MINOR.PATCH` core required by the platform,
@@ -118,10 +118,11 @@ so a `v0.8.0-beta.1` build reports `0.8.0` in its bundle metadata while retainin
 the full prerelease version in the app. The private frontend and end-to-end npm
 packages stay at `0.0.0`; their package metadata is not a product version.
 
-The Homebrew casks record the latest stable release and are updated after the
-release artifacts exist by running `scripts/update-cask.sh <tag>`. That single
-step pins both `plainshelf.rb` and `bookpkg-reader.rb` from the same tag, so the
-desktop cask and the reader cask it depends on stay in sync.
+The Homebrew casks record the latest stable release. Publishing one opens a PR
+that runs `scripts/update-cask.sh <tag>` against its assets (see
+[Releasing](releasing.md)). That single step pins both `plainshelf.rb` and
+`bookpkg-reader.rb` from the same tag, so the desktop cask and the reader cask it
+depends on stay in sync.
 
 ## Desktop app
 
@@ -157,4 +158,5 @@ See [Docker](docker.md) to build and run the repository's container image.
 - Format Go with `gofmt` and keep `go test` green.
 - Validate Vue and TypeScript with the frontend build.
 - Add or update tests when behavior changes.
-- Keep user-facing behavior in `docs/` and release notes in `CHANGELOG.md`.
+- Keep user-facing behavior in `docs/`; release notes come from pull request
+  titles and labels (see [Releasing](releasing.md#release-notes-labels)).

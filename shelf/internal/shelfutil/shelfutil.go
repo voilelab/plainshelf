@@ -5,7 +5,6 @@ package shelfutil
 
 import (
 	"fmt"
-	"math/rand"
 	"regexp"
 	"slices"
 	"strings"
@@ -27,17 +26,6 @@ const (
 // 255 bytes is the common per-component filesystem limit, so a segment that
 // passes here is one every target filesystem can hold.
 const maxPathSegmentLength = 255
-
-// RandomString names temporary directories and rescan tokens, where only
-// collision resistance matters, not cryptographic strength.
-func RandomString(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	result := make([]byte, n)
-	for i := range result {
-		result[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(result)
-}
 
 // FileETag returns an empty string when the file cannot be stat'd. Every file
 // the read path serves with caching headers derives its validator here, so

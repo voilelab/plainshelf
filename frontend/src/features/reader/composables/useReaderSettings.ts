@@ -15,11 +15,11 @@ export const READER_FONT_OPTIONS = [
   },
   {
     id: 'noto-serif-tc',
-    cssFamily: "'Noto Serif TC Variable', Georgia, 'Times New Roman', serif"
+    cssFamily: "'Noto Serif TC Variable', 'Noto Serif SC Variable', Georgia, 'Times New Roman', serif"
   },
   {
     id: 'noto-sans-tc',
-    cssFamily: "'Noto Sans TC Variable', 'Noto Sans TC', system-ui, sans-serif"
+    cssFamily: "'Noto Sans TC Variable', 'Noto Sans SC Variable', 'Noto Sans TC', system-ui, sans-serif"
   }
 ] as const;
 
