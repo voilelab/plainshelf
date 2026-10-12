@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, type App } from 'vue';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { defineComponent, h } from 'vue';
+import { describe, expect, it, vi } from 'vitest';
 import type { Book } from '@/types/book';
 
 vi.mock('@/components/BookCoverImg.vue', () => ({
@@ -8,28 +8,16 @@ vi.mock('@/components/BookCoverImg.vue', () => ({
 }));
 
 import BookListView from './BookListView.vue';
+import { mount } from '#testing/mount';
 
-const mounted: Array<{ app: App; host: HTMLElement }> = [];
 
 function book(overrides: Partial<Book> = {}): Book {
   return { id: 'book-1', title: 'One', authors: [], tags: [], folders: [], ...overrides };
 }
 
 function mountList(books: Book[]): HTMLElement {
-  const host = document.createElement('div');
-  document.body.append(host);
-  const app = createApp(defineComponent({ setup: () => () => h(BookListView, { books }) }));
-  app.mount(host);
-  mounted.push({ app, host });
-  return host;
+  return mount(BookListView, { props: { books } }).host;
 }
-
-afterEach(() => {
-  for (const entry of mounted.splice(0)) {
-    entry.app.unmount();
-    entry.host.remove();
-  }
-});
 
 describe('BookListView download state', () => {
   it('marks each row with the state it carries', () => {

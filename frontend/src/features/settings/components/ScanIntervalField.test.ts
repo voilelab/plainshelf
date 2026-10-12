@@ -1,22 +1,24 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, nextTick, ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import ScanIntervalField from './ScanIntervalField.vue';
+import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
 // A tiny host so the field is exercised through v-model, which is how both
 // shelf modals use it: the parent holds the Go duration string.
-function mount(initial: string) {
+function mountField(initial: string) {
   const value = ref(initial);
-  const host = document.createElement('div');
-  const app = createApp(
-    defineComponent({
-      setup: () => () => h(ScanIntervalField, { modelValue: value.value, 'onUpdate:modelValue': (v: string) => (value.value = v) })
+  const { host } = mount(ScanIntervalField, {
+    // A getter, not an object: this host exists to exercise v-model, so the
+    // component has to see each value it reports back.
+    props: () => ({
+      modelValue: value.value,
+      'onUpdate:modelValue': (next: string) => (value.value = next)
     })
-  );
-  app.mount(host);
-  return { host, app, value };
+  });
+  return { host, value };
 }
 
 function select(host: HTMLElement, testid: string): HTMLSelectElement {
@@ -54,38 +56,32 @@ beforeEach(() => {
 
 describe('ScanIntervalField', () => {
   it('loads a blank interval as the shelf default', () => {
-    const { host, value, app } = mount('');
+    const { host, value } = mountField('');
 
     expect(select(host, 'scan-interval-mode').value).toBe('default');
     expect(host.querySelector('[data-testid="scan-interval-amount"]')).toBeNull();
     expect(value.value).toBe('');
-
-    app.unmount();
   });
 
   it('normalizes a compound duration into a single unit', () => {
-    const { host, value, app } = mount('1h30m');
+    const { host, value } = mountField('1h30m');
 
     expect(select(host, 'scan-interval-mode').value).toBe('interval');
     expect(amountBox(host).value).toBe('90');
     expect(select(host, 'scan-interval-unit').value).toBe('m');
     // What the controls show is what a save would write.
     expect(value.value).toBe('90m');
-
-    app.unmount();
   });
 
   it('shows 0s as its own mode instead of a zero interval', () => {
-    const { host, app } = mount('0s');
+    const { host } = mountField('0s');
 
     expect(select(host, 'scan-interval-mode').value).toBe('always');
     expect(host.querySelector('[data-testid="scan-interval-amount"]')).toBeNull();
-
-    app.unmount();
   });
 
   it('emits a Go duration when the amount and unit change', async () => {
-    const { host, value, app } = mount('10m');
+    const { host, value } = mountField('10m');
 
     commit(amountBox(host), '30');
     await nextTick();
@@ -94,12 +90,10 @@ describe('ScanIntervalField', () => {
     setValue(select(host, 'scan-interval-unit'), 'h');
     await nextTick();
     expect(value.value).toBe('30h');
-
-    app.unmount();
   });
 
   it('never emits an invalid duration while the amount box is empty', async () => {
-    const { host, value, app } = mount('10m');
+    const { host, value } = mountField('10m');
 
     const amount = amountBox(host);
     commit(amount, '');
@@ -110,12 +104,10 @@ describe('ScanIntervalField', () => {
     // stands and the box is redrawn with it rather than left blank over it.
     expect(value.value).toBe('10m');
     expect(amount.value).toBe('10');
-
-    app.unmount();
   });
 
   it('caps an amount past what Go can parse', async () => {
-    const { host, value, app } = mount('10h');
+    const { host, value } = mountField('10h');
 
     const amount = amountBox(host);
     expect(amount.getAttribute('aria-valuemax')).toBe('2562047');
@@ -128,12 +120,10 @@ describe('ScanIntervalField', () => {
 
     await nextTick();
     expect(amount.value).toBe('2562047');
-
-    app.unmount();
   });
 
   it('re-caps the amount when a larger unit is chosen', async () => {
-    const { host, value, app } = mount('1s');
+    const { host, value } = mountField('1s');
 
     const amount = amountBox(host);
     commit(amount, '9223372036');
@@ -149,12 +139,10 @@ describe('ScanIntervalField', () => {
     // `time.ParseDuration` rejects outright.
     expect(value.value).toBe('2562047h');
     expect(amount.value).toBe('2562047');
-
-    app.unmount();
   });
 
   it('switches between the three modes', async () => {
-    const { host, value, app } = mount('');
+    const { host, value } = mountField('');
 
     setValue(select(host, 'scan-interval-mode'), 'always');
     await Promise.resolve();
@@ -167,12 +155,10 @@ describe('ScanIntervalField', () => {
     setValue(select(host, 'scan-interval-mode'), 'default');
     await Promise.resolve();
     expect(value.value).toBe('');
-
-    app.unmount();
   });
 
   it('replaces a duration it cannot represent and says so', async () => {
-    const { host, value, app } = mount('1500ms');
+    const { host, value } = mountField('1500ms');
 
     expect(value.value).toBe('2s');
     expect(amountBox(host).value).toBe('2');
@@ -183,7 +169,5 @@ describe('ScanIntervalField', () => {
     await nextTick();
     expect(value.value).toBe('5s');
     expect(host.querySelector('.scan-interval-adjusted')).toBeNull();
-
-    app.unmount();
   });
 });

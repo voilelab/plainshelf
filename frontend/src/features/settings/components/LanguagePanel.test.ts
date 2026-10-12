@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, nextTick, type App } from 'vue';
+import { nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setLocale, useI18n } from '@/i18n';
@@ -45,16 +45,7 @@ vi.mock('reka-ui', async () => {
 });
 
 import LanguagePanel from './LanguagePanel.vue';
-
-function mount(): { host: HTMLElement; app: App } {
-  const host = document.createElement('div');
-  document.body.appendChild(host);
-  const app = createApp(LanguagePanel);
-  app.mount(host);
-  return { host, app };
-}
-
-let mounted: App | null = null;
+import { mount } from '#testing/mount';
 
 beforeEach(() => {
   setLocale('en');
@@ -62,16 +53,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  mounted?.unmount();
-  mounted = null;
-  document.body.innerHTML = '';
   setLocale('en');
 });
 
 describe('LanguagePanel', () => {
   it('offers every supported locale as an option', () => {
-    const { host, app } = mount();
-    mounted = app;
+    const { host } = mount(LanguagePanel);
 
     const values = Array.from(host.querySelectorAll('button[data-value]')).map((el) =>
       el.getAttribute('data-value')
@@ -80,8 +67,7 @@ describe('LanguagePanel', () => {
   });
 
   it('switches the UI locale when an option is chosen', () => {
-    const { host, app } = mount();
-    mounted = app;
+    const { host } = mount(LanguagePanel);
     const { locale } = useI18n();
     expect(locale.value).toBe('en');
 
@@ -91,8 +77,7 @@ describe('LanguagePanel', () => {
   });
 
   it('reflects a locale change made elsewhere in the closed trigger label', async () => {
-    const { host, app } = mount();
-    mounted = app;
+    const { host } = mount(LanguagePanel);
 
     const trigger = host.querySelector('.select-trigger');
     expect(trigger?.textContent?.trim()).toBe('English');
@@ -106,8 +91,7 @@ describe('LanguagePanel', () => {
   });
 
   it('ignores a value outside the supported locales', () => {
-    const { app } = mount();
-    mounted = app;
+    mount(LanguagePanel);
     const { locale } = useI18n();
 
     captured.emit?.('fr');
