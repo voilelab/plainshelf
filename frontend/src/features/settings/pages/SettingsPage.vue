@@ -222,6 +222,8 @@ onMounted(() => {
 .settings-tabs-list {
   border-bottom: 1px solid var(--border);
   display: flex;
+  /* Wraps rather than widening the page when the tabs outgrow it. */
+  flex-wrap: wrap;
   gap: 4px;
 }
 

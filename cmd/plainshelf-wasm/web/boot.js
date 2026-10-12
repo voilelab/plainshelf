@@ -54,6 +54,10 @@
   }
 
   channel.onmessage = async ({ data }) => {
+    if (data.type === 'persist') {
+      dispatchEvent(new CustomEvent(window.plainshelfDemo.persistEvent));
+      return;
+    }
     if (data.type === 'request') {
       if (!serving) return;
       channel.postMessage({ type: 'ack', id: data.id });
@@ -170,7 +174,9 @@
     persisted: async () => (await navigator.storage?.persisted?.()) === true,
     async persist() {
       const granted = (await navigator.storage.persist()) === true;
-      dispatchEvent(new CustomEvent(PERSIST_EVENT, { detail: { granted } }));
+      // Persistence is per origin, so every open tab refreshes.
+      channel.postMessage({ type: 'persist' });
+      dispatchEvent(new CustomEvent(PERSIST_EVENT));
       return granted;
     },
   };
