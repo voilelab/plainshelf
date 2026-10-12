@@ -5,7 +5,7 @@
     <div class="setting-item">
       <div>
         <div class="setting-label">{{ t('settings.demoStorage.statusLabel') }}</div>
-        <p class="setting-description" data-testid="demo-storage-status">{{ statusText }}</p>
+        <p class="setting-description" data-testid="demo-storage-status" role="status">{{ statusText }}</p>
       </div>
       <button
         v-if="state === 'best-effort'"

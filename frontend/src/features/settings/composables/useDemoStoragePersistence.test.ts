@@ -59,6 +59,7 @@ describe('useDemoStoragePersistence', () => {
     [{ storage: false }, 'memory'],
     [{ canPersist: false }, 'unsupported'],
     [{ persisted: true }, 'persisted'],
+    [{ persisted: true, canPersist: false }, 'persisted'],
     [{}, 'best-effort']
   ] as const)('reports %o as %s', async (opts, state) => {
     fakeDemo(opts);

@@ -46,8 +46,8 @@ export function useDemoStoragePersistence(): {
     const api = demo();
     if (!api) return;
     if (!(await api.hasStorage())) state.value = 'memory';
-    else if (!api.canPersist()) state.value = 'unsupported';
-    else state.value = (await api.persisted()) ? 'persisted' : 'best-effort';
+    else if (await api.persisted()) state.value = 'persisted';
+    else state.value = api.canPersist() ? 'best-effort' : 'unsupported';
   }
 
   async function request(): Promise<void> {
