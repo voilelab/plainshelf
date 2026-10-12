@@ -15,23 +15,23 @@ answer is usually [R2](#rules).
 
 ## Why this page exists
 
-The suite, measured 2026-09-12, against the suite this page was written for:
+The suite, measured 2026-10-12, against the suite this page was written for:
 
 | Level | Files | Cases | Lines | Was (2026-09-03/04) |
 |---|---:|---:|---:|---|
-| L1 + L2 (Go, all three modules) | 145 | 751 | 30,306 | 131 / 694 / 28,184 |
-| L3 (frontend unit and component) | 166 | 1,712 | 27,745 | 155 / 1,521 / 25,450 |
+| L1 + L2 (Go, all three modules) | 148 | 763 | 30,603 | 131 / 694 / 28,184 |
+| L3 (frontend unit and component) | 172 | 1,737 | 28,305 | 155 / 1,521 / 25,450 |
 | L4 (end-to-end) | 23 | 37 | 2,065 | 23 / 37 / 2,122 |
-| **Total** | **334** | **2,500** | **60,116** | **309 / 2,252 / 55,756** |
+| **Total** | **343** | **2,537** | **60,973** | **309 / 2,252 / 55,756** |
 
 "Cases" is top-level `func Test…` for Go and the case count each runner
 reports for the other two, so the figures are reproducible rather than
 estimated. The Go row counts the eleven files of `server/contract/apitest` even
 though they are not `_test.go` files: the harness is L2 code that happens to be
-a package. The L3 row counts `frontend/testing/`, which is the same kind of
-thing on the other side.
+a package. The L3 row counts the files Vitest runs plus `frontend/testing/`,
+which is the same kind of thing on the other side.
 
-The two lower rows grew and L4 held at 37 across nine days, which is the shape
+The two lower rows grew and L4 held at 37 across five weeks, which is the shape
 this page is for. L4's line count went down without its case count moving:
 `mobile-reader.spec.ts` gave up 99 lines of assertions that never needed a
 browser.
