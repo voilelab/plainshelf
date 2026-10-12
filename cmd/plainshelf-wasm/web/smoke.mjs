@@ -260,6 +260,12 @@ check('cover renders in a tab that forwards', !(await runsServer(tabC)) && /^[1-
 // Export and import through the demo bar, from the forwarding tab: the zip
 // round trip runs in the serving tab, and an import reloads every tab.
 check('the demo bar is shown', await tabC.locator('#plainshelf-demo-bar').isVisible());
+// The note tracks the serving tab's storage, which a forwarding tab has to ask for.
+const noteWanted = persistent ? 'may clear it' : 'a reload starts over';
+const note = await tabC.locator('#plainshelf-demo-note').filter({ hasText: noteWanted })
+  .waitFor({ timeout: 5000 }).then(() => true, () => false);
+check('the demo bar warns where the shelf is kept', note,
+  await tabC.locator('#plainshelf-demo-note').innerText().catch(() => 'missing'));
 const [download] = await Promise.all([
   tabC.waitForEvent('download'),
   tabC.getByRole('button', { name: 'Export shelf' }).click(),

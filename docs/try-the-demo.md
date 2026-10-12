@@ -22,6 +22,9 @@ have:
 - **Export shelf** downloads the whole shelf as a zip.
 - **Import shelf…** replaces the whole shelf with a zip.
 
+The bar also reminds you that the shelf is kept only in this browser, and warns
+when the browser cannot keep it at all.
+
 Do not confuse **Import shelf…** with the app's own **Import** menu, which adds
 individual books.
 
@@ -29,11 +32,16 @@ individual books.
 
 The shelf is stored in the browser's
 [Origin Private File System](https://developer.mozilla.org/docs/Web/API/File_System_API/Origin_private_file_system),
-so it survives a reload or closing the browser. It is kept separately for each
-browser and each device. Nothing syncs it between them.
+so it normally survives a reload or closing the browser. It is kept separately
+for each browser and each device. Nothing syncs it between them.
 
-- **Clearing site data** for plainshelf.org deletes the library. Export it
-  first if you want to keep it.
+**Browser storage is not guaranteed.** Export the shelf regularly if you want
+to keep it.
+
+- **Clearing site data** for plainshelf.org deletes the library.
+- **The browser can clear it on its own.** The demo's storage is best-effort:
+  a browser may delete it when the device runs low on space, and Safari deletes
+  a site's storage after some days without a visit.
 - **Several tabs** share one library. One tab runs the server and the others
   pass their requests to it. When that tab closes, another one takes over.
 - **Closing the tab** right after a change can lose the last moment of edits.

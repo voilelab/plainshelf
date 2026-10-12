@@ -73,7 +73,7 @@ Last, a link straight to a route opens it.
 | `web/opfs.js` | Restores the memfs tree from OPFS before Go starts, then writes changed paths back within 200 ms of a change, and tries once more on `pagehide` |
 | `web/opfs-writer.js` | Worker that writes each file with `createSyncAccessHandle`, which every engine with OPFS has; the main-thread `createWritable` only reached Safari in version 26 |
 | `web/sw.js` | Service worker, served as `plainshelf-sw.js` at the base. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
-| `web/toolbar.js` | The Demo bar, on the app page only: **Export shelf** downloads `GET /_demo/shelf.zip`, **Import shelf…** sends a zip to `PUT /_demo/shelf.zip` and reloads every tab |
+| `web/toolbar.js` | The Demo bar, on the app page only: **Export shelf** downloads `GET /_demo/shelf.zip`, **Import shelf…** sends a zip to `PUT /_demo/shelf.zip` and reloads every tab. A note says the shelf lives only in this browser, or that it is not saved when `/_demo/storage` reports no persistence |
 | `shelfzip/` | Zip export and import of `books/` and `trash/`, and the handler `main.go` puts in front of the app at `/_demo/shelf.zip`. Import checks every entry first (no paths outside the shelf, a `books/` directory present, at most 512 MiB zipped or unpacked) and unpacks beside the shelf before swapping it in. It waits for requests in flight and holds new ones off while it swaps, then answers 503 to everything until the reload. Tested natively |
 | `web/serve.mjs` | Local static server with the SPA fallback, or the site's `404.html` like GitHub Pages, used by `run-wasm-demo` and `smoke.mjs` |
 | `web/deep-link.js` | Added to a host's `404.html` for a demo under a path; sends a demo route back to the demo as `?demo-route=` |
@@ -120,7 +120,10 @@ Last, a link straight to a route opens it.
   engine without OPFS fails the run rather than skipping.
 - Import is refused where the demo runs in memory, since the reload that
   follows would lose it; `/_demo/storage` asks the serving tab whether it
-  persists. A zip over 512 MiB is refused before the browser reads it.
+  persists. The Demo bar's note uses the same answer.
+- OPFS is best-effort storage: the demo does not call
+  `navigator.storage.persist()`, so the browser may evict the shelf. The Demo
+  bar and the user guide say so. A zip over 512 MiB is refused before the browser reads it.
 - An import replaces the shelf files and then reloads every tab instead of
   reconciling the running server: the serving tab flushes to OPFS and announces
   it is going, and the others wait for that before reloading, or they would
