@@ -10,6 +10,8 @@ import { useRoute, useRouter } from 'vue-router';
 const ALWAYS_TABS = ['read-history', 'reader-launch', 'language', 'about', 'shelves'];
 const EDITABLE_TABS = ['cover', 'nsfw', 'import', 'logs'];
 const DEVICE_ONLY_TABS = ['device-nsfw'];
+// Only the browser-only wasm demo keeps its shelf in browser storage.
+const DEMO_TABS = ['demo-storage'];
 
 /**
  * The settings page's active tab, backed by the `?tab=` route query.
@@ -27,18 +29,19 @@ const DEVICE_ONLY_TABS = ['device-nsfw'];
  * falls back to the default tab rather than selecting a tab that is not shown.
  */
 export function useSettingsTabs(
-  serverSettingsEditable: Ref<boolean> | ComputedRef<boolean>
+  serverSettingsEditable: Ref<boolean> | ComputedRef<boolean>,
+  wasmDemo = false
 ): { activeSettingsTab: WritableComputedRef<string> } {
   const route = useRoute();
   const router = useRouter();
 
   const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
 
-  const availableTabs = computed(() =>
-    serverSettingsEditable.value
-      ? [...ALWAYS_TABS, ...EDITABLE_TABS]
-      : [...ALWAYS_TABS, ...DEVICE_ONLY_TABS]
-  );
+  const availableTabs = computed(() => [
+    ...ALWAYS_TABS,
+    ...(serverSettingsEditable.value ? EDITABLE_TABS : DEVICE_ONLY_TABS),
+    ...(wasmDemo ? DEMO_TABS : [])
+  ]);
 
   function requestedTab(): string | null {
     const requested = route.query.tab;

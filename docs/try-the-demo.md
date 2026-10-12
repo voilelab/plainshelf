@@ -23,7 +23,8 @@ have:
 - **Import shelf…** replaces the whole shelf with a zip.
 
 The bar also reminds you that the shelf is kept only in this browser, and warns
-when the browser cannot keep it at all.
+when the browser cannot keep it at all. On a first visit it offers to ask the
+browser to keep the shelf ([below](#ask-the-browser-to-keep-it)).
 
 Do not confuse **Import shelf…** with the app's own **Import** menu, which adds
 individual books.
@@ -39,9 +40,9 @@ for each browser and each device. Nothing syncs it between them.
 to keep it.
 
 - **Clearing site data** for plainshelf.org deletes the library.
-- **The browser can clear it on its own.** The demo's storage is best-effort:
-  a browser may delete it when the device runs low on space, and Safari deletes
-  a site's storage after some days without a visit.
+- **The browser can clear it on its own.** Unless it has agreed to keep it,
+  a browser may delete the demo's storage when the device runs low on space,
+  and Safari deletes a site's storage after some days without a visit.
 - **Several tabs** share one library. One tab runs the server and the others
   pass their requests to it. When that tab closes, another one takes over.
 - **Closing the tab** right after a change can lose the last moment of edits.
@@ -57,6 +58,17 @@ a reload starts over with an empty shelf, and **Import shelf…** is refused
 because the reload that follows an import would lose it. This can happen in
 some private windows. Even where a private window has storage, the browser
 discards it when the window closes.
+
+### Ask the browser to keep it
+
+The browser can be asked not to clear the demo's storage on its own. The
+**Demo** bar offers this on a first visit with **Keep this shelf**, and
+**Settings → Browser storage** shows whether the browser has agreed and can
+ask again. That tab exists only in the demo.
+
+The browser decides. Some agree only for a site that is bookmarked, installed
+or visited often, and Firefox asks you first. Even when it agrees, clearing
+site data still deletes the library, so keep exporting it.
 
 ## Move a library between the demo and a real install
 

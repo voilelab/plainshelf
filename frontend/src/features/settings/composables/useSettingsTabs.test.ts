@@ -13,7 +13,7 @@ async function flush(): Promise<void> {
 
 // Mounts the composable inside a real router context and returns its handle
 // plus the router, so a test can drive navigation and read the active tab.
-async function setup(editable: boolean, initialPath = '/settings') {
+async function setup(editable: boolean, initialPath = '/settings', wasmDemo = false) {
   const router: Router = createRouter({
     history: createMemoryHistory(),
     routes: [{ path: '/settings', component: defineComponent({ render: () => null }) }]
@@ -24,7 +24,7 @@ async function setup(editable: boolean, initialPath = '/settings') {
   let api: ReturnType<typeof useSettingsTabs> | null = null;
   const Host = defineComponent({
     setup() {
-      api = useSettingsTabs(ref(editable));
+      api = useSettingsTabs(ref(editable), wasmDemo);
       return () => null;
     }
   });
@@ -73,6 +73,16 @@ describe('useSettingsTabs', () => {
     const editable = await setup(true, '/settings?tab=device-nsfw');
     expect(editable.api.activeSettingsTab.value).toBe('cover');
     editable.app.unmount();
+  });
+
+  it('honours ?tab=demo-storage only in the wasm demo', async () => {
+    const demo = await setup(true, '/settings?tab=demo-storage', true);
+    expect(demo.api.activeSettingsTab.value).toBe('demo-storage');
+    demo.app.unmount();
+
+    const server = await setup(true, '/settings?tab=demo-storage');
+    expect(server.api.activeSettingsTab.value).toBe('cover');
+    server.app.unmount();
   });
 
   it('ignores a tab the current shell does not show', async () => {

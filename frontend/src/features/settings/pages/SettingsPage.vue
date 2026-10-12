@@ -50,6 +50,10 @@
         <TabsTrigger v-if="serverSettingsEditable" value="logs" class="settings-tab-trigger">{{
           t('settings.logs.title')
         }}</TabsTrigger>
+        <!-- Browser-only wasm demo; never on a server, desktop or app. -->
+        <TabsTrigger v-if="wasmDemo" value="demo-storage" class="settings-tab-trigger">{{
+          t('settings.demoStorage.title')
+        }}</TabsTrigger>
         <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
         <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
       </TabsList>
@@ -107,6 +111,10 @@
         />
       </TabsContent>
 
+      <TabsContent v-if="wasmDemo" value="demo-storage" class="settings-tab-content">
+        <DemoStoragePanel />
+      </TabsContent>
+
       <TabsContent value="about" class="settings-tab-content">
         <AboutPanel />
       </TabsContent>
@@ -123,6 +131,7 @@ import { onMounted } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
+import DemoStoragePanel from '@/features/settings/components/DemoStoragePanel.vue';
 import DeviceNsfwPanel from '@/features/settings/components/DeviceNsfwPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
 import LanguagePanel from '@/features/settings/components/LanguagePanel.vue';
@@ -137,6 +146,7 @@ import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 import { useServerSettingsForm } from '@/features/settings/composables/useServerSettingsForm';
 import { useSettingsTabs } from '@/features/settings/composables/useSettingsTabs';
+import { isWasmDemo } from '@/features/settings/composables/useDemoStoragePersistence';
 
 const { t } = useI18n();
 // Shelves is the useful landing tab when the server settings tabs are gone:
@@ -144,7 +154,8 @@ const { t } = useI18n();
 const { serverSettingsEditable } = useWriteAccess();
 // The active tab is backed by the ?tab= query so the sidebar's "manage
 // shelves" deep link lands here even on repeat clicks — see useSettingsTabs.
-const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable);
+const wasmDemo = isWasmDemo();
+const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable, wasmDemo);
 // Device-local, so it is not part of the server settings form: nothing to load
 // and nothing to save, and it survives a shelf the server never answers for.
 const { showNsfw: showNsfwOnDevice, setShowNsfw: setShowNsfwOnDevice } = useDeviceNsfwPreference();
@@ -211,6 +222,8 @@ onMounted(() => {
 .settings-tabs-list {
   border-bottom: 1px solid var(--border);
   display: flex;
+  /* Wraps rather than widening the page when the tabs outgrow it. */
+  flex-wrap: wrap;
   gap: 4px;
 }
 

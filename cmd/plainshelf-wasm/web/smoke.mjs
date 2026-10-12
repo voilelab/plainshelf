@@ -266,6 +266,35 @@ const note = await tabC.locator('#plainshelf-demo-note').filter({ hasText: noteW
   .waitFor({ timeout: 5000 }).then(() => true, () => false);
 check('the demo bar warns where the shelf is kept', note,
   await tabC.locator('#plainshelf-demo-note').innerText().catch(() => 'missing'));
+
+// The bar offers to ask the browser to keep the shelf, and only where there is
+// a shelf to keep. Only chromium answers without a permission prompt.
+const persistPrompt = tabC.locator('#plainshelf-demo-persist');
+const offered = await persistPrompt.isVisible();
+check(persistent ? 'the demo bar offers to keep the shelf' : 'without OPFS it offers nothing to keep', offered === persistent);
+let kept = false;
+if (persistent && engine === 'chromium') {
+  await tabC.getByRole('button', { name: 'Keep this shelf' }).click();
+  kept = await tabC.evaluate(() => navigator.storage.persisted());
+  const answer = kept ? 'has agreed not to clear it' : 'The browser declined';
+  const shown = await tabC.locator('#plainshelf-demo-bar').filter({ hasText: answer })
+    .waitFor({ timeout: 5000 }).then(() => true, () => false);
+  check('the demo bar shows the browser\'s answer', shown, `persisted=${kept}`);
+}
+// The settings tab reports the same state and can ask again; it exists only in the demo.
+const settingsTab = await context.newPage();
+await settingsTab.goto(new URL('settings?tab=demo-storage', app).href);
+const statusWanted = !persistent ? 'Not saved' : kept ? 'Kept:' : 'Not kept';
+const status = await settingsTab.getByTestId('demo-storage-status').filter({ hasText: statusWanted })
+  .waitFor({ timeout: 30000 }).then(() => true, () => false);
+check('settings report the browser storage state', status,
+  await settingsTab.getByTestId('demo-storage-status').innerText().catch(() => 'missing'));
+check('settings offer to ask only while the shelf is not kept',
+  await settingsTab.getByRole('button', { name: 'Ask to keep it' }).isVisible() === (persistent && !kept));
+if (engine === 'chromium') {
+  check('an answered prompt does not return in another tab', !(await settingsTab.locator('#plainshelf-demo-persist').isVisible()));
+}
+await settingsTab.close();
 const [download] = await Promise.all([
   tabC.waitForEvent('download'),
   tabC.getByRole('button', { name: 'Export shelf' }).click(),
