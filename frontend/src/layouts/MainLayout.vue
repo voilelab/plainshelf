@@ -94,114 +94,7 @@
         {{ isRailSidebar ? '→' : '←' }}
       </button>
 
-      <TooltipProvider v-if="showRailNav" :delay-duration="300">
-        <nav class="sidebar-rail-nav" :aria-label="t('layout.railNavLabel')">
-          <template v-if="hasActiveShelf">
-            <TooltipRoot>
-              <TooltipTrigger as-child>
-                <RouterLink
-                  to="/home"
-                  class="sidebar-nav-item sidebar-rail-item"
-                  exact-active-class="active"
-                  :aria-label="t('layout.dashboard')"
-                >
-                  <SidebarNavIcon name="dashboard" />
-                </RouterLink>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
-                  {{ t('layout.dashboard') }}
-                </TooltipContent>
-              </TooltipPortal>
-            </TooltipRoot>
-            <TooltipRoot>
-              <TooltipTrigger as-child>
-                <RouterLink
-                  to="/read-history"
-                  class="sidebar-nav-item sidebar-rail-item"
-                  exact-active-class="active"
-                  :aria-label="t('layout.recentlyRead')"
-                >
-                  <SidebarNavIcon name="recently-read" />
-                </RouterLink>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
-                  {{ t('layout.recentlyRead') }}
-                </TooltipContent>
-              </TooltipPortal>
-            </TooltipRoot>
-            <TooltipRoot v-if="libraryEditingAvailable">
-              <TooltipTrigger as-child>
-                <RouterLink
-                  to="/trash"
-                  class="sidebar-nav-item sidebar-rail-item"
-                  exact-active-class="active"
-                  :aria-label="t('layout.trash')"
-                >
-                  <SidebarNavIcon name="trash" />
-                </RouterLink>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
-                  {{ t('layout.trash') }}
-                </TooltipContent>
-              </TooltipPortal>
-            </TooltipRoot>
-          </template>
-          <TooltipRoot v-if="hasDownloadsStore">
-            <TooltipTrigger as-child>
-              <RouterLink
-                to="/downloads"
-                class="sidebar-nav-item sidebar-rail-item"
-                exact-active-class="active"
-                :aria-label="t('layout.downloads')"
-              >
-                <SidebarNavIcon name="downloads" />
-              </RouterLink>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
-                {{ t('layout.downloads') }}
-              </TooltipContent>
-            </TooltipPortal>
-          </TooltipRoot>
-          <TooltipRoot v-if="hasActiveShelf && serverAdminAvailable">
-            <TooltipTrigger as-child>
-              <RouterLink
-                to="/admin/logs"
-                class="sidebar-nav-item sidebar-rail-item"
-                exact-active-class="active"
-                :aria-label="t('layout.adminLogs')"
-              >
-                <SidebarNavIcon name="logs" />
-              </RouterLink>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
-                {{ t('layout.adminLogs') }}
-              </TooltipContent>
-            </TooltipPortal>
-          </TooltipRoot>
-          <TooltipRoot>
-            <TooltipTrigger as-child>
-              <RouterLink
-                to="/settings"
-                class="sidebar-nav-item sidebar-rail-item"
-                exact-active-class="active"
-                :aria-label="t('layout.settings')"
-              >
-                <SidebarNavIcon name="settings" />
-              </RouterLink>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
-                {{ t('layout.settings') }}
-              </TooltipContent>
-            </TooltipPortal>
-          </TooltipRoot>
-        </nav>
-      </TooltipProvider>
+      <SidebarRailNav v-if="showRailNav" :items="railNavItems" />
 
       <div v-if="!isRailSidebar || isNarrowViewport" class="sidebar-inner">
         <section class="sidebar-section" :aria-label="t('layout.shelf.label')">
@@ -448,63 +341,12 @@
       <div v-if="readOnlyBannerKey" class="read-only-banner" role="status">
         {{ t(readOnlyBannerKey) }}
       </div>
-      <header class="topbar">
-        <div class="topbar-left">
-          <button
-            v-if="isNarrowViewport"
-            class="menu-btn"
-            type="button"
-            :aria-label="t(drawerOpen ? 'layout.closeMenu' : 'layout.openMenu')"
-            :aria-expanded="drawerOpen"
-            @click="drawerOpen = !drawerOpen"
-          >
-            <Icon name="menu" />
-          </button>
-          <h1 class="brand">
-            <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
-            <span class="brand-name">{{ t('app.name') }}</span>
-          </h1>
-          <!-- On a narrow viewport the brand collapses to its icon and this
-               takes the freed space to answer "where am I" — the current folder
-               or page — which the full sidebar otherwise carries on wide. -->
-          <span
-            v-if="isNarrowViewport && currentLocationLabel"
-            class="topbar-location"
-            :title="currentLocationLabel"
-          >{{ currentLocationLabel }}</span>
-          <nav
-            v-if="showHistoryControls"
-            class="history-controls"
-            :aria-label="t('layout.desktopHistoryNavigation')"
-          >
-            <button type="button" class="history-btn" :aria-label="t('layout.previousPage')" @click="goToPreviousPage">
-              ←
-            </button>
-            <button type="button" class="history-btn" :aria-label="t('layout.nextPage')" @click="goToNextPage">
-              →
-            </button>
-          </nav>
-        </div>
-        <div class="topbar-controls">
-          <label class="language-select">
-            <span>{{ t('language.label') }}</span>
-            <SelectRoot :model-value="locale" @update:model-value="onLocaleSelect">
-              <SelectTrigger class="button language-select-control">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectPortal>
-                <SelectContent class="reka-menu" position="popper" align="end" :side-offset="6">
-                  <SelectViewport>
-                    <SelectItem v-for="lang in supportedLocales" :key="lang" class="reka-menu-item" :value="lang">
-                      <SelectItemText>{{ t(localeLabelKeyMap[lang]) }}</SelectItemText>
-                    </SelectItem>
-                  </SelectViewport>
-                </SelectContent>
-              </SelectPortal>
-            </SelectRoot>
-          </label>
-        </div>
-      </header>
+      <MainTopbar
+        :narrow="isNarrowViewport"
+        :drawer-open="drawerOpen"
+        :location-label="currentLocationLabel"
+        @toggle-drawer="drawerOpen = !drawerOpen"
+      />
 
       <div class="page-area" :class="{ 'page-area-tabbar': isMobileShell }">
         <RouterView v-if="canShowRouteContent" />
@@ -537,24 +379,20 @@ import {
   SplitterGroup,
   SplitterPanel,
   SplitterResizeHandle,
-  TooltipContent,
-  TooltipPortal,
-  TooltipProvider,
-  TooltipRoot,
-  TooltipTrigger,
   type AcceptableValue
 } from 'reka-ui';
 import CreateFolderModal from '@/components/CreateFolderModal.vue';
 import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
-import Icon from '@/components/Icon.vue';
 import FolderTree from '@/components/FolderTree.vue';
+import MainTopbar from '@/components/MainTopbar.vue';
 import MobileTabBar from '@/components/MobileTabBar.vue';
 import RenameFolderModal from '@/components/RenameFolderModal.vue';
 import TransferFolderModal from '@/components/TransferFolderModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
-import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '@/providers';
+import SidebarRailNav, { type SidebarRailItem } from '@/components/SidebarRailNav.vue';
+import { getBookshelfProvider, isMobileRuntime } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderManagement } from '@/composables/useFolderManagement';
 import { useFolderStore } from '@/composables/useFolderStore';
@@ -568,7 +406,6 @@ import {
   useSidebarLayout
 } from '@/composables/useSidebarLayout';
 import { MAINTENANCE_NAV_ITEMS } from '@/utils/maintenance';
-import appIcon from '@/assets/icon-192.png';
 import { useI18n } from '@/i18n';
 
 const {
@@ -593,12 +430,6 @@ const hasDownloadsStore = computed(() =>
   Boolean(getBookshelfProvider().listDownloadedBookEntries)
 );
 
-// The Wails desktop shell has a browser-history stack worth navigating; the web
-// and mobile clients don't surface these pills. Scoping this to MainLayout keeps
-// them off the immersive ReaderLayout routes, where the keyboard ←/→ already
-// mean previous/next chapter.
-const showHistoryControls = computed(() => isWailsRuntime());
-
 // The mobile shell gets a bottom tab bar for its frequent destinations. Gated
 // on the mobile *runtime* (not merely a narrow viewport) because the Downloads
 // tab only exists on the mobile provider, and because a narrow desktop browser
@@ -606,13 +437,6 @@ const showHistoryControls = computed(() => isWailsRuntime());
 // once rather than reactively.
 const isMobileShell = isMobileRuntime();
 
-function goToPreviousPage(): void {
-  window.history.back();
-}
-
-function goToNextPage(): void {
-  window.history.forward();
-}
 const { books, loading, fetchBooks } = useBookStore();
 const { loading: foldersLoading, error: foldersError, loaded: foldersLoaded, fetchFolders } = useFolderStore();
 const {
@@ -663,7 +487,7 @@ const {
   cancelPendingDeleteFolder,
   confirmDeleteFolder
 } = useFolderManagement();
-const { locale, setLocale, supportedLocales, t } = useI18n();
+const { t } = useI18n();
 // The dropdown itself goes through useShelfPicker; what is left here is the
 // resolved-shelf gate the rest of the layout hangs off, which is the same on
 // every client.
@@ -684,12 +508,27 @@ const readOnlyBannerKey = computed(() => {
   }
   return null;
 });
-const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
-  en: 'language.en',
-  'zh-Hant': 'language.zhHant'
-};
-
 const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
+// Rail mode's icon-only nav: the expanded sidebar's links, under the same
+// conditions, in the same order.
+const railNavItems = computed<SidebarRailItem[]>(() => {
+  const items: SidebarRailItem[] = [];
+  if (hasActiveShelf.value) {
+    items.push({ to: '/home', icon: 'dashboard', label: t('layout.dashboard') });
+    items.push({ to: '/read-history', icon: 'recently-read', label: t('layout.recentlyRead') });
+    if (libraryEditingAvailable.value) {
+      items.push({ to: '/trash', icon: 'trash', label: t('layout.trash') });
+    }
+  }
+  if (hasDownloadsStore.value) {
+    items.push({ to: '/downloads', icon: 'downloads', label: t('layout.downloads') });
+  }
+  if (hasActiveShelf.value && serverAdminAvailable.value) {
+    items.push({ to: '/admin/logs', icon: 'logs', label: t('layout.adminLogs') });
+  }
+  items.push({ to: '/settings', icon: 'settings', label: t('layout.settings') });
+  return items;
+});
 const isSettingsRoute = computed(() => route.name === 'settings');
 const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShelf.value);
 const shelfUnavailableMessage = computed(() =>
@@ -751,16 +590,6 @@ const currentLocationLabel = computed(() => {
   const key = ROUTE_LOCATION_LABEL_KEYS[name];
   return key ? t(key) : '';
 });
-
-function onLocaleSelect(value: AcceptableValue): void {
-  if (typeof value !== 'string') {
-    return;
-  }
-
-  if (supportedLocales.includes(value as (typeof supportedLocales)[number])) {
-    setLocale(value as (typeof supportedLocales)[number]);
-  }
-}
 
 async function onShelfSelect(value: AcceptableValue): Promise<void> {
   if (typeof value !== 'string') {
@@ -834,28 +663,6 @@ onMounted(async () => {
 
 .collapse-btn:hover {
   background: #ecf2f9;
-}
-
-.sidebar-rail-nav {
-  align-items: center;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px 4px 8px;
-}
-
-.sidebar-rail-item {
-  height: 32px;
-  justify-content: center;
-  padding: 0;
-  width: 32px;
-}
-
-.sidebar-rail-item :deep(.sidebar-nav-icon) {
-  margin-right: 0;
 }
 
 .reka-resize-handle.rail-hidden {
@@ -979,127 +786,7 @@ onMounted(async () => {
   padding: 8px 24px;
 }
 
-/* Sticks to the top of the viewport, so on the Android shell — which targets
-   SDK 36, past the SDK 35 cutoff where edge-to-edge became mandatory — it sits
-   under the status bar unless it carries the top inset itself. Insets are 0
-   everywhere else, leaving the padding unchanged. */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: rgba(255, 255, 255, 0.92);
-  border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: calc(14px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px))
-    14px calc(24px + env(safe-area-inset-left, 0px));
-}
-
-.topbar-left {
-  align-items: center;
-  display: inline-flex;
-  gap: 10px;
-  min-width: 0;
-}
-
-.menu-btn {
-  align-items: center;
-  background: #f6f9fc;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: #3e4e66;
-  cursor: pointer;
-  display: flex;
-  font-size: 16px;
-  height: 34px;
-  justify-content: center;
-  width: 38px;
-}
-
-.menu-btn svg {
-  height: 18px;
-  width: 18px;
-}
-
-.history-controls {
-  align-items: center;
-  display: inline-flex;
-  gap: 6px;
-}
-
-.history-btn {
-  align-items: center;
-  background: #f6f9fc;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: #3e4e66;
-  cursor: pointer;
-  display: flex;
-  font-size: 16px;
-  height: 34px;
-  justify-content: center;
-  line-height: 1;
-  width: 38px;
-}
-
-.history-btn:hover {
-  background: #ecf2f9;
-}
-
-.topbar-controls {
-  display: inline-flex;
-  gap: 10px;
-}
-
-.language-select {
-  align-items: center;
-  display: inline-flex;
-  gap: 8px;
-}
-
-.language-select span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.language-select-control {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 13px;
-  min-height: 32px;
-  padding: 0 8px;
-}
-
-.brand {
-  align-items: center;
-  display: inline-flex;
-  gap: 8px;
-  margin: 0;
-  font-size: 20px;
-  letter-spacing: 0.3px;
-}
-
-.brand-icon {
-  width: 20px;
-  height: 20px;
-  display: block;
-}
-
-.topbar-location {
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 600;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The scrolling content reaches the bottom and side edges of the window, so it
+/* The scrolling content reaches the bottom/* The scrolling content reaches the bottom and side edges of the window, so it
    needs those insets to keep the last row — pagination, the mobile action bar's
    neighbours — clear of the gesture bar and of a landscape cutout. No top
    inset: .topbar sits above it inside the same scroller and already consumes
@@ -1210,31 +897,5 @@ onMounted(async () => {
     display: none;
   }
 
-  .topbar {
-    padding: calc(10px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px))
-      10px calc(12px + env(safe-area-inset-left, 0px));
-  }
-
-  /* Language is a set-once preference; on a narrow screen it moves into the
-     Settings page (its own tab) and the top bar spends that space on the
-     brand-icon-plus-location pairing instead. The brand text collapses to the
-     icon on a platform where the user already knows the app — but stays in the
-     accessibility tree (visually hidden, not display:none) so the <h1> keeps a
-     non-empty accessible name for screen readers. */
-  .brand-name {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    border: 0;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-
-  .topbar-controls {
-    display: none;
-  }
 }
 </style>

@@ -402,34 +402,3 @@ jobs:
           GOARCH: arm64
         run: cd reader && govulncheck ./...
 
-  audit:
-    name: npm audit (informational)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    # Informational, deliberately: npm audit flags every advisory in the tree
-    # whether or not the code path is reachable, and most of this tree is
-    # build-time tooling that never ships. Both lockfiles are clean at
-    # --audit-level=high today, so start non-blocking and revisit gating once a
-    # few weeks of runs show what the real noise level is.
-    continue-on-error: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
-      # npm audit resolves from the lockfile, so neither directory needs npm ci.
-      - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
-        working-directory: frontend
-
-      # Job-level continue-on-error keeps a failure off the workflow result, but
-      # it does not un-skip later steps: without this the E2E lockfile stops
-      # being audited exactly when the frontend one turns up something.
-      - name: Audit E2E dependencies
-        if: ${{ !cancelled() }}
-        run: npm audit --audit-level=high
-        working-directory: e2e

@@ -7,7 +7,7 @@ installation, see [Installation](../installation.md).
 
 | Tool | Version | Purpose |
 |---|---:|---|
-| Go | 1.27.1 or newer | server, core library, desktop backend |
+| Go | 1.27.2 or newer | server, core library, desktop backend |
 | Node.js | 22.18 to 23 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
@@ -97,12 +97,11 @@ actually verify. It is not part of the checks above.
 
 Dependency vulnerability scanning is CI-only and not in the table either.
 `govulncheck ./...` runs in each of the three Go modules under both `GOOS=linux`
-and `GOOS=darwin`, and gates the merge;
-`npm audit --audit-level=high` runs against the `frontend` and `e2e` lockfiles
-for information only. To reproduce a `govulncheck` failure locally, install it
-with a Go at least as new as the one `go.mod` targets — built by an older Go it
+and `GOOS=darwin`, and gates the merge; npm advisories come from GitHub's
+Dependabot alerts instead of a CI job. To reproduce a `govulncheck` failure
+locally, install it with a Go at least as new as the one `go.mod` targets — built by an older Go it
 fails while loading packages, with `requires newer Go version`, before it scans
-anything. `SECURITY.md` explains why one gates and the other does not.
+anything. `SECURITY.md` explains why npm has no CI scan.
 
 ## Versioning
 

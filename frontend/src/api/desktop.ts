@@ -187,7 +187,7 @@ export async function openDesktopBookFolder(bookID: string): Promise<void> {
 
 // Stable token the desktop backend embeds in the OpenReader rejection on
 // non-macOS platforms, where no standalone reader exists. Kept in sync with
-// readerUnsupportedPlatformCode in desktop/app.go so the caller can tell "this
+// readerUnsupportedPlatformCode in desktop/app_files.go so the caller can tell "this
 // platform has no standalone reader" apart from a macOS launch failure and word
 // its in-app fallback notice accordingly.
 const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';

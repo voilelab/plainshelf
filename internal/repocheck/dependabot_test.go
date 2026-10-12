@@ -23,7 +23,6 @@ var ciJobNames = map[string]string{
 	"wasm-demo": "Wasm demo smoke",
 	"android":   "Android build",
 	"vulncheck": "Go vulnerability scan",
-	"audit":     "npm audit (informational)",
 }
 
 // blockingCIJobs records, per job, whether a failure blocks the merge — the
@@ -37,8 +36,11 @@ var blockingCIJobs = map[string]bool{
 	"wasm-demo": true,
 	"android":   false,
 	"vulncheck": true,
-	"audit":     false,
 }
+
+// versionUpdatedEcosystem keeps Dependabot version updates: security updates
+// never cover it, as GitHub's advisory database has no Docker ecosystem.
+const versionUpdatedEcosystem = "docker"
 
 type dependabotConfig struct {
 	Version int `yaml:"version"`
@@ -65,14 +67,19 @@ type ciWorkflow struct {
 
 // TestDependabotCoversEveryManifest is the check that keeps SECURITY.md honest
 // as the repository grows: a fourth Go module or a third lockfile added without
-// a Dependabot entry would go unwatched, and nothing else would notice.
+// a Dependabot entry would go unwatched, and nothing else would notice. It also
+// pins version updates off outside versionUpdatedEcosystem.
 func TestDependabotCoversEveryManifest(t *testing.T) {
 	root := repoRoot(t)
 
 	covered := map[string]bool{}
 	for _, update := range readDependabot(t, root).Updates {
-		if update.Limit == nil {
+		switch {
+		case update.Limit == nil:
 			t.Errorf("Dependabot entry for %s has no open-pull-requests-limit; unbounded updates flood dev",
+				update.Ecosystem)
+		case update.Ecosystem != versionUpdatedEcosystem && *update.Limit != 0:
+			t.Errorf("Dependabot entry for %s must set open-pull-requests-limit: 0; only security updates open PRs",
 				update.Ecosystem)
 		}
 		dirs := update.Directories
@@ -161,19 +168,19 @@ func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 	}
 }
 
-// TestScanStepsSurviveAnEarlierFailure guards a trap both scan jobs sit in: a
+// TestScanStepsSurviveAnEarlierFailure guards a trap the scan job sits in: a
 // failed step skips the rest of its job by default, so the first vulnerable
-// module or lockfile would mask every one scanned after it. Job-level
+// module would mask every one scanned after it. Job-level
 // continue-on-error does not help — it keeps the failure off the workflow
 // result without un-skipping anything.
 func TestScanStepsSurviveAnEarlierFailure(t *testing.T) {
 	wf := readCIWorkflow(t, repoRoot(t))
 
-	for _, jobID := range []string{"vulncheck", "audit"} {
+	for _, jobID := range []string{"vulncheck"} {
 		seenFallible := false
 		for _, step := range wf.Jobs[jobID].Steps {
 			run := step.Run
-			if !strings.Contains(run, "govulncheck") && !strings.Contains(run, "npm audit") {
+			if !strings.Contains(run, "govulncheck") {
 				continue
 			}
 			if seenFallible && !strings.Contains(step.If, "cancelled") {
