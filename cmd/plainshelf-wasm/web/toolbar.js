@@ -1,5 +1,6 @@
-// A small demo-only bar to take the shelf out as a zip and put one back. The
-// zip's layout is a lib_root (books/, trash/), so it unzips into a native shelf.
+// A small demo-only bar to take the shelf out as a zip and put one back, with a
+// note that the shelf lives only in browser storage. The zip's layout is a
+// lib_root (books/, trash/), so it unzips into a native shelf.
 // Load after boot.js, on the app page.
 (() => {
   const ZIP_URL = '/_demo/shelf.zip';
@@ -61,18 +62,33 @@
     input.click();
   }
 
+  // Browser storage is not guaranteed, so the bar says where the shelf lives.
+  async function showStorageNote(note) {
+    const storage = await window.plainshelfRequest({ method: 'GET', url: '/_demo/storage', headers: {} });
+    if (JSON.parse(new TextDecoder().decode(storage.body)).persistent) return;
+    note.textContent = 'Not saved: this browser has no storage for the demo, so a reload starts over.';
+    note.style.color = '#92400e';
+    note.style.fontWeight = '600';
+  }
+
   function mount() {
     const bar = document.createElement('div');
     bar.id = 'plainshelf-demo-bar';
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', 'Demo shelf');
-    bar.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;display:flex;gap:6px;align-items:center;' +
+    bar.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;display:flex;flex-wrap:wrap;gap:6px;align-items:center;' +
+      'max-width:min(360px,calc(100vw - 24px));box-sizing:border-box;' +
       'padding:6px 8px;border-radius:8px;background:rgba(243,244,246,.95);box-shadow:0 1px 4px rgba(0,0,0,.2);font:13px system-ui,sans-serif;color:#1f2937';
     const label = document.createElement('span');
     label.textContent = 'Demo';
     label.style.fontWeight = '600';
-    bar.append(label, button('Export shelf', exportShelf), button('Import shelf…', importShelf));
+    const note = document.createElement('span');
+    note.id = 'plainshelf-demo-note';
+    note.textContent = 'Kept only in this browser, which may clear it. Export to keep a copy.';
+    note.style.cssText = 'flex-basis:100%;font-size:12px;color:#4b5563';
+    bar.append(label, button('Export shelf', exportShelf), button('Import shelf…', importShelf), note);
     document.body.append(bar);
+    showStorageNote(note).catch(() => {});
   }
 
   if (document.body) mount();
