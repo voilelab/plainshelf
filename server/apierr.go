@@ -191,8 +191,7 @@ func apiErrorFor(err error) (apiError, bool) {
 	// Which directories a shelf skips is that shelf's own setting, so naming the
 	// built-in ones here would send a user whose shelf.json lists its own after
 	// a rule that does not apply. The shelf carries the reason out instead.
-	var ignored *shelf.IgnoredFolderNameError
-	if errors.As(err, &ignored) {
+	if ignored, ok := errors.AsType[*shelf.IgnoredFolderNameError](err); ok {
 		return apiError{
 			code:    codeIgnoredFolderName,
 			status:  http.StatusBadRequest,
@@ -203,8 +202,7 @@ func apiErrorFor(err error) (apiError, bool) {
 	// Which file is broken, and where, is the whole content of this refusal: a
 	// user who hand-edited a book.json cannot act on "some file is invalid", so
 	// the path and the decoder's own message travel out with the error.
-	var malformed *shelf.MalformedMetadataError
-	if errors.As(err, &malformed) {
+	if malformed, ok := errors.AsType[*shelf.MalformedMetadataError](err); ok {
 		return apiError{
 			code:    codeMalformedMetadata,
 			status:  http.StatusConflict,

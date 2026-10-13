@@ -25,8 +25,8 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 		app, err := NewApp(&AppConf{
 			Shelves: []*shelf.ShelfConfWithID{
 				{
-					ID:        "default_shelf",
-					ShelfConf: shelf.ShelfConf{LibRoot: libRoot},
+					ID:      "default_shelf",
+					LibRoot: libRoot,
 				},
 			},
 			StorePath: storePath,

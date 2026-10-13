@@ -17,8 +17,8 @@ func TestNewAppReleasesStoreWhenLaterStepFails(t *testing.T) {
 	conf := &AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
 			{
-				ID:        "default_shelf",
-				ShelfConf: shelf.ShelfConf{LibRoot: t.TempDir()},
+				ID:      "default_shelf",
+				LibRoot: t.TempDir(),
 			},
 		},
 		StorePath: storePath,

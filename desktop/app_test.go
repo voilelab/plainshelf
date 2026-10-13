@@ -57,10 +57,8 @@ func startedDesktopAppWithShelf(t *testing.T, shelfID string) *DesktopApp {
 	serverApp, err := server.NewApp(&server.AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
 			{
-				ID: shelfID,
-				ShelfConf: shelf.ShelfConf{
-					LibRoot: t.TempDir(),
-				},
+				ID:      shelfID,
+				LibRoot: t.TempDir(),
 			},
 		},
 		StorePath: t.TempDir(),

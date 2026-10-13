@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -136,16 +137,13 @@ func yamlFields(t reflect.Type, seen []reflect.Type) []yamlField {
 	if t.Kind() != reflect.Struct {
 		return nil
 	}
-	for _, prev := range seen {
-		if prev == t {
-			return nil
-		}
+	if slices.Contains(seen, t) {
+		return nil
 	}
 	seen = append(seen, t)
 
 	var fields []yamlField
-	for i := range t.NumField() {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		if !field.IsExported() {
 			continue
 		}

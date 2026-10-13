@@ -21,10 +21,8 @@ func newTestAppWithSecurity(t *testing.T, security *SecurityConf) *App {
 	app, err := NewApp(&AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
 			{
-				ID: "default_shelf",
-				ShelfConf: shelf.ShelfConf{
-					LibRoot: t.TempDir(),
-				},
+				ID:      "default_shelf",
+				LibRoot: t.TempDir(),
 			},
 		},
 		StorePath:  t.TempDir(),
