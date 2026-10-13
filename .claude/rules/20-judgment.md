@@ -35,6 +35,14 @@ Stop repeating the current approach when any of these occurs:
 Return to the original requirement, identify the invalid assumption, and choose
 a smaller experiment, a different design, or a user decision.
 
+## Delegation
+
+Delegate only independent, bounded pieces (separate searches, a contained
+implementation, a fresh review of a risky change); keep coupled or small work
+local. Give each agent an outcome, scope, acceptance checks, and the evidence to
+return, and keep write scopes disjoint. An agent's success claim is evidence,
+not proof: the coordinator owns integration and final verification.
+
 ## Completion standard
 
 A task is complete only when:
