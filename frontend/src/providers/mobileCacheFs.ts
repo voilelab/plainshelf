@@ -3,8 +3,7 @@ import { Directory, Encoding, Filesystem, type WriteFileOptions } from '@capacit
 // Shared layout and file access for everything the mobile shell keeps on the
 // device. Directory.Data is app-private, requires no runtime permission, and —
 // unlike IndexedDB in an Android WebView — is not subject to silent LRU
-// eviction (see the rationale in providers/index.ts and
-// .claude/rules/50-lessons.md).
+// eviction (see the rationale in shells/mobile/index.ts).
 //
 //   plainshelf-cache/scopes/<enc(scopeKey)>/
 //       shelf-snapshot.json    # PersistedShelfSnapshot (shelfSnapshotStore.ts)
