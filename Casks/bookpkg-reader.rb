@@ -2,8 +2,8 @@ cask "bookpkg-reader" do
   # Experimental. version and sha256 are pinned by scripts/update-cask.sh <tag>,
   # which updates this cask and plainshelf.rb together so the dependency pair
   # stays in sync; each stable release opens a PR that runs it.
-  version "0.11.1"
-  sha256 "47342017f2cca49165c6f3f48091ffd0942ca3b93707ff769a3fc3cc0f13ad4e"
+  version "0.11.3"
+  sha256 "b5eb2fc603e91a7c34b67a5646cda9ec6e5ae30b7fe7c59f8382b4b5ff0a2ff6"
 
   url "https://github.com/voilelab/plainshelf/releases/download/v#{version}/bookpkg-reader_v#{version}_darwin_arm64.zip"
   name "PlainShelf Reader"
