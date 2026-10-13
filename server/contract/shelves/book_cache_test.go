@@ -86,9 +86,9 @@ func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
 
 	addedRoot := t.TempDir()
 	if err := env.App.AddShelf(shelf.ShelfConfWithID{
-		ID:        "added_later",
-		Name:      "Added Later",
-		ShelfConf: shelf.ShelfConf{LibRoot: addedRoot},
+		ID:      "added_later",
+		Name:    "Added Later",
+		LibRoot: addedRoot,
 	}); err != nil {
 		t.Fatalf("AddShelf: %v", err)
 	}

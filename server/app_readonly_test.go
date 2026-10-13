@@ -30,8 +30,8 @@ func newReadOnlyTestApp(t *testing.T) *App {
 	app, err := NewApp(&AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
 			{
-				ID:        "default_shelf",
-				ShelfConf: shelf.ShelfConf{LibRoot: t.TempDir()},
+				ID:      "default_shelf",
+				LibRoot: t.TempDir(),
 			},
 		},
 		StorePath: t.TempDir(),
@@ -69,9 +69,9 @@ func TestReadOnlyServerOpensEveryShelfReadOnly(t *testing.T) {
 
 	addedRoot := t.TempDir()
 	if err := app.AddShelf(shelf.ShelfConfWithID{
-		ID:        "added_later",
-		Name:      "Added Later",
-		ShelfConf: shelf.ShelfConf{LibRoot: addedRoot},
+		ID:      "added_later",
+		Name:    "Added Later",
+		LibRoot: addedRoot,
 	}); err != nil {
 		t.Fatalf("AddShelf: %v", err)
 	}
@@ -100,8 +100,8 @@ func TestReadOnlyServerDoesNotCreateTheShelf(t *testing.T) {
 	app, err := NewApp(&AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
 			{
-				ID:        "default_shelf",
-				ShelfConf: shelf.ShelfConf{LibRoot: libRoot},
+				ID:      "default_shelf",
+				LibRoot: libRoot,
 			},
 		},
 		StorePath: t.TempDir(),

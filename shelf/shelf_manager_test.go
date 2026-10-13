@@ -25,12 +25,10 @@ func TestShelfManagerLifecycle(t *testing.T) {
 
 	firstRoot := t.TempDir()
 	if err := sm.AddShelf(ShelfConfWithID{
-		ID: "primary",
-		ShelfConf: ShelfConf{
-			LibRoot:      firstRoot,
-			LockMode:     "none",
-			ScanInterval: "1h",
-		},
+		ID:           "primary",
+		LibRoot:      firstRoot,
+		LockMode:     "none",
+		ScanInterval: "1h",
 	}); err != nil {
 		t.Fatalf("AddShelf(primary): %v", err)
 	}
@@ -47,19 +45,18 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	}
 
 	if err := sm.AddShelf(ShelfConfWithID{
-		ID:        "primary",
-		ShelfConf: ShelfConf{LibRoot: t.TempDir(), LockMode: "none"},
+		ID:       "primary",
+		LibRoot:  t.TempDir(),
+		LockMode: "none",
 	}); err == nil {
 		t.Fatal("AddShelf accepted a duplicate ID")
 	}
 
 	if err := sm.AddShelf(ShelfConfWithID{
-		ID:   "secondary",
-		Name: "Secondary Shelf",
-		ShelfConf: ShelfConf{
-			LibRoot:  t.TempDir(),
-			LockMode: "none",
-		},
+		ID:       "secondary",
+		Name:     "Secondary Shelf",
+		LibRoot:  t.TempDir(),
+		LockMode: "none",
 	}); err != nil {
 		t.Fatalf("AddShelf(secondary): %v", err)
 	}
@@ -79,9 +76,11 @@ func TestShelfManagerLifecycle(t *testing.T) {
 		t.Fatal("UpdateShelf accepted an unknown shelf ID")
 	}
 	if err := sm.UpdateShelf(ShelfConfWithID{
-		ID:        "primary",
-		Name:      "Changed",
-		ShelfConf: ShelfConf{LibRoot: firstRoot, LockMode: "none", ScanInterval: "not-a-duration"},
+		ID:           "primary",
+		Name:         "Changed",
+		LibRoot:      firstRoot,
+		LockMode:     "none",
+		ScanInterval: "not-a-duration",
 	}); err == nil {
 		t.Fatal("UpdateShelf accepted an invalid scan interval")
 	}
@@ -89,22 +88,21 @@ func TestShelfManagerLifecycle(t *testing.T) {
 		t.Fatalf("invalid update changed name to %q", primary.Name)
 	}
 	if err := sm.UpdateShelf(ShelfConfWithID{
-		ID:        "primary",
-		Name:      "Moved",
-		ShelfConf: ShelfConf{LibRoot: t.TempDir(), LockMode: "none"},
+		ID:       "primary",
+		Name:     "Moved",
+		LibRoot:  t.TempDir(),
+		LockMode: "none",
 	}); err == nil {
 		t.Fatal("UpdateShelf accepted a different lib_root")
 	}
 
 	if err := sm.UpdateShelf(ShelfConfWithID{
-		ID:   "primary",
-		Name: "Main Shelf",
-		ShelfConf: ShelfConf{
-			LibRoot:           firstRoot,
-			LockMode:          "none",
-			ScanInterval:      "2m",
-			BookCheckInterval: "5m",
-		},
+		ID:                "primary",
+		Name:              "Main Shelf",
+		LibRoot:           firstRoot,
+		LockMode:          "none",
+		ScanInterval:      "2m",
+		BookCheckInterval: "5m",
 	}); err != nil {
 		t.Fatalf("UpdateShelf(primary): %v", err)
 	}
@@ -127,9 +125,12 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	// An invalid book_check_interval is rejected the same way an invalid scan
 	// interval is, and leaves the live value untouched.
 	if err := sm.UpdateShelf(ShelfConfWithID{
-		ID:        "primary",
-		Name:      "Main Shelf",
-		ShelfConf: ShelfConf{LibRoot: firstRoot, LockMode: "none", ScanInterval: "2m", BookCheckInterval: "not-a-duration"},
+		ID:                "primary",
+		Name:              "Main Shelf",
+		LibRoot:           firstRoot,
+		LockMode:          "none",
+		ScanInterval:      "2m",
+		BookCheckInterval: "not-a-duration",
 	}); err == nil {
 		t.Fatal("UpdateShelf accepted an invalid book check interval")
 	}
@@ -196,9 +197,10 @@ func TestShelfManagerUpdateShelfTogglesReadOnly(t *testing.T) {
 	t.Cleanup(func() { _ = sm.Close() })
 
 	writable := ShelfConfWithID{
-		ID:        "primary",
-		Name:      "Primary",
-		ShelfConf: ShelfConf{LibRoot: libRoot, LockMode: "none"},
+		ID:       "primary",
+		Name:     "Primary",
+		LibRoot:  libRoot,
+		LockMode: "none",
 	}
 	if err := sm.AddShelf(writable); err != nil {
 		t.Fatalf("AddShelf(primary): %v", err)
@@ -248,9 +250,10 @@ func TestShelfManagerUpdateShelfRestoresShelfWhenReopenFails(t *testing.T) {
 	t.Cleanup(func() { _ = sm.Close() })
 
 	writable := ShelfConfWithID{
-		ID:        "primary",
-		Name:      "Primary",
-		ShelfConf: ShelfConf{LibRoot: libRoot, LockMode: "none"},
+		ID:       "primary",
+		Name:     "Primary",
+		LibRoot:  libRoot,
+		LockMode: "none",
 	}
 	if err := sm.AddShelf(writable); err != nil {
 		t.Fatalf("AddShelf(primary): %v", err)

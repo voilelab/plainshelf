@@ -117,8 +117,8 @@ func (p *Pool) List() []*TaskChain {
 	defer p.mu.RUnlock()
 
 	chains := make([]*TaskChain, 0, len(p.order))
-	for i := len(p.order) - 1; i >= 0; i-- {
-		if chain, ok := p.byID[p.order[i]]; ok {
+	for _, v := range slices.Backward(p.order) {
+		if chain, ok := p.byID[v]; ok {
 			chains = append(chains, chain)
 		}
 	}

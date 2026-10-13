@@ -150,7 +150,7 @@ func fingerprintTestApp(t *testing.T, libRoot string) *App {
 
 	app, err := NewApp(&AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
-			{ID: "default_shelf", ShelfConf: shelf.ShelfConf{LibRoot: libRoot}},
+			{ID: "default_shelf", LibRoot: libRoot},
 		},
 		StorePath:  t.TempDir(),
 		CoverToJPG: false,
