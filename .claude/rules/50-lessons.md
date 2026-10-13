@@ -8,12 +8,10 @@ Read the relevant section before working in that area. Add entries according to
 - **Embedded frontend:** Go builds require `frontend/dist`; rebuild the frontend
   before Go or end-to-end runs when it is missing or stale. A branch switch
   leaves the previous branch's bundle in place, so the suite quietly tests the
-  wrong frontend against the new specs. (`frontend/web.go`)
-- **Hidden build assets:** keep `//go:embed all:dist`; plain `dist/*` silently
-  omits underscore-prefixed Rolldown chunks and produces a white-screen SPA.
-  (`frontend/web.go`)
-- **Stale running server:** rebuilding `frontend/dist` does not update an already
-  running Go process because assets are embedded at compile time; restart it.
+  wrong frontend against the new specs, and a running Go process keeps the
+  assets it was compiled with until restarted. Keep `//go:embed all:dist`; plain
+  `dist/*` silently omits underscore-prefixed Rolldown chunks and produces a
+  white-screen SPA. (`frontend/web.go`)
 - **Restricted dependency installs:** if `sharp` cannot download libvips, use
   `npm --prefix frontend ci --ignore-scripts` for web-only work. Do not use that
   install for Capacitor asset generation.
@@ -30,17 +28,12 @@ Read the relevant section before working in that area. Add entries according to
   4"; v2.14.0 works. Match the version to `go.mod`:
   `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.14.0/golangci-lint-2.14.0-linux-amd64.tar.gz | tar xz`.
   CI enables `unused`, so a helper left without callers fails the build even
-  when `go vet` and `go test` pass. (`.golangci.yml`, `.github/workflows/ci.yml`)
-- **govulncheck has the same toolchain trap:** `go install
-  golang.org/x/vuln/cmd/govulncheck@latest` builds with whatever the *base* `go`
-  binary resolves, which here is older than `go.mod`'s target, and the binary
-  then dies during package loading — `requires newer Go version go1.27
-  (application built with go1.26)` on this repo's own files, which reads like a
-  repo break rather than a tool one. Prefix the install with
-  `GOTOOLCHAIN=go<go.mod's version>`; CI gets it right via `setup-go`'s
-  `go-version-file: go.mod`. A full local scan is still impossible in the cloud
-  container: the network policy 403s `vuln.go.dev`.
-  (`.github/workflows/ci.yml`)
+  when `go vet` and `go test` pass. `govulncheck` has the same trap: `go
+  install …@latest` builds with the older *base* `go` and dies with `requires
+  newer Go version go1.27 (application built with go1.26)`, which reads like a
+  repo break; prefix the install with `GOTOOLCHAIN=go<go.mod's version>`. A full
+  local scan is still impossible: the network policy 403s `vuln.go.dev`.
+  (`.golangci.yml`, `.github/workflows/ci.yml`)
 - **Frontend suite needs a supported Node:** ten unrelated suites fail at import
   with `TypeError: Cannot read properties of undefined (reading 'getItem')`
   pointing at `src/api/client.ts` → from Node 26 the runtime defines its own
@@ -59,12 +52,10 @@ Read the relevant section before working in that area. Add entries according to
 - **Server tests race the initial shelf scan:** a read issued before it finishes
   is answered 503 `ErrShelfInitializing`. Test envs must wait via
   `WaitReady`; do not rely on unrelated startup work to mask it.
-  (`server/apitest_test.go`)
+  (`server/contract/apitest/env.go`)
 
 ## Frontend and Reka UI
 
-- **Shared component contracts:** before changing props or emits, search every
-  consumer and verify each call site is intentionally wired or excluded.
 - **Popover styling:** Reka popper content crosses a wrapper/portal boundary;
   follow the global `[data-reka-popper-content-wrapper]` pattern instead of
   relying on a component-scoped selector. (`frontend/src/styles.css`)
@@ -75,16 +66,15 @@ Read the relevant section before working in that area. Add entries according to
   the DOM and only sets the `hidden` attribute; any author `display` rule on the
   panel class beats the user-agent `[hidden]` default, so inactive panels stay as
   layout boxes and their parent's grid/flex gap shifts the visible one. Pair such
-  a rule with `.panel-class[hidden] { display: none; }`.
-  (`frontend/src/features/settings/pages/SettingsPage.vue`)
-- **Tab content is unmounted, the wrapper is not:** the persistent wrapper above
-  hides that `TabsRoot` defaults `unmountOnHide` to true, so an inactive tab's
-  *slot content* is destroyed and rebuilt on every visit. A tab body that owns
-  state — an in-flight request, a fetched list, a cache — silently resets and
-  refetches. Set `:unmount-on-hide="false"` when moving stateful markup into a
+  a rule with `.panel-class[hidden] { display: none; }`. The persistent wrapper
+  also hides that `TabsRoot` defaults `unmountOnHide` to true, so an inactive
+  tab's *slot content* is destroyed and rebuilt on every visit. A tab body that
+  owns state — an in-flight request, a fetched list, a cache — silently resets
+  and refetches. Set `:unmount-on-hide="false"` when moving stateful markup into a
   per-tab component, and keep the `[hidden]` rule above, which is then what stops
   the retained content from rendering in full.
-  (`reka-ui/src/Tabs/TabsRoot.vue`, `reka-ui/src/Tabs/TabsContent.vue`)
+  (`frontend/src/features/settings/pages/SettingsPage.vue`,
+  `reka-ui/src/Tabs/TabsRoot.vue`)
 - **Scoped styles and fragments:** styles targeting nodes rendered through a
   fragment may need a stable parent plus `:deep(...)`; verify selected and
   unselected computed styles, not only `data-state`.
@@ -118,9 +108,8 @@ Read the relevant section before working in that area. Add entries according to
   `EditorState.lineSeparator` and the text is read with
   `doc.sliceString(0, len, separator)`. A break is one *position* whatever it was
   written with, so a string offset is not a document offset — build the `Text`
-  before deriving any position from it.
-- **Editor/page offset boundary:** the chapter dimming, the outline's jumps and
-  the rename/merge edits all drifted on CRLF sources by one character per
+  before deriving any position from it. The chapter dimming, the outline's jumps
+  and the rename/merge edits all drifted on CRLF sources by one character per
   preceding line break → the page indexes `content` as a plain string
   (`markdownChapters.ts`, shared with the reader's persisted progress) while
   CodeMirror counts positions. The adapter contract is stated in source-text
@@ -161,14 +150,13 @@ Read the relevant section before working in that area. Add entries according to
   *inside* `e2e/`: Playwright resolves `globalSetup` and reporter paths relative
   to the config file, so a copy in a scratch directory dies with a bare
   `MODULE_NOT_FOUND` naming Playwright's own internals rather than the path.
-  (`e2e/playwright.config.ts`)
-- **Only chromium is installable in the cloud container:** the egress policy 403s
-  `cdn.playwright.dev` and `playwright.download.prss.microsoft.com`, so
-  `npx playwright install webkit` cannot be worked around locally — the nightly
-  matrix (`E2E_BROWSERS`) can only be exercised on a runner. Dispatch
-  `nightly.yml` on the branch: since PSW-111 a `workflow_dispatch` checks out the
-  ref it was dispatched from, and only the scheduled run files the failure issue.
-  (`.github/workflows/nightly.yml`)
+  Only chromium is installable: the egress policy 403s `cdn.playwright.dev` and
+  `playwright.download.prss.microsoft.com`, so `npx playwright install webkit`
+  cannot be worked around locally — the nightly matrix (`E2E_BROWSERS`) can only
+  be exercised on a runner. Dispatch `nightly.yml` on the branch: since PSW-111
+  a `workflow_dispatch` checks out the ref it was dispatched from, and only the
+  scheduled run files the failure issue.
+  (`e2e/playwright.config.ts`, `.github/workflows/nightly.yml`)
 - **WebKit has no constructible `Touch`:** `new Touch({…})` throws "Illegal
   constructor" there, so a spec that synthesises touch events passes on chromium
   and dies on webkit. Use `document.createTouch`/`createTouchList` — page
@@ -198,15 +186,10 @@ Read the relevant section before working in that area. Add entries according to
   @smoke` (13 of 37 cases) and `nightly.yml` runs the rest on `dev`. A change
   outside the smoke set is unproven until `just test-e2e` runs locally or the
   night after it merges reports; a nightly failure opens one issue rather than
-  landing on whoever pushes next. (`docs/development/testing-levels.md`)
-- **The suite is cheap enough to run before pushing:** the whole of it is 37
-  cases and took 1m21s wall clock in the cloud container (2 workers; 141s of
-  test bodies), on top of 3s for `npm --prefix e2e ci` and 25s for the server
-  binary — `playwright install` is skipped entirely, per the browser-revision
-  entry above. So "e2e is too heavy for routine verification"
-  (`00-diagnosis.md`, written before the container had a preinstalled browser)
-  no longer holds: for a change outside the smoke set, run it rather than
-  waiting on the nightly. Measured 2026-09-04 on PSW-99.
+  landing on whoever pushes next. The whole suite took 1m21s wall clock in the
+  cloud container (2 workers, measured 2026-09-04), plus about 30s of install
+  and server build, so run it rather than waiting on the nightly.
+  (`docs/development/testing-levels.md`)
 - **E2E server ports are per worker, not per kernel:** `getFreePort()` takes a
   port from a band derived from `TEST_PARALLEL_INDEX` instead of asking for port
   0. Asking for 0 lets two parallel workers be handed the same number, and the
@@ -217,11 +200,6 @@ Read the relevant section before working in that area. Add entries according to
 
 ## Filesystem and API
 
-- **Mutating API requests:** preserve the `local_token` boundary and review the
-  matching contract package under `server/contract/` whenever routes or request
-  handling change.
-- **Book identity:** moving or renaming a book must not regenerate its persisted
-  ID. The directory name and display title are not identity.
 - **JSON encoding:** marshal through `internal/jsonopt`, not bare
   `encoding/json/v2` options → v2 leaves map order unspecified, which defeats
   the three "unchanged, do not rewrite" checks (`fingerprint/cache.go`'s byte

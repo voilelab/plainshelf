@@ -13,8 +13,10 @@ RUN apt-get update \
         arm64) node_arch="arm64" ;; \
         *) echo "Unsupported Node.js architecture: $node_arch" >&2; exit 1 ;; \
     esac \
-    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" \
-        | tar -xJ -C /usr/local --strip-components=1
+    && curl -fsSL --retry 5 --retry-all-errors -o /tmp/node.tar.xz \
+        "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" \
+    && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+    && rm /tmp/node.tar.xz
 
 WORKDIR /src/frontend
 
@@ -39,8 +41,10 @@ RUN apt-get update \
         arm64) go_arch="arm64" ;; \
         *) echo "Unsupported Go architecture: $go_arch" >&2; exit 1 ;; \
     esac \
-    && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${go_arch}.tar.gz" \
-        | tar -xz -C /usr/local
+    && curl -fsSL --retry 5 --retry-all-errors -o /tmp/go.tar.gz \
+        "https://go.dev/dl/go${GO_VERSION}.linux-${go_arch}.tar.gz" \
+    && tar -xzf /tmp/go.tar.gz -C /usr/local \
+    && rm /tmp/go.tar.gz
 
 WORKDIR /src
 

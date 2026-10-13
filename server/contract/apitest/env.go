@@ -133,11 +133,9 @@ func AppConf(t *testing.T, opts ...Option) *server.AppConf {
 	conf := &server.AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
 			{
-				ID: DefaultShelfID,
-				ShelfConf: shelf.ShelfConf{
-					LibRoot:           t.TempDir(),
-					BookCacheInterval: "1s",
-				},
+				ID:                DefaultShelfID,
+				LibRoot:           t.TempDir(),
+				BookCacheInterval: "1s",
 			},
 		},
 		StorePath:  t.TempDir(),
@@ -319,11 +317,9 @@ const SecondShelfID = "second_shelf"
 func WithSecondShelf(libRoot string) Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves = append(conf.Shelves, &shelf.ShelfConfWithID{
-			ID: SecondShelfID,
-			ShelfConf: shelf.ShelfConf{
-				LibRoot:           libRoot,
-				BookCacheInterval: "1s",
-			},
+			ID:                SecondShelfID,
+			LibRoot:           libRoot,
+			BookCacheInterval: "1s",
 		})
 	}
 }
@@ -333,12 +329,10 @@ func WithSecondShelf(libRoot string) Option {
 func WithReadOnlySecondShelf(libRoot string) Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves = append(conf.Shelves, &shelf.ShelfConfWithID{
-			ID: SecondShelfID,
-			ShelfConf: shelf.ShelfConf{
-				LibRoot:           libRoot,
-				BookCacheInterval: "1s",
-				ReadOnly:          true,
-			},
+			ID:                SecondShelfID,
+			LibRoot:           libRoot,
+			BookCacheInterval: "1s",
+			ReadOnly:          true,
 		})
 	}
 }

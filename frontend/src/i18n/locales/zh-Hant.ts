@@ -282,6 +282,18 @@ const zhHant = {
       scopeNote:
         '這個偏好只存在這台裝置，不會與 PlainShelf 伺服器同步。它適用於本 app 直接讀取雲端儲存的書架；由伺服器提供的書架，仍以伺服器自己的設定為準。'
     },
+    demoStorage: {
+      title: '瀏覽器儲存',
+      description:
+        '這個 demo 把書架存在這個瀏覽器裡。瀏覽器預設可能在空間不足時清除它；你可以請瀏覽器保留，但是否同意由瀏覽器決定。清除網站資料仍會刪掉書架，要保留請匯出。',
+      statusLabel: '狀態',
+      statusPersisted: '已保留：瀏覽器同意不會自行清除。',
+      statusBestEffort: '未保留：瀏覽器可能在空間不足時清除。',
+      statusUnsupported: '這個瀏覽器無法申請保留。',
+      statusMemory: '未儲存：這個瀏覽器沒有可供 demo 使用的儲存空間，重新整理就會清空。',
+      request: '申請保留',
+      declined: '瀏覽器拒絕了。有些瀏覽器只對加入書籤、已安裝或常造訪的網站同意。'
+    },
     readHistory: {
       title: '閱讀紀錄'
     },

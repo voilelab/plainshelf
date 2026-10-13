@@ -89,17 +89,16 @@ web builds; do not use it for Capacitor asset generation.
    (`docs/development/releasing.md`); a compatibility break also gets
    `breaking`.
 8. Report checks that were not run or could not pass; do not imply verification.
+9. Reply to the user in Traditional Chinese; keep commit messages, code
+   comments, and repository docs in English.
 
 ## Rule routing
 
-Read only the rule needed for the task:
+Claude Code loads every `.claude/rules/*.md` file into each session, so keep
+them short:
 
-- Collaboration and optional delegation: `.claude/rules/10-delegation.md`
-- Scope, escalation, and completion: `.claude/rules/20-judgment.md`
-- Reusable task briefs: `.claude/rules/30-prompt-templates.md`
+- Scope, escalation, delegation, and completion: `.claude/rules/20-judgment.md`
 - Maintaining these rules: `.claude/rules/40-maintenance.md`
 - Verified project-specific pitfalls: `.claude/rules/50-lessons.md`
-- Historical context only: `.claude/rules/00-diagnosis.md` and
-  `.claude/rules/90-letter.md`
 
 Project workflows live in `.claude/skills/` (`work-ticket`, `update-docs`).

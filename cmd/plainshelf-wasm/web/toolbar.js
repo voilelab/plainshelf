@@ -1,5 +1,6 @@
 // A small demo-only bar to take the shelf out as a zip and put one back, with a
-// note that the shelf lives only in browser storage. The zip's layout is a
+// note that the shelf lives only in browser storage and an offer to ask the
+// browser to keep it. The zip's layout is a
 // lib_root (books/, trash/), so it unzips into a native shelf.
 // Load after boot.js, on the app page.
 (() => {
@@ -39,8 +40,7 @@
       const file = input.files?.[0];
       if (!file) return;
       // An import reloads every tab, which only keeps the new shelf if it persists.
-      const storage = await window.plainshelfRequest({ method: 'GET', url: '/_demo/storage', headers: {} });
-      if (!JSON.parse(new TextDecoder().decode(storage.body)).persistent) {
+      if (!(await window.plainshelfDemo.hasStorage())) {
         alert('This browser cannot keep the demo shelf (no OPFS), so an imported shelf would be lost on reload.');
         return;
       }
@@ -62,13 +62,64 @@
     input.click();
   }
 
-  // Browser storage is not guaranteed, so the bar says where the shelf lives.
-  async function showStorageNote(note) {
-    const storage = await window.plainshelfRequest({ method: 'GET', url: '/_demo/storage', headers: {} });
-    if (JSON.parse(new TextDecoder().decode(storage.body)).persistent) return;
-    note.textContent = 'Not saved: this browser has no storage for the demo, so a reload starts over.';
-    note.style.color = '#92400e';
-    note.style.fontWeight = '600';
+  const DISMISS_KEY = 'plainshelf-demo-persist-dismissed';
+  const demo = window.plainshelfDemo;
+
+  function dismissed() {
+    try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
+  }
+
+  function dismiss() {
+    try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* the prompt just returns next visit */ }
+  }
+
+  // Inline display beats the hidden attribute, so the prompt toggles display.
+  function show(el, visible) {
+    el.style.display = visible ? 'flex' : 'none';
+  }
+
+  // Browser storage is not guaranteed, so the bar says where the shelf lives
+  // and, until the browser agrees to keep it, offers to ask.
+  async function refresh(note, prompt) {
+    if (!(await demo.hasStorage())) {
+      note.textContent = 'Not saved: this browser has no storage for the demo, so a reload starts over.';
+      note.style.color = '#92400e';
+      note.style.fontWeight = '600';
+      show(prompt, false);
+      return;
+    }
+    const kept = await demo.persisted();
+    note.textContent = kept
+      ? 'Kept in this browser, which has agreed not to clear it. Export to keep a copy elsewhere.'
+      : 'Kept only in this browser, which may clear it. Export to keep a copy.';
+    // A decline stays on screen until closed.
+    if (kept || prompt.dataset.declined !== '1') show(prompt, !kept && demo.canPersist() && !dismissed());
+  }
+
+  function persistPrompt(onDone) {
+    const prompt = document.createElement('div');
+    prompt.id = 'plainshelf-demo-persist';
+    prompt.style.cssText = 'flex-basis:100%;display:none;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px';
+    const text = document.createElement('span');
+    text.style.flexBasis = '100%';
+    text.textContent = 'Ask the browser to keep this shelf, so it is not cleared when space runs low?';
+    const keep = button('Keep this shelf', async () => {
+      keep.disabled = true;
+      const granted = await demo.persist().catch(() => false);
+      keep.disabled = false;
+      if (granted) return onDone();
+      prompt.dataset.declined = '1';
+      text.textContent = 'The browser declined. Some browsers agree only for a bookmarked, installed or often visited site. You can ask again in Settings.';
+      dismiss();
+      keep.remove();
+      later.textContent = 'OK';
+    });
+    const later = button('Not now', () => {
+      dismiss();
+      show(prompt, false);
+    });
+    prompt.append(text, keep, later);
+    return prompt;
   }
 
   function mount() {
@@ -86,9 +137,12 @@
     note.id = 'plainshelf-demo-note';
     note.textContent = 'Kept only in this browser, which may clear it. Export to keep a copy.';
     note.style.cssText = 'flex-basis:100%;font-size:12px;color:#4b5563';
-    bar.append(label, button('Export shelf', exportShelf), button('Import shelf…', importShelf), note);
+    const update = () => refresh(note, prompt).catch(() => {});
+    const prompt = persistPrompt(update);
+    bar.append(label, button('Export shelf', exportShelf), button('Import shelf…', importShelf), note, prompt);
     document.body.append(bar);
-    showStorageNote(note).catch(() => {});
+    addEventListener(demo.persistEvent, update);
+    update();
   }
 
   if (document.body) mount();

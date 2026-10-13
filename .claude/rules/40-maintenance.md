@@ -6,11 +6,9 @@ skills. The goal is a small active rule set grounded in current repository facts
 ## File responsibilities
 
 - `CLAUDE.md`: product invariants, repository map, canonical commands, routing
-- `10-delegation.md`: optional collaboration mechanics
-- `20-judgment.md`: scope, escalation, and completion standards
-- `30-prompt-templates.md`: reusable task briefs
+- `20-judgment.md`: scope, escalation, delegation, and completion standards
+- `40-maintenance.md`: this policy
 - `50-lessons.md`: concise, verified, project-specific pitfalls
-- `00-diagnosis.md`, `90-letter.md`: historical snapshots; do not edit
 - `.claude/skills/`: repeatable project workflows
 
 Put a rule in exactly one active file and link to it elsewhere. Do not copy the

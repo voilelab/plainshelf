@@ -108,14 +108,12 @@ func saveDesktopShelves(configPath string, conf *desktopShelvesConfig) error {
 
 func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 	return shelf.ShelfConfWithID{
-		ID:   entry.ID,
-		Name: entry.Name,
-		ShelfConf: shelf.ShelfConf{
-			LibRoot:           entry.LibRoot,
-			ScanInterval:      entry.ScanInterval,
-			BookCheckInterval: entry.BookCheckInterval,
-			ReadOnly:          entry.ReadOnly,
-		},
+		ID:                entry.ID,
+		Name:              entry.Name,
+		LibRoot:           entry.LibRoot,
+		ScanInterval:      entry.ScanInterval,
+		BookCheckInterval: entry.BookCheckInterval,
+		ReadOnly:          entry.ReadOnly,
 	}
 }
 

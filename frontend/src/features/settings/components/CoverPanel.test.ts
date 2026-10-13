@@ -1,38 +1,24 @@
 // @vitest-environment jsdom
-import { createApp, type App } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CoverPanel from './CoverPanel.vue';
+import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
-
-// Reka UI is used for real here: the point of these tests is the switch's own
-// DOM contract (role, aria-checked, the disabled button), which a stub would
-// invent rather than verify.
-function mount(props: { value: boolean; disabled: boolean; onChange?: (value: boolean) => void }) {
-  const host = document.createElement('div');
-  document.body.appendChild(host);
-  const app = createApp(CoverPanel, props);
-  app.mount(host);
-  return { host, app };
-}
-
-let mounted: App | null = null;
 
 beforeEach(() => {
   setLocale('en');
 });
 
 afterEach(() => {
-  mounted?.unmount();
-  mounted = null;
-  document.body.innerHTML = '';
   vi.clearAllMocks();
 });
 
+// Reka UI is used for real here: the point of these tests is the switch's own
+// DOM contract (role, aria-checked, the disabled button), which a stub would
+// invent rather than verify.
 describe('CoverPanel', () => {
   it('renders the setting as a switch that reflects the current value', () => {
-    const { host, app } = mount({ value: true, disabled: false });
-    mounted = app;
+    const { host } = mount(CoverPanel, { props: { value: true, disabled: false } });
 
     const control = host.querySelector('[role="switch"]');
     expect(control).not.toBeNull();
@@ -43,8 +29,7 @@ describe('CoverPanel', () => {
 
   it('emits the next value as a boolean rather than a DOM event', () => {
     const onChange = vi.fn();
-    const { host, app } = mount({ value: false, disabled: false, onChange });
-    mounted = app;
+    const { host } = mount(CoverPanel, { props: { value: false, disabled: false, onChange } });
 
     host.querySelector<HTMLElement>('[role="switch"]')?.click();
 
@@ -53,8 +38,7 @@ describe('CoverPanel', () => {
   });
 
   it('names the switch from the title alone, not the whole row', () => {
-    const { host, app } = mount({ value: false, disabled: false });
-    mounted = app;
+    const { host } = mount(CoverPanel, { props: { value: false, disabled: false } });
 
     const control = host.querySelector('[role="switch"]');
     const title = host.querySelector('.setting-label');
@@ -69,8 +53,7 @@ describe('CoverPanel', () => {
 
   it('keeps the whole row a click target, description included', () => {
     const onChange = vi.fn();
-    const { host, app } = mount({ value: false, disabled: false, onChange });
-    mounted = app;
+    const { host } = mount(CoverPanel, { props: { value: false, disabled: false, onChange } });
 
     // The row was one big <label> around the checkbox, so anywhere in it
     // toggled the setting. A switch is a <button>, and pointing the same label
@@ -85,8 +68,7 @@ describe('CoverPanel', () => {
 
   it('fires once when the switch itself is clicked inside the row label', () => {
     const onChange = vi.fn();
-    const { host, app } = mount({ value: false, disabled: false, onChange });
-    mounted = app;
+    const { host } = mount(CoverPanel, { props: { value: false, disabled: false, onChange } });
 
     // A label does nothing for clicks targeting interactive content inside it,
     // so the switch does not also receive the label's synthetic click.
@@ -97,8 +79,7 @@ describe('CoverPanel', () => {
 
   it('does not emit while the panel is saving', () => {
     const onChange = vi.fn();
-    const { host, app } = mount({ value: false, disabled: true, onChange });
-    mounted = app;
+    const { host } = mount(CoverPanel, { props: { value: false, disabled: true, onChange } });
 
     const control = host.querySelector<HTMLButtonElement>('[role="switch"]');
     expect(control?.disabled).toBe(true);

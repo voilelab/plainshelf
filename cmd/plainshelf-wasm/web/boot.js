@@ -54,6 +54,10 @@
   }
 
   channel.onmessage = async ({ data }) => {
+    if (data.type === 'persist') {
+      dispatchEvent(new CustomEvent(window.plainshelfDemo.persistEvent));
+      return;
+    }
     if (data.type === 'request') {
       if (!serving) return;
       channel.postMessage({ type: 'ack', id: data.id });
@@ -153,6 +157,28 @@
   window.plainshelfReloadAll = () => {
     channel.postMessage({ type: 'reload' });
     return reloadSelf();
+  };
+
+  // OPFS is best-effort storage, which the browser may clear when space runs
+  // low. The Demo bar and the app's settings ask to keep it through this, and
+  // both refresh on the event.
+  const PERSIST_EVENT = 'plainshelf-demo-persist';
+  window.plainshelfDemo = {
+    persistEvent: PERSIST_EVENT,
+    // Whether the serving tab keeps the shelf at all, rather than in memory.
+    async hasStorage() {
+      const res = await call({ method: 'GET', url: '/_demo/storage', headers: {} });
+      return JSON.parse(new TextDecoder().decode(res.body)).persistent === true;
+    },
+    canPersist: () => typeof navigator.storage?.persist === 'function',
+    persisted: async () => (await navigator.storage?.persisted?.()) === true,
+    async persist() {
+      const granted = (await navigator.storage.persist()) === true;
+      // Persistence is per origin, so every open tab refreshes.
+      channel.postMessage({ type: 'persist' });
+      dispatchEvent(new CustomEvent(PERSIST_EVENT));
+      return granted;
+    },
   };
 
   const nativeFetch = window.fetch.bind(window);

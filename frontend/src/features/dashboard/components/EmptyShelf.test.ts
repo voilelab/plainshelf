@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h } from 'vue';
+import { defineComponent, h } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The gate under test is `writesEnabled`. Hold the ref in a hoisted box so each
@@ -26,6 +26,7 @@ vi.mock('@/composables/useShelvesStore', async () => {
 vi.mock('@/providers', () => ({ getBookshelfProvider: () => state.provider }));
 
 import EmptyShelf from './EmptyShelf.vue';
+import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
 // RouterLink is registered globally by the app; stub it so the import CTA is
@@ -38,12 +39,8 @@ const RouterLinkStub = defineComponent({
   }
 });
 
-function mount() {
-  const host = document.createElement('div');
-  const app = createApp(EmptyShelf);
-  app.component('RouterLink', RouterLinkStub);
-  app.mount(host);
-  return { host, app };
+function mountShelf() {
+  return mount(EmptyShelf, { components: { RouterLink: RouterLinkStub } });
 }
 
 beforeEach(() => {
@@ -60,7 +57,7 @@ afterEach(() => {
 describe('EmptyShelf', () => {
   it('offers the import action when the shelf is writable', () => {
     state.writesEnabled!.value = true;
-    const { host, app } = mount();
+    const { host } = mountShelf();
 
     const importLink = host.querySelector('.empty-shelf-import');
     expect(importLink).not.toBeNull();
@@ -68,15 +65,13 @@ describe('EmptyShelf', () => {
     expect(host.querySelector('.empty-shelf-description')?.textContent).toContain(
       'import them here'
     );
-
-    app.unmount();
   });
 
   it('hides the import action and reads as read-only when writes are unavailable', () => {
     // A read-only mobile/pCloud client or a read-only server: the import query
     // would be stripped or the modal suppressed, so the CTA must not appear.
     state.writesEnabled!.value = false;
-    const { host, app } = mount();
+    const { host } = mountShelf();
 
     expect(host.querySelector('.empty-shelf-import')).toBeNull();
     // The docs link stays; only the write action is gated.
@@ -84,8 +79,6 @@ describe('EmptyShelf', () => {
     expect(host.querySelector('.empty-shelf-description')?.textContent).toContain(
       'no books yet'
     );
-
-    app.unmount();
   });
 
   it('shows the active shelf folder path on the desktop and reveals it on click', async () => {
@@ -97,7 +90,7 @@ describe('EmptyShelf', () => {
       ),
       openDesktopShelfFolder
     };
-    const { host, app } = mount();
+    const { host } = mountShelf();
 
     await vi.waitFor(() =>
       expect(host.querySelector('.empty-shelf-path-value')?.textContent).toContain('/home/reader/shelf')
@@ -106,8 +99,6 @@ describe('EmptyShelf', () => {
 
     host.querySelector<HTMLButtonElement>('.empty-shelf-path-value')?.click();
     expect(openDesktopShelfFolder).toHaveBeenCalledWith('my-books');
-
-    app.unmount();
   });
 
   it('omits the folder path off the desktop', async () => {
@@ -115,11 +106,9 @@ describe('EmptyShelf', () => {
     // local path to show.
     state.selectedShelfID!.value = 'my-books';
     state.provider = {};
-    const { host, app } = mount();
+    const { host } = mountShelf();
 
     await Promise.resolve();
     expect(host.querySelector('.empty-shelf-path')).toBeNull();
-
-    app.unmount();
   });
 });

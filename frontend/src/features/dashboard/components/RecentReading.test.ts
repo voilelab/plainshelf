@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h } from 'vue';
+import { defineComponent, h } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Book } from '@/types/book';
@@ -40,6 +40,7 @@ vi.mock('@/components/BookCoverImg.vue', () => ({
 }));
 
 import RecentReading from './RecentReading.vue';
+import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
 // Mirrors RouterLink: a plain link renders an <a>; `custom` renders the slot
@@ -64,12 +65,8 @@ function makeItem(overrides: Partial<RecentReadingItem> = {}): RecentReadingItem
   return { book: makeBook(), percent: null, lastReadAt: null, ...overrides };
 }
 
-function mount(props: { items: RecentReadingItem[] }) {
-  const host = document.createElement('div');
-  const app = createApp(RecentReading, props);
-  app.component('RouterLink', RouterLinkStub);
-  app.mount(host);
-  return { host, app };
+function mountRecent(props: { items: RecentReadingItem[] }) {
+  return mount(RecentReading, { props, components: { RouterLink: RouterLinkStub } });
 }
 
 // window.open is unimplemented in jsdom; a spy silences it and lets the launch
@@ -97,26 +94,22 @@ describe('RecentReading', () => {
   // navigating in place: on a web build with 'new-reader' it opens a new tab and
   // must not push the current window.
   it('opens the reader in a new tab under the new-reader preference and does not push', () => {
-    const { host, app } = mount({ items: [makeItem({ book: makeBook({ id: 'b1' }) })] });
+    const { host } = mountRecent({ items: [makeItem({ book: makeBook({ id: 'b1' }) })] });
 
     (host.querySelector('a.recent-reading-card') as HTMLElement).click();
 
     expect(openSpy).toHaveBeenCalledWith('/reader/b1', '_blank', 'noopener,noreferrer');
     expect(launch.push).not.toHaveBeenCalled();
-
-    app.unmount();
   });
 
   // Reverse: with 'in-window' it navigates in place and must not open a new tab.
   it('navigates in place under the in-window preference and does not open a new tab', () => {
     launch.getReaderLaunchMode.mockReturnValue('in-window');
-    const { host, app } = mount({ items: [makeItem({ book: makeBook({ id: 'b1' }) })] });
+    const { host } = mountRecent({ items: [makeItem({ book: makeBook({ id: 'b1' }) })] });
 
     (host.querySelector('a.recent-reading-card') as HTMLElement).click();
 
     expect(launch.push).toHaveBeenCalledWith({ path: '/reader/b1' });
     expect(openSpy).not.toHaveBeenCalled();
-
-    app.unmount();
   });
 });
