@@ -40,6 +40,8 @@ app, with nothing to install and nothing uploaded.
 - [Folders](concepts/folders.md) explains the nested folder hierarchy.
 - [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.
+- [Shelf Sources and Credentials](concepts/shelf-sources.md) is the design for
+  local and virtual shelves and how a source gets its credential.
 
 ### Contribute
 
