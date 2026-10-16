@@ -67,7 +67,8 @@ app_conf:
       source:
         type: webdav
         url: https://nas.example/dav/books/
-        credential: env:PLAINSHELF_NAS_TOKEN
+        username: reader
+        credential: env:PLAINSHELF_NAS_PASSWORD
 
     # pCloud (see "Open decisions": refused on the server and desktop for now).
     - id: cloud
@@ -89,6 +90,7 @@ app_conf:
 | `host` | `pcloud` | The regional API host, learned during authorization. |
 | `user_id` | `pcloud` | The pCloud account ID. Optional, because entries saved before it existed keep working without it. |
 | `client_id` | `pcloud` | The user's own pCloud app key, needed only to authorize again. Optional. |
+| `username` | `webdav` | The account to sign in as. Set, the credential is its password and is sent as HTTP Basic; unset, the credential is sent as a bearer token. Optional. |
 | `credential` | `plainshelf`, `webdav`, `pcloud` | A [credential reference](#credentials), never the secret itself. |
 
 A field that does not belong to the declared `type` fails startup instead of
@@ -99,10 +101,11 @@ being ignored, so a typo cannot silently open the wrong thing.
 - **`lib_root` and `source` are mutually exclusive.** An entry with both fails
   startup. An entry with neither fails startup, as an entry without `lib_root`
   does today.
-- **A virtual source is read-only by definition.** `read_only` is implied, and
-  writing `read_only: false` on one fails startup rather than being overridden
-  quietly. `lock_mode` is forced to `none` and `book_cache_writer_id` is
-  ignored, exactly as for a read-only local shelf today.
+- **A virtual source is read-only by definition.** It opens read-only whatever
+  `read_only` says: the engine has no write path to a remote source, so the key
+  has nothing to switch. `lock_mode` is forced to `none` and
+  `book_cache_writer_id` is ignored, exactly as for a read-only local shelf
+  today.
 - **The tuning keys still apply.** `scan_interval`, `book_check_interval` and
   `scan_cache` keep their meaning; a virtual source makes them more important,
   since every listing is a network request.
@@ -128,6 +131,7 @@ type SourceConf struct {
 	Host       string `yaml:"host" json:"host,omitzero"`
 	UserID     string `yaml:"user_id" json:"user_id,omitzero"`
 	ClientID   string `yaml:"client_id" json:"client_id,omitzero"`
+	Username   string `yaml:"username" json:"username,omitzero"`
 	Credential string `yaml:"credential" json:"credential,omitzero"`
 }
 ```
@@ -187,8 +191,11 @@ engine's default resolver handles `env:` and `file:`, and refuses `host:`. A hos
 that keeps secrets (desktop, Android, wasm) passes a resolver that handles
 `host:` itself and hands everything else to the default.
 
-The secret is resolved when a source opens and again when the remote answers
-401, so a rotated token is picked up without restarting. It is held only by the
+The secret is resolved when a source opens and again whenever the source client
+reports an authentication failure, so a rotated token is picked up without
+restarting. Each client maps its remote's own signal to that failure: HTTP 401
+for WebDAV, and the authentication error codes pCloud returns inside an HTTP 200
+response. It is held only by the
 source client: it is never written to a log, to the settings store, or into any
 API response.
 
@@ -264,7 +271,8 @@ downloads stay reachable when pCloud moves to Go:
 | Type | Scope identity |
 |---|---|
 | `pcloud` | `pcloud://{host}` plus `/{user_id}` when present, and `path` |
-| `plainshelf`, `webdav` | the normalized `url` |
+| `plainshelf` | the normalized `url` |
+| `webdav` | the normalized `url`, plus `username` when present |
 | `local` | none: a local shelf has no offline layer |
 
 ---
@@ -303,7 +311,7 @@ the type, never by falling back to another source.
   for the UI and has no shelf-management route.
 - **PSW-137 (remote read-only `ReadFS`).** Opening a shelf goes through
   `SourceConf`: `local` keeps the current path, and the other types build a
-  read-only `ReadFS`. A virtual type with `read_only: false` is a startup error.
+  read-only `ReadFS` whatever `read_only` says.
 - **PSW-138 (pCloud in Go).** The pCloud client reads `host`, `user_id`, `path`
   and resolves `credential` through the host resolver; the Keystore key does not
   change. The offline layer's scope identity follows the table above, which is
