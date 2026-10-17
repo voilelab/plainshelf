@@ -197,7 +197,7 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 	}
 
 	if !s.IsReady() {
-		return time.Time{}, util.Errorf("%w", ErrShelfInitializing)
+		return time.Time{}, s.notReady()
 	}
 
 	if err := s.shelfLock.RLock(); err != nil {

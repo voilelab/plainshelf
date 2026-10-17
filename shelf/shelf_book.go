@@ -53,7 +53,7 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 // for why that cost does not belong there.
 func (s *Shelf) ListBooksWithCharCount() ([]BookListing, error) {
 	if !s.IsReady() {
-		return nil, util.Errorf("%w", ErrShelfInitializing)
+		return nil, s.notReady()
 	}
 
 	if err := s.shelfLock.RLock(); err != nil {
@@ -68,7 +68,7 @@ func (s *Shelf) ListBooksWithCharCount() ([]BookListing, error) {
 
 func (s *Shelf) GetBook(bookID string) (*Book, error) {
 	if !s.IsReady() {
-		return nil, util.Errorf("%w", ErrShelfInitializing)
+		return nil, s.notReady()
 	}
 
 	if err := s.shelfLock.RLock(); err != nil {
@@ -185,7 +185,7 @@ func (s *Shelf) NewBookWith(folders FolderPath, title string, init func(*Book) e
 // the book cache entry, the single owner of that fact.
 func (s *Shelf) GetBookListing(bookID string) (BookListing, error) {
 	if !s.IsReady() {
-		return BookListing{}, util.Errorf("%w", ErrShelfInitializing)
+		return BookListing{}, s.notReady()
 	}
 
 	if err := s.shelfLock.RLock(); err != nil {

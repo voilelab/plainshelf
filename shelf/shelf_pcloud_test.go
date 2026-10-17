@@ -1,12 +1,15 @@
 package shelf
 
 import (
+	"errors"
 	"os"
 	"path"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/pcloud"
 	"github.com/voilelab/plainshelf/internal/pcloud/pcloudtest"
 )
@@ -145,4 +148,52 @@ func count(requests []string, method string) int {
 		}
 	}
 	return n
+}
+
+// A shelf opened while its source is down, with no snapshot to list from,
+// answers that the source is unavailable rather than that it is still
+// initializing, and lists itself once the source is back.
+func TestPCloudShelfOpenedOfflineRecovers(t *testing.T) {
+	for _, via := range []string{"request", "rescan"} {
+		t.Run(via, func(t *testing.T) {
+			old := initRetryInterval
+			initRetryInterval = 0
+			t.Cleanup(func() { initRetryInterval = old })
+
+			libRoot := seedExportedShelf(t, "Dune", "Solaris")
+			srv := pcloudtest.New(t, libRoot, "/PlainShelf/Shelf")
+			srv.SetOffline(true)
+			client, err := pcloud.NewClient(srv.Host(), pcloudtest.Token, srv.Client())
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, err := NewShelfFromFS(&ShelfConf{}, pcloud.NewFS(client, "/PlainShelf/Shelf"), t.TempDir())
+			if err != nil {
+				t.Fatalf("NewShelfFromFS: %v", err)
+			}
+			t.Cleanup(func() { s.Close() })
+			if err := s.WaitReady(t.Context()); !errors.Is(err, fsutil.ErrSourceUnavailable) {
+				t.Fatalf("WaitReady = %v, want ErrSourceUnavailable", err)
+			}
+			if _, err := s.ListBooks(); !errors.Is(err, fsutil.ErrSourceUnavailable) || errors.Is(err, ErrShelfInitializing) {
+				t.Fatalf("ListBooks while down = %v, want ErrSourceUnavailable only", err)
+			}
+
+			srv.SetOffline(false)
+			if via == "rescan" {
+				if _, err := s.RescanUnthrottled(); err != nil {
+					t.Fatalf("Rescan: %v", err)
+				}
+			} else {
+				deadline := time.Now().Add(5 * time.Second)
+				for !s.IsReady() && time.Now().Before(deadline) {
+					_, _ = s.ListBooks()
+					time.Sleep(10 * time.Millisecond)
+				}
+			}
+			if got, want := listedTitles(t, s), []string{"Dune", "Solaris"}; !slices.Equal(got, want) {
+				t.Errorf("after the source came back, listed %v, want %v", got, want)
+			}
+		})
+	}
 }

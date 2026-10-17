@@ -476,7 +476,7 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 		return Download{}, util.Errorf("%w", ErrDownloadUnsupported)
 	}
 	if !s.IsReady() {
-		return Download{}, util.Errorf("%w", ErrShelfInitializing)
+		return Download{}, s.notReady()
 	}
 
 	s.bookCache.RLock()

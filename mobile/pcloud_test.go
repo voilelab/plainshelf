@@ -242,3 +242,28 @@ func TestPCloudShelfFollowsTheDevicesAdultContentChoice(t *testing.T) {
 		t.Error("a shelf that is not open accepted a choice")
 	}
 }
+
+// Opened while pCloud is down, with nothing listed before, the shelf answers
+// with the code the app falls back to its downloads on.
+func TestPCloudShelfOpenedOfflineAnswersSourceUnavailable(t *testing.T) {
+	srv, _ := servePCloudShelf(t)
+	srv.SetOffline(true)
+	startT(t, t.TempDir())
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
+		t.Fatalf("OpenPCloudShelf: %v", err)
+	}
+	rt, err := running()
+	if err != nil {
+		t.Fatal(err)
+	}
+	shelfData, ok := rt.app.ShelfManager().GetShelf("pcloud-a")
+	if !ok {
+		t.Fatal("pcloud-a not open")
+	}
+	_ = shelfData.WaitReady(t.Context())
+
+	res := handle(t, http.MethodGet, "/api/shelves/pcloud-a/books", "")
+	if res.Status != http.StatusServiceUnavailable || !strings.Contains(string(res.Body), "SOURCE_UNAVAILABLE") {
+		t.Errorf("books while down: %d %s", res.Status, res.Body)
+	}
+}

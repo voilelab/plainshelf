@@ -44,7 +44,9 @@ outside the shelf, so it stays readable while its source is unreachable:
   from the saved one, together with a copy of the source's `shelf.json` so
   folder rules such as the [adult content mark](folders.md#marking-a-folder-as-adult-content)
   still apply. A source no installation exports a book cache for opens from it
-  rather than being walked at every start; a rescan walks it;
+  rather than being walked at every start; a rescan walks it. A shelf that has
+  no snapshot yet and cannot reach its source when it opens answers that the
+  source is unavailable, and tries again on later requests and on a rescan;
 - **downloaded books**, copied whole (every source, the cover, illustrations) to
   the same `books/…` path they have on the source. A download is built in a
   temporary directory and renamed into place, so an interrupted one leaves

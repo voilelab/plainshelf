@@ -131,6 +131,24 @@ describe('embeddedPCloudFetch', () => {
     );
   });
 
+  it('pushes again when the choice changes while a push is on the bridge', async () => {
+    await mod.openEmbeddedPCloudShelf(entry);
+    let release: () => void = () => undefined;
+    plugin.setShelfShowNsfw.mockImplementationOnce(() => new Promise<void>((resolve) => (release = resolve)));
+    setShowNsfwOnDevice(true);
+    const request = mod.embeddedPCloudFetch(`${shelfPrefix}/books`);
+    await vi.waitFor(() => expect(plugin.setShelfShowNsfw).toHaveBeenCalledTimes(1));
+
+    setShowNsfwOnDevice(false);
+    release();
+    await request;
+
+    expect(plugin.setShelfShowNsfw.mock.calls.map(([options]) => options.show)).toEqual([true, false]);
+    expect(plugin.setShelfShowNsfw.mock.invocationCallOrder[1]).toBeLessThan(
+      localFetch.mock.invocationCallOrder[0]
+    );
+  });
+
   it('refuses the request when Go cannot be told', async () => {
     setShowNsfwOnDevice(true);
     await mod.openEmbeddedPCloudShelf(entry);

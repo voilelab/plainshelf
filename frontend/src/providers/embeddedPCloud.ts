@@ -76,20 +76,27 @@ function opened(signal: AbortSignal | null | undefined): Promise<boolean> {
  * which may be the one that shows.
  */
 async function syncShowNsfw(): Promise<void> {
-  while (pushing) {
-    await pushing;
-  }
-  const show = getShowNsfwOnDevice();
-  if (show === pushedShowNsfw) {
-    return;
-  }
-  pushing = LocalShelf.setShelfShowNsfw({ id: EMBEDDED_PCLOUD_SHELF_ID, show }).then(() => {
-    pushedShowNsfw = show;
-  });
-  try {
-    await pushing;
-  } finally {
-    pushing = null;
+  // Compared again after every push: the setting can change while one is on
+  // the bridge, and a request let through then would get the old answer.
+  for (;;) {
+    while (pushing) {
+      await pushing.catch(() => undefined);
+    }
+    const show = getShowNsfwOnDevice();
+    if (show === pushedShowNsfw) {
+      return;
+    }
+    const push = LocalShelf.setShelfShowNsfw({ id: EMBEDDED_PCLOUD_SHELF_ID, show }).then(() => {
+      pushedShowNsfw = show;
+    });
+    pushing = push;
+    try {
+      await push;
+    } finally {
+      if (pushing === push) {
+        pushing = null;
+      }
+    }
   }
 }
 
