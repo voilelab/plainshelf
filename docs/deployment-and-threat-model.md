@@ -162,6 +162,7 @@ instead:
   export belongs on Tier B's trusted network only. See
   [`dav_export`](reference/configuration.md#dav_export).
 
+## What `local_token` actually protects
 
 `local_token` mode generates a random token when the server starts and writes it,
 in cleartext, into a `<script>` tag in `index.html` — that is how the frontend
