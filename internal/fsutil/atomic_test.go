@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -283,5 +284,35 @@ func TestWriteFileAtomicConcurrentWritersUseDistinctTempFiles(t *testing.T) {
 
 	if leftover := leftoverTempFiles(t, root); len(leftover) != 0 {
 		t.Errorf("temp files left behind after concurrent writes: %v", leftover)
+	}
+}
+
+func TestIsTempName(t *testing.T) {
+	for range 100 {
+		for _, name := range []string{
+			path.Base(tempPath("books/a.bookpkg/book.json")),
+			TempDirName("20260101-000000"),
+		} {
+			if !IsTempName(name) {
+				t.Errorf("IsTempName(%q) = false for a generated name", name)
+			}
+		}
+	}
+	for _, name := range []string{
+		"notes.tmp",
+		"a.tmp.txt",
+		".tmp",
+		"x.abcdefg.tmp",   // 7 random characters
+		"x.abcdefghi.tmp", // 9
+		".abcdefgh.tmp",   // no name before the random part
+		"x.abcd-fgh.tmp",
+		".x-abcde.tmp",
+		".-abcdef.tmp", // no base
+		"x-abcdef.tmp", // staging directories are hidden
+		"book.json.aB3dE6gH.tmp.txt",
+	} {
+		if IsTempName(name) {
+			t.Errorf("IsTempName(%q) = true", name)
+		}
 	}
 }

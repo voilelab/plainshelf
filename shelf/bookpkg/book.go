@@ -539,7 +539,7 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 		sourceID = fmt.Sprintf("%s-%d", baseSourceID, i)
 	}
 
-	tempSourcePath := path.Join(b.folderPath, SourcesFolder, "."+sourceID+"-"+fsutil.RandomString(6)+".tmp")
+	tempSourcePath := path.Join(b.folderPath, SourcesFolder, fsutil.TempDirName(sourceID))
 	defer root.RemoveAll(tempSourcePath) //nolint:errcheck // best-effort cleanup of unpublished data
 
 	src, err := createSource(root, tempSourcePath, sourceID, source, options.Format, options.Comment)

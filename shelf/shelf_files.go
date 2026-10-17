@@ -1,12 +1,19 @@
 package shelf
 
-import "strings"
+import (
+	"slices"
+	"strings"
+
+	"github.com/voilelab/plainshelf/internal/fsutil"
+)
 
 // IsShelfFile reports whether name, a clean slash-separated path relative to
 // the shelf root ("." for the root), belongs to the shelf itself: books/,
 // trash/, shelf.json and the exported book caches in app/. It is what a file
 // export of the shelf may serve; lock files, the scan cache and app/tmp/ are
-// runtime state of whoever has the shelf open and stay behind.
+// runtime state of whoever has the shelf open and stay behind, as do writes
+// still in progress (fsutil.IsTempName), so a client never copies a half
+// written file.
 func IsShelfFile(name string) bool {
 	if name == "." {
 		return true
@@ -14,7 +21,7 @@ func IsShelfFile(name string) bool {
 	top, rest, nested := strings.Cut(name, "/")
 	switch top {
 	case booksFolder, trashFolder:
-		return true
+		return !nested || !slices.ContainsFunc(strings.Split(rest, "/"), fsutil.IsTempName)
 	case shelfConfigFile:
 		return !nested
 	case appFolder:

@@ -107,8 +107,10 @@ What the export serves:
   method, writes included, is answered 405 with or without a token; a
   `PROPFIND` without `Depth`, or with `infinity`, is answered 403.
 - Only the shelf's own files: `books/`, `trash/`, `shelf.json` and
-  `app/book-cache-*.json`. Lock files, the scan cache and `app/tmp/` are not
-  listed and a direct `GET` of them is 404. A path with a `..` segment is 400,
+  `app/book-cache-*.json`. Lock files, the scan cache, `app/tmp/` and the
+  temporary files and folders of a write still in progress are not listed and a
+  direct `GET` of them is 404, so a client only ever copies finished files.
+  A path with a `..` segment is 400,
   and a path through a symlink is 404, so a link under `books/` cannot reach
   `app/`.
 - Nothing else. `/api/...` and the web UI are 404 on this listener; the HTTP API
