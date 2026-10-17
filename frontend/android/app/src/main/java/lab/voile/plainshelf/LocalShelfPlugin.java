@@ -215,7 +215,10 @@ public class LocalShelfPlugin extends Plugin {
                     if (in == null) {
                         throw new IOException("cannot open " + uri);
                     }
-                    copy(in, out);
+                    // Stop at the cap rather than fill the cache with a file Go would refuse.
+                    if (!copy(in, out, Mobile.maxImportBytes())) {
+                        throw Mobile.getErrTooLarge();
+                    }
                 }
                 LocalShelf.ensureStarted(getContext());
                 String id = Mobile.importShelf(name, zip.getAbsolutePath());
@@ -285,11 +288,22 @@ public class LocalShelfPlugin extends Plugin {
     }
 
     private static void copy(InputStream in, OutputStream out) throws IOException {
+        copy(in, out, Long.MAX_VALUE);
+    }
+
+    /** Copies at most limit bytes; false when in had more. */
+    private static boolean copy(InputStream in, OutputStream out, long limit) throws IOException {
         byte[] chunk = new byte[64 * 1024];
+        long total = 0;
         int n;
         while ((n = in.read(chunk)) > 0) {
+            total += n;
+            if (total > limit) {
+                return false;
+            }
             out.write(chunk, 0, n);
         }
+        return true;
     }
 
     @PluginMethod

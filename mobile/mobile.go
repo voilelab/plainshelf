@@ -351,9 +351,19 @@ func ImportShelf(name, zipPath string) (id string, err error) {
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
+		if info.Size() > MaxImportBytes() {
+			return ErrTooLarge
+		}
 		return shelfzip.Import(f, info.Size(), libRoot)
 	})
 }
+
+// ErrTooLarge rejects a zip over MaxImportBytes.
+var ErrTooLarge = shelfzip.ErrTooLarge
+
+// MaxImportBytes is the largest zip ImportShelf takes; the plugin stops
+// staging a picked file past it.
+func MaxImportBytes() int64 { return shelfzip.MaxImportBytes() }
 
 // addShelf creates the shelf directory, fills it with populate when given,
 // then opens and records it. A failure removes the directory again.

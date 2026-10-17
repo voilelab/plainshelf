@@ -1144,7 +1144,7 @@ const zhHant = {
     errorBusy: '背景還有工作在進行，請稍後再試。',
     errorNotShelf: '這個 zip 不是 PlainShelf 書庫：裡面沒有 books/ 資料夾。',
     errorUnsafePath: '這個 zip 含有指向書庫外的路徑，所以沒有匯入。',
-    errorTooLarge: '這個 zip 解開後超過 512 MiB 的匯入上限。',
+    errorTooLarge: '這個 zip 本身或解開後超過 512 MiB 的匯入上限。',
     errorNotZip: '這個檔案不是 zip。',
     removeConfirm: '移除',
     removeCancel: '先留著'

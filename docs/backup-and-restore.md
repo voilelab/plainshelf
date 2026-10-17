@@ -322,8 +322,10 @@ desktop or server `lib_root` zipped from a file manager (one wrapping folder is
 fine), and always makes a **new** local shelf named after the file; the shelf in
 use is not touched or switched. A zip is refused, with the reason, and nothing
 is created when it has no `books/` folder, has a path that would land outside
-the shelf, or unpacks to more than 512 MiB. A larger shelf still exports, and
-its zip opens on the desktop or a server, but the app cannot import it back.
+the shelf, or is larger than 512 MiB or unpacks to more. The app stops reading
+a picked file at that size rather than copy all of it first. A larger shelf
+still exports, and its zip opens on the desktop or a server, but the app cannot
+import it back.
 
 ### Restoring reading progress
 

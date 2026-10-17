@@ -291,6 +291,29 @@ func TestImportRejectsNonShelfZip(t *testing.T) {
 	}
 }
 
+// A zip over the cap is refused before it is read, as the web handler does.
+func TestImportRejectsOversizedZip(t *testing.T) {
+	dataDir := t.TempDir()
+	startT(t, dataDir)
+	zipPath := filepath.Join(t.TempDir(), "huge.zip")
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Sparse: no real disk use.
+	if err := f.Truncate(MaxImportBytes() + 1); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	if _, err := ImportShelf("Huge", zipPath); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("ImportShelf: %v", err)
+	}
+	if entries, err := os.ReadDir(filepath.Join(dataDir, shelvesDir)); err != nil || len(entries) != 0 {
+		t.Fatalf("shelf directories after rejected import: %v %v", entries, err)
+	}
+}
+
 // unzip extracts every entry as a file manager would.
 func unzip(t *testing.T, zipPath, dst string) {
 	t.Helper()

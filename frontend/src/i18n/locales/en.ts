@@ -1165,7 +1165,7 @@ const en = {
     errorBusy: 'Background tasks are still running. Please try again shortly.',
     errorNotShelf: 'This zip is not a PlainShelf shelf: it has no books/ folder.',
     errorUnsafePath: 'This zip has paths that point outside the shelf, so it was not imported.',
-    errorTooLarge: 'This zip unpacks to more than 512 MiB, the import limit.',
+    errorTooLarge: 'This zip is, or unpacks to, more than 512 MiB, the import limit.',
     errorNotZip: 'This file is not a zip.',
     removeConfirm: 'Remove',
     removeCancel: 'Keep it'
