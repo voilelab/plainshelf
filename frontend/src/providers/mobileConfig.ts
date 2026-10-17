@@ -19,6 +19,10 @@ import { SecureStorage } from '@/providers/secureStorage';
 const KEY_ENTRIES = 'plainshelf.mobile.shelves';
 const KEY_ACTIVE_ENTRY_ID = 'plainshelf.mobile.activeShelfId';
 const SECRET_KEY_PREFIX = 'plainshelf.mobile.secret.';
+// Set once the user skips the restore-from-zip prompt. Preferences are excluded
+// from Android backup (res/xml/backup_rules.xml), so it is cleared by an
+// uninstall unless the user keeps the app's data.
+const KEY_RESTORE_PROMPT_DISMISSED = 'plainshelf.mobile.restorePromptDismissed';
 
 // Keys written by the single-connection layout this replaces. Read once during
 // migration and then removed; nothing else may reference them.
@@ -552,6 +556,14 @@ export async function setActiveShelfEntry(entryID: string): Promise<void> {
     return;
   }
   await commit(entries, entryID);
+}
+
+export async function isRestorePromptDismissed(): Promise<boolean> {
+  return (await read(KEY_RESTORE_PROMPT_DISMISSED)) === 'true';
+}
+
+export async function dismissRestorePrompt(): Promise<void> {
+  await write(KEY_RESTORE_PROMPT_DISMISSED, 'true');
 }
 
 export function newShelfEntry(type: ShelfSourceType): ShelfEntry {

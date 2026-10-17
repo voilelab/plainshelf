@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   exportShelf: vi.fn(),
   importShelf: vi.fn(),
   addShelfEntry: vi.fn(),
+  upsertShelfEntry: vi.fn(),
+  isRestorePromptDismissed: vi.fn(),
+  dismissRestorePrompt: vi.fn(),
   setActiveShelfEntry: vi.fn(),
   reloadIntoApp: vi.fn()
 }));
@@ -20,6 +23,9 @@ vi.mock('@/providers/mobileConfig', () => ({
   loadShelfEntries: mocks.loadShelfEntries,
   deleteShelfEntry: mocks.deleteShelfEntry,
   addShelfEntry: mocks.addShelfEntry,
+  upsertShelfEntry: mocks.upsertShelfEntry,
+  isRestorePromptDismissed: mocks.isRestorePromptDismissed,
+  dismissRestorePrompt: mocks.dismissRestorePrompt,
   newShelfEntry: () => ({ id: 'new-entry', type: 'local', name: '', localShelfId: '' }),
   setActiveShelfEntry: mocks.setActiveShelfEntry,
   shelfEntryDisplayName: (entry: { name: string }) => entry.name,
@@ -84,6 +90,9 @@ beforeEach(() => {
   mocks.exportShelf.mockReset().mockResolvedValue({ cancelled: false });
   mocks.importShelf.mockReset().mockResolvedValue({ cancelled: false, id: 'local-2', name: 'Backup' });
   mocks.addShelfEntry.mockReset().mockResolvedValue(undefined);
+  mocks.upsertShelfEntry.mockReset().mockResolvedValue(undefined);
+  mocks.isRestorePromptDismissed.mockReset().mockResolvedValue(false);
+  mocks.dismissRestorePrompt.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -130,7 +139,7 @@ describe('exporting a local shelf', () => {
     const host = await mountPage();
 
     expect(host.querySelectorAll('.mobile-shelves-export')).toHaveLength(1);
-    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not exported yet');
+    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not backed up yet');
   });
 
   it('exports under a dated name and shows the new last export time', async () => {
@@ -159,7 +168,7 @@ describe('exporting a local shelf', () => {
     await flush();
 
     expect(mocks.listShelves).toHaveBeenCalledTimes(1);
-    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not exported yet');
+    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not backed up yet');
     expect(host.querySelector('.mobile-shelves-notice')).toBeNull();
     expect(host.querySelector('.mobile-shelves-error')).toBeNull();
   });
@@ -172,7 +181,7 @@ describe('exporting a local shelf', () => {
     await flush();
 
     expect(host.querySelector('.mobile-shelves-error')?.textContent).toContain('try again shortly');
-    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not exported yet');
+    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not backed up yet');
   });
 });
 
@@ -219,5 +228,97 @@ describe('importing a shelf zip', () => {
 
     expect(mocks.addShelfEntry).not.toHaveBeenCalled();
     expect(host.querySelector('.mobile-shelves-error')).toBeNull();
+  });
+});
+
+describe('the local shelf warning', () => {
+  it('says local shelves are deleted with the app', async () => {
+    const host = await mountPage();
+
+    expect(host.querySelector('.mobile-shelves-local-warning')?.textContent).toContain('deleted with the app');
+  });
+
+  it('is not shown without a local shelf', async () => {
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [server], activeEntryID: 'e2' });
+    const host = await mountPage();
+
+    expect(host.querySelector('.mobile-shelves-local-warning')).toBeNull();
+    expect(host.querySelector('.mobile-shelves-restore')).toBeNull();
+  });
+});
+
+describe('restoring after a reinstall', () => {
+  beforeEach(() => {
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [], activeEntryID: '' });
+    mocks.listShelves.mockResolvedValue({ shelves: [] });
+  });
+
+  it('opens the restored zip as the shelf in use', async () => {
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-restore-zip').click();
+    await flush();
+
+    expect(mocks.upsertShelfEntry).toHaveBeenCalledWith({
+      id: 'new-entry',
+      type: 'local',
+      name: 'Backup',
+      localShelfId: 'local-2'
+    });
+    expect(mocks.reloadIntoApp).toHaveBeenCalled();
+  });
+
+  it('shows why a zip was rejected and stays on the prompt', async () => {
+    mocks.importShelf.mockRejectedValue(new Error('not a PlainShelf shelf: the zip has no books/ directory'));
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-restore-zip').click();
+    await flush();
+
+    expect(mocks.upsertShelfEntry).not.toHaveBeenCalled();
+    expect(host.querySelector('.mobile-shelves-restore .mobile-shelves-error')?.textContent).toContain('no books/ folder');
+  });
+
+  it('stays quiet when the picker is cancelled', async () => {
+    mocks.importShelf.mockResolvedValue({ cancelled: true });
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-restore-zip').click();
+    await flush();
+
+    expect(mocks.upsertShelfEntry).not.toHaveBeenCalled();
+    expect(mocks.reloadIntoApp).not.toHaveBeenCalled();
+    expect(host.querySelector('.mobile-shelves-restore')).not.toBeNull();
+  });
+
+  it('records a skip and hides the prompt', async () => {
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-restore-skip').click();
+    await flush();
+
+    expect(mocks.dismissRestorePrompt).toHaveBeenCalled();
+    expect(host.querySelector('.mobile-shelves-restore')).toBeNull();
+  });
+
+  it('is not offered again once skipped', async () => {
+    mocks.isRestorePromptDismissed.mockResolvedValue(true);
+    const host = await mountPage();
+
+    expect(host.querySelector('.mobile-shelves-restore')).toBeNull();
+  });
+
+  it('is not offered while a local shelf survives without an entry', async () => {
+    mocks.listShelves.mockResolvedValue({ shelves: [{ id: 'local-1', name: 'Phone' }] });
+    const host = await mountPage();
+
+    expect(host.querySelector('.mobile-shelves-restore')).toBeNull();
+  });
+
+  it('shows no local shelf warning on an empty device', async () => {
+    const host = await mountPage();
+
+    expect(host.querySelector('.mobile-shelves-restore')).not.toBeNull();
+    expect(host.querySelector('.mobile-shelves-local-warning')).toBeNull();
   });
 });
