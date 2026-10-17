@@ -698,6 +698,15 @@ func TestDAVExportCORS(t *testing.T) {
 		t.Errorf("allowed origin header = %q", got)
 	}
 
+	// A browser leaves a default port out of Origin.
+	for _, conf := range []string{"http://plain.example:80", "https://secure.example:443"} {
+		origin := strings.TrimSuffix(strings.TrimSuffix(conf, ":80"), ":443")
+		rec = davDo(t, withDAVOrigins(t, env, conf), http.MethodOptions, target, "", map[string]string{"Origin": origin, "Access-Control-Request-Method": "PROPFIND"})
+		if rec.Code != http.StatusNoContent || rec.Header().Get("Access-Control-Allow-Origin") != origin {
+			t.Errorf("%s: preflight from %s = %d, Allow-Origin %q", conf, origin, rec.Code, rec.Header().Get("Access-Control-Allow-Origin"))
+		}
+	}
+
 	for _, origin := range []string{"http://evil.example", "https://demo.example:8080", "null", ""} {
 		rec = davDo(t, h, "PROPFIND", target, env.token, map[string]string{"Origin": origin, "Depth": "1"})
 		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {

@@ -62,13 +62,29 @@ func davOriginSet(origins []string) (map[string]struct{}, error) {
 	}
 	set := make(map[string]struct{}, len(origins))
 	for _, origin := range origins {
-		normalized, err := normalizeOrigin(origin)
+		normalized, err := davNormalizeOrigin(origin)
 		if err != nil {
 			return nil, util.Errorf("invalid dav_export.allowed_origins entry %q: %w", origin, err)
 		}
 		set[normalized] = struct{}{}
 	}
 	return set, nil
+}
+
+// davNormalizeOrigin is normalizeOrigin without a default port, which a
+// browser leaves out of the Origin it sends.
+func davNormalizeOrigin(origin string) (string, error) {
+	normalized, err := normalizeOrigin(origin)
+	if err != nil {
+		return "", err
+	}
+	switch {
+	case strings.HasPrefix(normalized, "http://"):
+		normalized = strings.TrimSuffix(normalized, ":80")
+	case strings.HasPrefix(normalized, "https://"):
+		normalized = strings.TrimSuffix(normalized, ":443")
+	}
+	return normalized, nil
 }
 
 const davExportPrefix = "/dav/"
@@ -263,7 +279,7 @@ func (d *davExport) applyCORS(w http.ResponseWriter, r *http.Request) bool {
 	h := w.Header()
 	h.Add("Vary", "Origin")
 	originHeader := r.Header.Get("Origin")
-	origin, err := normalizeOrigin(originHeader)
+	origin, err := davNormalizeOrigin(originHeader)
 	if err != nil {
 		return false
 	}
