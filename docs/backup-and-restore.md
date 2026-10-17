@@ -197,6 +197,22 @@ Unlike the server and Docker cases, this one **does** capture your reading
 progress: the desktop app stores those three documents as JSON files in that
 directory rather than in the WebView's storage, precisely so they survive.
 
+### Android local shelf
+
+A local shelf lives in the app's private storage, so uninstalling the app
+deletes it. Back it up from the app: **Settings → Shelves → Export** on the
+shelf. The app writes a zip and asks where to save it; the shelf list then shows
+when it was last exported. Cancelling, or a failed save, leaves no file and
+keeps the old time.
+
+The zip holds `books/` and `trash/` at its root, so unzipped it is a `lib_root`
+the desktop app or a server opens as is. It does not carry `app/` (rebuildable
+cache), reading progress, or a `shelf.json` at the shelf root.
+
+If background work — a cover conversion, an import — is still running, the
+export waits up to 30 seconds and then asks you to try again later rather than
+write an incomplete backup.
+
 ### Git does not back up empty folders
 
 Git tracks files, not directories, so a [folder](concepts/folders.md) that holds
@@ -298,6 +314,16 @@ more folders shallower. Compare the folder list in the app (or
 `find books/ -type d`) with what you expect, and re-create the ones that are
 gone. No book can go missing this way: a folder that still holds a book holds
 files, so Git kept it.
+
+### Restoring into the Android app
+
+**Settings → Shelves → Import from zip** takes a zip exported above, or a
+desktop or server `lib_root` zipped from a file manager (one wrapping folder is
+fine), and always makes a **new** local shelf named after the file; the shelf in
+use is not touched or switched. A zip is refused, with the reason, and nothing
+is created when it has no `books/` folder, has a path that would land outside
+the shelf, or unpacks to more than 512 MiB. A larger shelf still exports, and
+its zip opens on the desktop or a server, but the app cannot import it back.
 
 ### Restoring reading progress
 

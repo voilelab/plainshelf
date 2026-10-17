@@ -17,6 +17,7 @@ export const LOCAL_API_BASE = 'https://localhost/__plainshelf_local';
 interface LocalShelfInfo {
   id: string;
   name: string;
+  /** RFC 3339; absent until the first export. */
   last_export?: string;
 }
 
@@ -33,6 +34,13 @@ interface LocalShelfPlugin {
   renameShelf(options: { id: string; name: string }): Promise<void>;
   /** Deletes the shelf's directory with every book in it. */
   removeShelf(options: { id: string }): Promise<void>;
+  /**
+   * Writes the shelf as a zip, then lets the user pick where it goes. Records
+   * last_export only once the zip is there; a cancel leaves no file behind.
+   */
+  exportShelf(options: { id: string; fileName: string }): Promise<{ cancelled: boolean }>;
+  /** Lets the user pick a shelf zip and makes a new shelf from it, named after the file. */
+  importShelf(options: { fallbackName: string }): Promise<{ cancelled: boolean; id?: string; name?: string }>;
   beginBody(): Promise<{ bodyId: string }>;
   appendBody(options: { bodyId: string; data: string }): Promise<void>;
   /** Deletes a staged body that will not be sent. */
@@ -47,6 +55,36 @@ interface LocalShelfPlugin {
 
 // No web implementation: the browser preview has no embedded server.
 export const LocalShelf = registerPlugin<LocalShelfPlugin>('PlainShelfLocalShelf');
+
+/** A backup's suggested file name: `plainshelf-<name>-<yyyymmdd>.zip`. */
+export function localShelfExportFileName(name: string, now: Date = new Date()): string {
+  const safe = name
+    .trim()
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/^-+|-+$/g, '');
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  return safe ? `plainshelf-${safe}-${date}.zip` : `plainshelf-${date}.zip`;
+}
+
+/**
+ * Plugin errors reach here as message text only, so the Go sentinels
+ * (mobile.ErrBusy, internal/shelfzip) are matched by their wording.
+ */
+const LOCAL_SHELF_ERROR_KEYS: Array<[string, string]> = [
+  ['background tasks are still running', 'mobileShelves.errorBusy'],
+  ['not a PlainShelf shelf', 'mobileShelves.errorNotShelf'],
+  ['zip entry escapes the shelf', 'mobileShelves.errorUnsafePath'],
+  ['zip unpacks to more than', 'mobileShelves.errorTooLarge'],
+  ['not a valid zip file', 'mobileShelves.errorNotZip']
+];
+
+/** The i18n key explaining a failed export or import, or null when unrecognised. */
+export function localShelfErrorKey(err: unknown): string | null {
+  const message = err instanceof Error ? err.message : String(err);
+  return LOCAL_SHELF_ERROR_KEYS.find(([needle]) => message.includes(needle))?.[1] ?? null;
+}
 
 /** Bytes per appendBody call; each crosses the bridge as base64. */
 const BODY_CHUNK_BYTES = 1 << 20;

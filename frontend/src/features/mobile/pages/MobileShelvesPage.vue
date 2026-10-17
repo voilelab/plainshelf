@@ -19,6 +19,9 @@
             </span>
           </div>
           <p class="mobile-shelves-detail">{{ detail(entry) }}</p>
+          <p v-if="entry.type === 'local'" class="mobile-shelves-detail mobile-shelves-last-export">
+            {{ lastExportLabel(entry.localShelfId) }}
+          </p>
 
           <div class="mobile-shelves-actions">
             <button
@@ -33,6 +36,15 @@
             <button type="button" class="button" @click="onEdit(entry.id)">
               {{ t('mobileShelves.edit') }}
             </button>
+            <button
+              v-if="entry.type === 'local'"
+              type="button"
+              class="button mobile-shelves-export"
+              :disabled="busy"
+              @click="onExport(entry)"
+            >
+              {{ t('mobileShelves.export') }}
+            </button>
             <button type="button" class="button" :disabled="busy" @click="pendingRemoval = entry">
               {{ t('mobileShelves.remove') }}
             </button>
@@ -41,9 +53,14 @@
       </ul>
 
       <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
+      <p v-if="notice" class="mobile-shelves-notice" role="status">{{ notice }}</p>
 
       <button type="button" class="button primary" @click="onAdd">
         {{ t('mobileShelves.add') }}
+      </button>
+      <!-- Local shelves exist only in the native app, not the browser preview. -->
+      <button v-if="canImport" type="button" class="button mobile-shelves-import" :disabled="busy" @click="onImport">
+        {{ t('mobileShelves.importZip') }}
       </button>
 
       <div v-if="pendingRemoval" class="mobile-shelves-confirm" role="alertdialog">
@@ -73,14 +90,17 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { Capacitor } from '@capacitor/core';
 import { useI18n } from '@/i18n';
 import MobileShelfForm from '@/features/mobile/components/MobileShelfForm.vue';
-import { LocalShelf } from '@/providers/localShelf';
+import { LocalShelf, localShelfErrorKey, localShelfExportFileName } from '@/providers/localShelf';
 import { removeCacheScope } from '@/providers/mobileCacheFs';
 import { cacheScopeKeyForEntry } from '@/providers/cacheScope';
 import {
+  addShelfEntry,
   deleteShelfEntry,
   loadShelfEntries,
+  newShelfEntry,
   setActiveShelfEntry,
   shelfEntryDisplayName,
   SOURCE_TYPE_LABEL_KEYS,
@@ -88,7 +108,7 @@ import {
 } from '@/providers/mobileConfig';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
@@ -97,7 +117,11 @@ const activeEntryID = ref('');
 const ready = ref(false);
 const busy = ref(false);
 const error = ref('');
+const notice = ref('');
 const pendingRemoval = ref<ShelfEntry | null>(null);
+/** last_export per local shelf id, as the Go side records it. */
+const lastExports = ref<Record<string, string>>({});
+const canImport = Capacitor.isNativePlatform();
 
 onMounted(async () => {
   await refresh();
@@ -108,6 +132,72 @@ async function refresh(): Promise<void> {
   const loaded = await loadShelfEntries();
   entries.value = loaded.entries;
   activeEntryID.value = loaded.activeEntryID;
+  if (loaded.entries.some((entry) => entry.type === 'local')) {
+    try {
+      const { shelves } = await LocalShelf.listShelves();
+      lastExports.value = Object.fromEntries(shelves.map((shelf) => [shelf.id, shelf.last_export ?? '']));
+    } catch {
+      // Only the "last exported" line goes missing.
+    }
+  }
+}
+
+function lastExportLabel(localShelfId: string): string {
+  const at = lastExports.value[localShelfId];
+  if (!at) {
+    return t('mobileShelves.neverExported');
+  }
+  return t('mobileShelves.lastExport', { time: new Date(at).toLocaleString(locale.value) });
+}
+
+function explain(err: unknown): string {
+  const key = localShelfErrorKey(err);
+  return key ? t(key) : err instanceof Error ? err.message : String(err);
+}
+
+/** The zip goes wherever the user picks; last_export moves only once it is there. */
+async function onExport(entry: ShelfEntry): Promise<void> {
+  if (entry.type !== 'local') {
+    return;
+  }
+  busy.value = true;
+  error.value = '';
+  notice.value = '';
+  try {
+    const { cancelled } = await LocalShelf.exportShelf({
+      id: entry.localShelfId,
+      fileName: localShelfExportFileName(displayName(entry))
+    });
+    if (!cancelled) {
+      notice.value = t('mobileShelves.exported');
+      await refresh();
+    }
+  } catch (err) {
+    error.value = explain(err);
+  } finally {
+    busy.value = false;
+  }
+}
+
+/** Always a new shelf; the one in use stays in use and untouched. */
+async function onImport(): Promise<void> {
+  busy.value = true;
+  error.value = '';
+  notice.value = '';
+  try {
+    const result = await LocalShelf.importShelf({ fallbackName: t('mobileShelves.importedName') });
+    if (result.cancelled || !result.id) {
+      return;
+    }
+    const name = result.name ?? t('mobileShelves.importedName');
+    await addShelfEntry({ ...newShelfEntry('local'), type: 'local', name, localShelfId: result.id });
+    notice.value = t('mobileShelves.imported', { name });
+    await refresh();
+  } catch (err) {
+    error.value = explain(err);
+  } finally {
+    busy.value = false;
+  }
 }
 
 const displayName = shelfEntryDisplayName;
@@ -278,6 +368,11 @@ async function onRemove(): Promise<void> {
 .mobile-shelves-error {
   margin: 0;
   color: var(--danger, #b3261e);
+  font-size: 0.9rem;
+}
+
+.mobile-shelves-notice {
+  margin: 0;
   font-size: 0.9rem;
 }
 

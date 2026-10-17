@@ -179,7 +179,7 @@ func (rt *instance) lock() error {
 	return nil
 }
 
-// quiesceTimeout bounds how long export and removal wait for queued tasks.
+// quiesceTimeout bounds how long export, import and removal wait for queued tasks.
 var quiesceTimeout = 30 * time.Second
 
 // ErrBusy is returned when background tasks do not settle in time.
@@ -338,6 +338,9 @@ func ImportShelf(name, zipPath string) (id string, err error) {
 		return "", err
 	}
 	defer rt.mu.Unlock()
+	if err := rt.quiesce(); err != nil {
+		return "", err
+	}
 	return rt.addShelf(name, func(libRoot string) error {
 		f, err := os.Open(zipPath)
 		if err != nil {
@@ -459,7 +462,8 @@ func RemoveShelf(id string) (err error) {
 }
 
 // ExportShelf writes a shelf to zipPath in the layout a desktop or server
-// lib_root has, and records the time.
+// lib_root has. The caller records it with MarkExported once the zip has
+// reached its destination, which may be a copy away.
 func ExportShelf(id, zipPath string) (err error) {
 	defer recoverInto(&err)
 	rt, err := running()
@@ -473,11 +477,25 @@ func ExportShelf(id, zipPath string) (err error) {
 	if err := rt.quiesce(); err != nil {
 		return err
 	}
-	i, err := rt.find(id)
+	if _, err := rt.find(id); err != nil {
+		return err
+	}
+	return writeZip(zipPath, libRootOf(rt.dataDir, id))
+}
+
+// MarkExported records now as the shelf's last export.
+func MarkExported(id string) (err error) {
+	defer recoverInto(&err)
+	rt, err := running()
 	if err != nil {
 		return err
 	}
-	if err := writeZip(zipPath, libRootOf(rt.dataDir, id)); err != nil {
+	if err := rt.lock(); err != nil {
+		return err
+	}
+	defer rt.mu.Unlock()
+	i, err := rt.find(id)
+	if err != nil {
 		return err
 	}
 	next := rt.conf

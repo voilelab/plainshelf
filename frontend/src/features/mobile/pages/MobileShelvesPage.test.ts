@@ -7,19 +7,33 @@ const mocks = vi.hoisted(() => ({
   deleteShelfEntry: vi.fn(),
   listShelves: vi.fn(),
   removeShelf: vi.fn(),
+  exportShelf: vi.fn(),
+  importShelf: vi.fn(),
+  addShelfEntry: vi.fn(),
+  setActiveShelfEntry: vi.fn(),
   reloadIntoApp: vi.fn()
 }));
 
 vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }), useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true }, registerPlugin: () => ({}) }));
 vi.mock('@/providers/mobileConfig', () => ({
   loadShelfEntries: mocks.loadShelfEntries,
   deleteShelfEntry: mocks.deleteShelfEntry,
-  setActiveShelfEntry: vi.fn(),
+  addShelfEntry: mocks.addShelfEntry,
+  newShelfEntry: () => ({ id: 'new-entry', type: 'local', name: '', localShelfId: '' }),
+  setActiveShelfEntry: mocks.setActiveShelfEntry,
   shelfEntryDisplayName: (entry: { name: string }) => entry.name,
   SOURCE_TYPE_LABEL_KEYS: { server: 'mobileConnect.modeServer', pcloud: 'mobileConnect.modePCloud', local: 'mobileConnect.modeLocal' }
 }));
-vi.mock('@/providers/localShelf', () => ({
-  LocalShelf: { listShelves: mocks.listShelves, removeShelf: mocks.removeShelf }
+// The real helpers, so the Go error wording is matched as in the app.
+vi.mock('@/providers/localShelf', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/providers/localShelf')>()),
+  LocalShelf: {
+    listShelves: mocks.listShelves,
+    removeShelf: mocks.removeShelf,
+    exportShelf: mocks.exportShelf,
+    importShelf: mocks.importShelf
+  }
 }));
 vi.mock('@/providers/mobileCacheFs', () => ({ removeCacheScope: vi.fn() }));
 vi.mock('@/providers/cacheScope', () => ({ cacheScopeKeyForEntry: () => '' }));
@@ -38,13 +52,22 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve));
 }
 
-async function removeFirst(): Promise<HTMLElement> {
+async function mountPage(): Promise<HTMLElement> {
   const host = document.createElement('div');
   document.body.append(host);
   const app = createApp({ setup: () => () => h(MobileShelvesPage) });
   app.mount(host);
   mounted = { app, host };
   await flush();
+  return host;
+}
+
+function button(host: HTMLElement, selector: string): HTMLButtonElement {
+  return host.querySelector<HTMLButtonElement>(selector)!;
+}
+
+async function removeFirst(): Promise<HTMLElement> {
+  const host = await mountPage();
   const buttons = [...host.querySelectorAll<HTMLButtonElement>('.mobile-shelves-item button')];
   buttons.find((b) => b.textContent?.trim() === 'Remove')!.click();
   await flush();
@@ -57,7 +80,10 @@ beforeEach(() => {
   mocks.removeShelf.mockReset().mockResolvedValue(undefined);
   mocks.deleteShelfEntry.mockReset().mockResolvedValue(undefined);
   mocks.loadShelfEntries.mockResolvedValue({ entries: [local, server], activeEntryID: 'e1' });
-  mocks.listShelves.mockResolvedValue({ shelves: [{ id: 'local-1', name: 'Phone' }] });
+  mocks.listShelves.mockReset().mockResolvedValue({ shelves: [{ id: 'local-1', name: 'Phone' }] });
+  mocks.exportShelf.mockReset().mockResolvedValue({ cancelled: false });
+  mocks.importShelf.mockReset().mockResolvedValue({ cancelled: false, id: 'local-2', name: 'Backup' });
+  mocks.addShelfEntry.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -96,5 +122,102 @@ describe('removing a local shelf', () => {
 
     expect(mocks.removeShelf).not.toHaveBeenCalled();
     expect(mocks.deleteShelfEntry).toHaveBeenCalledWith('e1');
+  });
+});
+
+describe('exporting a local shelf', () => {
+  it('offers export only for the local shelf and shows it has never been exported', async () => {
+    const host = await mountPage();
+
+    expect(host.querySelectorAll('.mobile-shelves-export')).toHaveLength(1);
+    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not exported yet');
+  });
+
+  it('exports under a dated name and shows the new last export time', async () => {
+    const host = await mountPage();
+    mocks.listShelves.mockResolvedValue({
+      shelves: [{ id: 'local-1', name: 'Phone', last_export: '2026-10-17T03:04:05Z' }]
+    });
+
+    button(host, '.mobile-shelves-export').click();
+    await flush();
+
+    expect(mocks.exportShelf).toHaveBeenCalledWith({
+      id: 'local-1',
+      fileName: expect.stringMatching(/^plainshelf-Phone-\d{8}\.zip$/)
+    });
+    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Last exported');
+    expect(host.querySelector('.mobile-shelves-notice')).not.toBeNull();
+    expect(host.querySelector('.mobile-shelves-error')).toBeNull();
+  });
+
+  it('changes nothing when the picker is cancelled', async () => {
+    mocks.exportShelf.mockResolvedValue({ cancelled: true });
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-export').click();
+    await flush();
+
+    expect(mocks.listShelves).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not exported yet');
+    expect(host.querySelector('.mobile-shelves-notice')).toBeNull();
+    expect(host.querySelector('.mobile-shelves-error')).toBeNull();
+  });
+
+  it('asks to try again later while background tasks run', async () => {
+    mocks.exportShelf.mockRejectedValue(new Error('mobile.ExportShelf: plainshelf: background tasks are still running'));
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-export').click();
+    await flush();
+
+    expect(host.querySelector('.mobile-shelves-error')?.textContent).toContain('try again shortly');
+    expect(host.querySelector('.mobile-shelves-last-export')?.textContent).toContain('Not exported yet');
+  });
+});
+
+describe('importing a shelf zip', () => {
+  it('adds the zip as a new local shelf without switching to it', async () => {
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-import').click();
+    await flush();
+
+    expect(mocks.addShelfEntry).toHaveBeenCalledWith({
+      id: 'new-entry',
+      type: 'local',
+      name: 'Backup',
+      localShelfId: 'local-2'
+    });
+    expect(mocks.setActiveShelfEntry).not.toHaveBeenCalled();
+    expect(mocks.reloadIntoApp).not.toHaveBeenCalled();
+    expect(host.querySelector('.mobile-shelves-notice')?.textContent).toContain('Backup');
+  });
+
+  it.each([
+    ['not a PlainShelf shelf: the zip has no books/ directory', 'no books/ folder'],
+    ['zip entry escapes the shelf: "../evil"', 'outside the shelf'],
+    ['zip unpacks to more than 512 MiB', '512 MiB'],
+    ['plainshelf: background tasks are still running', 'try again shortly']
+  ])('rejects %j with its reason and records no shelf', async (message, shown) => {
+    mocks.importShelf.mockRejectedValue(new Error(message));
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-import').click();
+    await flush();
+
+    expect(mocks.addShelfEntry).not.toHaveBeenCalled();
+    expect(host.querySelector('.mobile-shelves-error')?.textContent).toContain(shown);
+  });
+
+  it('does nothing when the picker is cancelled', async () => {
+    mocks.importShelf.mockResolvedValue({ cancelled: true });
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-import').click();
+    await flush();
+
+    expect(mocks.addShelfEntry).not.toHaveBeenCalled();
+    expect(host.querySelector('.mobile-shelves-error')).toBeNull();
   });
 });

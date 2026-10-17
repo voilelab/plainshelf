@@ -11,7 +11,7 @@ const { plugin } = vi.hoisted(() => ({
 
 vi.mock('@capacitor/core', () => ({ registerPlugin: () => plugin }));
 
-const { LOCAL_API_BASE, localShelfFetch } = await import('./localShelf');
+const { LOCAL_API_BASE, localShelfErrorKey, localShelfExportFileName, localShelfFetch } = await import('./localShelf');
 
 const fetchMock = vi.fn();
 let staged: Uint8Array[] = [];
@@ -93,5 +93,38 @@ describe('localShelfFetch', () => {
 
     expect(plugin.discardBody).toHaveBeenCalledWith({ bodyId: 'b1' });
     expect(plugin.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('localShelfExportFileName', () => {
+  const day = new Date(2026, 9, 7);
+
+  it('names the backup after the shelf and the date', () => {
+    expect(localShelfExportFileName('Phone', day)).toBe('plainshelf-Phone-20261007.zip');
+  });
+
+  it('replaces characters a file name cannot hold', () => {
+    expect(localShelfExportFileName(' a/b:c? ', day)).toBe('plainshelf-a-b-c-20261007.zip');
+  });
+
+  it('drops an empty name', () => {
+    expect(localShelfExportFileName('  ', day)).toBe('plainshelf-20261007.zip');
+  });
+});
+
+describe('localShelfErrorKey', () => {
+  // Wording as the Go sentinels produce it, prefixed the way util.Errorf wraps them.
+  it.each([
+    ['plainshelf: background tasks are still running', 'mobileShelves.errorBusy'],
+    ['not a PlainShelf shelf: the zip has no books/ directory', 'mobileShelves.errorNotShelf'],
+    ['internal/shelfzip.plan: zip entry escapes the shelf: "../evil"', 'mobileShelves.errorUnsafePath'],
+    ['zip unpacks to more than 512 MiB', 'mobileShelves.errorTooLarge'],
+    ['mobile.ImportShelf.func1: zip: not a valid zip file', 'mobileShelves.errorNotZip']
+  ])('explains %j', (message, key) => {
+    expect(localShelfErrorKey(new Error(message))).toBe(key);
+  });
+
+  it('leaves anything else to the raw message', () => {
+    expect(localShelfErrorKey(new Error('disk full'))).toBeNull();
   });
 });
