@@ -6,8 +6,9 @@ It is the public demo at <https://plainshelf.org/demo/>; its user guide is
 [Try the Demo](../../docs/try-the-demo.md). The shelf persists in the browser's
 Origin Private File System (OPFS), per origin; clearing site data resets it.
 The **Demo** bar in the corner exports the shelf as a zip and imports one back.
-The zip's layout is a lib_root (`books/`, `trash/`), so it unzips into a native
-shelf, and a native shelf zipped with or without its folder imports.
+The zip's layout is a lib_root (`books/`, `trash/`, `shelf.json`), so it unzips
+into a native shelf, and a native shelf zipped with or without its folder
+imports.
 
 ## Run it
 
@@ -76,7 +77,7 @@ Last, a link straight to a route opens it.
 | `web/opfs-writer.js` | Worker that writes each file with `createSyncAccessHandle`, which every engine with OPFS has; the main-thread `createWritable` only reached Safari in version 26 |
 | `web/sw.js` | Service worker, served as `plainshelf-sw.js` at the base. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
 | `web/toolbar.js` | The Demo bar, on the app page only: **Export shelf** downloads `GET /_demo/shelf.zip`, **Import shelf…** sends a zip to `PUT /_demo/shelf.zip` and reloads every tab. A note says the shelf lives only in this browser, or that it is not saved when `/_demo/storage` reports no persistence; until the browser keeps the storage, a prompt offers to ask, and **Not now** or a decline hides it for that browser |
-| `../../internal/shelfzip/` | Zip export and import of `books/` and `trash/`, and the handler `main.go` puts in front of the app at `/_demo/shelf.zip`. Import checks every entry first (no paths outside the shelf, a `books/` directory present, at most 512 MiB zipped or unpacked) and unpacks beside the shelf before swapping it in. It waits for requests in flight and holds new ones off while it swaps, then answers 503 to everything until the reload. Tested natively; shared with the Android local shelf (`mobile/`) |
+| `../../internal/shelfzip/` | Zip export and import of `books/`, `trash/` and `shelf.json`, and the handler `main.go` puts in front of the app at `/_demo/shelf.zip`. Import checks every entry first (no paths outside the shelf, a `books/` directory present, at most 512 MiB zipped or unpacked) and unpacks beside the shelf before swapping it in. It waits for requests in flight and holds new ones off while it swaps, then answers 503 to everything until the reload. Tested natively; shared with the Android local shelf (`mobile/`) |
 | `web/serve.mjs` | Local static server with the SPA fallback, or the site's `404.html` like GitHub Pages, used by `run-wasm-demo` and `smoke.mjs` |
 | `web/deep-link.js` | Added to a host's `404.html` for a demo under a path; sends a demo route back to the demo as `?demo-route=` |
 | `web/boot.js` | Elects one serving tab per origin with a Web Lock; that tab starts the wasm, the others forward to it over a `BroadcastChannel`. Answers same-origin `/api/*` and `/health` fetches and relayed requests; `window.plainshelfRequest(r)` does the same without `fetch`, and an optional `window.plainshelfSeed(serve)` runs before the serving tab answers. `window.plainshelfDemo` asks the browser to keep the storage (`navigator.storage.persist()`); its presence is how the app shows the demo-only **Browser storage** settings tab |

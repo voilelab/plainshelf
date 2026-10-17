@@ -72,8 +72,9 @@ site data still deletes the library, so keep exporting it.
 
 ## Move a library between the demo and a real install
 
-An export is an ordinary shelf. The zip holds `books/` and `trash/`, the same
-layout as a shelf directory's `lib_root` ([Data Model](concepts/data-model.md)).
+An export is an ordinary shelf. The zip holds `books/`, `trash/` and, when the
+shelf has one, `shelf.json`, the same layout as a shelf directory's `lib_root`
+([Data Model](concepts/data-model.md)).
 
 **From the demo to PlainShelf:**
 
@@ -89,13 +90,13 @@ Book IDs, folders, covers and the trash come along.
 2. Zip the shelf directory. The zip may have the directory itself at the top.
 3. Click **Import shelf…** and choose the zip.
 
-Only `books/` and `trash/` travel, in either direction. `app/` holds an
-install's caches and is rebuilt. [`shelf.json`](concepts/data-model.md#shelfjson),
-the shelf's own settings such as ignored directories and NSFW folders, is left
-out too, so the demo runs with those settings at their defaults. Moving to a
-real install, copy `shelf.json` across yourself if the original shelf had one.
+`books/`, `trash/` and [`shelf.json`](concepts/data-model.md#shelfjson), the
+shelf's own settings such as ignored directories and NSFW folders, travel in
+either direction. `app/` holds an install's caches and is left behind; it is
+rebuilt.
 
-An import replaces the demo's books and trash, and every open tab reloads onto
+An import replaces the demo's books, trash and `shelf.json` (a zip without one
+removes the demo's), and every open tab reloads onto
 the imported shelf. A file that is not a shelf zip is refused and changes nothing.
 The zip may be at most 512 MiB.
 

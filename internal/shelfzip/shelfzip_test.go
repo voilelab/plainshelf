@@ -86,6 +86,8 @@ func importBytes(b []byte, root string) error {
 func TestRoundTripKeepsBooksTrashAndEmptyFolders(t *testing.T) {
 	src := t.TempDir()
 	writeTree(t, src, map[string]string{
+		"shelf.json": `{"content":{"nsfw_folders":[{"path":"收藏"}]}}`,
+		"notes.txt":  "stray",
 		"books/在瀏覽器裡建立的書.bookpkg/book.json":       `{"title":"在瀏覽器裡建立的書"}`,
 		"books/收藏/x.bookpkg/sources/1/source.txt": "text",
 		"books/空的資料夾/":                            "",
@@ -104,7 +106,7 @@ func TestRoundTripKeepsBooksTrashAndEmptyFolders(t *testing.T) {
 	got := readTree(t, dst)
 	want := readTree(t, src)
 	for p := range want {
-		if p == "app/" || filepath.Dir(p) == "app" {
+		if p == "app/" || filepath.Dir(p) == "app" || p == "notes.txt" {
 			delete(want, p)
 		}
 	}
@@ -208,6 +210,74 @@ func TestImportRejectsOversizedZip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := importBytes(buf.Bytes(), t.TempDir()); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("Import err = %v, want ErrTooLarge", err)
+	}
+}
+
+func TestExportWithoutShelfConfigOmitsIt(t *testing.T) {
+	src := t.TempDir()
+	writeTree(t, src, map[string]string{"books/a.bookpkg/book.json": "a"})
+	var buf bytes.Buffer
+	if err := Export(&buf, src); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range zr.File {
+		if f.Name == "shelf.json" {
+			t.Fatal("zip has a shelf.json the shelf did not")
+		}
+	}
+}
+
+func TestImportShelfConfig(t *testing.T) {
+	cases := map[string]struct {
+		entries map[string]string
+		want    string // "" for absent
+	}{
+		"replaces":          {map[string]string{"books/a/book.json": "a", "shelf.json": "new"}, "new"},
+		"wrapped":           {map[string]string{"lib/books/a/book.json": "a", "lib/shelf.json": "new"}, "new"},
+		"absent removes":    {map[string]string{"books/a/book.json": "a"}, ""},
+		"nested is stray":   {map[string]string{"books/a/book.json": "a", "notes/shelf.json": "x"}, ""},
+		"directory skipped": {map[string]string{"books/a/book.json": "a", "shelf.json/x": "x"}, ""},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			writeTree(t, root, map[string]string{"books/old/book.json": "old", "shelf.json": "old"})
+			if err := importBytes(zipOf(t, tc.entries), root); err != nil {
+				t.Fatalf("Import: %v", err)
+			}
+			got, ok := readTree(t, root)["shelf.json"]
+			switch {
+			case tc.want == "" && ok:
+				t.Errorf("shelf.json = %q, want it removed", got)
+			case tc.want != "" && got != tc.want:
+				t.Errorf("shelf.json = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// A rejected zip leaves the existing shelf.json alone too.
+func TestImportRejectedKeepsShelfConfig(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{"books/a/book.json": "a", "shelf.json": "keep"})
+	z := zipOf(t, map[string]string{"books/a/book.json": "a", "shelf.json": "new", "books/../../evil": "x"})
+	if err := importBytes(z, root); !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("Import err = %v, want ErrUnsafePath", err)
+	}
+	if got := readTree(t, root)["shelf.json"]; got != "keep" {
+		t.Errorf("shelf.json = %q after a rejected import", got)
+	}
+}
+
+func TestImportCountsShelfConfigTowardsTheLimit(t *testing.T) {
+	withLimit(t, 8)
+	z := zipOf(t, map[string]string{"books/a/book.json": "1234", "shelf.json": "12345"})
+	if err := importBytes(z, t.TempDir()); !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("Import err = %v, want ErrTooLarge", err)
 	}
 }
