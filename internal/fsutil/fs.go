@@ -98,16 +98,16 @@ type readOnlyFS struct {
 	ReadFS
 }
 
-// LstatFS stats a path without following a final symlink.
-type LstatFS interface {
-	Lstat(name string) (fs.FileInfo, error)
+// NoFollowFS opens a path only when no component of it is a symlink.
+type NoFollowFS interface {
+	OpenNoFollow(name string) (fs.File, error)
 }
 
-// Lstat passes through to the wrapped filesystem, failing when it has none.
-func (r readOnlyFS) Lstat(name string) (fs.FileInfo, error) {
-	l, ok := r.ReadFS.(LstatFS)
+// OpenNoFollow passes through to the wrapped filesystem, failing when it has none.
+func (r readOnlyFS) OpenNoFollow(name string) (fs.File, error) {
+	n, ok := r.ReadFS.(NoFollowFS)
 	if !ok {
-		return nil, util.Errorf("lstat %q: %w", name, errors.ErrUnsupported)
+		return nil, util.Errorf("open %q: %w", name, errors.ErrUnsupported)
 	}
-	return l.Lstat(name)
+	return n.OpenNoFollow(name)
 }

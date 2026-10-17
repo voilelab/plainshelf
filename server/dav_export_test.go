@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -541,4 +542,95 @@ func TestDAVTokenFileExposed(t *testing.T) {
 	if !davTokenFileExposed(tokenFile) {
 		t.Error("0644 token file not reported")
 	}
+}
+
+// TestDAVExportSymlinkSwapRace swaps a path between a real entry and a symlink
+// into app/ while it is read, the race a check-then-open walk loses.
+func TestDAVExportSymlinkSwapRace(t *testing.T) {
+	env := newDAVTestEnv(t)
+	books := filepath.Join(env.libRoot, "books")
+	secret := []byte("hidden runtime state")
+	writeTestFile(t, filepath.Join(env.libRoot, "app", "secret.json"), string(secret))
+	// A real file and a real directory, so the walk has something to pass.
+	writeTestFile(t, filepath.Join(books, "probe"), "plain")
+	writeTestFile(t, filepath.Join(books, "dd", "secret.json"), "plain")
+	writeTestFile(t, filepath.Join(books, "dd", "library.lock"), "plain")
+	for name, target := range map[string]string{"probe.link": "../app/secret.json", "dd.link": "../app"} {
+		if err := os.Symlink(target, filepath.Join(books, name)); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+	}
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// Each swap is a rename, so the path always exists as one or the other.
+		swap := func(name string) {
+			p := filepath.Join(books, name)
+			_ = os.Rename(p, p+".real")
+			_ = os.Rename(p+".link", p)
+			_ = os.Rename(p, p+".link")
+			_ = os.Rename(p+".real", p)
+		}
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				swap("probe")
+				swap("dd")
+			}
+		}
+	}()
+	defer func() { close(stop); <-done }()
+
+	for i := range 2000 {
+		for _, target := range []string{"books/probe", "books/dd/secret.json"} {
+			rec := env.do(t, http.MethodGet, "/dav/default_shelf/"+target, env.token, nil)
+			if rec.Code == http.StatusOK && bytes.Equal(rec.Body.Bytes(), secret) {
+				t.Fatalf("request %d: GET %s served app/secret.json through a swapped-in symlink", i, target)
+			}
+		}
+		rec := env.do(t, "PROPFIND", "/dav/default_shelf/books/dd/", env.token, map[string]string{"Depth": "1"})
+		if rec.Code != http.StatusMultiStatus {
+			continue
+		}
+		for _, href := range propfindHrefs(t, rec.Body.Bytes()) {
+			if strings.HasSuffix(href, "/book-cache-abc.json") || strings.HasSuffix(href, "/tmp/") {
+				t.Fatalf("request %d: PROPFIND books/dd/ listed app/ entry %s", i, href)
+			}
+		}
+	}
+}
+
+// TestMainServiceReleasesAPIWhenExportFails: the API is already listening when
+// the export starts, so an export that fails must not leave it bound.
+func TestMainServiceReleasesAPIWhenExportFails(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	apiAddr := ln.Addr().String()
+	ln.Close()
+
+	dir := t.TempDir()
+	conf := `logger: {log_file: {type: none}}
+server_conf: {addr: "` + apiAddr + `", read_timeout: 60s, write_timeout: 60s}
+dav_export: {addr: "not-an-address", read_timeout: 60s, write_timeout: 60s, token_file: ` + filepath.Join(dir, "dav.token") + `}
+app_conf:
+  logger: {log_file: {type: none}}
+  store_path: ` + filepath.Join(dir, "store") + `
+`
+	confPath := filepath.Join(dir, "config.yaml")
+	writeTestFile(t, confPath, conf)
+
+	if err := MainService(confPath); err == nil {
+		t.Fatal("MainService started with an unbindable dav_export.addr")
+	}
+	again, err := net.Listen("tcp", apiAddr)
+	if err != nil {
+		t.Fatalf("API address still bound after a failed start: %v", err)
+	}
+	again.Close()
 }

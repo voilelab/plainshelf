@@ -52,12 +52,64 @@ func (l *RootFS) Stat(name string) (fs.FileInfo, error) {
 	return info, nil
 }
 
-func (l *RootFS) Lstat(name string) (fs.FileInfo, error) {
-	info, err := l.root.Lstat(name)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
+// OpenNoFollow opens name, a clean slash-separated path, like Open, but fails
+// with fs.ErrNotExist when any component is a symlink, one swapped in while
+// the path is walked included. os.Root follows a link that stays inside the
+// root; this does not. Each component is checked against a directory handle
+// already held, and what is opened must be the entry that was checked. A hard
+// link is an ordinary entry and is not detected.
+func (l *RootFS) OpenNoFollow(name string) (fs.File, error) {
+	if name == "." {
+		return l.Open(name)
 	}
-	return info, nil
+	notExist := util.Errorf("%q: %w", name, fs.ErrNotExist)
+
+	dir := l.root
+	defer func() {
+		if dir != l.root {
+			dir.Close()
+		}
+	}()
+	parts := strings.Split(name, "/")
+	for i, part := range parts {
+		checked, err := dir.Lstat(part)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		if checked.Mode()&fs.ModeSymlink != 0 {
+			return nil, notExist
+		}
+
+		if i == len(parts)-1 {
+			fp, err := dir.Open(part)
+			if err != nil {
+				return nil, util.Errorf("%w", err)
+			}
+			opened, err := fp.Stat()
+			if err != nil || !os.SameFile(checked, opened) {
+				fp.Close()
+				return nil, notExist
+			}
+			return fp, nil
+		}
+		if !checked.IsDir() {
+			return nil, notExist
+		}
+
+		sub, err := dir.OpenRoot(part)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		if dir != l.root {
+			dir.Close()
+		}
+		dir = sub
+		opened, err := dir.Stat(".")
+		if err != nil || !os.SameFile(checked, opened) {
+			return nil, notExist
+		}
+	}
+	return nil, notExist // unreachable: parts is never empty
 }
 
 func (l *RootFS) OpenWriter(name string) (io.WriteCloser, error) {

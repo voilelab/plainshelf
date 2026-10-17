@@ -250,32 +250,22 @@ func (davFS) rel(name string) (string, bool) {
 	return rel, shelf.IsShelfFile(rel)
 }
 
-// resolve is rel plus the symlink check: every component of the path is
-// Lstat'ed, and a link anywhere along it does not exist.
-func (d davFS) resolve(name string) (string, error) {
+// open opens an exported path through fsutil.NoFollowFS, so a symlink along
+// it, one swapped in during the request included, does not exist.
+func (d davFS) open(name string) (fs.File, string, error) {
 	rel, ok := d.rel(name)
 	if !ok {
-		return "", os.ErrNotExist
+		return nil, "", os.ErrNotExist
 	}
-	if rel == "." {
-		return rel, nil
-	}
-	l, ok := d.root.(fsutil.LstatFS)
+	nf, ok := d.root.(fsutil.NoFollowFS)
 	if !ok {
-		return "", os.ErrNotExist
+		return nil, "", os.ErrNotExist
 	}
-	prefix := ""
-	for seg := range strings.SplitSeq(rel, "/") {
-		prefix = path.Join(prefix, seg)
-		info, err := l.Lstat(prefix)
-		if err != nil {
-			return "", davErr(err)
-		}
-		if info.Mode()&fs.ModeSymlink != 0 {
-			return "", os.ErrNotExist
-		}
+	f, err := nf.OpenNoFollow(rel)
+	if err != nil {
+		return nil, "", davErr(err)
 	}
-	return rel, nil
+	return f, rel, nil
 }
 
 func (davFS) Mkdir(context.Context, string, os.FileMode) error { return os.ErrPermission }
@@ -286,28 +276,25 @@ func (d davFS) OpenFile(_ context.Context, name string, flag int, _ os.FileMode)
 	if flag&(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) != 0 {
 		return nil, os.ErrPermission
 	}
-	rel, err := d.resolve(name)
+	f, rel, err := d.open(name)
 	if err != nil {
 		return nil, err
-	}
-	f, err := d.root.Open(rel)
-	if err != nil {
-		return nil, davErr(err)
 	}
 	seeker, ok := f.(io.Seeker)
 	if !ok {
 		_ = f.Close()
 		return nil, util.Errorf("dav export: %q is not seekable", rel)
 	}
-	return &davFile{File: f, seeker: seeker, fsys: d, rel: rel}, nil
+	return &davFile{File: f, seeker: seeker, rel: rel}, nil
 }
 
 func (d davFS) Stat(_ context.Context, name string) (os.FileInfo, error) {
-	rel, err := d.resolve(name)
+	f, _, err := d.open(name)
 	if err != nil {
 		return nil, err
 	}
-	info, err := d.root.Stat(rel)
+	defer f.Close()
+	info, err := f.Stat()
 	if err != nil {
 		return nil, davErr(err)
 	}
@@ -328,7 +315,6 @@ func davErr(err error) error {
 type davFile struct {
 	fs.File
 	seeker io.Seeker
-	fsys   davFS
 	rel    string
 
 	entries []fs.FileInfo
@@ -352,7 +338,12 @@ func (f *davFile) Stat() (fs.FileInfo, error) {
 
 func (f *davFile) Readdir(count int) ([]fs.FileInfo, error) {
 	if !f.listed {
-		entries, err := f.fsys.root.ReadDir(f.rel)
+		// Read from the handle that was checked, not by path again.
+		dir, ok := f.File.(fs.ReadDirFile)
+		if !ok {
+			return nil, os.ErrNotExist
+		}
+		entries, err := dir.ReadDir(-1)
 		if err != nil {
 			return nil, davErr(err)
 		}

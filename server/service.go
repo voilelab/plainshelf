@@ -118,6 +118,16 @@ func MainService(confPath string) error {
 		}
 	}()
 
+	// Registered before the export starts: the API is serving already, and a
+	// failed export start must not leave it bound.
+	defer func() {
+		rootLogger.Info("shutting down http server")
+		err = server.Shutdown(context.TODO())
+		if err != nil {
+			rootLogger.Error("failed to shutdown http server", "error", err)
+		}
+	}()
+
 	if conf.DAVExport != nil {
 		davServer, err := startDAVExport(conf.DAVExport, app, rootLogger)
 		if err != nil {
@@ -129,14 +139,6 @@ func MainService(confPath string) error {
 			}
 		}()
 	}
-
-	defer func() {
-		rootLogger.Info("shutting down http server")
-		err = server.Shutdown(context.TODO())
-		if err != nil {
-			rootLogger.Error("failed to shutdown http server", "error", err)
-		}
-	}()
 
 	// listen sigterm and sigint, and gracefully shutdown the server
 	// prevent sig
