@@ -59,7 +59,9 @@ const {
   getActiveShelfEntryToken,
   getShelfEntries,
   addShelfEntry,
+  dismissRestorePrompt,
   initMobileConfig,
+  isRestorePromptDismissed,
   isShelfEntryConfigured,
   isShelfEntryUsable,
   loadShelfEntries,
@@ -206,6 +208,17 @@ describe('adding an entry without switching', () => {
     const loaded = await loadShelfEntries();
     expect(loaded.activeEntryID).toBe('a');
     expect(loaded.entries.map((entry) => entry.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('the restore prompt', () => {
+  it('stays dismissed once skipped', async () => {
+    expect(await isRestorePromptDismissed()).toBe(false);
+
+    await dismissRestorePrompt();
+
+    expect(await isRestorePromptDismissed()).toBe(true);
+    expect(store.get('plainshelf.mobile.restorePromptDismissed')).toBe('true');
   });
 });
 

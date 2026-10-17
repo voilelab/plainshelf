@@ -200,7 +200,8 @@ directory rather than in the WebView's storage, precisely so they survive.
 ### Android local shelf
 
 A local shelf lives in the app's private storage, so uninstalling the app
-deletes it. Back it up from the app: **Settings → Shelves → Export** on the
+deletes it unless you keep the app's data when Android 10 or later asks. Back
+it up from the app: **Settings → Shelves → Export** on the
 shelf. The app writes a zip and asks where to save it; the shelf list then shows
 when it was last exported. Cancelling, or a failed save, leaves no file and
 keeps the old time.
@@ -318,6 +319,9 @@ gone. No book can go missing this way: a folder that still holds a book holds
 files, so Git kept it.
 
 ### Restoring into the Android app
+
+After a reinstall, the app offers **Restore from a backup zip** on first launch
+when it has no shelf yet; it imports the zip as below and opens it.
 
 **Settings → Shelves → Import from zip** takes a zip exported above, or a
 desktop or server `lib_root` zipped from a file manager (one wrapping folder is

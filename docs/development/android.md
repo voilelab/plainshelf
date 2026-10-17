@@ -293,8 +293,33 @@ every other shelf.
 A local shelf is deleted with the app, and removing it from the shelf list
 deletes its books. **Export** on the shelf saves it as a zip through the system
 file picker, and **Import from zip** makes a new local shelf from one; see
-[Backup and Restore](../backup-and-restore.md#android-local-shelf). Protection
-against uninstalling is not available yet.
+[Backup and Restore](../backup-and-restore.md#android-local-shelf).
+
+### Uninstalling
+
+Local shelves are stored in the app's private files directory (see
+[How it is wired](#how-it-is-wired)), which Android deletes on uninstall. The
+app guards against that in three ways, and syncs nothing automatically:
+
+- The manifest sets `android:hasFragileUserData="true"`, so on Android 10 and
+  later the uninstall dialog offers to keep the app's data. Kept, a reinstall
+  finds every local shelf and its entry in the shelf list as they were.
+- While the device has a local shelf, the shelf list says local shelves are
+  deleted with the app and shows each one's last export time, or "Not backed up
+  yet".
+- With no shelf at all — a fresh install, or a reinstall without kept data —
+  and no local shelf on disk, the shelf list first offers **Restore from a
+  backup zip**, the same import as above, which then opens the restored shelf.
+  **Skip** stores a flag in Capacitor Preferences and the offer does not come
+  back. Preferences are excluded from Android backup, so the flag goes with an
+  uninstall unless the data is kept.
+- Android backup and device transfer carry the files directory but not
+  Preferences, so a restored or transferred app can find local shelves with no
+  entry for them. The shelf list then adds an entry for each and opens the
+  first, instead of offering a restore.
+
+To back up, export each local shelf before uninstalling; to restore, pick the
+zip from that first-launch offer or from **Import from zip** later.
 
 ### How it is wired
 

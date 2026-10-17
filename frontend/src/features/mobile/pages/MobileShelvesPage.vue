@@ -3,11 +3,29 @@
     <!-- A device with no shelves has nothing to list, and the router sends every
          route here until it has one — so show the form itself rather than an
          empty state the user would have to tap through. -->
-    <MobileShelfForm v-if="ready && entries.length === 0" />
+    <div v-if="ready && entries.length === 0" class="mobile-shelves-first-run">
+      <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
+      <section v-if="restorePrompt" class="mobile-shelves-restore panel" :aria-label="t('mobileShelves.restoreTitle')">
+        <h1 class="mobile-shelves-title">{{ t('mobileShelves.restoreTitle') }}</h1>
+        <p class="mobile-shelves-description">{{ t('mobileShelves.restoreDescription') }}</p>
+        <div class="mobile-shelves-actions">
+          <button type="button" class="button primary mobile-shelves-restore-zip" :disabled="busy" @click="onRestore">
+            {{ t('mobileShelves.restoreZip') }}
+          </button>
+          <button type="button" class="button mobile-shelves-restore-skip" :disabled="busy" @click="onSkipRestore">
+            {{ t('mobileShelves.restoreSkip') }}
+          </button>
+        </div>
+      </section>
+      <MobileShelfForm />
+    </div>
 
     <section v-else-if="ready" class="mobile-shelves panel" :aria-label="t('mobileShelves.title')">
       <h1 class="mobile-shelves-title">{{ t('mobileShelves.title') }}</h1>
       <p class="mobile-shelves-description">{{ t('mobileShelves.description') }}</p>
+      <p v-if="hasLocal" class="mobile-shelves-local-warning" role="note">
+        {{ t('mobileShelves.localUninstallWarning') }}
+      </p>
 
       <ul class="mobile-shelves-list">
         <li v-for="entry in entries" :key="entry.id" class="mobile-shelves-item">
@@ -88,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Capacitor } from '@capacitor/core';
 import { useI18n } from '@/i18n';
@@ -99,11 +117,14 @@ import { cacheScopeKeyForEntry } from '@/providers/cacheScope';
 import {
   addShelfEntry,
   deleteShelfEntry,
+  dismissRestorePrompt,
+  isRestorePromptDismissed,
   loadShelfEntries,
   newShelfEntry,
   setActiveShelfEntry,
   shelfEntryDisplayName,
   SOURCE_TYPE_LABEL_KEYS,
+  upsertShelfEntry,
   type ShelfEntry
 } from '@/providers/mobileConfig';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
@@ -122,11 +143,58 @@ const pendingRemoval = ref<ShelfEntry | null>(null);
 /** last_export per local shelf id, as the Go side records it. */
 const lastExports = ref<Record<string, string>>({});
 const canImport = Capacitor.isNativePlatform();
+const hasLocal = computed(() => entries.value.some((entry) => entry.type === 'local'));
+/** Offered on a device with no shelf at all, as after a reinstall. */
+const restorePrompt = ref(false);
 
 onMounted(async () => {
   await refresh();
+  if (await firstRun()) {
+    return;
+  }
   ready.value = true;
 });
+
+/**
+ * Keeping the app's data across a reinstall keeps the entries and the native
+ * shelves, so only a device with neither is offered a restore. Android backup
+ * and device transfer carry the shelves but not the entries (Preferences are
+ * excluded), so shelves found without entries are listed again.
+ *
+ * Returns true when the app is reloading.
+ */
+async function firstRun(): Promise<boolean> {
+  if (!canImport || entries.value.length > 0) {
+    return false;
+  }
+  let shelves: { id: string; name: string }[];
+  try {
+    ({ shelves } = await LocalShelf.listShelves());
+  } catch {
+    return false;
+  }
+  if (shelves.length === 0) {
+    restorePrompt.value = !(await isRestorePromptDismissed());
+    return false;
+  }
+  try {
+    const adopted = shelves.map((shelf) => ({
+      ...newShelfEntry('local'),
+      type: 'local' as const,
+      name: shelf.name,
+      localShelfId: shelf.id
+    }));
+    for (const entry of adopted) {
+      await addShelfEntry(entry);
+    }
+    await setActiveShelfEntry(adopted[0].id);
+    reloadIntoApp();
+    return true;
+  } catch (err) {
+    error.value = explain(err);
+    return false;
+  }
+}
 
 async function refresh(): Promise<void> {
   const loaded = await loadShelfEntries();
@@ -198,6 +266,31 @@ async function onImport(): Promise<void> {
   } finally {
     busy.value = false;
   }
+}
+
+/** The PSW-151 import, but the restored shelf is the only one, so it is opened. */
+async function onRestore(): Promise<void> {
+  busy.value = true;
+  error.value = '';
+  try {
+    const result = await LocalShelf.importShelf({ fallbackName: t('mobileShelves.importedName') });
+    if (result.cancelled || !result.id) {
+      busy.value = false;
+      return;
+    }
+    const name = result.name ?? t('mobileShelves.importedName');
+    await upsertShelfEntry({ ...newShelfEntry('local'), type: 'local', name, localShelfId: result.id });
+    reloadIntoApp();
+  } catch (err) {
+    error.value = explain(err);
+    busy.value = false;
+  }
+}
+
+async function onSkipRestore(): Promise<void> {
+  restorePrompt.value = false;
+  error.value = '';
+  await dismissRestorePrompt();
 }
 
 const displayName = shelfEntryDisplayName;
@@ -312,6 +405,30 @@ async function onRemove(): Promise<void> {
 .mobile-shelves-description {
   margin: 0;
   color: var(--text-muted, #666);
+}
+
+.mobile-shelves-local-warning {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--danger, #b3261e);
+  font-size: 0.9rem;
+}
+
+/* .mobile-connect lays out a row; the prompt sits above the form. */
+.mobile-shelves-first-run {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.mobile-shelves-restore {
+  width: min(480px, 100%);
+  box-sizing: border-box;
+  padding: 24px;
+  display: grid;
+  gap: 12px;
 }
 
 .mobile-shelves-list {
