@@ -269,7 +269,7 @@ jobs:
     name: Android build
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: frontend
+    needs: [frontend, android-lib]
     # Not a merge gate yet: this job is new, and its SDK/Gradle setup has not
     # run often enough here to tell a real break from its own flakiness. Drop
     # this line once it has been green across a week of ordinary PRs.
@@ -285,6 +285,13 @@ jobs:
         with:
           name: frontend-dist
           path: frontend/dist
+
+      # The embedded server for the local shelf; app/build.gradle requires it.
+      - name: Download Android Go library
+        uses: actions/download-artifact@v8
+        with:
+          name: plainshelf-android-lib
+          path: frontend/android/app/libs
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -320,9 +327,9 @@ jobs:
           path: frontend/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-  # PSW-136 spike: the embedded server as an Android library. Reports the .so
-  # size and 16 KB page alignment in the job summary; not a gate yet, for the
-  # same reason as the Android build above.
+  # The embedded server as an Android library, which the Android build packages
+  # for the local shelf. Reports the .so size and 16 KB page alignment in the
+  # job summary; not a gate yet, for the same reason as the Android build above.
   android-lib:
     name: Android Go library
     runs-on: ubuntu-latest

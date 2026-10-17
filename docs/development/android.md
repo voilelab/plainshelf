@@ -1,8 +1,9 @@
 # Android Development
 
 The Android client is experimental. It wraps the Vue frontend with Capacitor and
-reads a library from one of two places: a separately running PlainShelf server,
-or a shelf folder held on pCloud. Downloaded books, covers, illustrations,
+reads a library from one of three places: a separately running PlainShelf
+server, a shelf folder held on pCloud, or a [local shelf](#local-shelves) kept
+inside the app. Downloaded books, covers, illustrations,
 reading progress, read history, and reading time are stored locally in the app's
 private storage
 (`Directory.Data`, no runtime permission required) and never leave the device.
@@ -13,13 +14,14 @@ plugin reaches its own files in Documents with no permission; on Android 10 and
 below it needs both `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE`
 (declared with `maxSdkVersion="29"`).
 
-The app is **read-only**: it browses, reads, and downloads books for offline
-use, but it never modifies the library and issues no write requests at all.
-Editing pages (metadata, sources, trash, and the maintenance views) are not
-reachable on Android, and write requests are rejected on the device before they
-are sent.
+On a server or pCloud shelf the app is **read-only**: it browses, reads, and
+downloads books for offline use, but it never modifies the library and issues
+no write requests at all. Editing pages (metadata, sources, trash, and the
+maintenance views) are not reachable there, and write requests are rejected on
+the device before they are sent. A local shelf is the exception: it is edited
+in place, as on the desktop.
 
-Reading a book on the device requires it to be downloaded first, so every book
+Reading a book from a server or pCloud requires it to be downloaded first, so every book
 in the library list carries a marker saying whether it is *Not downloaded* or
 *Downloaded*. Long-pressing a book starts a selection, and the bar at the bottom
 downloads everything selected in one go; the markers update when it finishes.
@@ -28,12 +30,13 @@ downloads everything selected in one go; the markers update when it finishes.
 
 The device keeps a list of shelves under **Settings → Shelves**, and each
 entry carries its own source type. One list can hold a couple of PlainShelf
-servers and a couple of pCloud folders at once:
+servers, a couple of pCloud folders and local shelves at once:
 
 | Source type | Where the library lives | What the entry stores |
 |---|---|---|
 | PlainShelf server | A server you run, reachable over the network | Its URL, which shelf on it, and an access token only when the server sets `protect_read` |
 | pCloud | A shelf folder in your pCloud account | Your own pCloud app key, the region learned during authorization, and the folder path |
+| Local shelf | The app's own private storage | Its name and the embedded server's shelf id |
 
 One entry is one shelf. Two shelves on the same server are two entries, added
 the same way. Access tokens are kept in Android Keystore-backed storage, one per
@@ -58,15 +61,18 @@ the app, because what the app reads from is decided once at startup.
 **Removing a shelf** deletes the books downloaded from it, freeing that space
 on the device. Reading progress, read history, and reading time are kept —
 they are the only records that cannot be rebuilt from the library, so adding
-the same shelf back picks up where you left off.
+the same shelf back picks up where you left off. Removing a *local* shelf
+deletes the shelf itself with every book in it, after a confirmation that says
+so.
 
-Every entry is read-only. The rest of this page covers the server source first,
-then [Read a shelf from pCloud](#read-a-shelf-from-pcloud).
+Server and pCloud entries are read-only. The rest of this page covers the
+server source first, then [Read a shelf from pCloud](#read-a-shelf-from-pcloud)
+and [Local shelves](#local-shelves).
 
 ## Prerequisites
 
 - The base [local development](setup.md) toolchain
-- Android SDK
+- Android SDK, with an NDK in `ANDROID_NDK_HOME` for the embedded server
 - JDK 21 (Capacitor 8's Android libraries target Java 21)
 - Android Studio or an Android emulator/device configured for `adb`
 
@@ -84,6 +90,13 @@ the web assets with:
 npm --prefix frontend ci
 just build-mobile-android
 ```
+
+`build-mobile-android` first runs `just android-lib`, which binds the embedded
+server with `scripts/build-android-lib.sh` and copies `plainshelf.aar` into
+`frontend/android/app/libs/`. Gradle refuses to build without it; a direct
+Gradle build needs that step run once, and again after `mobile/` or the server
+code changes. CI's *Android build* job takes the AAR from the *Android Go
+library* job instead of binding it a second time.
 
 The debug APK is written to:
 
@@ -267,32 +280,47 @@ Downloads, reading progress, read history, and reading time work exactly as for
 a server shelf: they are stored on the device, kept separate per shelf entry,
 and never written back.
 
-## Embedded server (in progress)
+## Local shelves
 
-PSW-136 adds a third source type, a **local shelf** kept in the app's own
-`Directory.Data` and served by the Go server running inside the app, as the
-desktop client does. Only the Go side exists so far; the app does not load it
-yet, and nothing on this page above changes.
+A **local shelf** needs neither a server nor a network: it lives in the app's
+private storage and is served by the PlainShelf server compiled into the app,
+as the desktop client does. Add one under **Settings → Shelves → Add a shelf →
+Local shelf**, give it a name, and it opens empty. Books are created, imported
+from EPUB or text, edited and read as on the desktop, in airplane mode too.
+Reading progress, read history, and reading time are kept on the device, as for
+every other shelf.
 
-- `mobile/` is the library, bound with gomobile. It opens no port: the native
-  plugin will hand each request to `Handle`, and shelves are created, renamed,
-  imported from a zip, exported to one, and removed through the package's own
-  functions — the HTTP API has no route for any of that.
-- Shelves live under `<data dir>/shelves/<id>/` with `lock_mode: none`, their
-  list in `<data dir>/shelves.json`. An exported zip has the layout of a
-  desktop or server `lib_root`, through the same `internal/shelfzip` the wasm
-  demo uses.
-- On `android` the settings store is the JSON file the wasm build uses rather
+A local shelf is deleted with the app, and removing it from the shelf list
+deletes its books. Exporting to a zip and protection against uninstalling are
+not available yet.
+
+### How it is wired
+
+- `mobile/` is the server as a library, bound with gomobile into
+  `lab.voile.plainshelf.gobind.mobile`. It opens no port. Shelves are created,
+  renamed and removed through the package's own functions, reached only from
+  the `PlainShelfLocalShelf` Capacitor plugin; the HTTP API has no route for
+  any of that.
+- `Handle` takes the request body as a file path and writes the response body
+  to one, so a book never crosses JNI as a byte array.
+- While a local shelf is active the API base is
+  `https://localhost/__plainshelf_local`, the WebView's own origin.
+  `LocalShelfWebViewClient` answers GET and HEAD under that prefix from
+  `Handle`, streaming the response file — the API client's reads and every
+  `<img src>` alike. The WebView gives `shouldInterceptRequest` no request
+  body, so every other method goes through the plugin: the frontend
+  (`providers/localShelf.ts`) stages the body into a cache file in 1 MiB chunks,
+  then asks the plugin to send it.
+- Shelves live under `<files dir>/local-shelves/shelves/<id>/` with
+  `lock_mode: none`, their list in `<files dir>/local-shelves/shelves.json`.
+  On `android` the settings store is the JSON file the wasm build uses rather
   than badger, and the frontend is not embedded in the library, since the APK
   already carries it.
 - `scripts/build-android-lib.sh <out-dir>` builds the arm64 AAR and reports
   each `.so`'s size and 16 KB page alignment. It needs the Android SDK, an NDK
   in `ANDROID_NDK_HOME` and a JDK, on Linux or macOS (where it reads the
-  alignment with the NDK's `llvm-readelf`); CI's *Android Go library* job runs
-  it.
-
-A local shelf is deleted with the app. Backup and restore on reinstall belong
-to the part of PSW-136 that adds the source to the app.
+  alignment with the NDK's `llvm-readelf`). The library is arm64 only, so a
+  local shelf needs an arm64 device or emulator image.
 
 ## App icons and splash screens
 

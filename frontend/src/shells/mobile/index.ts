@@ -1,7 +1,9 @@
+import { setApiTransport } from '@/api/client';
 import { PCloudClient } from '@/api/pcloud/client';
 import type { BookshelfProvider } from '@/providers/bookshelfProvider';
 import { FilesystemMobileBookCache } from '@/providers/filesystemMobileBookCache';
 import { FilesystemMobileCoverCache } from '@/providers/filesystemMobileCoverCache';
+import { localShelfFetch } from '@/providers/localShelf';
 import { MobileBookshelfProvider } from '@/providers/mobileBookshelfProvider';
 import {
   getActiveShelfEntry,
@@ -58,6 +60,10 @@ function createMobileSource(entry: ShelfEntry | null): BookshelfProvider {
  */
 export async function installMobileShell(): Promise<void> {
   await initMobileConfig();
+  const isLocal = getActiveShelfEntry()?.type === 'local';
+  if (isLocal) {
+    setApiTransport({ fetch: localShelfFetch, allowMobileWrites: true });
+  }
 
   registerShell({
     activeShelfInfo: activeMobileShelfInfo,
@@ -65,15 +71,21 @@ export async function installMobileShell(): Promise<void> {
     installRouterGuards: installMobileRouterGuards,
     createDeviceDocumentStorage: createMobileDeviceDocumentStorage,
 
-    createProvider: () =>
+    createProvider: () => {
+      // A local shelf is already on the device: it is read and written in
+      // place, with nothing to download and nothing to keep offline.
+      if (isLocal) {
+        return new ServerBookshelfProvider();
+      }
       // Persist downloads and reading progress across app restarts, in
       // Directory.Data: app-private files are exempt from the WebView's
       // best-effort storage eviction, which the browser storage APIs are not.
-      new MobileBookshelfProvider(
+      return new MobileBookshelfProvider(
         createMobileSource(getActiveShelfEntry()),
         new FilesystemMobileBookCache(),
         undefined,
         new FilesystemMobileCoverCache()
-      )
+      );
+    }
   });
 }

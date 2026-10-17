@@ -9,7 +9,7 @@
 package mobile
 
 import (
-	"bytes"
+	"bufio"
 	"crypto/rand"
 	"encoding/json/v2"
 	"errors"
@@ -42,11 +42,11 @@ const (
 	shelvesDir = "shelves"
 )
 
-// Response is one HTTP answer. Header is a JSON object of single values.
+// Response is one HTTP answer; its body is in the file Handle was given.
+// Header is a JSON object of single values.
 type Response struct {
 	Status int
 	Header string
-	Body   []byte
 }
 
 type shelfEntry struct {
@@ -200,8 +200,10 @@ func (rt *instance) quiesce() error {
 }
 
 // Handle serves one request. headerJSON is a JSON object of header values and
-// may be empty.
-func Handle(method, url, headerJSON string, body []byte) (res *Response, err error) {
+// may be empty. The request body is read from bodyPath, none when empty, and
+// the response body is written to outPath: bodies cross JNI as paths, never as
+// byte arrays, so a large book is not held in memory on both sides.
+func Handle(method, url, headerJSON, bodyPath, outPath string) (res *Response, err error) {
 	defer recoverInto(&err)
 	rt, err := running()
 	if err != nil {
@@ -213,32 +215,81 @@ func Handle(method, url, headerJSON string, body []byte) (res *Response, err err
 			return nil, util.Errorf("header: %w", err)
 		}
 	}
-	req := httptest.NewRequest(method, url, bytes.NewReader(body))
+	var body io.Reader = http.NoBody
+	if bodyPath != "" {
+		f, err := os.Open(bodyPath)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		defer f.Close()
+		body = f
+	}
+	out, err := os.Create(outPath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer out.Close()
+
+	req := httptest.NewRequest(method, url, body)
 	for k, v := range hdrs {
 		req.Header.Set(k, v)
 	}
-	rec := httptest.NewRecorder()
+	w := &fileResponseWriter{header: http.Header{}, out: bufio.NewWriter(out)}
 
 	if err := rt.rlock(); err != nil {
 		return nil, err
 	}
 	defer rt.mu.RUnlock()
-	rt.handler.ServeHTTP(rec, req)
+	rt.handler.ServeHTTP(w, req)
 
-	out := rec.Result()
-	data, err := io.ReadAll(out.Body)
-	if err != nil {
+	if w.err == nil {
+		w.err = w.out.Flush()
+	}
+	if w.err != nil {
+		return nil, util.Errorf("%w", w.err)
+	}
+	if err := out.Close(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	flat := make(map[string]string, len(out.Header))
-	for k := range out.Header {
-		flat[k] = out.Header.Get(k)
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	flat := make(map[string]string, len(w.header))
+	for k := range w.header {
+		flat[k] = w.header.Get(k)
 	}
 	hdrOut, err := json.Marshal(flat, jsonopt.API())
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	return &Response{Status: out.StatusCode, Header: string(hdrOut), Body: data}, nil
+	return &Response{Status: w.status, Header: string(hdrOut)}, nil
+}
+
+// fileResponseWriter streams the body to a file instead of buffering it the
+// way httptest.ResponseRecorder does.
+type fileResponseWriter struct {
+	header http.Header
+	status int
+	out    *bufio.Writer
+	err    error
+}
+
+func (w *fileResponseWriter) Header() http.Header { return w.header }
+
+func (w *fileResponseWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+	}
+}
+
+func (w *fileResponseWriter) Write(p []byte) (int, error) {
+	w.WriteHeader(http.StatusOK)
+	if w.err != nil {
+		return 0, w.err
+	}
+	n, err := w.out.Write(p)
+	w.err = err
+	return n, err
 }
 
 // ListShelves returns the local shelves as a JSON array of

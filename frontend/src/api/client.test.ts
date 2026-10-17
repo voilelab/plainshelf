@@ -24,7 +24,7 @@ Object.defineProperty(globalThis, 'window', {
   }
 });
 
-const { ApiError, fetchJson, setActiveShelfID } = await import('./client');
+const { ApiError, fetchJson, setActiveShelfID, setApiTransport } = await import('./client');
 const { useErrorIncident } = await import('@/composables/useErrorIncident');
 const { incident: shownIncident, dismissIncident } = useErrorIncident();
 
@@ -78,6 +78,32 @@ describe('assertWritableRequest', () => {
     ])('rejects %s', async (_label, path, method) => {
       await expect(fetchJson(path, { method })).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('in the mobile shell on a local shelf', () => {
+    const transport = vi.fn();
+
+    beforeEach(() => {
+      isMobileRuntimeMock.mockReturnValue(true);
+      transport.mockReset().mockResolvedValue(okResponse());
+      setApiTransport({ fetch: transport, allowMobileWrites: true });
+    });
+
+    afterEach(() => {
+      setApiTransport({ fetch: (...args) => fetch(...args), allowMobileWrites: false });
+    });
+
+    it('sends writes through the local transport', async () => {
+      await fetchJson(`/api/shelves/${SHELF}/books/abc`, { method: 'PATCH' });
+      expect(transport).toHaveBeenCalledOnce();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('still honours a read-only server flag', async () => {
+      (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = true;
+      await expect(fetchJson(`/api/shelves/${SHELF}/books/abc`, { method: 'PATCH' })).rejects.toThrow(ApiError);
+      expect(transport).not.toHaveBeenCalled();
     });
   });
 

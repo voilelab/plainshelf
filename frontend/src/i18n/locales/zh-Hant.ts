@@ -1060,10 +1060,13 @@ const zhHant = {
   },
   mobileConnect: {
     title: '連線到 PlainShelf',
-    description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。本 App 為唯讀，不會變更你的書庫。',
+    description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。App 不會變更伺服器或 pCloud 上的書庫；本機書庫存在這台裝置上，可以編輯。',
     modeLabel: '書庫來源',
     modeServer: 'PlainShelf 伺服器',
     modePCloud: 'pCloud',
+    modeLocal: '本機書庫',
+    localHint: '存在這個 App 自己的儲存空間，離線也能用。解除安裝 App 或移除書庫時，裡面的書會一起刪除。',
+    localNameRequired: '請先為書庫命名。',
     pcloud: {
       clientIdLabel: 'pCloud 應用程式金鑰',
       clientIdPlaceholder: '你的 app key',
@@ -1129,6 +1132,8 @@ const zhHant = {
     use: '改用這個書架',
     removeTitle: '要移除「{name}」嗎？',
     removeDescription: '從這個書架下載的書會從裝置上刪除。閱讀進度與紀錄會保留，日後重新加入時可以接續。',
+    removeLocalDescription: '這個書庫裡的所有書都會從裝置上永久刪除，無法復原。',
+    localDetail: '存在這台裝置上',
     removeConfirm: '移除',
     removeCancel: '先留著'
   },

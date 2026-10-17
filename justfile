@@ -130,8 +130,14 @@ mobile-add-android: build-server-frontend
 mobile-sync: build-server-frontend
 	cd {{srv_frontend_dir}} && npx cap sync android
 
+# Build the embedded server AAR the APK packages (needs ANDROID_HOME, ANDROID_NDK_HOME and a JDK)
+android-lib:
+	./scripts/build-android-lib.sh build/android-lib
+	mkdir -p {{srv_frontend_dir}}/android/app/libs
+	cp build/android-lib/plainshelf.aar {{srv_frontend_dir}}/android/app/libs/
+
 # Build a debug APK (run mobile-add-android first if android/ is missing)
-build-mobile-android: mobile-sync
+build-mobile-android: mobile-sync android-lib
 	#!/usr/bin/env zsh
 	set -eu
 	java_home="$(./scripts/resolve-android-jdk.sh)"
@@ -143,7 +149,7 @@ open-mobile-android: mobile-sync
 	cd {{srv_frontend_dir}} && npx cap open android
 
 # Run the app on a local Android emulator with a local server (in-app server URL: http://10.0.2.2:20000)
-run-android-app conf="config.yaml": build-server-frontend
+run-android-app conf="config.yaml": build-server-frontend android-lib
 	#!/usr/bin/env zsh
 	set -eu
 	java_home="$(./scripts/resolve-android-jdk.sh)"

@@ -46,6 +46,12 @@ export function installMobileRouterGuards(router: Router): void {
       return { name: 'mobile-shelves', query: to.query };
     }
 
+    // A local shelf is the one mobile source that can be edited, so nothing
+    // below applies to it: no write surface to refuse, nothing to download.
+    if (activeEntry?.type === 'local') {
+      return true;
+    }
+
     if (typeof to.name === 'string' && MOBILE_BLOCKED_ROUTES.has(to.name)) {
       return { name: 'library' };
     }

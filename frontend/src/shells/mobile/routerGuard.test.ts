@@ -113,3 +113,26 @@ describe('mobile reader download gate', () => {
     expect(result).toBe(true);
   });
 });
+
+describe('mobile write surface', () => {
+  function runRoute(guard: Guard, name: string, query: Record<string, string> = {}) {
+    const to = { name, params: {}, query, path: `/${name}`, hash: '' } as unknown as RouteLocationNormalized;
+    return guard(to, {} as RouteLocationNormalized, (() => {}) as unknown as NavigationGuardNext);
+  }
+
+  it('refuses the edit page and the import query for a server shelf', async () => {
+    loadShelfEntriesMock.mockResolvedValue({ entries: [{ id: 'e', type: 'server' }], activeEntryID: 'e' });
+    const guard = captureGuard();
+
+    expect(await runRoute(guard, 'book-sources-edit')).toEqual({ name: 'library' });
+    expect(await runRoute(guard, 'library', { import: '1' })).toMatchObject({ query: {} });
+  });
+
+  it('opens them for a local shelf, which the app can edit', async () => {
+    loadShelfEntriesMock.mockResolvedValue({ entries: [{ id: 'e', type: 'local' }], activeEntryID: 'e' });
+    const guard = captureGuard();
+
+    expect(await runRoute(guard, 'book-sources-edit')).toBe(true);
+    expect(await runRoute(guard, 'library', { import: '1' })).toBe(true);
+  });
+});

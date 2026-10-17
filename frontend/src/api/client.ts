@@ -133,9 +133,21 @@ function assertApiMode(): void {
 }
 
 
-// The mobile shell is a reading client and issues no writes at all: reading
-// history, reading progress and reading stats are all stored on the device and
-// never sent. Every mutation is rejected before it leaves the device.
+// How requests leave the client. The mobile shell swaps it for a local shelf,
+// whose embedded server is reached through a native plugin rather than the
+// network, and is the one mobile source that accepts writes.
+let apiFetch: typeof fetch = (...args) => fetch(...args);
+let mobileWritesAllowed = false;
+
+export function setApiTransport(transport: { fetch: typeof fetch; allowMobileWrites: boolean }): void {
+  apiFetch = transport.fetch;
+  mobileWritesAllowed = transport.allowMobileWrites;
+}
+
+// The mobile shell reading a server or pCloud is a reading client and issues
+// no writes at all: reading history, reading progress and reading stats are
+// all stored on the device and never sent. Every mutation is rejected before it
+// leaves the device.
 function assertWritableRequest(init?: RequestInit, options?: FetchJsonOptions): void {
   const method = String(init?.method ?? 'GET').toUpperCase();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
@@ -156,7 +168,7 @@ function assertWritableRequest(init?: RequestInit, options?: FetchJsonOptions): 
     throw new ApiError('Server is in read-only mode. Write operations are disabled.');
   }
 
-  if (isMobileRuntime()) {
+  if (isMobileRuntime() && !mobileWritesAllowed) {
     throw new ApiError('The mobile app is read-only. Write operations are disabled.');
   }
 }
@@ -310,7 +322,7 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FET
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await apiFetch(url, { ...init, signal: controller.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new ApiError('Request timed out — the shelf may be slow or unavailable.', {
