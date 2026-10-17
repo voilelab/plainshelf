@@ -87,21 +87,8 @@ func RotateDAVExportToken(tokenFile string) (string, error) {
 	}
 	token := base64.RawURLEncoding.EncodeToString(buf)
 
-	// CreateTemp opens the file 0600; renamed into place so a reader never
-	// sees a half-written token.
-	tmp, err := os.CreateTemp(filepath.Dir(tokenFile), filepath.Base(tokenFile)+".*.tmp")
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	_, err = tmp.WriteString(token + "\n")
-	if closeErr := tmp.Close(); err == nil {
-		err = closeErr
-	}
-	if err == nil {
-		err = os.Rename(tmp.Name(), tokenFile)
-	}
-	if err != nil {
-		_ = os.Remove(tmp.Name())
+	// 0600, and a reader never sees a half-written token.
+	if err := fsutil.WriteTextFileAtomic(tokenFile, filepath.Base(tokenFile)+".*.tmp", token+"\n"); err != nil {
 		return "", util.Errorf("%w", err)
 	}
 	return token, nil
