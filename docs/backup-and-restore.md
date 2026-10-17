@@ -212,6 +212,11 @@ a `lib_root` the desktop app or a server opens as is, with the same ignored
 directories and adult-content folders. It does not carry `app/` (rebuildable
 cache) or reading progress, which stay on the device.
 
+Android's own backup does not replace this. Google cloud backup leaves local
+shelves out, so restoring a phone from it brings none back. Moving to a new
+phone with a cable or Wi-Fi transfer (Android 12 and later) does copy them,
+but the export zip is the only backup PlainShelf guarantees.
+
 If background work — a cover conversion, an import — is still running, the
 export waits up to 30 seconds and then asks you to try again later rather than
 write an incomplete backup.

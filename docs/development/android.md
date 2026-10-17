@@ -307,7 +307,7 @@ file picker, and **Import from zip** makes a new local shelf from one; see
 
 Local shelves are stored in the app's private files directory (see
 [How it is wired](#how-it-is-wired)), which Android deletes on uninstall. The
-app guards against that in three ways, and syncs nothing automatically:
+app guards against that in these ways, and syncs nothing automatically:
 
 - The manifest sets `android:hasFragileUserData="true"`, so on Android 10 and
   later the uninstall dialog offers to keep the app's data. Kept, a reinstall
@@ -321,13 +321,23 @@ app guards against that in three ways, and syncs nothing automatically:
   **Skip** stores a flag in Capacitor Preferences and the offer does not come
   back. Preferences are excluded from Android backup, so the flag goes with an
   uninstall unless the data is kept.
-- Android backup and device transfer carry the files directory but not
-  Preferences, so a restored or transferred app can find local shelves with no
-  entry for them. The shelf list then adds an entry for each and opens the
-  first, instead of offering a restore.
+- Google cloud backup leaves local shelves out (`local-shelves/` is excluded
+  in `backup_rules.xml` and the `cloud-backup` section of
+  `data_extraction_rules.xml`): PlainShelf does no cloud sync, and a shelf
+  larger than Auto Backup's 25 MB quota would stop every later backup of the
+  app. A restore from Google therefore brings no local shelf back, and the
+  shelf list offers the zip restore above.
+- Device-to-device transfer (Android 12 and later) keeps them: it copies
+  directly between phones, with a 2 GB limit instead of 25 MB; past it the
+  transfer is refused, so export first. Preferences are excluded from both, so
+  a transferred app finds local shelves with no entry for them. The shelf list
+  then adds an entry for each and opens the first, instead of offering a
+  restore.
 
-To back up, export each local shelf before uninstalling; to restore, pick the
-zip from that first-launch offer or from **Import from zip** later.
+Neither is a backup PlainShelf guarantees, and on Android 11 and lower a
+transfer follows the cloud rules and leaves local shelves out too. To back up,
+export each local shelf before uninstalling; to restore, pick the zip from that
+first-launch offer or from **Import from zip** later.
 
 ### How it is wired
 
