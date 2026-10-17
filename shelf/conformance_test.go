@@ -123,6 +123,25 @@ func TestBookPackageConformanceThroughReadFS(t *testing.T) {
 	}
 }
 
+// TestBookPackageConformanceThroughPCloud reads every case through pcloud.FS
+// against a fake pCloud API, the source the Android app opens.
+func TestBookPackageConformanceThroughPCloud(t *testing.T) {
+	manifest := loadConformanceManifest(t)
+	for _, entry := range manifest.Cases {
+		t.Run(entry.Name, func(t *testing.T) {
+			caseDir := filepath.Join(conformanceRoot, "cases", entry.Name)
+			expected := loadConformanceExpectation(t, filepath.Join(caseDir, "expected.json"))
+			s, _ := openPCloudShelf(t, filepath.Join(caseDir, "shelf"), ShelfConf{})
+			observed := conformanceReading{
+				Folders:    s.collectExportFolders(),
+				Books:      readConformanceBooks(t, s),
+				BookCaches: readConformanceBookCaches(t, s),
+			}
+			assertConformanceEqual(t, expected, observed)
+		})
+	}
+}
+
 // TestBookPackageConformanceDatasetIsComplete keeps the manifest and the case
 // directories in step. Without it a case could be added and never run, which is
 // the one failure mode a conformance suite cannot afford: it would report
