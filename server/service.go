@@ -100,11 +100,21 @@ func MainService(confPath string) error {
 	}
 	server.Handler = app.Handler()
 
+	// Bound before the export, so an export address overlapping this one
+	// cannot take the port first and leave the export up without the API.
+	addr := server.Addr
+	if addr == "" {
+		addr = ":http" // as ListenAndServe
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	go func() {
 		rootLogger.Info("Starting http server on", "addr", conf.ServerConf.Addr)
-		listenErr := server.ListenAndServe()
-		if listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
-			rootLogger.Error("http server error", "error", listenErr)
+		serveErr := server.Serve(ln)
+		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			rootLogger.Error("http server error", "error", serveErr)
 		}
 	}()
 

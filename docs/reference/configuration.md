@@ -126,7 +126,9 @@ a relative `token_file` resolves against the working directory, so run it from
 the directory the server runs in. A running server reads the file on every
 request, so the old token stops working at once, with no restart. The server
 logs a warning at startup when the file is readable by other users, and fails
-to start when `addr` cannot be bound.
+to start when `addr` cannot be bound — including when it overlaps
+`server_conf.addr` (`0.0.0.0:20000` and `127.0.0.1:20000`), since the API binds
+first.
 
 !!! warning "The token travels in plaintext"
     The export speaks plain HTTP. Anyone who can watch the network between the
