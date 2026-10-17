@@ -10,6 +10,7 @@
   "books": {
     "a3d7pq9km2xv5nrt": {
       "path": "books/almanac.bookpkg",
+      "current_source_md5": "d8d00215426b6996823469877ec42995",
       "meta": {
         "schema_version": 1,
         "id": "a3d7pq9km2xv5nrt",
@@ -26,6 +27,7 @@
     },
     "s9k4mt2xq7vz3ndp": {
       "path": "books/Fiction/solaris.bookpkg",
+      "current_source_md5": "a935402f57ad5426f4fd3e4fa1b740d8",
       "meta": {
         "schema_version": 1,
         "id": "s9k4mt2xq7vz3ndp",

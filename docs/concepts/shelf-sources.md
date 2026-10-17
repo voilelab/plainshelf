@@ -1,8 +1,10 @@
 # Shelf Sources and Credentials
 
-!!! note "Design, not yet implemented"
+!!! note "Design, partly implemented"
     This page is the agreed design for [PSW-140](https://patchouli.atlassian.net/browse/PSW-140).
-    Nothing described here as new exists in the code yet. It fixes the
+    The engine can open a virtual shelf (PSW-137) and keep it readable
+    offline ([Offline copies](#offline-copies), PSW-145); the `source` block
+    and the credential resolver do not exist in the code yet. It fixes the
     configuration format and the credential model before `1.0.0-rc1`, because
     both become compatibility promises at that point. The implementation lands
     through the tickets listed in [What this changes in the follow-up
@@ -32,6 +34,44 @@ on every client. Clients differ only in which sources their platform can reach
 
 A virtual shelf is a storage backend, not synchronisation: PlainShelf never
 writes to its source.
+
+### Offline copies
+
+A virtual shelf opened with an offline directory keeps two things on the device,
+outside the shelf, so it stays readable while its source is unreachable:
+
+- **the last listing**, saved whenever a listing read from the source differs
+  from the saved one, together with a copy of the source's `shelf.json` so
+  folder rules such as the [adult content mark](folders.md#marking-a-folder-as-adult-content)
+  still apply;
+- **downloaded books**, copied whole (every source, the cover, illustrations) to
+  the same `books/…` path they have on the source. A download is built in a
+  temporary directory and renamed into place, so an interrupted one leaves
+  nothing behind.
+
+Reading a downloaded book never asks the source, online or not. While the
+source is unreachable, a book without a copy answers `BOOK_NOT_DOWNLOADED`
+instead of failing.
+
+A copy records the book's version when it was taken: its `book.json` plus the
+current source's `current_source_md5` from the
+[exported book cache](shelf-cache-and-io.md#the-exported-book-cache). When the
+listing later shows a different version, the book reports `update_available`;
+the copy is replaced only when the user downloads it again.
+
+| Route | Effect |
+|---|---|
+| `PUT /api/shelves/{shelf_id}/books/{book_id}/download` | Copy one book, replacing an earlier copy. Synchronous. |
+| `DELETE /api/shelves/{shelf_id}/books/{book_id}/download` | Delete the copy only. |
+| `GET /api/shelves/{shelf_id}/downloads` | Every copy with its size, and the total. |
+
+Book responses on such a shelf carry `download_state` (`not_downloaded`,
+`downloaded`, `update_available`) and `downloaded_at`. A download writes only
+the offline directory, so a read-only server allows it, but it still needs the
+`local_token` like any other write.
+
+The server keeps offline directories under `<store_path>/offline/`, one per
+cache scope (see [Compatibility](#compatibility)), so renaming a shelf keeps its downloads.
 
 ---
 
@@ -309,13 +349,16 @@ the type, never by falling back to another source.
   under the app's private directory, with `lock_mode: none`. Shelf entries reach
   Go as JSON `ShelfConfWithID` through the plugin; the engine opens no listener
   for the UI and has no shelf-management route.
-- **PSW-137 (remote read-only `ReadFS`).** Opening a shelf goes through
-  `SourceConf`: `local` keeps the current path, and the other types build a
-  read-only `ReadFS` whatever `read_only` says.
+- **PSW-137 (remote read-only `ReadFS`).** Done as `shelf.NewShelfFromFS`, which
+  opens any read-only `ReadFS` whatever `read_only` says. Building that
+  `ReadFS` from `SourceConf` moved to PSW-149, the first real remote source.
 - **PSW-138 (pCloud in Go).** The pCloud client reads `host`, `user_id`, `path`
   and resolves `credential` through the host resolver; the Keystore key does not
   change. The offline layer's scope identity follows the table above, which is
   what keeps existing downloads.
-- **PSW-145, PSW-146, PSW-149.** The offline layer, the server-mode export and the
-  WebDAV client use `SourceConf` and the credential resolver as defined here;
+- **PSW-145 (offline copies).** Done as described in
+  [Offline copies](#offline-copies). The engine takes the offline directory as
+  a parameter; the scope that names it comes from `SourceConf` once PSW-149
+  adds it.
+- **PSW-146, PSW-149.** The server-mode export and the WebDAV client use `SourceConf` and the credential resolver as defined here;
   none of them adds configuration keys of its own for the same purpose.

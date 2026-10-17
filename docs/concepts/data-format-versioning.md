@@ -655,7 +655,8 @@ The server and desktop app export the file so that a client reading the shelf
 It is also where such a client learns which books are
 [adult content](folders.md#marking-a-folder-as-adult-content): each entry carries
 the finished `nsfw` answer, because that reader does not apply `shelf.json`'s
-folder rules itself. Being a cache, the field is an ordinary addition — nothing
+folder rules itself, and `current_source_md5`, which tells an offline copy that
+a source's text changed. Being a cache, such a field is an ordinary addition — nothing
 here is frozen, and a reader that does not know it simply does not read it.
 The Android app opening a shelf from pCloud is the client it exists for.
 [Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache)

@@ -100,6 +100,12 @@ type Shelf struct {
 	// request, so the shelf is listed from the exported book cache and kept
 	// current by re-reading it; see shelf_cache_snapshot.go.
 	remote bool
+
+	// remoteRoot is the source itself, beneath the offline overlay dbRoot reads
+	// through; a download must reach it whatever is already stored. offline is
+	// nil on a shelf that keeps no offline copies. See shelf_offline.go.
+	remoteRoot fsutil.ReadFS
+	offline    *offlineStore
 }
 
 type ShelfConf struct {
@@ -290,7 +296,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		dbRoot = fsutil.ReadOnly(dbRoot)
 	}
 
-	return startShelf(conf, settings, dbRoot, rt.Close, shelfLock, false)
+	return startShelf(conf, settings, dbRoot, rt.Close, shelfLock, false, nil)
 }
 
 // NewShelfFromFS opens a shelf whose files are reached through root rather than
@@ -300,7 +306,12 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 // The shelf is always read-only, whatever conf says, and is listed from the
 // exported book cache when the shelf has one, so neither opening it nor keeping
 // it current costs a request per book. conf.LibRoot is used only in logs.
-func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS) (*Shelf, error) {
+//
+// offlineDir, when not empty, is a local directory this shelf keeps downloaded
+// books and its last listing in, so it stays readable while root reports
+// fsutil.ErrSourceUnavailable. It is created if missing, and must belong to this
+// source alone; see shelf_offline.go.
+func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS, offlineDir string) (*Shelf, error) {
 	if conf == nil {
 		return nil, util.NewError("shelf configuration cannot be nil")
 	}
@@ -320,12 +331,32 @@ func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS) (*Shelf, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	return startShelf(&remoteConf, settings, fsutil.ReadOnly(root), nil, newNoneLock(), true)
+	var offline *offlineStore
+	dbRoot := root
+	var closeOffline func() error
+	if offlineDir != "" {
+		offline, err = openOfflineStore(offlineDir, *settings.logger)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		dbRoot = offlineFS{remote: root, store: offline}
+		closeOffline = offline.close
+	}
+
+	s, err := startShelf(&remoteConf, settings, fsutil.ReadOnly(dbRoot), closeOffline, newNoneLock(), true, func(s *Shelf) {
+		s.remoteRoot = root
+		s.offline = offline
+	})
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	return s, nil
 }
 
 // startShelf finishes opening a shelf once its root and lock are settled.
-// closeRoot, when not nil, is called by Close and on failure here.
-func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, closeRoot func() error, shelfLock ShelfLock, remote bool) (*Shelf, error) {
+// closeRoot, when not nil, is called by Close and on failure here. configure,
+// when not nil, sets fields before anything reads the shelf.
+func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, closeRoot func() error, shelfLock ShelfLock, remote bool, configure func(*Shelf)) (*Shelf, error) {
 	logger := settings.logger
 
 	// shelf.json is read once, here, and every rule it carries is derived from
@@ -348,6 +379,9 @@ func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, 
 		scanCache:         newScanCache(dbRoot, settings.scanCacheEnabled, *logger),
 		bookCacheWriterID: settings.bookCacheWriterID,
 		bookCacheInterval: settings.bookCacheInterval,
+	}
+	if configure != nil {
+		configure(s)
 	}
 
 	if err := s.makeStructure(); err != nil {

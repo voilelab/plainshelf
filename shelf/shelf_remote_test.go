@@ -106,7 +106,7 @@ func openRemoteShelf(t *testing.T, libRoot string, conf ShelfConf) (*Shelf, *cou
 	t.Cleanup(func() { rt.Close() })
 
 	counter := &countingFS{inner: fsutil.NewRootFS(rt)}
-	s, err := NewShelfFromFS(&conf, counter)
+	s, err := NewShelfFromFS(&conf, counter, "")
 	if err != nil {
 		t.Fatalf("NewShelfFromFS: %v", err)
 	}

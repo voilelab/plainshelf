@@ -118,6 +118,23 @@ var apiErrorTable = []struct {
 		status:  http.StatusNotFound,
 		message: "asset not found",
 	}},
+	// Before ErrSourceUnavailable, which it wraps: inside a book the refusal
+	// says what would have helped.
+	{shelf.ErrBookNotDownloaded, apiError{
+		code:    "BOOK_NOT_DOWNLOADED",
+		status:  http.StatusServiceUnavailable,
+		message: "the shelf source is unavailable and this book has not been downloaded",
+	}},
+	{fsutil.ErrSourceUnavailable, apiError{
+		code:    "SOURCE_UNAVAILABLE",
+		status:  http.StatusServiceUnavailable,
+		message: "the shelf source is unavailable",
+	}},
+	{shelf.ErrDownloadUnsupported, apiError{
+		code:    "DOWNLOAD_UNSUPPORTED",
+		status:  http.StatusConflict,
+		message: "this shelf is already local; only a virtual shelf keeps offline copies",
+	}},
 	{fsutil.ErrReadOnly, apiError{
 		code:    "SHELF_READ_ONLY",
 		status:  http.StatusConflict,

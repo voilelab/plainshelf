@@ -343,6 +343,12 @@ client which downloads only this file — which is the point of the file — rea
 the same answer as the server without reading `shelf.json` itself. Like the flag
 in `book.json`, it is written only when `true`.
 
+Each entry also carries `current_source_md5`, the content hash from the current
+source's `meta.json`. Editing a source's text in place rewrites that file but
+not `book.json`, so without it a client holding an
+[offline copy](shelf-sources.md#offline-copies) could not tell the text had
+changed without reading every source. It is omitted when unknown.
+
 ### When it is written
 
 - after the initial scan, so a client that arrives before anything else has read
@@ -410,7 +416,8 @@ cannot parse are never removed, so anything else under `app/` is left alone.
   Format Versioning](data-format-versioning.md#the-exported-book-cache) covers
   what a mismatch costs and why the version is duplicated on the TypeScript
   side.
-- It contains what `book.json` already contains, plus the computed `nsfw` above.
+- It contains what `book.json` already contains, plus the computed `nsfw` and
+  `current_source_md5` above.
   If your shelf is private, it is no more revealing than the shelf itself — but
   it does put every book's metadata in one file, which matters if you share
   `app/` more widely than `books/`.

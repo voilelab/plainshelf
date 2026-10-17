@@ -109,6 +109,12 @@ type BookCacheEntry struct {
 	// Omitted when false, so a shelf that marks nothing exports the same bytes it
 	// did before this field existed.
 	NSFW bool `json:"nsfw,omitzero"`
+
+	// CurrentSourceMD5 is the current source's content hash, so a reader that
+	// keeps an offline copy can tell the text changed without reading the
+	// source: an edit in place rewrites the source's meta.json, not book.json.
+	// Omitted when unknown; a reader treats absent as "no hash to compare".
+	CurrentSourceMD5 string `json:"current_source_md5,omitempty"`
 }
 
 // bookCacheFileName is the file this installation owns. Every other
@@ -328,7 +334,8 @@ func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 			Meta: meta,
 			// The rules are immutable for the life of the shelf, so asking here
 			// costs no lock of its own and no filesystem access.
-			NSFW: s.IsBookNSFW(entry.folders, meta),
+			NSFW:             s.IsBookNSFW(entry.folders, meta),
+			CurrentSourceMD5: entry.sourceMD5,
 		}
 	}
 	return books

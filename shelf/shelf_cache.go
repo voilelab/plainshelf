@@ -23,6 +23,11 @@ type bookIDCacheEntry struct {
 	// replaces the whole entry, so a reader cannot observe a half-updated one.
 	charCount int
 
+	// sourceMD5 is the current source's content hash, read with charCount from
+	// the same meta.json and kept with it. It is what tells an offline copy that
+	// the text changed; see shelf_offline.go.
+	sourceMD5 string
+
 	// charCountAt orders two observations of the same book. A count is written
 	// without touching book.json, so a walk that read a source before it was
 	// rewritten and the refresh that followed the write are publishable in either
@@ -35,23 +40,25 @@ type bookIDCacheEntry struct {
 // current source meta.json, so call it before taking the cache lock wherever
 // that is possible.
 func newBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCacheEntry {
-	charCount, charCountAt := readCharCount(book)
+	charCount, sourceMD5, charCountAt := readSourceStat(book)
 
 	return &bookIDCacheEntry{
 		folders:     folders,
 		path:        path,
 		book:        book,
 		charCount:   charCount,
+		sourceMD5:   sourceMD5,
 		charCountAt: charCountAt,
 	}
 }
 
-// readCharCount reports the moment the read began, not the end: a read that
+// readSourceStat reports the moment the read began, not the end: a read that
 // overlaps a write may see either state, and the caller that started later is
 // the one whose write it followed.
-func readCharCount(book *Book) (int, time.Time) {
+func readSourceStat(book *Book) (int, string, time.Time) {
 	readAt := time.Now()
-	return book.CurrentSourceCharCount(), readAt
+	charCount, md5 := book.CurrentSourceStat()
+	return charCount, md5, readAt
 }
 
 // keepNewerCharCount returns entry with the character count of the entry it
@@ -68,6 +75,7 @@ func keepNewerCharCount(entry, published *bookIDCacheEntry) *bookIDCacheEntry {
 
 	merged := *entry
 	merged.charCount = published.charCount
+	merged.sourceMD5 = published.sourceMD5
 	merged.charCountAt = published.charCountAt
 	return &merged
 }
@@ -489,7 +497,7 @@ func (s *Shelf) RefreshBookCharCount(bookID string) {
 		return
 	}
 
-	charCount, charCountAt := readCharCount(cacheEntry.book)
+	charCount, sourceMD5, charCountAt := readSourceStat(cacheEntry.book)
 
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
@@ -505,6 +513,7 @@ func (s *Shelf) RefreshBookCharCount(bookID string) {
 
 	refreshed := *published
 	refreshed.charCount = charCount
+	refreshed.sourceMD5 = sourceMD5
 	refreshed.charCountAt = charCountAt
 	s.bookCache.cache[bookID] = &refreshed
 }

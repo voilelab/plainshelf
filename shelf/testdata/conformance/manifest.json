@@ -31,7 +31,7 @@
     },
     {
       "name": "multi-writer-cache",
-      "covers": "Several app/book-cache-*.json files, two of which this build cannot use."
+      "covers": "Several app/book-cache-*.json files, two of which this build cannot use; one carries current_source_md5, which an older reader ignores."
     },
     {
       "name": "source-assets",

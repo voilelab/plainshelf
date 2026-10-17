@@ -1,6 +1,8 @@
 package server
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -113,5 +115,34 @@ func TestReadOnlyServerDoesNotCreateTheShelf(t *testing.T) {
 	}
 	if _, statErr := os.Stat(libRoot); !os.IsNotExist(statErr) {
 		t.Errorf("stat %s = %v, want the path still missing", libRoot, statErr)
+	}
+}
+
+// The read-only gate's exceptions are matched by hand before routing, so the
+// near misses are what this pins.
+func TestReadOnlySafeRequestMatchesOnlyItsRoutes(t *testing.T) {
+	cases := []struct {
+		method, path string
+		want         bool
+	}{
+		{http.MethodPost, "/api/shelves/s/scans", true},
+		{http.MethodPut, "/api/shelves/s/books/b/download", true},
+		{http.MethodDelete, "/api/shelves/s/books/b/download", true},
+		{http.MethodPost, "/api/shelves/s/books/b/download", false},
+		{http.MethodPut, "/api/shelves/s/books/b/downloads", false},
+		{http.MethodPut, "/api/shelves/s/books//download", false},
+		{http.MethodPut, "/api/shelves/s/books/b/sources/x/download", false},
+		{http.MethodPut, "/api/shelves/s/folders/b/download", false},
+		{http.MethodPatch, "/api/shelves/s/books/b", false},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(c.method, c.path, nil)
+		if got := isReadOnlySafeRequest(r); got != c.want {
+			t.Errorf("isReadOnlySafeRequest(%s %s) = %v, want %v", c.method, c.path, got, c.want)
+		}
+	}
+	// The token gate exempts the rescan alone.
+	if isShelfScanRequest(httptest.NewRequest(http.MethodPut, "/api/shelves/s/books/b/download", nil)) {
+		t.Error("a download counts as a scan for the token gate")
 	}
 }

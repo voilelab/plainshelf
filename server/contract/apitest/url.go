@@ -78,6 +78,21 @@ func BookTransfersURL(bookID string) string {
 	return BookURL(bookID, "transfers")
 }
 
+// Download API, on the shelf AddVirtualShelf opens.
+
+func DownloadsURL() string {
+	return ShelfIDURL(VirtualShelfID, "downloads")
+}
+
+func BookDownloadURL(bookID string) string {
+	return ShelfIDURL(VirtualShelfID, "books", bookID, "download")
+}
+
+// VirtualBookURL addresses a book on the shelf AddVirtualShelf opens.
+func VirtualBookURL(bookID string, elem ...string) string {
+	return ShelfIDURL(VirtualShelfID, append([]string{"books", bookID}, elem...)...)
+}
+
 // Source API
 
 func SourceURL(bookID, sourceID string, elem ...string) string {

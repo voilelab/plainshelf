@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -63,6 +64,41 @@ func (sm *ShelfManager) AddShelf(conf ShelfConfWithID) error {
 		conf.Name = conf.ID
 	}
 
+	sm.shelves[conf.ID] = &ShelfData{
+		Shelf: s,
+		Name:  conf.Name,
+		ID:    conf.ID,
+		conf:  conf.ShelfConf,
+	}
+
+	return nil
+}
+
+// AddVirtualShelf opens a read-only shelf reached through root; see
+// NewShelfFromFS for root and offlineDir.
+func (sm *ShelfManager) AddVirtualShelf(conf ShelfConfWithID, root fsutil.ReadFS, offlineDir string) error {
+	if conf.ID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	if _, exists := sm.shelves[conf.ID]; exists {
+		return util.Errorf("duplicate shelf ID: %q", conf.ID)
+	}
+
+	s, err := NewShelfFromFS(&conf.ShelfConf, root, offlineDir)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if conf.Name == "" {
+		conf.Name = conf.ID
+	}
+
+	// Recorded as opened: read-only whatever the caller asked.
+	conf.ReadOnly = true
 	sm.shelves[conf.ID] = &ShelfData{
 		Shelf: s,
 		Name:  conf.Name,
@@ -136,6 +172,11 @@ func (sm *ShelfManager) UpdateShelf(conf ShelfConfWithID) error {
 	}
 
 	if conf.ReadOnly != s.conf.ReadOnly {
+		// Reopening goes through NewShelf, which has no root to reach a
+		// virtual shelf by; one is read-only anyway.
+		if s.IsVirtual() {
+			return util.Errorf("shelf %q is virtual and always read-only", conf.ID)
+		}
 		return sm.reopenShelfLocked(s, conf)
 	}
 

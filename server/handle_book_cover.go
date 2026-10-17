@@ -22,8 +22,8 @@ func (h *bookHandlers) getCover(w http.ResponseWriter, r *http.Request) {
 
 	coverData, ext, err := book.OpenCover()
 	if err != nil {
-		h.Error("failed to open book cover", "error", err)
-		http.Error(w, "failed to get book cover", http.StatusInternalServerError)
+		// writeErr, so a virtual shelf offline answers BOOK_NOT_DOWNLOADED.
+		h.writeErr(w, r, err, "failed to get book cover")
 		return
 	}
 

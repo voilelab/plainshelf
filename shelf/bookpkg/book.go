@@ -547,25 +547,27 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 	return source, nil
 }
 
-// CurrentSourceCharCount reports 0 when there is no current source or it cannot
-// be read: a listing treats an unknown count as absent rather than failing over
-// one damaged book.
+// CurrentSourceStat reports the current source's character count and content
+// MD5 from its meta.json, zero values when there is no current source or it
+// cannot be read: a listing treats an unknown count as absent rather than
+// failing over one damaged book.
 //
 // meta.json is opened directly instead of through GetSource, which stats the
 // source folder first: the open below already reports a missing source, and on
 // a network mount that stat is another round trip for every book in the shelf.
-func (b *Book) CurrentSourceCharCount() int {
+func (b *Book) CurrentSourceStat() (charCount int, md5 string) {
 	sourceID := b.CurrentSource()
 	if err := shelfutil.ValidateSourceID(sourceID); err != nil {
-		return 0
+		return 0, ""
 	}
 
 	source, err := openSource(b.root, path.Join(b.folderPath, SourcesFolder, sourceID))
 	if err != nil {
-		return 0
+		return 0, ""
 	}
 
-	return source.GetMeta().CharCount
+	meta := source.GetMeta()
+	return meta.CharCount, meta.MD5Hash
 }
 
 // ResolveCurrentSource tolerates a current_source pointer that no longer

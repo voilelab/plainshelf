@@ -31,6 +31,7 @@ type apiHandlers struct {
 	setting    *settingHandlers
 	logs       *logHandlers
 	shelves    *shelfHandlers
+	downloads  *downloadHandlers
 	meta       *metaHandlers
 	spa        *spaHandlers
 }
@@ -68,6 +69,7 @@ func newAPIHandlers(
 		setting:    &settingHandlers{apiCore: core, settings: settingsSvc},
 		logs:       &logHandlers{apiCore: core, conf: conf},
 		shelves:    &shelfHandlers{apiCore: core},
+		downloads:  &downloadHandlers{apiCore: core},
 		meta:       &metaHandlers{apiCore: core, conf: conf},
 		spa:        &spaHandlers{fs: spaFS, files: http.FileServerFS(spaFS), security: security},
 	}
@@ -127,6 +129,10 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/cover", h.books.deleteCover)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/content", h.books.getBookContent)
+
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/downloads", h.downloads.getDownloads)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/download", h.downloads.downloadBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/download", h.downloads.removeDownload)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", h.trash.getTrashedBooks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/empty", h.trash.emptyTrash)

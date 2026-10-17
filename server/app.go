@@ -1,11 +1,15 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -183,6 +187,27 @@ func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
 	return app.shelfManager.AddShelf(app.resolveShelfConf(conf))
 }
 
+// AddVirtualShelf opens a read-only shelf reached through root, such as a
+// remote file tree, keeping its offline copies under store_path. scope names
+// the source by where it lives, never by the shelf's ID or display name, so
+// renaming the shelf keeps its downloads; see
+// docs/concepts/shelf-sources.md#cache-scope.
+func (app *App) AddVirtualShelf(conf shelf.ShelfConfWithID, root fsutil.ReadFS, scope string) error {
+	if scope == "" {
+		return util.NewError("virtual shelf scope cannot be empty")
+	}
+	// Read-only before resolving, so no book cache writer ID is handed out.
+	conf.ReadOnly = true
+	return app.shelfManager.AddVirtualShelf(app.resolveShelfConf(conf), root, offlineDir(app.conf.StorePath, scope))
+}
+
+// offlineDir is where a virtual shelf's offline copies live. The scope is
+// hashed so any source identity is a safe directory name.
+func offlineDir(storePath, scope string) string {
+	sum := sha256.Sum256([]byte(scope))
+	return filepath.Join(storePath, "offline", hex.EncodeToString(sum[:16]))
+}
+
 // resolveShelfConf finishes a shelf configuration the app was handed: it folds
 // in the app-wide read-only mode, the log retention window every logger shares
 // and, unless the shelf is read-only, this installation's book cache writer ID.
@@ -299,19 +324,39 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 	return true
 }
 
-// isReadOnlySafeRequest reports a POST that writes nothing to the shelf.
+// isReadOnlySafeRequest reports a write-shaped request that writes nothing to
+// the shelf. Named exceptions rather than a general rule, so adding one has to
+// be written here:
 //
-// The rescan endpoint is the only one: it walks the shelf and rebuilds the
-// in-memory cache, which is what a read does. A named exception rather than a
-// general "reads may POST" rule, so adding a second one has to be written here.
+//   - The rescan walks the shelf and rebuilds the in-memory cache, which is what
+//     a read does.
+//   - A download, and removing one, write only this installation's offline
+//     store (shelf_offline.go). Keeping a copy of a shelf one may read is still
+//     reading it, and a read-only server is exactly where it is wanted.
 //
-// The token gate draws the same exception, for the same reason, in
-// Security.isTokenExemptScan: a rescan reads, so protect_read governs it rather
-// than its method. The two gates stay separate -- this one answers "may the
-// shelf change", that one "who is asking" -- but they agree on which requests
-// are reads.
+// The token gate draws a narrower line: see Security.isTokenExemptScan. This
+// one answers "may the shelf change", that one "who is asking", and a download
+// writes to this machine's disk, so only the rescan is exempt from both.
 func isReadOnlySafeRequest(r *http.Request) bool {
+	return isShelfScanRequest(r) || isDownloadRequest(r)
+}
+
+func isShelfScanRequest(r *http.Request) bool {
 	return r.Method == http.MethodPost && isShelfScanPath(r.URL.Path)
+}
+
+// isDownloadRequest matches PUT and DELETE on
+// /api/shelves/{shelf_id}/books/{book_id}/download.
+func isDownloadRequest(r *http.Request) bool {
+	if r.Method != http.MethodPut && r.Method != http.MethodDelete {
+		return false
+	}
+	rest, ok := strings.CutPrefix(r.URL.Path, "/api/shelves/")
+	if !ok {
+		return false
+	}
+	parts := strings.Split(rest, "/")
+	return len(parts) == 4 && parts[0] != "" && parts[1] == "books" && parts[2] != "" && parts[3] == "download"
 }
 
 // isShelfScanPath matches /api/shelves/{shelf_id}/scans. The gate runs before

@@ -37,6 +37,11 @@ type Book struct {
 	// the next read, so the two halves are reported separately - and the whole
 	// answer, the one the filter acts on, is Meta.NSFW or this being present.
 	NSFWFolder *NSFWFolderRule `json:"nsfw_folder,omitzero"`
+
+	// DownloadState and DownloadedAt are present only on a shelf that keeps
+	// offline copies; see shelf_offline.go.
+	DownloadState shelf.DownloadState `json:"download_state,omitzero"`
+	DownloadedAt  *time.Time          `json:"downloaded_at,omitzero"`
 }
 
 // NSFWFolderRule is one content.nsfw_folders entry, as written in shelf.json.
@@ -61,7 +66,15 @@ func nsfwFolderRule(shelfData *shelf.ShelfData, folder shelf.FolderPath) *NSFWFo
 
 // newBookResponse assembles the response for one book sitting at folder.
 func newBookResponse(shelfData *shelf.ShelfData, meta *shelf.BookMeta, folder shelf.FolderPath) Book {
-	return Book{Meta: meta, Folder: folder, NSFWFolder: nsfwFolderRule(shelfData, folder)}
+	book := Book{Meta: meta, Folder: folder, NSFWFolder: nsfwFolderRule(shelfData, folder)}
+	if shelfData.CanDownload() {
+		state, at := shelfData.DownloadStatus(meta.ID)
+		book.DownloadState = state
+		if !at.IsZero() {
+			book.DownloadedAt = &at
+		}
+	}
+	return book
 }
 
 type UpdateBookRequest struct {
@@ -352,8 +365,7 @@ func (h *bookHandlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 
 	src, err := source.Open()
 	if err != nil {
-		h.Error("failed to open book source", "error", err)
-		http.Error(w, "failed to open book source", http.StatusInternalServerError)
+		h.writeErr(w, r, err, "failed to open book source")
 		return
 	}
 	defer src.Close()

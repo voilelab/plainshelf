@@ -249,7 +249,7 @@ func readConformanceCaseThroughReadFS(t *testing.T, shelfDir string) conformance
 	}
 	t.Cleanup(func() { rt.Close() })
 
-	s, err := NewShelfFromFS(&ShelfConf{}, fsutil.NewRootFS(rt))
+	s, err := NewShelfFromFS(&ShelfConf{}, fsutil.NewRootFS(rt), "")
 	if err != nil {
 		t.Fatalf("NewShelfFromFS: %v", err)
 	}
