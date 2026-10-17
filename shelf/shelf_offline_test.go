@@ -500,3 +500,146 @@ func TestOfflineShelfKeepsFolderRules(t *testing.T) {
 		t.Error("folder rule from shelf.json lost while the source is unavailable")
 	}
 }
+
+// reexport has the exporter at libRoot export again, dated later than the
+// listing a test shelf already holds.
+func reexport(t *testing.T, local *Shelf, libRoot string) {
+	t.Helper()
+	if _, err := local.ExportBookCache(); err != nil {
+		t.Fatalf("ExportBookCache: %v", err)
+	}
+	cachePath := path.Join(libRoot, appFolder, bookCacheFilePrefix+testWriterID+bookCacheFileSuffix)
+	cache, err := readBookCacheFileAt(cachePath)
+	if err != nil {
+		t.Fatalf("read export: %v", err)
+	}
+	cache.Timestamp += 10
+	writeRawBookCache(t, libRoot, path.Base(cachePath), cache)
+}
+
+func TestCopyIsNotReadForAnotherBookAtItsPath(t *testing.T) {
+	fixture := seedOfflineSource(t)
+	offlineDir := t.TempDir()
+	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
+	if _, err := s.DownloadBook(fixture.ids["Dune"]); err != nil {
+		t.Fatalf("DownloadBook: %v", err)
+	}
+
+	// The source deletes Dune and makes a new book of the same title, which
+	// lands at the same package path.
+	local := newTestShelf(t, &ShelfConf{LibRoot: fixture.libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
+	if err := local.DeleteBook(fixture.ids["Dune"]); err != nil {
+		t.Fatalf("DeleteBook: %v", err)
+	}
+	book, err := local.NewBook(FolderPath{}, "Dune")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	source, err := book.NewSource(strings.NewReader("another Dune"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	if err := book.SetCurrentSource(source.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+	reexport(t, local, fixture.libRoot)
+	if err := s.refreshBookCacheIfNeeded(true); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	if text, err := readCurrentText(t, s, book.ID()); err != nil || text != "another Dune" {
+		t.Errorf("new book at a reused path read %q, %v; want its own text", text, err)
+	}
+	if state, _ := s.DownloadStatus(book.ID()); state != DownloadNotDownloaded {
+		t.Errorf("new book state = %q, want %q", state, DownloadNotDownloaded)
+	}
+}
+
+func TestRedownloadingAMovedBookDropsItsOldCopy(t *testing.T) {
+	fixture := seedOfflineSource(t)
+	offlineDir := t.TempDir()
+	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
+	dune := fixture.ids["Dune"]
+	first, err := s.DownloadBook(dune)
+	if err != nil {
+		t.Fatalf("DownloadBook: %v", err)
+	}
+	book, _ := s.GetBook(dune)
+	oldPath := book.PackagePath()
+
+	local := newTestShelf(t, &ShelfConf{LibRoot: fixture.libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
+	if _, err := local.MoveBook(dune, FolderPath{"Fiction"}); err != nil {
+		t.Fatalf("MoveBook: %v", err)
+	}
+	reexport(t, local, fixture.libRoot)
+	if err := s.refreshBookCacheIfNeeded(true); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if state, _ := s.DownloadStatus(dune); state != DownloadUpdateAvailable {
+		t.Errorf("moved book state = %q, want %q", state, DownloadUpdateAvailable)
+	}
+
+	second, err := s.DownloadBook(dune)
+	if err != nil {
+		t.Fatalf("re-download: %v", err)
+	}
+	if second.Folder.String() != "Fiction" || second.State != DownloadDownloaded {
+		t.Errorf("re-download = %+v (first %+v)", second, first)
+	}
+	if _, err := os.Stat(filepath.Join(offlineDir, oldPath)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("copy at the old path after re-downloading: %v, want removed", err)
+	}
+}
+
+func TestRescanReadsTheSourceAndSavesTheSnapshot(t *testing.T) {
+	fixture := seedOfflineSource(t)
+	offlineDir := t.TempDir()
+	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
+	dune := fixture.ids["Dune"]
+	if _, err := s.DownloadBook(dune); err != nil {
+		t.Fatalf("DownloadBook: %v", err)
+	}
+
+	// Renamed on the source, with no new export: only a walk can see it.
+	local := newTestShelf(t, &ShelfConf{LibRoot: fixture.libRoot, LockMode: "none"})
+	book, err := local.GetBook(dune)
+	if err != nil {
+		t.Fatalf("GetBook: %v", err)
+	}
+	meta := book.GetMeta()
+	meta.Title = "Dune Messiah"
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("SetMeta: %v", err)
+	}
+
+	if _, err := s.RescanUnthrottled(); err != nil {
+		t.Fatalf("Rescan: %v", err)
+	}
+	if got, want := listedTitles(t, s), []string{"Dune Messiah", "Solaris"}; !slices.Equal(got, want) {
+		t.Errorf("listing after a rescan = %v, want the source's %v", got, want)
+	}
+	if state, _ := s.DownloadStatus(dune); state != DownloadUpdateAvailable {
+		t.Errorf("state after a rescan saw the rename = %q, want %q", state, DownloadUpdateAvailable)
+	}
+	if text, _ := readCurrentText(t, s, dune); text != "Dune text" {
+		t.Errorf("downloaded book read %q after the rescan, want its copy", text)
+	}
+
+	data, err := os.ReadFile(filepath.Join(offlineDir, offlineSnapshotFile))
+	if err != nil || !strings.Contains(string(data), "Dune Messiah") {
+		t.Errorf("snapshot after a rescan does not hold the rescanned listing (%v)", err)
+	}
+}
+
+func TestRescanWhileOfflineKeepsTheListing(t *testing.T) {
+	fixture := seedOfflineSource(t)
+	s, source, _ := openOffline(t, fixture.libRoot, t.TempDir(), false)
+
+	source.down.Store(true)
+	if _, err := s.RescanUnthrottled(); !errors.Is(err, fsutil.ErrSourceUnavailable) {
+		t.Errorf("rescan offline error = %v, want %v", err, fsutil.ErrSourceUnavailable)
+	}
+	if got, want := listedTitles(t, s), []string{"Dune", "Solaris"}; !slices.Equal(got, want) {
+		t.Errorf("listing after an offline rescan = %v, want %v", got, want)
+	}
+}

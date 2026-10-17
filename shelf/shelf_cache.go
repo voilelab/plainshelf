@@ -187,7 +187,13 @@ func (s *Shelf) scanToBookCache() error {
 		folders = append(folders, ls)
 		return true
 	}, func(b *Book) bool {
-		cache[b.ID()] = newBookIDCacheEntry(bookFolderPath(b.PackagePath()), b.PackagePath(), b)
+		entry := newBookIDCacheEntry(bookFolderPath(b.PackagePath()), b.PackagePath(), b)
+		// Read from the source; listed through the offline overlay, so a
+		// downloaded book is still read from its copy. See walkRoot.
+		if s.offline != nil {
+			entry.book = bookpkg.FromSnapshot(s.dbRoot, s.Logger, b.PackagePath(), b.GetMeta())
+		}
+		cache[b.ID()] = entry
 		return true
 	})
 	if err != nil {
@@ -212,6 +218,9 @@ func (s *Shelf) scanToBookCache() error {
 	s.bookCache.lastScanStart = scanStart
 	s.bookCache.Unlock()
 
+	if s.remote {
+		s.afterRemoteListing()
+	}
 	return nil
 }
 

@@ -37,7 +37,7 @@ would be, and afterwards only looks for an export to appear.
 func (s *Shelf) refreshRemoteBookCache(walkWithoutCache bool) error {
 	err := s.refreshRemoteFromSource(walkWithoutCache)
 	if err == nil {
-		s.saveOfflineSnapshot()
+		s.afterRemoteListing()
 		return nil
 	}
 	if errors.Is(err, fsutil.ErrSourceUnavailable) && s.listFromOfflineSnapshot() {
@@ -81,6 +81,8 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	// its walk began in the same second.
 	s.bookCache.remoteDigest = ""
 	s.bookCache.Unlock()
+
+	s.reconcileDownloads()
 	return true
 }
 

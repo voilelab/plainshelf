@@ -221,6 +221,17 @@ func (o *offlineStore) writeDownloadsLocked() error {
 	return o.writeJSON(offlineDownloadsFile, file)
 }
 
+// pathInUseLocked reports whether a stored download names pkgPath; o.mu must
+// be held.
+func (o *offlineStore) pathInUseLocked(pkgPath string) bool {
+	for _, record := range o.downloads {
+		if record.Path == pkgPath {
+			return true
+		}
+	}
+	return false
+}
+
 func (o *offlineStore) hasPackage(pkgPath string) bool {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
@@ -384,6 +395,58 @@ func bookVersion(meta *BookMeta, sourceMD5 string) string {
 	return hex.EncodeToString(sum[:16])
 }
 
+// walkRoot is what a full walk reads: the source itself on a shelf with an
+// offline store, so a walk sees the source's current state rather than a
+// downloaded copy.
+func (s *Shelf) walkRoot() fsutil.ReadFS {
+	if s.offline != nil {
+		return fsutil.ReadOnly(s.remoteRoot)
+	}
+	return s.dbRoot
+}
+
+// afterRemoteListing runs once a listing has been read from the source.
+func (s *Shelf) afterRemoteListing() {
+	if s.offline == nil {
+		return
+	}
+	s.reconcileDownloads()
+	s.saveOfflineSnapshot()
+}
+
+// reconcileDownloads routes reads to a copy only while the listing still holds
+// that book at that path. A path the source has reused for another book, or a
+// book it has moved, is read from the source; the copy stays until the user
+// downloads or removes it.
+func (s *Shelf) reconcileDownloads() {
+	if s.offline == nil {
+		return
+	}
+
+	s.bookCache.RLock()
+	pathOf := make(map[string]string, len(s.bookCache.cache))
+	idAt := make(map[string]string, len(s.bookCache.cache))
+	for bookID, entry := range s.bookCache.cache {
+		pathOf[bookID] = entry.path
+		idAt[entry.path] = bookID
+	}
+	s.bookCache.RUnlock()
+
+	o := s.offline
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.byPath = make(map[string]string, len(o.downloads))
+	for bookID, record := range o.downloads {
+		if listedPath, ok := pathOf[bookID]; ok && listedPath != record.Path {
+			continue
+		}
+		if other, ok := idAt[record.Path]; ok && other != bookID {
+			continue
+		}
+		o.byPath[record.Path] = bookID
+	}
+}
+
 // CanDownload reports whether books on this shelf can be kept offline.
 func (s *Shelf) CanDownload() bool {
 	return s.offline != nil
@@ -467,11 +530,19 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 	record.DownloadedAt = util.JSONTime(time.Now().UTC().Truncate(time.Second))
 
 	o.mu.Lock()
-	if old, ok := o.downloads[bookID]; ok {
+	old, hadOld := o.downloads[bookID]
+	if hadOld && o.byPath[old.Path] == bookID {
 		delete(o.byPath, old.Path)
+	}
+	// The copy just replaced whatever another book had kept at this path.
+	for otherID, other := range o.downloads {
+		if otherID != bookID && other.Path == record.Path {
+			delete(o.downloads, otherID)
+		}
 	}
 	o.downloads[bookID] = record
 	o.byPath[record.Path] = bookID
+	keepOld := hadOld && o.pathInUseLocked(old.Path)
 	o.mu.Unlock()
 
 	if previous != "" {
@@ -479,6 +550,11 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 	}
 	if err := o.writeDownloadsLocked(); err != nil {
 		return Download{}, util.Errorf("%w", err)
+	}
+	// A book the source moved leaves its earlier copy behind; nothing names
+	// it once the list is written.
+	if hadOld && old.Path != record.Path && !keepOld {
+		_ = o.fs.RemoveAll(old.Path)
 	}
 
 	return s.downloadFor(bookID, record), nil
@@ -499,8 +575,11 @@ func (s *Shelf) RemoveDownload(bookID string) error {
 	record, ok := o.downloads[bookID]
 	if ok {
 		delete(o.downloads, bookID)
-		delete(o.byPath, record.Path)
+		if o.byPath[record.Path] == bookID {
+			delete(o.byPath, record.Path)
+		}
 	}
+	shared := ok && o.pathInUseLocked(record.Path)
 	o.mu.Unlock()
 	if !ok {
 		return nil
@@ -510,6 +589,9 @@ func (s *Shelf) RemoveDownload(bookID string) error {
 	// naming a deleted copy would be read.
 	if err := o.writeDownloadsLocked(); err != nil {
 		return util.Errorf("%w", err)
+	}
+	if shared {
+		return nil
 	}
 	if err := o.fs.RemoveAll(record.Path); err != nil {
 		return util.Errorf("%w", err)
@@ -563,7 +645,7 @@ func (s *Shelf) downloadFor(bookID string, record offlineDownload) Download {
 	s.bookCache.RLock()
 	entry := s.bookCache.cache[bookID]
 	s.bookCache.RUnlock()
-	if entry != nil && bookVersion(entry.book.GetMeta(), entry.sourceMD5) != record.Version {
+	if entry != nil && (entry.path != record.Path || bookVersion(entry.book.GetMeta(), entry.sourceMD5) != record.Version) {
 		download.State = DownloadUpdateAvailable
 	}
 	return download
