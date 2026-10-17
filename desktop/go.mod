@@ -5,6 +5,7 @@ go 1.27.2
 require (
 	github.com/voilelab/plainshelf v0.0.0
 	github.com/wailsapp/wails/v2 v2.16.0
+	rsc.io/qr v0.2.0
 )
 
 tool github.com/wailsapp/wails/v2/cmd/wails

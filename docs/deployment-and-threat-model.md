@@ -116,9 +116,10 @@ and treat it as Tier B.
 ### The desktop and standalone reader apps
 
 Neither app is a row on that table. Both embed their API in the Wails window and
-open **no network port** — neither calls `ListenAndServe`, so there is nothing
-for another machine to connect to, and the tiers' question of who can reach the
-port does not arise. What they are not is `local_token`:
+open **no network port** for it — neither serves the API with `ListenAndServe`,
+so there is nothing for another machine to connect to, and the tiers' question
+of who can reach the port does not arise. The desktop's optional LAN share is
+not the API; see [the read-only WebDAV export](#the-read-only-webdav-export). What they are not is `local_token`:
 
 - The **desktop app** runs the same server in-process with `security.mode: none`
   hard-coded (`desktop/app.go`). Under `none` the middleware returns before the
@@ -161,6 +162,13 @@ instead:
 - Over plain HTTP the token and the files cross the network unencrypted, so the
   export belongs on Tier B's trusted network only. See
   [`dav_export`](reference/configuration.md#dav_export).
+
+The desktop app's **Share on local network** switch opens the same listener,
+limited to the shelves ticked on the settings page. It is turned on only through
+a Wails binding, never an HTTP route, so nothing on the network can switch it
+on; it binds one detected LAN address rather than `0.0.0.0`, and off it opens no
+port. See
+[Share shelves on your local network](configuring-local-shelf.md#share-shelves-on-your-local-network-desktop-app).
 
 ## What `local_token` actually protects
 

@@ -44,6 +44,25 @@ export interface DesktopModifyShelfParams {
   readOnly: boolean;
 }
 
+// Mirrors desktop.LANShareStatus (desktop/lan_share.go).
+export interface DesktopLANShareStatus {
+  enabled: boolean;
+  running: boolean;
+  host: string;
+  addresses: string[];
+  shelves: { id: string; name: string; shared: boolean }[];
+  url: string;
+  token: string;
+  qr_code: string;
+  error: string;
+}
+
+interface DesktopLANShareParams {
+  enabled: boolean;
+  host: string;
+  shelfIDs: string[];
+}
+
 interface DesktopAppBinding {
   OpenBookFiles?: () => Promise<string[]>;
   ImportBookFromLocalPath?: (
@@ -63,6 +82,9 @@ interface DesktopAppBinding {
   ModifyShelf?: (params: DesktopModifyShelfParams) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
   OpenExternalURL?: (url: string) => Promise<void>;
+  GetLANShare?: () => Promise<DesktopLANShareStatus>;
+  SetLANShare?: (params: DesktopLANShareParams) => Promise<DesktopLANShareStatus>;
+  RotateLANShareToken?: () => Promise<DesktopLANShareStatus>;
   ReadReadHistory?: () => Promise<string>;
   WriteReadHistory?: (doc: string) => Promise<void>;
   ReadReadingProgress?: () => Promise<string>;
@@ -274,6 +296,42 @@ export async function modifyDesktopShelf(params: DesktopModifyShelfParams): Prom
   }
 
   await desktopApp.ModifyShelf(params);
+}
+
+// The LAN share switch lives only in the desktop shell: a Wails binding, never
+// an HTTP route, so nothing on the network can turn it on.
+export function hasDesktopLANShareBinding(): boolean {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  return isDesktopRuntime() && Boolean(desktopApp?.GetLANShare && desktopApp?.SetLANShare);
+}
+
+export async function getDesktopLANShare(): Promise<DesktopLANShareStatus> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.GetLANShare) {
+    throw new Error('GetLANShare binding not available');
+  }
+
+  return desktopApp.GetLANShare();
+}
+
+export async function setDesktopLANShare(
+  params: DesktopLANShareParams
+): Promise<DesktopLANShareStatus> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.SetLANShare) {
+    throw new Error('SetLANShare binding not available');
+  }
+
+  return desktopApp.SetLANShare(params);
+}
+
+export async function rotateDesktopLANShareToken(): Promise<DesktopLANShareStatus> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.RotateLANShareToken) {
+    throw new Error('RotateLANShareToken binding not available');
+  }
+
+  return desktopApp.RotateLANShareToken();
 }
 
 // Imports a single host-path book. The frontend calls it once per selected file

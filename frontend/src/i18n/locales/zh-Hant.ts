@@ -297,6 +297,21 @@ const zhHant = {
     readHistory: {
       title: '閱讀紀錄'
     },
+    lanShare: {
+      title: '分享到區網',
+      label: '以唯讀分享選定的書庫',
+      description:
+        '開啟一個唯讀匯出，同一個網路上的其他裝置可以用下方的網址和 token 把它當書庫開啟，無法經由它修改任何東西。關閉時這個 App 不開任何網路連接埠。',
+      addressLabel: '網路位址',
+      noAddress: '找不到區網位址。請連上網路後再試一次。',
+      shelvesLabel: '要分享的書庫',
+      noneShared: '尚未勾選任何書庫，目前沒有分享任何內容。',
+      urlLabel: '網址',
+      tokenLabel: '存取權杖',
+      qrAlt: '含網址和 token 的 QR code',
+      rotate: '更換 token',
+      firewall: '第一次開啟分享時，作業系統可能會詢問是否允許 PlainShelf 接受連入連線。請只在私人網路上允許。'
+    },
     readerLaunch: {
       title: '閱讀開啟方式',
       label: '按下「閱讀」時',

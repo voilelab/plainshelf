@@ -196,6 +196,31 @@ The toggle works in both directions, including on a shelf that is already
 read-only: what `read_only` stops is writing to the *shelf*, and the desktop
 shelf list lives outside every shelf.
 
+## Share shelves on your local network (desktop app)
+
+**Settings → Shelves → Share on local network** exports the shelves you tick,
+read-only, to other devices on the same network. It is the server's
+[`dav_export`](reference/configuration.md#dav_export) behind a switch:
+
+- Off by default, and off means the app opens no network port at all.
+- Turned on, no shelf is shared until you tick it. An unticked shelf is 404
+  on the export, the same as one that does not exist.
+- The page shows the address (`http://<LAN IP>:20001/dav/`, one shelf per
+  `/dav/<shelf id>/`), the token every request must carry, and a QR code
+  holding both as `{"url":"…","token":"…"}`. **Replace token** revokes the old
+  one at once.
+- It binds one LAN address, never every interface; with more than one network
+  the page lets you choose which. If that address is gone at the next start,
+  the switch stays on and the page says why it is not running.
+- The switch, the ticked shelves and the token are kept in the app's data
+  directory (`lan_share.json`, `lan_share.token`), not in any shelf, and
+  survive a restart. The port is `20001` unless `lan_share.json` sets `port`.
+
+The first time it is turned on, the operating system's firewall may ask whether
+PlainShelf may accept incoming connections; allow it on private networks only.
+The export is plain HTTP, so share only on a network you trust; see
+[the threat model](deployment-and-threat-model.md#the-read-only-webdav-export).
+
 ## Troubleshooting
 
 ### PlainShelf cannot create or update books

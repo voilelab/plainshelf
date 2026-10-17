@@ -313,6 +313,43 @@ func TestDAVExportSkipsVirtualShelves(t *testing.T) {
 	}
 }
 
+func TestDAVExportShelvesHandler(t *testing.T) {
+	env := newDAVTestEnv(t)
+	app := newTestApp(t)
+	if err := app.AddShelf(shelf.ShelfConfWithID{ID: "a", ShelfConf: shelf.ShelfConf{LibRoot: env.libRoot, ReadOnly: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AddShelf(shelf.ShelfConfWithID{ID: "b", ShelfConf: shelf.ShelfConf{LibRoot: t.TempDir()}}); err != nil {
+		t.Fatal(err)
+	}
+	waitForShelves(t, app)
+
+	shared := map[string]bool{"a": true}
+	h := app.DAVExportShelvesHandler(env.tokenFile, func(id string) bool { return shared[id] })
+	depth := map[string]string{"Depth": "0"}
+	if rec := davDo(t, h, "PROPFIND", "/dav/a/", env.token, depth); rec.Code != http.StatusMultiStatus {
+		t.Errorf("PROPFIND exported shelf = %d, want 207", rec.Code)
+	}
+	if rec := davDo(t, h, "GET", "/dav/a/shelf.json", env.token, nil); rec.Code != http.StatusOK {
+		t.Errorf("GET exported shelf file = %d, want 200", rec.Code)
+	}
+	for _, target := range []string{"/dav/b/", "/dav/b/shelf.json", "/dav/"} {
+		if rec := davDo(t, h, "PROPFIND", target, env.token, depth); rec.Code != http.StatusNotFound {
+			t.Errorf("PROPFIND %s = %d, want 404", target, rec.Code)
+		}
+	}
+	// Still behind the token.
+	if rec := davDo(t, h, "PROPFIND", "/dav/b/", "", depth); rec.Code != http.StatusUnauthorized {
+		t.Errorf("PROPFIND without token = %d, want 401", rec.Code)
+	}
+
+	// Asked per request, so a changed selection applies at once.
+	shared = map[string]bool{"b": true}
+	if rec := davDo(t, h, "PROPFIND", "/dav/a/", env.token, depth); rec.Code != http.StatusNotFound {
+		t.Errorf("PROPFIND unshared shelf = %d, want 404", rec.Code)
+	}
+}
+
 // TestDAVExportConformanceBytes reads every conformance case back through the
 // export, walking it with PROPFIND as a client would, and requires the same set
 // of shelf files with the same bytes.

@@ -281,5 +281,11 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 		return util.Errorf("removing shelf from runtime: %w", err)
 	}
 
+	if a.lanShare != nil {
+		if err := a.lanShare.forgetShelf(shelfID); err != nil {
+			return util.Errorf("saving LAN share config: %w", err)
+		}
+	}
+
 	return nil
 }
