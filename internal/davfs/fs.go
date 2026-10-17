@@ -30,6 +30,7 @@ const (
 	requestTimeout  = 30 * time.Second
 	downloadTimeout = 5 * time.Minute
 	maxAttempts     = 3
+	maxRedirects    = 5
 	retryBaseDelay  = 500 * time.Millisecond
 
 	// maxPropfindBytes bounds a PROPFIND reply; a Depth 1 listing of a large
@@ -110,10 +111,14 @@ func New(rawURL string, opts Options) (*FS, error) {
 	if err != nil {
 		return nil, err
 	}
-	httpClient := opts.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{}
+	httpClient := &http.Client{}
+	if opts.HTTPClient != nil {
+		copied := *opts.HTTPClient
+		httpClient = &copied
 	}
+	// Followed by do instead: the client would turn a redirected PROPFIND
+	// into a GET.
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &FS{
 		base:       base,
 		username:   opts.Username,
@@ -164,11 +169,14 @@ func (f *FS) authorization(ctx context.Context, refresh bool) (string, error) {
 	return "Bearer " + f.credential, nil
 }
 
-// do sends one request and returns a 2xx reply. Transient failures are retried,
-// and a 401 once more after the credential is resolved again, if it changed.
-// Any other reply is an *Error with its body closed.
+// do sends one request and returns a 2xx reply; res.Request.URL is where it
+// was answered. Transient failures are retried, a 401 once more after the
+// credential is resolved again, if it changed, and a redirect within the same
+// origin is followed with the method, headers and body intact. Any other reply
+// is an *Error with its body closed.
 func (f *FS) do(ctx context.Context, op, name, method string, target *url.URL, header http.Header, body []byte) (*http.Response, error) {
 	refreshed := false
+	redirects := 0
 	for attempt := 1; ; attempt++ {
 		auth, err := f.authorization(ctx, false)
 		if err != nil {
@@ -184,6 +192,12 @@ func (f *FS) do(ctx context.Context, op, name, method string, target *url.URL, h
 			_ = res.Body.Close()
 			err = &Error{Op: op, Path: name, Status: res.StatusCode, Message: res.Status}
 
+			if next, ok := redirectTarget(res, target); ok && redirects < maxRedirects {
+				redirects++
+				target = next
+				attempt--
+				continue
+			}
 			if res.StatusCode == http.StatusUnauthorized && f.secret != nil && !refreshed {
 				refreshed = true
 				fresh, rerr := f.authorization(ctx, true)
@@ -200,6 +214,22 @@ func (f *FS) do(ctx context.Context, op, name, method string, target *url.URL, h
 			return nil, newTransportError(op, name, serr)
 		}
 	}
+}
+
+// redirectTarget is where a redirect points, when it stays on the same
+// scheme and host: the credential is not handed to another origin.
+func redirectTarget(res *http.Response, from *url.URL) (*url.URL, bool) {
+	switch res.StatusCode {
+	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther,
+		http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
+	default:
+		return nil, false
+	}
+	loc, err := from.Parse(res.Header.Get("Location"))
+	if err != nil || res.Header.Get("Location") == "" || loc.Scheme != from.Scheme || loc.Host != from.Host {
+		return nil, false
+	}
+	return loc, true
 }
 
 func (f *FS) send(ctx context.Context, method string, target *url.URL, header http.Header, body []byte, auth string) (*http.Response, error) {
@@ -271,7 +301,7 @@ func (f *FS) propfind(op, name, depth string) (fileInfo, []fs.DirEntry, error) {
 		return fileInfo{}, nil, &Error{Op: op, Path: name, Message: "unreadable PROPFIND reply: " + err.Error(), cause: err}
 	}
 
-	self := strings.TrimSuffix(target.Path, "/")
+	self := strings.TrimSuffix(res.Request.URL.Path, "/")
 	var found bool
 	var info fileInfo
 	var children []fs.DirEntry
@@ -429,7 +459,21 @@ func (f *file) start() error {
 	return nil
 }
 
-func (f *file) Stat() (fs.FileInfo, error) { return f.info, nil }
+// Stat fills in a size the GET did not carry (a chunked or compressed reply)
+// from the file's properties, once.
+func (f *file) Stat() (fs.FileInfo, error) {
+	if f.info.size < 0 {
+		info, err := f.fs.Stat(f.name)
+		if err != nil {
+			return nil, err
+		}
+		f.info.size = info.Size()
+		if f.info.modTime.IsZero() {
+			f.info.modTime = info.ModTime()
+		}
+	}
+	return f.info, nil
+}
 
 func (f *file) Read(p []byte) (int, error) {
 	if f.body == nil {
@@ -453,8 +497,8 @@ func (f *file) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		offset += f.offset
 	case io.SeekEnd:
-		if f.info.size < 0 {
-			return 0, &fs.PathError{Op: "seek", Path: f.name, Err: util.NewError("size unknown")}
+		if _, err := f.Stat(); err != nil {
+			return 0, err
 		}
 		offset += f.info.size
 	}

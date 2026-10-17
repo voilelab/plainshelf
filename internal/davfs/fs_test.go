@@ -344,3 +344,82 @@ func TestParseURL(t *testing.T) {
 		}
 	}
 }
+
+// A server that redirects a collection to its trailing-slash URL still gets a
+// PROPFIND, not the GET a default client would turn it into.
+func TestCollectionRedirectKeepsPropfind(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "books", "a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h := &webdav.Handler{FileSystem: webdav.Dir(dir), LockSystem: webdav.NewMemLS()}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/books" {
+			http.Redirect(w, r, "/books/", http.StatusMovedPermanently)
+			return
+		}
+		h.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+	f := newTestFS(t, srv.URL, nil)
+
+	info, err := f.Stat("books")
+	if err != nil || !info.IsDir() || info.Name() != "books" {
+		t.Fatalf("Stat(books) through a redirect = %v, %v; want a directory", info, err)
+	}
+}
+
+func TestRedirectToAnotherOriginIsRefused(t *testing.T) {
+	var leaked atomic.Bool
+	other := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			leaked.Store(true)
+		}
+	}))
+	defer other.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+	f := newTestFS(t, srv.URL, staticSecret("s3cret"))
+
+	if _, err := f.Open("a.txt"); err == nil {
+		t.Error("Open followed a redirect to another origin")
+	}
+	if leaked.Load() {
+		t.Error("the credential reached another origin")
+	}
+}
+
+// A chunked GET carries no length; Stat and SeekEnd take it from PROPFIND.
+func TestChunkedGetStillReportsSize(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("0123456789"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := &webdav.Handler{FileSystem: webdav.Dir(dir), LockSystem: webdav.NewMemLS()}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.Header.Get("Range") == "" {
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			_, _ = io.WriteString(w, "0123456789")
+			return
+		}
+		h.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+	f := newTestFS(t, srv.URL, nil)
+
+	file, err := f.Open("a.txt")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || info.Size() != 10 {
+		t.Fatalf("Stat on a chunked GET = %v, %v; want size 10", info, err)
+	}
+	if end, err := file.(io.Seeker).Seek(-2, io.SeekEnd); err != nil || end != 8 {
+		t.Errorf("Seek end = %d, %v; want 8", end, err)
+	}
+}
