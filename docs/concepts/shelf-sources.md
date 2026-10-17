@@ -355,7 +355,13 @@ the type, never by falling back to another source.
 - **PSW-138 (pCloud in Go).** The pCloud client reads `host`, `user_id`, `path`
   and resolves `credential` through the host resolver; the Keystore key does not
   change. The offline layer's scope identity follows the table above, which is
-  what keeps existing downloads.
+  what keeps existing downloads. The Go half is done: `internal/pcloud` is a
+  read-only `ReadFS` over the pCloud API, and `mobile.OpenPCloudShelf` opens one
+  as a virtual shelf. Until the resolver exists the token is passed as an
+  argument on every start and held in memory only. The app does not call it
+  yet: it still reads pCloud through the TypeScript reader, and switching it
+  over, with moving existing downloads into the Go offline layer, is a
+  follow-up.
 - **PSW-145 (offline copies).** Done as described in
   [Offline copies](#offline-copies). The engine takes the offline directory as
   a parameter; the scope that names it comes from `SourceConf` once PSW-149
