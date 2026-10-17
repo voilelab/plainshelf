@@ -50,31 +50,6 @@ describe('useAssetSrc', () => {
     scope.stop();
   });
 
-  // A backend that cannot reach assets at all must not leave the reader
-  // waiting: the caller shows the alt text as soon as it knows.
-  it('fails without a request when the provider cannot serve assets', async () => {
-    providerRef.current = {};
-
-    const scope = effectScope();
-    let result!: ReturnType<typeof useAssetSrc>;
-    scope.run(() => {
-      result = useAssetSrc(
-        () => 'book-1',
-        () => 'src-1',
-        () => 'img-0001.png'
-      );
-    });
-
-    await flush();
-    await nextTick();
-
-    expect(result.failed.value).toBe(true);
-    expect(result.src.value).toBe('');
-    expect(getSourceAssetMock).not.toHaveBeenCalled();
-
-    scope.stop();
-  });
-
   it('fails when the fetch rejects', async () => {
     getSourceAssetMock.mockRejectedValue(new Error('offline'));
 

@@ -123,11 +123,11 @@ export interface BookshelfReader {
   getSourceContent(bookId: string, sourceId: string): Promise<string>;
 
   /**
-   * Optional because a backend can serve a book's text without reaching its
-   * images: an offline cache only holds what it downloaded. The reader falls
-   * back to the alt text, so a missing illustration never costs the chapter.
+   * Rejects for an illustration the backend cannot reach (an offline cache only
+   * holds what it downloaded); the reader then shows the alt text, so a missing
+   * illustration never costs the chapter.
    */
-  getSourceAsset?(bookId: string, sourceId: string, name: string): Promise<Blob>;
+  getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob>;
 
   /**
    * The named illustrations as one zip, for a download that would otherwise pay
@@ -137,7 +137,7 @@ export interface BookshelfReader {
    * Returns the raw archive, not decoded blobs, so the caller can unzip one
    * entry at a time. An absent name is packed as no entry.
    */
-  getSourceAssetsBundle?(bookId: string, sourceId: string, names: string[]): Promise<Blob>;
+  getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob>;
 
   /**
    * Manual shelf update, for a listing that may not reflect the shelf right now:

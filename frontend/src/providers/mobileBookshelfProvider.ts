@@ -455,8 +455,20 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return cached;
     }
 
-    if (this.isOnline() && this.remote.getSourceAsset) {
+    if (this.isOnline()) {
       return this.remote.getSourceAsset(bookId, sourceId, name);
+    }
+
+    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+  }
+
+  /**
+   * Remote only: the cache stores figures one by one and never builds an
+   * archive, and the only caller is the download path, which needs a network.
+   */
+  async getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob> {
+    if (this.isOnline()) {
+      return this.remote.getSourceAssetsBundle(bookId, sourceId, names);
     }
 
     throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
@@ -590,11 +602,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
   /**
    * Fetches the illustrations the downloaded text references and stores each.
    *
-   * Prefers the bundle path (one request per source) when the backend offers
-   * it, falling back to the per-file concurrent path when it does not or a
-   * bundle request fails. Either way each figure is best-effort — one that will
-   * not download or store is left for the reader's alt text — and the whole
-   * download never fails over a picture.
+   * Prefers the bundle path (one request per source chunk), falling back to the
+   * per-file concurrent path when a bundle request fails. Either way each
+   * figure is best-effort — one that will not download or store is left for the
+   * reader's alt text — and the whole download never fails over a picture.
    *
    * Returns the bytes actually stored, for the manifest's size breakdown.
    */
@@ -602,33 +613,33 @@ export class MobileBookshelfProvider implements BookshelfReader {
     bookId: string,
     sourceContents: { sourceId: string; content: string }[]
   ): Promise<number> {
-    const fetchBundle = this.remote.getSourceAssetsBundle?.bind(this.remote);
-    if (fetchBundle) {
-      try {
-        return await this.storeSourceAssetsViaBundle(bookId, sourceContents, fetchBundle);
-      } catch (err) {
-        // A bundle request that failed (network, HTTP error, or a malformed
-        // archive) drops to the per-file path below. Anything the bundle
-        // already stored is simply overwritten there, which recomputes the
-        // total from scratch, so no figure is double-counted.
-        console.warn(
-          `Asset bundle download failed for book ${bookId}; falling back to per-file fetches.`,
-          err
-        );
-      }
+    try {
+      return await this.storeSourceAssetsViaBundle(
+        bookId,
+        sourceContents,
+        this.remote.getSourceAssetsBundle.bind(this.remote)
+      );
+    } catch (err) {
+      // A bundle request that failed (network, HTTP error, or a malformed
+      // archive) drops to the per-file path below. Anything the bundle
+      // already stored is simply overwritten there, which recomputes the
+      // total from scratch, so no figure is double-counted.
+      console.warn(
+        `Asset bundle download failed for book ${bookId}; falling back to per-file fetches.`,
+        err
+      );
     }
 
-    const fetchAsset = this.remote.getSourceAsset?.bind(this.remote);
-    if (!fetchAsset) {
-      return 0;
-    }
-    return this.storeSourceAssetsPerFile(bookId, sourceContents, fetchAsset);
+    return this.storeSourceAssetsPerFile(
+      bookId,
+      sourceContents,
+      this.remote.getSourceAsset.bind(this.remote)
+    );
   }
 
   /**
    * Stores each referenced figure by fetching it on its own, a bounded number
-   * at a time. The original download path, kept as the fallback for a backend
-   * with no bundle endpoint.
+   * at a time. The fallback when a bundle request fails.
    */
   private async storeSourceAssetsPerFile(
     bookId: string,

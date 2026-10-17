@@ -36,8 +36,8 @@ Every optional method on `BookshelfProvider` today, in
 
 | Method | Implemented by | Goes to |
 |---|---|---|
-| `getSourceAsset` | server, mobile, pCloud | **Required** on the shelf interface |
-| `getSourceAssetsBundle` | server, pCloud | **Required** on the shelf interface |
+| `getSourceAsset` (required since PSW-160) | server, mobile, pCloud | **Required** on the shelf interface |
+| `getSourceAssetsBundle` (required since PSW-160) | server, mobile, pCloud | **Required** on the shelf interface |
 | `supportsShelfRefresh` | server, mobile, pCloud | Shelf capability `rescan` |
 | `refreshShelf` | server, mobile, pCloud | Shelf interface, gated by `rescan` |
 | `supportsCharCountListing` | mobile, pCloud | Shelf capability `char_count` |
@@ -227,8 +227,12 @@ decision and not part of this design.
   reads through Go and still answers `filtersNsfwOnDevice` and `localNsfwMarks`
   for the device preference and offline filtering. PSW-159 removed
   `supportsServerMode` and routed pCloud's `/api/mode` query to the embedded
-  server. Making `getSourceAsset` and `getSourceAssetsBundle` required remains
-  PSW-160.
+  server.
+- **PSW-160 (required illustration methods).** Done. `getSourceAsset` and
+  `getSourceAssetsBundle` are required on `BookshelfReader`, so a backend that
+  omits either fails the type check. `MobileBookshelfProvider` forwards a bundle
+  request to its remote while online and rejects it offline, since the cache
+  stores figures one by one; the reader's per-image path still reads them.
 - **PSW-145 (offline download).** Implements `capabilities.download` and
   `offline.snapshot_at`, and the shelf-interface download methods call its API.
 - **PSW-147, PSW-136.** The desktop and Android hosts expose shelf management
