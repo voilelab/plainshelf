@@ -308,8 +308,9 @@ does not become a `ShelfConf`.
 
 **Cache scope.** Downloaded books are keyed by where the shelf lives, not by the
 entry's name (`frontend/src/providers/cacheScope.ts`). The Go offline layer for
-virtual shelves must derive the same identity from the same fields, so existing
-downloads stay reachable when pCloud moves to Go:
+virtual shelves derives the same identity from the same fields, so everything a
+shelf keeps on a device, on either side, is filed under one identity that a
+rename does not change:
 
 | Type | Scope identity |
 |---|---|
@@ -357,8 +358,8 @@ the type, never by falling back to another source.
   `ReadFS` from `SourceConf` moved to PSW-149, the first real remote source.
 - **PSW-138 (pCloud in Go).** The pCloud client reads `host`, `user_id`, `path`
   and resolves `credential` through the host resolver; the Keystore key does not
-  change. The offline layer's scope identity follows the table above, which is
-  what keeps existing downloads. Done in part: `internal/pcloud` is a
+  change. The offline layer's scope identity follows the table above. Done:
+  `internal/pcloud` is a
   read-only `ReadFS` over the pCloud API, and the app opens its pCloud entry
   with `mobile.OpenPCloudShelf`. Until the resolver exists the native side reads
   the token from the Keystore and passes it on every start; Go holds it in
