@@ -313,6 +313,10 @@ app guards against that in three ways, and syncs nothing automatically:
   **Skip** stores a flag in Capacitor Preferences and the offer does not come
   back. Preferences are excluded from Android backup, so the flag goes with an
   uninstall unless the data is kept.
+- Android backup and device transfer carry the files directory but not
+  Preferences, so a restored or transferred app can find local shelves with no
+  entry for them. The shelf list then adds an entry for each and opens the
+  first, instead of offering a restore.
 
 To back up, export each local shelf before uninstalling; to restore, pick the
 zip from that first-launch offer or from **Import from zip** later.

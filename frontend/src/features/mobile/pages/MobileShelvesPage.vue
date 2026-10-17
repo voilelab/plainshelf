@@ -4,10 +4,10 @@
          route here until it has one — so show the form itself rather than an
          empty state the user would have to tap through. -->
     <div v-if="ready && entries.length === 0" class="mobile-shelves-first-run">
+      <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
       <section v-if="restorePrompt" class="mobile-shelves-restore panel" :aria-label="t('mobileShelves.restoreTitle')">
         <h1 class="mobile-shelves-title">{{ t('mobileShelves.restoreTitle') }}</h1>
         <p class="mobile-shelves-description">{{ t('mobileShelves.restoreDescription') }}</p>
-        <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
         <div class="mobile-shelves-actions">
           <button type="button" class="button primary mobile-shelves-restore-zip" :disabled="busy" @click="onRestore">
             {{ t('mobileShelves.restoreZip') }}
@@ -149,22 +149,49 @@ const restorePrompt = ref(false);
 
 onMounted(async () => {
   await refresh();
-  restorePrompt.value = await shouldPromptRestore();
+  if (await firstRun()) {
+    return;
+  }
   ready.value = true;
 });
 
 /**
  * Keeping the app's data across a reinstall keeps the entries and the native
- * shelves too, so either one means there is nothing to restore.
+ * shelves, so only a device with neither is offered a restore. Android backup
+ * and device transfer carry the shelves but not the entries (Preferences are
+ * excluded), so shelves found without entries are listed again.
+ *
+ * Returns true when the app is reloading.
  */
-async function shouldPromptRestore(): Promise<boolean> {
-  if (!canImport || entries.value.length > 0 || (await isRestorePromptDismissed())) {
+async function firstRun(): Promise<boolean> {
+  if (!canImport || entries.value.length > 0) {
+    return false;
+  }
+  let shelves: { id: string; name: string }[];
+  try {
+    ({ shelves } = await LocalShelf.listShelves());
+  } catch {
+    return false;
+  }
+  if (shelves.length === 0) {
+    restorePrompt.value = !(await isRestorePromptDismissed());
     return false;
   }
   try {
-    const { shelves } = await LocalShelf.listShelves();
-    return shelves.length === 0;
-  } catch {
+    const adopted = shelves.map((shelf) => ({
+      ...newShelfEntry('local'),
+      type: 'local' as const,
+      name: shelf.name,
+      localShelfId: shelf.id
+    }));
+    for (const entry of adopted) {
+      await addShelfEntry(entry);
+    }
+    await setActiveShelfEntry(adopted[0].id);
+    reloadIntoApp();
+    return true;
+  } catch (err) {
+    error.value = explain(err);
     return false;
   }
 }

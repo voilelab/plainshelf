@@ -90,6 +90,7 @@ beforeEach(() => {
   mocks.exportShelf.mockReset().mockResolvedValue({ cancelled: false });
   mocks.importShelf.mockReset().mockResolvedValue({ cancelled: false, id: 'local-2', name: 'Backup' });
   mocks.addShelfEntry.mockReset().mockResolvedValue(undefined);
+  mocks.setActiveShelfEntry.mockReset().mockResolvedValue(undefined);
   mocks.upsertShelfEntry.mockReset().mockResolvedValue(undefined);
   mocks.isRestorePromptDismissed.mockReset().mockResolvedValue(false);
   mocks.dismissRestorePrompt.mockReset().mockResolvedValue(undefined);
@@ -276,7 +277,8 @@ describe('restoring after a reinstall', () => {
     await flush();
 
     expect(mocks.upsertShelfEntry).not.toHaveBeenCalled();
-    expect(host.querySelector('.mobile-shelves-restore .mobile-shelves-error')?.textContent).toContain('no books/ folder');
+    expect(host.querySelector('.mobile-shelves-first-run .mobile-shelves-error')?.textContent).toContain('no books/ folder');
+    expect(host.querySelector('.mobile-shelves-restore')).not.toBeNull();
   });
 
   it('stays quiet when the picker is cancelled', async () => {
@@ -308,10 +310,21 @@ describe('restoring after a reinstall', () => {
     expect(host.querySelector('.mobile-shelves-restore')).toBeNull();
   });
 
-  it('is not offered while a local shelf survives without an entry', async () => {
-    mocks.listShelves.mockResolvedValue({ shelves: [{ id: 'local-1', name: 'Phone' }] });
+  it('lists shelves that came back without their entries, as after a device transfer', async () => {
+    mocks.listShelves.mockResolvedValue({
+      shelves: [
+        { id: 'local-1', name: 'Phone' },
+        { id: 'local-3', name: 'Notes' }
+      ]
+    });
     const host = await mountPage();
 
+    expect(mocks.addShelfEntry.mock.calls.map(([entry]) => [entry.name, entry.localShelfId])).toEqual([
+      ['Phone', 'local-1'],
+      ['Notes', 'local-3']
+    ]);
+    expect(mocks.setActiveShelfEntry).toHaveBeenCalledWith('new-entry');
+    expect(mocks.reloadIntoApp).toHaveBeenCalled();
     expect(host.querySelector('.mobile-shelves-restore')).toBeNull();
   });
 
