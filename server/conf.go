@@ -24,4 +24,8 @@ type AppConf struct {
 	EPUBImportStrategy *epub.Strategy           `yaml:"epub_import_strategy"`
 	ReadOnly           bool                     `yaml:"read_only"`
 	Security           *SecurityConf            `yaml:"security"`
+
+	// Credentials resolves a shelf source's credential reference. nil is
+	// DefaultCredentialResolver; a host with a secret store sets its own.
+	Credentials CredentialResolver `yaml:"-"`
 }

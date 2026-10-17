@@ -3,8 +3,10 @@
 !!! note "Design, partly implemented"
     This page is the agreed design for [PSW-140](https://patchouli.atlassian.net/browse/PSW-140).
     The engine can open a virtual shelf (PSW-137) and keep it readable
-    offline ([Offline copies](#offline-copies), PSW-145); the `source` block
-    and the credential resolver do not exist in the code yet. It fixes the
+    offline ([Offline copies](#offline-copies), PSW-145). The server reads the
+    `source` block and resolves `env:` and `file:` credentials, and opens
+    `plainshelf` and `webdav` sources (PSW-149); the desktop and Android hosts
+    do not take a `source` entry or resolve `host:` yet. It fixes the
     configuration format and the credential model before `1.0.0-rc1`, because
     both become compatibility promises at that point. The implementation lands
     through the tickets listed in [What this changes in the follow-up
@@ -376,10 +378,15 @@ the type, never by falling back to another source.
   TypeScript.
 - **PSW-145 (offline copies).** Done as described in
   [Offline copies](#offline-copies). The engine takes the offline directory as
-  a parameter; the scope that names it comes from `SourceConf` once PSW-149
-  adds it.
+  a parameter; on the server the scope that names it comes from
+  `SourceConf.Scope` (PSW-149).
 - **PSW-146, PSW-149.** The server-mode export is the top-level
   [`dav_export`](../reference/configuration.md#dav_export) section; its token
   file is what a `plainshelf` source's `credential: file:…` points at on the
-  other machine. The WebDAV client uses `SourceConf` and the credential resolver as defined here;
-  none of them adds configuration keys of its own for the same purpose.
+  other machine. Done on the server: `internal/davfs` is a read-only `ReadFS`
+  that lists with `PROPFIND` at Depth 1, stats at Depth 0 and reads with `GET`
+  (a seek becomes a `Range` request), retrying only transient failures. The
+  server builds it from `SourceConf`, resolves the credential through
+  `AppConf.Credentials`, and files offline copies under the scope above. A 401
+  answers `SOURCE_UNAUTHORIZED` and an unreachable remote `SOURCE_UNAVAILABLE`.
+  None of them adds configuration keys of its own for the same purpose.

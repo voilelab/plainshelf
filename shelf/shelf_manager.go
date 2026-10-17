@@ -170,6 +170,9 @@ func (sm *ShelfManager) UpdateShelf(conf ShelfConfWithID) error {
 	if conf.LibRoot != s.conf.LibRoot {
 		return util.Errorf("shelf %q lib_root cannot be changed from %q to %q", conf.ID, s.conf.LibRoot, conf.LibRoot)
 	}
+	if (conf.Source == nil) != (s.conf.Source == nil) || (conf.Source != nil && *conf.Source != *s.conf.Source) {
+		return util.Errorf("shelf %q source cannot be changed", conf.ID)
+	}
 
 	if conf.ReadOnly != s.conf.ReadOnly {
 		// Reopening goes through NewShelf, which has no root to reach a

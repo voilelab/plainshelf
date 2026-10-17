@@ -17,6 +17,12 @@ var ErrReadOnly = util.NewError("filesystem is read-only")
 // It is how a shelf tells "offline" from "this file is not there".
 var ErrSourceUnavailable = util.NewError("shelf source is unavailable")
 
+// ErrSourceUnauthorized is a source that answered but refused the credential.
+// A remote ReadFS reports it together with ErrSourceUnavailable, so a shelf
+// still treats it as offline while the UI can tell a wrong token from no
+// connection.
+var ErrSourceUnauthorized = util.NewError("shelf source refused the credential")
+
 // ReadFS is the read-only half of FS.
 //
 // It exists so that "this handle is only ever read from" can be a property of

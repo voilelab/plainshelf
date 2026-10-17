@@ -232,13 +232,15 @@ have files to list.
 
 ### `shelves[]`
 
-Each entry is one shelf. `id` and `lib_root` are the only required keys.
+Each entry is one shelf. `id` and one of `lib_root` or `source` are the only
+required keys.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
 | `id` | string | none (required) | Stable identifier, unique across the list. It appears in URLs, so keep it URI-safe. |
 | `name` | string | same as `id` | Display name in the UI. |
-| `lib_root` | string | none (required) | Path to the shelf directory. Created if missing, unless the shelf is read-only. Use a local mount path for a network share, not a `smb://` URL. |
+| `lib_root` | string | none | Path to the shelf directory. Created if missing, unless the shelf is read-only. Use a local mount path for a network share, not a `smb://` URL. Shorthand for a `local` [`source`](#shelvessource); give one or the other, never both. |
+| `source` | mapping | none | Where the shelf's files are, when they are not a local path: another PlainShelf's export or a WebDAV server. See [`source`](#shelvessource). |
 | `read_only` | bool | `false` | Open this shelf without writing to it at all: no directory creation, no cache files, no lock file, and every mutating operation refused with 409. Forces `lock_mode: none` and disables the exported book cache. |
 | `logger` | [logger block](#logger-blocks) | see below | Where this shelf's log is written. |
 | `scan_interval` | duration | `1m` | Minimum time between full on-disk scans. Between scans a refresh only re-reads books already known, so new books appear at the next full scan. `0s` scans on every refresh. |
@@ -259,6 +261,48 @@ and [Configure an SMB shelf file source](../configuring-smb-shelf.md).
 
 Scan settings held in the shelf's own `shelf.json` are a separate mechanism and
 are not listed here; see [Data Model](../concepts/data-model.md).
+
+### `shelves[].source`
+
+Opens a shelf from somewhere other than a local path. A `plainshelf` or
+`webdav` source is a **virtual shelf**: always read-only whatever `read_only`
+says, never locked or exported, listed from the exported book cache when the
+remote has one, and kept readable offline from copies under `store_path`. See
+[Shelf Sources and Credentials](../concepts/shelf-sources.md).
+
+| Key | Type | Used by | What it does |
+|---|---|---|---|
+| `type` | string | all | `local`, `plainshelf`, `webdav` or `pcloud`. Any other value fails startup. `pcloud` is refused on the server for now. |
+| `path` | string | `local`, `pcloud` | The shelf directory. |
+| `url` | string | `plainshelf`, `webdav` | URL of the shelf directory, `http` or `https`. It must not carry credentials, a query or a fragment. |
+| `username` | string | `webdav` | Sign in as this user, sending the credential as HTTP Basic. Unset, the credential is sent as a bearer token. |
+| `credential` | string | `plainshelf` (required), `webdav`, `pcloud` | A reference to the secret, never the secret itself: `env:NAME` reads an environment variable, `file:/path` a file's trimmed contents. Resolved at startup and again whenever the remote answers 401, so a rotated token is picked up without a restart. |
+| `host` | string | `pcloud` | The regional API host. |
+| `user_id` | string | `pcloud` | The pCloud account ID. |
+| `client_id` | string | `pcloud` | The pCloud app key. |
+
+A key that does not belong to the declared `type` fails startup, as does a
+credential that is not a reference or names nothing. A remote that cannot be
+reached does not stop the server: the shelf answers `SOURCE_UNAVAILABLE`, or
+`SOURCE_UNAUTHORIZED` when the remote refuses the credential, until it can.
+
+```yaml
+shelves:
+  # Another PlainShelf's dav_export; the token file is copied from that machine.
+  - id: living_room
+    name: Living room
+    source:
+      type: plainshelf
+      url: http://192.168.1.20:20001/dav/default_shelf/
+      credential: file:/etc/plainshelf/living_room.token
+  # Any WebDAV server holding a shelf directory.
+  - id: nas
+    source:
+      type: webdav
+      url: https://nas.example/dav/books/
+      username: reader
+      credential: env:PLAINSHELF_NAS_PASSWORD
+```
 
 ### `app_conf.epub_import_strategy`
 
