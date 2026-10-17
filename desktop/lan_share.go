@@ -40,6 +40,13 @@ var lanShareDefaultPort = 20001
 // lanAddresses lists the addresses the export may bind; a var for tests.
 var lanAddresses = detectLANAddresses
 
+// lanListen and saveLANShare are vars so tests can stand in for the network
+// and the disk.
+var (
+	lanListen    = net.Listen
+	saveLANShare = saveLANShareConfig
+)
+
 // lanShareConfig is lan_share.json in the desktop data root, outside every
 // shelf.
 type lanShareConfig struct {
@@ -97,7 +104,9 @@ type lanShare struct {
 	srv  *http.Server
 	// requested is the host:port srv was asked for, bound what it got.
 	requested, bound string
-	err              string
+	// startErr says why the saved share is not running; saveErr that what
+	// runs differs from lan_share.json, which the next start would follow.
+	startErr, saveErr string
 
 	// shared is read by the handler on every request, so a changed selection
 	// applies without restarting the listener.
@@ -116,7 +125,7 @@ func newLANShare(app *server.App, dataRoot, shelvesConfigPath string) *lanShare 
 		// Not fatal: the app runs with sharing off, and the next save
 		// replaces the file.
 		log.Println("Failed to load LAN share config:", err)
-		s.err = err.Error()
+		s.startErr = err.Error()
 		conf = lanShareConfig{}
 	}
 	s.conf = conf
@@ -179,7 +188,7 @@ func (s *lanShare) startSaved() {
 	}
 	if err := s.listen(s.conf.Host); err != nil {
 		log.Println("Failed to start LAN share:", err)
-		s.err = err.Error()
+		s.startErr = err.Error()
 	}
 }
 
@@ -201,7 +210,7 @@ func (s *lanShare) listen(host string) error {
 	}
 	s.close()
 
-	ln, err := net.Listen("tcp", addr)
+	ln, err := lanListen("tcp", addr)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -274,6 +283,13 @@ func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
 		if next.Host == s.conf.Host {
 			next.Host = currentLANHost(next.Host)
 		}
+		// Saved before it applies, so a share that cannot be saved never
+		// opens: neither now nor, unasked, at the next start.
+		if widens(s.conf, next) {
+			if err := saveLANShare(s.configPath, next); err != nil {
+				return s.statusLocked(shelves), util.Errorf("saving LAN share config: %w", err)
+			}
+		}
 		listenErr = s.listen(next.Host)
 		if listenErr != nil {
 			// Saved off, so a restart does not retry what just failed.
@@ -284,11 +300,13 @@ func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
 		s.close()
 	}
 
+	// Narrowing applies at once, saved or not; a failed save is kept on the
+	// page until one succeeds.
 	s.setShared(next.ShelfIDs)
 	s.conf = next
-	s.err = ""
-	if err := saveLANShareConfig(s.configPath, next); err != nil {
-		return s.statusLocked(shelves), util.Errorf("saving LAN share config: %w", err)
+	s.startErr = ""
+	if err := s.saveApplied(); err != nil {
+		return s.statusLocked(shelves), err
 	}
 	if listenErr != nil {
 		return s.statusLocked(shelves), util.Errorf("starting LAN share: %w", listenErr)
@@ -313,7 +331,7 @@ func (s *lanShare) statusLocked(shelves *desktopShelvesConfig) LANShareStatus {
 		Host:      s.conf.Host,
 		Addresses: []string{},
 		Shelves:   []LANShareShelf{},
-		Error:     s.err,
+		Error:     strings.Join(slices.DeleteFunc([]string{s.saveErr, s.startErr}, func(e string) bool { return e == "" }), "\n"),
 	}
 	if addrs, err := lanAddresses(); err == nil {
 		st.Addresses = addrs
@@ -368,7 +386,29 @@ func (s *lanShare) forgetShelf(shelfID string) error {
 	}
 	s.conf.ShelfIDs = slices.DeleteFunc(slices.Clone(s.conf.ShelfIDs), func(id string) bool { return id == shelfID })
 	s.setShared(s.conf.ShelfIDs)
-	return saveLANShareConfig(s.configPath, s.conf)
+	return s.saveApplied()
+}
+
+// saveApplied writes s.conf, which is already in effect; s.mu is held.
+func (s *lanShare) saveApplied() error {
+	if err := saveLANShare(s.configPath, s.conf); err != nil {
+		s.saveErr = "LAN share settings were not saved, so the next start may share as before: " + err.Error()
+		return util.Errorf("saving LAN share config: %w", err)
+	}
+	s.saveErr = ""
+	return nil
+}
+
+// widens reports whether next shares anything cur does not: switching on, a
+// different address, or another shelf.
+func widens(cur, next lanShareConfig) bool {
+	if !next.Enabled {
+		return false
+	}
+	if !cur.Enabled || cur.Host != next.Host {
+		return true
+	}
+	return slices.ContainsFunc(next.ShelfIDs, func(id string) bool { return !slices.Contains(cur.ShelfIDs, id) })
 }
 
 func lanShareQRCode(payload lanShareQRPayload) (string, error) {

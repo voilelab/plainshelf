@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"net"
 	"net/http"
 	"os"
@@ -26,10 +27,10 @@ type lanShareEnv struct {
 // loopback on a free port.
 func newLANShareEnv(t *testing.T) *lanShareEnv {
 	t.Helper()
-	oldPort, oldAddrs := lanShareDefaultPort, lanAddresses
+	oldPort, oldAddrs, oldListen, oldSave := lanShareDefaultPort, lanAddresses, lanListen, saveLANShare
 	lanShareDefaultPort = 0
 	lanAddresses = func() ([]string, error) { return []string{"127.0.0.1"}, nil }
-	t.Cleanup(func() { lanShareDefaultPort, lanAddresses = oldPort, oldAddrs })
+	t.Cleanup(func() { lanShareDefaultPort, lanAddresses, lanListen, saveLANShare = oldPort, oldAddrs, oldListen, oldSave })
 
 	dataRoot := t.TempDir()
 	env := &lanShareEnv{
@@ -236,7 +237,7 @@ func TestLANShareStartSavedReportsMissingAddress(t *testing.T) {
 	env.share.stop()
 
 	// The network changed while the app was closed.
-	lanAddresses = func() ([]string, error) { return []string{"127.0.0.2"}, nil }
+	lanAddresses = func() ([]string, error) { return []string{"192.0.2.7"}, nil }
 	again := env.reopen(t)
 	again.startSaved()
 	st, err := again.status()
@@ -254,7 +255,15 @@ func TestLANShareRecoversFromGoneAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.share.stop()
-	lanAddresses = func() ([]string, error) { return []string{"127.0.0.2"}, nil }
+	// A new address, bound on loopback: 127.0.0.2 is not on every machine.
+	lanAddresses = func() ([]string, error) { return []string{"192.0.2.7"}, nil }
+	lanListen = func(network, addr string) (net.Listener, error) {
+		_, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		return net.Listen(network, net.JoinHostPort("127.0.0.1", port))
+	}
 	again := env.reopen(t)
 	again.startSaved()
 
@@ -264,7 +273,7 @@ func TestLANShareRecoversFromGoneAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Host != "127.0.0.2" {
+	if st.Host != "192.0.2.7" {
 		t.Fatalf("status host = %q, want the current address", st.Host)
 	}
 	for _, host := range []string{"127.0.0.1", ""} {
@@ -275,9 +284,94 @@ func TestLANShareRecoversFromGoneAddress(t *testing.T) {
 		if err != nil {
 			t.Fatalf("host %q: %v", host, err)
 		}
-		if !st.Running || st.Host != "127.0.0.2" {
-			t.Errorf("host %q: status = %+v, want running on 127.0.0.2", host, st)
+		if !st.Running || st.Host != "192.0.2.7" {
+			t.Errorf("host %q: status = %+v, want running on 192.0.2.7", host, st)
 		}
+	}
+}
+
+// failSave makes every lan_share.json write fail until the returned func runs.
+func failSave(t *testing.T) (restore func()) {
+	t.Helper()
+	real := saveLANShare
+	saveLANShare = func(string, lanShareConfig) error { return errors.New("disk full") }
+	return func() { saveLANShare = real }
+}
+
+func lanDialable(addr string) bool {
+	conn, err := net.DialTimeout("tcp", addr, time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+func TestLANShareUnsavedEnableDoesNotOpen(t *testing.T) {
+	env := newLANShareEnv(t)
+	restore := failSave(t)
+	st, err := env.share.apply(LANShareParams{Enabled: true, ShelfIDs: []string{"a"}})
+	restore()
+	if err == nil {
+		t.Fatal("apply succeeded with an unwritable config")
+	}
+	if st.Running || st.Enabled || env.share.isShared("a") {
+		t.Errorf("status = %+v, want nothing applied", st)
+	}
+}
+
+func TestLANShareUnsavedWideningDoesNotApply(t *testing.T) {
+	env := newLANShareEnv(t)
+	st, err := env.share.apply(LANShareParams{Enabled: true, ShelfIDs: []string{"a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restore := failSave(t)
+	_, err = env.share.apply(LANShareParams{Enabled: true, ShelfIDs: []string{"a", "b"}})
+	restore()
+	if err == nil {
+		t.Fatal("apply succeeded with an unwritable config")
+	}
+	if code := lanGet(t, st, "b/", st.Token); code != http.StatusNotFound {
+		t.Errorf("PROPFIND unsaved shelf = %d, want 404", code)
+	}
+}
+
+func TestLANShareUnsavedDisableStopsAndSaysSo(t *testing.T) {
+	env := newLANShareEnv(t)
+	st, err := env.share.apply(LANShareParams{Enabled: true, ShelfIDs: []string{"a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := strings.TrimSuffix(strings.TrimPrefix(st.URL, "http://"), "/dav/")
+
+	restore := failSave(t)
+	if _, err := env.share.apply(LANShareParams{Enabled: false, ShelfIDs: []string{"a"}}); err == nil {
+		t.Fatal("apply hid the failed save")
+	}
+	// Stopped at once regardless.
+	if lanDialable(addr) {
+		t.Fatal("export still listening after switching off")
+	}
+	// Still said on a later read, as the page would after a reload.
+	st2, err := env.share.status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st2.Running || !strings.Contains(st2.Error, "not saved") {
+		t.Errorf("status = %+v, want stopped with the unsaved warning", st2)
+	}
+
+	restore()
+	st3, err := env.share.apply(LANShareParams{Enabled: false, ShelfIDs: []string{"a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st3.Error != "" {
+		t.Errorf("warning kept after a successful save: %q", st3.Error)
+	}
+	if saved, _ := loadLANShareConfig(filepath.Join(env.dataRoot, lanShareConfigName)); saved.Enabled {
+		t.Error("lan_share.json still enabled after the retry")
 	}
 }
 
