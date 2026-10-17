@@ -2,10 +2,9 @@
  * Restarts the app at the library, discarding everything the previous shelf
  * left in memory.
  *
- * Every shelf switch needs this, not just the ones involving pCloud.
- * PCloudBookshelfProvider captures its client and shelf path at construction
- * and the provider is a singleton built once at bootstrap; the shelf, folder and
- * server-mode stores are module-level too. A plain `router.push` would leave
+ * Every shelf switch needs this, not just the ones involving pCloud. The
+ * provider is a singleton built for the active entry once at bootstrap; the
+ * shelf, folder and server-mode stores are module-level too. A plain `router.push` would leave
  * all of it pointing at the shelf the user just left.
  *
  * Loading a deep path directly is safe in the native shell: Capacitor serves

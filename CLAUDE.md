@@ -77,9 +77,9 @@ web builds; do not use it for Capacitor asset generation.
 4. For server API changes, read the matching
    contract package under `server/contract/` and preserve the `local_token`
    security boundary.
-5. For changes to how a shelf is read or written, update the shared fixtures in
-   `shelf/testdata/conformance/`. The Go shelf and the Android pCloud client are
-   two independent readers of it; the pCloud side fails in the frontend tests.
+5. For changes to how a shelf is read or written, update the fixtures in
+   `shelf/testdata/conformance/`. The Go shelf is the only reader of the format,
+   the Android app's pCloud shelf included; the frontend parses none of it.
 6. In the frontend, the mobile stack reaches the bundle only through
    `src/shells/mobile`, and a feature directory is private to itself. A stray
    static import silently returns the mobile stack to the embedded web build and

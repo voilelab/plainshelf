@@ -220,7 +220,6 @@ import { setApiBase } from '@/api/client';
 import { listServerShelves, type ShelfInfo } from '@/api/shelves';
 import { buildAuthorizeUrl, generateRequestId, pollForToken } from '@/api/pcloud/auth';
 import { PCloudClient } from '@/api/pcloud/client';
-import { collectBookPackages, findBooksFolder } from '@/api/pcloud/bookpkg';
 import { LocalShelf } from '@/providers/localShelf';
 import {
   applyActiveShelfEntry,
@@ -231,6 +230,7 @@ import {
   type ShelfSourceType
 } from '@/providers/mobileConfig';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
+import { checkPCloudShelf } from '@/features/mobile/utils/pcloudSetup';
 import PCloudFolderPicker from '@/features/mobile/components/PCloudFolderPicker.vue';
 
 const props = defineProps<{
@@ -485,16 +485,12 @@ async function onVerifyPCloudShelf(): Promise<void> {
 
   verifying.value = true;
   try {
-    const client = new PCloudClient({
-      host: pcloudHost.value,
-      accessToken: pcloudAccessToken.value
-    });
-    const booksFolder = findBooksFolder(await client.listFolderRecursive({ path: shelfRoot }));
-    if (!booksFolder) {
+    const books = await checkPCloudShelf(pcloudHost.value, pcloudAccessToken.value, shelfRoot);
+    if (books === null) {
       localError.value = t('mobileConnect.pcloud.notAShelf');
       return;
     }
-    pcloudBookCount.value = collectBookPackages(booksFolder).length;
+    pcloudBookCount.value = books;
   } catch (err) {
     localError.value = surfaceError(err);
   } finally {

@@ -34,8 +34,8 @@ export function getBookshelfProvider(): BookshelfProvider {
 }
 
 /**
- * Mirrors how a read-only server answers a mutation (server/app.go) and how
- * PCloudBookshelfProvider refuses one, so the message reads the same either way.
+ * Mirrors how a read-only server answers a mutation (server/app.go), so the
+ * message reads the same either way.
  * The phrase "read-only" is asserted on by the mobile e2e suite.
  */
 const WRITES_UNAVAILABLE_MESSAGE = 'This client is read-only. Write operations are disabled.';

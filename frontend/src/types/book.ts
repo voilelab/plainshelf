@@ -44,14 +44,6 @@ export interface Book {
    */
   nsfw_folder?: NsfwFolderRule;
 
-  /**
-   * Whether book.json declares a schema version this client does not know, so
-   * fields it carries may not be shown. Set by readers that parse book.json
-   * themselves (api/pcloud); a server-backed book never carries it, because the
-   * server answers a newer file by refusing the write rather than the read.
-   */
-  schema_newer_than_supported?: boolean;
-
   // Mobile/offline cache metadata. These fields are optional so existing
   // server and Wails responses remain valid when they do not include local
   // download information.

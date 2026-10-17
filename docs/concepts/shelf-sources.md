@@ -365,10 +365,15 @@ the type, never by falling back to another source.
   the token from the Keystore and passes it on every start; Go holds it in
   memory only. The entry keeps its cache scope, and its downloads, reading
   progress and history stay in the app's own cache and are not moved into the
-  Go offline layer: the TypeScript reader is no longer called, but the
-  downloads it took stay where they are. Adult content follows the device's own
+  Go offline layer: downloads the earlier TypeScript reader took stay where
+  they are. Adult content follows the device's own
   choice, given to Go per shelf (`App.SetShelfShowNSFW`) so it does not become
   the setting local shelves use.
+- **PSW-139 (remove the TypeScript reader).** Done: the frontend parses no
+  shelf format. The app's pCloud setup asks Go whether a folder is a shelf and
+  how many books it holds (`mobile.CheckPCloudShelf`, `mobile.ListPCloudFolder`);
+  only authorization and the picker's path walk still call pCloud from
+  TypeScript.
 - **PSW-145 (offline copies).** Done as described in
   [Offline copies](#offline-copies). The engine takes the offline directory as
   a parameter; the scope that names it comes from `SourceConf` once PSW-149

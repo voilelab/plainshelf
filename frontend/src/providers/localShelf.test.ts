@@ -57,8 +57,15 @@ describe('localShelfFetch', () => {
     expect(plugin.beginBody).toHaveBeenCalledOnce();
     expect(plugin.appendBody).toHaveBeenCalledTimes(3);
     expect(staged.map((c) => c.length)).toEqual([1 << 20, 1 << 20, 0.5 * (1 << 20)]);
-    // Compared as one buffer: toEqual walks 2.5 MiB element by element.
-    expect(Buffer.concat(staged).equals(Buffer.from(body))).toBe(true);
+    // Compared by hand: toEqual walks 2.5 MiB element by element.
+    const joined = new Uint8Array(body.length);
+    let offset = 0;
+    for (const chunk of staged) {
+      joined.set(chunk, offset);
+      offset += chunk.length;
+    }
+    expect(offset).toBe(body.length);
+    expect(joined.findIndex((byte, i) => byte !== body[i])).toBe(-1);
     expect(plugin.request).toHaveBeenCalledWith({
       method: 'PATCH',
       path: '/api/shelves/s/books/b/sources/x/content?a=1',

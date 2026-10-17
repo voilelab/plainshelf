@@ -218,8 +218,11 @@ above it. Picking one fills the path in and runs the shelf check for you.
 
 The path field stays editable if you would rather type or paste one, such as
 `/PlainShelf/default-shelf`; tap **Check shelf** afterwards. Either way the
-check reads the folder and reports how many books it found, and it has to
-contain `books/` or it is not a shelf. Save once the check passes.
+check reads the folder and reports how many books it found, skipping the
+folders the shelf's `shelf.json` ignores, and it has to contain `books/` or it
+is not a shelf. Save once the check passes. The picker and the check run in the
+app's built-in shelf engine, so they work only in the Android app, not in the
+browser preview.
 
 ### The book list is updated by hand
 

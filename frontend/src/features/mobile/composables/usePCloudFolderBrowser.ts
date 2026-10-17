@@ -1,8 +1,6 @@
 import { computed, ref, shallowRef, type ComputedRef, type Ref } from 'vue';
 
-import { BOOK_EXTENSION, findBooksFolder } from '@/api/pcloud/bookpkg';
-import { ROOT_FOLDER_ID, type PCloudClient } from '@/api/pcloud/client';
-import type { PCloudItem } from '@/api/pcloud/types';
+import { ROOT_FOLDER_ID } from '@/api/pcloud/client';
 import { surfaceError } from '@/composables/useErrorIncident';
 
 /** One level of the browsed path. The account root has no entry: it has no name. */
@@ -11,11 +9,20 @@ export interface PCloudFolderRef {
   folderid: number;
 }
 
-/**
- * What the browser needs from a pCloud client, narrowed so a test can stand one
- * in without a fetch layer.
- */
-export type PCloudFolderClient = Pick<PCloudClient, 'listFolder' | 'resolveFolderTrail'>;
+/** One level as Go lists it: book packages are already left out. */
+interface PCloudFolderListing {
+  folders: PCloudFolderRef[];
+  /** Whether the level is a shelf root. */
+  isShelf: boolean;
+}
+
+/** What the browser needs, narrowed so a test can stand one in without a bridge. */
+export interface PCloudFolderClient {
+  listFolder(folderid: number, signal?: AbortSignal): Promise<PCloudFolderListing>;
+  resolveFolderTrail(path: string, signal?: AbortSignal): Promise<PCloudFolderRef[]>;
+}
+
+const EMPTY_LISTING: PCloudFolderListing = { folders: [], isShelf: false };
 
 interface PCloudFolderBrowser {
   /** Levels below the account root, outermost first. */
@@ -24,7 +31,7 @@ interface PCloudFolderBrowser {
   folders: ComputedRef<PCloudFolderRef[]>;
   /** The current level as a shelf-root path, e.g. `/` or `/PlainShelf/shelf`. */
   currentPath: ComputedRef<string>;
-  /** Whether the current level holds a `books/` directory, i.e. is a shelf. */
+  /** Whether the current level is a shelf root. */
   isShelf: ComputedRef<boolean>;
   loading: Ref<boolean>;
   /** The current level could not be listed; nothing is on screen to browse. */
@@ -47,7 +54,7 @@ interface PCloudFolderBrowser {
  * Drives a lazy, one-level-at-a-time walk of a pCloud account.
  *
  * Each level costs exactly one non-recursive `listfolder`, unlike the whole-tree
- * listing the shelf check runs (`PCloudClient.listFolderRecursive`), which is
+ * listing the shelf check runs (`CheckPCloudShelf` in Go), which is
  * far too expensive to spend on a folder the user is only passing through.
  * Levels already visited are answered from memory so walking back up is free.
  *
@@ -58,12 +65,12 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
   const trail = ref<PCloudFolderRef[]>([]);
   // Shallow: a listing is replaced wholesale and never edited in place, so deep
   // reactivity would only cost a proxy walk over every item in the folder.
-  const contents = shallowRef<PCloudItem[]>([]);
+  const level = shallowRef<PCloudFolderListing>(EMPTY_LISTING);
   const loading = ref(false);
   const error = ref('');
   const notice = ref('');
 
-  const cache = new Map<number, PCloudItem[]>();
+  const cache = new Map<number, PCloudFolderListing>();
 
   /**
    * The request whose result may still be written to the state above. A newer
@@ -91,24 +98,10 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
   const currentPath = computed(() => `/${trail.value.map((level) => level.name).join('/')}`);
 
   const folders = computed(() =>
-    contents.value
-      .filter(
-        (item) =>
-          item.isfolder &&
-          item.folderid !== undefined &&
-          // A book package is a directory too, but it can never be a shelf root
-          // and listing them would bury the folders under them.
-          !item.name.endsWith(BOOK_EXTENSION)
-      )
-      .map((item) => ({ name: item.name, folderid: item.folderid as number }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+    [...level.value.folders].sort((a, b) => a.name.localeCompare(b.name))
   );
 
-  // Decided from the level already on screen: its own listing names the
-  // children, so no folder has to be opened to know whether it is a shelf.
-  const isShelf = computed(() =>
-    Boolean(findBooksFolder({ name: '', isfolder: true, contents: contents.value }))
-  );
+  const isShelf = computed(() => level.value.isShelf);
 
   async function show(next: PCloudFolderRef[]): Promise<void> {
     const controller = begin();
@@ -120,21 +113,20 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
     const folderid = next.length > 0 ? next[next.length - 1].folderid : ROOT_FOLDER_ID;
     const cached = cache.get(folderid);
     if (cached) {
-      contents.value = cached;
+      level.value = cached;
       loading.value = false;
       return;
     }
 
-    contents.value = [];
+    level.value = EMPTY_LISTING;
     loading.value = true;
     try {
-      const listing = await createClient().listFolder(folderid, { signal: controller.signal });
+      const listing = await createClient().listFolder(folderid, controller.signal);
       if (isStale(controller)) {
         return;
       }
-      const items = listing.contents ?? [];
-      cache.set(folderid, items);
-      contents.value = items;
+      cache.set(folderid, listing);
+      level.value = listing;
     } catch (err) {
       if (isStale(controller)) {
         return;
@@ -168,7 +160,7 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
 
     const controller = begin();
     trail.value = [];
-    contents.value = [];
+    level.value = EMPTY_LISTING;
     error.value = '';
     notice.value = '';
     loading.value = true;

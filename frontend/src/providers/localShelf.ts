@@ -60,6 +60,22 @@ interface LocalShelfPlugin {
   setShelfShowNsfw(options: { id: string; show: boolean }): Promise<void>;
   /** Every book's marks on that shelf, whatever the device shows. */
   nsfwMarks(options: { id: string }): Promise<{ marks: Record<string, NsfwMarks> }>;
+  /**
+   * Setup calls, made before an entry stores the token, so the form passes the
+   * one it holds. Go owns the shelf layout: whether a folder is a shelf, what a
+   * book is.
+   */
+  checkPCloudShelf(options: {
+    host: string;
+    token: string;
+    folder: string;
+  }): Promise<{ isShelf: boolean; books: number }>;
+  /** One picker level: subfolders without book packages, and whether it is a shelf root. */
+  listPCloudFolder(options: {
+    host: string;
+    token: string;
+    folderId: number;
+  }): Promise<{ folders: Array<{ name: string; folderid: number }>; isShelf: boolean }>;
   beginBody(): Promise<{ bodyId: string }>;
   appendBody(options: { bodyId: string; data: string }): Promise<void>;
   /** Deletes a staged body that will not be sent. */

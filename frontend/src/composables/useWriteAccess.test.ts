@@ -17,7 +17,7 @@ const { ServerBookshelfProvider } = await import('@/providers/serverBookshelfPro
 const { WailsBookshelfProvider } = await import('@/providers/wailsBookshelfProvider');
 const { MobileBookshelfProvider } = await import('@/providers/mobileBookshelfProvider');
 const { InMemoryMobileBookCache } = await import('@/providers/mobileBookCache');
-const { PCloudBookshelfProvider } = await import('@/providers/pcloudBookshelfProvider');
+const { EmbeddedPCloudReader } = await import('@/providers/embeddedPCloud');
 const { useWriteAccess } = await import('./useWriteAccess');
 
 // readOnly is a module-level ref shared by every useServerMode() caller, so the
@@ -280,14 +280,11 @@ describe('the provider write surface', () => {
     expect(useWriteAccess().libraryEditingAvailable.value).toBe(true);
   });
 
-  // The pCloud backend is a reading client in its own right, independently of
-  // which runtime it is reached from.
+  // The pCloud reader inherits a write surface from ServerBookshelfProvider;
+  // the mobile wrapper the app builds around it is what keeps it read-only.
   it('treats a pCloud-backed client as read-only', () => {
     getBookshelfProviderMock.mockReturnValue(
-      new PCloudBookshelfProvider({
-        client: {} as ConstructorParameters<typeof PCloudBookshelfProvider>[0]['client'],
-        shelfRoot: '/plainshelf'
-      })
+      new MobileBookshelfProvider(new EmbeddedPCloudReader(), new InMemoryMobileBookCache())
     );
 
     expect(useWriteAccess().libraryEditingAvailable.value).toBe(false);

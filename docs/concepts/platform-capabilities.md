@@ -217,10 +217,12 @@ decision and not part of this design.
   pCloud branch. `PCloudBookshelfProvider` is no longer constructed for pCloud,
   and the screens listed in [Who reads them](#who-reads-them) move to the new
   fields in the same change.
-- **PSW-139 (remove the TS pCloud reader).** Deletes `supportsServerMode`,
-  `filtersNsfwOnDevice` and `localNsfwMarks` from `BookshelfProvider`, and
-  makes `getSourceAsset` and `getSourceAssetsBundle` required. After it,
-  `frontend/src` has no remaining `supportsXxx` call on the provider.
+- **PSW-139 (remove the TS pCloud reader).** Done for the reader itself. The
+  provider interface is unchanged: `filtersNsfwOnDevice` and `localNsfwMarks`
+  are still what `EmbeddedPCloudReader` answers, and no implementation returns
+  `false` from `supportsServerMode` any more, so its removal, with making
+  `getSourceAsset` and `getSourceAssetsBundle` required, is left to its own
+  change.
 - **PSW-145 (offline download).** Implements `capabilities.download` and
   `offline.snapshot_at`, and the shelf-interface download methods call its API.
 - **PSW-147, PSW-136.** The desktop and Android hosts expose shelf management

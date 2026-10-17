@@ -109,9 +109,9 @@
 import { onBeforeUnmount, useId, watch } from 'vue';
 
 import BaseDialog from '@/components/BaseDialog.vue';
-import { PCloudClient } from '@/api/pcloud/client';
 import { useI18n } from '@/i18n';
 import { usePCloudFolderBrowser } from '@/features/mobile/composables/usePCloudFolderBrowser';
+import { pcloudFolderClient } from '@/features/mobile/utils/pcloudSetup';
 
 const props = defineProps<{
   open: boolean;
@@ -147,9 +147,7 @@ const {
   goTo,
   retry,
   close
-} = usePCloudFolderBrowser(
-  () => new PCloudClient({ host: props.host, accessToken: props.accessToken })
-);
+} = usePCloudFolderBrowser(() => pcloudFolderClient(props.host, props.accessToken));
 
 watch(
   () => props.open,

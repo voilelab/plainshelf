@@ -1,9 +1,7 @@
 // Wire types for the pCloud public API.
 //
 // Field names mirror the API exactly (lowercase, no underscores) so responses
-// can be consumed without an intermediate rename. Everything the shelf reader
-// needs is present on a `listfolder` item, which is why a single recursive
-// listing is enough to plan all subsequent reads.
+// can be consumed without an intermediate rename.
 
 /**
  * pCloud accounts live in exactly one region and the other host will not serve
@@ -16,15 +14,7 @@ export type PCloudApiHost = (typeof PCLOUD_API_HOSTS)[number];
 
 export const PCLOUD_DEFAULT_HOST: PCloudApiHost = 'api.pcloud.com';
 
-/**
- * A file or folder as returned by `listfolder` and friends.
- *
- * `modified` is RFC 1123Z (e.g. "Sun, 16 Mar 2014 17:26:04 +0000"). Together
- * with `size` it is the pCloud equivalent of the `(mtime, size)` pair the Go
- * shelf uses to decide whether a cached book is stale — see
- * `internal/fsutil`/`shelf/filestate.go`. Both are available for every file in
- * the recursive listing, so freshness can be decided without extra requests.
- */
+/** A file or folder as returned by `listfolder`. */
 export interface PCloudItem {
   name: string;
   isfolder: boolean;
@@ -37,7 +27,7 @@ export interface PCloudItem {
   contenttype?: string;
   modified?: string;
   created?: string;
-  /** Populated only when the listing was requested recursively. */
+  /** The listed folder's children. */
   contents?: PCloudItem[];
 }
 
@@ -54,29 +44,6 @@ export interface PCloudListFolderResult extends PCloudResponse {
    * from pCloud at all — see the envelope check in client.ts.
    */
   metadata?: PCloudItem;
-}
-
-/**
- * `getfilelink` returns a set of interchangeable hosts plus a path; the
- * download URL is `https://{hosts[0]}{path}`. The link expires, so it must be
- * fetched per download rather than cached alongside the file metadata.
- */
-export interface PCloudGetFileLinkResult extends PCloudResponse {
-  hosts?: string[];
-  path?: string;
-  expires?: string;
-  size?: number;
-}
-
-/**
- * `getziplink` returns the same host/path/expiry shape as `getfilelink`, so the
- * download URL is `https://{hosts[0]}{path}`. Unlike `savezip` it leaves no file
- * behind in the account, which keeps this client's shelf read-only.
- */
-export interface PCloudGetZipLinkResult extends PCloudResponse {
-  hosts?: string[];
-  path?: string;
-  expires?: string;
 }
 
 /** Identity returned by `userinfo` for the account behind a bearer token. */

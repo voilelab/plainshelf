@@ -6,7 +6,7 @@ import { Directory, Encoding, Filesystem, type WriteFileOptions } from '@capacit
 // eviction (see the rationale in shells/mobile/index.ts).
 //
 //   plainshelf-cache/scopes/<enc(scopeKey)>/
-//       shelf-snapshot.json    # PersistedShelfSnapshot (shelfSnapshotStore.ts)
+//       shelf-snapshot.json    # left by builds with the TypeScript pCloud reader; unread
 //       books/<enc(bookId)>/   # downloaded books (filesystemMobileBookCache.ts)
 //
 // The scope segment keeps two shelves' data apart; see cacheScope.ts for why

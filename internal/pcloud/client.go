@@ -1,9 +1,8 @@
 // Package pcloud reads a shelf held in a pCloud account, as an fsutil.ReadFS.
 //
-// It is the Go twin of frontend/src/api/pcloud/client.ts and follows it on the
-// details that matter: the token travels as a Bearer header and never in a
-// URL, a recursive listing that pCloud refuses is expanded by hand, and only
-// transient failures are retried. Nothing here writes to the account.
+// The token travels as a Bearer header and never in a URL, a recursive
+// listing that pCloud refuses is expanded by hand, and only transient failures
+// are retried. Nothing here writes to the account.
 package pcloud
 
 import (
@@ -41,7 +40,7 @@ func HostForLocation(locationID int) (string, error) {
 	return "", util.Errorf("unknown pCloud location %d", locationID)
 }
 
-// Same budgets as client.ts: metadata fails fast, a transfer may be slow.
+// Metadata fails fast, a transfer may be slow.
 const (
 	requestTimeout  = 30 * time.Second
 	downloadTimeout = 5 * time.Minute
@@ -398,4 +397,25 @@ func describeFolders(names []string) string {
 		return "It contains " + strings.Join(quoted, ", ") + " and " + strconv.Itoa(rest) + " more."
 	}
 	return "It contains " + strings.Join(quoted, ", ") + "."
+}
+
+// Folder is a subfolder in a listing.
+type Folder struct {
+	Name string
+	ID   int64
+}
+
+// ListFolders lists the subfolders of one folder by id; 0 is the account root.
+func (c *Client) ListFolders(ctx context.Context, folderID int64) ([]Folder, error) {
+	listing, err := c.listFolder(ctx, folderID, false)
+	if err != nil {
+		return nil, err
+	}
+	folders := []Folder{}
+	for _, child := range listing.Contents {
+		if child.IsFolder && child.FolderID != nil {
+			folders = append(folders, Folder{Name: child.Name, ID: *child.FolderID})
+		}
+	}
+	return folders, nil
 }
