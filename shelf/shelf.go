@@ -159,13 +159,13 @@ type shelfSettings struct {
 	bookCacheWriterID string
 }
 
-func parseShelfSettings(conf *ShelfConf) (shelfSettings, error) {
+func parseShelfSettings(conf *ShelfConf) (*shelfSettings, error) {
 	scanInterval := time.Minute
 	if conf.ScanInterval != "" {
 		var err error
 		scanInterval, err = time.ParseDuration(conf.ScanInterval)
 		if err != nil {
-			return shelfSettings{}, util.Errorf("invalid scan interval: %w", err)
+			return nil, util.Errorf("invalid scan interval: %w", err)
 		}
 	}
 
@@ -174,7 +174,7 @@ func parseShelfSettings(conf *ShelfConf) (shelfSettings, error) {
 		var err error
 		lockTimeout, err = time.ParseDuration(conf.LockTimeout)
 		if err != nil {
-			return shelfSettings{}, util.Errorf("invalid lock timeout: %w", err)
+			return nil, util.Errorf("invalid lock timeout: %w", err)
 		}
 	}
 
@@ -183,7 +183,7 @@ func parseShelfSettings(conf *ShelfConf) (shelfSettings, error) {
 		var err error
 		bookCheckInterval, err = time.ParseDuration(conf.BookCheckInterval)
 		if err != nil {
-			return shelfSettings{}, util.Errorf("invalid book check interval: %w", err)
+			return nil, util.Errorf("invalid book check interval: %w", err)
 		}
 	}
 
@@ -192,7 +192,7 @@ func parseShelfSettings(conf *ShelfConf) (shelfSettings, error) {
 		var err error
 		bookCacheInterval, err = time.ParseDuration(conf.BookCacheInterval)
 		if err != nil {
-			return shelfSettings{}, util.Errorf("invalid book cache interval: %w", err)
+			return nil, util.Errorf("invalid book cache interval: %w", err)
 		}
 	}
 
@@ -204,12 +204,12 @@ func parseShelfSettings(conf *ShelfConf) (shelfSettings, error) {
 	// The ID becomes a file name, so anything that could escape app/ or produce
 	// an unreadable name is rejected here rather than at write time.
 	if err := validateBookCacheWriterID(conf.BookCacheWriterID); err != nil {
-		return shelfSettings{}, util.Errorf("%w", err)
+		return nil, util.Errorf("%w", err)
 	}
 
 	logger, err := logutil.NewLogger(&conf.Logger)
 	if err != nil {
-		return shelfSettings{}, util.Errorf("%w", err)
+		return nil, util.Errorf("%w", err)
 	}
 
 	// Silently keeping the ID would leave the export enabled on a shelf that
@@ -221,7 +221,7 @@ func parseShelfSettings(conf *ShelfConf) (shelfSettings, error) {
 		bookCacheWriterID = ""
 	}
 
-	return shelfSettings{
+	return &shelfSettings{
 		logger:            logger,
 		scanInterval:      scanInterval,
 		lockTimeout:       lockTimeout,
@@ -325,7 +325,7 @@ func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS) (*Shelf, error) {
 
 // startShelf finishes opening a shelf once its root and lock are settled.
 // closeRoot, when not nil, is called by Close and on failure here.
-func startShelf(conf *ShelfConf, settings shelfSettings, dbRoot fsutil.ReadFS, closeRoot func() error, shelfLock ShelfLock, remote bool) (*Shelf, error) {
+func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, closeRoot func() error, shelfLock ShelfLock, remote bool) (*Shelf, error) {
 	logger := settings.logger
 
 	// shelf.json is read once, here, and every rule it carries is derived from

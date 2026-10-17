@@ -40,14 +40,21 @@ func (s *Shelf) refreshRemoteBookCache(walkWithoutCache bool) error {
 		return nil
 	}
 
+	digest, err := bookCacheDigest(cache.Folders, cache.Books)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	takenAt := time.Unix(cache.Timestamp, 0)
 	s.bookCache.RLock()
 	current := s.bookCache.lastScanStart
+	applied := s.bookCache.remoteDigest
 	s.bookCache.RUnlock()
 
-	// Already as new: the same file read last time, or a manual rescan that ran
-	// after this export's walk.
-	if !current.IsZero() && !takenAt.After(current) {
+	// Already as new: older than the current listing, or the same content. The
+	// timestamp has whole-second precision, so a re-export within the same
+	// second is told apart by its content.
+	if !current.IsZero() && (takenAt.Before(current) || (takenAt.Equal(current) && digest == applied)) {
 		s.markRemoteRefreshAttempt()
 		return nil
 	}
@@ -70,6 +77,7 @@ func (s *Shelf) refreshRemoteBookCache(walkWithoutCache bool) error {
 	s.bookCache.treeDirty = false
 	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.lastScanStart = takenAt
+	s.bookCache.remoteDigest = digest
 	s.bookCache.Unlock()
 
 	s.Debug("listed the shelf from an exported book cache", "file", name, "books", len(entries), "folders", len(folders))

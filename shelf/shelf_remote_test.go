@@ -315,3 +315,32 @@ func TestRemoteShelfIsReadOnly(t *testing.T) {
 		t.Errorf("NewFolder error = %v, want %v", err, fsutil.ErrReadOnly)
 	}
 }
+
+func TestRemoteShelfPicksUpAReexportInTheSameSecond(t *testing.T) {
+	libRoot := seedExportedShelf(t, "Dune", "Solaris")
+	cachePath := path.Join(libRoot, appFolder, bookCacheFilePrefix+testWriterID+bookCacheFileSuffix)
+	first, err := readBookCacheFileAt(cachePath)
+	if err != nil {
+		t.Fatalf("read export: %v", err)
+	}
+	s, _ := openRemoteShelf(t, libRoot, ShelfConf{ScanInterval: "1ms", BookCheckInterval: "1ms"})
+
+	local := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
+	if _, err := local.NewBook(FolderPath{}, "Hyperion"); err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	if _, err := local.ExportBookCache(); err != nil {
+		t.Fatalf("ExportBookCache: %v", err)
+	}
+	cache, err := readBookCacheFileAt(cachePath)
+	if err != nil {
+		t.Fatalf("read export: %v", err)
+	}
+	cache.Timestamp = first.Timestamp
+	writeRawBookCache(t, libRoot, path.Base(cachePath), cache)
+
+	time.Sleep(5 * time.Millisecond)
+	if got, want := listedTitles(t, s), []string{"Dune", "Hyperion", "Solaris"}; !slices.Equal(got, want) {
+		t.Errorf("after a re-export in the same second, listed %v, want %v", got, want)
+	}
+}

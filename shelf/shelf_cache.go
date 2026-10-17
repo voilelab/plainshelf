@@ -112,6 +112,10 @@ type bookCache struct {
 	lastExport       time.Time
 	lastExportDigest string
 	exporting        bool
+
+	// remoteDigest is the content digest of the export a remote shelf last
+	// listed from; see shelf_cache_snapshot.go.
+	remoteDigest string
 }
 
 func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
