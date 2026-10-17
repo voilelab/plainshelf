@@ -287,7 +287,9 @@ yet, and nothing on this page above changes.
   already carries it.
 - `scripts/build-android-lib.sh <out-dir>` builds the arm64 AAR and reports
   each `.so`'s size and 16 KB page alignment. It needs the Android SDK, an NDK
-  in `ANDROID_NDK_HOME` and a JDK; CI's *Android Go library* job runs it.
+  in `ANDROID_NDK_HOME` and a JDK, on Linux or macOS (where it reads the
+  alignment with the NDK's `llvm-readelf`); CI's *Android Go library* job runs
+  it.
 
 A local shelf is deleted with the app. Backup and restore on reinstall belong
 to the part of PSW-136 that adds the source to the app.

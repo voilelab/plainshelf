@@ -2,8 +2,8 @@
 # Builds the embedded server (mobile/) as an Android arm64 AAR with gomobile
 # and reports its size and whether every .so passes 16 KB page alignment.
 # Usage: scripts/build-android-lib.sh <out-dir>
-# Needs ANDROID_HOME, an NDK (ANDROID_NDK_HOME) and a JDK. Exits 1 on a
-# misaligned .so. Appends the report to $GITHUB_STEP_SUMMARY when set.
+# Needs ANDROID_HOME, an NDK (ANDROID_NDK_HOME) and a JDK; runs on Linux and
+# macOS. Exits 1 on a misaligned .so. Appends the report to $GITHUB_STEP_SUMMARY when set.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 out=${1:?usage: build-android-lib.sh <out-dir>}
@@ -30,6 +30,11 @@ unpacked="$out/aar"
 rm -rf "$unpacked" && mkdir -p "$unpacked"
 (cd "$unpacked" && unzip -q "$out/plainshelf.aar")
 
+# GNU readelf where installed, else the NDK's llvm-readelf (macOS).
+readelf=$(command -v readelf || ls "${ANDROID_NDK_HOME:-/nonexistent}"/toolchains/llvm/prebuilt/*/bin/llvm-readelf 2>/dev/null | head -1 || true)
+[[ -n $readelf ]] || { echo "no readelf: install binutils or set ANDROID_NDK_HOME" >&2; exit 2; }
+bytes() { wc -c <"$1" | tr -d ' '; } # stat -c is GNU-only
+
 report="$out/report.md"
 status=0
 {
@@ -37,13 +42,13 @@ status=0
   echo
   echo "| File | Bytes | gzip -9 | Min LOAD align | 16 KB |"
   echo "|---|---:|---:|---:|---|"
-  echo "| plainshelf.aar | $(stat -c %s "$out/plainshelf.aar") | | | |"
+  echo "| plainshelf.aar | $(bytes "$out/plainshelf.aar") | | | |"
   while IFS= read -r so; do
     # Smallest alignment over the LOAD segments; 16 KB pages need >= 0x4000.
-    align=$(readelf -lW "$so" | awk '$1 == "LOAD" { print $NF }' | sort -u | while read -r a; do echo $((a)); done | sort -n | head -1)
+    align=$("$readelf" -lW "$so" | awk '$1 == "LOAD" { print $NF }' | sort -u | while read -r a; do echo $((a)); done | sort -n | head -1)
     ok=yes
     if (( align < 0x4000 )); then ok=no; status=1; fi
-    printf '| %s | %s | %s | 0x%x | %s |\n' "${so#"$unpacked"/}" "$(stat -c %s "$so")" "$(gzip -9 -c "$so" | wc -c)" "$align" "$ok"
+    printf '| %s | %s | %s | 0x%x | %s |\n' "${so#"$unpacked"/}" "$(bytes "$so")" "$(gzip -9 -c "$so" | wc -c | tr -d ' ')" "$align" "$ok"
   done < <(find "$unpacked" -name '*.so' | sort)
 } >"$report"
 cat "$report"
