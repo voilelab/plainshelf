@@ -2,6 +2,7 @@ package mobile
 
 import (
 	"archive/zip"
+	"context"
 	"encoding/json/v2"
 	"errors"
 	"io"
@@ -9,9 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/shelfzip"
+	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -279,5 +284,82 @@ func unzip(t *testing.T, zipPath, dst string) {
 		if err := os.WriteFile(p, bs, 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// An instance fetched just before Stop refuses to serve once it gets the lock.
+func TestStaleInstanceAfterStop(t *testing.T) {
+	startT(t, t.TempDir())
+	rt, err := running()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.rlock(); !errors.Is(err, ErrNotStarted) {
+		t.Fatalf("rlock after Stop: %v", err)
+	}
+	if err := rt.lock(); !errors.Is(err, ErrNotStarted) {
+		t.Fatalf("lock after Stop: %v", err)
+	}
+}
+
+// heldTask runs until release is closed.
+type heldTask struct {
+	release chan struct{}
+	done    atomic.Bool
+}
+
+func (h *heldTask) Run(context.Context) error { <-h.release; h.done.Store(true); return nil }
+func (h *heldTask) Name() string              { return "held" }
+func (h *heldTask) Title() string             { return "held" }
+func (h *heldTask) Description() string       { return "held" }
+func (h *heldTask) Percentage() float64       { return 0 }
+func (h *heldTask) Status() taskutil.Status {
+	if h.done.Load() {
+		return taskutil.StatusCompleted
+	}
+	return taskutil.StatusRunning
+}
+
+// Export and removal wait for task chains accepted earlier, which keep writing
+// after their request returned.
+func TestExportAndRemoveWaitForTasks(t *testing.T) {
+	startT(t, t.TempDir())
+	id := createShelf(t, "Busy")
+	rt, err := running()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := quiesceTimeout
+	quiesceTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { quiesceTimeout = old })
+
+	task := &heldTask{release: make(chan struct{})}
+	release := sync.OnceFunc(func() { close(task.release) })
+	// Before Stop's cleanup, which would wait on the task forever.
+	t.Cleanup(release)
+	if _, err := rt.app.TaskChains().Submit(&taskutil.TaskChain{Tasks: []taskutil.Task{task}}); err != nil {
+		t.Fatal(err)
+	}
+	zipPath := filepath.Join(t.TempDir(), "shelf.zip")
+	if err := ExportShelf(id, zipPath); !errors.Is(err, ErrBusy) {
+		t.Fatalf("ExportShelf during a task: %v", err)
+	}
+	if err := RemoveShelf(id); !errors.Is(err, ErrBusy) {
+		t.Fatalf("RemoveShelf during a task: %v", err)
+	}
+	if got := listShelves(t); len(got) != 1 {
+		t.Fatalf("shelf removed while busy: %+v", got)
+	}
+
+	quiesceTimeout = 5 * time.Second
+	release()
+	if err := ExportShelf(id, zipPath); err != nil {
+		t.Fatalf("ExportShelf after the task: %v", err)
+	}
+	if err := RemoveShelf(id); err != nil {
+		t.Fatalf("RemoveShelf after the task: %v", err)
 	}
 }

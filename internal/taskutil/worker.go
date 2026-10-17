@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -98,6 +99,11 @@ type TaskChain struct {
 	mu     sync.Mutex
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// panicked marks a chain whose task panicked: the task never reported a
+	// terminal status itself, so without it the chain would stay running and
+	// hold its key forever.
+	panicked atomic.Bool
 }
 
 // attachContext derives the chain's own cancellable context from parent and
@@ -147,6 +153,9 @@ func (c *TaskChain) Cancel() {
 //
 // An empty chain has nothing left to do and reports StatusCompleted.
 func (c *TaskChain) Status() Status {
+	if c.panicked.Load() {
+		return StatusFailed
+	}
 	if len(c.Tasks) == 0 {
 		return StatusCompleted
 	}
@@ -259,7 +268,7 @@ func (w *Worker) work() {
 		ctx := chain.runContext()
 		for _, task := range chain.Tasks {
 			w.logger.Info("Worker running task", "task", task.Name())
-			err := runTask(ctx, task)
+			err := runTask(ctx, chain, task)
 			w.logger.Info("Worker finished task", "task", task.Name())
 			if err != nil {
 				w.logger.Error("task failed", "request_id", chain.RequestID, "task", task.Name(), "error", err)
@@ -273,11 +282,13 @@ func (w *Worker) work() {
 	}
 }
 
-// runTask turns a panic into the task's error, so one bad task fails its chain
-// instead of the process; the Android app shares that process with its UI.
-func runTask(ctx context.Context, task Task) (err error) {
+// runTask turns a panic into the task's error and fails the chain, so one bad
+// task fails its chain instead of the process; the Android app shares that
+// process with its UI.
+func runTask(ctx context.Context, chain *TaskChain, task Task) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			chain.panicked.Store(true)
 			err = util.Errorf("task panicked: %v\n%s", r, debug.Stack())
 		}
 	}()

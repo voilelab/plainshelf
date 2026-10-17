@@ -69,6 +69,9 @@ type instance struct {
 	conf    config
 	app     *server.App
 	handler http.Handler
+	// closed is set by Stop under mu, so a caller that fetched the instance
+	// just before Stop finds out once it holds the lock.
+	closed bool
 }
 
 var (
@@ -143,6 +146,7 @@ func Stop() (err error) {
 	current = nil
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	rt.closed = true
 	return rt.app.Close()
 }
 
@@ -153,6 +157,46 @@ func running() (*instance, error) {
 		return nil, ErrNotStarted
 	}
 	return current, nil
+}
+
+// rlock takes mu for a request; the caller unlocks only on success.
+func (rt *instance) rlock() error {
+	rt.mu.RLock()
+	if rt.closed {
+		rt.mu.RUnlock()
+		return ErrNotStarted
+	}
+	return nil
+}
+
+// lock takes mu exclusively; the caller unlocks only on success.
+func (rt *instance) lock() error {
+	rt.mu.Lock()
+	if rt.closed {
+		rt.mu.Unlock()
+		return ErrNotStarted
+	}
+	return nil
+}
+
+// quiesceTimeout bounds how long export and removal wait for queued tasks.
+var quiesceTimeout = 30 * time.Second
+
+// ErrBusy is returned when background tasks do not settle in time.
+var ErrBusy = errors.New("plainshelf: background tasks are still running")
+
+// quiesce waits, holding mu exclusively so no request can queue more, until
+// every task chain has settled: a chain accepted earlier keeps writing to its
+// shelves after its request returned.
+func (rt *instance) quiesce() error {
+	deadline := time.Now().Add(quiesceTimeout)
+	for rt.app.TaskChains().Busy() {
+		if time.Now().After(deadline) {
+			return ErrBusy
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return nil
 }
 
 // Handle serves one request. headerJSON is a JSON object of header values and
@@ -175,7 +219,9 @@ func Handle(method, url, headerJSON string, body []byte) (res *Response, err err
 	}
 	rec := httptest.NewRecorder()
 
-	rt.mu.RLock()
+	if err := rt.rlock(); err != nil {
+		return nil, err
+	}
 	defer rt.mu.RUnlock()
 	rt.handler.ServeHTTP(rec, req)
 
@@ -203,7 +249,9 @@ func ListShelves() (out string, err error) {
 	if err != nil {
 		return "", err
 	}
-	rt.mu.RLock()
+	if err := rt.rlock(); err != nil {
+		return "", err
+	}
 	defer rt.mu.RUnlock()
 	bs, err := json.Marshal(rt.conf.Shelves, jsonopt.API())
 	if err != nil {
@@ -219,7 +267,9 @@ func CreateShelf(name string) (id string, err error) {
 	if err != nil {
 		return "", err
 	}
-	rt.mu.Lock()
+	if err := rt.lock(); err != nil {
+		return "", err
+	}
 	defer rt.mu.Unlock()
 	return rt.addShelf(name, nil)
 }
@@ -233,7 +283,9 @@ func ImportShelf(name, zipPath string) (id string, err error) {
 	if err != nil {
 		return "", err
 	}
-	rt.mu.Lock()
+	if err := rt.lock(); err != nil {
+		return "", err
+	}
 	defer rt.mu.Unlock()
 	return rt.addShelf(name, func(libRoot string) error {
 		f, err := os.Open(zipPath)
@@ -297,8 +349,13 @@ func RenameShelf(id, name string) (err error) {
 	if name == "" {
 		return util.Errorf("shelf name cannot be empty")
 	}
-	rt.mu.Lock()
+	if err := rt.lock(); err != nil {
+		return err
+	}
 	defer rt.mu.Unlock()
+	if err := rt.quiesce(); err != nil {
+		return err
+	}
 	i, err := rt.find(id)
 	if err != nil {
 		return err
@@ -324,8 +381,13 @@ func RemoveShelf(id string) (err error) {
 	if err != nil {
 		return err
 	}
-	rt.mu.Lock()
+	if err := rt.lock(); err != nil {
+		return err
+	}
 	defer rt.mu.Unlock()
+	if err := rt.quiesce(); err != nil {
+		return err
+	}
 	i, err := rt.find(id)
 	if err != nil {
 		return err
@@ -353,8 +415,13 @@ func ExportShelf(id, zipPath string) (err error) {
 	if err != nil {
 		return err
 	}
-	rt.mu.Lock()
+	if err := rt.lock(); err != nil {
+		return err
+	}
 	defer rt.mu.Unlock()
+	if err := rt.quiesce(); err != nil {
+		return err
+	}
 	i, err := rt.find(id)
 	if err != nil {
 		return err
