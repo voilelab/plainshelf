@@ -155,12 +155,16 @@ async function onUse(entryID: string): Promise<void> {
 }
 
 /**
- * Drops the entry first and deletes what it held afterwards: its downloads,
- * or a local shelf's books.
+ * Drops the entry first and sweeps its downloads afterwards.
  *
  * That order is deliberate: a failed sweep leaves reclaimable files behind,
  * which is harmless, while a failed entry write after a successful sweep would
- * leave a shelf in the list whose files had already been deleted.
+ * leave a shelf in the list whose downloads had already been deleted.
+ *
+ * A local shelf goes the other way round: its books are not reclaimable, and
+ * dropping the active entry first would repoint the running app before the
+ * removal could still fail. A shelf already gone is skipped, so an entry left
+ * by a failed entry write can be removed again.
  */
 async function onRemove(): Promise<void> {
   const target = pendingRemoval.value;
@@ -172,11 +176,15 @@ async function onRemove(): Promise<void> {
   error.value = '';
   const wasActive = target.id === activeEntryID.value;
   try {
-    await deleteShelfEntry(target.id);
     if (target.type === 'local') {
       // The books themselves, which the confirmation above names.
-      await LocalShelf.removeShelf({ id: target.localShelfId });
+      const { shelves } = await LocalShelf.listShelves();
+      if (shelves.some((shelf) => shelf.id === target.localShelfId)) {
+        await LocalShelf.removeShelf({ id: target.localShelfId });
+      }
+      await deleteShelfEntry(target.id);
     } else {
+      await deleteShelfEntry(target.id);
       await removeCacheScope(cacheScopeKeyForEntry(target));
     }
     pendingRemoval.value = null;

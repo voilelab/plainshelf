@@ -35,6 +35,8 @@ interface LocalShelfPlugin {
   removeShelf(options: { id: string }): Promise<void>;
   beginBody(): Promise<{ bodyId: string }>;
   appendBody(options: { bodyId: string; data: string }): Promise<void>;
+  /** Deletes a staged body that will not be sent. */
+  discardBody(options: { bodyId: string }): Promise<void>;
   request(options: {
     method: string;
     path: string;
@@ -86,9 +88,16 @@ export async function localShelfFetch(input: RequestInfo | URL, init?: RequestIn
   let bodyId: string | undefined;
   if (body.length > 0) {
     ({ bodyId } = await LocalShelf.beginBody());
-    for (let i = 0; i < body.length; i += BODY_CHUNK_BYTES) {
+    try {
+      for (let i = 0; i < body.length; i += BODY_CHUNK_BYTES) {
+        request.signal.throwIfAborted();
+        await LocalShelf.appendBody({ bodyId, data: toBase64(body.subarray(i, i + BODY_CHUNK_BYTES)) });
+      }
       request.signal.throwIfAborted();
-      await LocalShelf.appendBody({ bodyId, data: toBase64(body.subarray(i, i + BODY_CHUNK_BYTES)) });
+    } catch (err) {
+      // request() deletes a body it was given; one that never gets there is ours.
+      await LocalShelf.discardBody({ bodyId }).catch(() => undefined);
+      throw err;
     }
   }
   request.signal.throwIfAborted();

@@ -116,6 +116,16 @@ public class LocalShelfPlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void discardBody(PluginCall call) {
+        File f = bodies.remove(call.getString("bodyId", ""));
+        if (f != null) {
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();
+        }
+        call.resolve();
+    }
+
     /** One request with a body staged by beginBody, or none. */
     @PluginMethod
     public void request(PluginCall call) {

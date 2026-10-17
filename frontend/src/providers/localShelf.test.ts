@@ -4,6 +4,7 @@ const { plugin } = vi.hoisted(() => ({
   plugin: {
     beginBody: vi.fn(),
     appendBody: vi.fn(),
+    discardBody: vi.fn(),
     request: vi.fn()
   }
 }));
@@ -23,6 +24,7 @@ beforeEach(() => {
   plugin.appendBody.mockReset().mockImplementation(async ({ data }: { data: string }) => {
     staged.push(Uint8Array.from(atob(data), (c) => c.charCodeAt(0)));
   });
+  plugin.discardBody.mockReset().mockResolvedValue(undefined);
   plugin.request.mockReset().mockResolvedValue({
     status: 200,
     headers: { 'Content-Type': 'application/json' },
@@ -75,5 +77,21 @@ describe('localShelfFetch', () => {
     expect(plugin.beginBody).not.toHaveBeenCalled();
     expect(plugin.request).toHaveBeenCalledWith(expect.objectContaining({ bodyId: undefined }));
     expect(res.status).toBe(204);
+  });
+
+  it('discards a staged body when the upload is cut short', async () => {
+    const controller = new AbortController();
+    plugin.appendBody.mockImplementationOnce(async () => controller.abort());
+
+    await expect(
+      localShelfFetch(`${LOCAL_API_BASE}/api/shelves/s/books/import`, {
+        method: 'POST',
+        body: new Uint8Array(3 * (1 << 20)),
+        signal: controller.signal
+      })
+    ).rejects.toThrow();
+
+    expect(plugin.discardBody).toHaveBeenCalledWith({ bodyId: 'b1' });
+    expect(plugin.request).not.toHaveBeenCalled();
   });
 });
