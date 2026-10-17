@@ -11,6 +11,15 @@ server_conf:
   # to avoid responses being cut off mid-transfer on slow networks.
   write_timeout: 60s
 
+# Read-only WebDAV export of every shelf on a second port, for another
+# PlainShelf to open. Off unless uncommented; the token travels in plaintext.
+# See docs/reference/configuration.md#dav_export.
+# dav_export:
+#   addr: "192.168.1.20:20001"
+#   read_timeout: 60s
+#   write_timeout: 60s
+#   token_file: ./dav-export.token
+
 app_conf:
   logger:
     level: info  # log level: debug, info, warn, error

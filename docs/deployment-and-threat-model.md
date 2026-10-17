@@ -145,6 +145,23 @@ PlainShelf, and anything that can inject script into the app's own webview is
 inside the boundary already — under `local_token` too, since the token is written
 into the page (`server/spa.go`) where same-origin script can simply read it.
 
+### The read-only WebDAV export
+
+`dav_export` (off by default) opens a **second** listener that serves every local
+shelf's files read-only, for another PlainShelf to open as a virtual shelf. It
+sits outside the `local_token` boundary on purpose, and is gated by its own token
+instead:
+
+- Every request needs `Authorization: Bearer <token>`, compared in constant
+  time; the token lives in `token_file` (mode `0600`) and is replaced with
+  `plainshelf-srv -rotate-dav-token`, which takes effect on the next request.
+- No method that writes is answered, with or without the token, and the
+  listener has no `/api/` route, no web UI and no shelf management.
+- Only shelf files are served: lock files, the scan cache and `app/tmp/` are not.
+- Over plain HTTP the token and the files cross the network unencrypted, so the
+  export belongs on Tier B's trusted network only. See
+  [`dav_export`](reference/configuration.md#dav_export).
+
 ## What `local_token` actually protects
 
 `local_token` mode generates a random token when the server starts and writes it,
@@ -219,8 +236,10 @@ What keeps it true:
 - **The server has no config field for a secret.** `app_conf` carries shelf
   paths, a store path, import and logging settings, and the `security` block —
   and nothing that reads a password, token, or API key for any external service.
-  The one token PlainShelf handles on the server, the `local_token`, is generated
-  fresh at each startup and never persisted.
+  The `local_token` is generated fresh at each startup and never persisted. The
+  one persisted token is the optional [WebDAV export's](#the-read-only-webdav-export),
+  which PlainShelf generates itself into `dav_export.token_file`; it grants
+  read access to the export and nothing else.
 - **SMB credentials are the operating system's, not PlainShelf's.** PlainShelf
   reads an SMB/NAS shelf only through a path the OS has already mounted; it does
   not accept `smb://` URLs and never sees the share's username or password. See

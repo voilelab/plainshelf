@@ -1,6 +1,7 @@
 package fsutil
 
 import (
+	"errors"
 	"io"
 	"io/fs"
 
@@ -95,4 +96,18 @@ func ReadOnly(rfs ReadFS) ReadFS {
 // readOnlyFS embeds the read half only, so it deliberately does not implement FS.
 type readOnlyFS struct {
 	ReadFS
+}
+
+// NoFollowFS opens a path only when no component of it is a symlink.
+type NoFollowFS interface {
+	OpenNoFollow(name string) (fs.File, error)
+}
+
+// OpenNoFollow passes through to the wrapped filesystem, failing when it has none.
+func (r readOnlyFS) OpenNoFollow(name string) (fs.File, error) {
+	n, ok := r.ReadFS.(NoFollowFS)
+	if !ok {
+		return nil, util.Errorf("open %q: %w", name, errors.ErrUnsupported)
+	}
+	return n.OpenNoFollow(name)
 }

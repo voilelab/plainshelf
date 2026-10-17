@@ -36,6 +36,7 @@ const docsConfigReference = "../docs/reference/configuration.md"
 var docsSections = map[reflect.Type]string{
 	reflect.TypeFor[SrvConf]():               "",
 	reflect.TypeFor[httputil.Conf]():         "## `server_conf`",
+	reflect.TypeFor[DAVExportConf]():         "## `dav_export`",
 	reflect.TypeFor[AppConf]():               "## `app_conf`",
 	reflect.TypeFor[SecurityConf]():          "### `app_conf.security`",
 	reflect.TypeFor[WorkerConf]():            "### `app_conf.worker`",

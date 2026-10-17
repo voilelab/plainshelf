@@ -18,17 +18,18 @@ lists every key — the ones they leave out are exactly the ones this page is fo
     `1.0.0-rc1` freeze covers the shelf's on-disk format, not this file. Check
     the release notes' *Breaking changes* before upgrading.
 
-The file has three top-level sections:
+The file has four top-level sections:
 
 ```yaml
 logger:        # the process logger, used before the app is built
 server_conf:   # the HTTP listener
+dav_export:    # optional: a read-only WebDAV export on a second listener
 app_conf:      # everything else
 ```
 
 `server_conf` and `app_conf` are both required; the server refuses to start
 without either. `logger` may be omitted, and then takes the defaults in
-[Logger blocks](#logger-blocks).
+[Logger blocks](#logger-blocks). `dav_export` is off unless present.
 
 Only the desktop and reader apps run without a config file. They build their
 configuration in code, so nothing on this page applies to them; the settings
@@ -77,6 +78,63 @@ server_conf:
   read_timeout: 60s
   write_timeout: 60s
 ```
+
+## `dav_export`
+
+Exports every local shelf as a read-only WebDAV tree at
+`http://{addr}/dav/{shelf_id}/`, so another PlainShelf can open it as a virtual
+shelf (see [Shelf Sources](../concepts/shelf-sources.md)). It is off when the
+section is absent, and then no second port is opened.
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `addr` | string | none (required) | Listen address of the export, `host:port`. Must differ from `server_conf.addr`. |
+| `read_timeout` | duration | none (required) | As in `server_conf`. |
+| `write_timeout` | duration | none (required) | As in `server_conf`. Raise it for large books on a slow mount. |
+| `token_file` | string | none (required) | File holding the token every request must send as `Authorization: Bearer <token>`. Generated with mode `0600` when missing, and kept across restarts. |
+
+```yaml
+dav_export:
+  addr: "192.168.1.20:20001"
+  read_timeout: 60s
+  write_timeout: 60s
+  token_file: ./dav-export.token
+```
+
+What the export serves:
+
+- `OPTIONS`, `GET`, `HEAD`, and `PROPFIND` with `Depth: 0` or `1`. Every other
+  method, writes included, is answered 405 with or without a token; a
+  `PROPFIND` without `Depth`, or with `infinity`, is answered 403.
+- Only the shelf's own files: `books/`, `trash/`, `shelf.json` and
+  `app/book-cache-*.json`. Lock files, the scan cache and `app/tmp/` are not
+  listed and a direct `GET` of them is 404. A path with a `..` segment is 400,
+  and a path through a symlink is 404, so a link under `books/` cannot reach
+  `app/`.
+- Nothing else. `/api/...` and the web UI are 404 on this listener; the HTTP API
+  stays on `server_conf.addr` with its own `security` gate, unchanged. A
+  virtual shelf is not re-exported.
+
+A missing or wrong token is 401. To replace the token, run
+
+```bash
+plainshelf-srv -conf config.yaml -rotate-dav-token
+```
+
+It prints the new token, and the absolute path of the file it wrote on stderr:
+a relative `token_file` resolves against the working directory, so run it from
+the directory the server runs in. A running server reads the file on every
+request, so the old token stops working at once, with no restart. The server
+logs a warning at startup when the file is readable by other users, and fails
+to start when `addr` cannot be bound — including when it overlaps
+`server_conf.addr` (`0.0.0.0:20000` and `127.0.0.1:20000`), since the API binds
+first.
+
+!!! warning "The token travels in plaintext"
+    The export speaks plain HTTP. Anyone who can watch the network between the
+    two devices can read the token and every file the export serves. Bind it
+    only on a network you trust — a home LAN, a VPN — never on a port reachable
+    from the internet. TLS is not supported yet.
 
 ## `app_conf`
 
@@ -282,6 +340,13 @@ server_conf:
   addr: "127.0.0.1:20000"
   read_timeout: 60s
   write_timeout: 60s
+
+# Off by default; see dav_export above.
+# dav_export:
+#   addr: "192.168.1.20:20001"
+#   read_timeout: 60s
+#   write_timeout: 60s
+#   token_file: ./dav-export.token
 
 app_conf:
   logger:

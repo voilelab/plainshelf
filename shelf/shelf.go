@@ -476,6 +476,15 @@ func (s *Shelf) ReadOnly() bool {
 	return s.readOnly
 }
 
+// LocalFiles returns the shelf directory, read-only, for a file export. A
+// virtual shelf has no local directory and reports false.
+func (s *Shelf) LocalFiles() (fsutil.ReadFS, bool) {
+	if s.remote {
+		return nil, false
+	}
+	return fsutil.ReadOnly(s.dbRoot), true
+}
+
 func (s *Shelf) initCache() error {
 	// The scan cache loaded its previous snapshot when the shelf was built
 	// (newScanCache), so this first walk is already cheap. A remote shelf tries
