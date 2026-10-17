@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 )
@@ -546,5 +547,43 @@ func TestBookCacheExportTimestampIsTheScanStart(t *testing.T) {
 	cache := waitForBookCacheExport(t, libRoot, testWriterID)
 	if cache.Timestamp != scanStart.Unix() {
 		t.Errorf("timestamp = %d, want the scan start %d", cache.Timestamp, scanStart.Unix())
+	}
+}
+
+func TestBookCacheExportCarriesCurrentSourceMD5(t *testing.T) {
+	libRoot := t.TempDir()
+	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
+	book, err := s.NewBook(FolderPath{}, "Dune")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	source, err := book.NewSource(strings.NewReader("Dune text"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	if err := book.SetCurrentSource(source.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+	want := source.GetMeta().MD5Hash
+	if want == "" {
+		t.Fatal("source meta carries no MD5 to compare against")
+	}
+
+	if _, err := s.ExportBookCache(); err != nil {
+		t.Fatalf("ExportBookCache: %v", err)
+	}
+	cache := readBookCacheFileOrFail(t, libRoot)
+	if got := cache.Books[book.ID()].CurrentSourceMD5; got != want {
+		t.Errorf("current_source_md5 = %q, want %q", got, want)
+	}
+
+	// An edit in place reaches the export through RefreshBookCharCount, the
+	// call every content-writing route makes.
+	if err := source.UpdateContent(strings.NewReader("Dune, revised")); err != nil {
+		t.Fatalf("UpdateContent: %v", err)
+	}
+	s.RefreshBookCharCount(book.ID())
+	if got := s.collectExportBooks()[book.ID()].CurrentSourceMD5; got == want || got == "" {
+		t.Errorf("current_source_md5 after an edit = %q, want a new hash", got)
 	}
 }

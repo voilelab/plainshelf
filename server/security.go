@@ -230,7 +230,7 @@ func (sec *Security) requiresToken(r *http.Request) bool {
 // originAllowedForTokenExemptRequest.
 func (sec *Security) isTokenExemptScan(r *http.Request) bool {
 	return sec != nil && sec.conf.Mode != SecurityModeNone && !sec.conf.ProtectRead &&
-		isReadOnlySafeRequest(r)
+		isShelfScanRequest(r)
 }
 
 // IsLogAPIPath reports the log API, which always needs a token. protect_read

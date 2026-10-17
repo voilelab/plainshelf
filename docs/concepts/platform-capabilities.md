@@ -1,7 +1,9 @@
 # Shelf and Platform Capabilities
 
-!!! note "Design, not yet implemented"
+!!! note "Design, partly implemented"
     This page is the agreed design for [PSW-141](https://patchouli.atlassian.net/browse/PSW-141).
+    The [shelf capability fields](#shelf-capabilities) are served since
+    PSW-145; the platform interface is not implemented yet.
     It fixes the capability fields the server reports before `1.0.0-rc1`,
     because they become part of the API's compatibility promise then. It
     builds on [Shelf Sources and Credentials](shelf-sources.md) (PSW-140).
@@ -72,8 +74,8 @@ wrapper that adds offline downloads to a remote PlainShelf server connection.
     "capabilities": {
       "rescan": true,
       "download": true,
-      "fingerprint": true,
-      "char_count": true
+      "fingerprint": false,
+      "char_count": false
     },
     "offline": {
       "snapshot_at": "2026-10-16T09:12:44Z"
@@ -87,8 +89,8 @@ wrapper that adds offline downloads to a remote PlainShelf server connection.
 | `kind` | `local` or `virtual`, as defined in [Two kinds of shelf](shelf-sources.md#two-kinds-of-shelf). |
 | `capabilities.rescan` | The shelf can be rescanned on request (`POST /api/shelves/{id}/scans`). |
 | `capabilities.download` | Books can be downloaded to the device's offline layer. The engine reports true for a virtual shelf and false for a local one, which is already local. A client that keeps its own offline copy overrides it (see [the remote-server connection](#the-remote-server-connection-stays-a-wrapper)). |
-| `capabilities.fingerprint` | Fingerprints and similar-book pairs are available. |
-| `capabilities.char_count` | Listings carry character counts, so sorting and filtering by length work. |
+| `capabilities.fingerprint` | Fingerprints and similar-book pairs are available. False on a virtual shelf: computing them reads every source, a request per book. |
+| `capabilities.char_count` | Listings carry character counts, so sorting and filtering by length work. False on a virtual shelf, whose listing comes from the exported book cache and carries none. |
 | `offline.snapshot_at` | When the shelf listing was last fetched from the source. Present only on a virtual shelf that has a snapshot; the UI shows it as "last updated" when the source is unreachable. |
 
 `capabilities` is an object rather than a flat set of `can_*` booleans so that a

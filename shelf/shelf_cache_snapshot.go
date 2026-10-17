@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
@@ -30,8 +31,67 @@ would be, and afterwards only looks for an export to appear.
 // refreshRemoteBookCache brings a remote shelf's listing up to date from the
 // newest usable exported book cache. With none, it walks the shelf when
 // walkWithoutCache is set and otherwise keeps what it has.
+//
+// While the source is unavailable, a shelf with an offline store keeps its
+// listing, or takes the stored snapshot when it has none yet.
 func (s *Shelf) refreshRemoteBookCache(walkWithoutCache bool) error {
-	cache, name := s.newestExportedBookCache()
+	err := s.refreshRemoteFromSource(walkWithoutCache)
+	if err == nil {
+		s.afterRemoteListing()
+		return nil
+	}
+	if errors.Is(err, fsutil.ErrSourceUnavailable) && s.listFromOfflineSnapshot() {
+		s.Warn("shelf source is unavailable; listing from the offline snapshot", "error", err)
+		return nil
+	}
+	return err
+}
+
+// listFromOfflineSnapshot reports whether the shelf has a listing to answer
+// with, taking the stored snapshot when it has none yet.
+func (s *Shelf) listFromOfflineSnapshot() bool {
+	if s.offline == nil {
+		return false
+	}
+	s.markRemoteRefreshAttempt()
+
+	s.bookCache.RLock()
+	listed := !s.bookCache.lastScanStart.IsZero()
+	s.bookCache.RUnlock()
+	if listed {
+		return true
+	}
+
+	snapshot := s.offline.lastSnapshot()
+	if snapshot == nil {
+		return false
+	}
+	entries, folders, err := s.bookCacheSnapshot(snapshot)
+	if err != nil {
+		s.Warn("ignoring an unusable offline snapshot", "error", err)
+		return false
+	}
+
+	s.bookCache.Lock()
+	s.bookCache.cache = entries
+	s.bookCache.folders = folders
+	s.bookCache.treeDirty = false
+	s.bookCache.lastScanStart = time.Unix(snapshot.Timestamp, 0)
+	// Not the source's digest: the next export it offers is applied even when
+	// its walk began in the same second.
+	s.bookCache.remoteDigest = ""
+	s.bookCache.Unlock()
+
+	s.reconcileDownloads()
+	return true
+}
+
+func (s *Shelf) refreshRemoteFromSource(walkWithoutCache bool) error {
+	cache, name, err := s.newestExportedBookCache()
+	if err != nil {
+		s.markRemoteRefreshAttempt()
+		return err
+	}
 	if cache == nil {
 		s.markRemoteRefreshAttempt()
 		if walkWithoutCache {
@@ -101,13 +161,18 @@ func (s *Shelf) markRemoteRefreshAttempt() {
 // the cache. Here the cache is the whole listing, so the pick has to be the most
 // recent walk, which only the content records. The candidates number the
 // installations writing the shelf, not its books.
-func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string) {
+//
+// The error is set only when the source is unavailable.
+func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {
 	entries, err := s.dbRoot.ReadDir(appFolder)
 	if err != nil {
+		if errors.Is(err, fsutil.ErrSourceUnavailable) {
+			return nil, "", util.Errorf("%w", err)
+		}
 		if !errors.Is(err, os.ErrNotExist) {
 			s.Warn("failed to list the app folder for an exported book cache", "error", err)
 		}
-		return nil, ""
+		return nil, "", nil
 	}
 
 	var best *BookCacheFile
@@ -128,7 +193,7 @@ func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string) {
 			best, bestName = cache, name
 		}
 	}
-	return best, bestName
+	return best, bestName, nil
 }
 
 // bookCacheSnapshot turns an exported cache into book cache entries without
@@ -148,9 +213,10 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 		// Not built with newBookIDCacheEntry: that reads the current source's
 		// character count, a request per book. A remote listing has none to show.
 		entries[bookID] = &bookIDCacheEntry{
-			folders: bookFolderPath(entry.Path),
-			path:    entry.Path,
-			book:    bookpkg.FromSnapshot(s.dbRoot, s.Logger, entry.Path, entry.Meta),
+			folders:   bookFolderPath(entry.Path),
+			path:      entry.Path,
+			book:      bookpkg.FromSnapshot(s.dbRoot, s.Logger, entry.Path, entry.Meta),
+			sourceMD5: entry.CurrentSourceMD5,
 		}
 	}
 

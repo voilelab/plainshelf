@@ -47,6 +47,12 @@ treats as a read: it walks the shelf and rebuilds the cache without writing, so
 The origin check still applies, so it is exempt from the token but not from
 CSRF.
 
+Downloading a book from a virtual shelf
+(`PUT`/`DELETE /api/shelves/{id}/books/{book_id}/download`) is the other way
+round: read-only mode accepts it, because it writes only this installation's
+[offline copies](shelf-sources.md#offline-copies) and never the shelf, but it
+still needs the token, because it writes to this machine's disk.
+
 The log API (`/api/logs`) is the one read that always needs the token, whatever
 `protect_read` says. Logs are server internals rather than shelf content: they
 record every request path, so reading them yields the shelf's structure along

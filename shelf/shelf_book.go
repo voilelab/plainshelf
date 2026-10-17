@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 	"github.com/voilelab/plainshelf/shelf/scancache"
@@ -356,6 +357,19 @@ func bookFolderPath(folderPath string) FolderPath {
 func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Book) bool) (scanStats, error) {
 	skipAll := false
 
+	// A virtual shelf walks the source itself, never its offline copies, and
+	// stops at the first sign the source is gone: a walk that skipped every
+	// unreachable directory would publish an empty shelf.
+	root := s.walkRoot()
+	var unavailable error
+	stopIfUnavailable := func(err error) bool {
+		if errors.Is(err, fsutil.ErrSourceUnavailable) {
+			unavailable, skipAll = err, true
+			return true
+		}
+		return false
+	}
+
 	// The walk reads each directory through the scan cache, which turns a
 	// ReadDir into a Stat for every folder that has not changed since the last
 	// walk. See shelf/scancache.
@@ -368,8 +382,11 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 			return
 		}
 
-		isDir, err := scancache.ChildIsDir(s.dbRoot, pth, child)
+		isDir, err := scancache.ChildIsDir(root, pth, child)
 		if err != nil {
+			if stopIfUnavailable(err) {
+				return
+			}
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to stat path during book scan", "path", pth, "error", err)
 			}
@@ -393,8 +410,11 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 				return
 			}
 
-			book, err := bookpkg.Open(s.dbRoot, s.Logger, pth)
+			book, err := bookpkg.Open(root, s.Logger, pth)
 			if err != nil {
+				if stopIfUnavailable(err) {
+					return
+				}
 				s.Error("Error opening book", "path", pth, "error", err)
 				return
 			}
@@ -410,8 +430,11 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 			return
 		}
 
-		children, childrenTrusted, err := walk.ReadDir(s.dbRoot, pth, trusted)
+		children, childrenTrusted, err := walk.ReadDir(root, pth, trusted)
 		if err != nil {
+			if stopIfUnavailable(err) {
+				return
+			}
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to read directory during book scan", "path", pth, "error", err)
 			}
@@ -425,5 +448,9 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 	}
 
 	dfsFunc(booksFolder, nil, true)
-	return walk.Install(!skipAll), nil
+	stats := walk.Install(!skipAll)
+	if unavailable != nil {
+		return stats, util.Errorf("%w", unavailable)
+	}
+	return stats, nil
 }

@@ -11,6 +11,11 @@ import (
 // carries read access. See Writable.
 var ErrReadOnly = util.NewError("filesystem is read-only")
 
+// ErrSourceUnavailable is what a remote ReadFS wraps every failure to reach its
+// source with: no network, a server that does not answer, a refused session.
+// It is how a shelf tells "offline" from "this file is not there".
+var ErrSourceUnavailable = util.NewError("shelf source is unavailable")
+
 // ReadFS is the read-only half of FS.
 //
 // It exists so that "this handle is only ever read from" can be a property of
