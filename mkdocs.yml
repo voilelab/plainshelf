@@ -54,3 +54,7 @@ nav:
       - Mutation Testing: development/mutation-testing.md
       - Releasing: development/releasing.md
   - Known Issues: known-issue.md
+
+# A missing in-page anchor is only INFO by default, which --strict lets through.
+validation:
+  anchors: warn

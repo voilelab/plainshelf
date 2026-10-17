@@ -217,3 +217,13 @@ Read the relevant section before working in that area. Add entries according to
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
   preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
   error propagation. See `docs/concepts/shelf-cache-and-io.md`.
+
+## Documentation
+
+- **Section inserted by text replacement:** replacing an existing heading with
+  "new section + that heading" dropped the heading twice in PSW-146 → only
+  `configuration.md` has a test that notices (`server/conf_docs_test.go`), and
+  no PR gate builds the docs (`docs.yml` runs at release). Run
+  `mkdocs build --strict`, which fails on a broken in-page anchor since
+  `validation.anchors: warn`, and read every removed line with
+  `git diff origin/dev -- docs | grep '^-[^-]'`. (`mkdocs.yml`)
