@@ -55,6 +55,19 @@ func TestAPIPatchContentRefusesOversizedBody(t *testing.T) {
 	}
 }
 
+// The size limit outranks the encoding: a body that chardet rejects from its
+// first chunk (a UTF-32 BOM) is still answered 413 when it is oversized.
+func TestAPIPatchContentRefusesOversizedBodyWithUnsupportedEncoding(t *testing.T) {
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Oversized UTF-32", "", "big.txt", "original")
+	url := apitest.SourceURL(created.Meta.ID, created.Meta.CurrentSource, "content")
+
+	utf32BOM := strings.NewReader("\xff\xfe\x00\x00")
+	body := io.MultiReader(utf32BOM, io.LimitReader(repeatReader('x'), apitest.MaxTextUploadSize))
+	rec := env.PatchContent(url, apitest.PlainTextContentType, body)
+	apitest.AssertStatus(t, rec, http.StatusRequestEntityTooLarge)
+}
+
 // repeatReader yields its byte forever without holding the body in memory.
 type repeatReader byte
 
