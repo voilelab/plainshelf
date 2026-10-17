@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { plugin, localFetch } = vi.hoisted(() => ({
   plugin: {
     openPCloudShelf: vi.fn(),
+    openSourceShelf: vi.fn(),
     setShelfShowNsfw: vi.fn(),
     nsfwMarks: vi.fn()
   },
@@ -46,6 +47,7 @@ beforeEach(async () => {
   setActiveShelfID(entry.pcloudShelfRoot);
   setShowNsfwOnDevice(false);
   plugin.openPCloudShelf.mockReset().mockResolvedValue(undefined);
+  plugin.openSourceShelf.mockReset().mockResolvedValue(undefined);
   plugin.setShelfShowNsfw.mockReset().mockResolvedValue(undefined);
   plugin.nsfwMarks.mockReset();
   localFetch.mockReset().mockResolvedValue(new Response('from go'));
@@ -69,6 +71,28 @@ describe('openEmbeddedPCloudShelf', () => {
     });
     // The identity downloads and progress are filed under is untouched.
     expect(currentCacheScopeKey()).toBe(scope);
+  });
+
+  it('opens a dav entry through Go with no secret on the bridge', async () => {
+    await mod.openEmbeddedPCloudShelf({
+      id: 'entry-3',
+      type: 'dav',
+      name: 'NAS',
+      davSource: 'webdav',
+      davUrl: 'https://nas.example/dav/books/',
+      davUsername: 'reader'
+    });
+
+    expect(plugin.openSourceShelf).toHaveBeenCalledWith({
+      id: 'pcloud',
+      entryId: 'entry-3',
+      name: 'NAS',
+      source: 'webdav',
+      url: 'https://nas.example/dav/books/',
+      username: 'reader',
+      showNsfw: false
+    });
+    expect(plugin.openPCloudShelf).not.toHaveBeenCalled();
   });
 });
 

@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import lab.voile.plainshelf.gobind.mobile.Mobile;
 import lab.voile.plainshelf.gobind.mobile.Response;
+import lab.voile.plainshelf.gobind.mobile.SecretStore;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -35,6 +36,16 @@ final class LocalShelf {
         if (!dataDir.isDirectory() && !dataDir.mkdirs()) {
             throw new IOException("cannot create " + dataDir);
         }
+        // Answers host:<entryID> credentials from the Keystore, so a secret
+        // never crosses the bridge.
+        final Context app = context.getApplicationContext();
+        Mobile.setSecretStore(new SecretStore() {
+            @Override
+            public String secret(String entryID) throws Exception {
+                String secret = SecureStoragePlugin.readShelfToken(app, entryID);
+                return secret == null ? "" : secret;
+            }
+        });
         Mobile.start(dataDir.getAbsolutePath());
         started = true;
     }

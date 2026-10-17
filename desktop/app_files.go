@@ -159,12 +159,14 @@ func (a *DesktopApp) shelfLibRoot(shelfID string) (string, error) {
 		return "", util.Errorf("loading shelf config: %w", err)
 	}
 
-	for _, entry := range conf.Shelves {
-		if entry.ID == shelfID {
-			return entry.LibRoot, nil
-		}
+	entry := conf.find(shelfID)
+	switch {
+	case entry == nil:
+		return "", util.Errorf("shelf with ID %q not found", shelfID)
+	case entry.Source != nil:
+		return "", util.Errorf("shelf %q is read from %s and has no folder on this computer", shelfID, entry.Source.URL)
 	}
-	return "", util.Errorf("shelf with ID %q not found", shelfID)
+	return entry.LibRoot, nil
 }
 
 // OpenShelfInFinder reveals a shelf's lib_root in the host file explorer. It is

@@ -439,6 +439,9 @@ const en = {
       addShelfLocationExisting: 'Use a folder I already have',
       addShelfLocationExistingHelp:
         'Point PlainShelf at a folder you choose, anywhere on your disk. It is opened as it is.',
+      addShelfLocationRemote: 'Read a shelf from another device',
+      addShelfLocationRemoteHelp:
+        'Another PlainShelf’s LAN share or a WebDAV server such as a NAS. Opened read-only; the token is kept in the system keychain.',
       addShelfDefaultPath: 'Folder to create:',
       addShelfDirectoryNotAbsolute: 'Enter a full path, starting from the root of the drive.',
       removeConfirmYes: 'Delete shelf',
@@ -1093,6 +1096,26 @@ const en = {
       lastSection: 'You are at the last chapter'
     }
   },
+  shelfSource: {
+    kindLabel: 'Source',
+    plainshelf: 'Another PlainShelf',
+    webdav: 'WebDAV',
+    urlLabel: 'Shelf URL',
+    urlPlaceholder: 'http://192.168.1.20:20001/dav/default_shelf/',
+    urlHint: 'The address of the shelf folder: the one that contains books/. For another PlainShelf, the LAN share shows it.',
+    tokenLabel: 'Token',
+    usernameLabel: 'Username (optional)',
+    passwordLabel: 'Password or token (optional)',
+    secretHint: 'Kept in this device’s secure storage, never in the shelf list.',
+    check: 'Check shelf',
+    checking: 'Checking…',
+    shelfFound: 'Found {count} books.',
+    unauthorized: 'Wrong token: the source refused it.',
+    unavailable: 'Cannot connect to the source.',
+    notAShelf: 'That address has no books/ folder, so it is not a PlainShelf shelf.',
+    checkRequired: 'Check the shelf before saving.',
+    readOnlyHint: 'Opened read-only. Books can be downloaded to this device for offline reading.'
+  },
   mobileConnect: {
     title: 'Connect to PlainShelf',
     description: 'Choose where your library lives so you can browse and read it on this device. The app never changes a library on a server or pCloud; a local shelf lives on this device and can be edited.',
@@ -1100,6 +1123,7 @@ const en = {
     modeServer: 'PlainShelf server',
     modePCloud: 'pCloud',
     modeLocal: 'Local shelf',
+    modeRemote: 'Another device',
     localHint: 'Kept in this app’s own storage and works offline. Uninstalling the app or removing the shelf deletes its books.',
     localNameRequired: 'Name the shelf first.',
     pcloud: {

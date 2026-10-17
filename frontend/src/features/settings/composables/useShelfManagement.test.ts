@@ -419,3 +419,115 @@ describe('useShelfManagement read-only shelves', () => {
     });
   });
 });
+
+describe('useShelfManagement remote shelves', () => {
+  async function fillRemote(m: ReturnType<typeof useShelfManagement>, secret: string) {
+    m.newShelfName.value = 'Living room';
+    m.newShelfLocationMode.value = 'remote';
+    m.newShelfSourceURL.value = ' http://192.168.1.20:20001/dav/default_shelf/ ';
+    m.newShelfSourceSecret.value = secret;
+    await nextTick();
+  }
+
+  it('checks the source with the typed token, then adds it as a virtual shelf', async () => {
+    const checkDesktopShelfSource = vi.fn(() => Promise.resolve({ books: 4 }));
+    const addDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = { checkDesktopShelfSource, addDesktopShelf };
+    const m = useShelfManagement();
+    await fillRemote(m, 'tok');
+    expect(m.canSubmitAddShelf.value).toBe(true);
+
+    await m.onSubmitAddShelf();
+
+    const remote = {
+      source: 'plainshelf',
+      url: 'http://192.168.1.20:20001/dav/default_shelf/',
+      username: '',
+      secret: 'tok'
+    };
+    expect(checkDesktopShelfSource).toHaveBeenCalledWith(remote);
+    expect(addDesktopShelf).toHaveBeenCalledWith({
+      name: 'Living room',
+      libRoot: '',
+      scanInterval: '',
+      bookCheckInterval: '',
+      readOnly: true,
+      remote
+    });
+    expect(m.showAddShelfModal.value).toBe(false);
+    // The secret does not outlive the form.
+    expect(m.newShelfSourceSecret.value).toBe('');
+  });
+
+  it.each([
+    ['SOURCE_UNAUTHORIZED', 'Wrong token: the source refused it.'],
+    ['SOURCE_UNAVAILABLE', 'Cannot connect to the source.']
+  ])('reports %s without adding the shelf', async (code, message) => {
+    const addDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = {
+      checkDesktopShelfSource: vi.fn(() => Promise.resolve({ code, books: 0 })),
+      addDesktopShelf
+    };
+    const m = useShelfManagement();
+    m.showAddShelfModal.value = true;
+    await fillRemote(m, 'tok');
+
+    await m.onSubmitAddShelf();
+
+    expect(m.addShelfError.value).toBe(message);
+    expect(addDesktopShelf).not.toHaveBeenCalled();
+    expect(m.showAddShelfModal.value).toBe(true);
+  });
+
+  it('needs a token for a PlainShelf export but not for WebDAV', async () => {
+    provider.value = {};
+    const m = useShelfManagement();
+    await fillRemote(m, '');
+    expect(m.canSubmitAddShelf.value).toBe(false);
+
+    m.newShelfSourceKind.value = 'webdav';
+    await nextTick();
+    expect(m.canSubmitAddShelf.value).toBe(true);
+  });
+
+  it('sends a username only for WebDAV', async () => {
+    const checkDesktopShelfSource = vi.fn(() => Promise.resolve({ books: 0 }));
+    provider.value = { checkDesktopShelfSource, addDesktopShelf: vi.fn(() => Promise.resolve()) };
+    const m = useShelfManagement();
+    await fillRemote(m, 'pw');
+    m.newShelfSourceUsername.value = 'reader';
+
+    await m.onSubmitAddShelf();
+    expect(checkDesktopShelfSource).toHaveBeenLastCalledWith(expect.objectContaining({ username: '' }));
+
+    await fillRemote(m, 'pw');
+    m.newShelfSourceKind.value = 'webdav';
+    m.newShelfSourceUsername.value = 'reader';
+    await m.onSubmitAddShelf();
+    expect(checkDesktopShelfSource).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: 'webdav', username: 'reader' })
+    );
+  });
+
+  it('shows a virtual shelf by its address and locks its read-only toggle', async () => {
+    provider.value = {
+      getDesktopShelfDetails: vi.fn(() =>
+        Promise.resolve({
+          id: 'nas',
+          name: 'NAS',
+          path: '',
+          scan_interval: '',
+          book_check_interval: '',
+          read_only: true,
+          source: 'webdav',
+          url: 'https://nas.example/dav/books/',
+          username: 'reader'
+        })
+      )
+    };
+    const m = useShelfManagement();
+    await m.requestModifyShelf({ id: 'nas', name: 'NAS' });
+    expect(m.modifyShelfPath.value).toBe('https://nas.example/dav/books/');
+    expect(m.modifyShelfIsVirtual.value).toBe(true);
+  });
+});

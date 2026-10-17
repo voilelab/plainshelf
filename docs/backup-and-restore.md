@@ -184,7 +184,9 @@ shelf:
 ```
 
 The shelf directories themselves are wherever you pointed the app; `shelves.json`
-lists them.
+lists them. The token of a shelf read from another device is in the system
+keychain, not in this directory, so a restored copy asks for it again: remove
+that shelf and add it back.
 
 ```sh
 # Quit PlainShelf.app first.

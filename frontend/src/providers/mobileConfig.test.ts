@@ -601,3 +601,55 @@ describe('applyActiveShelfEntry', () => {
     expect(setApiBaseMock).toHaveBeenCalledWith('http://host:20000');
   });
 });
+
+describe('a dav entry', () => {
+  type DavShelfEntry = import('./mobileConfig').DavShelfEntry;
+
+  function davEntry(overrides: Partial<DavShelfEntry> = {}): DavShelfEntry {
+    return {
+      id: 'entry-3',
+      type: 'dav',
+      name: 'Living room',
+      davSource: 'plainshelf',
+      davUrl: 'http://192.168.1.20:20001/dav/default_shelf/',
+      ...overrides
+    };
+  }
+
+  it('keeps its token in secure storage, never in the list', async () => {
+    await reinit();
+    await upsertShelfEntry(davEntry(), 'tok');
+
+    expect(secureStore.get('plainshelf.mobile.secret.entry-3')).toBe('tok');
+    expect(store.get(ENTRIES_KEY)).not.toContain('tok');
+    const [reloaded] = (await loadShelfEntries()).entries;
+    expect(reloaded).toEqual(davEntry());
+  });
+
+  it('scopes by source type, URL and account, never as an HTTP base', () => {
+    const plain = shelfEntryTarget(davEntry());
+    expect(plain.apiBase).toBe('plainshelf+http://192.168.1.20:20001/dav/default_shelf');
+    const webdav = shelfEntryTarget(davEntry({ davSource: 'webdav' }));
+    const account = shelfEntryTarget(davEntry({ davSource: 'webdav', davUsername: 'reader' }));
+    expect(new Set([plain.apiBase, webdav.apiBase, account.apiBase]).size).toBe(3);
+    expect(account.apiBase).toContain('reader@');
+  });
+
+  it('needs a token for a PlainShelf export but not for WebDAV', async () => {
+    await reinit();
+    await expect(isShelfEntryUsable(davEntry())).resolves.toBe(false);
+    await expect(isShelfEntryUsable(davEntry({ davSource: 'webdav' }))).resolves.toBe(true);
+
+    secureStore.set('plainshelf.mobile.secret.entry-3', 'tok');
+    await expect(isShelfEntryUsable(davEntry())).resolves.toBe(true);
+    expect(isShelfEntryConfigured(davEntry({ davUrl: '' }))).toBe(false);
+  });
+
+  it('is named after its host when saved without a name', () => {
+    expect(shelfEntryDisplayName(davEntry({ name: '' }))).toBe('192.168.1.20:20001');
+  });
+
+  it('starts as a PlainShelf source', () => {
+    expect(newShelfEntry('dav')).toMatchObject({ type: 'dav', davSource: 'plainshelf', davUrl: '' });
+  });
+});

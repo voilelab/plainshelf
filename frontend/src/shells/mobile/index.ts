@@ -13,9 +13,11 @@ import {
   getActiveShelfEntryToken,
   initMobileConfig,
   isShelfEntryConfigured,
+  type DavShelfEntry,
   type PCloudShelfEntry,
   type ShelfEntry
 } from '@/providers/mobileConfig';
+import { shelfSourceNeedsSecret } from '@/utils/shelfSourceCheck';
 import { registerShell } from '@/providers/shell';
 import { createMobileDeviceDocumentStorage } from './deviceDocumentStorage';
 import { activeMobileShelfInfo } from './shelfInfo';
@@ -24,13 +26,20 @@ import { createMobileShelfPicker } from './shelfPicker';
 import { ServerBookshelfProvider } from '@/providers/serverBookshelfProvider';
 
 /**
- * Whether the active entry is a pCloud shelf that can be opened. The provider
- * is built during bootstrap, before the router has had a chance to send an
- * unconfigured install to the shelf list, so an incomplete entry, or one whose
- * token is gone, falls back to the server path and the setup form.
+ * Whether the active entry is a pCloud or dav shelf the embedded server can
+ * open. The provider is built during bootstrap, before the router has had a
+ * chance to send an unconfigured install to the shelf list, so an incomplete
+ * entry, or one whose token is gone, falls back to the server path and the
+ * setup form.
  */
-function isUsablePCloudEntry(entry: ShelfEntry | null): entry is PCloudShelfEntry {
-  return entry?.type === 'pcloud' && isShelfEntryConfigured(entry) && Boolean(getActiveShelfEntryToken());
+function isUsableEmbeddedEntry(entry: ShelfEntry | null): entry is PCloudShelfEntry | DavShelfEntry {
+  if (!entry || !isShelfEntryConfigured(entry)) {
+    return false;
+  }
+  if (entry.type === 'dav') {
+    return !shelfSourceNeedsSecret(entry.davSource) || Boolean(getActiveShelfEntryToken());
+  }
+  return entry.type === 'pcloud' && Boolean(getActiveShelfEntryToken());
 }
 
 /**
@@ -52,7 +61,7 @@ export async function installMobileShell(): Promise<void> {
   if (isLocal) {
     setApiTransport({ fetch: localShelfFetch, allowMobileWrites: true });
   }
-  if (isUsablePCloudEntry(active)) {
+  if (isUsableEmbeddedEntry(active)) {
     // Read through the embedded Go server, still read-only. Not awaited; see
     // openEmbeddedPCloudShelf. After a failed open the reads fail like an
     // unreachable shelf and fall back to the downloads.
@@ -76,7 +85,7 @@ export async function installMobileShell(): Promise<void> {
       // Directory.Data: app-private files are exempt from the WebView's
       // best-effort storage eviction, which the browser storage APIs are not.
       return new MobileBookshelfProvider(
-        isUsablePCloudEntry(getActiveShelfEntry()) ? new EmbeddedPCloudReader() : new ServerBookshelfProvider(),
+        isUsableEmbeddedEntry(getActiveShelfEntry()) ? new EmbeddedPCloudReader() : new ServerBookshelfProvider(),
         new FilesystemMobileBookCache(),
         undefined,
         new FilesystemMobileCoverCache()

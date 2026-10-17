@@ -37,6 +37,7 @@ servers, a couple of pCloud folders and local shelves at once:
 | PlainShelf server | A server you run, reachable over the network | Its URL, which shelf on it, and an access token only when the server sets `protect_read` |
 | pCloud | A shelf folder in your pCloud account | Your own pCloud app key, the region learned during authorization, and the folder path |
 | Local shelf | The app's own private storage | Its name and the embedded server's shelf id |
+| Other device | Another PlainShelf's [LAN share](#share-local-shelves-on-the-local-network), or any WebDAV server such as a NAS | The source kind, the shelf folder's URL and, for WebDAV, the account; the token or password is kept in Keystore-backed storage |
 
 One entry is one shelf. Two shelves on the same server are two entries, added
 the same way. Access tokens are kept in Android Keystore-backed storage, one per
@@ -65,9 +66,10 @@ the same shelf back picks up where you left off. Removing a *local* shelf
 deletes the shelf itself with every book in it, after a confirmation that says
 so.
 
-Server and pCloud entries are read-only. The rest of this page covers the
-server source first, then [Read a shelf from pCloud](#read-a-shelf-from-pcloud)
-and [Local shelves](#local-shelves).
+Server, pCloud and other-device entries are read-only. The rest of this page
+covers the server source first, then [Read a shelf from pCloud](#read-a-shelf-from-pcloud),
+[Read a shelf from another device](#read-a-shelf-from-another-device) and
+[Local shelves](#local-shelves).
 
 ## Prerequisites
 
@@ -287,6 +289,28 @@ without an extra lookup.
 Downloads, reading progress, read history, and reading time work exactly as for
 a server shelf: they are stored on the device, kept separate per shelf entry,
 and never written back.
+
+## Read a shelf from another device
+
+**Other device** reads a shelf over WebDAV through the embedded Go server, with
+no server of your own: another PlainShelf's LAN share (the desktop app's, the
+server's [`dav_export`](../reference/configuration.md#dav_export), or another
+phone's), or a WebDAV server holding a shelf directory.
+
+1. Pick **Another PlainShelf** or **WebDAV**, and enter the URL of the shelf
+   folder, the one that holds `books/`. A LAN share shows it as
+   `http://<address>:20001/dav/<shelf id>/`.
+2. Enter the token (another PlainShelf) or, for WebDAV, the account and its
+   password or token if the server asks for one.
+3. **Check shelf** must pass before the entry can be saved. A refused token
+   says so (`SOURCE_UNAUTHORIZED`); an address that cannot be reached says it
+   cannot connect (`SOURCE_UNAVAILABLE`).
+
+The secret is stored in Keystore-backed storage under
+`plainshelf.mobile.secret.<entry id>`, the same key a pCloud token uses. Go reads
+it through the `host:<entry id>` credential reference, so it never crosses the
+JavaScript bridge after setup. The shelf opens read-only, and its books can be
+downloaded for offline reading like a pCloud shelf's.
 
 ## Local shelves
 

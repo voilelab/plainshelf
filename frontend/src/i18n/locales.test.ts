@@ -18,7 +18,10 @@ const SHARED_VALUE_KEYS = new Set([
   'mobileConnect.modePCloud',
   'mobileConnect.pcloud.picker.rootLabel',
   'mobileConnect.pcloud.shelfRootPlaceholder',
-  'mobileConnect.serverUrlPlaceholder'
+  'mobileConnect.serverUrlPlaceholder',
+  'shelfSource.webdav',
+  'shelfSource.tokenLabel',
+  'shelfSource.urlPlaceholder'
 ]);
 
 function flatten(messages: Messages, prefix = ''): Record<string, string> {

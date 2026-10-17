@@ -1,10 +1,13 @@
 package main
 
 import (
+	"log"
 	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/server"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 type DesktopShelfDetails struct {
@@ -14,6 +17,22 @@ type DesktopShelfDetails struct {
 	ScanInterval      string `json:"scan_interval"`
 	BookCheckInterval string `json:"book_check_interval"`
 	ReadOnly          bool   `json:"read_only"`
+	// Source is the virtual shelf's source type, empty for a local shelf; URL
+	// and Username are then its address and account. The secret is never
+	// returned.
+	Source   string `json:"source"`
+	URL      string `json:"url"`
+	Username string `json:"username"`
+}
+
+// ShelfSourceParams names a virtual shelf's source as the add-shelf form
+// typed it. Secret goes to the OS keychain only.
+type ShelfSourceParams struct {
+	// Source is "plainshelf" or "webdav"; empty means a local shelf.
+	Source   string `json:"source"`
+	URL      string `json:"url"`
+	Username string `json:"username"`
+	Secret   string `json:"secret"`
 }
 
 // AddShelfParams is a struct rather than a positional argument list because
@@ -25,6 +44,8 @@ type AddShelfParams struct {
 	ScanInterval      string `json:"scanInterval"`
 	BookCheckInterval string `json:"bookCheckInterval"`
 	ReadOnly          bool   `json:"readOnly"`
+	// Remote, when its Source is set, adds a virtual shelf instead of LibRoot.
+	Remote ShelfSourceParams `json:"remote"`
 }
 
 // ModifyShelfParams carries the fields the modify-shelf form submits; see
@@ -71,12 +92,7 @@ func (a *DesktopApp) PreviewShelfID(name string) (ShelfIDPreview, error) {
 		return ShelfIDPreview{}, util.Errorf("loading shelf config: %w", err)
 	}
 
-	existingIDs := map[string]bool{}
-	for _, entry := range conf.Shelves {
-		existingIDs[entry.ID] = true
-	}
-
-	id := generateDesktopShelfID(name, existingIDs)
+	id := generateDesktopShelfID(name, conf.existingIDs())
 	return ShelfIDPreview{
 		ID:          id,
 		DefaultPath: defaultDesktopShelfDir(a.shelvesConfigPath, id),
@@ -97,6 +113,9 @@ func (a *DesktopApp) AddShelf(params AddShelfParams) error {
 	if name == "" {
 		return util.Errorf("shelf name cannot be empty")
 	}
+	if params.Remote.Source != "" {
+		return a.addVirtualShelf(name, params)
+	}
 
 	normalizedLibRoot, err := normalizeDesktopShelfDirectory(params.LibRoot)
 	if err != nil {
@@ -111,12 +130,7 @@ func (a *DesktopApp) AddShelf(params AddShelfParams) error {
 		return util.Errorf("loading shelf config: %w", err)
 	}
 
-	existingIDs := map[string]bool{}
-	for _, entry := range conf.Shelves {
-		existingIDs[entry.ID] = true
-	}
-
-	id := generateDesktopShelfID(name, existingIDs)
+	id := generateDesktopShelfID(name, conf.existingIDs())
 
 	entry := desktopShelfEntry{
 		ID:                id,
@@ -143,6 +157,87 @@ func (a *DesktopApp) AddShelf(params AddShelfParams) error {
 	return nil
 }
 
+// addVirtualShelf adds a plainshelf or webdav shelf. The secret is stored in
+// the keychain under the new shelf's ID before the shelf opens, since opening
+// resolves it, and removed again if the shelf is not saved.
+func (a *DesktopApp) addVirtualShelf(name string, params AddShelfParams) error {
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+	id := generateDesktopShelfID(name, conf.existingIDs())
+
+	remote := params.Remote
+	src := &shelf.SourceConf{
+		Type:     remote.Source,
+		URL:      strings.TrimSpace(remote.URL),
+		Username: strings.TrimSpace(remote.Username),
+	}
+	secret := strings.TrimSpace(remote.Secret)
+	if secret != "" {
+		src.Credential = hostCredentialPrefix + id
+	}
+	if src.Type != shelf.SourcePlainShelf && src.Type != shelf.SourceWebDAV {
+		return util.Errorf("source type %q is not available on the desktop", src.Type)
+	}
+	if err := src.Validate(); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	entry := desktopShelfEntry{
+		ID:                id,
+		Name:              name,
+		Source:            src,
+		ScanInterval:      strings.TrimSpace(params.ScanInterval),
+		BookCheckInterval: strings.TrimSpace(params.BookCheckInterval),
+		// What the shelf opens as anyway; recorded so ModifyShelf matches it.
+		ReadOnly: true,
+	}
+
+	secrets := a.secretStore()
+	if secret != "" {
+		if err := secrets.Set(id, secret); err != nil {
+			return util.Errorf("storing the shelf's secret in the keychain: %w", err)
+		}
+	}
+	forgetSecret := func() {
+		if secret == "" {
+			return
+		}
+		if err := secrets.Delete(id); err != nil {
+			log.Println("Failed to remove a shelf secret from the keychain:", err)
+		}
+	}
+
+	if err := a.app.AddShelf(toShelfConfWithID(entry)); err != nil {
+		forgetSecret()
+		return util.Errorf("registering shelf: %w", err)
+	}
+
+	conf.VirtualShelves = append(conf.VirtualShelves, entry)
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		removeErr := a.app.RemoveShelf(id)
+		forgetSecret()
+		if removeErr != nil {
+			return util.Errorf("saving shelf config: %w; rolling back runtime shelf: %v", err, removeErr)
+		}
+		return util.Errorf("saving shelf config: %w", err)
+	}
+	return nil
+}
+
+// CheckShelfSource probes the source the add-shelf form describes, with the
+// secret it holds, before anything is stored. A Code of SOURCE_UNAUTHORIZED is
+// a refused credential and SOURCE_UNAVAILABLE no connection.
+func (a *DesktopApp) CheckShelfSource(params ShelfSourceParams) (server.SourceCheck, error) {
+	check, err := server.CheckSource(params.Source, strings.TrimSpace(params.URL),
+		strings.TrimSpace(params.Username), strings.TrimSpace(params.Secret))
+	if err != nil {
+		return server.SourceCheck{}, util.Errorf("%w", err)
+	}
+	return check, nil
+}
+
 func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, error) {
 	if a.app == nil {
 		return nil, util.NewError("desktop backend app instance is nil")
@@ -158,20 +253,22 @@ func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, erro
 		return nil, util.Errorf("loading shelf config: %w", err)
 	}
 
-	for _, entry := range conf.Shelves {
-		if entry.ID == shelfID {
-			return &DesktopShelfDetails{
-				ID:                entry.ID,
-				Name:              entry.Name,
-				Path:              entry.LibRoot,
-				ScanInterval:      entry.ScanInterval,
-				BookCheckInterval: entry.BookCheckInterval,
-				ReadOnly:          entry.ReadOnly,
-			}, nil
-		}
+	entry := conf.find(shelfID)
+	if entry == nil {
+		return nil, util.Errorf("shelf with ID %q not found", shelfID)
 	}
-
-	return nil, util.Errorf("shelf with ID %q not found", shelfID)
+	details := &DesktopShelfDetails{
+		ID:                entry.ID,
+		Name:              entry.Name,
+		Path:              entry.LibRoot,
+		ScanInterval:      entry.ScanInterval,
+		BookCheckInterval: entry.BookCheckInterval,
+		ReadOnly:          entry.ReadOnly,
+	}
+	if entry.Source != nil {
+		details.Source, details.URL, details.Username = entry.Source.Type, entry.Source.URL, entry.Source.Username
+	}
+	return details, nil
 }
 
 // ModifyShelf applies edited settings to an existing shelf.
@@ -211,13 +308,7 @@ func (a *DesktopApp) ModifyShelf(params ModifyShelfParams) error {
 		return util.Errorf("loading shelf config: %w", err)
 	}
 
-	var found *desktopShelfEntry
-	for i := range conf.Shelves {
-		if conf.Shelves[i].ID == shelfID {
-			found = &conf.Shelves[i]
-			break
-		}
-	}
+	found := conf.find(shelfID)
 	if found == nil {
 		return util.Errorf("shelf with ID %q not found in config", shelfID)
 	}
@@ -228,7 +319,8 @@ func (a *DesktopApp) ModifyShelf(params ModifyShelfParams) error {
 	updated.Name = name
 	updated.ScanInterval = scanInterval
 	updated.BookCheckInterval = bookCheckInterval
-	updated.ReadOnly = params.ReadOnly
+	// A virtual shelf has no write path to switch on.
+	updated.ReadOnly = params.ReadOnly || updated.Source != nil
 
 	if err := a.app.UpdateShelf(toShelfConfWithID(updated)); err != nil {
 		return util.Errorf("updating shelf: %w", err)
@@ -261,24 +353,31 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 		return util.Errorf("loading shelf config: %w", err)
 	}
 
-	// DeleteFunc mutates its argument in place, so clone first: conf.Shelves is
-	// read again in the length check below. The check treats removing several
-	// duplicate IDs the same as removing one, exactly as the previous found-bool
-	// loop did.
-	newShelves := slices.DeleteFunc(slices.Clone(conf.Shelves), func(entry desktopShelfEntry) bool {
-		return entry.ID == shelfID
-	})
-	if len(newShelves) == len(conf.Shelves) {
+	removed := conf.find(shelfID)
+	if removed == nil {
 		return util.Errorf("shelf with ID %q not found in config", shelfID)
 	}
+	// Read before DeleteFunc, which overwrites the slots removed points into.
+	source := removed.Source
+	isShelf := func(entry desktopShelfEntry) bool { return entry.ID == shelfID }
+	conf.Shelves = slices.DeleteFunc(conf.Shelves, isShelf)
+	conf.VirtualShelves = slices.DeleteFunc(conf.VirtualShelves, isShelf)
 
-	conf.Shelves = newShelves
 	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
 		return util.Errorf("saving shelf config: %w", err)
 	}
 
-	if err := a.app.RemoveShelf(shelfID); err != nil {
-		return util.Errorf("removing shelf from runtime: %w", err)
+	// A virtual shelf that failed to open at startup is in the config only.
+	if _, open := a.app.ShelfManager().GetShelf(shelfID); open || source == nil {
+		if err := a.app.RemoveShelf(shelfID); err != nil {
+			return util.Errorf("removing shelf from runtime: %w", err)
+		}
+	}
+
+	if source != nil && strings.HasPrefix(source.Credential, hostCredentialPrefix) {
+		if err := a.secretStore().Delete(strings.TrimPrefix(source.Credential, hostCredentialPrefix)); err != nil {
+			return util.Errorf("removing the shelf's secret from the keychain: %w", err)
+		}
 	}
 
 	if a.lanShare != nil {

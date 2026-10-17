@@ -3,14 +3,22 @@ import { useShelvesStore } from '@/composables/useShelvesStore';
 import { getBookshelfProvider } from '@/providers';
 import { useI18n } from '@/i18n';
 import { isAbsoluteShelfPath } from '@/features/settings/utils/shelfPath';
+import {
+  shelfSourceCheckMessageKey,
+  shelfSourceNeedsSecret,
+  type ShelfSourceKind
+} from '@/utils/shelfSourceCheck';
 
 interface ShelfRef {
   id: string;
   name: string;
 }
 
-/** Where a new shelf's folder comes from: created by PlainShelf, or adopted. */
-type ShelfLocationMode = 'new' | 'existing';
+/**
+ * Where a new shelf comes from: a folder PlainShelf creates, one adopted, or
+ * a remote source read as a virtual shelf.
+ */
+type ShelfLocationMode = 'new' | 'existing' | 'remote';
 
 /**
  * The settings page's shelf table: adding, modifying and removing a shelf, plus
@@ -41,6 +49,12 @@ export function useShelfManagement() {
   const newShelfLocationMode = ref<ShelfLocationMode>('new');
   const newShelfDirectory = ref('');
   const newShelfReadOnly = ref(false);
+  // The remote branch. The secret is handed to the desktop, which keeps it in
+  // the OS keychain; it is cleared with the rest of the form.
+  const newShelfSourceKind = ref<ShelfSourceKind>('plainshelf');
+  const newShelfSourceURL = ref('');
+  const newShelfSourceUsername = ref('');
+  const newShelfSourceSecret = ref('');
   const addingShelf = ref(false);
   const addShelfError = ref('');
 
@@ -49,7 +63,7 @@ export function useShelfManagement() {
   // branch — so leaving the existing-folder branch has to put it back, not just
   // stop showing it.
   watch(newShelfLocationMode, (mode) => {
-    if (mode === 'new') {
+    if (mode !== 'existing') {
       newShelfReadOnly.value = false;
     }
   });
@@ -95,6 +109,12 @@ export function useShelfManagement() {
     if (newShelfName.value.trim().length === 0) {
       return false;
     }
+    if (newShelfLocationMode.value === 'remote') {
+      return (
+        newShelfSourceURL.value.trim().length > 0 &&
+        (!shelfSourceNeedsSecret(newShelfSourceKind.value) || newShelfSourceSecret.value.trim().length > 0)
+      );
+    }
     const dir = newShelfEffectiveDirectory.value;
     return dir.length > 0 && isAbsoluteShelfPath(dir);
   });
@@ -132,6 +152,8 @@ export function useShelfManagement() {
   const modifyShelfBookCheckInterval = ref('');
   const modifyShelfReadOnly = ref(false);
   const modifyShelfPath = ref('');
+  // A virtual shelf is read-only whatever it is set to, so its toggle is locked.
+  const modifyShelfIsVirtual = ref(false);
   const modifyingShelf = ref(false);
   const modifyShelfError = ref('');
   const canSubmitModifyShelf = computed(() => modifyShelfName.value.trim().length > 0);
@@ -188,6 +210,10 @@ export function useShelfManagement() {
     newShelfLocationMode.value = 'new';
     newShelfDirectory.value = '';
     newShelfReadOnly.value = false;
+    newShelfSourceKind.value = 'plainshelf';
+    newShelfSourceURL.value = '';
+    newShelfSourceUsername.value = '';
+    newShelfSourceSecret.value = '';
     addShelfError.value = '';
     // Invalidate any in-flight preview so its late response cannot repopulate
     // the field after the form is cleared.
@@ -249,6 +275,10 @@ export function useShelfManagement() {
 
     try {
       const provider = getBookshelfProvider();
+      if (newShelfLocationMode.value === 'remote') {
+        await addRemoteShelf(name);
+        return;
+      }
       // Neither interval is part of creating a shelf: both keep the backend
       // default and stay adjustable in the modify dialog. Read-only likewise
       // only ever comes from the existing-folder branch.
@@ -270,12 +300,45 @@ export function useShelfManagement() {
     }
   }
 
+  /**
+   * Checks the source with the typed secret first, so a wrong token and no
+   * connection are told apart before anything is saved; then adds it.
+   */
+  async function addRemoteShelf(name: string): Promise<void> {
+    const provider = getBookshelfProvider();
+    const remote = {
+      source: newShelfSourceKind.value,
+      url: newShelfSourceURL.value.trim(),
+      // A PlainShelf export takes a bearer token, never a username.
+      username: newShelfSourceKind.value === 'webdav' ? newShelfSourceUsername.value.trim() : '',
+      secret: newShelfSourceSecret.value.trim()
+    };
+    const check = await provider.checkDesktopShelfSource!(remote);
+    const messageKey = shelfSourceCheckMessageKey(check);
+    if (messageKey) {
+      addShelfError.value = t(messageKey);
+      return;
+    }
+    await provider.addDesktopShelf!({
+      name,
+      libRoot: '',
+      scanInterval: '',
+      bookCheckInterval: '',
+      readOnly: true,
+      remote
+    });
+    await fetchShelves();
+    showAddShelfModal.value = false;
+    resetAddShelfForm();
+  }
+
   function resetModifyShelfForm(): void {
     modifyShelfName.value = '';
     modifyShelfScanInterval.value = '';
     modifyShelfBookCheckInterval.value = '';
     modifyShelfReadOnly.value = false;
     modifyShelfPath.value = '';
+    modifyShelfIsVirtual.value = false;
     modifyShelfError.value = '';
   }
 
@@ -295,7 +358,9 @@ export function useShelfManagement() {
       modifyShelfScanInterval.value = details.scan_interval;
       modifyShelfBookCheckInterval.value = details.book_check_interval;
       modifyShelfReadOnly.value = details.read_only;
-      modifyShelfPath.value = details.path;
+      // A virtual shelf has no folder: its address stands in for one.
+      modifyShelfIsVirtual.value = Boolean(details.source);
+      modifyShelfPath.value = details.source ? details.url : details.path;
       showModifyShelfModal.value = true;
     } catch (err) {
       shelfOpError.value =
@@ -373,6 +438,10 @@ export function useShelfManagement() {
     newShelfDirectory,
     newShelfDirectoryError,
     newShelfReadOnly,
+    newShelfSourceKind,
+    newShelfSourceURL,
+    newShelfSourceUsername,
+    newShelfSourceSecret,
     newShelfIDPreview,
     newShelfEffectiveDirectory,
     addingShelf,
@@ -390,6 +459,7 @@ export function useShelfManagement() {
     modifyShelfBookCheckInterval,
     modifyShelfReadOnly,
     modifyShelfPath,
+    modifyShelfIsVirtual,
     modifyingShelf,
     modifyShelfError,
     canSubmitModifyShelf,

@@ -6,7 +6,7 @@
     offline ([Offline copies](#offline-copies), PSW-145). The server reads the
     `source` block and resolves `env:` and `file:` credentials, and opens
     `plainshelf` and `webdav` sources (PSW-149); the desktop and Android hosts
-    do not take a `source` entry or resolve `host:` yet. It fixes the
+    add them from their settings and resolve `host:` (PSW-161). It fixes the
     configuration format and the credential model before `1.0.0-rc1`, because
     both become compatibility promises at that point. The implementation lands
     through the tickets listed in [What this changes in the follow-up
@@ -291,8 +291,11 @@ fails that shelf at startup instead of opening something else.
 
 **Desktop.** Existing `shelves.json` entries carry `lib_root` and load
 unchanged. `desktopShelfEntry` gains `source`, and the desktop keeps writing
-`lib_root` (not `source`) for a local shelf, so a downgraded desktop still reads
-every local shelf it had.
+`lib_root` (not `source`) for a local shelf. An entry with a `source` is written
+under a separate `virtual_shelves` key rather than `shelves`: a build before it
+fails startup on a `shelves` entry without `lib_root`, while it ignores the
+unknown key, so a downgraded desktop still opens every local shelf it had. It
+does not keep `virtual_shelves` when it next saves the file.
 
 **Android.** A pCloud entry maps field for field:
 
@@ -390,3 +393,11 @@ the type, never by falling back to another source.
   `AppConf.Credentials`, and files offline copies under the scope above. A 401
   answers `SOURCE_UNAUTHORIZED` and an unreachable remote `SOURCE_UNAVAILABLE`.
   None of them adds configuration keys of its own for the same purpose.
+- **PSW-161 (desktop and Android hosts).** Done. The desktop resolves `host:<shelf
+  id>` from the OS keychain and the Android app `host:<entry id>` from the
+  Keystore through a native `mobile.SecretStore`; both hand every other scheme
+  to `server.DefaultCredentialResolver`. Their add-shelf forms check the source
+  first with `server.CheckSource`, a host call rather than a route, which
+  answers `SOURCE_UNAUTHORIZED`, `SOURCE_UNAVAILABLE` or `NOT_A_SHELF`. A
+  desktop virtual shelf whose secret cannot be read at startup is skipped and
+  reported instead of failing the app.

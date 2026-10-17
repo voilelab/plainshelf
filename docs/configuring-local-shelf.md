@@ -221,6 +221,29 @@ PlainShelf may accept incoming connections; allow it on private networks only.
 The export is plain HTTP, so share only on a network you trust; see
 [the threat model](deployment-and-threat-model.md#the-read-only-webdav-export).
 
+## Read a shelf from another device (desktop app)
+
+**Settings → Shelves → Create shelf → Read a shelf from another device** adds a
+shelf that lives elsewhere, read-only: another PlainShelf's local-network share
+(above), the server's [`dav_export`](reference/configuration.md#dav_export), or
+any WebDAV server holding a shelf directory, such as a NAS.
+
+- Enter the URL of the shelf folder, the one that holds `books/`. For another
+  PlainShelf it is `http://<address>:20001/dav/<shelf id>/`, as its share page
+  shows.
+- **Another PlainShelf** needs the share's token. **WebDAV** takes an optional
+  account and password or token.
+- Creating the shelf checks the source first: a refused token and an address
+  that cannot be reached are reported differently, and nothing is saved.
+- The token is stored in the operating system's keychain (Keychain on macOS,
+  Credential Manager on Windows, the Secret Service on Linux), never in
+  `shelves.json`. Removing the shelf removes it from the keychain.
+- If the keychain cannot answer at startup, for example because it is locked,
+  that shelf is skipped and the app says so; your other shelves open as usual.
+
+The same is available in a server's config file as a
+[`source` block](concepts/shelf-sources.md#the-source-block).
+
 ## Troubleshooting
 
 ### PlainShelf cannot create or update books

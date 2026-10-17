@@ -1,5 +1,6 @@
 import { getActiveShelfID } from './client';
 import { isWailsRuntime } from '@/providers/runtime';
+import type { ShelfSourceCheck, ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 interface DesktopImportBookResult {
   path?: string;
@@ -14,6 +15,22 @@ export interface DesktopShelfDetails {
   scan_interval: string;
   book_check_interval: string;
   read_only: boolean;
+  /** The virtual shelf's source; '' for a local shelf. Its secret is never returned. */
+  source: ShelfSourceKind | '';
+  url: string;
+  username: string;
+}
+
+/**
+ * A virtual shelf's source as the add-shelf form typed it; mirrors
+ * desktop.ShelfSourceParams. The secret goes to the OS keychain only.
+ */
+export interface DesktopShelfSourceParams {
+  /** '' adds a local shelf from libRoot. */
+  source: ShelfSourceKind | '';
+  url: string;
+  username: string;
+  secret: string;
 }
 
 // Keys match the json tags on desktop.AddShelfParams / desktop.ModifyShelfParams,
@@ -25,6 +42,8 @@ export interface DesktopAddShelfParams {
   scanInterval: string;
   bookCheckInterval: string;
   readOnly: boolean;
+  /** Set to add a virtual shelf instead of libRoot. */
+  remote?: DesktopShelfSourceParams;
 }
 
 /**
@@ -77,6 +96,7 @@ interface DesktopAppBinding {
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
   OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
   AddShelf?: (params: DesktopAddShelfParams) => Promise<void>;
+  CheckShelfSource?: (params: DesktopShelfSourceParams) => Promise<ShelfSourceCheck>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
   ModifyShelf?: (params: DesktopModifyShelfParams) => Promise<void>;
@@ -269,6 +289,16 @@ export async function addDesktopShelf(params: DesktopAddShelfParams): Promise<vo
   }
 
   await desktopApp.AddShelf(params);
+}
+
+/** Probes a virtual shelf's source before it is added; see shelfSourceCheckMessageKey. */
+export async function checkDesktopShelfSource(params: DesktopShelfSourceParams): Promise<ShelfSourceCheck> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.CheckShelfSource) {
+    throw new Error('CheckShelfSource binding not available');
+  }
+
+  return desktopApp.CheckShelfSource(params);
 }
 
 export async function removeDesktopShelf(shelfID: string): Promise<void> {

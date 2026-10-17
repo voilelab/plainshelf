@@ -70,7 +70,8 @@ type instance struct {
 	conf    config
 	app     *server.App
 	handler http.Handler
-	// virtual holds the IDs of open virtual shelves; see OpenPCloudShelf.
+	// virtual holds the open virtual shelves; see OpenPCloudShelf and
+	// OpenSourceShelf.
 	virtual map[string]virtualShelf
 	// share is the LAN share while it runs; see StartLANShare.
 	share *lanShare
@@ -127,7 +128,8 @@ func start(dataDir string) (*instance, error) {
 		StorePath:  filepath.Join(dataDir, "store"),
 		CoverToJPG: true,
 		// Nothing listens, so there is no one to authenticate against.
-		Security: &server.SecurityConf{Mode: server.SecurityModeNone},
+		Security:    &server.SecurityConf{Mode: server.SecurityModeNone},
+		Credentials: credentialResolver{},
 	})
 	if err != nil {
 		return nil, util.Errorf("%w", err)
