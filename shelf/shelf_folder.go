@@ -17,7 +17,7 @@ import (
 // so only a change made outside PlainShelf waits for the next scan.
 func (s *Shelf) GetAllFolders() ([]FolderPath, error) {
 	if !s.IsReady() {
-		return nil, util.Errorf("%w", ErrShelfInitializing)
+		return nil, s.notReady()
 	}
 
 	if err := s.shelfLock.RLock(); err != nil {

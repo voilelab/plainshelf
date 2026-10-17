@@ -72,6 +72,12 @@ type Shelf struct {
 	readyCh   chan struct{}
 	initErr   atomic.Pointer[error] // set if initCache fails; readyCh is still closed
 
+	// awaitingSource marks a remote shelf whose first listing failed because
+	// its source was unavailable. It is not a lasting failure: see notReady.
+	awaitingSource atomic.Bool
+	initRetryMu    sync.Mutex   // held while the first listing is tried again
+	lastInitTry    atomic.Int64 // unix nanoseconds
+
 	// scanCache is the directory scan snapshot that makes a full walk cheap; see
 	// scancache_facade.go and shelf/scancache.
 	scanCache *scancache.Cache
@@ -476,13 +482,17 @@ func (s *Shelf) initCache() error {
 	// the exported book cache first and walks only without one.
 	var err error
 	if s.remote {
-		err = s.refreshRemoteBookCache(true)
+		err = s.refreshRemoteBookCache(s.openWithoutExport)
 	} else {
 		err = s.scanToBookCache()
 	}
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
 		s.initErr.Store(&wrapped)
+		if s.remote && errors.Is(err, fsutil.ErrSourceUnavailable) {
+			s.lastInitTry.Store(time.Now().UnixNano())
+			s.awaitingSource.Store(true)
+		}
 		close(s.readyCh)
 		return wrapped
 	}
@@ -506,6 +516,57 @@ func (s *Shelf) initCache() error {
 		s.Warn("failed to write the directory scan cache after the initial scan", "error", err)
 	}
 
+	return nil
+}
+
+// initRetryInterval is how often requests to a shelf awaiting its source try
+// the first listing again.
+var initRetryInterval = 10 * time.Second
+
+// notReady is what a request answers before the shelf is listed. A remote
+// shelf whose source was unavailable when it opened says so, rather than that
+// it is still initializing, and tries the listing again in the background.
+func (s *Shelf) notReady() error {
+	if s.awaitingSource.Load() {
+		s.retryInitSoon()
+		if err := s.InitErr(); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+	return util.Errorf("%w", ErrShelfInitializing)
+}
+
+func (s *Shelf) retryInitSoon() {
+	if time.Since(time.Unix(0, s.lastInitTry.Load())) < initRetryInterval {
+		return
+	}
+	s.goBackground(func() {
+		if !s.initRetryMu.TryLock() {
+			return
+		}
+		defer s.initRetryMu.Unlock()
+		if !s.IsReady() {
+			_ = s.retryInit()
+		}
+	})
+}
+
+// retryInit tries a shelf's first listing again; the caller holds initRetryMu.
+func (s *Shelf) retryInit() error {
+	s.lastInitTry.Store(time.Now().UnixNano())
+	err := s.refreshRemoteBookCache(s.openWithoutExport)
+	if err != nil {
+		wrapped := util.Errorf("%w", err)
+		s.initErr.Store(&wrapped)
+		if !errors.Is(err, fsutil.ErrSourceUnavailable) {
+			s.awaitingSource.Store(false)
+		}
+		return wrapped
+	}
+	s.initErr.Store(nil)
+	s.ready.Store(true)
+	s.awaitingSource.Store(false)
+	s.Info("shelf source is reachable again; the shelf is listed")
 	return nil
 }
 

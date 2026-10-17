@@ -99,8 +99,21 @@ func (s *Shelf) RescanUnthrottled() (RescanResult, error) {
 }
 
 func (s *Shelf) rescan(rateLimited bool) (RescanResult, error) {
+	// A rescan is the user asking for the source now, so a shelf still waiting
+	// for it tries the first listing at once.
+	if !s.IsReady() && s.awaitingSource.Load() {
+		s.initRetryMu.Lock()
+		var err error
+		if !s.IsReady() {
+			err = s.retryInit()
+		}
+		s.initRetryMu.Unlock()
+		if err != nil {
+			return RescanResult{}, err
+		}
+	}
 	if !s.IsReady() {
-		return RescanResult{}, util.Errorf("%w", ErrShelfInitializing)
+		return RescanResult{}, s.notReady()
 	}
 
 	claim := s.beginRescan(time.Now(), rateLimited)

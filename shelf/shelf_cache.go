@@ -158,7 +158,11 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 		if !force && time.Since(lastFullScan) < scanInterval {
 			return nil
 		}
-		return s.refreshRemoteBookCache(force)
+		var withoutExport func() error
+		if force {
+			withoutExport = s.scanToBookCache
+		}
+		return s.refreshRemoteBookCache(withoutExport)
 	}
 
 	if !force && !treeDirty && time.Since(lastFullScan) < scanInterval {

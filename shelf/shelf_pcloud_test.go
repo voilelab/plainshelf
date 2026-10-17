@@ -1,10 +1,15 @@
 package shelf
 
 import (
+	"errors"
+	"os"
+	"path"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/pcloud"
 	"github.com/voilelab/plainshelf/internal/pcloud/pcloudtest"
 )
@@ -98,5 +103,97 @@ func TestPCloudShelfReadsADownloadedBookOffline(t *testing.T) {
 	srv.SetOffline(true)
 	if text, err := readCurrentText(t, s, bookID); err != nil || text != "Dune text" {
 		t.Errorf("offline text = %q, %v", text, err)
+	}
+}
+
+// A source no installation exports is walked on the first open only: the
+// offline snapshot answers later ones, and a rescan still walks.
+func TestPCloudShelfWithoutExportOpensFromTheOfflineSnapshot(t *testing.T) {
+	libRoot := seedExportedShelf(t, "Dune", "Solaris", "Hyperion")
+	if err := os.RemoveAll(path.Join(libRoot, appFolder)); err != nil {
+		t.Fatalf("remove app/: %v", err)
+	}
+	offlineDir := t.TempDir()
+
+	first, srv := openPCloudShelfOffline(t, libRoot, ShelfConf{}, offlineDir)
+	if got := count(srv.Take(), "download"); got < 3 {
+		t.Fatalf("first open made %d downloads, want a walk reading every book", got)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	s, srv := openPCloudShelfOffline(t, libRoot, ShelfConf{}, offlineDir)
+	if got, want := listedTitles(t, s), []string{"Dune", "Hyperion", "Solaris"}; !slices.Equal(got, want) {
+		t.Errorf("reopened listing = %v, want %v", got, want)
+	}
+	// shelf.json at most; no book is read.
+	if got := count(srv.Take(), "download"); got > 1 {
+		t.Errorf("reopening made %d downloads, want the snapshot to answer", got)
+	}
+
+	if _, err := s.RescanUnthrottled(); err != nil {
+		t.Fatalf("Rescan: %v", err)
+	}
+	if got := count(srv.Take(), "download"); got < 3 {
+		t.Errorf("rescan made %d downloads, want a walk", got)
+	}
+}
+
+func count(requests []string, method string) int {
+	n := 0
+	for _, r := range requests {
+		if r == method {
+			n++
+		}
+	}
+	return n
+}
+
+// A shelf opened while its source is down, with no snapshot to list from,
+// answers that the source is unavailable rather than that it is still
+// initializing, and lists itself once the source is back.
+func TestPCloudShelfOpenedOfflineRecovers(t *testing.T) {
+	for _, via := range []string{"request", "rescan"} {
+		t.Run(via, func(t *testing.T) {
+			old := initRetryInterval
+			initRetryInterval = 0
+			t.Cleanup(func() { initRetryInterval = old })
+
+			libRoot := seedExportedShelf(t, "Dune", "Solaris")
+			srv := pcloudtest.New(t, libRoot, "/PlainShelf/Shelf")
+			srv.SetOffline(true)
+			client, err := pcloud.NewClient(srv.Host(), pcloudtest.Token, srv.Client())
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, err := NewShelfFromFS(&ShelfConf{}, pcloud.NewFS(client, "/PlainShelf/Shelf"), t.TempDir())
+			if err != nil {
+				t.Fatalf("NewShelfFromFS: %v", err)
+			}
+			t.Cleanup(func() { s.Close() })
+			if err := s.WaitReady(t.Context()); !errors.Is(err, fsutil.ErrSourceUnavailable) {
+				t.Fatalf("WaitReady = %v, want ErrSourceUnavailable", err)
+			}
+			if _, err := s.ListBooks(); !errors.Is(err, fsutil.ErrSourceUnavailable) || errors.Is(err, ErrShelfInitializing) {
+				t.Fatalf("ListBooks while down = %v, want ErrSourceUnavailable only", err)
+			}
+
+			srv.SetOffline(false)
+			if via == "rescan" {
+				if _, err := s.RescanUnthrottled(); err != nil {
+					t.Fatalf("Rescan: %v", err)
+				}
+			} else {
+				deadline := time.Now().Add(5 * time.Second)
+				for !s.IsReady() && time.Now().Before(deadline) {
+					_, _ = s.ListBooks()
+					time.Sleep(10 * time.Millisecond)
+				}
+			}
+			if got, want := listedTitles(t, s), []string{"Dune", "Solaris"}; !slices.Equal(got, want) {
+				t.Errorf("after the source came back, listed %v, want %v", got, want)
+			}
+		})
 	}
 }

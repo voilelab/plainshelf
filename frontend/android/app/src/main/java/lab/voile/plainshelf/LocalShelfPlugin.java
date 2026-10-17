@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lab.voile.plainshelf.gobind.mobile.Mobile;
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  * The local shelf's management calls and its write requests.
@@ -100,6 +101,58 @@ public class LocalShelfPlugin extends Plugin {
             LocalShelf.ensureStarted(getContext());
             Mobile.removeShelf(call.getString("id", ""));
             call.resolve();
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Opens a pCloud shelf entry in the embedded server. The token is read from
+     * secure storage here, so it never crosses the bridge.
+     */
+    @PluginMethod
+    public void openPCloudShelf(PluginCall call) {
+        try {
+            String token = SecureStoragePlugin.readShelfToken(getContext(), call.getString("entryId", ""));
+            if (token == null || token.trim().isEmpty()) {
+                call.reject("no pCloud token is stored for this shelf");
+                return;
+            }
+            LocalShelf.ensureStarted(getContext());
+            Mobile.openPCloudShelf(
+                call.getString("id", ""),
+                call.getString("name", ""),
+                call.getString("host", ""),
+                token,
+                call.getString("folder", ""),
+                call.getString("scope", ""),
+                Boolean.TRUE.equals(call.getBoolean("showNsfw", false))
+            );
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    @PluginMethod
+    public void setShelfShowNsfw(PluginCall call) {
+        try {
+            LocalShelf.ensureStarted(getContext());
+            Mobile.setShelfShowNSFW(call.getString("id", ""), Boolean.TRUE.equals(call.getBoolean("show", false)));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /** Every book's adult-content marks on an open pCloud shelf, whatever the device shows. */
+    @PluginMethod
+    public void nsfwMarks(PluginCall call) {
+        try {
+            LocalShelf.ensureStarted(getContext());
+            JSObject result = new JSObject();
+            result.put("marks", new JSONObject(Mobile.shelfNSFWMarks(call.getString("id", ""))));
+            call.resolve(result);
         } catch (Exception e) {
             call.reject(String.valueOf(e.getMessage()), e);
         }

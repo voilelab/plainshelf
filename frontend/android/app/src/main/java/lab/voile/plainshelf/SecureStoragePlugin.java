@@ -28,6 +28,7 @@ public class SecureStoragePlugin extends Plugin {
     private static final String CIPHER_TRANSFORMATION = "AES/GCM/NoPadding";
     private static final int GCM_TAG_LENGTH_BITS = 128;
     private static final String VALUE_SEPARATOR = ":";
+    private static final String SHELF_SECRET_PREFIX = "plainshelf.mobile.secret.";
 
     private SharedPreferences preferences;
 
@@ -43,20 +44,32 @@ public class SecureStoragePlugin extends Plugin {
             return;
         }
 
-        String encrypted = preferences.getString(key, null);
         JSObject result = new JSObject();
-        if (encrypted == null) {
-            result.put("value", JSONObject.NULL);
-            call.resolve(result);
-            return;
-        }
-
         try {
-            result.put("value", decrypt(encrypted));
+            String value = read(preferences, key);
+            result.put("value", value == null ? JSONObject.NULL : value);
             call.resolve(result);
         } catch (GeneralSecurityException | IllegalArgumentException error) {
             call.reject("Secure storage value could not be decrypted", error);
         }
+    }
+
+    /**
+     * A shelf entry's token, for native code that hands it to Go without
+     * passing it back through the bridge. Null when none is stored. The key
+     * matches secretKey() in frontend/src/providers/mobileConfig.ts.
+     */
+    static String readShelfToken(Context context, String entryId) throws GeneralSecurityException {
+        if (entryId == null || entryId.isEmpty()) {
+            return null;
+        }
+        SharedPreferences prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE);
+        return read(prefs, SHELF_SECRET_PREFIX + entryId);
+    }
+
+    private static String read(SharedPreferences prefs, String key) throws GeneralSecurityException {
+        String encrypted = prefs.getString(key, null);
+        return encrypted == null ? null : decrypt(encrypted);
     }
 
     @PluginMethod
@@ -113,7 +126,7 @@ public class SecureStoragePlugin extends Plugin {
             + Base64.encodeToString(ciphertext, Base64.NO_WRAP);
     }
 
-    private String decrypt(String storedValue) throws GeneralSecurityException {
+    private static String decrypt(String storedValue) throws GeneralSecurityException {
         String[] parts = storedValue.split(VALUE_SEPARATOR, 2);
         if (parts.length != 2) {
             throw new GeneralSecurityException("Invalid encrypted value");
@@ -126,7 +139,7 @@ public class SecureStoragePlugin extends Plugin {
         return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
     }
 
-    private SecretKey getOrCreateKey() throws GeneralSecurityException {
+    private static SecretKey getOrCreateKey() throws GeneralSecurityException {
         KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
         try {
             keyStore.load(null);

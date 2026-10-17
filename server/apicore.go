@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
@@ -28,6 +29,10 @@ type apiCore struct {
 	shelves  *shelf.ShelfManager
 	security *Security
 	settings *settings
+
+	// showNSFWByShelf holds a shelf's own show_nsfw answer, by shelf ID, for a
+	// shelf whose client decides it; see App.SetShelfShowNSFW.
+	showNSFWByShelf sync.Map
 }
 
 // requestLogger stamps the request's ID on every line, for work that outlives

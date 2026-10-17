@@ -163,10 +163,15 @@ for the full list of what the token gates.
     pCloud support is newer than the rest of the Android client and has seen
     little use. Keep a shelf you care about reachable another way.
 
-For a pCloud shelf the app talks to pCloud directly and no PlainShelf server is
-involved. It reads the same on-disk shelf layout the server writes — see the
-[data model](../concepts/data-model.md) — so the folder you point it at must be
-a shelf directory, the one containing `books/`.
+For a pCloud shelf the app talks to pCloud directly; no PlainShelf server on
+another machine is involved. It reads the folder through the same shelf engine
+the server uses, built into the app, so it reads the on-disk shelf layout the
+server writes — see the [data model](../concepts/data-model.md) — and the folder
+you point it at must be a shelf directory, the one containing `books/`. The
+pCloud token stays in the Keystore: the app's native code hands it to the
+engine, and it never passes through the web view. Which books count as adult
+content follows the shelf's own marks, and whether they are shown follows the
+device setting, not the setting a local shelf uses.
 
 ### 1. Create a pCloud application
 

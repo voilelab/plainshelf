@@ -25,17 +25,19 @@ once the writing installation exports again (book_cache_interval). A manual
 rescan still walks the shelf for an answer that cannot wait.
 
 Without a usable export the shelf is walked once when it opens, as a local one
-would be, and afterwards only looks for an export to appear.
+would be, and afterwards only looks for an export to appear. A shelf with an
+offline store that already holds a snapshot opens from it instead: a source no
+installation exports is otherwise walked again at every start.
 */
 
 // refreshRemoteBookCache brings a remote shelf's listing up to date from the
-// newest usable exported book cache. With none, it walks the shelf when
-// walkWithoutCache is set and otherwise keeps what it has.
+// newest usable exported book cache. With none, it runs withoutExport, or
+// keeps what it has when that is nil.
 //
 // While the source is unavailable, a shelf with an offline store keeps its
 // listing, or takes the stored snapshot when it has none yet.
-func (s *Shelf) refreshRemoteBookCache(walkWithoutCache bool) error {
-	err := s.refreshRemoteFromSource(walkWithoutCache)
+func (s *Shelf) refreshRemoteBookCache(withoutExport func() error) error {
+	err := s.refreshRemoteFromSource(withoutExport)
 	if err == nil {
 		s.afterRemoteListing()
 		return nil
@@ -86,7 +88,17 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	return true
 }
 
-func (s *Shelf) refreshRemoteFromSource(walkWithoutCache bool) error {
+// openWithoutExport is what an opening remote shelf does without a usable
+// export: list from the offline snapshot when there is one, walk otherwise.
+func (s *Shelf) openWithoutExport() error {
+	if s.listFromOfflineSnapshot() {
+		s.Debug("listed the shelf from the offline snapshot; a rescan walks the source")
+		return nil
+	}
+	return s.scanToBookCache()
+}
+
+func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 	cache, name, err := s.newestExportedBookCache()
 	if err != nil {
 		s.markRemoteRefreshAttempt()
@@ -94,8 +106,8 @@ func (s *Shelf) refreshRemoteFromSource(walkWithoutCache bool) error {
 	}
 	if cache == nil {
 		s.markRemoteRefreshAttempt()
-		if walkWithoutCache {
-			return s.scanToBookCache()
+		if withoutExport != nil {
+			return withoutExport()
 		}
 		return nil
 	}
@@ -125,8 +137,8 @@ func (s *Shelf) refreshRemoteFromSource(walkWithoutCache bool) error {
 		// show a silently truncated library instead of the cache miss it is.
 		s.Warn("ignoring an unusable exported book cache", "file", name, "error", err)
 		s.markRemoteRefreshAttempt()
-		if walkWithoutCache {
-			return s.scanToBookCache()
+		if withoutExport != nil {
+			return withoutExport()
 		}
 		return nil
 	}

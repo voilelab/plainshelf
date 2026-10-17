@@ -3,6 +3,7 @@ package mobile
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"os"
@@ -39,6 +40,15 @@ func servePCloudShelf(t *testing.T) (*pcloudtest.Server, string) {
 	if _, err := book.NewSource(strings.NewReader("Dune text")); err != nil {
 		t.Fatal(err)
 	}
+	adult, err := s.NewBook(shelf.FolderPath{}, "Adult")
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta := adult.GetMeta()
+	meta.NSFW = true
+	if err := adult.SetMeta(meta); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.ExportBookCache(); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +63,7 @@ func TestPCloudShelfIsServedAndKeptOffline(t *testing.T) {
 	srv, bookID := servePCloudShelf(t)
 	startT(t, t.TempDir())
 
-	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); err != nil {
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
 		t.Fatalf("OpenPCloudShelf: %v", err)
 	}
 	waitReady(t)
@@ -83,7 +93,7 @@ func TestPCloudShelfReopensAndCloses(t *testing.T) {
 	startT(t, t.TempDir())
 
 	for range 2 {
-		if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); err != nil {
+		if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
 			t.Fatalf("OpenPCloudShelf: %v", err)
 		}
 	}
@@ -98,10 +108,10 @@ func TestPCloudShelfReopensAndCloses(t *testing.T) {
 	}
 
 	local := createShelf(t, "Local")
-	if err := OpenPCloudShelf(local, "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); err == nil {
+	if err := OpenPCloudShelf(local, "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err == nil {
 		t.Error("a pCloud shelf replaced a local one")
 	}
-	if err := OpenPCloudShelf("pcloud-b", "Cloud", srv.Host(), "", pcloudFolder, "pcloud:scope-b"); err == nil {
+	if err := OpenPCloudShelf("pcloud-b", "Cloud", srv.Host(), "", pcloudFolder, "pcloud:scope-b", false); err == nil {
 		t.Error("an empty token was accepted")
 	}
 }
@@ -110,7 +120,7 @@ func TestPCloudShelfFailedReplacementKeepsTheOldOne(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 	dataDir := t.TempDir()
 	startT(t, dataDir)
-	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); err != nil {
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
 		t.Fatalf("OpenPCloudShelf: %v", err)
 	}
 	waitReady(t)
@@ -128,13 +138,13 @@ func TestPCloudShelfFailedReplacementKeepsTheOldOne(t *testing.T) {
 
 	for name, open := range map[string]func() error{
 		"empty scope": func() error {
-			return OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "")
+			return OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "", false)
 		},
 		"foreign host": func() error {
-			return OpenPCloudShelf("pcloud-a", "Cloud", "example.com", pcloudtest.Token, pcloudFolder, "pcloud:scope-a")
+			return OpenPCloudShelf("pcloud-a", "Cloud", "example.com", pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false)
 		},
 		"unopenable offline directory": func() error {
-			return OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-b")
+			return OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-b", false)
 		},
 	} {
 		if err := open(); err == nil {
@@ -150,7 +160,7 @@ func TestPCloudShelfFailedReplacementKeepsTheOldOne(t *testing.T) {
 func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 	startT(t, t.TempDir())
-	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); err != nil {
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
 		t.Fatalf("OpenPCloudShelf: %v", err)
 	}
 	rt, err := running()
@@ -167,7 +177,7 @@ func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
 	if _, err := rt.app.TaskChains().Submit(&taskutil.TaskChain{Tasks: []taskutil.Task{task}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); !errors.Is(err, ErrBusy) {
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); !errors.Is(err, ErrBusy) {
 		t.Errorf("replacing during a task: %v", err)
 	}
 	if err := CloseVirtualShelf("pcloud-a"); !errors.Is(err, ErrBusy) {
@@ -178,5 +188,82 @@ func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
 	release()
 	if err := CloseVirtualShelf("pcloud-a"); err != nil {
 		t.Errorf("closing after the task: %v", err)
+	}
+}
+
+// The device's choice decides what the pCloud shelf serves, whatever the
+// install-wide setting the local shelves follow says.
+func TestPCloudShelfFollowsTheDevicesAdultContentChoice(t *testing.T) {
+	srv, _ := servePCloudShelf(t)
+	startT(t, t.TempDir())
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
+		t.Fatalf("OpenPCloudShelf: %v", err)
+	}
+	waitReady(t)
+	if titles := bookTitles(t, "pcloud-a"); strings.Contains(titles, `"Adult"`) {
+		t.Errorf("hidden on the device, books = %s", titles)
+	}
+
+	if err := SetShelfShowNSFW("pcloud-a", true); err != nil {
+		t.Fatalf("SetShelfShowNSFW: %v", err)
+	}
+	if titles := bookTitles(t, "pcloud-a"); !strings.Contains(titles, `"Adult"`) {
+		t.Errorf("shown on the device, books = %s", titles)
+	}
+	if res := handle(t, http.MethodGet, "/api/setting/show_nsfw", ""); !strings.Contains(string(res.Body), "false") {
+		t.Errorf("the install-wide setting changed: %s", res.Body)
+	}
+
+	// The marks cover the books the device hides, too.
+	if err := SetShelfShowNSFW("pcloud-a", false); err != nil {
+		t.Fatal(err)
+	}
+	out, err := ShelfNSFWMarks("pcloud-a")
+	if err != nil {
+		t.Fatalf("NSFWMarks: %v", err)
+	}
+	var marks map[string]struct {
+		NSFW bool `json:"nsfw"`
+	}
+	if err := json.Unmarshal([]byte(out), &marks); err != nil {
+		t.Fatal(err)
+	}
+	nsfw := 0
+	for _, mark := range marks {
+		if mark.NSFW {
+			nsfw++
+		}
+	}
+	if len(marks) != 2 || nsfw != 1 {
+		t.Errorf("marks = %s, want both books with one marked", out)
+	}
+
+	if err := SetShelfShowNSFW("pcloud-b", true); err == nil {
+		t.Error("a shelf that is not open accepted a choice")
+	}
+}
+
+// Opened while pCloud is down, with nothing listed before, the shelf answers
+// with the code the app falls back to its downloads on.
+func TestPCloudShelfOpenedOfflineAnswersSourceUnavailable(t *testing.T) {
+	srv, _ := servePCloudShelf(t)
+	srv.SetOffline(true)
+	startT(t, t.TempDir())
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
+		t.Fatalf("OpenPCloudShelf: %v", err)
+	}
+	rt, err := running()
+	if err != nil {
+		t.Fatal(err)
+	}
+	shelfData, ok := rt.app.ShelfManager().GetShelf("pcloud-a")
+	if !ok {
+		t.Fatal("pcloud-a not open")
+	}
+	_ = shelfData.WaitReady(t.Context())
+
+	res := handle(t, http.MethodGet, "/api/shelves/pcloud-a/books", "")
+	if res.Status != http.StatusServiceUnavailable || !strings.Contains(string(res.Body), "SOURCE_UNAVAILABLE") {
+		t.Errorf("books while down: %d %s", res.Status, res.Body)
 	}
 }

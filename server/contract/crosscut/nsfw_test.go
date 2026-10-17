@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/server/contract/apitest"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 /*
@@ -91,4 +92,27 @@ func TestAPINSFWBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
 		apitest.AssertStatus(t, s.Env.Get(apitest.BookURL(bookID)), http.StatusOK)
 		apitest.AssertStatus(t, s.Env.Get(apitest.BookURL(bookID, "content")), http.StatusOK)
 	}
+}
+
+// A shelf given its own answer keeps it whatever the setting says, in the
+// listing and the folder tree alike, and goes back to the setting when cleared.
+func TestAPINSFWShelfAnswerOverridesTheSetting(t *testing.T) {
+	s := apitest.NewNSFWShelf(t)
+	folders := func() []shelf.FolderPath {
+		return apitest.GetJSON[[]shelf.FolderPath](t, s.Env, apitest.ShelfURL("folders"))
+	}
+	hiddenFolders := folders()
+
+	s.Env.App.SetShelfShowNSFW(apitest.DefaultShelfID, true)
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.All()...)
+	if got := folders(); len(got) <= len(hiddenFolders) {
+		t.Errorf("folders with the shelf shown = %v, want more than %v", got, hiddenFolders)
+	}
+
+	apitest.SetShowNSFW(t, s.Env, true)
+	s.Env.App.SetShelfShowNSFW(apitest.DefaultShelfID, false)
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
+
+	s.Env.App.ClearShelfShowNSFW(apitest.DefaultShelfID)
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.All()...)
 }

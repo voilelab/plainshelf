@@ -49,8 +49,8 @@ const MOBILE_ONLY = [
   /^@capacitor\//,
   /^@\/api\/pcloud\//,
   /^@\/features\/mobile\//,
-  /^@\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|pcloudBookshelfProvider|shelfSnapshotStore|secureStorage|cacheScope|localShelf)$/,
-  /^\.\/(mobileConfig|mobileBookshelfProvider|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|pcloudBookshelfProvider|shelfSnapshotStore|secureStorage|cacheScope|localShelf)$/
+  /^@\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|pcloudBookshelfProvider|shelfSnapshotStore|secureStorage|cacheScope|localShelf|embeddedPCloud)$/,
+  /^\.\/(mobileConfig|mobileBookshelfProvider|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|pcloudBookshelfProvider|shelfSnapshotStore|secureStorage|cacheScope|localShelf|embeddedPCloud)$/
 ];
 
 /** Files allowed to reach them: the shell itself, the mobile feature area, and the mobile modules. */
@@ -58,7 +58,7 @@ const MOBILE_SIDE = [
   /^src\/shells\//,
   /^src\/features\/mobile\//,
   /^src\/api\/pcloud\//,
-  /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|pcloudBookshelfProvider|shelfSnapshotStore|secureStorage|cacheScope|localShelf)\.ts$/
+  /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|pcloudBookshelfProvider|shelfSnapshotStore|secureStorage|cacheScope|localShelf|embeddedPCloud)\.ts$/
 ];
 
 /**
