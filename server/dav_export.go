@@ -116,10 +116,18 @@ func readDAVExportToken(tokenFile string) (string, error) {
 // WebDAV subset limited to the shelf's own files (shelf.IsShelfFile). It holds
 // no route of the HTTP API.
 func (app *App) DAVExportHandler(tokenFile string) http.Handler {
+	return app.DAVExportShelvesHandler(tokenFile, nil)
+}
+
+// DAVExportShelvesHandler is DAVExportHandler limited to the shelves exported
+// reports true for, asked on every request; nil exports every local shelf. A
+// shelf it refuses is 404, the same as one that does not exist.
+func (app *App) DAVExportShelvesHandler(tokenFile string, exported func(shelfID string) bool) http.Handler {
 	return &davExport{
 		logger:    &app.Logger,
 		shelves:   app.shelfManager,
 		tokenFile: tokenFile,
+		exported:  exported,
 		locks:     webdav.NewMemLS(),
 	}
 }
@@ -128,6 +136,7 @@ type davExport struct {
 	logger    *logutil.Logger
 	shelves   *shelf.ShelfManager
 	tokenFile string
+	exported  func(shelfID string) bool
 
 	// tokenErrLogged keeps an unreadable token file from logging once per
 	// request; cleared when the file reads again.
@@ -163,6 +172,10 @@ func (d *davExport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shelfID, _, _ := strings.Cut(rest, "/")
+	if d.exported != nil && !d.exported(shelfID) {
+		http.NotFound(w, r)
+		return
+	}
 	data, ok := d.shelves.GetShelf(shelfID)
 	if !ok || data.Shelf == nil {
 		http.NotFound(w, r)

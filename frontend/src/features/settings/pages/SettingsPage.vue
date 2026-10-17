@@ -121,6 +121,7 @@
 
       <TabsContent value="shelves" class="settings-tab-content">
         <ShelvesPanel />
+        <LanSharePanel v-if="lanShareAvailable" />
       </TabsContent>
     </TabsRoot>
   </section>
@@ -134,12 +135,14 @@ import CoverPanel from '@/features/settings/components/CoverPanel.vue';
 import DemoStoragePanel from '@/features/settings/components/DemoStoragePanel.vue';
 import DeviceNsfwPanel from '@/features/settings/components/DeviceNsfwPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
+import LanSharePanel from '@/features/settings/components/LanSharePanel.vue';
 import LanguagePanel from '@/features/settings/components/LanguagePanel.vue';
 import LogRetentionPanel from '@/features/settings/components/LogRetentionPanel.vue';
 import NsfwPanel from '@/features/settings/components/NsfwPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
 import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
+import { hasDesktopLANShareBinding } from '@/api/desktop';
 import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -155,6 +158,8 @@ const { serverSettingsEditable } = useWriteAccess();
 // The active tab is backed by the ?tab= query so the sidebar's "manage
 // shelves" deep link lands here even on repeat clicks — see useSettingsTabs.
 const wasmDemo = isWasmDemo();
+// Desktop only: the switch is a Wails binding, not a server route.
+const lanShareAvailable = hasDesktopLANShareBinding();
 const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable, wasmDemo);
 // Device-local, so it is not part of the server settings form: nothing to load
 // and nothing to save, and it survives a shelf the server never answers for.

@@ -30,6 +30,7 @@ type DesktopApp struct {
 	readingProgressSync *readingprogress.Store
 	startupErr          error
 	progressStager      *readingclose.Stager
+	lanShare            *lanShare
 }
 
 var openFinder = util.OpenFinder
@@ -74,6 +75,9 @@ func (a *DesktopApp) DomReady(ctx context.Context) {
 }
 
 func (a *DesktopApp) Shutdown() {
+	if a.lanShare != nil {
+		a.lanShare.stop()
+	}
 	if a.app != nil {
 		err := a.app.Close()
 		if err != nil {
@@ -216,5 +220,7 @@ func (a *DesktopApp) startServer() error {
 	a.readingProgressSync = readingprogress.NewStore(a.readingProgressPath)
 	a.progressStager = readingclose.NewStager(a.readingProgressSync, readingclose.DefaultTimeout)
 	a.app = app
+	a.lanShare = newLANShare(app, dataRoot, shelvesConfigPath)
+	a.lanShare.startSaved()
 	return nil
 }

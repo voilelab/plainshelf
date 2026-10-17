@@ -311,6 +311,22 @@ const en = {
     readHistory: {
       title: 'Reading history'
     },
+    lanShare: {
+      title: 'Share on local network',
+      label: 'Share selected shelves read-only',
+      description:
+        'Opens a read-only export another device on this network can open as a shelf, with the address and token below. Nothing can be changed through it. Off, this app opens no network port.',
+      addressLabel: 'Network address',
+      noAddress: 'No local network address was found. Connect to a network and try again.',
+      shelvesLabel: 'Shelves to share',
+      noneShared: 'No shelf is ticked, so nothing is shared yet.',
+      urlLabel: 'Address',
+      tokenLabel: 'Token',
+      qrAlt: 'QR code with the address and token',
+      rotate: 'Replace token',
+      firewall:
+        'The first time sharing is turned on, your operating system may ask whether PlainShelf may accept incoming connections. Allow it on private networks only.'
+    },
     readerLaunch: {
       title: 'Reading',
       label: 'How to open the reader',
