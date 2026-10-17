@@ -95,6 +95,11 @@ type Shelf struct {
 	backgroundMu sync.Mutex
 	background   sync.WaitGroup
 	closing      bool
+
+	// remote is set on a shelf opened by NewShelfFromFS. Every read is then a
+	// request, so the shelf is listed from the exported book cache and kept
+	// current by re-reading it; see shelf_cache_snapshot.go.
+	remote bool
 }
 
 type ShelfConf struct {
@@ -142,11 +147,19 @@ type ShelfConf struct {
 	BookCacheInterval string `yaml:"book_cache_interval" json:"book_cache_interval"`
 }
 
-func NewShelf(conf *ShelfConf) (*Shelf, error) {
-	if conf == nil {
-		return nil, util.NewError("shelf configuration cannot be nil")
-	}
+// shelfSettings is a ShelfConf with its strings parsed and its logger built,
+// shared by every way of opening a shelf.
+type shelfSettings struct {
+	logger            *logutil.Logger
+	scanInterval      time.Duration
+	lockTimeout       time.Duration
+	bookCheckInterval time.Duration
+	bookCacheInterval time.Duration
+	scanCacheEnabled  bool
+	bookCacheWriterID string
+}
 
+func parseShelfSettings(conf *ShelfConf) (*shelfSettings, error) {
 	scanInterval := time.Minute
 	if conf.ScanInterval != "" {
 		var err error
@@ -208,6 +221,27 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		bookCacheWriterID = ""
 	}
 
+	return &shelfSettings{
+		logger:            logger,
+		scanInterval:      scanInterval,
+		lockTimeout:       lockTimeout,
+		bookCheckInterval: bookCheckInterval,
+		bookCacheInterval: bookCacheInterval,
+		scanCacheEnabled:  scanCacheEnabled,
+		bookCacheWriterID: bookCacheWriterID,
+	}, nil
+}
+
+func NewShelf(conf *ShelfConf) (*Shelf, error) {
+	if conf == nil {
+		return nil, util.NewError("shelf configuration cannot be nil")
+	}
+
+	settings, err := parseShelfSettings(conf)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	var rt *os.Root
 	rt, err = os.OpenRoot(conf.LibRoot)
 	if err != nil {
@@ -235,7 +269,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	var shelfLock ShelfLock
 	switch conf.LockMode {
 	case "", "flock":
-		shelfLock = newFlockLock(path.Join(conf.LibRoot, appFolder, libraryLockFile), lockTimeout)
+		shelfLock = newFlockLock(path.Join(conf.LibRoot, appFolder, libraryLockFile), settings.lockTimeout)
 	case "none":
 		shelfLock = newNoneLock()
 	default:
@@ -256,6 +290,44 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		dbRoot = fsutil.ReadOnly(dbRoot)
 	}
 
+	return startShelf(conf, settings, dbRoot, rt.Close, shelfLock, false)
+}
+
+// NewShelfFromFS opens a shelf whose files are reached through root rather than
+// a local path, such as a remote file tree. The caller owns root; Close does not
+// close it.
+//
+// The shelf is always read-only, whatever conf says, and is listed from the
+// exported book cache when the shelf has one, so neither opening it nor keeping
+// it current costs a request per book. conf.LibRoot is used only in logs.
+func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS) (*Shelf, error) {
+	if conf == nil {
+		return nil, util.NewError("shelf configuration cannot be nil")
+	}
+	if root == nil {
+		return nil, util.NewError("shelf root cannot be nil")
+	}
+
+	// A copy, so the caller's configuration is not changed under it.
+	remoteConf := *conf
+	remoteConf.ReadOnly = true
+	// The scan cache trusts directory mtimes, which a remote tree need not
+	// report the way the machine that saved the snapshot saw them.
+	remoteConf.ScanCache = new(false)
+
+	settings, err := parseShelfSettings(&remoteConf)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	return startShelf(&remoteConf, settings, fsutil.ReadOnly(root), nil, newNoneLock(), true)
+}
+
+// startShelf finishes opening a shelf once its root and lock are settled.
+// closeRoot, when not nil, is called by Close and on failure here.
+func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, closeRoot func() error, shelfLock ShelfLock, remote bool) (*Shelf, error) {
+	logger := settings.logger
+
 	// shelf.json is read once, here, and every rule it carries is derived from
 	// that one read; see shelf_config.go.
 	rules := loadShelfRules(dbRoot, *logger)
@@ -264,26 +336,28 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		Logger:    *logger,
 		dbRoot:    dbRoot,
 		readOnly:  conf.ReadOnly,
-		close:     rt.Close,
+		close:     closeRoot,
+		remote:    remote,
 		shelfLock: shelfLock,
 		readyCh:   make(chan struct{}),
 
 		ignore: rules.ignore,
 		nsfw:   rules.nsfw,
 
-		bookCache:         newBookCache(scanInterval, bookCheckInterval),
-		scanCache:         newScanCache(dbRoot, scanCacheEnabled, *logger),
-		bookCacheWriterID: bookCacheWriterID,
-		bookCacheInterval: bookCacheInterval,
+		bookCache:         newBookCache(settings.scanInterval, settings.bookCheckInterval),
+		scanCache:         newScanCache(dbRoot, settings.scanCacheEnabled, *logger),
+		bookCacheWriterID: settings.bookCacheWriterID,
+		bookCacheInterval: settings.bookCacheInterval,
 	}
 
-	err = s.makeStructure()
-	if err != nil {
-		rt.Close()
+	if err := s.makeStructure(); err != nil {
+		if closeRoot != nil {
+			_ = closeRoot()
+		}
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "scan_interval", scanInterval, "book_check_interval", bookCheckInterval, "lock_timeout", lockTimeout)
+	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "remote", remote, "scan_interval", settings.scanInterval, "book_check_interval", settings.bookCheckInterval, "lock_timeout", settings.lockTimeout)
 	// Tracked like every other background write: initCache goes on writing both
 	// caches after readyCh is closed, so a Close that did not wait would release
 	// the shelf lock with a walk still running. The cost is that closing
@@ -363,8 +437,14 @@ func (s *Shelf) ReadOnly() bool {
 
 func (s *Shelf) initCache() error {
 	// The scan cache loaded its previous snapshot when the shelf was built
-	// (newScanCache), so this first walk is already cheap.
-	err := s.scanToBookCache()
+	// (newScanCache), so this first walk is already cheap. A remote shelf tries
+	// the exported book cache first and walks only without one.
+	var err error
+	if s.remote {
+		err = s.refreshRemoteBookCache(true)
+	} else {
+		err = s.scanToBookCache()
+	}
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
 		s.initErr.Store(&wrapped)
