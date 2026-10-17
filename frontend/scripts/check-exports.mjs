@@ -61,6 +61,11 @@ const ALLOWED = new Set([
   'src/api/pcloud/bookpkg.ts#createNSFWRules',
   'src/api/pcloud/bookpkg.ts#isBookNSFW',
 
+  // The TypeScript pCloud reader's snapshot store. The app reads pCloud through
+  // the embedded Go server since PSW-138; the reader stays, for comparison,
+  // until the series that removes it.
+  'src/providers/shelfSnapshotStore.ts#FilesystemShelfSnapshotStore',
+
   // Internals reached directly by their own unit tests.
   'src/api/books.ts#SimilarRelation',
   'src/api/pcloud/auth.ts#hostForLocationId',

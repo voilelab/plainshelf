@@ -12,7 +12,7 @@
 
 A shelf is opened from a **source**: where its files are and how PlainShelf
 reaches them. Today every shelf is a local directory named by `lib_root`, and
-the Android client reads pCloud through a separate TypeScript reader. This page
+the Android client reads pCloud through the engine embedded in the app. This page
 defines one source format that the server, the desktop app, the Android app and
 the wasm demo all share, and how a source that needs a secret gets it.
 
@@ -355,13 +355,16 @@ the type, never by falling back to another source.
 - **PSW-138 (pCloud in Go).** The pCloud client reads `host`, `user_id`, `path`
   and resolves `credential` through the host resolver; the Keystore key does not
   change. The offline layer's scope identity follows the table above, which is
-  what keeps existing downloads. The Go half is done: `internal/pcloud` is a
-  read-only `ReadFS` over the pCloud API, and `mobile.OpenPCloudShelf` opens one
-  as a virtual shelf. Until the resolver exists the token is passed as an
-  argument on every start and held in memory only. The app does not call it
-  yet: it still reads pCloud through the TypeScript reader, and switching it
-  over, with moving existing downloads into the Go offline layer, is a
-  follow-up.
+  what keeps existing downloads. Done in part: `internal/pcloud` is a
+  read-only `ReadFS` over the pCloud API, and the app opens its pCloud entry
+  with `mobile.OpenPCloudShelf`. Until the resolver exists the native side reads
+  the token from the Keystore and passes it on every start; Go holds it in
+  memory only. The entry keeps its cache scope, and its downloads, reading
+  progress and history stay in the app's own cache rather than moving into the
+  Go offline layer; that move is left to the series that removes the TypeScript
+  reader, which the app no longer calls. Adult content follows the device's own
+  choice, given to Go per shelf (`App.SetShelfShowNSFW`) so it does not become
+  the setting local shelves use.
 - **PSW-145 (offline copies).** Done as described in
   [Offline copies](#offline-copies). The engine takes the offline directory as
   a parameter; the scope that names it comes from `SourceConf` once PSW-149

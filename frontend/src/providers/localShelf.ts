@@ -1,4 +1,5 @@
 import { registerPlugin } from '@capacitor/core';
+import type { NsfwMarks } from '@/types/book';
 
 /**
  * The Android app's local shelves: the embedded Go server (mobile/), reached
@@ -41,6 +42,24 @@ interface LocalShelfPlugin {
   exportShelf(options: { id: string; fileName: string }): Promise<{ cancelled: boolean }>;
   /** Lets the user pick a shelf zip and makes a new shelf from it, named after the file. */
   importShelf(options: { fallbackName: string }): Promise<{ cancelled: boolean; id?: string; name?: string }>;
+  /**
+   * Opens a pCloud shelf entry in the embedded server as the virtual shelf
+   * `id`. The plugin reads the entry's token from secure storage itself, so it
+   * never crosses the bridge. `showNsfw` is the device's adult-content choice.
+   */
+  openPCloudShelf(options: {
+    id: string;
+    entryId: string;
+    name: string;
+    host: string;
+    folder: string;
+    scope: string;
+    showNsfw: boolean;
+  }): Promise<void>;
+  /** Changes the adult-content choice of a shelf openPCloudShelf opened. */
+  setShelfShowNsfw(options: { id: string; show: boolean }): Promise<void>;
+  /** Every book's marks on that shelf, whatever the device shows. */
+  nsfwMarks(options: { id: string }): Promise<{ marks: Record<string, NsfwMarks> }>;
   beginBody(): Promise<{ bodyId: string }>;
   appendBody(options: { bodyId: string; data: string }): Promise<void>;
   /** Deletes a staged body that will not be sent. */

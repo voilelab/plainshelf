@@ -90,8 +90,17 @@ function imageMimeType(name: string): string {
 // self-hosted server is unreachable, e.g. LTE away from the home LAN) or a
 // request timeout — as opposed to the server replying with an error status
 // (a real ApiError with a status, which must be surfaced, not swallowed).
+//
+// A virtual shelf's server answers for a source it cannot reach — pCloud read
+// through the embedded Go server, offline — and says so with these codes, which
+// mean the same as no answer at all.
+const SOURCE_UNREACHABLE_CODES = new Set(['SOURCE_UNAVAILABLE', 'BOOK_NOT_DOWNLOADED']);
+
 function isServerUnreachableError(err: unknown): boolean {
-  return err instanceof ApiError ? err.isTimeout : true;
+  if (!(err instanceof ApiError)) {
+    return true;
+  }
+  return err.isTimeout || SOURCE_UNREACHABLE_CODES.has(err.code ?? '');
 }
 
 export class MobileBookshelfProvider implements BookshelfReader {

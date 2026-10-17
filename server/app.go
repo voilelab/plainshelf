@@ -201,6 +201,18 @@ func (app *App) AddVirtualShelf(conf shelf.ShelfConfWithID, root fsutil.ReadFS, 
 	return app.shelfManager.AddVirtualShelf(app.resolveShelfConf(conf), root, offlineDir(app.conf.StorePath, scope))
 }
 
+// SetShelfShowNSFW makes shelfID answer show_nsfw with show instead of the
+// stored setting. It is for a shelf whose client keeps the choice on the
+// device, as the Android app does for pCloud, so that choice does not become
+// every shelf's. ClearShelfShowNSFW goes back to the setting.
+func (app *App) SetShelfShowNSFW(shelfID string, show bool) {
+	app.handlers.core.showNSFWByShelf.Store(shelfID, show)
+}
+
+func (app *App) ClearShelfShowNSFW(shelfID string) {
+	app.handlers.core.showNSFWByShelf.Delete(shelfID)
+}
+
 // offlineDir is where a virtual shelf's offline copies live. The scope is
 // hashed so any source identity is a safe directory name.
 func offlineDir(storePath, scope string) string {

@@ -4,7 +4,9 @@ Two independent readers of the on-disk book package format exist:
 
 - the Go shelf in `shelf/`, which every server and desktop build reads through;
 - `frontend/src/api/pcloud/bookpkg.ts` and `bookCacheFile.ts`, which the mobile
-  client uses to read a shelf straight from pCloud, without a server in between.
+  client used to read a shelf straight from pCloud. The app now reads pCloud
+  through the Go shelf embedded in it; the TypeScript reader stays, and is held
+  to this dataset, until it is removed.
 
 The second one cannot import the first, so nothing but a shared fixture keeps
 them from drifting apart. This dataset is that fixture: one tree of shelves and

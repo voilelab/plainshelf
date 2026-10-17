@@ -29,6 +29,9 @@ type bookVisibility struct {
 
 // visibility resolves the filter for one request against one shelf.
 func (c *apiCore) visibility(shelfData *shelf.ShelfData) bookVisibility {
+	if show, ok := c.showNSFWByShelf.Load(shelfData.ID); ok {
+		return bookVisibility{shelf: shelfData.Shelf, showNSFW: show.(bool)}
+	}
 	return bookVisibility{shelf: shelfData.Shelf, showNSFW: c.settings.showNSFW()}
 }
 

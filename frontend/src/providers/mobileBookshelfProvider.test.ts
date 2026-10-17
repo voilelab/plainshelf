@@ -153,6 +153,18 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
       await expect(provider.listBooks(1, 20)).rejects.toMatchObject({ status: 503 });
     });
 
+    it('falls back when a virtual shelf reports its source unreachable', async () => {
+      await seedDownloadedBook(cache, 'book-1');
+      const listBooks = vi
+        .fn()
+        .mockRejectedValue(new ApiError('the shelf source is unavailable', { status: 503, code: 'SOURCE_UNAVAILABLE' }));
+      const provider = makeProvider({ listBooks });
+
+      const result = await provider.listBooks(1, 20);
+
+      expect(result.items.map((book) => book.id)).toEqual(['book-1']);
+    });
+
     it('does not call remote at all when isOnline() is false', async () => {
       await seedDownloadedBook(cache, 'book-1');
       const listBooks = vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 } as PaginatedBooks);
