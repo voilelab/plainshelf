@@ -216,8 +216,18 @@ func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
 	if err := ExportShelf(id, zipPath); err != nil {
 		t.Fatalf("ExportShelf: %v", err)
 	}
+	// The zip may still have a copy to survive; the caller marks it after.
+	if got := listShelves(t); got[0].LastExport != "" {
+		t.Fatalf("last export recorded before MarkExported: %q", got[0].LastExport)
+	}
+	if err := MarkExported(id); err != nil {
+		t.Fatalf("MarkExported: %v", err)
+	}
 	if got := listShelves(t); got[0].LastExport == "" {
 		t.Fatal("last export time not recorded")
+	}
+	if err := MarkExported("local-missing"); err == nil {
+		t.Fatal("MarkExported accepted an unknown shelf")
 	}
 
 	// Unzipped, it is a lib_root the desktop app or server opens as is.
@@ -278,6 +288,29 @@ func TestImportRejectsNonShelfZip(t *testing.T) {
 	}
 	if body := bookTitles(t, id); !strings.Contains(body, "Untouched") {
 		t.Fatalf("existing shelf changed: %s", body)
+	}
+}
+
+// A zip over the cap is refused before it is read, as the web handler does.
+func TestImportRejectsOversizedZip(t *testing.T) {
+	dataDir := t.TempDir()
+	startT(t, dataDir)
+	zipPath := filepath.Join(t.TempDir(), "huge.zip")
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Sparse: no real disk use.
+	if err := f.Truncate(MaxImportBytes() + 1); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	if _, err := ImportShelf("Huge", zipPath); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("ImportShelf: %v", err)
+	}
+	if entries, err := os.ReadDir(filepath.Join(dataDir, shelvesDir)); err != nil || len(entries) != 0 {
+		t.Fatalf("shelf directories after rejected import: %v %v", entries, err)
 	}
 }
 
@@ -353,9 +386,11 @@ func (h *heldTask) Status() taskutil.Status {
 
 // Export and removal wait for task chains accepted earlier, which keep writing
 // after their request returned.
-func TestExportAndRemoveWaitForTasks(t *testing.T) {
-	startT(t, t.TempDir())
+func TestExportImportAndRemoveWaitForTasks(t *testing.T) {
+	dataDir := t.TempDir()
+	startT(t, dataDir)
 	id := createShelf(t, "Busy")
+	createBook(t, id, "Backed Up")
 	rt, err := running()
 	if err != nil {
 		t.Fatal(err)
@@ -375,17 +410,29 @@ func TestExportAndRemoveWaitForTasks(t *testing.T) {
 	if err := ExportShelf(id, zipPath); !errors.Is(err, ErrBusy) {
 		t.Fatalf("ExportShelf during a task: %v", err)
 	}
+	if _, err := os.Stat(zipPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("busy export left a zip: %v", err)
+	}
+	if _, err := ImportShelf("Restored", zipPath); !errors.Is(err, ErrBusy) {
+		t.Fatalf("ImportShelf during a task: %v", err)
+	}
 	if err := RemoveShelf(id); !errors.Is(err, ErrBusy) {
 		t.Fatalf("RemoveShelf during a task: %v", err)
 	}
 	if got := listShelves(t); len(got) != 1 {
-		t.Fatalf("shelf removed while busy: %+v", got)
+		t.Fatalf("shelves changed while busy: %+v", got)
+	}
+	if entries, err := os.ReadDir(filepath.Join(dataDir, shelvesDir)); err != nil || len(entries) != 1 {
+		t.Fatalf("shelf directories while busy: %v %v", entries, err)
 	}
 
 	quiesceTimeout = 5 * time.Second
 	release()
 	if err := ExportShelf(id, zipPath); err != nil {
 		t.Fatalf("ExportShelf after the task: %v", err)
+	}
+	if _, err := ImportShelf("Restored", zipPath); err != nil {
+		t.Fatalf("ImportShelf after the task: %v", err)
 	}
 	if err := RemoveShelf(id); err != nil {
 		t.Fatalf("RemoveShelf after the task: %v", err)

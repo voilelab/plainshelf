@@ -24,6 +24,10 @@ var shelfDirs = []string{"books", "trash"}
 // it all in memory. A variable so tests need not allocate the real limit.
 var maxImportBytes int64 = 512 << 20
 
+// MaxImportBytes is the largest zip, and the most it may unpack to, that
+// Import takes.
+func MaxImportBytes() int64 { return maxImportBytes }
+
 var (
 	// ErrNotShelf rejects a zip with nothing under books/.
 	ErrNotShelf = errors.New("not a PlainShelf shelf: the zip has no books/ directory")

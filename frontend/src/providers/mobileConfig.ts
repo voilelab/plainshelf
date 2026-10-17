@@ -522,6 +522,14 @@ export async function upsertShelfEntry(entry: ShelfEntry, token?: string): Promi
   await commit(next, entry.id);
 }
 
+/** Adds a new entry and leaves the active one as it is. */
+export async function addShelfEntry(entry: ShelfEntry): Promise<void> {
+  if (entries.some((existing) => existing.id === entry.id)) {
+    return;
+  }
+  await commit([...entries, entry], activeEntryID);
+}
+
 /**
  * The caller is responsible for the entry's downloaded books — see
  * providers/cacheScope.ts for how to locate them. When the active entry goes,

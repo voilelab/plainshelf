@@ -291,8 +291,10 @@ Reading progress, read history, and reading time are kept on the device, as for
 every other shelf.
 
 A local shelf is deleted with the app, and removing it from the shelf list
-deletes its books. Exporting to a zip and protection against uninstalling are
-not available yet.
+deletes its books. **Export** on the shelf saves it as a zip through the system
+file picker, and **Import from zip** makes a new local shelf from one; see
+[Backup and Restore](../backup-and-restore.md#android-local-shelf). Protection
+against uninstalling is not available yet.
 
 ### How it is wired
 
@@ -311,6 +313,15 @@ not available yet.
   body, so every other method goes through the plugin: the frontend
   (`providers/localShelf.ts`) stages the body into a cache file in 1 MiB chunks,
   then asks the plugin to send it.
+- Export and import go through the Storage Access Framework
+  (`ACTION_CREATE_DOCUMENT`, `ACTION_OPEN_DOCUMENT`). The plugin moves the zip
+  between a cache file and the picked document; Go only sees the cache path, so
+  the zip crosses neither the bridge nor JNI. Export writes the zip before the
+  picker opens, so a busy shelf (`ErrBusy`) fails before any document exists,
+  and records `last_export` with `MarkExported` only after the copy. The 512 MiB
+  import cap (`internal/shelfzip`) is kept for the app: the zip is read from a
+  file rather than memory here, but one limit for both callers keeps a backup's
+  importability the same in the demo and the app.
 - Shelves live under `<files dir>/local-shelves/shelves/<id>/` with
   `lock_mode: none`, their list in `<files dir>/local-shelves/shelves.json`.
   On `android` the settings store is the JSON file the wasm build uses rather

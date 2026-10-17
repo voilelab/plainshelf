@@ -58,6 +58,7 @@ const {
   getActiveShelfEntry,
   getActiveShelfEntryToken,
   getShelfEntries,
+  addShelfEntry,
   initMobileConfig,
   isShelfEntryConfigured,
   isShelfEntryUsable,
@@ -192,6 +193,19 @@ describe('token wiring', () => {
 
     expect(secureStore.get('plainshelf.mobile.secret.a')).toBe('token-a');
     expect(secureStore.get('plainshelf.mobile.secret.b')).toBe('token-b');
+  });
+});
+
+describe('adding an entry without switching', () => {
+  it('keeps the active entry and appends the new one', async () => {
+    await reinit();
+    await upsertShelfEntry(serverEntry({ id: 'a' }));
+
+    await addShelfEntry({ id: 'b', type: 'local', name: 'Restored', localShelfId: 'local-2' });
+
+    const loaded = await loadShelfEntries();
+    expect(loaded.activeEntryID).toBe('a');
+    expect(loaded.entries.map((entry) => entry.id)).toEqual(['a', 'b']);
   });
 });
 
