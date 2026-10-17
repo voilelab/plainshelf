@@ -240,6 +240,9 @@ The QR code is JSON, and its shape is a promise between devices:
   `Authorization: Bearer <token>`.
 - Ticking or unticking a shelf, replacing the token, or changing the address
   changes the code; scan it again afterwards.
+- A QR code holds about 2 KB, roughly 18 shelves with short names; past that
+  the page shows an error instead of the code. The address and token are still
+  shown, so add the shelves by hand, or share fewer at a time.
 
 The first time it is turned on, the operating system's firewall may ask whether
 PlainShelf may accept incoming connections; allow it on private networks only.
