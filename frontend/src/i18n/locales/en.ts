@@ -1187,7 +1187,19 @@ const en = {
     errorTooLarge: 'This zip is, or unpacks to, more than 512 MiB, the import limit.',
     errorNotZip: 'This file is not a zip.',
     removeConfirm: 'Remove',
-    removeCancel: 'Keep it'
+    removeCancel: 'Keep it',
+    lanShare: {
+      title: 'Share on local network',
+      description:
+        'Lets another device on this Wi-Fi read the ticked shelves, read-only, with the address and token below. A notification stays while sharing; it stops by itself after {minutes} minutes without a read or when the network changes. Off, the app opens no network port.',
+      shelvesLabel: 'Shelves to share',
+      start: 'Start sharing',
+      stop: 'Stop sharing',
+      urlLabel: 'Address',
+      tokenLabel: 'Token',
+      ended: 'Sharing stopped: {reason}',
+      noWifi: 'Connect to Wi-Fi first: sharing works only on a local network.'
+    }
   },
   libraryForms: {
     editBook: {

@@ -70,6 +70,8 @@
         </li>
       </ul>
 
+      <MobileLanSharePanel v-if="canImport && hasLocal" :shelves="localShelves" />
+
       <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
       <p v-if="notice" class="mobile-shelves-notice" role="status">{{ notice }}</p>
 
@@ -111,6 +113,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Capacitor } from '@capacitor/core';
 import { useI18n } from '@/i18n';
 import MobileShelfForm from '@/features/mobile/components/MobileShelfForm.vue';
+import MobileLanSharePanel from '@/features/mobile/components/MobileLanSharePanel.vue';
 import { LocalShelf, localShelfErrorKey, localShelfExportFileName } from '@/providers/localShelf';
 import { removeCacheScope } from '@/providers/mobileCacheFs';
 import { cacheScopeKeyForEntry } from '@/providers/cacheScope';
@@ -144,6 +147,11 @@ const pendingRemoval = ref<ShelfEntry | null>(null);
 const lastExports = ref<Record<string, string>>({});
 const canImport = Capacitor.isNativePlatform();
 const hasLocal = computed(() => entries.value.some((entry) => entry.type === 'local'));
+const localShelves = computed(() =>
+  entries.value.flatMap((entry) =>
+    entry.type === 'local' ? [{ id: entry.localShelfId, name: shelfEntryDisplayName(entry) }] : []
+  )
+);
 /** Offered on a device with no shelf at all, as after a reinstall. */
 const restorePrompt = ref(false);
 
