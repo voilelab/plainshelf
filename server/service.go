@@ -19,6 +19,7 @@ type SrvConf struct {
 	Logger     logutil.LogConf `yaml:"logger"`
 	ServerConf *httputil.Conf  `yaml:"server_conf"`
 	AppConf    *AppConf        `yaml:"app_conf"`
+	DAVExport  *DAVExportConf  `yaml:"dav_export"`
 }
 
 func loadAppConf(confPath string) (*SrvConf, error) {
@@ -42,6 +43,11 @@ func loadAppConf(confPath string) (*SrvConf, error) {
 
 	if err := ValidateSecurityForListenAddr(conf.AppConf.Security, conf.ServerConf.Addr); err != nil {
 		return nil, util.Errorf("%w", err)
+	}
+	if conf.DAVExport != nil {
+		if err := conf.DAVExport.validate(conf.ServerConf.Addr); err != nil {
+			return nil, util.Errorf("%w", err)
+		}
 	}
 
 	return &conf, nil
@@ -100,6 +106,18 @@ func MainService(confPath string) error {
 		}
 	}()
 
+	if conf.DAVExport != nil {
+		davServer, err := startDAVExport(conf.DAVExport, app, rootLogger)
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
+		defer func() {
+			if err := davServer.Shutdown(context.TODO()); err != nil {
+				rootLogger.Error("failed to shutdown dav export server", "error", err)
+			}
+		}()
+	}
+
 	defer func() {
 		rootLogger.Info("shutting down http server")
 		err = server.Shutdown(context.TODO())
@@ -115,4 +133,41 @@ func MainService(confPath string) error {
 	<-sigCh
 
 	return nil
+}
+
+func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger) (*http.Server, error) {
+	if err := EnsureDAVExportToken(conf.TokenFile); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	server, err := httputil.NewServer(&httputil.Conf{
+		Addr:         conf.Addr,
+		ReadTimeout:  conf.ReadTimeout,
+		WriteTimeout: conf.WriteTimeout,
+	})
+	if err != nil {
+		return nil, util.Errorf("dav_export: %w", err)
+	}
+	server.Handler = app.DAVExportHandler(conf.TokenFile)
+
+	go func() {
+		logger.Info("Starting dav export server on", "addr", conf.Addr, "token_file", conf.TokenFile)
+		listenErr := server.ListenAndServe()
+		if listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
+			logger.Error("dav export server error", "error", listenErr)
+		}
+	}()
+	return server, nil
+}
+
+// RotateDAVExportTokenForConf replaces the export token named by the config
+// file at confPath and returns the new one.
+func RotateDAVExportTokenForConf(confPath string) (string, error) {
+	conf, err := loadAppConf(confPath)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	if conf.DAVExport == nil {
+		return "", util.Errorf("config has no dav_export section")
+	}
+	return RotateDAVExportToken(conf.DAVExport.TokenFile)
 }

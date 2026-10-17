@@ -360,5 +360,8 @@ the type, never by falling back to another source.
   [Offline copies](#offline-copies). The engine takes the offline directory as
   a parameter; the scope that names it comes from `SourceConf` once PSW-149
   adds it.
-- **PSW-146, PSW-149.** The server-mode export and the WebDAV client use `SourceConf` and the credential resolver as defined here;
+- **PSW-146, PSW-149.** The server-mode export is the top-level
+  [`dav_export`](../reference/configuration.md#dav_export) section; its token
+  file is what a `plainshelf` source's `credential: file:…` points at on the
+  other machine. The WebDAV client uses `SourceConf` and the credential resolver as defined here;
   none of them adds configuration keys of its own for the same purpose.

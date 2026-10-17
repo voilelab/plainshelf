@@ -1,0 +1,353 @@
+package server
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"errors"
+	"io"
+	"io/fs"
+	"mime"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+
+	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf"
+	"golang.org/x/net/webdav"
+)
+
+// DAVExportConf turns on the read-only WebDAV export of every local shelf, on
+// a listener of its own. Absent, nothing is exported and no port is opened.
+type DAVExportConf struct {
+	Addr         string `yaml:"addr"`
+	ReadTimeout  string `yaml:"read_timeout"`
+	WriteTimeout string `yaml:"write_timeout"`
+
+	// TokenFile holds the bearer token every request must carry. It is
+	// generated when missing and replaced only by RotateDAVExportToken.
+	TokenFile string `yaml:"token_file"`
+}
+
+func (conf *DAVExportConf) validate(apiAddr string) error {
+	switch {
+	case conf.Addr == "":
+		return util.Errorf("dav_export.addr is required")
+	case conf.Addr == apiAddr:
+		return util.Errorf("dav_export.addr must differ from server_conf.addr")
+	case conf.TokenFile == "":
+		return util.Errorf("dav_export.token_file is required")
+	}
+	return nil
+}
+
+const davExportPrefix = "/dav/"
+
+// davExportAllow is every method the export answers; the rest get 405.
+const davExportAllow = "OPTIONS, GET, HEAD, PROPFIND"
+
+const davTokenBytes = 32
+
+// EnsureDAVExportToken generates the token file when it does not exist yet.
+func EnsureDAVExportToken(tokenFile string) error {
+	token, err := readDAVExportToken(tokenFile)
+	if err == nil {
+		if token == "" {
+			return util.Errorf("dav_export.token_file %q is empty", tokenFile)
+		}
+		return nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return util.Errorf("%w", err)
+	}
+	_, err = RotateDAVExportToken(tokenFile)
+	return err
+}
+
+// RotateDAVExportToken replaces the token with a new one and returns it. A
+// running export reads the file on every request, so the old token stops
+// working at once.
+func RotateDAVExportToken(tokenFile string) (string, error) {
+	buf := make([]byte, davTokenBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(buf)
+
+	// CreateTemp opens the file 0600; renamed into place so a reader never
+	// sees a half-written token.
+	tmp, err := os.CreateTemp(filepath.Dir(tokenFile), filepath.Base(tokenFile)+".*.tmp")
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	_, err = tmp.WriteString(token + "\n")
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Rename(tmp.Name(), tokenFile)
+	}
+	if err != nil {
+		_ = os.Remove(tmp.Name())
+		return "", util.Errorf("%w", err)
+	}
+	return token, nil
+}
+
+func readDAVExportToken(tokenFile string) (string, error) {
+	bs, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return strings.TrimSpace(string(bs)), nil
+}
+
+// DAVExportHandler serves /dav/{shelf_id}/ for every local shelf: a read-only
+// WebDAV subset limited to the shelf's own files (shelf.IsShelfFile). It holds
+// no route of the HTTP API.
+func (app *App) DAVExportHandler(tokenFile string) http.Handler {
+	return &davExport{
+		logger:    &app.Logger,
+		shelves:   app.shelfManager,
+		tokenFile: tokenFile,
+		locks:     webdav.NewMemLS(),
+	}
+}
+
+type davExport struct {
+	logger    *logutil.Logger
+	shelves   *shelf.ShelfManager
+	tokenFile string
+
+	// Never used: LOCK is refused before the handler, which only insists on
+	// having one.
+	locks webdav.LockSystem
+}
+
+func (d *davExport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Method first, so a write is 405 with or without a token.
+	switch r.Method {
+	case http.MethodOptions, http.MethodGet, http.MethodHead, "PROPFIND":
+	default:
+		w.Header().Set("Allow", davExportAllow)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	rest, ok := strings.CutPrefix(r.URL.Path, davExportPrefix)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if !d.authorized(r) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="PlainShelf"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !davPathSafe(rest) {
+		http.Error(w, "bad path", http.StatusBadRequest)
+		return
+	}
+
+	shelfID, _, _ := strings.Cut(rest, "/")
+	data, ok := d.shelves.GetShelf(shelfID)
+	if !ok || data.Shelf == nil {
+		http.NotFound(w, r)
+		return
+	}
+	files, ok := data.LocalFiles()
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodOptions:
+		w.Header().Set("Allow", davExportAllow)
+		w.Header().Set("DAV", "1")
+		w.WriteHeader(http.StatusOK)
+		return
+	case "PROPFIND":
+		// RFC 4918 9.1: a missing Depth means infinity, which is refused.
+		if depth := r.Header.Get("Depth"); depth != "0" && depth != "1" {
+			http.Error(w, "only Depth 0 and 1 are supported", http.StatusForbidden)
+			return
+		}
+	}
+
+	h := &webdav.Handler{
+		Prefix:     davExportPrefix + shelfID,
+		FileSystem: davFS{root: files},
+		LockSystem: d.locks,
+	}
+	h.ServeHTTP(w, r)
+}
+
+func (d *davExport) authorized(r *http.Request) bool {
+	got := bearerToken(r.Header.Get("Authorization"))
+	if got == "" {
+		return false
+	}
+	want, err := readDAVExportToken(d.tokenFile)
+	if err != nil || want == "" {
+		// Fail closed: a missing token file rejects every request.
+		d.logger.Error("dav export token unreadable", "token_file", d.tokenFile, "error", err)
+		return false
+	}
+	// Hashed first so the comparison does not leak the token's length.
+	gotSum, wantSum := sha256.Sum256([]byte(got)), sha256.Sum256([]byte(want))
+	return subtle.ConstantTimeCompare(gotSum[:], wantSum[:]) == 1
+}
+
+// davPathSafe rejects a ".." segment, a backslash or a NUL anywhere in the
+// decoded path, before anything resolves it.
+func davPathSafe(p string) bool {
+	if strings.ContainsAny(p, "\\\x00") {
+		return false
+	}
+	for seg := range strings.SplitSeq(p, "/") {
+		if seg == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// davFS is a read-only webdav.FileSystem over one shelf directory. A path
+// outside shelf.IsShelfFile does not exist.
+type davFS struct {
+	root fsutil.ReadFS
+}
+
+var _ webdav.FileSystem = davFS{}
+
+// rel maps a webdav name ("/books/x") to a shelf path ("books/x", "." for the
+// root), reporting false when it is not exported.
+func (davFS) rel(name string) (string, bool) {
+	rel := strings.TrimPrefix(path.Clean("/"+name), "/")
+	if rel == "" {
+		rel = "."
+	}
+	return rel, shelf.IsShelfFile(rel)
+}
+
+func (davFS) Mkdir(context.Context, string, os.FileMode) error { return os.ErrPermission }
+func (davFS) RemoveAll(context.Context, string) error          { return os.ErrPermission }
+func (davFS) Rename(context.Context, string, string) error     { return os.ErrPermission }
+
+func (d davFS) OpenFile(_ context.Context, name string, flag int, _ os.FileMode) (webdav.File, error) {
+	if flag&(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) != 0 {
+		return nil, os.ErrPermission
+	}
+	rel, ok := d.rel(name)
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	f, err := d.root.Open(rel)
+	if err != nil {
+		return nil, davErr(err)
+	}
+	seeker, ok := f.(io.Seeker)
+	if !ok {
+		_ = f.Close()
+		return nil, util.Errorf("dav export: %q is not seekable", rel)
+	}
+	return &davFile{File: f, seeker: seeker, fsys: d, rel: rel}, nil
+}
+
+func (d davFS) Stat(_ context.Context, name string) (os.FileInfo, error) {
+	rel, ok := d.rel(name)
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	info, err := d.root.Stat(rel)
+	if err != nil {
+		return nil, davErr(err)
+	}
+	return davFileInfo{info}, nil
+}
+
+// davErr unwraps a not-exist error to os.ErrNotExist: webdav tests with
+// os.IsNotExist, which does not see through util.Errorf, and answers anything
+// else with 405.
+func davErr(err error) error {
+	if errors.Is(err, fs.ErrNotExist) {
+		return os.ErrNotExist
+	}
+	return err
+}
+
+type davFile struct {
+	fs.File
+	seeker io.Seeker
+	fsys   davFS
+	rel    string
+
+	entries []fs.FileInfo
+	pos     int
+	listed  bool
+}
+
+func (f *davFile) Seek(offset int64, whence int) (int64, error) {
+	return f.seeker.Seek(offset, whence)
+}
+
+func (f *davFile) Write([]byte) (int, error) { return 0, os.ErrPermission }
+
+func (f *davFile) Stat() (fs.FileInfo, error) {
+	info, err := f.File.Stat()
+	if err != nil {
+		return nil, err
+	}
+	return davFileInfo{info}, nil
+}
+
+func (f *davFile) Readdir(count int) ([]fs.FileInfo, error) {
+	if !f.listed {
+		entries, err := f.fsys.root.ReadDir(f.rel)
+		if err != nil {
+			return nil, davErr(err)
+		}
+		for _, e := range entries {
+			if !shelf.IsShelfFile(path.Join(f.rel, e.Name())) {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue // removed since the listing
+			}
+			f.entries = append(f.entries, davFileInfo{info})
+		}
+		f.listed = true
+	}
+	if count <= 0 {
+		rest := f.entries[f.pos:]
+		f.pos = len(f.entries)
+		return rest, nil
+	}
+	if f.pos >= len(f.entries) {
+		return nil, io.EOF
+	}
+	end := min(f.pos+count, len(f.entries))
+	out := f.entries[f.pos:end]
+	f.pos = end
+	return out, nil
+}
+
+// davFileInfo names the content type from the extension, so PROPFIND does not
+// open and sniff every file it lists — a round trip each on a network mount.
+type davFileInfo struct {
+	fs.FileInfo
+}
+
+func (fi davFileInfo) ContentType(context.Context) (string, error) {
+	if ct := mime.TypeByExtension(path.Ext(fi.Name())); ct != "" {
+		return ct, nil
+	}
+	return "application/octet-stream", nil
+}
