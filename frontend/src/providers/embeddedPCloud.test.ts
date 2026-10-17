@@ -147,6 +147,10 @@ describe('EmbeddedPCloudReader', () => {
     expect(new mod.EmbeddedPCloudReader().filtersNsfwOnDevice()).toBe(true);
   });
 
+  it('offers no character-count listing, which costs a request per book', () => {
+    expect(new mod.EmbeddedPCloudReader().supportsCharCountListing()).toBe(false);
+  });
+
   it('reads every mark from Go, and none when Go cannot answer', async () => {
     plugin.nsfwMarks.mockResolvedValueOnce({ marks: { b1: { nsfw: true }, b2: { nsfw: false } } });
     const reader = new mod.EmbeddedPCloudReader();

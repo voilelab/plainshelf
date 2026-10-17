@@ -476,7 +476,7 @@ func (s *Shelf) initCache() error {
 	// the exported book cache first and walks only without one.
 	var err error
 	if s.remote {
-		err = s.refreshRemoteBookCache(true)
+		err = s.refreshRemoteBookCache(s.openWithoutExport)
 	} else {
 		err = s.scanToBookCache()
 	}

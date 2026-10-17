@@ -131,6 +131,11 @@ export class EmbeddedPCloudReader extends ServerBookshelfProvider {
     return true;
   }
 
+  /** Go would read every book's source meta.json over pCloud for one listing. */
+  supportsCharCountListing(): boolean {
+    return false;
+  }
+
   /** From Go, which holds them for every book, hidden or not. */
   async localNsfwMarks(): Promise<ReadonlyMap<string, NsfwMarks> | null> {
     try {

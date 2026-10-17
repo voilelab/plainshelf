@@ -1,6 +1,8 @@
 package shelf
 
 import (
+	"os"
+	"path"
 	"slices"
 	"strings"
 	"testing"
@@ -99,4 +101,48 @@ func TestPCloudShelfReadsADownloadedBookOffline(t *testing.T) {
 	if text, err := readCurrentText(t, s, bookID); err != nil || text != "Dune text" {
 		t.Errorf("offline text = %q, %v", text, err)
 	}
+}
+
+// A source no installation exports is walked on the first open only: the
+// offline snapshot answers later ones, and a rescan still walks.
+func TestPCloudShelfWithoutExportOpensFromTheOfflineSnapshot(t *testing.T) {
+	libRoot := seedExportedShelf(t, "Dune", "Solaris", "Hyperion")
+	if err := os.RemoveAll(path.Join(libRoot, appFolder)); err != nil {
+		t.Fatalf("remove app/: %v", err)
+	}
+	offlineDir := t.TempDir()
+
+	first, srv := openPCloudShelfOffline(t, libRoot, ShelfConf{}, offlineDir)
+	if got := count(srv.Take(), "download"); got < 3 {
+		t.Fatalf("first open made %d downloads, want a walk reading every book", got)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	s, srv := openPCloudShelfOffline(t, libRoot, ShelfConf{}, offlineDir)
+	if got, want := listedTitles(t, s), []string{"Dune", "Hyperion", "Solaris"}; !slices.Equal(got, want) {
+		t.Errorf("reopened listing = %v, want %v", got, want)
+	}
+	// shelf.json at most; no book is read.
+	if got := count(srv.Take(), "download"); got > 1 {
+		t.Errorf("reopening made %d downloads, want the snapshot to answer", got)
+	}
+
+	if _, err := s.RescanUnthrottled(); err != nil {
+		t.Fatalf("Rescan: %v", err)
+	}
+	if got := count(srv.Take(), "download"); got < 3 {
+		t.Errorf("rescan made %d downloads, want a walk", got)
+	}
+}
+
+func count(requests []string, method string) int {
+	n := 0
+	for _, r := range requests {
+		if r == method {
+			n++
+		}
+	}
+	return n
 }
