@@ -42,6 +42,7 @@ var docsSections = map[reflect.Type]string{
 	reflect.TypeFor[WorkerConf]():            "### `app_conf.worker`",
 	reflect.TypeFor[shelf.ShelfConfWithID](): "### `shelves[]`",
 	reflect.TypeFor[shelf.ShelfConf]():       "### `shelves[]`",
+	reflect.TypeFor[shelf.SourceConf]():      "### `shelves[].source`",
 	reflect.TypeFor[epub.Strategy]():         "### `app_conf.epub_import_strategy`",
 	reflect.TypeFor[logutil.LogConf]():       "## Logger blocks",
 	reflect.TypeFor[logutil.LogFileConf]():   "### `log_file`",

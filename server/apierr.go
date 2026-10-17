@@ -118,6 +118,13 @@ var apiErrorTable = []struct {
 		status:  http.StatusNotFound,
 		message: "asset not found",
 	}},
+	// Before both entries below, which a remote reports it with: a wrong
+	// credential needs a different fix than a lost connection.
+	{fsutil.ErrSourceUnauthorized, apiError{
+		code:    "SOURCE_UNAUTHORIZED",
+		status:  http.StatusServiceUnavailable,
+		message: "the shelf source refused the credential",
+	}},
 	// Before ErrSourceUnavailable, which it wraps: inside a book the refusal
 	// says what would have helped.
 	{shelf.ErrBookNotDownloaded, apiError{

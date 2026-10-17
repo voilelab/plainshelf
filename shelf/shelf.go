@@ -119,6 +119,11 @@ type ShelfConf struct {
 	Logger  logutil.LogConf `yaml:"logger" json:"logger"`
 	LibRoot string          `yaml:"lib_root" json:"lib_root"`
 
+	// Source is where the shelf's files are, instead of lib_root; see
+	// ResolveSource. NewShelf opens a local one only: a virtual source needs
+	// its ReadFS built by the host and goes through NewShelfFromFS.
+	Source *SourceConf `yaml:"source" json:"source,omitzero"`
+
 	// ReadOnly takes the shelf exactly as it is found: no directory is created,
 	// leftover temp data is not cleared, a legacy .trash/ is not migrated,
 	// neither runtime cache under app/ is written, and every mutating operation
@@ -249,6 +254,18 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	if conf == nil {
 		return nil, util.NewError("shelf configuration cannot be nil")
 	}
+
+	src, err := conf.ResolveSource()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	if src.IsVirtual() {
+		return nil, util.Errorf("source type %q is not a local directory and cannot be opened here", src.Type)
+	}
+	// A copy, so code below reads lib_root whichever way it was given.
+	localConf := *conf
+	localConf.LibRoot, localConf.Source = src.Path, nil
+	conf = &localConf
 
 	settings, err := parseShelfSettings(conf)
 	if err != nil {

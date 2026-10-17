@@ -102,7 +102,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
 			shelfConf.BookCacheWriterID = writerID
 		}
-		if err := shelfManager.AddShelf(shelfConf); err != nil {
+		if err := addShelfEntry(shelfManager, shelfConf, conf.StorePath, conf.Credentials); err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 	}
@@ -184,7 +184,7 @@ func (app *App) TaskChains() *taskutil.Pool {
 // export fails. Read-only mode has to be applied here for the same reason, and
 // it is what withholds the writer ID rather than granting it.
 func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
-	return app.shelfManager.AddShelf(app.resolveShelfConf(conf))
+	return addShelfEntry(app.shelfManager, app.resolveShelfConf(conf), app.conf.StorePath, app.conf.Credentials)
 }
 
 // AddVirtualShelf opens a read-only shelf reached through root, such as a

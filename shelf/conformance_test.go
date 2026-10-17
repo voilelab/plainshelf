@@ -24,7 +24,7 @@ the contract.
 The point is not to cover this package (the tests around it do that already) but
 to pin the observable reading of a shelf to a file written from the format
 documentation, through every way a shelf is opened: walked, from its exported
-cache, and over pCloud.
+cache, over pCloud, and over WebDAV.
 */
 
 // conformanceDatasetVersion is the expected.json shape this harness understands,
@@ -130,6 +130,26 @@ func TestBookPackageConformanceThroughPCloud(t *testing.T) {
 			caseDir := filepath.Join(conformanceRoot, "cases", entry.Name)
 			expected := loadConformanceExpectation(t, filepath.Join(caseDir, "expected.json"))
 			s, _ := openPCloudShelf(t, filepath.Join(caseDir, "shelf"), ShelfConf{})
+			observed := conformanceReading{
+				Folders:    s.collectExportFolders(),
+				Books:      readConformanceBooks(t, s),
+				BookCaches: readConformanceBookCaches(t, s),
+			}
+			assertConformanceEqual(t, expected, observed)
+		})
+	}
+}
+
+// TestBookPackageConformanceThroughWebDAV reads every case through davfs.FS
+// against a general WebDAV server, the client a plainshelf or webdav source
+// opens.
+func TestBookPackageConformanceThroughWebDAV(t *testing.T) {
+	manifest := loadConformanceManifest(t)
+	for _, entry := range manifest.Cases {
+		t.Run(entry.Name, func(t *testing.T) {
+			caseDir := filepath.Join(conformanceRoot, "cases", entry.Name)
+			expected := loadConformanceExpectation(t, filepath.Join(caseDir, "expected.json"))
+			s := openWebDAVShelf(t, filepath.Join(caseDir, "shelf"))
 			observed := conformanceReading{
 				Folders:    s.collectExportFolders(),
 				Books:      readConformanceBooks(t, s),
