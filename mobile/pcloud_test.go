@@ -1,11 +1,19 @@
 package mobile
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/pcloud/pcloudtest"
+	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -95,5 +103,80 @@ func TestPCloudShelfReopensAndCloses(t *testing.T) {
 	}
 	if err := OpenPCloudShelf("pcloud-b", "Cloud", srv.Host(), "", pcloudFolder, "pcloud:scope-b"); err == nil {
 		t.Error("an empty token was accepted")
+	}
+}
+
+func TestPCloudShelfFailedReplacementKeepsTheOldOne(t *testing.T) {
+	srv, _ := servePCloudShelf(t)
+	dataDir := t.TempDir()
+	startT(t, dataDir)
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); err != nil {
+		t.Fatalf("OpenPCloudShelf: %v", err)
+	}
+	waitReady(t)
+
+	// A file where scope-b's offline directory goes makes opening it fail
+	// after the old shelf is closed.
+	sum := sha256.Sum256([]byte("pcloud:scope-b"))
+	blocked := filepath.Join(dataDir, "store", "offline", hex.EncodeToString(sum[:16]))
+	if err := os.MkdirAll(filepath.Dir(blocked), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, open := range map[string]func() error{
+		"empty scope": func() error {
+			return OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "")
+		},
+		"foreign host": func() error {
+			return OpenPCloudShelf("pcloud-a", "Cloud", "example.com", pcloudtest.Token, pcloudFolder, "pcloud:scope-a")
+		},
+		"unopenable offline directory": func() error {
+			return OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-b")
+		},
+	} {
+		if err := open(); err == nil {
+			t.Errorf("%s: replacement succeeded", name)
+		}
+		waitReady(t)
+		if titles := bookTitles(t, "pcloud-a"); !strings.Contains(titles, `"Dune"`) {
+			t.Errorf("%s: after the failed replacement, books = %s", name, titles)
+		}
+	}
+}
+
+func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
+	srv, _ := servePCloudShelf(t)
+	startT(t, t.TempDir())
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); err != nil {
+		t.Fatalf("OpenPCloudShelf: %v", err)
+	}
+	rt, err := running()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := quiesceTimeout
+	quiesceTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { quiesceTimeout = old })
+
+	task := &heldTask{release: make(chan struct{})}
+	release := sync.OnceFunc(func() { close(task.release) })
+	t.Cleanup(release)
+	if _, err := rt.app.TaskChains().Submit(&taskutil.TaskChain{Tasks: []taskutil.Task{task}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a"); !errors.Is(err, ErrBusy) {
+		t.Errorf("replacing during a task: %v", err)
+	}
+	if err := CloseVirtualShelf("pcloud-a"); !errors.Is(err, ErrBusy) {
+		t.Errorf("closing during a task: %v", err)
+	}
+
+	quiesceTimeout = 5 * time.Second
+	release()
+	if err := CloseVirtualShelf("pcloud-a"); err != nil {
+		t.Errorf("closing after the task: %v", err)
 	}
 }

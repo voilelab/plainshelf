@@ -281,8 +281,13 @@ func TestFSOpenZipCostsTwoRequests(t *testing.T) {
 }
 
 func TestNewClientAndHosts(t *testing.T) {
-	if _, err := NewClient(" ", "t", nil); err == nil {
-		t.Error("empty host accepted")
+	for _, host := range []string{" ", "example.com", "api.pcloud.com.example.com"} {
+		if _, err := NewClient(host, "t", nil); err == nil {
+			t.Errorf("host %q accepted", host)
+		}
+	}
+	if _, err := NewClient("https://eapi.pcloud.com/", "t", nil); err != nil {
+		t.Errorf("EU host with scheme refused: %v", err)
 	}
 	if _, err := NewClient(HostEU, " ", nil); err == nil {
 		t.Error("empty token accepted")

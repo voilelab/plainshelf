@@ -67,13 +67,14 @@ type Client struct {
 }
 
 // NewClient returns a client for host, one of HostUS and HostEU (a scheme and
-// trailing slash are tolerated). A nil httpClient uses a default one; the
-// time budgets are applied per request either way.
+// trailing slash are tolerated). Any other host is refused, since it would be
+// handed the token. A nil httpClient uses a default one; the time budgets are
+// applied per request either way.
 func NewClient(host, token string, httpClient *http.Client) (*Client, error) {
 	host = strings.TrimRight(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(host), "https://"), "http://"), "/")
 	token = strings.TrimSpace(token)
-	if host == "" {
-		return nil, util.NewError("pCloud API host is required")
+	if host != HostUS && host != HostEU {
+		return nil, util.Errorf("%q is not a pCloud API host", host)
 	}
 	if token == "" {
 		return nil, util.NewError("pCloud access token is required")

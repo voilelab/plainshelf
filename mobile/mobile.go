@@ -70,7 +70,7 @@ type instance struct {
 	app     *server.App
 	handler http.Handler
 	// virtual holds the IDs of open virtual shelves; see OpenPCloudShelf.
-	virtual map[string]bool
+	virtual map[string]virtualShelf
 	// closed is set by Stop under mu, so a caller that fetched the instance
 	// just before Stop finds out once it holds the lock.
 	closed bool
@@ -133,7 +133,7 @@ func start(dataDir string) (*instance, error) {
 		_ = app.Close()
 		return nil, util.Errorf("%w", err)
 	}
-	return &instance{dataDir: dataDir, conf: *conf, app: app, handler: app.Handler(), virtual: map[string]bool{}}, nil
+	return &instance{dataDir: dataDir, conf: *conf, app: app, handler: app.Handler(), virtual: map[string]virtualShelf{}}, nil
 }
 
 // Stop closes the server; Start may be called again afterwards.

@@ -62,9 +62,31 @@ func New(t testing.TB, dir, mount string) *Server {
 	return s
 }
 
-// Host is the address to hand pcloud.NewClient; Client() trusts its certificate.
-func (s *Server) Host() string {
-	return strings.TrimPrefix(s.URL, "https://")
+// Host is the API host to hand pcloud.NewClient along with Client().
+func (s *Server) Host() string { return APIHost }
+
+// APIHost is a real region host: pcloud.NewClient refuses any other.
+const APIHost = "api.pcloud.com"
+
+// downloadHost is what getfilelink and getziplink name, as pCloud's own
+// content hosts differ from the API host.
+const downloadHost = "c1.pcloud.com"
+
+// Client sends every request, whatever its host, to this server.
+func (s *Server) Client() *http.Client {
+	inner := s.Server.Client()
+	return &http.Client{Transport: redirect{to: strings.TrimPrefix(s.URL, "https://"), next: inner.Transport}}
+}
+
+type redirect struct {
+	to   string
+	next http.RoundTripper
+}
+
+func (r redirect) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.URL.Host = r.to
+	return r.next.RoundTrip(req)
 }
 
 // RefuseRecursive makes a recursive listfolder answer result 1101.
@@ -170,9 +192,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			reply(w, map[string]any{"result": 2009, "error": "File not found."})
 			return
 		}
-		reply(w, map[string]any{"result": 0, "hosts": []string{s.Host()}, "path": "/dl/" + q.Get("fileid") + "/" + path.Base(p)})
+		reply(w, map[string]any{"result": 0, "hosts": []string{downloadHost}, "path": "/dl/" + q.Get("fileid") + "/" + path.Base(p)})
 	case "getziplink":
-		reply(w, map[string]any{"result": 0, "hosts": []string{s.Host()}, "path": "/zip/" + q.Get("fileids")})
+		reply(w, map[string]any{"result": 0, "hosts": []string{downloadHost}, "path": "/zip/" + q.Get("fileids")})
 	default:
 		reply(w, map[string]any{"result": 2000, "error": "Unknown method."})
 	}
