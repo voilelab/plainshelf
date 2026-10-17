@@ -73,6 +73,8 @@ public class LanShareService extends Service {
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private String host;
+    /** The default network host was taken from; another one, even with the same address, ends the share. */
+    private Network network;
     private NsdManager.RegistrationListener nsdListener;
     private ConnectivityManager.NetworkCallback networkCallback;
     private boolean ending;
@@ -116,10 +118,12 @@ public class LanShareService extends Service {
         String nextHost = intent == null ? null : intent.getStringExtra(EXTRA_HOST);
         if (nsdListener == null || nextHost == null || !nextHost.equals(host)) {
             host = nextHost;
+            network = getSystemService(ConnectivityManager.class).getActiveNetwork();
             unregisterNsd();
             registerNsd(url);
         }
         watchNetwork();
+        checkNetwork();
         main.removeCallbacks(idleCheck);
         main.postDelayed(idleCheck, IDLE_CHECK_MS);
         notifyChanged();
@@ -220,7 +224,7 @@ public class LanShareService extends Service {
         return null;
     }
 
-    /** Closes the share once the address it is bound to is no longer ours. */
+    /** Closes the share once its network is replaced or its address is no longer ours. */
     private void watchNetwork() {
         if (networkCallback != null) {
             return;
@@ -229,17 +233,17 @@ public class LanShareService extends Service {
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onLost(Network network) {
-                main.post(LanShareService.this::checkAddress);
+                main.post(LanShareService.this::checkNetwork);
             }
 
             @Override
             public void onLinkPropertiesChanged(Network network, LinkProperties props) {
-                main.post(LanShareService.this::checkAddress);
+                main.post(LanShareService.this::checkNetwork);
             }
 
             @Override
             public void onCapabilitiesChanged(Network network, NetworkCapabilities caps) {
-                main.post(LanShareService.this::checkAddress);
+                main.post(LanShareService.this::checkNetwork);
             }
         };
         try {
@@ -250,11 +254,12 @@ public class LanShareService extends Service {
         }
     }
 
-    private void checkAddress() {
+    private void checkNetwork() {
         if (ending || host == null) {
             return;
         }
-        if (!host.equals(lanAddress(this))) {
+        Network active = getSystemService(ConnectivityManager.class).getActiveNetwork();
+        if (network == null || !network.equals(active) || !host.equals(lanAddress(this))) {
             end(getString(R.string.lan_share_ended_network));
         }
     }

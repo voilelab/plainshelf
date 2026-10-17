@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { useI18n } from '@/i18n';
 import { LanShare, type LanShareStatus } from '@/features/mobile/utils/lanShare';
@@ -72,6 +72,22 @@ function apply(next: LanShareStatus): void {
     selected.value = next.shelf_ids.filter((id) => props.shelves.some((shelf) => shelf.id === id));
   }
 }
+
+/**
+ * A removed shelf leaves the share in Go but not this selection; pruned here,
+ * or the next start would name a shelf that no longer exists.
+ */
+watch(
+  () => props.shelves,
+  async (shelves) => {
+    const kept = selected.value.filter((id) => shelves.some((shelf) => shelf.id === id));
+    if (kept.length === selected.value.length) {
+      return;
+    }
+    selected.value = kept;
+    await onSelectionChange();
+  }
+);
 
 onMounted(async () => {
   try {

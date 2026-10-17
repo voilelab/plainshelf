@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, h, type App } from 'vue';
+import { createApp, h, ref, type App } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LanShareStatus } from '@/features/mobile/utils/lanShare';
 
@@ -51,10 +51,12 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve));
 }
 
+const shelvesProp = ref(shelves);
+
 async function mountPanel(): Promise<HTMLElement> {
   const host = document.createElement('div');
   document.body.append(host);
-  const app = createApp({ setup: () => () => h(MobileLanSharePanel, { shelves }) });
+  const app = createApp({ setup: () => () => h(MobileLanSharePanel, { shelves: shelvesProp.value }) });
   app.mount(host);
   mounted = { app, host };
   await flush();
@@ -71,6 +73,7 @@ describe('MobileLanSharePanel', () => {
     mocks.start.mockReset().mockResolvedValue(running);
     mocks.stop.mockReset().mockResolvedValue(stopped);
     mocks.listener = null;
+    shelvesProp.value = shelves;
   });
 
   afterEach(() => {
@@ -115,6 +118,20 @@ describe('MobileLanSharePanel', () => {
     boxes(host)[0].click();
     await flush();
     expect(mocks.stop).toHaveBeenCalled();
+  });
+
+  it('drops a removed shelf from the selection', async () => {
+    mocks.getStatus.mockResolvedValue({ ...running, shelf_ids: ['local-1', 'local-2'] });
+    mocks.start.mockResolvedValue(running);
+    const host = await mountPanel();
+    shelvesProp.value = [shelves[0]];
+    await flush();
+    expect(mocks.start).toHaveBeenLastCalledWith({ shelfIds: ['local-1'] });
+
+    shelvesProp.value = [];
+    await flush();
+    expect(mocks.stop).toHaveBeenCalled();
+    expect(boxes(host)).toHaveLength(0);
   });
 
   it('says why a share stopped by itself', async () => {
