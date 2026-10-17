@@ -1,6 +1,7 @@
 import { Preferences } from '@capacitor/preferences';
 
 import { normalizeApiBase, setActiveShelfID, setApiBase } from '@/api/client';
+import { LOCAL_API_BASE } from '@/providers/localShelf';
 import { SecureStorage } from '@/providers/secureStorage';
 
 // Native (Capacitor) builds load a static bundle with no backend to inject the
@@ -13,8 +14,8 @@ import { SecureStorage } from '@/providers/secureStorage';
 // ever written into that array.
 //
 // A token is not what makes the app read-only — api/client.ts rejects every
-// mutation before it is sent. A server token is only needed to read from a
-// `protect_read` server.
+// mutation to a server or pCloud before it is sent. A server token is only
+// needed to read from a `protect_read` server. A local shelf has no token.
 const KEY_ENTRIES = 'plainshelf.mobile.shelves';
 const KEY_ACTIVE_ENTRY_ID = 'plainshelf.mobile.activeShelfId';
 const SECRET_KEY_PREFIX = 'plainshelf.mobile.secret.';
@@ -36,8 +37,17 @@ const LEGACY_KEY_PCLOUD_SHELF_ROOT = 'plainshelf.mobile.pcloud.shelfRoot';
  * `server` is a PlainShelf server reachable over the network. `pcloud` reads a
  * shelf straight out of pCloud with no server involved — the one case a server
  * cannot cover, because a phone cannot mount cloud storage the way a host can.
+ * `local` is a shelf in the app's own storage, served by the embedded Go server
+ * and the only source the app writes to.
  */
-export type ShelfSourceType = 'server' | 'pcloud';
+export type ShelfSourceType = 'server' | 'pcloud' | 'local';
+
+/** The i18n key naming each source type, for the shelf list and picker. */
+export const SOURCE_TYPE_LABEL_KEYS: Record<ShelfSourceType, string> = {
+  server: 'mobileConnect.modeServer',
+  pcloud: 'mobileConnect.modePCloud',
+  local: 'mobileConnect.modeLocal'
+};
 
 interface ShelfEntryBase {
   /**
@@ -77,7 +87,13 @@ export interface PCloudShelfEntry extends ShelfEntryBase {
   pcloudUserId?: string;
 }
 
-export type ShelfEntry = ServerShelfEntry | PCloudShelfEntry;
+interface LocalShelfEntry extends ShelfEntryBase {
+  type: 'local';
+  /** The embedded server's shelf id, from LocalShelf.createShelf. */
+  localShelfId: string;
+}
+
+export type ShelfEntry = ServerShelfEntry | PCloudShelfEntry | LocalShelfEntry;
 
 /**
  * Kept here so callers that cannot await — provider construction runs
@@ -180,6 +196,10 @@ function parseShelfEntry(raw: unknown): ShelfEntry | null {
       // deriving the scope key it already has data under.
       ...(pcloudUserId ? { pcloudUserId } : {})
     };
+  }
+
+  if (record.type === 'local') {
+    return { id, type: 'local', name, localShelfId: normalizeString(record.localShelfId) };
   }
 
   // Anything unrecognised is a server entry, matching how the single-connection
@@ -323,9 +343,13 @@ export function shelfEntryDisplayName(entry: ShelfEntry): string {
   if (entry.name) {
     return entry.name;
   }
-  return entry.type === 'pcloud'
-    ? pcloudShelfRootName(entry.pcloudShelfRoot)
-    : entry.shelfId || entry.serverUrl;
+  if (entry.type === 'pcloud') {
+    return pcloudShelfRootName(entry.pcloudShelfRoot);
+  }
+  if (entry.type === 'local') {
+    return entry.localShelfId;
+  }
+  return entry.shelfId || entry.serverUrl;
 }
 
 /**
@@ -343,6 +367,9 @@ export function shelfEntryTarget(entry: ShelfEntry | null): {
 } {
   if (!entry) {
     return { apiBase: '', shelfID: '' };
+  }
+  if (entry.type === 'local') {
+    return { apiBase: LOCAL_API_BASE, shelfID: entry.localShelfId };
   }
   if (entry.type === 'pcloud') {
     if (!entry.pcloudHost) {
@@ -375,6 +402,9 @@ export function isShelfEntryConfigured(entry: ShelfEntry | null | undefined): bo
   }
   if (entry.type === 'pcloud') {
     return Boolean(entry.pcloudHost && entry.pcloudShelfRoot);
+  }
+  if (entry.type === 'local') {
+    return Boolean(entry.localShelfId);
   }
   return Boolean(entry.serverUrl && entry.shelfId);
 }
@@ -518,9 +548,13 @@ export async function setActiveShelfEntry(entryID: string): Promise<void> {
 
 export function newShelfEntry(type: ShelfSourceType): ShelfEntry {
   const id = newShelfEntryID();
-  return type === 'pcloud'
-    ? { id, type, name: '', pcloudClientId: '', pcloudHost: '', pcloudShelfRoot: '' }
-    : { id, type, name: '', serverUrl: '', shelfId: '' };
+  if (type === 'pcloud') {
+    return { id, type, name: '', pcloudClientId: '', pcloudHost: '', pcloudShelfRoot: '' };
+  }
+  if (type === 'local') {
+    return { id, type, name: '', localShelfId: '' };
+  }
+  return { id, type, name: '', serverUrl: '', shelfId: '' };
 }
 
 export async function initMobileConfig(): Promise<void> {

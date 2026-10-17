@@ -50,7 +50,13 @@
         <h2 class="mobile-shelves-confirm-title">
           {{ t('mobileShelves.removeTitle', { name: displayName(pendingRemoval) }) }}
         </h2>
-        <p class="mobile-shelves-confirm-body">{{ t('mobileShelves.removeDescription') }}</p>
+        <p class="mobile-shelves-confirm-body">
+          {{
+            pendingRemoval.type === 'local'
+              ? t('mobileShelves.removeLocalDescription')
+              : t('mobileShelves.removeDescription')
+          }}
+        </p>
         <div class="mobile-shelves-actions">
           <button type="button" class="button" :disabled="busy" @click="pendingRemoval = null">
             {{ t('mobileShelves.removeCancel') }}
@@ -69,6 +75,7 @@ import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from '@/i18n';
 import MobileShelfForm from '@/features/mobile/components/MobileShelfForm.vue';
+import { LocalShelf } from '@/providers/localShelf';
 import { removeCacheScope } from '@/providers/mobileCacheFs';
 import { cacheScopeKeyForEntry } from '@/providers/cacheScope';
 import {
@@ -76,6 +83,7 @@ import {
   loadShelfEntries,
   setActiveShelfEntry,
   shelfEntryDisplayName,
+  SOURCE_TYPE_LABEL_KEYS,
   type ShelfEntry
 } from '@/providers/mobileConfig';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
@@ -105,10 +113,13 @@ async function refresh(): Promise<void> {
 const displayName = shelfEntryDisplayName;
 
 function typeLabel(entry: ShelfEntry): string {
-  return entry.type === 'pcloud' ? t('mobileConnect.modePCloud') : t('mobileConnect.modeServer');
+  return t(SOURCE_TYPE_LABEL_KEYS[entry.type]);
 }
 
 function detail(entry: ShelfEntry): string {
+  if (entry.type === 'local') {
+    return t('mobileShelves.localDetail');
+  }
   return entry.type === 'pcloud'
     ? `${entry.pcloudHost} · ${entry.pcloudShelfRoot}`
     : `${entry.serverUrl} · ${entry.shelfId}`;
@@ -144,11 +155,12 @@ async function onUse(entryID: string): Promise<void> {
 }
 
 /**
- * Drops the entry first and sweeps its downloads afterwards.
+ * Drops the entry first and deletes what it held afterwards: its downloads,
+ * or a local shelf's books.
  *
  * That order is deliberate: a failed sweep leaves reclaimable files behind,
  * which is harmless, while a failed entry write after a successful sweep would
- * leave a shelf in the list whose downloads had already been deleted.
+ * leave a shelf in the list whose files had already been deleted.
  */
 async function onRemove(): Promise<void> {
   const target = pendingRemoval.value;
@@ -161,7 +173,12 @@ async function onRemove(): Promise<void> {
   const wasActive = target.id === activeEntryID.value;
   try {
     await deleteShelfEntry(target.id);
-    await removeCacheScope(cacheScopeKeyForEntry(target));
+    if (target.type === 'local') {
+      // The books themselves, which the confirmation above names.
+      await LocalShelf.removeShelf({ id: target.localShelfId });
+    } else {
+      await removeCacheScope(cacheScopeKeyForEntry(target));
+    }
     pendingRemoval.value = null;
     await refresh();
 

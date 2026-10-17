@@ -9,6 +9,7 @@ import {
   getShelfEntries,
   setActiveShelfEntry,
   shelfEntryDisplayName,
+  SOURCE_TYPE_LABEL_KEYS,
   type ShelfEntry
 } from '@/providers/mobileConfig';
 
@@ -39,8 +40,7 @@ export function createMobileShelfPicker(): ShelfPicker {
       entries.value.map((entry) => ({
         id: entry.id,
         name: shelfEntryDisplayName(entry),
-        typeLabel:
-          entry.type === 'pcloud' ? t('mobileConnect.modePCloud') : t('mobileConnect.modeServer')
+        typeLabel: t(SOURCE_TYPE_LABEL_KEYS[entry.type])
       }))
     ),
     value: computed(() => activeID.value),

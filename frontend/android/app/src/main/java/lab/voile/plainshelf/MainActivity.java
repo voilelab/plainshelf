@@ -7,6 +7,12 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SecureStoragePlugin.class);
+        registerPlugin(LocalShelfPlugin.class);
         super.onCreate(savedInstanceState);
+        // The local shelf's reads are served in-process, not over a socket.
+        // No bridge when the device has no WebView.
+        if (bridge != null) {
+            bridge.setWebViewClient(new LocalShelfWebViewClient(bridge));
+        }
     }
 }

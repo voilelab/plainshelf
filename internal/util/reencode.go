@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/wlynxg/chardet"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -33,12 +32,13 @@ func ReEncodeToUTF8(src io.Reader) (io.Reader, string, error) {
 	res := chardet.Detect(bs)
 	switch res.Encoding {
 	case "", "Ascii", "ASCII", "UTF-8":
-		return strings.NewReader(string(bs)), res.Encoding, nil
+		// bytes, not string(bs): the copy doubled the peak for a large body.
+		return bytes.NewReader(bs), res.Encoding, nil
 	case "UTF-8-SIG":
 		// chardet detected a UTF-8 BOM. Strip it: a leading U+FEFF has no textual
 		// meaning, and left in place it breaks Markdown title parsing (the opening
 		// "# Title" is no longer at the start of the line).
-		return strings.NewReader(strings.TrimPrefix(string(bs), "\ufeff")), res.Encoding, nil
+		return bytes.NewReader(bytes.TrimPrefix(bs, []byte("\ufeff"))), res.Encoding, nil
 	case "GB18030", "GBK", "GB2312":
 		return simplifiedchinese.GB18030.NewDecoder().Reader(bytes.NewReader(bs)), res.Encoding, nil
 	case "Big5":

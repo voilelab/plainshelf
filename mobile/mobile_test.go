@@ -43,13 +43,41 @@ func waitReady(t *testing.T) {
 	}
 }
 
-func handle(t *testing.T, method, url, body string) *Response {
+// result is a Response with its body read back from the out file.
+type result struct {
+	Status int
+	Header map[string]string
+	Body   []byte
+}
+
+func handle(t *testing.T, method, url, body string) *result {
 	t.Helper()
-	res, err := Handle(method, url, `{"Content-Type":"application/json"}`, []byte(body))
+	dir := t.TempDir()
+	bodyPath := ""
+	if body != "" {
+		bodyPath = filepath.Join(dir, "body")
+		if err := os.WriteFile(bodyPath, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return handleFile(t, method, url, `{"Content-Type":"application/json"}`, bodyPath, filepath.Join(dir, "out"))
+}
+
+func handleFile(t *testing.T, method, url, headerJSON, bodyPath, outPath string) *result {
+	t.Helper()
+	res, err := Handle(method, url, headerJSON, bodyPath, outPath)
 	if err != nil {
 		t.Fatalf("Handle %s %s: %v", method, url, err)
 	}
-	return res
+	var hdr map[string]string
+	if err := json.Unmarshal([]byte(res.Header), &hdr); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &result{Status: res.Status, Header: hdr, Body: data}
 }
 
 func createShelf(t *testing.T, name string) string {
@@ -93,7 +121,7 @@ func listShelves(t *testing.T) []shelfEntry {
 }
 
 func TestNotStarted(t *testing.T) {
-	if _, err := Handle(http.MethodGet, "/health", "", nil); !errors.Is(err, ErrNotStarted) {
+	if _, err := Handle(http.MethodGet, "/health", "", "", filepath.Join(t.TempDir(), "out")); !errors.Is(err, ErrNotStarted) {
 		t.Fatalf("Handle before Start: %v", err)
 	}
 	if _, err := CreateShelf("x"); !errors.Is(err, ErrNotStarted) {
@@ -361,5 +389,41 @@ func TestExportAndRemoveWaitForTasks(t *testing.T) {
 	}
 	if err := RemoveShelf(id); err != nil {
 		t.Fatalf("RemoveShelf after the task: %v", err)
+	}
+}
+
+// A large body goes through Handle as files on both sides and comes back
+// byte for byte.
+func TestHandleStreamsBodiesThroughFiles(t *testing.T) {
+	startT(t, t.TempDir())
+	shelfID := createShelf(t, "Phone")
+	res := handle(t, http.MethodPost, "/api/shelves/"+shelfID+"/books", `{"title":"Big"}`)
+	var book struct {
+		Meta struct {
+			ID            string `json:"id"`
+			CurrentSource string `json:"current_source"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(res.Body, &book); err != nil || book.Meta.CurrentSource == "" {
+		t.Fatalf("create book: %d %s %v", res.Status, res.Body, err)
+	}
+	contentURL := "/api/shelves/" + shelfID + "/books/" + book.Meta.ID + "/sources/" + book.Meta.CurrentSource + "/content"
+
+	dir := t.TempDir()
+	want := []byte(strings.Repeat("一行文字 line of text\n", 8<<20/32))
+	bodyPath := filepath.Join(dir, "body")
+	if err := os.WriteFile(bodyPath, want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res = handleFile(t, http.MethodPatch, contentURL, `{"Content-Type":"text/plain; charset=utf-8"}`, bodyPath, filepath.Join(dir, "patch-out"))
+	if res.Status != http.StatusNoContent {
+		t.Fatalf("PATCH content: %d %s", res.Status, res.Body)
+	}
+	res = handleFile(t, http.MethodGet, contentURL, "", "", filepath.Join(dir, "get-out"))
+	if res.Status != http.StatusOK || string(res.Body) != string(want) {
+		t.Fatalf("GET content: %d, %d bytes, want %d", res.Status, len(res.Body), len(want))
+	}
+	if res.Header["Content-Type"] == "" {
+		t.Fatalf("GET content: no Content-Type in %v", res.Header)
 	}
 }

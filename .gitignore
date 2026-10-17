@@ -19,6 +19,9 @@ e2e/pw-local.config.ts
 # mkdocs build output
 site/
 
+# scripts/build-android-lib.sh output (just android-lib)
+/build/android-lib/
+
 # downloaded lint toolchain (contributors fetch their own; see .claude/rules/50-lessons.md)
 /golangci-lint
 

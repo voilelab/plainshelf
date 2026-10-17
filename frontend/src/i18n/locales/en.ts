@@ -1081,10 +1081,13 @@ const en = {
   },
   mobileConnect: {
     title: 'Connect to PlainShelf',
-    description: 'Choose where your library lives so you can browse and read it on this device. The app is read-only: it never changes your library.',
+    description: 'Choose where your library lives so you can browse and read it on this device. The app never changes a library on a server or pCloud; a local shelf lives on this device and can be edited.',
     modeLabel: 'Library source',
     modeServer: 'PlainShelf server',
     modePCloud: 'pCloud',
+    modeLocal: 'Local shelf',
+    localHint: 'Kept in this app’s own storage and works offline. Uninstalling the app or removing the shelf deletes its books.',
+    localNameRequired: 'Name the shelf first.',
     pcloud: {
       clientIdLabel: 'pCloud app key',
       clientIdPlaceholder: 'Your app key',
@@ -1150,6 +1153,8 @@ const en = {
     use: 'Use this shelf',
     removeTitle: 'Remove {name}?',
     removeDescription: 'Books downloaded from this shelf are deleted from the device. Reading progress and history are kept, so adding it back later picks up where you left off.',
+    removeLocalDescription: 'Every book on this shelf is permanently deleted from the device. This cannot be undone.',
+    localDetail: 'Stored on this device',
     removeConfirm: 'Remove',
     removeCancel: 'Keep it'
   },

@@ -101,6 +101,8 @@
         </label>
       </template>
 
+      <p v-else-if="type === 'local'" class="mobile-connect-hint">{{ t('mobileConnect.localHint') }}</p>
+
       <template v-else>
         <label class="mobile-connect-field">
           <span class="mobile-connect-label">{{ t('mobileConnect.pcloud.clientIdLabel') }}</span>
@@ -182,7 +184,7 @@
         />
       </template>
 
-      <p v-if="entry" class="mobile-connect-hint">{{ t('mobileConnect.retargetHint') }}</p>
+      <p v-if="entry && type !== 'local'" class="mobile-connect-hint">{{ t('mobileConnect.retargetHint') }}</p>
 
       <p v-if="message" class="mobile-connect-error" role="alert">{{ message }}</p>
 
@@ -200,6 +202,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import {
   SelectContent,
   SelectItem,
@@ -218,6 +221,7 @@ import { listServerShelves, type ShelfInfo } from '@/api/shelves';
 import { buildAuthorizeUrl, generateRequestId, pollForToken } from '@/api/pcloud/auth';
 import { PCloudClient } from '@/api/pcloud/client';
 import { collectBookPackages, findBooksFolder } from '@/api/pcloud/bookpkg';
+import { LocalShelf } from '@/providers/localShelf';
 import {
   applyActiveShelfEntry,
   getShelfEntryToken,
@@ -243,7 +247,11 @@ const entry = computed(() => props.entry ?? null);
 
 const typeOptions: Array<{ value: ShelfSourceType; labelKey: string }> = [
   { value: 'server', labelKey: 'mobileConnect.modeServer' },
-  { value: 'pcloud', labelKey: 'mobileConnect.modePCloud' }
+  { value: 'pcloud', labelKey: 'mobileConnect.modePCloud' },
+  // The embedded server exists only in the native app, not the browser preview.
+  ...(Capacitor.isNativePlatform()
+    ? [{ value: 'local' as const, labelKey: 'mobileConnect.modeLocal' }]
+    : [])
 ];
 
 const type = ref<ShelfSourceType>('server');
@@ -279,11 +287,14 @@ const heading = computed(() =>
 const isAuthorized = computed(() => Boolean(pcloudAccessToken.value && pcloudHost.value));
 const message = computed(() => localError.value);
 
-const canSave = computed(() =>
-  type.value === 'server'
+const canSave = computed(() => {
+  if (type.value === 'local') {
+    return name.value.trim().length > 0;
+  }
+  return type.value === 'server'
     ? serverUrl.value.trim().length > 0 && shelfId.value.length > 0
-    : isAuthorized.value && pcloudShelfRoot.value.trim().length > 0 && pcloudBookCount.value !== null
-);
+    : isAuthorized.value && pcloudShelfRoot.value.trim().length > 0 && pcloudBookCount.value !== null;
+});
 
 onMounted(async () => {
   const existing = entry.value;
@@ -293,6 +304,9 @@ onMounted(async () => {
 
   type.value = existing.type;
   name.value = existing.name;
+  if (existing.type === 'local') {
+    return;
+  }
   const secret = await getShelfEntryToken(existing.id);
 
   if (existing.type === 'pcloud') {
@@ -533,8 +547,43 @@ function draftEntry(): { entry: ShelfEntry; secret: string } {
   };
 }
 
+/**
+ * Creates or renames the embedded server's shelf, then records the entry.
+ * The shelf exists before its entry does, so a failed save can leave an
+ * unlisted empty shelf behind but never an entry pointing at nothing.
+ */
+async function saveLocalShelf(): Promise<void> {
+  const trimmed = name.value.trim();
+  const existing = entry.value;
+  let localShelfId: string;
+  if (existing?.type === 'local') {
+    localShelfId = existing.localShelfId;
+    await LocalShelf.renameShelf({ id: localShelfId, name: trimmed });
+  } else {
+    ({ id: localShelfId } = await LocalShelf.createShelf({ name: trimmed }));
+  }
+  const base = existing ?? newShelfEntry('local');
+  await upsertShelfEntry({ id: base.id, type: 'local', name: trimmed, localShelfId });
+}
+
 async function onSave(): Promise<void> {
   localError.value = '';
+
+  if (type.value === 'local') {
+    if (!canSave.value) {
+      localError.value = t('mobileConnect.localNameRequired');
+      return;
+    }
+    saving.value = true;
+    try {
+      await saveLocalShelf();
+      reloadIntoApp();
+    } catch (err) {
+      localError.value = surfaceError(err);
+      saving.value = false;
+    }
+    return;
+  }
 
   if (type.value === 'server') {
     if (shelfId.value.length === 0) {

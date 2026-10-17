@@ -277,6 +277,22 @@ describe('applying an entry', () => {
     expect(reloaded).toMatchObject({ pcloudUserId: '111' });
   });
 
+  it('points the client at the embedded server for a local entry', async () => {
+    await reinit();
+    await upsertShelfEntry({ id: 'entry-3', type: 'local', name: 'Phone', localShelfId: 'local-abc' });
+
+    expect(setApiBaseMock).toHaveBeenLastCalledWith('https://localhost/__plainshelf_local');
+    expect(setActiveShelfIDMock).toHaveBeenLastCalledWith('local-abc');
+    const [reloaded] = (await loadShelfEntries()).entries;
+    expect(reloaded).toEqual({ id: 'entry-3', type: 'local', name: 'Phone', localShelfId: 'local-abc' });
+    expect(isShelfEntryConfigured(reloaded)).toBe(true);
+    expect(await isShelfEntryUsable(reloaded)).toBe(true);
+  });
+
+  it('does not open a local entry without its shelf id', () => {
+    expect(isShelfEntryConfigured(newShelfEntry('local'))).toBe(false);
+  });
+
   it('clears the client when the device has no shelf left', async () => {
     store.set(ENTRIES_KEY, JSON.stringify([serverEntry()]));
     store.set(ACTIVE_KEY, 'entry-1');
