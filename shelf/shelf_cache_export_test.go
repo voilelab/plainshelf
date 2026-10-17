@@ -6,11 +6,96 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 const testWriterID = "testwriter01"
+
+func TestBookCacheExportDuringBookWrites(t *testing.T) {
+	libRoot := t.TempDir()
+	s := newTestShelf(t, &ShelfConf{
+		LibRoot: libRoot, LockMode: "none", BookCacheWriterID: testWriterID,
+	})
+	book, err := s.NewBook(nil, "Concurrent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bookID := book.ID()
+	loaded, err := s.GetBook(bookID)
+	if err != nil || loaded != book {
+		t.Fatalf("GetBook must return the cached Book: %p, %v", loaded, err)
+	}
+	source, err := book.NewSource(strings.NewReader("Source text"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta := book.GetMeta()
+	meta.Tags = []string{"Concurrent"}
+	meta.Authors = []string{"Concurrent"}
+	meta.Identifiers = map[string]string{"test": "Concurrent"}
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatal(err)
+	}
+
+	// Both workers start from the same gate, with no sleeps or ordering between
+	// their accesses. The race detector sees unsynchronized metadata accesses
+	// even when the scheduler happens to run one worker ahead of the other.
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	workers.Go(func() {
+		<-start
+		for i := range 32 {
+			meta := book.GetMeta()
+			meta.Title = fmt.Sprintf("Revision %d", i)
+			meta.Tags[0] = meta.Title
+			meta.Authors[0] = meta.Title
+			meta.Identifiers["test"] = meta.Title
+			if err := book.SetMeta(meta); err != nil {
+				t.Error(err)
+				return
+			}
+			// Reusing the caller's draft must not mutate the published metadata.
+			meta.Title = "Unpublished"
+			meta.Tags[0] = "Unpublished"
+			meta.Authors[0] = "Unpublished"
+			meta.Identifiers["test"] = "Unpublished"
+			if err := book.SetCurrentSource(source.ID()); err != nil {
+				t.Error(err)
+				return
+			}
+			if err := book.SetCover([]byte("cover"), ".png"); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	})
+	workers.Go(func() {
+		<-start
+		for range 32 {
+			if err := s.exportBookCache(false); err != nil {
+				t.Error(err)
+				return
+			}
+			meta := s.collectExportBooks()[bookID].Meta
+			if meta.Title != meta.Tags[0] || meta.Title != meta.Authors[0] || meta.Title != meta.Identifiers["test"] {
+				t.Errorf("inconsistent metadata snapshot: %+v", meta)
+			}
+		}
+	})
+	close(start)
+	workers.Wait()
+
+	if err := s.exportBookCache(false); err != nil {
+		t.Fatal(err)
+	}
+	cache := waitForBookCacheExport(t, libRoot, testWriterID)
+	got := cache.Books[bookID].Meta
+	if got.Title != "Revision 31" || got.CurrentSource != source.ID() || got.Cover != "cover.png" {
+		t.Fatalf("export missed the final write: %+v", got)
+	}
+}
 
 // waitForBookCacheExport polls for the exported cache file, which the initial
 // scan writes after the shelf reports ready so that readiness is never blocked

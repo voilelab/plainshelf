@@ -10,6 +10,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -96,8 +97,11 @@ type Book struct {
 	// every mutation narrows it back through writeRoot.
 	root       fsutil.ReadFS
 	folderPath string
-	meta       *BookMeta
 
+	// Cache exports and request handlers share this Book. Protect both metadata
+	// and its stat; the shelf's cache lock does not cover Book mutations.
+	metaMu   sync.RWMutex
+	meta     *BookMeta
 	metaStat FileStat
 
 	// snapshot is set on a Book built from metadata read elsewhere (see
@@ -154,18 +158,20 @@ func (b *Book) IsStale() bool {
 		return true
 	}
 
-	if !currentMetaStat.Equal(&b.metaStat) {
-		return true
-	}
-
-	return false
+	b.metaMu.RLock()
+	defer b.metaMu.RUnlock()
+	return !currentMetaStat.Equal(&b.metaStat)
 }
 
 func (b *Book) ID() string {
+	b.metaMu.RLock()
+	defer b.metaMu.RUnlock()
 	return b.meta.ID
 }
 
 func (b *Book) Title() string {
+	b.metaMu.RLock()
+	defer b.metaMu.RUnlock()
 	return b.meta.Title
 }
 
@@ -175,18 +181,20 @@ func (b *Book) PackagePath() string {
 
 // CoverETag returns an empty string when there is no cover or the stat fails.
 func (b *Book) CoverETag() string {
-	if b.meta.Cover == "" {
+	cover := b.coverName()
+	if cover == "" {
 		return ""
 	}
-	return shelfutil.FileETag(b.root, path.Join(b.folderPath, b.meta.Cover))
+	return shelfutil.FileETag(b.root, path.Join(b.folderPath, cover))
 }
 
 func (b *Book) OpenCover() ([]byte, string, error) {
-	if b.meta.Cover == "" {
+	cover := b.coverName()
+	if cover == "" {
 		return nil, "", nil
 	}
 
-	coverPath := path.Join(b.folderPath, b.meta.Cover)
+	coverPath := path.Join(b.folderPath, cover)
 	coverFile, err := b.root.Open(coverPath)
 	if err != nil {
 		return nil, "", util.Errorf("%w", err)
@@ -198,8 +206,14 @@ func (b *Book) OpenCover() ([]byte, string, error) {
 		return nil, "", util.Errorf("%w", err)
 	}
 
-	ext := path.Ext(b.meta.Cover)
+	ext := path.Ext(cover)
 	return coverData, ext, nil
+}
+
+func (b *Book) coverName() string {
+	b.metaMu.RLock()
+	defer b.metaMu.RUnlock()
+	return b.meta.Cover
 }
 
 // writeRoot asks whether the shelf may be written at all; EnsureWritable asks
@@ -220,6 +234,8 @@ func (b *Book) writeRoot() (fsutil.FS, error) {
 // file, or rename a folder first. It is checked against b.meta — what is
 // actually on disk — so a caller-supplied BookMeta cannot bypass it.
 func (b *Book) EnsureWritable() error {
+	b.metaMu.RLock()
+	defer b.metaMu.RUnlock()
 	if b.meta.SchemaVersion > BookMetaSchemaVersion {
 		return util.Errorf("%w: book.json is schema_version %d, this build writes %d",
 			ErrUnsupportedBookSchemaVersion, b.meta.SchemaVersion, BookMetaSchemaVersion)
@@ -242,7 +258,7 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 	coverFilename := "cover" + ext
 	coverPath := path.Join(b.folderPath, coverFilename)
 
-	previousCover := b.meta.Cover
+	previousCover := b.coverName()
 
 	// Write the image before pointing the meta at it, so the meta never
 	// references a half-written cover file.
@@ -289,7 +305,8 @@ func (b *Book) removeReplacedCover(root fsutil.FS, previousCover string) {
 }
 
 func (b *Book) DeleteCover() error {
-	if b.meta.Cover == "" {
+	cover := b.coverName()
+	if cover == "" {
 		return nil
 	}
 
@@ -304,7 +321,7 @@ func (b *Book) DeleteCover() error {
 		return util.Errorf("%w", err)
 	}
 
-	coverPath := path.Join(b.folderPath, b.meta.Cover)
+	coverPath := path.Join(b.folderPath, cover)
 	err = root.Remove(coverPath)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -321,6 +338,8 @@ func (b *Book) DeleteCover() error {
 }
 
 func (b *Book) CurrentSource() string {
+	b.metaMu.RLock()
+	defer b.metaMu.RUnlock()
 	return b.meta.CurrentSource
 }
 
@@ -383,15 +402,21 @@ func (b *Book) writeCurrentSourceHint(sourceID string) error {
 
 // GetMeta returns a copy the caller may modify and hand back to SetMeta.
 func (b *Book) GetMeta() *BookMeta {
-	metaCopy := *b.meta
-	metaCopy.Tags = slices.Clone(b.meta.Tags)
-	metaCopy.Authors = slices.Clone(b.meta.Authors)
-	metaCopy.Identifiers = maps.Clone(b.meta.Identifiers)
+	b.metaMu.RLock()
+	defer b.metaMu.RUnlock()
+	return cloneBookMeta(b.meta)
+}
+
+func cloneBookMeta(meta *BookMeta) *BookMeta {
+	metaCopy := *meta
+	metaCopy.Tags = slices.Clone(meta.Tags)
+	metaCopy.Authors = slices.Clone(meta.Authors)
+	metaCopy.Identifiers = maps.Clone(meta.Identifiers)
 	return &metaCopy
 }
 
 func (b *Book) SetMeta(meta *BookMeta) error {
-	if meta.CurrentSource != b.meta.CurrentSource {
+	if meta.CurrentSource != b.CurrentSource() {
 		return util.NewError("cannot modify CurrentSource field directly, use SetCurrentSource method instead")
 	}
 	return b.setMeta(meta)
@@ -444,8 +469,6 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		return util.Errorf("%w", err)
 	}
 
-	b.meta = meta
-
 	var metaStat *FileStat
 
 	metaStat, err = getFileStat(b.root, metaPath)
@@ -457,7 +480,12 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		b.logger.Warn("failed to stat meta file after SetMeta, metaStat may be inaccurate", "error", err)
 	}
 
+	b.metaMu.Lock()
+	// Keep an owned copy: callers may reuse their input after SetMeta returns,
+	// and those edits must not bypass the lock or change a cache export.
+	b.meta = cloneBookMeta(meta)
 	b.metaStat = *metaStat
+	b.metaMu.Unlock()
 
 	return nil
 }
