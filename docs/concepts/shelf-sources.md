@@ -363,9 +363,9 @@ the type, never by falling back to another source.
   with `mobile.OpenPCloudShelf`. Until the resolver exists the native side reads
   the token from the Keystore and passes it on every start; Go holds it in
   memory only. The entry keeps its cache scope, and its downloads, reading
-  progress and history stay in the app's own cache rather than moving into the
-  Go offline layer; that move is left to the series that removes the TypeScript
-  reader, which the app no longer calls. Adult content follows the device's own
+  progress and history stay in the app's own cache and are not moved into the
+  Go offline layer: the TypeScript reader is no longer called, but the
+  downloads it took stay where they are. Adult content follows the device's own
   choice, given to Go per shelf (`App.SetShelfShowNSFW`) so it does not become
   the setting local shelves use.
 - **PSW-145 (offline copies).** Done as described in
