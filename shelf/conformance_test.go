@@ -18,15 +18,13 @@ import (
 )
 
 /*
-The Go half of the cross-language conformance suite. Its TypeScript twin is
-frontend/src/api/pcloud/conformance.test.ts, and both read the same dataset from
-testdata/conformance — see the README there for the contract.
+Runs the conformance dataset in testdata/conformance — see the README there for
+the contract.
 
 The point is not to cover this package (the tests around it do that already) but
-to pin the observable reading of a shelf to a file the pCloud client can be held
-to as well. That client re-implements this walk against pCloud's listing API and
-cannot import any of it, so a change here that is not mirrored there is
-otherwise invisible until a phone shows the wrong library.
+to pin the observable reading of a shelf to a file written from the format
+documentation, through every way a shelf is opened: walked, from its exported
+cache, and over pCloud.
 */
 
 // conformanceDatasetVersion is the expected.json shape this harness understands,
@@ -481,8 +479,8 @@ func readConformanceBookCaches(t *testing.T, s *Shelf) []conformanceBookCache {
 	return observed
 }
 
-// orEmpty replaces a nil slice with an empty one so the JSON comparison below
-// sees [] on both sides: the TypeScript harness has no way to express nil.
+// orEmpty replaces a nil slice with an empty one: expected.json records an
+// absent list as [] (see the dataset README).
 func orEmpty(values []string) []string {
 	if values == nil {
 		return []string{}

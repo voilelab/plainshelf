@@ -85,11 +85,10 @@ its interface rather than a list of internals. Drop the `export` when nothing
 needs it; when a unit test is the only reader and the seam is worth keeping,
 record it in the allowlist at the top of `frontend/scripts/check-exports.mjs`.
 
-The book package format has two independent readers — the Go shelf and the
-pCloud client the Android app reads a shelf with — so both run the shared
-fixtures in `shelf/testdata/conformance/`. A change to how a shelf is read
-belongs in that dataset, and the frontend unit tests are where the pCloud side
-of it fails. The dataset's own README explains the contract.
+The Go shelf is the only reader of the book package format, the Android app's
+pCloud shelf included, and `shelf/testdata/conformance/` pins what it reads. A
+change to how a shelf is read belongs in that dataset; the dataset's own README
+explains the contract.
 
 [Mutation testing](mutation-testing.md) is available for the reader's helpers and
 the shared Markdown modules as an on-demand check of how much the unit tests

@@ -384,8 +384,8 @@ file holds only the fields this page documents.
   reader — the Android client on a pCloud shelf — is
   exempt from the losing half of this, since it never rewrites a book, but it can
   still be built against an older schema than the shelf and show stale or missing
-  fields — which it says on the book's page rather than leaving you to guess (see
-  [What a version mismatch costs the phone](#what-a-version-mismatch-costs-the-phone)).
+  fields (see
+  [What a version mismatch costs a remote shelf](#what-a-version-mismatch-costs-a-remote-shelf)).
   [Hand-editing `book.json`](#hand-editing-bookjson) below says which edits do
   survive.
 - Reading a book whose `schema_version` is higher than the build supports is
@@ -639,84 +639,50 @@ for `books/` and `trash/`. See
 (`shelf_cache_export.go:43`, `BookCacheSchemaVersion`), and like the fingerprint
 cache it is versioned the throw-away way: there is no migration path, and a
 reader that meets a version it does not recognize discards the whole file and
-falls back to walking the shelf. What sets it apart from every cache above is
-*which implementation* reads it. The scan and fingerprint caches are read only by
-the same Go shelf that writes them — which is not the same as being private to one
-machine: several installations sharing a shelf all run that one implementation, so
-`scan-cache.json` is a single shared file and `fingerprint-cache.json` merges
-every machine's entries, yet no reader outside the Go shelf ever parses either.
-This file is different. It is read by a **separately written program** — the
-TypeScript client on the phone — so its `schema_version` is a contract between two
-codebases, and because that second reader runs on another device, a cross-device
-one, rather than local scratch state a single implementation keeps to itself.
+falls back to walking the shelf.
 
-The server and desktop app export the file so that a client reading the shelf
-*directly*, without a server in between, does not have to walk it book by book.
-It is also where such a client learns which books are
+The server and desktop app export the file so that a shelf opened from a
+remote, read-only source — the Android app's pCloud shelf — does not have to be
+walked book by book. It is also where such a reader learns which books are
 [adult content](folders.md#marking-a-folder-as-adult-content): each entry carries
-the finished `nsfw` answer, because that reader does not apply `shelf.json`'s
-folder rules itself, and `current_source_md5`, which tells an offline copy that
-a source's text changed. Being a cache, such a field is an ordinary addition — nothing
-here is frozen, and a reader that does not know it simply does not read it.
-The Android app opening a shelf from pCloud is the client it exists for.
+the finished `nsfw` answer, and `current_source_md5`, which tells an offline copy
+that a source's text changed. Being a cache, such a field is an ordinary
+addition — nothing here is frozen, and a reader that does not know it simply
+does not read it.
 [Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache)
 describes what the file holds and when it is written; this section adds only
 what happens when its version does not match.
 
-### A second reader, kept in step by a shared fixture
+### One reader
 
-The phone shares no code with the server. The Android pCloud client
-re-implements the shelf reader in TypeScript under `frontend/src/api/pcloud/` —
-the `.bookpkg` layout, `book.json` parsing, and the exported-cache format are
-all written a second time — because it reads the on-disk format directly and
-cannot import the Go packages. So the schema versions it enforces are
-hand-maintained constants standing beside their Go originals:
-`BOOK_CACHE_SCHEMA_VERSION` (`bookCacheFile.ts:22`) mirrors
-`BookCacheSchemaVersion`, and `BOOK_META_SCHEMA_VERSION` (`bookpkg.ts:55`)
-mirrors `book.json`'s own version.
+Every shelf is read by the Go shelf, including the Android app's pCloud shelf,
+which the app opens in its embedded Go server (`shelf.NewShelfFromFS` over
+`internal/pcloud`). The frontend parses none of the format: until PSW-139 it
+carried a second, TypeScript reader, kept in step with Go only by the shared
+fixture in `shelf/testdata/conformance/`. A format change is therefore made in
+Go alone, and `BookCacheSchemaVersion` and `book.json`'s version have no
+hand-maintained copy elsewhere.
 
-Two hand-written copies of a format drift apart unless something forces them
-together. That something is a cross-language conformance suite:
-`frontend/src/api/pcloud/conformance.test.ts` and its Go twin
-`shelf/conformance_test.go` read the *same* dataset from
-`shelf/testdata/conformance/`, so a format change only one side follows fails
-the other side's test. The duplicated constants are not kept honest by review
-alone — the fixture is what notices when the two readers stop agreeing.
+### What a version mismatch costs a remote shelf
 
-### What a version mismatch costs the phone
+A cache whose `schema_version` the reader does not know is no cache at all
+(`newestExportedBookCache` skips it): a half-understood payload would surface as
+a silently truncated library rather than the cache miss it really is.
 
-`parseBookCacheFile` (`bookCacheFile.ts:117`) rejects any file whose
-`schema_version` is not exactly the one it was built against. It does not read a
-newer or older cache best-effort: a half-understood payload would surface as a
-silently truncated library rather than the cache miss it really is, so the
-reader treats any mismatch as no cache at all.
-
-That refusal is safe but not free. When the phone cannot use the exported file
-it falls back to walking the shelf, which over pCloud costs **two HTTP requests
-per book** — one to get a download link for each `book.json`, one to fetch it —
-in place of the single download the cache would have been. Nothing is wrong and
-nothing is lost: every book still lists, and its metadata is still read straight
-from `book.json`. But on a metered or high-latency connection the gap between
-one download and two-requests-per-book is a real performance cliff, not a
-rounding error — and it is the everyday shape of "the server upgraded, the phone
-did not": a build that raises `BookCacheSchemaVersion` starts exporting a file
-the older phone reader declines, until that phone is updated too.
+That refusal is safe but not free. Without a usable exported file, a pCloud
+shelf is walked, which reads each book's `book.json` over the network in place
+of the single download the cache would have been. Nothing is wrong and nothing
+is lost, but on a metered or high-latency connection that is a real performance
+cliff, and it is the everyday shape of "the server upgraded, the phone did not":
+a build that raises `BookCacheSchemaVersion` starts exporting a file the older
+app declines, until that app is updated too.
 
 This is the one sense in which "deleting the book cache is safe" needs a
 qualifier. From the server's side it is exactly as safe as the caches above: the
 next export rebuilds it, and [Data Model](data-model.md#app) says as much. From
-the phone's side, deleting or invalidating it is the difference between one
-download and a full per-book walk — still safe, still never an error, but no
+a remote reader's side, deleting or invalidating it is the difference between
+one download and a full per-book walk — still safe, still never an error, but no
 longer free.
-
-`book.json`'s own version is the other mismatch the phone can meet, and it is
-answered differently: the book is read best-effort and listed as usual, because
-this reader never writes and so has no write to refuse. What the server says by
-refusing one, the phone therefore has to say out loud — a book whose
-`schema_version` is newer than `BOOK_META_SCHEMA_VERSION` carries a notice on its
-detail page saying the file was saved in a newer format and that some of its
-details may be missing here. It is the same fact as the server's `409 Conflict`,
-told to a reader who will never trip over the write that produces it.
 
 ---
 
@@ -840,10 +806,10 @@ versioned files into three kinds:
   implementation — so their version carries no migration: any mismatch throws the
   whole file away and it is recomputed.
 - **Cross-device contract** — `app/book-cache-{writer-id}.json`. Thrown away on
-  a mismatch like the caches above, but read by a *different* program on another
-  device — the Android pCloud client — so its version is a handshake between two
-  codebases, and a mismatch has a real cost on the phone even though it is never
-  an error. See [The exported book cache](#the-exported-book-cache).
+  a mismatch like the caches above, but read on another device — the Android
+  app's pCloud shelf, possibly built from an older release — so a mismatch has a
+  real cost there even though it is never an error. See
+  [The exported book cache](#the-exported-book-cache).
 
 | Path | Versioned? | Kind |
 |---|---|---|

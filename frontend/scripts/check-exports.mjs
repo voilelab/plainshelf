@@ -54,25 +54,9 @@ const ALLOWED = new Set([
   // definition, and this script only walks src/.
   'src/i18n/missingKeyPattern.ts#MISSING_KEY_PATTERN',
 
-  // The shelf's adult-content rules, which this reader computes so that the
-  // cross-language conformance dataset can pin the answer (PSW-116). Nothing on
-  // the pCloud side applies the mark yet; the client that does is what will make
-  // these ordinary exports.
-  'src/api/pcloud/bookpkg.ts#createNSFWRules',
-  'src/api/pcloud/bookpkg.ts#isBookNSFW',
-
-  // The TypeScript pCloud reader's snapshot store. The app reads pCloud through
-  // the embedded Go server since PSW-138; the reader stays, for comparison,
-  // until the series that removes it.
-  'src/providers/shelfSnapshotStore.ts#FilesystemShelfSnapshotStore',
-
   // Internals reached directly by their own unit tests.
   'src/api/books.ts#SimilarRelation',
   'src/api/pcloud/auth.ts#hostForLocationId',
-  'src/api/pcloud/bookCacheFile.ts#BOOK_CACHE_SCHEMA_VERSION',
-  'src/api/pcloud/bookpkg.ts#BOOK_META_SCHEMA_VERSION',
-  'src/api/pcloud/bookpkg.ts#DEFAULT_IGNORE_RULES',
-  'src/api/pcloud/bookpkg.ts#isSchemaNewerThanSupported',
   'src/composables/shelfInitRetry.ts#SHELF_INIT_MAX_AUTO_RETRIES',
   'src/composables/shelfInitRetry.ts#SHELF_INIT_RETRY_DELAY_MS',
   'src/composables/useFolderManagement.ts#createdFolderDestination',
@@ -86,7 +70,6 @@ const ALLOWED = new Set([
   'src/features/library/composables/useImportBook.ts#ImportUnit',
   'src/features/library/utils/bookDetail.ts#normalizeReadingPercent',
   'src/features/library/utils/mobileBack.ts#MobileBackActions',
-  'src/features/mobile/composables/usePCloudFolderBrowser.ts#PCloudFolderClient',
   'src/features/mobile/composables/usePCloudFolderBrowser.ts#PCloudFolderRef',
   'src/features/reader/composables/useReaderPresentation.ts#shouldUseMobileReader',
   'src/features/reader/composables/useReaderSettings.ts#DEFAULT_READER_FONT',
@@ -98,8 +81,6 @@ const ALLOWED = new Set([
   'src/providers/mobileBookshelfProvider.ts#DOWNLOAD_SHELF_CHANGED_ERROR',
   'src/providers/mobileCacheFs.ts#UNSCOPED_DIR_NAME',
   'src/providers/mobileConfig.ts#ServerShelfEntry',
-  'src/providers/pcloudBookshelfProvider.ts#pcloudCoverUrl',
-  'src/providers/shelfSnapshotStore.ts#parseShelfSnapshot',
   'src/shells/reader/routerGuard.ts#READER_EMPTY_ROUTE',
   'src/storage/readHistory/index.ts#ReadHistoryStore',
   'src/storage/readHistory/index.ts#buildReadHistoryKey',

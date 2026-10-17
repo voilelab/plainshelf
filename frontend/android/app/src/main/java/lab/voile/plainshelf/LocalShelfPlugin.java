@@ -159,6 +159,50 @@ public class LocalShelfPlugin extends Plugin {
     }
 
     /**
+     * Whether a pCloud folder is a shelf, and its book count. Runs during setup,
+     * before an entry stores the token, so the form passes the token it holds.
+     */
+    @PluginMethod
+    public void checkPCloudShelf(PluginCall call) {
+        try {
+            JSONObject check = new JSONObject(
+                Mobile.checkPCloudShelf(
+                    call.getString("host", ""),
+                    call.getString("token", ""),
+                    call.getString("folder", "")
+                )
+            );
+            JSObject result = new JSObject();
+            result.put("isShelf", check.getBoolean("is_shelf"));
+            result.put("books", check.getInt("books"));
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /** One level of the shelf-root picker; see checkPCloudShelf for the token. */
+    @PluginMethod
+    public void listPCloudFolder(PluginCall call) {
+        try {
+            Long folderId = call.getLong("folderId", 0L);
+            JSONObject listing = new JSONObject(
+                Mobile.listPCloudFolder(
+                    call.getString("host", ""),
+                    call.getString("token", ""),
+                    folderId == null ? 0L : folderId
+                )
+            );
+            JSObject result = new JSObject();
+            result.put("folders", listing.getJSONArray("folders"));
+            result.put("isShelf", listing.getBoolean("is_shelf"));
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /**
      * Writes the shelf to a cache zip, then asks where to save it. Writing first
      * means a busy shelf fails before any document is created; last_export is
      * recorded only once the copy has landed.

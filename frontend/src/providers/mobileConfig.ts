@@ -107,9 +107,8 @@ export type ShelfEntry = ServerShelfEntry | PCloudShelfEntry | LocalShelfEntry;
 let entries: ShelfEntry[] = [];
 let activeEntryID = '';
 /**
- * The active entry's token, latched for the same reason the list is: the pCloud
- * provider is constructed synchronously at bootstrap and PCloudClient refuses
- * to exist without one. Only the active entry's secret is resolved eagerly —
+ * The active entry's token, latched for the same reason the list is: bootstrap
+ * decides synchronously whether a pCloud entry is usable, which needs one. Only the active entry's secret is resolved eagerly —
  * the rest are read on demand, so a device with several pCloud shelves still
  * touches the Keystore once per launch.
  */
