@@ -1,6 +1,7 @@
 package fsutil
 
 import (
+	"errors"
 	"io"
 	"io/fs"
 
@@ -95,4 +96,18 @@ func ReadOnly(rfs ReadFS) ReadFS {
 // readOnlyFS embeds the read half only, so it deliberately does not implement FS.
 type readOnlyFS struct {
 	ReadFS
+}
+
+// LstatFS stats a path without following a final symlink.
+type LstatFS interface {
+	Lstat(name string) (fs.FileInfo, error)
+}
+
+// Lstat passes through to the wrapped filesystem, failing when it has none.
+func (r readOnlyFS) Lstat(name string) (fs.FileInfo, error) {
+	l, ok := r.ReadFS.(LstatFS)
+	if !ok {
+		return nil, util.Errorf("lstat %q: %w", name, errors.ErrUnsupported)
+	}
+	return l.Lstat(name)
 }

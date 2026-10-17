@@ -108,7 +108,9 @@ What the export serves:
   `PROPFIND` without `Depth`, or with `infinity`, is answered 403.
 - Only the shelf's own files: `books/`, `trash/`, `shelf.json` and
   `app/book-cache-*.json`. Lock files, the scan cache and `app/tmp/` are not
-  listed and a direct `GET` of them is 404. A path with a `..` segment is 400.
+  listed and a direct `GET` of them is 404. A path with a `..` segment is 400,
+  and a path through a symlink is 404, so a link under `books/` cannot reach
+  `app/`.
 - Nothing else. `/api/...` and the web UI are 404 on this listener; the HTTP API
   stays on `server_conf.addr` with its own `security` gate, unchanged. A
   virtual shelf is not re-exported.
@@ -119,8 +121,12 @@ A missing or wrong token is 401. To replace the token, run
 plainshelf-srv -conf config.yaml -rotate-dav-token
 ```
 
-It prints the new token. A running server reads the file on every request, so
-the old token stops working at once, with no restart.
+It prints the new token, and the absolute path of the file it wrote on stderr:
+a relative `token_file` resolves against the working directory, so run it from
+the directory the server runs in. A running server reads the file on every
+request, so the old token stops working at once, with no restart. The server
+logs a warning at startup when the file is readable by other users, and fails
+to start when `addr` cannot be bound.
 
 !!! warning "The token travels in plaintext"
     The export speaks plain HTTP. Anyone who can watch the network between the

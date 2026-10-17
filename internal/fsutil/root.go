@@ -52,6 +52,14 @@ func (l *RootFS) Stat(name string) (fs.FileInfo, error) {
 	return info, nil
 }
 
+func (l *RootFS) Lstat(name string) (fs.FileInfo, error) {
+	info, err := l.root.Lstat(name)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	return info, nil
+}
+
 func (l *RootFS) OpenWriter(name string) (io.WriteCloser, error) {
 	fp, err := l.root.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {

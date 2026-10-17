@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -446,5 +447,98 @@ func TestIsShelfFileMatchesPathClean(t *testing.T) {
 	}
 	if rel, ok := fsys.rel("/"); !ok || rel != "." {
 		t.Errorf(`rel("/") = %q, %v`, rel, ok)
+	}
+}
+
+func TestDAVExportRefusesSymlinks(t *testing.T) {
+	env := newDAVTestEnv(t)
+	books := filepath.Join(env.libRoot, "books")
+	for link, target := range map[string]string{
+		"d": "../app",
+		"s": "../app/library.lock",
+		"e": "/etc/passwd",
+	} {
+		if err := os.Symlink(target, filepath.Join(books, link)); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+	}
+
+	for _, target := range []string{"books/d/scan-cache.json", "books/d/tmp/upload", "books/d", "books/d/", "books/s", "books/e"} {
+		for _, method := range []string{http.MethodGet, "PROPFIND"} {
+			rec := env.do(t, method, "/dav/default_shelf/"+target, env.token, map[string]string{"Depth": "1"})
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("%s %s = %d, want 404", method, target, rec.Code)
+			}
+		}
+	}
+
+	rec := env.do(t, "PROPFIND", "/dav/default_shelf/books/", env.token, map[string]string{"Depth": "1"})
+	for _, href := range propfindHrefs(t, rec.Body.Bytes()) {
+		if name := strings.TrimPrefix(href, "/dav/default_shelf/books/"); name == "d/" || name == "d" || name == "s" || name == "e" {
+			t.Errorf("PROPFIND books/ lists symlink %s", href)
+		}
+	}
+}
+
+func TestDAVExportNotFoundIsUniform(t *testing.T) {
+	env := newDAVTestEnv(t)
+	// A path through a file is ENOTDIR underneath; it must read as missing.
+	for _, target := range []string{"books/a.bookpkg/book.json/x", "books/nope", "app/nope", "app/library.lock"} {
+		rec := env.do(t, "PROPFIND", "/dav/default_shelf/"+target, env.token, map[string]string{"Depth": "0"})
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("PROPFIND %s = %d, want 404", target, rec.Code)
+		}
+	}
+}
+
+func TestDAVExportBoundsPropfindBody(t *testing.T) {
+	env := newDAVTestEnv(t)
+	body := `<?xml version="1.0"?><propfind xmlns="DAV:"><prop>` + strings.Repeat("<x/>", davPropfindMaxBody) + `</prop></propfind>`
+	req := httptest.NewRequest("PROPFIND", "/dav/default_shelf/", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+env.token)
+	req.Header.Set("Depth", "0")
+	rec := httptest.NewRecorder()
+	env.handler.ServeHTTP(rec, req)
+	if rec.Code == http.StatusMultiStatus {
+		t.Errorf("oversized PROPFIND body accepted")
+	}
+}
+
+func TestRotateDAVExportTokenForConf(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	conf := `server_conf: {addr: "127.0.0.1:20000", read_timeout: 60s, write_timeout: 60s}
+dav_export: {addr: "127.0.0.1:20001", read_timeout: 60s, write_timeout: 60s, token_file: ./dav.token}
+app_conf: {store_path: ./store}
+`
+	writeTestFile(t, filepath.Join(dir, "config.yaml"), conf)
+	token, tokenFile, err := RotateDAVExportTokenForConf("config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(dir, "dav.token"); tokenFile != want {
+		t.Errorf("token file = %q, want %q", tokenFile, want)
+	}
+	if got, _ := readDAVExportToken(tokenFile); got != token {
+		t.Errorf("file holds %q, printed %q", got, token)
+	}
+}
+
+func TestDAVTokenFileExposed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no permission bits")
+	}
+	tokenFile := filepath.Join(t.TempDir(), "dav.token")
+	if _, err := RotateDAVExportToken(tokenFile); err != nil {
+		t.Fatal(err)
+	}
+	if davTokenFileExposed(tokenFile) {
+		t.Error("fresh token file reported exposed")
+	}
+	if err := os.Chmod(tokenFile, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !davTokenFileExposed(tokenFile) {
+		t.Error("0644 token file not reported")
 	}
 }

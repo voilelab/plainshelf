@@ -14,7 +14,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync/atomic"
+	"syscall"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -53,6 +56,10 @@ const davExportPrefix = "/dav/"
 const davExportAllow = "OPTIONS, GET, HEAD, PROPFIND"
 
 const davTokenBytes = 32
+
+// davPropfindMaxBody bounds a PROPFIND request body; a real one is a few
+// hundred bytes.
+const davPropfindMaxBody = 64 << 10
 
 // EnsureDAVExportToken generates the token file when it does not exist yet.
 func EnsureDAVExportToken(tokenFile string) error {
@@ -100,6 +107,16 @@ func RotateDAVExportToken(tokenFile string) (string, error) {
 	return token, nil
 }
 
+// davTokenFileExposed reports a token file readable by group or others. Windows
+// has no such bits to check.
+func davTokenFileExposed(tokenFile string) bool {
+	if runtime.GOOS == "windows" {
+		return false
+	}
+	info, err := os.Stat(tokenFile)
+	return err == nil && info.Mode().Perm()&0o077 != 0
+}
+
 func readDAVExportToken(tokenFile string) (string, error) {
 	bs, err := os.ReadFile(tokenFile)
 	if err != nil {
@@ -124,6 +141,10 @@ type davExport struct {
 	logger    *logutil.Logger
 	shelves   *shelf.ShelfManager
 	tokenFile string
+
+	// tokenErrLogged keeps an unreadable token file from logging once per
+	// request; cleared when the file reads again.
+	tokenErrLogged atomic.Bool
 
 	// Never used: LOCK is refused before the handler, which only insists on
 	// having one.
@@ -178,6 +199,7 @@ func (d *davExport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "only Depth 0 and 1 are supported", http.StatusForbidden)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, davPropfindMaxBody)
 	}
 
 	h := &webdav.Handler{
@@ -196,9 +218,12 @@ func (d *davExport) authorized(r *http.Request) bool {
 	want, err := readDAVExportToken(d.tokenFile)
 	if err != nil || want == "" {
 		// Fail closed: a missing token file rejects every request.
-		d.logger.Error("dav export token unreadable", "token_file", d.tokenFile, "error", err)
+		if !d.tokenErrLogged.Swap(true) {
+			d.logger.Error("dav export token unreadable", "token_file", d.tokenFile, "error", err)
+		}
 		return false
 	}
+	d.tokenErrLogged.Store(false)
 	// Hashed first so the comparison does not leak the token's length.
 	gotSum, wantSum := sha256.Sum256([]byte(got)), sha256.Sum256([]byte(want))
 	return subtle.ConstantTimeCompare(gotSum[:], wantSum[:]) == 1
@@ -219,7 +244,9 @@ func davPathSafe(p string) bool {
 }
 
 // davFS is a read-only webdav.FileSystem over one shelf directory. A path
-// outside shelf.IsShelfFile does not exist.
+// outside shelf.IsShelfFile does not exist, and neither does one through a
+// symlink: os.Root follows a link that stays inside the shelf, which would
+// reach app/ from under books/.
 type davFS struct {
 	root fsutil.ReadFS
 }
@@ -236,6 +263,34 @@ func (davFS) rel(name string) (string, bool) {
 	return rel, shelf.IsShelfFile(rel)
 }
 
+// resolve is rel plus the symlink check: every component of the path is
+// Lstat'ed, and a link anywhere along it does not exist.
+func (d davFS) resolve(name string) (string, error) {
+	rel, ok := d.rel(name)
+	if !ok {
+		return "", os.ErrNotExist
+	}
+	if rel == "." {
+		return rel, nil
+	}
+	l, ok := d.root.(fsutil.LstatFS)
+	if !ok {
+		return "", os.ErrNotExist
+	}
+	prefix := ""
+	for seg := range strings.SplitSeq(rel, "/") {
+		prefix = path.Join(prefix, seg)
+		info, err := l.Lstat(prefix)
+		if err != nil {
+			return "", davErr(err)
+		}
+		if info.Mode()&fs.ModeSymlink != 0 {
+			return "", os.ErrNotExist
+		}
+	}
+	return rel, nil
+}
+
 func (davFS) Mkdir(context.Context, string, os.FileMode) error { return os.ErrPermission }
 func (davFS) RemoveAll(context.Context, string) error          { return os.ErrPermission }
 func (davFS) Rename(context.Context, string, string) error     { return os.ErrPermission }
@@ -244,9 +299,9 @@ func (d davFS) OpenFile(_ context.Context, name string, flag int, _ os.FileMode)
 	if flag&(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) != 0 {
 		return nil, os.ErrPermission
 	}
-	rel, ok := d.rel(name)
-	if !ok {
-		return nil, os.ErrNotExist
+	rel, err := d.resolve(name)
+	if err != nil {
+		return nil, err
 	}
 	f, err := d.root.Open(rel)
 	if err != nil {
@@ -261,9 +316,9 @@ func (d davFS) OpenFile(_ context.Context, name string, flag int, _ os.FileMode)
 }
 
 func (d davFS) Stat(_ context.Context, name string) (os.FileInfo, error) {
-	rel, ok := d.rel(name)
-	if !ok {
-		return nil, os.ErrNotExist
+	rel, err := d.resolve(name)
+	if err != nil {
+		return nil, err
 	}
 	info, err := d.root.Stat(rel)
 	if err != nil {
@@ -274,9 +329,10 @@ func (d davFS) Stat(_ context.Context, name string) (os.FileInfo, error) {
 
 // davErr unwraps a not-exist error to os.ErrNotExist: webdav tests with
 // os.IsNotExist, which does not see through util.Errorf, and answers anything
-// else with 405.
+// else with 405. A path through a file (ENOTDIR) is not there either; keeping
+// it 404 also leaves no status difference to probe hidden names with.
 func davErr(err error) error {
-	if errors.Is(err, fs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
 		return os.ErrNotExist
 	}
 	return err
@@ -314,7 +370,7 @@ func (f *davFile) Readdir(count int) ([]fs.FileInfo, error) {
 			return nil, davErr(err)
 		}
 		for _, e := range entries {
-			if !shelf.IsShelfFile(path.Join(f.rel, e.Name())) {
+			if e.Type()&fs.ModeSymlink != 0 || !shelf.IsShelfFile(path.Join(f.rel, e.Name())) {
 				continue
 			}
 			info, err := e.Info()

@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/voilelab/plainshelf/internal/httputil"
@@ -139,6 +141,9 @@ func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger) (*htt
 	if err := EnsureDAVExportToken(conf.TokenFile); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	if davTokenFileExposed(conf.TokenFile) {
+		logger.Warn("dav export token file is readable by other users; chmod 600 it", "token_file", conf.TokenFile)
+	}
 	server, err := httputil.NewServer(&httputil.Conf{
 		Addr:         conf.Addr,
 		ReadTimeout:  conf.ReadTimeout,
@@ -149,25 +154,37 @@ func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger) (*htt
 	}
 	server.Handler = app.DAVExportHandler(conf.TokenFile)
 
+	// Bound here so a taken port fails startup instead of only a log line.
+	ln, err := net.Listen("tcp", conf.Addr)
+	if err != nil {
+		return nil, util.Errorf("dav_export: %w", err)
+	}
+	logger.Info("Starting dav export server on", "addr", conf.Addr, "token_file", conf.TokenFile)
 	go func() {
-		logger.Info("Starting dav export server on", "addr", conf.Addr, "token_file", conf.TokenFile)
-		listenErr := server.ListenAndServe()
-		if listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
-			logger.Error("dav export server error", "error", listenErr)
+		serveErr := server.Serve(ln)
+		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			logger.Error("dav export server error", "error", serveErr)
 		}
 	}()
 	return server, nil
 }
 
 // RotateDAVExportTokenForConf replaces the export token named by the config
-// file at confPath and returns the new one.
-func RotateDAVExportTokenForConf(confPath string) (string, error) {
+// file at confPath. It returns the new token and the file it wrote, made
+// absolute against the working directory as the server resolves it, so a run
+// from the wrong directory shows where it went.
+func RotateDAVExportTokenForConf(confPath string) (token, tokenFile string, err error) {
 	conf, err := loadAppConf(confPath)
 	if err != nil {
-		return "", util.Errorf("%w", err)
+		return "", "", util.Errorf("%w", err)
 	}
 	if conf.DAVExport == nil {
-		return "", util.Errorf("config has no dav_export section")
+		return "", "", util.Errorf("config has no dav_export section")
 	}
-	return RotateDAVExportToken(conf.DAVExport.TokenFile)
+	tokenFile, err = filepath.Abs(conf.DAVExport.TokenFile)
+	if err != nil {
+		return "", "", util.Errorf("%w", err)
+	}
+	token, err = RotateDAVExportToken(tokenFile)
+	return token, tokenFile, err
 }

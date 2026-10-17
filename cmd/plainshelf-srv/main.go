@@ -22,11 +22,12 @@ func main() {
 	}
 
 	if rotateDAVToken {
-		token, err := server.RotateDAVExportTokenForConf(confPath)
+		token, tokenFile, err := server.RotateDAVExportTokenForConf(confPath)
 		if err != nil {
 			log.Println("Error rotating dav_export token:", err)
 			os.Exit(1)
 		}
+		fmt.Fprintln(os.Stderr, "wrote", tokenFile)
 		fmt.Println(token)
 		return
 	}
