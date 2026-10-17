@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -289,6 +290,57 @@ func TestDAVExportOnlyShelfFiles(t *testing.T) {
 		if rec := env.do(t, http.MethodGet, target, env.token, nil); rec.Code != http.StatusBadRequest {
 			t.Errorf("GET %s = %d, want 400", target, rec.Code)
 		}
+	}
+}
+
+// TestDAVExportHidesWritesInProgress plants the two temp names a shelf write
+// leaves under books/: neither is listed nor readable, while look-alike user
+// files still are.
+func TestDAVExportHidesWritesInProgress(t *testing.T) {
+	env := newDAVTestEnv(t)
+	tempFile := "books/a.bookpkg/book.json.aB3dE6gH.tmp"
+	stagingDir := "books/a.bookpkg/sources/" + fsutil.TempDirName("20260101-000000")
+	for name, body := range map[string]string{
+		tempFile:                    "partial",
+		stagingDir + "/meta.json":   "{}",
+		"books/a.bookpkg/notes.tmp": "kept",
+		"books/a.bookpkg/a.tmp.txt": "kept",
+	} {
+		writeTestFile(t, filepath.Join(env.libRoot, filepath.FromSlash(name)), body)
+	}
+
+	for dir, want := range map[string][]string{
+		"books/a.bookpkg/":         {"notes.tmp", "a.tmp.txt"},
+		"books/a.bookpkg/sources/": nil,
+	} {
+		rec := env.do(t, "PROPFIND", "/dav/default_shelf/"+dir, env.token, map[string]string{"Depth": "1"})
+		if rec.Code != http.StatusMultiStatus {
+			t.Fatalf("PROPFIND %s = %d: %s", dir, rec.Code, rec.Body)
+		}
+		got := propfindHrefs(t, rec.Body.Bytes())
+		for _, href := range got {
+			if strings.Contains(href, path.Base(tempFile)) || strings.Contains(href, path.Base(stagingDir)) {
+				t.Errorf("PROPFIND %s lists %s", dir, href)
+			}
+		}
+		for _, name := range want {
+			if !slices.Contains(got, "/dav/default_shelf/"+dir+name) {
+				t.Errorf("PROPFIND %s hrefs = %q, missing %s", dir, got, name)
+			}
+		}
+	}
+
+	for _, name := range []string{tempFile, stagingDir, stagingDir + "/", stagingDir + "/meta.json"} {
+		target := "/dav/default_shelf/" + name
+		if rec := env.do(t, http.MethodGet, target, env.token, nil); rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404", name, rec.Code)
+		}
+		if rec := env.do(t, "PROPFIND", target, env.token, map[string]string{"Depth": "0"}); rec.Code != http.StatusNotFound {
+			t.Errorf("PROPFIND %s = %d, want 404", name, rec.Code)
+		}
+	}
+	if rec := env.do(t, http.MethodGet, "/dav/default_shelf/books/a.bookpkg/notes.tmp", env.token, nil); rec.Code != http.StatusOK || rec.Body.String() != "kept" {
+		t.Errorf("GET notes.tmp = %d %q", rec.Code, rec.Body)
 	}
 }
 
