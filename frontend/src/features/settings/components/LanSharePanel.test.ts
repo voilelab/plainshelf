@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import LanSharePanel from './LanSharePanel.vue';
 import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import type { DesktopLANShareStatus, setDesktopLANShare } from '@/api/desktop';
 
 type DesktopLANShareParams = Parameters<typeof setDesktopLANShare>[0];
@@ -136,5 +137,24 @@ describe('LanSharePanel', () => {
     expect(host.querySelector<HTMLInputElement>('[data-testid="lan-share-enabled"]')?.checked).toBe(
       false
     );
+  });
+
+  it('re-reads the shelf list when the shelves panel changes it', async () => {
+    const state = offStatus();
+    const { getLANShare } = installBinding(state);
+    const { host } = mount(LanSharePanel);
+    await settle();
+    click(host, 'lan-share-enabled');
+    await settle();
+    expect(host.querySelector('[data-testid="lan-share-shelf-c"]')).toBeNull();
+
+    // A shelf added in the panel beside this one.
+    state.shelves = [...state.shelves, { id: 'c', name: 'Shelf C', shared: false }];
+    const { shelves } = useShelvesStore();
+    shelves.value = [...shelves.value];
+    await settle();
+
+    expect(getLANShare).toHaveBeenCalledTimes(2);
+    expect(host.querySelector('[data-testid="lan-share-shelf-c"]')).not.toBeNull();
   });
 });

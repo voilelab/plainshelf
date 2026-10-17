@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
   SelectContent,
   SelectItem,
@@ -123,6 +123,7 @@ import {
   setDesktopLANShare,
   type DesktopLANShareStatus
 } from '@/api/desktop';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
@@ -199,6 +200,13 @@ function onRotate(): void {
 }
 
 onMounted(() => {
+  void run(getDesktopLANShare);
+});
+
+// The shelf list comes from Go; re-read it when the shelves panel adds,
+// removes or renames one.
+const { shelves } = useShelvesStore();
+watch(shelves, () => {
   void run(getDesktopLANShare);
 });
 </script>

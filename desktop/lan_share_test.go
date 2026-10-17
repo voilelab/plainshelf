@@ -248,6 +248,39 @@ func TestLANShareStartSavedReportsMissingAddress(t *testing.T) {
 	}
 }
 
+func TestLANShareRecoversFromGoneAddress(t *testing.T) {
+	env := newLANShareEnv(t)
+	if _, err := env.share.apply(LANShareParams{Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	env.share.stop()
+	lanAddresses = func() ([]string, error) { return []string{"127.0.0.2"}, nil }
+	again := env.reopen(t)
+	again.startSaved()
+
+	// The page offers the address that exists now, and switching back on
+	// binds it, whether the page sends the saved host back or not.
+	st, err := again.status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Host != "127.0.0.2" {
+		t.Fatalf("status host = %q, want the current address", st.Host)
+	}
+	for _, host := range []string{"127.0.0.1", ""} {
+		if _, err := again.apply(LANShareParams{Enabled: false}); err != nil {
+			t.Fatal(err)
+		}
+		st, err = again.apply(LANShareParams{Enabled: true, Host: host})
+		if err != nil {
+			t.Fatalf("host %q: %v", host, err)
+		}
+		if !st.Running || st.Host != "127.0.0.2" {
+			t.Errorf("host %q: status = %+v, want running on 127.0.0.2", host, st)
+		}
+	}
+}
+
 func TestLANShareRejectsUnknownShelf(t *testing.T) {
 	env := newLANShareEnv(t)
 	if _, err := env.share.apply(LANShareParams{Enabled: true, ShelfIDs: []string{"nope"}}); err == nil {

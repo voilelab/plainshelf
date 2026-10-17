@@ -269,11 +269,10 @@ func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
 
 	var listenErr error
 	if next.Enabled {
-		if next.Host == "" {
-			addrs, err := lanAddresses()
-			if err == nil && len(addrs) > 0 {
-				next.Host = addrs[0]
-			}
+		// The saved host may be gone after a network change; only a host the
+		// user just picked is refused instead of replaced.
+		if next.Host == s.conf.Host {
+			next.Host = currentLANHost(next.Host)
 		}
 		listenErr = s.listen(next.Host)
 		if listenErr != nil {
@@ -319,8 +318,9 @@ func (s *lanShare) statusLocked(shelves *desktopShelvesConfig) LANShareStatus {
 	if addrs, err := lanAddresses(); err == nil {
 		st.Addresses = addrs
 	}
-	if st.Host == "" && len(st.Addresses) > 0 {
-		st.Host = st.Addresses[0]
+	if !st.Running {
+		// What the next switch-on binds, so the page never offers a gone address.
+		st.Host = currentLANHost(st.Host)
 	}
 	for _, e := range shelves.Shelves {
 		st.Shelves = append(st.Shelves, LANShareShelf{ID: e.ID, Name: e.Name, Shared: s.isShared(e.ID)})
@@ -384,6 +384,16 @@ func lanShareQRCode(payload lanShareQRPayload) (string, error) {
 	buf.WriteString("data:image/png;base64,")
 	buf.WriteString(base64.StdEncoding.EncodeToString(code.PNG()))
 	return buf.String(), nil
+}
+
+// currentLANHost returns host while it is still a LAN address, else the first
+// one there is (or host, when there is none).
+func currentLANHost(host string) string {
+	addrs, err := lanAddresses()
+	if err != nil || len(addrs) == 0 || slices.Contains(addrs, host) {
+		return host
+	}
+	return addrs[0]
 }
 
 // detectLANAddresses lists this computer's IPv4 unicast addresses on up,
