@@ -73,6 +73,23 @@ describe('openEmbeddedPCloudShelf', () => {
 });
 
 describe('embeddedPCloudFetch', () => {
+  it.each(['string', 'URL', 'Request'] as const)('sends the server mode query to Go (%s), without opening the shelf', async (kind) => {
+    const url = `${base}/api/mode`;
+    const input = kind === 'Request' ? new Request(url) : kind === 'URL' ? new URL(url) : url;
+    const init = { signal: new AbortController().signal };
+    localFetch.mockResolvedValueOnce(Response.json({ read_only: false }));
+
+    const res = await mod.embeddedPCloudFetch(input, init);
+
+    expect(await res.json()).toEqual({ read_only: false });
+    const [target, options] = localFetch.mock.calls[0]!;
+    expect(target instanceof Request ? target.url : target).toBe('https://localhost/__plainshelf_local/api/mode');
+    expect(options).toBe(init);
+    expect(plugin.openPCloudShelf).not.toHaveBeenCalled();
+    expect(plugin.setShelfShowNsfw).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('sends the entry shelf routes to the Go shelf', async () => {
     await mod.openEmbeddedPCloudShelf(entry);
     const res = await mod.embeddedPCloudFetch(`${shelfPrefix}/books/b1/content`);
@@ -85,11 +102,17 @@ describe('embeddedPCloudFetch', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('leaves every other URL alone', async () => {
+  it.each([
+    `${base}/api/setting/show_nsfw`,
+    `${base}/api/mode/other`,
+    `${base}/api/modes`,
+    'https://other.example/api/mode'
+  ])('leaves other URLs alone: %s', async (url) => {
     await mod.openEmbeddedPCloudShelf(entry);
-    await mod.embeddedPCloudFetch(`${base}/api/setting/show_nsfw`);
+    await mod.embeddedPCloudFetch(url);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(url, undefined);
     expect(localFetch).not.toHaveBeenCalled();
   });
 

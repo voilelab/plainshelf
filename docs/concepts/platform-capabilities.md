@@ -10,8 +10,8 @@
 
 The frontend reaches its data through one `BookshelfProvider`. Today that
 interface also carries every client's special cases as optional methods: the
-desktop app's "open in Finder", the Android app's downloads, the TypeScript
-pCloud reader's "I have no server". A screen that wants to know whether a
+desktop app's "open in Finder", the Android app's downloads, and the pCloud
+reader's device NSFW preference. A screen that wants to know whether a
 feature exists asks the provider with a `supportsXxx()` call, so every new
 source grows another one.
 
@@ -23,9 +23,9 @@ This design splits those methods by **who knows the answer**:
   Capacitor, the wasm page, a browser). The host provides it as a separate
   platform interface, never over the HTTP API.
 
-Once pCloud moves into Go (PSW-138, PSW-139), every client reads every shelf
-through the same Go API, and the provider is left with one job: reading and
-writing a shelf.
+Since PSW-138 and PSW-139, every client reads every shelf through the same Go
+API. The remaining capability changes below leave the provider with one job:
+reading and writing a shelf.
 
 ---
 
@@ -44,8 +44,8 @@ Every optional method on `BookshelfProvider` today, in
 | `getShelfFetchedAt` | mobile, pCloud | Shelf field `offline.snapshot_at` |
 | `downloadBook`, `removeDownload`, `getDownloadState`, `listDownloadedBookEntries` | mobile | Shelf interface, backed by the Go API (PSW-145), gated by `download` |
 | `getPersistedShelfID` | mobile | Remote-server connection only (see below) |
-| `supportsServerMode` | mobile, pCloud | **Deleted** after PSW-139 |
-| `filtersNsfwOnDevice`, `localNsfwMarks` | mobile, pCloud | **Deleted** after PSW-139: the engine applies NSFW marks |
+| `supportsServerMode` (removed in PSW-159) | — | Every backend now has a Go server to answer `/api/mode` |
+| `filtersNsfwOnDevice`, `localNsfwMarks` | mobile, pCloud | Still used by `EmbeddedPCloudReader` for the device preference and offline filtering |
 | `coversMustBeFetchedAsBlob` | mobile, pCloud | Platform capability, until PSW-136 shows whether it is still needed |
 | `getStorageEstimate` | mobile | Platform interface |
 | `openLocalBookFiles`, `importBookFromLocalPath` | desktop | Platform interface |
@@ -110,7 +110,13 @@ local shelf can be read-only too.
 | `features/library/pages/LibraryPage.vue`, `features/maintenance/pages/SimilarContentPage.vue` and `utils/bookFilters/registry.ts` ask `supportsCharCountListing` | read `capabilities.char_count` |
 | `features/maintenance/pages/SimilarContentPage.vue` calls `getFingerprintStatus` and handles an empty answer | checks `capabilities.fingerprint` first |
 | `features/mobile/pages/DownloadsPage.vue` and the book actions use the mobile download methods | check `capabilities.download`, then call the shelf interface |
-| `composables/useServerMode.ts` asks `supportsServerMode` | asks the server, which every shelf now has |
+| `composables/useServerMode.ts` asks `/api/mode` directly (PSW-159) | Already implemented; pCloud entries query the embedded server |
+
+`/api/mode` reports the whole installation's `read_only`, not the selected
+shelf's. The embedded server can be writable while its pCloud shelf stays
+read-only: `useWriteAccess` also requires a provider with a write surface, which
+the mobile pCloud reader does not have. Its API transport rejects writes too.
+The mode query does not wait for the pCloud shelf to open.
 
 The fields live in `server/contract/shelves`, beside `ShelfInfo`
 (`server/handle_shelf.go`). The source configuration itself is never part of the
@@ -217,12 +223,12 @@ decision and not part of this design.
   pCloud branch. `PCloudBookshelfProvider` is no longer constructed for pCloud,
   and the screens listed in [Who reads them](#who-reads-them) move to the new
   fields in the same change.
-- **PSW-139 (remove the TS pCloud reader).** Done for the reader itself. The
-  provider interface is unchanged: `filtersNsfwOnDevice` and `localNsfwMarks`
-  are still what `EmbeddedPCloudReader` answers, and no implementation returns
-  `false` from `supportsServerMode` any more, so its removal, with making
-  `getSourceAsset` and `getSourceAssetsBundle` required, is left to its own
-  change.
+- **PSW-139 (remove the TS pCloud reader).** Done. `EmbeddedPCloudReader`
+  reads through Go and still answers `filtersNsfwOnDevice` and `localNsfwMarks`
+  for the device preference and offline filtering. PSW-159 removed
+  `supportsServerMode` and routed pCloud's `/api/mode` query to the embedded
+  server. Making `getSourceAsset` and `getSourceAssetsBundle` required remains
+  PSW-160.
 - **PSW-145 (offline download).** Implements `capabilities.download` and
   `offline.snapshot_at`, and the shelf-interface download methods call its API.
 - **PSW-147, PSW-136.** The desktop and Android hosts expose shelf management
