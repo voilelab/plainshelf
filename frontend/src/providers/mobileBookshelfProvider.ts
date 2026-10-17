@@ -343,12 +343,7 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return true;
   }
 
-  /** Whatever this shell is pointed at answers; a wrapper has no mode of its own. */
-  supportsServerMode(): boolean {
-    return this.remote.supportsServerMode?.() ?? true;
-  }
-
-  /** Likewise: the cost belongs to whatever backend this shell is pointed at. */
+  /** The cost belongs to whatever backend this shell is pointed at. */
   supportsCharCountListing(): boolean {
     return this.remote.supportsCharCountListing?.() ?? true;
   }

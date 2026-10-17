@@ -82,13 +82,6 @@ export interface BookshelfReader {
   coversMustBeFetchedAsBlob?(): boolean;
 
   /**
-   * Whether there is a PlainShelf server behind this backend to report its
-   * `read_only` mode. Absent means yes. pCloud answers false: it is storage,
-   * not a server, so asking would be a request nothing can answer.
-   */
-  supportsServerMode?(): boolean;
-
-  /**
    * Whether character counts alongside a listing are affordable. Absent means
    * yes — a server computes them from its shelf cache. pCloud answers false: it
    * would fetch every book's meta.json over the network for one listing. A

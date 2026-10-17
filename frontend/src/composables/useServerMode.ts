@@ -1,6 +1,5 @@
 import { ref, watch } from 'vue';
 import { getReadOnlyMode } from '@/api/mode';
-import { getBookshelfProvider } from '@/providers';
 import { t } from '@/i18n';
 
 const readOnly = ref(false);
@@ -16,15 +15,6 @@ watch(readOnly, (value) => {
 
 export function useServerMode() {
   async function fetchServerMode(): Promise<void> {
-    // A backend with no PlainShelf server behind it has no mode to report.
-    // Skipping keeps a doomed request — awaited before the layout renders
-    // anything — out of startup. Read-only is still enforced, by the guard in
-    // api/client.ts and by the provider's own missing write surface.
-    if (getBookshelfProvider().supportsServerMode?.() === false) {
-      loaded.value = true;
-      return;
-    }
-
     loading.value = true;
     error.value = '';
     try {

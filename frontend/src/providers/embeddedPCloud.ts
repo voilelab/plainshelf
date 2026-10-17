@@ -13,7 +13,7 @@ import { ServerBookshelfProvider } from './serverBookshelfProvider';
  * The API client keeps the entry's `pcloud://` base and shelf root, because
  * those are the cache scope (cacheScope.ts) that downloads, reading progress
  * and history are filed under. Only where a request goes changes: the fetch
- * below sends the entry's shelf routes to the Go shelf instead.
+ * below sends the entry's shelf routes and server-mode query to Go instead.
  */
 
 /** The Go shelf the active pCloud entry is opened as; one entry is active per app run. */
@@ -109,11 +109,17 @@ function requestUrl(input: RequestInfo | URL): string {
 
 /**
  * The API client's fetch while a pCloud entry is active. The entry's shelf
- * routes go to the Go shelf; anything else is left alone and fails as it did
- * against the `pcloud://` base, since nothing behind it answers.
+ * routes go to the Go shelf, and /api/mode asks the embedded server. Anything
+ * else is left alone and fails against the `pcloud://` base.
  */
 export async function embeddedPCloudFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = requestUrl(input);
+  if (url === `${getApiBase()}/api/mode`) {
+    // Installation-wide: independent of opening the cloud shelf or its NSFW
+    // choice. A writable server does not grant this reader a write surface.
+    const target = `${LOCAL_API_BASE}/api/mode`;
+    return localShelfFetch(input instanceof Request ? new Request(target, input) : target, init);
+  }
   const prefix = `${getApiBase()}/api/shelves/${encodeURIComponent(getActiveShelfID())}`;
   if (url !== prefix && !url.startsWith(`${prefix}/`) && !url.startsWith(`${prefix}?`)) {
     return fetch(input, init);
