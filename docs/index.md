@@ -42,6 +42,9 @@ app, with nothing to install and nothing uploaded.
   cache freshness, and network-filesystem tuning.
 - [Shelf Sources and Credentials](concepts/shelf-sources.md) is the design for
   local and virtual shelves and how a source gets its credential.
+- [Shelf and Platform Capabilities](concepts/platform-capabilities.md) is the
+  design for what the server reports about each shelf and what each client
+  platform provides.
 
 ### Contribute
 

@@ -45,6 +45,7 @@ nav:
       - Shelf Cache and Disk I/O: concepts/shelf-cache-and-io.md
       - Folders: concepts/folders.md
       - Shelf Sources and Credentials: concepts/shelf-sources.md
+      - Shelf and Platform Capabilities: concepts/platform-capabilities.md
   - Development:
       - Local Setup: development/setup.md
       - Android: development/android.md
