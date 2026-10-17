@@ -352,6 +352,7 @@ parallel behind it.
 | Frontend E2E | 3:34 | 6:27 | 3:22 | **3:34** | 10 † |
 | Wasm demo smoke | — | — | — | — | 10 ‡ |
 | Android build | 1:29 | 1:24 | 1:05 | **1:24** | 5 |
+| Android Go library | — | — | — | — | 10 § |
 | Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
 | **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
 
@@ -369,6 +370,10 @@ server for `js/wasm` and runs `cmd/plainshelf-wasm/web/smoke.mjs`, whose 17
 checks took about 10s in the cloud container. It then installs the frontend's
 dependencies, rebuilds the demo under `/demo/` as `docs.yml` deploys it, and
 runs the smoke again there. The cap is provisional on the same terms as E2E's.
+
+§ Added by PSW-136, with no baseline. It installs gomobile and binds `mobile/`
+for `android/arm64` with the runner's NDK; the cap is provisional on the same
+terms as E2E's.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -570,6 +571,9 @@ func validateBookCacheWriterID(writerID string) error {
 //
 // A closing shelf starts nothing new, which also keeps the counter from being
 // raised while Close waits on it.
+//
+// A panic is logged rather than left to kill the process: in the Android app
+// the server shares its process with the UI.
 func (s *Shelf) goBackground(fn func()) bool {
 	s.backgroundMu.Lock()
 	defer s.backgroundMu.Unlock()
@@ -578,7 +582,14 @@ func (s *Shelf) goBackground(fn func()) bool {
 		return false
 	}
 
-	s.background.Go(fn)
+	s.background.Go(func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.Error("background work panicked", "panic", r, "stack", string(debug.Stack()))
+			}
+		}()
+		fn()
+	})
 	return true
 }
 

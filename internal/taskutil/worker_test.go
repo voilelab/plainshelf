@@ -216,3 +216,35 @@ func TestWorkerRunReturnsErrWorkerBusyWhenQueueIsFull(t *testing.T) {
 		t.Errorf("Expected no task to run, got %v", ran)
 	}
 }
+
+// panickingTask panics instead of returning.
+type panickingTask struct{ fakeTask }
+
+func (t *panickingTask) Run(ctx context.Context) error {
+	_ = t.fakeTask.Run(ctx)
+	panic("boom")
+}
+
+func TestWorkerSurvivesPanickingTask(t *testing.T) {
+	w := newTestWorker(t, 2)
+	w.Start()
+
+	ran := []string{}
+	if err := w.Run(&TaskChain{Tasks: []Task{
+		&panickingTask{fakeTask{name: "panicking", record: &ran}},
+		&fakeTask{name: "skipped", record: &ran},
+	}}); err != nil {
+		t.Fatalf("Run returned an error: %v", err)
+	}
+	if err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "next", record: &ran}}}); err != nil {
+		t.Fatalf("Run returned an error: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close returned an error: %v", err)
+	}
+
+	want := []string{"panicking", "next"}
+	if !slices.Equal(ran, want) {
+		t.Errorf("Expected tasks %v to run, got %v", want, ran)
+	}
+}

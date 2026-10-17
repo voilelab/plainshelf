@@ -2,6 +2,7 @@ package taskutil
 
 import (
 	"context"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -258,7 +259,7 @@ func (w *Worker) work() {
 		ctx := chain.runContext()
 		for _, task := range chain.Tasks {
 			w.logger.Info("Worker running task", "task", task.Name())
-			err := task.Run(ctx)
+			err := runTask(ctx, task)
 			w.logger.Info("Worker finished task", "task", task.Name())
 			if err != nil {
 				w.logger.Error("task failed", "request_id", chain.RequestID, "task", task.Name(), "error", err)
@@ -270,6 +271,17 @@ func (w *Worker) work() {
 		chain.Cancel()
 		w.logger.Info("Worker finished task chain")
 	}
+}
+
+// runTask turns a panic into the task's error, so one bad task fails its chain
+// instead of the process; the Android app shares that process with its UI.
+func runTask(ctx context.Context, task Task) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = util.Errorf("task panicked: %v\n%s", r, debug.Stack())
+		}
+	}()
+	return task.Run(ctx)
 }
 
 func (w *Worker) Run(chain *TaskChain) error {

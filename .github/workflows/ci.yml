@@ -320,6 +320,52 @@ jobs:
           path: frontend/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+  # PSW-136 spike: the embedded server as an Android library. Reports the .so
+  # size and 16 KB page alignment in the job summary; not a gate yet, for the
+  # same reason as the Android build above.
+  android-lib:
+    name: Android Go library
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: frontend
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Not embedded on android; kept in case gobind type-checks for the host.
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # The runner image ships the SDK and NDKs; gomobile reads ANDROID_NDK_HOME.
+      - name: Build and measure the library
+        run: ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" ./scripts/build-android-lib.sh build/android-lib
+
+      - name: Upload library
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: plainshelf-android-lib
+          path: |
+            build/android-lib/plainshelf.aar
+            build/android-lib/report.md
+          if-no-files-found: ignore
+
   vulncheck:
     name: Go vulnerability scan
     runs-on: ubuntu-latest

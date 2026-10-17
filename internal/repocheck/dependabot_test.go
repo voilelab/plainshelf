@@ -16,26 +16,28 @@ import (
 // its protection instead of failing anything. Changing this list is allowed;
 // doing it without updating the branch protection rule for `dev` is the bug.
 var ciJobNames = map[string]string{
-	"frontend":  "Frontend build",
-	"lint":      "Go lint",
-	"go":        "Go tests",
-	"e2e":       "Frontend E2E",
-	"wasm-demo": "Wasm demo smoke",
-	"android":   "Android build",
-	"vulncheck": "Go vulnerability scan",
+	"frontend":    "Frontend build",
+	"lint":        "Go lint",
+	"go":          "Go tests",
+	"e2e":         "Frontend E2E",
+	"wasm-demo":   "Wasm demo smoke",
+	"android":     "Android build",
+	"android-lib": "Android Go library",
+	"vulncheck":   "Go vulnerability scan",
 }
 
 // blockingCIJobs records, per job, whether a failure blocks the merge — the
 // gate-or-informational decision SECURITY.md describes. A job flipped from one
 // to the other without touching this map is a change nobody reviewed.
 var blockingCIJobs = map[string]bool{
-	"frontend":  true,
-	"lint":      true,
-	"go":        true,
-	"e2e":       true,
-	"wasm-demo": true,
-	"android":   false,
-	"vulncheck": true,
+	"frontend":    true,
+	"lint":        true,
+	"go":          true,
+	"e2e":         true,
+	"wasm-demo":   true,
+	"android":     false,
+	"android-lib": false,
+	"vulncheck":   true,
 }
 
 // versionUpdatedEcosystem keeps Dependabot version updates: security updates

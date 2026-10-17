@@ -1,5 +1,6 @@
-// Package shelfzip moves a shelf in and out of the wasm demo as a zip whose
-// layout is the shelf directory itself, so it unzips into a native lib_root.
+// Package shelfzip moves a shelf in and out of the wasm demo and the Android
+// local shelf as a zip whose layout is the shelf directory itself, so it unzips
+// into a native lib_root.
 // Only books/ and trash/ travel: app/ holds this installation's caches.
 package shelfzip
 
