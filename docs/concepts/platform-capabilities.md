@@ -86,7 +86,7 @@ wrapper that adds offline downloads to a remote PlainShelf server connection.
 |---|---|
 | `kind` | `local` or `virtual`, as defined in [Two kinds of shelf](shelf-sources.md#two-kinds-of-shelf). |
 | `capabilities.rescan` | The shelf can be rescanned on request (`POST /api/shelves/{id}/scans`). |
-| `capabilities.download` | Books can be downloaded to the device's offline layer. True for a virtual shelf, false for a local one, which is already local. |
+| `capabilities.download` | Books can be downloaded to the device's offline layer. The engine reports true for a virtual shelf and false for a local one, which is already local. A client that keeps its own offline copy overrides it (see [the remote-server connection](#the-remote-server-connection-stays-a-wrapper)). |
 | `capabilities.fingerprint` | Fingerprints and similar-book pairs are available. |
 | `capabilities.char_count` | Listings carry character counts, so sorting and filtering by length work. |
 | `offline.snapshot_at` | When the shelf listing was last fetched from the source. Present only on a virtual shelf that has a snapshot; the UI shows it as "last updated" when the source is unreachable. |
@@ -177,7 +177,15 @@ remain the job of `MobileBookshelfProvider` wrapping a `ServerBookshelfProvider`
 
 That wrapper is applied **only** to a remote-server connection. A local shelf and
 a virtual shelf opened by the embedded Go engine get their offline behaviour
-from the engine (PSW-145) and are not wrapped. `getPersistedShelfID` stays with
+from the engine (PSW-145) and are not wrapped.
+
+Because those downloads are the wrapper's own, the wrapper reports
+`capabilities.download: true` on every shelf it wraps, whatever the remote
+server says. A remote server reports `download: false` for its local shelves,
+and an older server reports nothing, so the UI would otherwise hide downloads
+that work today. The rule is that the layer that owns the offline copy answers
+`download`: the engine for shelves it opens, the wrapper for a remote
+connection. `getPersistedShelfID` stays with
 the wrapper, which needs it to scope the remote connection's downloads.
 
 Once virtual shelves cover reading another PlainShelf (PSW-146, PSW-149), the
@@ -194,7 +202,9 @@ decision and not part of this design.
 - `read_only` on `GET /api/shelves` keeps its meaning and its place.
 - An older client against a newer server ignores `kind`, `capabilities` and
   `offline`. A newer client against an older server sees them missing and falls
-  back to today's behaviour: `rescan` true, `download` false, the rest true.
+  back to today's behaviour: `rescan` true, the rest true, and `download` as
+  the remote-server wrapper reports it (true) or false where nothing wraps the
+  shelf.
 
 ---
 
