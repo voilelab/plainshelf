@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -86,11 +87,26 @@ type LANShareStatus struct {
 	Error  string `json:"error"`
 }
 
+// lanShareQRVersion is lanShareQRPayload's "v". A reader refuses any other
+// value rather than guess at the fields.
+const lanShareQRVersion = 1
+
 // lanShareQRPayload is the QR code's text: everything another device needs to
-// open the shared shelves.
+// open the shared shelves. It is a format between devices; see
+// docs/configuring-local-shelf.md.
 type lanShareQRPayload struct {
+	V     int    `json:"v"`
 	URL   string `json:"url"`
 	Token string `json:"token"`
+	// Shelves lists only the ticked shelves, so the code changes with the
+	// selection.
+	Shelves []lanShareQRShelf `json:"shelves"`
+}
+
+type lanShareQRShelf struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 type lanShare struct {
@@ -354,7 +370,7 @@ func (s *lanShare) statusLocked(shelves *desktopShelvesConfig) LANShareStatus {
 		return st
 	}
 	st.Token = strings.TrimSpace(string(token))
-	qrCode, err := lanShareQRCode(lanShareQRPayload{URL: st.URL, Token: st.Token})
+	qrCode, err := lanShareQRCode(newLANShareQRPayload(st))
 	if err != nil {
 		st.Error = err.Error()
 		return st
@@ -409,6 +425,17 @@ func widens(cur, next lanShareConfig) bool {
 		return true
 	}
 	return slices.ContainsFunc(next.ShelfIDs, func(id string) bool { return !slices.Contains(cur.ShelfIDs, id) })
+}
+
+// newLANShareQRPayload builds the payload of a running status.
+func newLANShareQRPayload(st LANShareStatus) lanShareQRPayload {
+	p := lanShareQRPayload{V: lanShareQRVersion, URL: st.URL, Token: st.Token, Shelves: []lanShareQRShelf{}}
+	for _, sh := range st.Shelves {
+		if sh.Shared {
+			p.Shelves = append(p.Shelves, lanShareQRShelf{ID: sh.ID, Name: sh.Name, URL: st.URL + url.PathEscape(sh.ID) + "/"})
+		}
+	}
+	return p
 }
 
 func lanShareQRCode(payload lanShareQRPayload) (string, error) {
