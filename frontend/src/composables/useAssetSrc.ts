@@ -24,8 +24,8 @@ function objectUrlCacheKey(bookId: string, sourceId: string, name: string): stri
  * itself, bypassing CapacitorHttp and tripping mixed-content blocking. One code
  * path avoids having a second, platform-shaped way for images to break.
  *
- * A provider that cannot reach assets at all (pCloud today, or an offline
- * mobile cache) simply leaves `failed` set, and the caller shows the alt text.
+ * An illustration the provider cannot reach (an offline mobile cache that did
+ * not download it) leaves `failed` set, and the caller shows the alt text.
  */
 export function useAssetSrc(
   bookId: () => string,
@@ -59,14 +59,9 @@ export function useAssetSrc(
       return;
     }
 
-    // Bound to the provider that was checked, so the fetch cannot land on a
-    // later provider that has no asset support.
+    // Bound now, so the fetch cannot land on a provider swapped in later.
     const provider = getBookshelfProvider();
-    const fetchAsset = provider.getSourceAsset?.bind(provider);
-    if (!fetchAsset) {
-      failed.value = true;
-      return;
-    }
+    const fetchAsset = provider.getSourceAsset.bind(provider);
 
     const key = objectUrlCacheKey(book, source, assetName);
     activeKey = key;

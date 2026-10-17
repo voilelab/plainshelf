@@ -276,7 +276,9 @@ describe('MobileBookshelfProvider — adult content in the offline cache', () =>
       getBookCover: () => Promise.reject(unreachableError()),
       listSources: () => Promise.reject(unreachableError()),
       getSource: () => Promise.reject(unreachableError()),
-      getSourceContent: () => Promise.reject(unreachableError())
+      getSourceContent: () => Promise.reject(unreachableError()),
+      getSourceAsset: () => Promise.reject(unreachableError()),
+      getSourceAssetsBundle: () => Promise.reject(unreachableError())
     };
     return new MobileBookshelfProvider(remote as BookshelfReader, cache, isOnline);
   }
@@ -622,6 +624,12 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     return new MobileBookshelfProvider(remote as BookshelfReader, cache, () => true);
   }
 
+  // A failed bundle request, so the illustration cases below exercise the
+  // per-file path.
+  function noBundle() {
+    return vi.fn().mockRejectedValue(new Error('bundle unavailable'));
+  }
+
   it('does not reuse a memoized cover object URL for the same book id on another shelf', async () => {
     await seedDownloadedBook(cache, 'book-1');
     await cache.saveCachedCover('book-1', new Blob(['cover'], { type: 'image/jpeg' }));
@@ -702,6 +710,7 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
         .mockResolvedValue(
           'before\n\n![a](assets/img-0001.png)\n\n![b](assets/img-0002.png)\n\n![again](assets/img-0001.png)\n\n![no](https://example.com/x.png)'
         ),
+      getSourceAssetsBundle: noBundle(),
       getSourceAsset
     });
 
@@ -712,7 +721,11 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(getSourceAsset.mock.calls.map((call) => call[2])).toEqual(['img-0001.png', 'img-0002.png']);
 
     // Offline, the cache answers without touching the remote.
-    const offline = new MobileBookshelfProvider({ getSourceAsset } as unknown as BookshelfReader, cache, () => false);
+    const offline = new MobileBookshelfProvider(
+      { getSourceAsset, getSourceAssetsBundle: noBundle() } as unknown as BookshelfReader,
+      cache,
+      () => false
+    );
     const blob = await offline.getSourceAsset('book-1', 'src-1', 'img-0001.png');
     expect(await blob.text()).toBe('bytes of img-0001.png');
 
@@ -727,6 +740,7 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
       getSourceContent: vi.fn().mockResolvedValue('- Floor plan\n  ![map](assets/map.png)'),
+      getSourceAssetsBundle: noBundle(),
       getSourceAsset
     });
 
@@ -750,6 +764,7 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       }]),
       getBookContent: vi.fn().mockResolvedValue({ content: '![map](assets/map.png)' }),
       getSourceContent: vi.fn().mockResolvedValue('![map](assets/map.png)'),
+      getSourceAssetsBundle: noBundle(),
       getSourceAsset
     });
 
@@ -762,16 +777,19 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
   // files the reader will never ask for.
   it('does not fetch illustrations for a plain-text book', async () => {
     const getSourceAsset = vi.fn();
+    const getSourceAssetsBundle = noBundle();
     const provider = makeProvider({
       getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'txt' })),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
       getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
+      getSourceAssetsBundle,
       getSourceAsset
     });
 
     await provider.downloadBook('book-1');
 
+    expect(getSourceAssetsBundle).not.toHaveBeenCalled();
     expect(getSourceAsset).not.toHaveBeenCalled();
   });
 
@@ -782,6 +800,7 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
       getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
+      getSourceAssetsBundle: noBundle(),
       getSourceAsset: vi.fn().mockRejectedValue(new Error('boom'))
     });
 
@@ -810,6 +829,7 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
       getSourceContent: vi.fn().mockResolvedValue(links),
+      getSourceAssetsBundle: noBundle(),
       getSourceAsset
     });
 
@@ -831,6 +851,7 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
         listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
         getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
         getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
+        getSourceAssetsBundle: noBundle(),
         getSourceAsset: vi.fn().mockResolvedValue(new Blob(['bytes'], { type: 'image/png' }))
       } as unknown as BookshelfReader,
       failingCache,
@@ -1041,6 +1062,29 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
 
     expect(getSourceAsset).toHaveBeenCalledWith('book-1', 'src-1', 'img-0001.png');
     expect(await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png')).not.toBeNull();
+  });
+
+  it('forwards a bundle request to the remote while online', async () => {
+    const bundle = new Blob([zipSync({})], { type: 'application/zip' });
+    const getSourceAssetsBundle = vi.fn().mockResolvedValue(bundle);
+    const provider = makeProvider({ getSourceAssetsBundle });
+
+    await expect(provider.getSourceAssetsBundle('book-1', 'src-1', ['a.png'])).resolves.toBe(bundle);
+    expect(getSourceAssetsBundle).toHaveBeenCalledWith('book-1', 'src-1', ['a.png']);
+  });
+
+  // The cache holds figures one by one, never an archive, so offline there is
+  // nothing to answer with; the reader's per-image path still reads the cache.
+  it('rejects a bundle request offline without touching the remote', async () => {
+    const getSourceAssetsBundle = vi.fn();
+    const provider = new MobileBookshelfProvider(
+      { getSourceAssetsBundle } as unknown as BookshelfReader,
+      cache,
+      () => false
+    );
+
+    await expect(provider.getSourceAssetsBundle('book-1', 'src-1', ['a.png'])).rejects.toThrow();
+    expect(getSourceAssetsBundle).not.toHaveBeenCalled();
   });
 });
 
