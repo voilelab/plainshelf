@@ -289,7 +289,13 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// The body streams into the write, so an oversized one is refused here too;
+	// the atomic write leaves the previous content in place.
 	if err := source.UpdateContent(utf8Reader); err != nil {
+		if isRequestBodyTooLarge(err) {
+			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
 		h.writeErr(w, r, err, "failed to update book source content")
 		return
 	}

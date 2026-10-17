@@ -20,6 +20,10 @@ const DefaultShelfID = "default_shelf"
 // what these tests pin, so a change to it has to be a change to both.
 const MaxBinaryUploadSize = 20 << 20
 
+// MaxTextUploadSize is the body limit the import and source-content routes
+// enforce, restated for the same reason as MaxBinaryUploadSize.
+const MaxTextUploadSize = 100 << 20
+
 // MaxLogRetentionDays is the ceiling the log_retention_days setting enforces,
 // restated for the same reason as MaxBinaryUploadSize: the bound is part of
 // what these tests pin.

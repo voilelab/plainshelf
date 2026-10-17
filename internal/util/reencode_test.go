@@ -177,3 +177,113 @@ func TestReEncodeToUTF8UnsupportedEncoding(t *testing.T) {
 		t.Fatalf("error message %q does not name the encoding %q", unsupported.Error(), unsupported.Encoding)
 	}
 }
+
+// countingReader reports how much of its input has been consumed.
+type countingReader struct {
+	r    io.Reader
+	read int
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.read += n
+	return n, err
+}
+
+// Detection reads a bounded prefix; the rest streams only as the result is read.
+func TestReEncodeToUTF8ReadsOnlyThePrefixUpFront(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		line string
+	}{
+		// ASCII never settles chardet, so it reads up to the limit.
+		{"ascii", "plain ascii line\n"},
+		// UTF-8 settles within the first chunk.
+		{"utf-8", "一行文字 line of text\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src := strings.Repeat(tc.line, 8*encodingSniffLimit/len(tc.line))
+			counted := &countingReader{r: strings.NewReader(src)}
+
+			reader, _, err := ReEncodeToUTF8(counted)
+			if err != nil {
+				t.Fatalf("ReEncodeToUTF8 returned error: %v", err)
+			}
+			if counted.read > encodingSniffLimit {
+				t.Fatalf("read %d bytes before the result was read, want at most %d", counted.read, encodingSniffLimit)
+			}
+
+			got, err := io.ReadAll(reader)
+			if err != nil {
+				t.Fatalf("failed to read output: %v", err)
+			}
+			if string(got) != src {
+				t.Fatalf("output differs from input: %d bytes, want %d", len(got), len(src))
+			}
+		})
+	}
+}
+
+// A Big5 body longer than one detection chunk decodes whole across the seam
+// between the buffered prefix and the rest of the stream.
+func TestReEncodeToUTF8Big5BeyondThePrefix(t *testing.T) {
+	src := strings.Repeat("第一章 這是一個關於修煉的故事，主角踏上了漫長的旅途。\n", 2*encodingSniffLimit/64)
+
+	encoded, err := traditionalchinese.Big5.NewEncoder().String(src)
+	if err != nil {
+		t.Fatalf("failed to encode test input: %v", err)
+	}
+
+	reader, encoding, err := ReEncodeToUTF8(strings.NewReader(encoded))
+	if err != nil {
+		t.Fatalf("ReEncodeToUTF8 returned error: %v", err)
+	}
+	if encoding != "Big5" {
+		t.Fatalf("expected Big5 encoding, got %q", encoding)
+	}
+
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("failed to read converted output: %v", err)
+	}
+	if string(got) != src {
+		t.Fatal("converted output differs from the source text")
+	}
+}
+
+// Accepted trade-off: an encoding whose first non-ASCII byte lies past the
+// detection prefix is not seen. The input is detected as ASCII and passed
+// through unchanged, so the late Big5 bytes are stored as they came, not
+// decoded. Pinned so a change to that behavior is deliberate.
+func TestReEncodeToUTF8EncodingPastThePrefixPassesThrough(t *testing.T) {
+	lateBig5, err := traditionalchinese.Big5.NewEncoder().String("第一章 這是一個關於修煉的故事，主角踏上了漫長的旅途。")
+	if err != nil {
+		t.Fatalf("failed to encode test input: %v", err)
+	}
+	src := strings.Repeat("a", encodingSniffLimit) + lateBig5
+
+	reader, encoding, err := ReEncodeToUTF8(strings.NewReader(src))
+	if err != nil {
+		t.Fatalf("ReEncodeToUTF8 returned error: %v", err)
+	}
+	if encoding != "Ascii" {
+		t.Fatalf("expected the prefix to read as Ascii, got %q", encoding)
+	}
+
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("failed to read output: %v", err)
+	}
+	if string(got) != src {
+		t.Fatal("expected the input passed through byte for byte")
+	}
+
+	// Within the prefix, the same text is detected and decoded.
+	reader, encoding, err = ReEncodeToUTF8(strings.NewReader("aaaa" + lateBig5))
+	if err != nil || encoding != "Big5" {
+		t.Fatalf("expected Big5 inside the prefix, got %q, %v", encoding, err)
+	}
+	if got, _ := io.ReadAll(reader); !strings.HasSuffix(string(got), "漫長的旅途。") {
+		t.Fatalf("expected decoded Big5, got %q", got)
+	}
+}
