@@ -15,6 +15,11 @@ one expected reading of each, run by both sides.
 | Go | `shelf/conformance_test.go` |
 | TypeScript | `frontend/src/api/pcloud/conformance.test.ts` |
 
+The Go harness reads every case twice: through `NewShelf`, which walks the
+shelf, and through `NewShelfFromFS`, the remote entry, which lists a shelf from
+its newest usable `app/book-cache-*.json` and walks only without one. Both must
+produce the same `expected.json`.
+
 ## Layout
 
 ```

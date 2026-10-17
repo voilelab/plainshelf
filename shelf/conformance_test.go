@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/util"
 )
@@ -102,6 +103,21 @@ func TestBookPackageConformance(t *testing.T) {
 			caseDir := filepath.Join(conformanceRoot, "cases", entry.Name)
 			expected := loadConformanceExpectation(t, filepath.Join(caseDir, "expected.json"))
 			observed := readConformanceCase(t, filepath.Join(caseDir, "shelf"))
+			assertConformanceEqual(t, expected, observed)
+		})
+	}
+}
+
+// TestBookPackageConformanceThroughReadFS reads every case through
+// NewShelfFromFS, the entry a remote shelf takes, which lists a shelf from its
+// exported book cache when one is usable instead of walking it.
+func TestBookPackageConformanceThroughReadFS(t *testing.T) {
+	manifest := loadConformanceManifest(t)
+	for _, entry := range manifest.Cases {
+		t.Run(entry.Name, func(t *testing.T) {
+			caseDir := filepath.Join(conformanceRoot, "cases", entry.Name)
+			expected := loadConformanceExpectation(t, filepath.Join(caseDir, "expected.json"))
+			observed := readConformanceCaseThroughReadFS(t, filepath.Join(caseDir, "shelf"))
 			assertConformanceEqual(t, expected, observed)
 		})
 	}
@@ -214,6 +230,33 @@ func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 	// No BookCacheWriterID: the export would add a cache file of its own to
 	// app/ and change what the book_caches expectation describes.
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
+
+	return conformanceReading{
+		Folders:    s.collectExportFolders(),
+		Books:      readConformanceBooks(t, s),
+		BookCaches: readConformanceBookCaches(t, s),
+	}
+}
+
+// readConformanceCaseThroughReadFS is readConformanceCase through
+// NewShelfFromFS. Nothing is written, so the case directory is read in place.
+func readConformanceCaseThroughReadFS(t *testing.T, shelfDir string) conformanceReading {
+	t.Helper()
+
+	rt, err := os.OpenRoot(shelfDir)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	t.Cleanup(func() { rt.Close() })
+
+	s, err := NewShelfFromFS(&ShelfConf{}, fsutil.NewRootFS(rt))
+	if err != nil {
+		t.Fatalf("NewShelfFromFS: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if err := s.WaitReady(t.Context()); err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
 
 	return conformanceReading{
 		Folders:    s.collectExportFolders(),

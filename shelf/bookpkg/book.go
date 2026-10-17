@@ -99,6 +99,11 @@ type Book struct {
 	meta       *BookMeta
 
 	metaStat FileStat
+
+	// snapshot is set on a Book built from metadata read elsewhere (see
+	// FromSnapshot). It has no metaStat to compare, so it is never stale; the
+	// caller refreshes it by replacing the snapshot instead.
+	snapshot bool
 }
 
 type BookMeta struct {
@@ -135,6 +140,10 @@ type BookMeta struct {
 }
 
 func (b *Book) IsStale() bool {
+	if b.snapshot {
+		return false
+	}
+
 	// FIXME: a change that preserves both mtime and size is not detected.
 	metaPath := path.Join(b.folderPath, BookMetaFile)
 
@@ -757,20 +766,7 @@ func Open(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, erro
 		return nil, util.Errorf("%w", err)
 	}
 
-	// A too-new book is deliberately NOT an error here: failing would drop it
-	// from listings, 404 from the API and — worst — make it unrestorable from
-	// trash. setMeta is what protects the bytes on disk.
-	switch {
-	case meta.SchemaVersion > BookMetaSchemaVersion:
-		logger.Warn("book.json schema version is newer than this build supports; book is read-only",
-			"path", metaPath,
-			"schema_version", meta.SchemaVersion,
-			"supported", BookMetaSchemaVersion)
-	case meta.SchemaVersion < BookMetaSchemaVersion:
-		// Missing (pre-v1), zero, or garbage. Normalized in memory only; future
-		// versions add real field migration here.
-		meta.SchemaVersion = BookMetaSchemaVersion
-	}
+	normalizeMetaVersion(logger, metaPath, meta)
 
 	metaStat, err := getFileStat(rt, metaPath)
 	if err != nil {
@@ -785,6 +781,43 @@ func Open(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, erro
 
 		metaStat: *metaStat,
 	}, nil
+}
+
+// FromSnapshot builds a Book from metadata another process already read, such
+// as an entry of an exported book cache, without touching bookPath: on a remote
+// shelf every read is a request, and this is what spares one per book.
+//
+// The caller vouches for meta. Reads of anything else in the package (cover,
+// sources) still go to rt.
+func FromSnapshot(rt fsutil.ReadFS, logger logutil.Logger, bookPath string, meta *BookMeta) *Book {
+	normalizeMetaVersion(logger, path.Join(bookPath, BookMetaFile), meta)
+
+	return &Book{
+		root:       rt,
+		folderPath: bookPath,
+		meta:       meta,
+		logger:     logger,
+		snapshot:   true,
+	}
+}
+
+// normalizeMetaVersion applies the in-memory schema handling every reader of
+// book.json shares.
+func normalizeMetaVersion(logger logutil.Logger, metaPath string, meta *BookMeta) {
+	// A too-new book is deliberately NOT an error here: failing would drop it
+	// from listings, 404 from the API and — worst — make it unrestorable from
+	// trash. setMeta is what protects the bytes on disk.
+	switch {
+	case meta.SchemaVersion > BookMetaSchemaVersion:
+		logger.Warn("book.json schema version is newer than this build supports; book is read-only",
+			"path", metaPath,
+			"schema_version", meta.SchemaVersion,
+			"supported", BookMetaSchemaVersion)
+	case meta.SchemaVersion < BookMetaSchemaVersion:
+		// Missing (pre-v1), zero, or garbage. Normalized in memory only; future
+		// versions add real field migration here.
+		meta.SchemaVersion = BookMetaSchemaVersion
+	}
 }
 
 // readBookMeta keeps encoding/json/v2's strict defaults — case-sensitive member

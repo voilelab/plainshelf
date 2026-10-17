@@ -140,6 +140,15 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 	scanInterval := s.bookCache.scanInterval
 	s.bookCache.RUnlock()
 
+	// No per-book check on a remote shelf: that is a request per book. See
+	// shelf_cache_snapshot.go.
+	if s.remote {
+		if !force && time.Since(lastFullScan) < scanInterval {
+			return nil
+		}
+		return s.refreshRemoteBookCache(force)
+	}
+
 	if !force && !treeDirty && time.Since(lastFullScan) < scanInterval {
 		s.onlyRefreshBooksInCache()
 		return nil
@@ -262,6 +271,15 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 	refreshing := s.bookCache.refreshing
 	scanInterval := s.bookCache.scanInterval
 	s.bookCache.RUnlock()
+
+	// A remote shelf only re-reads the exported cache, which costs the same
+	// whatever the shelf holds; it has no per-book tier below.
+	if s.remote {
+		if time.Since(lastFullScan) >= scanInterval {
+			_ = s.refreshBookCacheIfNeeded(false)
+		}
+		return
+	}
 
 	// Full scan: tree is structurally dirty or scan interval elapsed. Keep synchronous so
 	// mutations are immediately visible to callers.
