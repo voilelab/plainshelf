@@ -354,13 +354,18 @@ const davUsername = ref('');
 const davSecret = ref('');
 /** Set by a successful source check; null means "not checked yet". */
 const davBookCount = ref<number | null>(null);
+/** Bumped by every edit, so a check answering for older values is dropped. */
+let davCheckToken = 0;
+/** A PlainShelf export takes a bearer token, never a username. */
+const davAccount = () => (davSource.value === 'webdav' ? davUsername.value.trim() : '');
 const davCanCheck = computed(
   () =>
     davUrl.value.trim().length > 0 &&
-    (!shelfSourceNeedsSecret(davSource.value) || davSecret.value.trim().length > 0)
+    (!shelfSourceNeedsSecret(davSource.value, davAccount()) || davSecret.value.trim().length > 0)
 );
 // A check vouches only for what it was run with.
 watch([davSource, davUrl, davUsername, davSecret], () => {
+  davCheckToken++;
   davBookCount.value = null;
 });
 
@@ -621,13 +626,17 @@ async function onCheckDavShelf(): Promise<void> {
   localError.value = '';
   davBookCount.value = null;
   verifying.value = true;
+  const token = ++davCheckToken;
   try {
     const check = await LocalShelf.checkSource({
       source: davSource.value,
       url: davUrl.value.trim(),
-      username: davSource.value === 'webdav' ? davUsername.value.trim() : '',
+      username: davAccount(),
       secret: davSecret.value.trim()
     });
+    if (token !== davCheckToken) {
+      return;
+    }
     const messageKey = shelfSourceCheckMessageKey(check);
     if (messageKey) {
       localError.value = t(messageKey);
@@ -646,7 +655,7 @@ function draftEntry(): { entry: ShelfEntry; secret: string } {
   // names stays the same shelf to the picker and to the active-entry pointer.
   const base = entry.value ?? newShelfEntry(type.value);
   if (type.value === 'dav') {
-    const username = davSource.value === 'webdav' ? davUsername.value.trim() : '';
+    const username = davAccount();
     return {
       entry: {
         id: base.id,

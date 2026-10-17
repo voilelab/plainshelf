@@ -495,7 +495,7 @@ export async function isShelfEntryUsable(entry: ShelfEntry | null | undefined): 
     return false;
   }
   const needsToken =
-    entry.type === 'pcloud' || (entry.type === 'dav' && shelfSourceNeedsSecret(entry.davSource));
+    entry.type === 'pcloud' || (entry.type === 'dav' && shelfSourceNeedsSecret(entry.davSource, entry.davUsername));
   if (!needsToken) {
     return true;
   }

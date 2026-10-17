@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -17,6 +18,8 @@ import (
 type fakeSecrets struct {
 	mu sync.Mutex
 	m  map[string]string
+	// failDelete makes Delete refuse, as a locked keychain does.
+	failDelete bool
 }
 
 func newFakeSecrets() *fakeSecrets { return &fakeSecrets{m: map[string]string{}} }
@@ -41,6 +44,9 @@ func (f *fakeSecrets) Set(id, secret string) error {
 func (f *fakeSecrets) Delete(id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.failDelete {
+		return errors.New("keychain is locked")
+	}
 	delete(f.m, id)
 	return nil
 }
@@ -295,5 +301,40 @@ func TestOpenVirtualShelvesSkipsOneThatFails(t *testing.T) {
 	}
 	if _, ok := a.app.ShelfManager().GetShelf("local"); !ok {
 		t.Fatal("the local shelf is not open")
+	}
+}
+
+// A keychain that refuses the delete leaves the shelf in place, so removing
+// it again retries rather than orphaning the secret.
+func TestRemoveVirtualShelfKeepsEntryWhenKeychainRefuses(t *testing.T) {
+	url, token := davExport(t)
+	secrets := newFakeSecrets()
+	a := desktopAppWithSecrets(t, secrets)
+	err := a.AddShelf(AddShelfParams{
+		Name:   "Living room",
+		Remote: ShelfSourceParams{Source: shelf.SourcePlainShelf, URL: url, Secret: token},
+	})
+	if err != nil {
+		t.Fatalf("AddShelf virtual: %v", err)
+	}
+	const id = "living-room"
+
+	secrets.failDelete = true
+	if err := a.RemoveShelf(id); err == nil {
+		t.Fatal("RemoveShelf succeeded with a refusing keychain")
+	}
+	if _, ok := a.app.ShelfManager().GetShelf(id); !ok {
+		t.Fatal("the shelf was closed although its secret stayed")
+	}
+	if conf, _ := loadDesktopShelves(a.shelvesConfigPath); conf.find(id) == nil {
+		t.Fatal("the entry was removed although its secret stayed")
+	}
+
+	secrets.failDelete = false
+	if err := a.RemoveShelf(id); err != nil {
+		t.Fatalf("retried RemoveShelf: %v", err)
+	}
+	if _, err := secrets.Get(id); err == nil {
+		t.Fatal("the retry left the secret in the keychain")
 	}
 }

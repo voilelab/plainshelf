@@ -23,4 +23,9 @@ describe('shelfSourceNeedsSecret', () => {
     expect(shelfSourceNeedsSecret('plainshelf')).toBe(true);
     expect(shelfSourceNeedsSecret('webdav')).toBe(false);
   });
+
+  it('requires a password for a WebDAV account', () => {
+    expect(shelfSourceNeedsSecret('webdav', 'reader')).toBe(true);
+    expect(shelfSourceNeedsSecret('webdav', '  ')).toBe(false);
+  });
 });

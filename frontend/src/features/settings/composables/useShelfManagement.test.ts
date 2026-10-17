@@ -488,6 +488,11 @@ describe('useShelfManagement remote shelves', () => {
     m.newShelfSourceKind.value = 'webdav';
     await nextTick();
     expect(m.canSubmitAddShelf.value).toBe(true);
+
+    // An account's password is required, as Go refuses one without it.
+    m.newShelfSourceUsername.value = 'reader';
+    await nextTick();
+    expect(m.canSubmitAddShelf.value).toBe(false);
   });
 
   it('sends a username only for WebDAV', async () => {

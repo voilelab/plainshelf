@@ -37,7 +37,7 @@ function isUsableEmbeddedEntry(entry: ShelfEntry | null): entry is PCloudShelfEn
     return false;
   }
   if (entry.type === 'dav') {
-    return !shelfSourceNeedsSecret(entry.davSource) || Boolean(getActiveShelfEntryToken());
+    return !shelfSourceNeedsSecret(entry.davSource, entry.davUsername) || Boolean(getActiveShelfEntryToken());
   }
   return entry.type === 'pcloud' && Boolean(getActiveShelfEntryToken());
 }

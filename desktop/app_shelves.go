@@ -359,6 +359,16 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 	}
 	// Read before DeleteFunc, which overwrites the slots removed points into.
 	source := removed.Source
+
+	// First, while the entry still exists: a keychain that refuses leaves the
+	// shelf in place, so removing it again retries instead of orphaning the
+	// secret.
+	if source != nil && strings.HasPrefix(source.Credential, hostCredentialPrefix) {
+		if err := a.secretStore().Delete(strings.TrimPrefix(source.Credential, hostCredentialPrefix)); err != nil {
+			return util.Errorf("removing the shelf's secret from the keychain: %w", err)
+		}
+	}
+
 	isShelf := func(entry desktopShelfEntry) bool { return entry.ID == shelfID }
 	conf.Shelves = slices.DeleteFunc(conf.Shelves, isShelf)
 	conf.VirtualShelves = slices.DeleteFunc(conf.VirtualShelves, isShelf)
@@ -371,12 +381,6 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 	if _, open := a.app.ShelfManager().GetShelf(shelfID); open || source == nil {
 		if err := a.app.RemoveShelf(shelfID); err != nil {
 			return util.Errorf("removing shelf from runtime: %w", err)
-		}
-	}
-
-	if source != nil && strings.HasPrefix(source.Credential, hostCredentialPrefix) {
-		if err := a.secretStore().Delete(strings.TrimPrefix(source.Credential, hostCredentialPrefix)); err != nil {
-			return util.Errorf("removing the shelf's secret from the keychain: %w", err)
 		}
 	}
 

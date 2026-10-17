@@ -639,6 +639,8 @@ describe('a dav entry', () => {
     await reinit();
     await expect(isShelfEntryUsable(davEntry())).resolves.toBe(false);
     await expect(isShelfEntryUsable(davEntry({ davSource: 'webdav' }))).resolves.toBe(true);
+    // An account whose password did not survive a restore cannot be read.
+    await expect(isShelfEntryUsable(davEntry({ davSource: 'webdav', davUsername: 'reader' }))).resolves.toBe(false);
 
     secureStore.set('plainshelf.mobile.secret.entry-3', 'tok');
     await expect(isShelfEntryUsable(davEntry())).resolves.toBe(true);

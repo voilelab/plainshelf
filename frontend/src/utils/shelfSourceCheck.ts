@@ -25,7 +25,10 @@ export function shelfSourceCheckMessageKey(check: ShelfSourceCheck): string | nu
   return CHECK_MESSAGE_KEYS[check.code] ?? 'shelfSource.unavailable';
 }
 
-/** A plainshelf export always needs its token; WebDAV may need none. */
-export function shelfSourceNeedsSecret(kind: ShelfSourceKind): boolean {
-  return kind === 'plainshelf';
+/**
+ * A plainshelf export always needs its token; WebDAV needs one only with an
+ * account, whose password it is.
+ */
+export function shelfSourceNeedsSecret(kind: ShelfSourceKind, username = ''): boolean {
+  return kind === 'plainshelf' || username.trim().length > 0;
 }

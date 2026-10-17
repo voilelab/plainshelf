@@ -56,6 +56,9 @@ export function useShelfManagement() {
   const newShelfSourceUsername = ref('');
   const newShelfSourceSecret = ref('');
   const addingShelf = ref(false);
+  // A PlainShelf export takes a bearer token, never a username.
+  const sourceUsername = () =>
+    newShelfSourceKind.value === 'webdav' ? newShelfSourceUsername.value.trim() : '';
   const addShelfError = ref('');
 
   // Read-only is a property of a folder that already exists — a read-only shelf
@@ -112,7 +115,8 @@ export function useShelfManagement() {
     if (newShelfLocationMode.value === 'remote') {
       return (
         newShelfSourceURL.value.trim().length > 0 &&
-        (!shelfSourceNeedsSecret(newShelfSourceKind.value) || newShelfSourceSecret.value.trim().length > 0)
+        (!shelfSourceNeedsSecret(newShelfSourceKind.value, sourceUsername()) ||
+          newShelfSourceSecret.value.trim().length > 0)
       );
     }
     const dir = newShelfEffectiveDirectory.value;
@@ -309,8 +313,7 @@ export function useShelfManagement() {
     const remote = {
       source: newShelfSourceKind.value,
       url: newShelfSourceURL.value.trim(),
-      // A PlainShelf export takes a bearer token, never a username.
-      username: newShelfSourceKind.value === 'webdav' ? newShelfSourceUsername.value.trim() : '',
+      username: sourceUsername(),
       secret: newShelfSourceSecret.value.trim()
     };
     const check = await provider.checkDesktopShelfSource!(remote);
