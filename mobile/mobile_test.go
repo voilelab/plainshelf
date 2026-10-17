@@ -208,9 +208,18 @@ func TestRemoveDeletesTheShelf(t *testing.T) {
 }
 
 func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
-	startT(t, t.TempDir())
+	dataDir := t.TempDir()
+	startT(t, dataDir)
 	id := createShelf(t, "Phone")
 	createBook(t, id, "Round Trip")
+	if res := handle(t, http.MethodPost, "/api/shelves/"+id+"/books", `{"title":"Kept Apart","folder":["Adult"]}`); res.Status/100 != 2 {
+		t.Fatalf("create book: %d %s", res.Status, res.Body)
+	}
+	// The folder rule has to survive the trip; the source shelf never rereads it.
+	shelfJSON := `{"schema_version":1,"content":{"nsfw_folders":[{"path":"Adult"}]}}`
+	if err := os.WriteFile(filepath.Join(libRootOf(dataDir, id), "shelf.json"), []byte(shelfJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	zipPath := filepath.Join(t.TempDir(), "shelf.zip")
 	if err := ExportShelf(id, zipPath); err != nil {
@@ -242,7 +251,7 @@ func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	books, err := s.ListBooks()
-	if err != nil || len(books) != 1 {
+	if err != nil || len(books) != 2 {
 		t.Fatalf("native shelf books: %v %v", books, err)
 	}
 
@@ -254,8 +263,15 @@ func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
 	if newID == id {
 		t.Fatal("import reused the exported shelf's ID")
 	}
-	if body := bookTitles(t, newID); !strings.Contains(body, "Round Trip") {
-		t.Fatalf("imported shelf: %s", body)
+	if body := bookTitles(t, newID); !strings.Contains(body, "Round Trip") || strings.Contains(body, "Kept Apart") {
+		t.Fatalf("imported shelf with adult content hidden: %s", body)
+	}
+	// The book did travel; only the rule is hiding it.
+	if res := handle(t, http.MethodPost, "/api/setting/show_nsfw", "true"); res.Status != http.StatusNoContent {
+		t.Fatalf("show_nsfw: %d %s", res.Status, res.Body)
+	}
+	if body := bookTitles(t, newID); !strings.Contains(body, "Kept Apart") {
+		t.Fatalf("imported shelf with adult content shown: %s", body)
 	}
 }
 

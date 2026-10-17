@@ -1,7 +1,8 @@
 // Package shelfzip moves a shelf in and out of the wasm demo and the Android
 // local shelf as a zip whose layout is the shelf directory itself, so it unzips
 // into a native lib_root.
-// Only books/ and trash/ travel: app/ holds this installation's caches.
+// Only books/, trash/ and shelf.json travel: app/ holds this installation's
+// caches.
 package shelfzip
 
 import (
@@ -20,6 +21,10 @@ import (
 // shelfDirs are the parts of a lib_root a zip carries.
 var shelfDirs = []string{"books", "trash"}
 
+// shelfConfig is the shelf's own settings file at the lib_root
+// (shelf/shelf_config.go); its folder rules belong to the shelf.
+const shelfConfig = "shelf.json"
+
 // maxImportBytes caps an import's zip and what it unpacks to; the demo holds
 // it all in memory. A variable so tests need not allocate the real limit.
 var maxImportBytes int64 = 512 << 20
@@ -37,7 +42,7 @@ var (
 	ErrTooLarge = errors.New("zip unpacks to more than 512 MiB")
 )
 
-// Export writes books/ and trash/ under libRoot to w.
+// Export writes books/, trash/ and shelf.json under libRoot to w.
 func Export(w io.Writer, libRoot string) error {
 	zw := zip.NewWriter(w)
 	for _, dir := range shelfDirs {
@@ -63,6 +68,10 @@ func Export(w io.Writer, libRoot string) error {
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
+	}
+	err := addFile(zw, filepath.Join(libRoot, shelfConfig), shelfConfig)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return util.Errorf("%w", err)
 	}
 	if err := zw.Close(); err != nil {
 		return util.Errorf("%w", err)
@@ -94,9 +103,10 @@ func addFile(zw *zip.Writer, p, name string) error {
 	return err
 }
 
-// Import replaces books/ and trash/ under libRoot with the zip's. Every entry
-// is checked before anything is touched; the zip unpacks next to the shelf
-// first, so a failure part-way leaves the existing books in place.
+// Import replaces books/, trash/ and shelf.json under libRoot with the zip's;
+// a zip without shelf.json removes the existing one. Every entry is checked
+// before anything is touched; the zip unpacks next to the shelf first, so a
+// failure part-way leaves the existing books in place.
 func Import(r io.ReaderAt, size int64, libRoot string) error {
 	zr, err := zip.NewReader(r, size)
 	if err != nil {
@@ -131,12 +141,21 @@ func Import(r io.ReaderAt, size int64, libRoot string) error {
 			return util.Errorf("%w", err)
 		}
 	}
+	config := filepath.Join(libRoot, shelfConfig)
+	if err := os.Rename(filepath.Join(staging, shelfConfig), config); errors.Is(err, fs.ErrNotExist) {
+		err = os.Remove(config)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return util.Errorf("%w", err)
+		}
+	} else if err != nil {
+		return util.Errorf("%w", err)
+	}
 	return nil
 }
 
 type entry struct {
 	file *zip.File
-	name string // slash path relative to lib_root, starting with books/ or trash/
+	name string // slash path relative to lib_root: under books/ or trash/, or shelf.json
 }
 
 // plan maps zip entries onto the shelf, or rejects the whole zip. A single
@@ -162,7 +181,8 @@ func plan(files []*zip.File) ([]entry, error) {
 			return nil, util.Errorf("%w: %q", ErrUnsafePath, f.Name)
 		}
 		top, _, _ := strings.Cut(clean, "/")
-		if top != "books" && top != "trash" {
+		isConfig := clean == shelfConfig && !f.FileInfo().IsDir()
+		if top != "books" && top != "trash" && !isConfig {
 			continue // app/ and stray files stay behind
 		}
 		if top == "books" {

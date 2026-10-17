@@ -205,9 +205,11 @@ shelf. The app writes a zip and asks where to save it; the shelf list then shows
 when it was last exported. Cancelling, or a failed save, leaves no file and
 keeps the old time.
 
-The zip holds `books/` and `trash/` at its root, so unzipped it is a `lib_root`
-the desktop app or a server opens as is. It does not carry `app/` (rebuildable
-cache), reading progress, or a `shelf.json` at the shelf root.
+The zip holds `books/`, `trash/` and, when the shelf has one, the
+[`shelf.json`](concepts/data-model.md#shelfjson) at its root, so unzipped it is
+a `lib_root` the desktop app or a server opens as is, with the same ignored
+directories and adult-content folders. It does not carry `app/` (rebuildable
+cache) or reading progress, which stay on the device.
 
 If background work — a cover conversion, an import — is still running, the
 export waits up to 30 seconds and then asks you to try again later rather than
