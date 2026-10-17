@@ -1,8 +1,9 @@
 // Package mobile runs the PlainShelf server inside the Android app, the way
-// desktop/app.go does for Wails. It is built with gomobile bind and opens no
-// listener: the native plugin passes each request to Handle. Shelves are
-// created, imported, exported and removed through the functions below, never
-// through an HTTP route.
+// desktop/app.go does for Wails. It is built with gomobile bind and the UI
+// reaches it through no listener: the native plugin passes each request to
+// Handle. The one listener is the LAN share (StartLANShare), open only while
+// the user runs it. Shelves are created, imported, exported and removed
+// through the functions below, never through an HTTP route.
 //
 // Every exported function recovers panics into an error, because a panic that
 // crosses into the JVM takes the whole app down.
@@ -71,6 +72,8 @@ type instance struct {
 	handler http.Handler
 	// virtual holds the IDs of open virtual shelves; see OpenPCloudShelf.
 	virtual map[string]virtualShelf
+	// share is the LAN share while it runs; see StartLANShare.
+	share *lanShare
 	// closed is set by Stop under mu, so a caller that fetched the instance
 	// just before Stop finds out once it holds the lock.
 	closed bool
@@ -149,6 +152,7 @@ func Stop() (err error) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	rt.closed = true
+	rt.closeLANShare()
 	return rt.app.Close()
 }
 
@@ -464,6 +468,7 @@ func RemoveShelf(id string) (err error) {
 		return err
 	}
 	rt.conf = next
+	rt.forgetShared(id)
 	if err := rt.app.RemoveShelf(id); err != nil {
 		return util.Errorf("%w", err)
 	}

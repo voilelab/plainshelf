@@ -170,6 +170,13 @@ on; it binds one detected LAN address rather than `0.0.0.0`, and off it opens no
 port. See
 [Share shelves on your local network](configuring-local-shelf.md#share-shelves-on-your-local-network-desktop-app).
 
+The Android app's **Share on local network** opens it the same way for ticked
+local shelves, through a Capacitor plugin rather than an HTTP route. It runs only
+while a foreground service shows a notification, binds the phone's Wi-Fi IPv4
+address, and closes itself after 30 minutes without a request the token admitted
+or when that network changes. See
+[Share local shelves on the local network](development/android.md#share-local-shelves-on-the-local-network).
+
 ## What `local_token` actually protects
 
 `local_token` mode generates a random token when the server starts and writes it,

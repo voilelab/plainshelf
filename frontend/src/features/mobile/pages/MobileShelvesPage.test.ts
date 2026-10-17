@@ -45,6 +45,7 @@ vi.mock('@/providers/mobileCacheFs', () => ({ removeCacheScope: vi.fn() }));
 vi.mock('@/providers/cacheScope', () => ({ cacheScopeKeyForEntry: () => '' }));
 vi.mock('@/features/mobile/utils/reloadIntoApp', () => ({ reloadIntoApp: mocks.reloadIntoApp }));
 vi.mock('@/features/mobile/components/MobileShelfForm.vue', () => ({ default: { render: () => null } }));
+vi.mock('@/features/mobile/components/MobileLanSharePanel.vue', () => ({ default: { render: () => null } }));
 
 import MobileShelvesPage from './MobileShelvesPage.vue';
 

@@ -342,7 +342,9 @@ first-launch offer or from **Import from zip** later.
 ### How it is wired
 
 - `mobile/` is the server as a library, bound with gomobile into
-  `lab.voile.plainshelf.gobind.mobile`. It opens no port. Shelves are created,
+  `lab.voile.plainshelf.gobind.mobile`. The UI reaches it through no port;
+  the only listener is the [LAN share](#share-local-shelves-on-the-local-network),
+  open only while the user runs it. Shelves are created,
   renamed and removed through the package's own functions, reached only from
   the `PlainShelfLocalShelf` Capacitor plugin; the HTTP API has no route for
   any of that.
@@ -375,6 +377,71 @@ first-launch offer or from **Import from zip** later.
   in `ANDROID_NDK_HOME` and a JDK, on Linux or macOS (where it reads the
   alignment with the NDK's `llvm-readelf`). The library is arm64 only, so a
   local shelf needs an arm64 device or emulator image.
+
+## Share local shelves on the local network
+
+**Settings → Shelves → Share on local network** lets another device on the same
+Wi-Fi read the local shelves you tick, read-only, without exporting a zip first.
+It is a temporary share, not a server:
+
+- Off by default, and off means the app opens no network port. Nothing is
+  ticked until you tick it, and nothing is remembered across a restart except
+  the token.
+- **Start sharing** binds the phone's Wi-Fi (or Ethernet) IPv4 address on port
+  `20001` and shows the address (`http://<phone IP>:20001/dav/`, one shelf per
+  `/dav/<shelf id>/`) and the token every request must carry. It is the same
+  read-only WebDAV export as the server's
+  [`dav_export`](../reference/configuration.md#dav_export) and the desktop's
+  [share](../configuring-local-shelf.md#share-shelves-on-your-local-network-desktop-app):
+  a request without the token is `401`, and any write is `405`.
+- While it runs a notification shows the address and a **Stop** button, and the
+  share is announced over mDNS as `_webdav._tcp` with `path=/dav/`.
+- It stops by itself, with a notification saying why, after 30 minutes without
+  a read the token admitted, or when the Wi-Fi network changes or drops. A
+  request without the token does not keep it open.
+- The token is `<files dir>/local-shelves/lan_share.token`, excluded from
+  Android backup; it stays the same between shares, so a device that saved it
+  keeps working.
+- Off a Wi-Fi or Ethernet network, for example on mobile data or as a hotspot,
+  it does not start.
+
+The export is plain HTTP, so share only on a network you trust; see
+[the threat model](../deployment-and-threat-model.md#the-read-only-webdav-export).
+
+### How the share is wired
+
+- Go binds and closes the listener (`StartLANShare`, `StopLANShare` in
+  `mobile/lan_share.go`), so a busy port or a refused address fails the
+  **Start sharing** call itself. It binds only an IPv4 unicast address, never
+  `0.0.0.0` or loopback.
+- `LanSharePlugin` starts the share, then `LanShareService`, a foreground
+  service that owns the notification, the mDNS record, the idle check
+  (`LANShareIdleMillis`, once a minute) and a default-network callback. Ending
+  the service for any reason, including the system stopping it, ends the share,
+  and it is `START_NOT_STICKY`, so a killed app comes back not sharing.
+- Android 13+ asks for the notification permission on the first start. Refused,
+  the share still runs; Android then shows it only in the task manager.
+
+### Foreground service type
+
+The service is `specialUse`. `dataSync` is the near miss, but from Android 15
+the system stops a `dataSync` service after 6 hours in any 24, and serving books
+to another device is not syncing with the cloud. `connectedDevice` is for
+interacting with an external device such as a Bluetooth or USB accessory, which
+a reader on another phone is not.
+`specialUse` has no runtime prerequisite and no time limit; Play Console reviews
+its stated use case, which the manifest carries as
+`PROPERTY_SPECIAL_USE_FGS_SUBTYPE`. The text to submit there:
+
+> PlainShelf lets the user temporarily share their own on-device book library,
+> read-only, with their other devices on the same local Wi-Fi network. The user
+> starts it from the app's settings; while it runs, an ongoing notification
+> shows the address and a Stop button. It serves files only to a device that
+> presents the token shown in the app, and stops itself after 30 minutes
+> without a request or when the Wi-Fi network changes. The service must keep
+> running while the app is in the background because the user reads on the
+> other device, not on the phone; none of the other foreground service types
+> covers serving files on the local network.
 
 ## App icons and splash screens
 

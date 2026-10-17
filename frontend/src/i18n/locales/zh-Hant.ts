@@ -1166,7 +1166,19 @@ const zhHant = {
     errorTooLarge: '這個 zip 本身或解開後超過 512 MiB 的匯入上限。',
     errorNotZip: '這個檔案不是 zip。',
     removeConfirm: '移除',
-    removeCancel: '先留著'
+    removeCancel: '先留著',
+    lanShare: {
+      title: '區網分享',
+      description:
+        '讓同一個 Wi-Fi 上的其他裝置用下方的網址和存取權杖唯讀讀取勾選的書庫。分享期間通知列會一直顯示；{minutes} 分鐘沒有讀取或網路變更時會自動停止。關閉時 App 不開任何網路連接埠。',
+      shelvesLabel: '要分享的書庫',
+      start: '開始分享',
+      stop: '停止分享',
+      urlLabel: '網址',
+      tokenLabel: '存取權杖',
+      ended: '分享已停止：{reason}',
+      noWifi: '請先連上 Wi-Fi：只能在區網內分享。'
+    }
   },
   libraryForms: {
     editBook: {

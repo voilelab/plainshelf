@@ -4,4 +4,10 @@
     <string name="title_activity_main">PlainShelf</string>
     <string name="package_name">lab.voile.plainshelf</string>
     <string name="custom_url_scheme">lab.voile.plainshelf</string>
+    <string name="lan_share_channel">Local network sharing</string>
+    <string name="lan_share_running">Sharing shelves on the local network</string>
+    <string name="lan_share_stop">Stop</string>
+    <string name="lan_share_ended">Local network sharing stopped</string>
+    <string name="lan_share_ended_idle">No device read the shelves for 30 minutes.</string>
+    <string name="lan_share_ended_network">The Wi-Fi network changed or was lost.</string>
 </resources>

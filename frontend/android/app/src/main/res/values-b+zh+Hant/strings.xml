@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="lan_share_channel">區網分享</string>
+    <string name="lan_share_running">正在區網分享書庫</string>
+    <string name="lan_share_stop">停止</string>
+    <string name="lan_share_ended">區網分享已停止</string>
+    <string name="lan_share_ended_idle">30 分鐘內沒有裝置讀取書庫。</string>
+    <string name="lan_share_ended_network">Wi-Fi 網路已變更或中斷。</string>
+</resources>
