@@ -328,7 +328,8 @@ app guards against that in these ways, and syncs nothing automatically:
   app. A restore from Google therefore brings no local shelf back, and the
   shelf list offers the zip restore above.
 - Device-to-device transfer (Android 12 and later) keeps them: it copies
-  directly between phones with no quota. Preferences are excluded from both, so
+  directly between phones, with a 2 GB limit instead of 25 MB; past it the
+  transfer is refused, so export first. Preferences are excluded from both, so
   a transferred app finds local shelves with no entry for them. The shelf list
   then adds an entry for each and opens the first, instead of offering a
   restore.

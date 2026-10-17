@@ -10,6 +10,6 @@
     <device-transfer>
         <exclude domain="sharedpref" path="CapacitorStorage.xml" />
         <exclude domain="sharedpref" path="plainshelf_secure_storage.xml" />
-        <!-- local-shelves/ is kept: device to device, no quota; the shelf list re-adds its entries. -->
+        <!-- local-shelves/ is kept: device to device, 2 GB limit; the shelf list re-adds its entries. -->
     </device-transfer>
 </data-extraction-rules>
