@@ -164,7 +164,10 @@ func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger) (*htt
 	if err != nil {
 		return nil, util.Errorf("dav_export: %w", err)
 	}
-	server.Handler = app.DAVExportHandler(conf.TokenFile)
+	server.Handler, err = app.davExportCORSHandler(conf.TokenFile, conf.AllowedOrigins)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 
 	// Bound here so a taken port fails startup instead of only a log line.
 	ln, err := net.Listen("tcp", conf.Addr)

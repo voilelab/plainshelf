@@ -328,11 +328,19 @@ rename does not change:
 | Source | Server | Desktop | Android | wasm demo |
 |---|---|---|---|---|
 | `local` | yes | yes | yes, in the app's private directory | yes, in OPFS |
-| `plainshelf`, `webdav` | yes | yes | yes | only if the remote sends CORS headers |
+| `plainshelf`, `webdav` | yes | yes | yes | only if the remote sends CORS headers for the demo's origin, over plain HTTP; see below |
 | `pcloud` | refused for now | refused for now | yes | no |
 
 A source a client cannot open fails that shelf at startup with an error naming
 the type, never by falling back to another source.
+
+The wasm demo fetches through the browser, so it can read another PlainShelf's
+export only when the export lists the demo's origin in
+[`dav_export.allowed_origins`](../reference/configuration.md#browser-access),
+and only from a demo page served over plain HTTP: the export has no TLS, and a
+browser blocks an `https://` page from reading `http://` as mixed content. The
+published demo is served over HTTPS, so in practice this means a demo hosted on
+the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
 
 ---
 
@@ -342,6 +350,13 @@ the type, never by falling back to another source.
   `CLAUDE.md` currently limits pCloud to the Android client. Until that product
   decision changes, the server and desktop refuse `type: pcloud` at startup. No
   format change is needed to lift it.
+- **CORS on the export.** Settled (PSW-163): off by default, and on only for
+  the origins `dav_export.allowed_origins` lists by name. A wildcard is refused,
+  because the token is a bearer token in a header: with `*`, any web page that
+  learned it could read every exported shelf. No credentials mode, since no
+  cookie is involved. The preflight is answered without the token and carries
+  nothing from the shelf. Mixed content limits the benefit to a demo served over
+  plain HTTP; export TLS is a separate decision.
 - **PlainShelf as a source.** Settled: another PlainShelf is reached through its
   read-only WebDAV export, and `plainshelf` is the same client as `webdav` with
   the export's token convention. The Android app's existing full-API connection

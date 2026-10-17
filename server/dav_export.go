@@ -36,6 +36,10 @@ type DAVExportConf struct {
 	// TokenFile holds the bearer token every request must carry. It is
 	// generated when missing and replaced only by RotateDAVExportToken.
 	TokenFile string `yaml:"token_file"`
+
+	// AllowedOrigins are the browser origins sent CORS headers; empty sends
+	// none. No wildcard: any page holding the token could then read the shelf.
+	AllowedOrigins []string `yaml:"allowed_origins"`
 }
 
 func (conf *DAVExportConf) validate(apiAddr string) error {
@@ -47,13 +51,33 @@ func (conf *DAVExportConf) validate(apiAddr string) error {
 	case conf.TokenFile == "":
 		return util.Errorf("dav_export.token_file is required")
 	}
-	return nil
+	_, err := davOriginSet(conf.AllowedOrigins)
+	return err
+}
+
+// davOriginSet normalizes allowed_origins; nil when there are none.
+func davOriginSet(origins []string) (map[string]struct{}, error) {
+	if len(origins) == 0 {
+		return nil, nil
+	}
+	set := make(map[string]struct{}, len(origins))
+	for _, origin := range origins {
+		normalized, err := normalizeOrigin(origin)
+		if err != nil {
+			return nil, util.Errorf("invalid dav_export.allowed_origins entry %q: %w", origin, err)
+		}
+		set[normalized] = struct{}{}
+	}
+	return set, nil
 }
 
 const davExportPrefix = "/dav/"
 
 // davExportAllow is every method the export answers; the rest get 405.
 const davExportAllow = "OPTIONS, GET, HEAD, PROPFIND"
+
+// davCORSAllowHeaders is what internal/davfs sends besides simple headers.
+const davCORSAllowHeaders = "Authorization, Content-Type, Depth, Range"
 
 const davTokenBytes = 32
 
@@ -123,11 +147,26 @@ func (app *App) DAVExportHandler(tokenFile string) http.Handler {
 // reports true for, asked on every request; nil exports every local shelf. A
 // shelf it refuses is 404, the same as one that does not exist.
 func (app *App) DAVExportShelvesHandler(tokenFile string, exported func(shelfID string) bool) http.Handler {
+	return app.davExportHandler(tokenFile, exported, nil)
+}
+
+// davExportCORSHandler is DAVExportHandler answering CORS for the origins
+// allowedOrigins names.
+func (app *App) davExportCORSHandler(tokenFile string, allowedOrigins []string) (http.Handler, error) {
+	origins, err := davOriginSet(allowedOrigins)
+	if err != nil {
+		return nil, err
+	}
+	return app.davExportHandler(tokenFile, nil, origins), nil
+}
+
+func (app *App) davExportHandler(tokenFile string, exported func(shelfID string) bool, origins map[string]struct{}) *davExport {
 	return &davExport{
 		logger:    &app.Logger,
 		shelves:   app.shelfManager,
 		tokenFile: tokenFile,
 		exported:  exported,
+		origins:   origins,
 		locks:     webdav.NewMemLS(),
 	}
 }
@@ -137,6 +176,7 @@ type davExport struct {
 	shelves   *shelf.ShelfManager
 	tokenFile string
 	exported  func(shelfID string) bool
+	origins   map[string]struct{}
 
 	// tokenErrLogged keeps an unreadable token file from logging once per
 	// request; cleared when the file reads again.
@@ -148,6 +188,9 @@ type davExport struct {
 }
 
 func (d *davExport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if d.applyCORS(w, r) {
+		return
+	}
 	// Method first, so a write is 405 with or without a token.
 	switch r.Method {
 	case http.MethodOptions, http.MethodGet, http.MethodHead, "PROPFIND":
@@ -208,6 +251,33 @@ func (d *davExport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LockSystem: d.locks,
 	}
 	h.ServeHTTP(w, r)
+}
+
+// applyCORS adds CORS headers for an allowed origin, and reports true when it
+// answered a preflight. A preflight carries no token, so it is answered before
+// any path is resolved: it reveals nothing about the shelves.
+func (d *davExport) applyCORS(w http.ResponseWriter, r *http.Request) bool {
+	if d.origins == nil {
+		return false
+	}
+	h := w.Header()
+	h.Add("Vary", "Origin")
+	originHeader := r.Header.Get("Origin")
+	origin, err := normalizeOrigin(originHeader)
+	if err != nil {
+		return false
+	}
+	if _, ok := d.origins[origin]; !ok {
+		return false
+	}
+	h.Set("Access-Control-Allow-Origin", originHeader)
+	if r.Method != http.MethodOptions || r.Header.Get("Access-Control-Request-Method") == "" {
+		return false
+	}
+	h.Set("Access-Control-Allow-Methods", davExportAllow)
+	h.Set("Access-Control-Allow-Headers", davCORSAllowHeaders)
+	w.WriteHeader(http.StatusNoContent)
+	return true
 }
 
 func (d *davExport) authorized(r *http.Request) bool {
