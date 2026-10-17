@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 )
@@ -214,5 +215,66 @@ func TestWorkerRunReturnsErrWorkerBusyWhenQueueIsFull(t *testing.T) {
 	}
 	if len(ran) != 0 {
 		t.Errorf("Expected no task to run, got %v", ran)
+	}
+}
+
+// panickingTask panics instead of returning.
+type panickingTask struct{ fakeTask }
+
+func (t *panickingTask) Run(ctx context.Context) error {
+	_ = t.fakeTask.Run(ctx)
+	panic("boom")
+}
+
+func TestWorkerSurvivesPanickingTask(t *testing.T) {
+	w := newTestWorker(t, 2)
+	w.Start()
+
+	ran := []string{}
+	if err := w.Run(&TaskChain{Tasks: []Task{
+		&panickingTask{fakeTask{name: "panicking", record: &ran}},
+		&fakeTask{name: "skipped", record: &ran},
+	}}); err != nil {
+		t.Fatalf("Run returned an error: %v", err)
+	}
+	if err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "next", record: &ran}}}); err != nil {
+		t.Fatalf("Run returned an error: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close returned an error: %v", err)
+	}
+
+	want := []string{"panicking", "next"}
+	if !slices.Equal(ran, want) {
+		t.Errorf("Expected tasks %v to run, got %v", want, ran)
+	}
+}
+
+// A panicking task reports no status of its own; the chain must still settle
+// so the pool releases its key.
+func TestPanickedChainFailsAndReleasesItsKey(t *testing.T) {
+	pool := NewPool(newTestWorker(t, 2), 0)
+	pool.Start()
+	t.Cleanup(func() { _ = pool.Close() })
+
+	ran := []string{}
+	chain, err := pool.Submit(&TaskChain{Key: "k", Tasks: []Task{
+		&panickingTask{fakeTask{name: "panicking", record: &ran}},
+	}})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for pool.Busy() {
+		if time.Now().After(deadline) {
+			t.Fatalf("chain never settled: %v", chain.Status())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if got := chain.Status(); got != StatusFailed {
+		t.Fatalf("Status = %v, want StatusFailed", got)
+	}
+	if _, err := pool.Submit(&TaskChain{Key: "k"}); err != nil {
+		t.Fatalf("resubmitting the key: %v", err)
 	}
 }

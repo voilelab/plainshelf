@@ -30,6 +30,7 @@ clients.
 | `frontend/` | Vue UI and Capacitor Android project |
 | `desktop/` | Wails desktop client |
 | `reader/` | Wails standalone `.bookpkg` reader app |
+| `mobile/` | gomobile-bound embedded server for the Android app |
 | `e2e/` | Playwright end-to-end tests |
 | `docs/` | user and contributor documentation |
 | `scripts/` | version and toolchain helpers called by `justfile` and CI |
@@ -57,8 +58,8 @@ tests when that directory is absent or stale.
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
 
 The boundary, export, license, version-resolver, and wasm demo smoke checks are
-pull-request gates in `.github/workflows/ci.yml`; its Android build job is not a
-gate yet.
+pull-request gates in `.github/workflows/ci.yml`; its Android build and Android
+Go library jobs are not gates yet.
 
 `just` uses `zsh`. If either is unavailable, run the underlying commands from
 the `justfile`. In restricted environments where `sharp` cannot download its

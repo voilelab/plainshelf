@@ -125,6 +125,19 @@ func (p *Pool) List() []*TaskChain {
 	return chains
 }
 
+// Busy reports whether any retained chain has yet to settle. Active chains are
+// never evicted, so this covers every chain still queued or running.
+func (p *Pool) Busy() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	for _, chain := range p.byID {
+		if !chain.Status().IsTerminal() {
+			return true
+		}
+	}
+	return false
+}
+
 // Cancel signals the chain with the given ID to stop. Cancelling a chain that is
 // still running or queued triggers its context so its tasks stop at the next
 // task boundary. A chain that does not exist, or one that has already reached a

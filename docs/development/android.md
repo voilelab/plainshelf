@@ -267,6 +267,33 @@ Downloads, reading progress, read history, and reading time work exactly as for
 a server shelf: they are stored on the device, kept separate per shelf entry,
 and never written back.
 
+## Embedded server (in progress)
+
+PSW-136 adds a third source type, a **local shelf** kept in the app's own
+`Directory.Data` and served by the Go server running inside the app, as the
+desktop client does. Only the Go side exists so far; the app does not load it
+yet, and nothing on this page above changes.
+
+- `mobile/` is the library, bound with gomobile. It opens no port: the native
+  plugin will hand each request to `Handle`, and shelves are created, renamed,
+  imported from a zip, exported to one, and removed through the package's own
+  functions — the HTTP API has no route for any of that.
+- Shelves live under `<data dir>/shelves/<id>/` with `lock_mode: none`, their
+  list in `<data dir>/shelves.json`. An exported zip has the layout of a
+  desktop or server `lib_root`, through the same `internal/shelfzip` the wasm
+  demo uses.
+- On `android` the settings store is the JSON file the wasm build uses rather
+  than badger, and the frontend is not embedded in the library, since the APK
+  already carries it.
+- `scripts/build-android-lib.sh <out-dir>` builds the arm64 AAR and reports
+  each `.so`'s size and 16 KB page alignment. It needs the Android SDK, an NDK
+  in `ANDROID_NDK_HOME` and a JDK, on Linux or macOS (where it reads the
+  alignment with the NDK's `llvm-readelf`); CI's *Android Go library* job runs
+  it.
+
+A local shelf is deleted with the app. Backup and restore on reinstall belong
+to the part of PSW-136 that adds the source to the app.
+
 ## App icons and splash screens
 
 Source artwork lives in `frontend/assets/`. After changing it, regenerate the

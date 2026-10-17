@@ -11,7 +11,7 @@ import (
 	"os"
 	"syscall/js"
 
-	"github.com/voilelab/plainshelf/cmd/plainshelf-wasm/shelfzip"
+	"github.com/voilelab/plainshelf/internal/shelfzip"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"

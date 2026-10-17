@@ -68,3 +68,21 @@ func TestCloseWaitsForBackgroundWork(t *testing.T) {
 		}
 	}
 }
+
+// A panic in background work is logged and the process keeps running; Close
+// still waits for the goroutine.
+func TestBackgroundPanicIsRecovered(t *testing.T) {
+	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir()})
+
+	ran := make(chan struct{})
+	if !s.goBackground(func() {
+		close(ran)
+		panic("boom")
+	}) {
+		t.Fatal("goBackground refused to start on an open shelf")
+	}
+	<-ran
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}

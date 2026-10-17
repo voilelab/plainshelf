@@ -1,4 +1,4 @@
-//go:build js && wasm
+//go:build (js && wasm) || android || jsonstore
 
 package store
 
@@ -15,8 +15,9 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// DB keeps settings in one JSON file in the browser build: badger mmaps its
-// files, which js/wasm cannot do, and a plain file persists through OPFS.
+// DB keeps settings in one JSON file in the browser and Android builds: badger
+// mmaps its files, which js/wasm cannot do and which risks address-space
+// exhaustion on 32-bit Android; a plain file also persists through OPFS.
 type DB struct {
 	mu       sync.Mutex
 	path     string
