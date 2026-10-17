@@ -21,6 +21,7 @@ import (
 )
 
 type davTestEnv struct {
+	app       *App
 	handler   http.Handler
 	tokenFile string
 	token     string
@@ -65,7 +66,7 @@ func newDAVTestEnv(t *testing.T) *davTestEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &davTestEnv{handler: app.DAVExportHandler(tokenFile), tokenFile: tokenFile, token: token, libRoot: libRoot}
+	return &davTestEnv{app: app, handler: app.DAVExportHandler(tokenFile), tokenFile: tokenFile, token: token, libRoot: libRoot}
 }
 
 func writeTestFile(t *testing.T, name, body string) {
@@ -507,6 +508,8 @@ func TestDAVExportConf(t *testing.T) {
 		"no addr":       {TokenFile: "t"},
 		"same addr":     {Addr: "127.0.0.1:20000", TokenFile: "t"},
 		"no token_file": {Addr: "0.0.0.0:20001"},
+		"wildcard":      {Addr: "0.0.0.0:20001", TokenFile: "t", AllowedOrigins: []string{"*"}},
+		"origin path":   {Addr: "0.0.0.0:20001", TokenFile: "t", AllowedOrigins: []string{"http://a.example/demo/"}},
 	} {
 		if err := conf.validate("127.0.0.1:20000"); err == nil {
 			t.Errorf("%s: accepted", name)
@@ -722,4 +725,121 @@ app_conf:
 		t.Fatalf("API address still bound after a failed start: %v", err)
 	}
 	again.Close()
+}
+
+// withDAVOrigins is env's handler with CORS for origins.
+func withDAVOrigins(t *testing.T, env *davTestEnv, origins ...string) http.Handler {
+	t.Helper()
+	h, err := env.app.davExportCORSHandler(env.tokenFile, origins)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
+}
+
+func TestDAVExportCORS(t *testing.T) {
+	env := newDAVTestEnv(t)
+	h := withDAVOrigins(t, env, "http://Demo.example:8080")
+	target := "/dav/default_shelf/"
+
+	rec := davDo(t, h, "PROPFIND", target, env.token, map[string]string{"Origin": "http://demo.example:8080", "Depth": "1"})
+	if rec.Code != http.StatusMultiStatus {
+		t.Fatalf("allowed PROPFIND = %d", rec.Code)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://demo.example:8080" {
+		t.Errorf("allowed origin header = %q", got)
+	}
+
+	// A browser leaves a default port out of Origin.
+	for _, conf := range []string{"http://plain.example:80", "https://secure.example:443"} {
+		origin := strings.TrimSuffix(strings.TrimSuffix(conf, ":80"), ":443")
+		rec = davDo(t, withDAVOrigins(t, env, conf), http.MethodOptions, target, "", map[string]string{"Origin": origin, "Access-Control-Request-Method": "PROPFIND"})
+		if rec.Code != http.StatusNoContent || rec.Header().Get("Access-Control-Allow-Origin") != origin {
+			t.Errorf("%s: preflight from %s = %d, Allow-Origin %q", conf, origin, rec.Code, rec.Header().Get("Access-Control-Allow-Origin"))
+		}
+	}
+
+	for _, origin := range []string{"http://evil.example", "https://demo.example:8080", "null", ""} {
+		rec = davDo(t, h, "PROPFIND", target, env.token, map[string]string{"Origin": origin, "Depth": "1"})
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+			t.Errorf("origin %q got Allow-Origin %q", origin, got)
+		}
+	}
+
+	// Unconfigured: no CORS header of any kind, preflight included.
+	header := map[string]string{"Origin": "http://demo.example:8080", "Access-Control-Request-Method": "PROPFIND", "Depth": "1"}
+	for _, method := range []string{"PROPFIND", http.MethodOptions} {
+		rec = env.do(t, method, target, env.token, header)
+		for k := range rec.Header() {
+			if strings.HasPrefix(k, "Access-Control-") || k == "Vary" {
+				t.Errorf("unconfigured %s sent %s", method, k)
+			}
+		}
+	}
+	if rec = env.do(t, http.MethodOptions, target, "", header); rec.Code != http.StatusUnauthorized {
+		t.Errorf("unconfigured tokenless preflight = %d, want 401", rec.Code)
+	}
+}
+
+func TestDAVExportCORSPreflight(t *testing.T) {
+	env := newDAVTestEnv(t)
+	h := withDAVOrigins(t, env, "http://demo.example")
+	preflight := map[string]string{
+		"Origin":                         "http://demo.example",
+		"Access-Control-Request-Method":  "PROPFIND",
+		"Access-Control-Request-Headers": "authorization, depth",
+	}
+
+	// No token: answered, with nothing from the shelf in it.
+	for _, target := range []string{"/dav/default_shelf/", "/dav/default_shelf/books/a.bookpkg/book.json", "/dav/missing/", "/dav/default_shelf/app/scan-cache.json"} {
+		rec := davDo(t, h, http.MethodOptions, target, "", preflight)
+		if rec.Code != http.StatusNoContent || rec.Body.Len() != 0 {
+			t.Errorf("preflight %s = %d %q, want empty 204", target, rec.Code, rec.Body.String())
+		}
+		hdr := rec.Header()
+		if got := hdr.Get("Access-Control-Allow-Origin"); got != "http://demo.example" {
+			t.Errorf("preflight %s Allow-Origin = %q", target, got)
+		}
+		if hdr.Get("DAV") != "" || hdr.Get("Allow") != "" {
+			t.Errorf("preflight %s answered as the shelf's OPTIONS", target)
+		}
+		methods := hdr.Get("Access-Control-Allow-Methods")
+		for _, m := range []string{"GET", "PROPFIND"} {
+			if !strings.Contains(methods, m) {
+				t.Errorf("Allow-Methods %q lacks %s", methods, m)
+			}
+		}
+		for _, m := range []string{"PUT", "DELETE", "MKCOL", "MOVE", "PROPPATCH"} {
+			if strings.Contains(methods, m) {
+				t.Errorf("Allow-Methods %q offers %s", methods, m)
+			}
+		}
+		allowHeaders := strings.ToLower(hdr.Get("Access-Control-Allow-Headers"))
+		for _, name := range []string{"authorization", "depth"} {
+			if !strings.Contains(allowHeaders, name) {
+				t.Errorf("Allow-Headers %q lacks %s", allowHeaders, name)
+			}
+		}
+		if hdr.Get("Access-Control-Allow-Credentials") != "" {
+			t.Error("preflight allows credentials")
+		}
+	}
+
+	// A disallowed origin's preflight is the plain OPTIONS it was before: 401.
+	preflight["Origin"] = "http://evil.example"
+	rec := davDo(t, h, http.MethodOptions, "/dav/default_shelf/", "", preflight)
+	if rec.Code != http.StatusUnauthorized || rec.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Errorf("disallowed preflight = %d, Allow-Origin %q", rec.Code, rec.Header().Get("Access-Control-Allow-Origin"))
+	}
+
+	// An allowed origin still needs the token, and still cannot write.
+	origin := map[string]string{"Origin": "http://demo.example", "Depth": "1"}
+	if rec = davDo(t, h, "PROPFIND", "/dav/default_shelf/", "", origin); rec.Code != http.StatusUnauthorized {
+		t.Errorf("tokenless PROPFIND = %d, want 401", rec.Code)
+	}
+	for _, method := range []string{http.MethodPut, http.MethodDelete, "MKCOL", "PROPPATCH"} {
+		if rec = davDo(t, h, method, "/dav/default_shelf/books/a.bookpkg/book.json", env.token, origin); rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s from allowed origin = %d, want 405", method, rec.Code)
+		}
+	}
 }

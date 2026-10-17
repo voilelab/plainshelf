@@ -92,6 +92,7 @@ section is absent, and then no second port is opened.
 | `read_timeout` | duration | none (required) | As in `server_conf`. |
 | `write_timeout` | duration | none (required) | As in `server_conf`. Raise it for large books on a slow mount. |
 | `token_file` | string | none (required) | File holding the token every request must send as `Authorization: Bearer <token>`. Generated with mode `0600` when missing, and kept across restarts. |
+| `allowed_origins` | list of strings | empty | Browser origins sent CORS headers, so a page served from one of them — a self-hosted wasm demo — can read the export. An origin is `scheme://host[:port]` with no path; `*` is refused. Empty sends no CORS header at all. See [Browser access](#browser-access). |
 
 ```yaml
 dav_export:
@@ -137,6 +138,34 @@ first.
     two devices can read the token and every file the export serves. Bind it
     only on a network you trust — a home LAN, a VPN — never on a port reachable
     from the internet. TLS is not supported yet.
+
+### Browser access
+
+A page in a browser can read the export only from an origin listed in
+`allowed_origins`:
+
+```yaml
+dav_export:
+  # ...
+  allowed_origins:
+    - "http://192.168.1.30:8080"
+```
+
+For a listed origin the export answers the CORS preflight (`OPTIONS` with
+`Access-Control-Request-Method`) with 204 before checking the token, allowing
+`GET`, `HEAD`, `PROPFIND` and the `Authorization`, `Content-Type`, `Depth` and
+`Range` headers. The preflight carries no file, listing or shelf name, and it
+answers the same for a shelf that does not exist. Every other request still
+needs the token, and writes are still 405. Credentials mode is not allowed: the
+token travels in `Authorization`, not a cookie.
+
+Listing an origin trusts every page on it: any script there that holds the
+token reads every exported shelf. That is why `*` is refused.
+
+The export is plain HTTP, so a browser refuses to read it from an `https://`
+page as mixed content. The published demo is served over HTTPS and cannot read
+it, whatever this list says; only a demo served over plain HTTP, on the LAN,
+can.
 
 ## `app_conf`
 
