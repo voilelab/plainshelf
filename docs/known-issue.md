@@ -103,3 +103,13 @@ updates, and current-source selection.
 For normal single-user, single-tab usage this does not surface. It matters when
 several browser tabs or clients edit the same book at the same time, and what it
 costs there is a lost edit, never a damaged shelf.
+
+## Text encoding detection
+
+**A text file's encoding is judged from its first 1 MiB.** Importing a `.txt`
+or `.md` file, or saving a source's text, detects the encoding (UTF-8, GB18030,
+Big5, or UTF-16 with a byte-order mark) from the start of the file and converts
+the whole file from that. A file that is plain ASCII for its whole first 1 MiB
+and only then switches to Big5 or GB18030 is taken as UTF-8, and the later
+Chinese text shows as garbled characters. Convert such a file to UTF-8 before
+importing it.

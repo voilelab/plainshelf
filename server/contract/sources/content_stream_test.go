@@ -1,6 +1,7 @@
 package sources_test
 
 import (
+	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -33,4 +34,46 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 
 	emptyLog := apitest.LogEntryByFilename(t, logEnv, "shelf-2024-01-02.log")
 	apitest.AssertEmptyTextResponse(t, "log", logEnv.GetWailsLike(apitest.LogURL(emptyLog.ID, "content")))
+}
+
+// The body streams into the write rather than being read first, so the limit
+// trips mid-write; it must still answer 413 and leave the old content in place.
+func TestAPIPatchContentRefusesOversizedBody(t *testing.T) {
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Oversized Patch", "", "big.txt", "original")
+	url := apitest.SourceURL(created.Meta.ID, created.Meta.CurrentSource, "content")
+	before := env.Get(url).Body.String()
+
+	body := io.LimitReader(repeatReader('x'), apitest.MaxTextUploadSize+1)
+	rec := env.PatchContent(url, apitest.PlainTextContentType, body)
+	apitest.AssertStatus(t, rec, http.StatusRequestEntityTooLarge)
+
+	rec = env.Get(url)
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != before {
+		t.Fatalf("content after refused PATCH = %q, want the original", got)
+	}
+}
+
+// The size limit outranks the encoding: a body that chardet rejects from its
+// first chunk (a UTF-32 BOM) is still answered 413 when it is oversized.
+func TestAPIPatchContentRefusesOversizedBodyWithUnsupportedEncoding(t *testing.T) {
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Oversized UTF-32", "", "big.txt", "original")
+	url := apitest.SourceURL(created.Meta.ID, created.Meta.CurrentSource, "content")
+
+	utf32BOM := strings.NewReader("\xff\xfe\x00\x00")
+	body := io.MultiReader(utf32BOM, io.LimitReader(repeatReader('x'), apitest.MaxTextUploadSize))
+	rec := env.PatchContent(url, apitest.PlainTextContentType, body)
+	apitest.AssertStatus(t, rec, http.StatusRequestEntityTooLarge)
+}
+
+// repeatReader yields its byte forever without holding the body in memory.
+type repeatReader byte
+
+func (r repeatReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = byte(r)
+	}
+	return len(p), nil
 }

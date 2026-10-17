@@ -273,8 +273,9 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-encode before creating the book: this reads the upload, and the book
-	// initializer runs while the exclusive shelf lock is held.
+	// Detect the encoding before creating the book, whose initializer runs under
+	// the exclusive shelf lock. The rest streams in there, but from the parsed
+	// form (memory or a spooled temp file), never from the network.
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
 		if unsupported, ok := errors.AsType[*util.UnsupportedEncodingError](err); ok {
@@ -352,8 +353,8 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderP
 		return h.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", folderParts, h.settings.epubImportStrategy())
 	}
 
-	// Re-encode before creating the book: this reads the file, and the book
-	// initializer runs while the exclusive shelf lock is held.
+	// Detect the encoding before creating the book, whose initializer runs under
+	// the exclusive shelf lock; the rest streams from this local file there.
 	utf8Reader, _, err := util.ReEncodeToUTF8(fp)
 	if err != nil {
 		return nil, util.Errorf("%w", err)

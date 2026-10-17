@@ -1,7 +1,6 @@
 package bookpkg
 
 import (
-	"bytes"
 	"encoding/json/v2"
 	"io"
 	"io/fs"
@@ -11,7 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
-	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
@@ -153,26 +151,21 @@ func (r *Source) refreshContentMetadata() error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	// One read, three metrics: a network-mounted shelf pays per round trip.
-	data, err := r.ReadContent()
+	// One streamed read, three metrics: a network-mounted shelf pays per round
+	// trip, and a large source is never held whole.
+	f, err := r.Open()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-
-	r.meta.MD5Hash, err = hashutil.MD5Hash(bytes.NewReader(data))
-	if err != nil {
-		return util.Errorf("%w", err)
+	stats, readErr := measureContent(f)
+	closeErr := f.Close()
+	if readErr != nil {
+		return util.Errorf("%w", readErr)
 	}
-
-	r.meta.LineCount, err = util.LineCount(bytes.NewReader(data))
-	if err != nil {
-		return util.Errorf("%w", err)
+	if closeErr != nil {
+		return util.Errorf("%w", closeErr)
 	}
-
-	r.meta.CharCount, err = util.CharCount(bytes.NewReader(data))
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
+	r.meta.MD5Hash, r.meta.LineCount, r.meta.CharCount = stats.md5Hash, stats.lineCount, stats.charCount
 
 	return r.writebackMeta(root)
 }
@@ -263,7 +256,7 @@ func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 	}, nil
 }
 
-func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, source io.Reader, format, comment string) (*Source, error) {
+func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader, format, comment string) (*Source, error) {
 	if !shelfutil.ValidateBookFormat(format) || format == "" {
 		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, format)
 	}
@@ -277,34 +270,17 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		return nil, util.Errorf("%w", err)
 	}
 
-	destFile1, err := rt.Open(sourceDestPath)
+	destFile, err := rt.Open(sourceDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	sourceData, readErr := io.ReadAll(destFile1)
-	readCloseErr := destFile1.Close()
+	stats, readErr := measureContent(destFile)
+	readCloseErr := destFile.Close()
 	if readErr != nil {
 		return nil, util.Errorf("%w", readErr)
 	}
 	if readCloseErr != nil {
 		return nil, util.Errorf("%w", readCloseErr)
-	}
-
-	md5Hash, err := hashutil.MD5Hash(bytes.NewReader(sourceData))
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	lineCount, err := util.LineCount(bytes.NewReader(sourceData))
-	if err != nil {
-		lineCount = 0
-		logger.Error("failed to count lines", "error", err)
-	}
-
-	charCount, err := util.CharCount(bytes.NewReader(sourceData))
-	if err != nil {
-		charCount = 0
-		logger.Error("failed to count characters", "error", err)
 	}
 
 	meta := SourceMeta{
@@ -313,9 +289,9 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		CreatedAt:     util.JSONTime(time.Now()),
 		Format:        format,
 
-		MD5Hash:   md5Hash,
-		LineCount: lineCount,
-		CharCount: charCount,
+		MD5Hash:   stats.md5Hash,
+		LineCount: stats.lineCount,
+		CharCount: stats.charCount,
 		Comment:   comment,
 	}
 
@@ -335,5 +311,25 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		root:       rt,
 		folderPath: sourcePath,
 		meta:       &meta,
+	}, nil
+}
+
+type contentStats struct {
+	md5Hash   string
+	lineCount int
+	charCount int
+}
+
+// measureContent takes a source's metrics in one pass without buffering it.
+func measureContent(r io.Reader) (contentStats, error) {
+	var text util.TextCounter
+	md5Hash, err := hashutil.MD5Hash(io.TeeReader(r, &text))
+	if err != nil {
+		return contentStats{}, util.Errorf("%w", err)
+	}
+	return contentStats{
+		md5Hash:   md5Hash,
+		lineCount: text.Lines(),
+		charCount: text.Chars(),
 	}, nil
 }

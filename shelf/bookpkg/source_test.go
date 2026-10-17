@@ -88,7 +88,7 @@ func TestUpdateSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a4", srcFile, BookFormatText, "")
+	source, err := createSource(rootFS, "test-source", "20260315-a4", srcFile, BookFormatText, "")
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestCreateRootSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a3", srcFile, BookFormatText, "")
+	source, err := createSource(rootFS, "test-source", "20260315-a3", srcFile, BookFormatText, "")
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestCreateSourceWritesCommentLiterally(t *testing.T) {
 	defer tmpRoot.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, newLoggerForTest(), "commented-source", "20260315-a5",
+	source, err := createSource(rootFS, "commented-source", "20260315-a5",
 		bytes.NewBufferString("body"), BookFormatText, comment)
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)

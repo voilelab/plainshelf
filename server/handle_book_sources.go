@@ -280,6 +280,11 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 	utf8Reader, _, err := util.ReEncodeToUTF8(r.Body)
 	if err != nil {
+		// Detection can fail on the first chunk; drain the rest so an oversized
+		// body still answers 413 rather than the encoding error.
+		if _, drainErr := io.Copy(io.Discard, r.Body); isRequestBodyTooLarge(drainErr) {
+			err = drainErr
+		}
 		if isRequestBodyTooLarge(err) {
 			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
 			return
@@ -289,7 +294,13 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// The body streams into the write, so an oversized one is refused here too;
+	// the atomic write leaves the previous content in place.
 	if err := source.UpdateContent(utf8Reader); err != nil {
+		if isRequestBodyTooLarge(err) {
+			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
 		h.writeErr(w, r, err, "failed to update book source content")
 		return
 	}
