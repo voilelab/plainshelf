@@ -73,7 +73,8 @@ type Shelf struct {
 	initErr   atomic.Pointer[error] // set if initCache fails; readyCh is still closed
 
 	// awaitingSource marks a remote shelf whose first listing failed because
-	// its source was unavailable. It is not a lasting failure: see notReady.
+	// its source was unavailable or not a shelf. It is not a lasting failure:
+	// see notReady.
 	awaitingSource atomic.Bool
 	initRetryMu    sync.Mutex   // held while the first listing is tried again
 	lastInitTry    atomic.Int64 // unix nanoseconds
@@ -515,7 +516,7 @@ func (s *Shelf) initCache() error {
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
 		s.initErr.Store(&wrapped)
-		if s.remote && errors.Is(err, fsutil.ErrSourceUnavailable) {
+		if s.remote && isAwaitingSource(err) {
 			s.lastInitTry.Store(time.Now().UnixNano())
 			s.awaitingSource.Store(true)
 		}
@@ -549,9 +550,17 @@ func (s *Shelf) initCache() error {
 // the first listing again.
 var initRetryInterval = 10 * time.Second
 
+// isAwaitingSource reports whether a remote shelf's first listing failed in a
+// way the source can recover from without a restart: a lost connection, or a
+// shared folder that is gone (unshared, moved) and may come back.
+func isAwaitingSource(err error) bool {
+	return errors.Is(err, fsutil.ErrSourceUnavailable) || errors.Is(err, ErrNotAShelf)
+}
+
 // notReady is what a request answers before the shelf is listed. A remote
-// shelf whose source was unavailable when it opened says so, rather than that
-// it is still initializing, and tries the listing again in the background.
+// shelf whose source was unavailable or not a shelf when it opened says so,
+// rather than that it is still initializing, and tries the listing again in
+// the background.
 func (s *Shelf) notReady() error {
 	if s.awaitingSource.Load() {
 		s.retryInitSoon()
@@ -584,7 +593,7 @@ func (s *Shelf) retryInit() error {
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
 		s.initErr.Store(&wrapped)
-		if !errors.Is(err, fsutil.ErrSourceUnavailable) {
+		if !isAwaitingSource(err) {
 			s.awaitingSource.Store(false)
 		}
 		return wrapped

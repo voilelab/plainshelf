@@ -643,3 +643,41 @@ func TestRescanWhileOfflineKeepsTheListing(t *testing.T) {
 		t.Errorf("listing after an offline rescan = %v, want %v", got, want)
 	}
 }
+
+func TestSourceDisappearingKeepsTheSnapshot(t *testing.T) {
+	fixture := seedOfflineSource(t)
+	offlineDir := t.TempDir()
+	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
+	dune := fixture.ids["Dune"]
+	if _, err := s.DownloadBook(dune); err != nil {
+		t.Fatalf("DownloadBook: %v", err)
+	}
+	snapshotPath := filepath.Join(offlineDir, offlineSnapshotFile)
+	before, err := os.ReadFile(snapshotPath)
+	if err != nil {
+		t.Fatalf("read snapshot: %v", err)
+	}
+
+	// Unshared or moved: the source answers not found for everything.
+	for _, dir := range []string{booksFolder, appFolder} {
+		if err := os.RemoveAll(filepath.Join(fixture.libRoot, dir)); err != nil {
+			t.Fatalf("remove %s: %v", dir, err)
+		}
+	}
+
+	if _, err := s.RescanUnthrottled(); !errors.Is(err, ErrNotAShelf) {
+		t.Errorf("rescan error = %v, want %v", err, ErrNotAShelf)
+	}
+	if err := s.refreshBookCacheIfNeeded(true); !errors.Is(err, ErrNotAShelf) {
+		t.Errorf("forced refresh error = %v, want %v", err, ErrNotAShelf)
+	}
+	if got, want := listedTitles(t, s), []string{"Dune", "Solaris"}; !slices.Equal(got, want) {
+		t.Errorf("listing after the source disappeared = %v, want %v", got, want)
+	}
+	if after, err := os.ReadFile(snapshotPath); err != nil || string(after) != string(before) {
+		t.Errorf("snapshot changed after the source disappeared (%v)", err)
+	}
+	if text, err := readCurrentText(t, s, dune); err != nil || text != "Dune text" {
+		t.Errorf("downloaded book after the source disappeared = %q, %v", text, err)
+	}
+}
