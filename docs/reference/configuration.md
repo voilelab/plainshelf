@@ -145,14 +145,15 @@ The server refuses to start when `token_file` is one of the files the export
 serves — inside a local shelf's root, under `books/`, `trash/`, `shelf.json` or
 `app/book-cache-*.json` — because anyone who can reach the export could then
 download the token. The error names the shelf and the path. Both paths are made
-absolute against the working directory and cleaned first, so
-`./shelf/../shelf/books/dav.token` is refused too. Elsewhere in the shelf root
+absolute against the working directory and their symlinks resolved first, so
+`./shelf/../shelf/books/dav.token` is refused too, and so is a token reached
+through another name for a shelf root that is itself a symlink. Elsewhere in the shelf root
 (`<lib_root>/app/dav.token`) or outside every shelf is fine; the default
 `./dav-export.token` is outside.
 
 The check compares paths, so it does not see a hard link to the token file
-placed inside a shelf; do not create one. A symlink there is harmless, since the
-export does not follow symlinks.
+placed inside a shelf; do not create one. A symlink inside a shelf that points
+at the token is harmless, since the export does not follow symlinks.
 
 ### Browser access
 

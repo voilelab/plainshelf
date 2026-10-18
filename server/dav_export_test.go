@@ -625,23 +625,46 @@ func TestDAVExportRefusesExportedTokenFile(t *testing.T) {
 	shelves := `
     - {id: local, lib_root: ./shelf}
     - {id: src, source: {type: local, path: ./other}}
-    - {id: remote, source: {type: webdav, url: "http://127.0.0.1:1/dav/x/"}}`
+    - {id: remote, source: {type: webdav, url: "http://127.0.0.1:1/dav/x/"}}
+    - {id: aliased, lib_root: ./alias}`
+	// The shelf opens its root through a symlink, so aliases must not hide a
+	// token; a link the export does not follow must not refuse one.
+	symlinks := runtime.GOOS != "windows"
+	if symlinks {
+		for _, d := range []string{"real", "shelf/books", "outside"} {
+			if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for link, target := range map[string]string{"alias": "real", "shelf-link": "shelf", "shelf/books/out": "../../outside"} {
+			if err := os.Symlink(target, filepath.Join(dir, link)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	for _, tc := range []struct {
 		name, tokenFile string
 		refused         bool
+		symlink         bool
 	}{
-		{"books", "./shelf/books/dav.token", true},
-		{"trash", "shelf/trash/dav.token", true},
-		{"shelf.json", "./shelf/shelf.json", true},
-		{"book cache", "./shelf/app/book-cache-x.json", true},
-		{"unclean", "./shelf/../shelf/books/t", true},
-		{"absolute", filepath.Join(dir, "shelf", "books", "t"), true},
-		{"source path", "./other/books/t", true},
-		{"app", "./shelf/app/dav.token", false},
-		{"outside", "./dav.token", false},
-		{"sibling prefix", "./shelf-x/books/t", false},
+		{"root alias", "./real/books/t", true, true},
+		{"token alias", "./shelf-link/books/t", true, true},
+		{"link out of shelf", "./shelf/books/out/t", false, true},
+		{"books", "./shelf/books/dav.token", true, false},
+		{"trash", "shelf/trash/dav.token", true, false},
+		{"shelf.json", "./shelf/shelf.json", true, false},
+		{"book cache", "./shelf/app/book-cache-x.json", true, false},
+		{"unclean", "./shelf/../shelf/books/t", true, false},
+		{"absolute", filepath.Join(dir, "shelf", "books", "t"), true, false},
+		{"source path", "./other/books/t", true, false},
+		{"app", "./shelf/app/dav.token", false, false},
+		{"outside", "./dav.token", false, false},
+		{"sibling prefix", "./shelf-x/books/t", false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.symlink && !symlinks {
+				t.Skip("no symlinks")
+			}
 			conf := `server_conf: {addr: "127.0.0.1:20000", read_timeout: 60s, write_timeout: 60s}
 dav_export: {addr: "127.0.0.1:20001", read_timeout: 60s, write_timeout: 60s, token_file: "` + filepath.ToSlash(tc.tokenFile) + `"}
 app_conf:
