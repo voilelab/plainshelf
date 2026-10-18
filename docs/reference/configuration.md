@@ -351,6 +351,85 @@ shelves:
       credential: env:PLAINSHELF_NAS_PASSWORD
 ```
 
+#### Tested WebDAV servers
+
+The following servers were tested on 2026-10-18 with the Go server's `webdav`
+source, HTTP Basic authentication, and a fresh local `store_path` for each
+opening. Both listed the same books and folders as the local shelf and returned
+identical source metadata, text, and cover bytes. No client changes were needed.
+
+| Server | Authentication tested | Requests to open and list books and folders |
+|---|---|---|
+| rclone v1.75.2, `serve webdav` over a local directory | Username and password | 3 |
+| Nextcloud 35.0.2, Apache 2.4.68 / PHP 8.5.11, SQLite | Username and app password | 3 |
+
+For rclone, point `serve webdav` at the **shelf root**, which contains `books/`
+and `app/`. Set `RCLONE_USER=reader` and `RCLONE_PASS` to the password in the
+environment of the serving process, then run:
+
+```sh
+rclone serve webdav /path/to/shelf --addr 127.0.0.1:21621 --read-only
+```
+
+In the PlainShelf process, set `PLAINSHELF_RCLONE_PASSWORD` to the same password:
+
+```yaml
+shelves:
+  - id: rclone
+    source:
+      type: webdav
+      url: http://127.0.0.1:21621/
+      username: reader
+      credential: env:PLAINSHELF_RCLONE_PASSWORD
+```
+
+For Nextcloud, upload the complete shelf directory, including
+`app/book-cache-*.json`, into the user's files. Create an app password under
+**Personal settings → Security → Devices & sessions**, and store it in the file
+named by `credential`. For a shelf uploaded as the `Books` folder:
+
+```yaml
+shelves:
+  - id: nextcloud
+    source:
+      type: webdav
+      url: https://cloud.example/remote.php/dav/files/reader/Books/
+      username: reader
+      credential: file:/etc/plainshelf/nextcloud-app-password
+```
+
+Replace `reader` with the login name, and percent-encode special characters in
+each URL path segment. The test used a folder named `PSW 162 & 100% #+`, addressed
+as `PSW%20162%20%26%20100%25%20%23%2B/`. Nextcloud returned lowercase percent
+escapes in its WebDAV `href` values; these decoded correctly. Both servers also
+read a book under `books/小說 & 100% #+/` and returned usable HTTP dates for
+`getlastmodified`.
+
+The request counts above used the two-book `plain-book` conformance fixture,
+with its `Fiction` folder renamed as above and one usable book cache exported
+by PlainShelf. Requests were counted through a local recording reverse proxy,
+from shelf creation through `WaitReady`, `GET /api/shelves/<id>/books`, and
+`GET /api/shelves/<id>/folders`, before reading individual books:
+
+1. `GET shelf.json` — 200.
+2. `PROPFIND app/` with `Depth: 1` — 207.
+3. `GET app/book-cache-webdav-smoke.json` — 200.
+
+No opening request entered `books/`. Listing the book's sources, reading its
+23-byte text, and reading its 5,072-byte PNG cover then took 8 more requests on
+rclone and 7 on Nextcloud. rclone compressed the text response; the Go HTTP
+client's decompression left its length unknown, so `davfs` made an additional
+`PROPFIND` to obtain the uncompressed size. Nextcloud supplied the text length
+directly. These counts describe this fixture and sequence, rather than every
+shelf or server configuration.
+
+With a wrong password, both servers returned 401 and PlainShelf's book-list
+API answered HTTP 503 with `error.code: SOURCE_UNAUTHORIZED`. After stopping
+each WebDAV server, reopening with a fresh `store_path` answered HTTP 503 with
+`error.code: SOURCE_UNAVAILABLE`. A fresh store matters here: previously
+downloaded books may remain readable offline. The compatibility test used
+loopback HTTP; use HTTPS when credentials cross the network.
+
 ### `app_conf.epub_import_strategy`
 
 The default conversion options for an EPUB import that does not carry its own.
