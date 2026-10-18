@@ -356,7 +356,15 @@ func normalizeOrigin(origin string) (string, error) {
 	if u.RawQuery != "" || u.Fragment != "" || u.User != nil {
 		return "", util.Errorf("origin must not include user info, query, or fragment")
 	}
-	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host), nil
+	scheme, host := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	// A browser leaves the default port out of the Origin it sends.
+	switch scheme {
+	case "http":
+		host = strings.TrimSuffix(host, ":80")
+	case "https":
+		host = strings.TrimSuffix(host, ":443")
+	}
+	return scheme + "://" + host, nil
 }
 
 func (sec *Security) applyCORS(w http.ResponseWriter, r *http.Request) {

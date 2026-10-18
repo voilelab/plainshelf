@@ -92,7 +92,7 @@ section is absent, and then no second port is opened.
 | `read_timeout` | duration | none (required) | As in `server_conf`. |
 | `write_timeout` | duration | none (required) | As in `server_conf`. Raise it for large books on a slow mount. |
 | `token_file` | string | none (required) | File holding the token every request must send as `Authorization: Bearer <token>`. Generated with mode `0600` when missing, and kept across restarts. Must not be a file the export serves: see [Token file location](#token-file-location). |
-| `allowed_origins` | list of strings | empty | Browser origins sent CORS headers, so a page served from one of them — a self-hosted wasm demo — can read the export. An origin is `scheme://host[:port]` with no path; `*` is refused. Empty sends no CORS header at all. See [Browser access](#browser-access). |
+| `allowed_origins` | list of strings | empty | Browser origins sent CORS headers, so a page served from one of them — a self-hosted wasm demo — can read the export. An origin is `scheme://host[:port]` with no path, and a default port may be written or left out; `*` is refused. Empty sends no CORS header at all. See [Browser access](#browser-access). |
 
 ```yaml
 dav_export:
@@ -223,7 +223,7 @@ are not.
 | `protect_read` | bool | `false` | Require the token for reads too, not only writes. The log API always requires it either way. |
 | `token_header` | string | `X-PlainShelf-Token` | Header name the token is read from. `Authorization: Bearer <token>` is always accepted as well. |
 | `allow_missing_origin_with_token` | bool | `true` in `local_token` mode | Accept a token-bearing request that carries no `Origin` or `Referer` — a non-browser client such as the Android app. Set `false` to require an allowed origin on every protected request. |
-| `allowed_origins` | list of strings | the four loopback origins below | Browser origins allowed to make API calls. An origin is `scheme://host[:port]` with no path. |
+| `allowed_origins` | list of strings | the four loopback origins below | Browser origins allowed to make API calls. An origin is `scheme://host[:port]` with no path; a default port (`:80` for `http`, `:443` for `https`) may be written or left out. |
 
 The default `allowed_origins` in `local_token` mode:
 
