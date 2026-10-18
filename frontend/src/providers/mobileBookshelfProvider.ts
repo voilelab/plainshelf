@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { exportMobileBookContent } from './mobileBookExport';
 import { unzipSync } from 'fflate';
 import type {
   BookmarkPayload,
@@ -55,11 +55,6 @@ const ASSET_DOWNLOAD_CONCURRENCY = 3;
 // while still collapsing dozens of per-image requests into a handful. A book
 // with no more figures than this stays a single request.
 const ASSET_BUNDLE_CHUNK_SIZE = 16;
-
-// Sub-folder of the shared Documents directory that exported books land in, so
-// they are grouped and never collide with an unrelated file already named the
-// same at the Documents root. Shown to the user as part of the saved location.
-const EXPORT_SUBDIR = 'PlainShelf';
 
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
@@ -164,15 +159,7 @@ export class MobileBookshelfProvider implements BookshelfReader {
     suggestedName: string
   ): Promise<string> {
     const blob = await this.downloadBookContent(bookId);
-    const relativePath = `${EXPORT_SUBDIR}/${suggestedName}`;
-    await Filesystem.writeFile({
-      path: relativePath,
-      data: await blob.text(),
-      directory: Directory.Documents,
-      encoding: Encoding.UTF8,
-      recursive: true
-    });
-    return `Documents/${relativePath}`;
+    return exportMobileBookContent(blob, suggestedName);
   }
 
   // `options` only affects the remote call; the offline cache stores whatever

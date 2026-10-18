@@ -154,8 +154,8 @@ function assertWritableRequest(init?: RequestInit, options?: FetchJsonOptions): 
     return;
   }
 
-  // A POST that only reads is still a read, and both gates below exist to stop
-  // writes. The server draws the same exception for the same route; see
+  // Source reads and mutations of device-local offline copies are safe for
+  // a read-only shelf. The server makes the same exceptions; see
   // isReadOnlySafeRequest in server/app.go.
   if (options?.readOnlySafe) {
     return;
@@ -343,9 +343,8 @@ interface FetchJsonOptions {
   // Uploads and other streaming requests can legitimately outlive the normal
   // metadata request timeout, especially when the shelf is on a sync mount.
   timeoutMs?: number;
-  // readOnlySafe marks a POST that changes nothing on disk, so a read-only
-  // server and the read-only mobile shell both accept it. Only the shelf rescan
-  // endpoint qualifies today.
+  // readOnlySafe marks a source read or device-local offline operation.
+  // It must never be used for a mutation of the source shelf.
   readOnlySafe?: boolean;
   // onResponse hands the caller the response before its body is read, for the
   // few routes whose answer is not only in the body. It is called for an error

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   deleteShelfEntry: vi.fn(),
   listShelves: vi.fn(),
   removeShelf: vi.fn(),
+  removeVirtualShelfOffline: vi.fn(),
   exportShelf: vi.fn(),
   importShelf: vi.fn(),
   addShelfEntry: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock('@/providers/mobileConfig', () => ({
   newShelfEntry: () => ({ id: 'new-entry', type: 'local', name: '', localShelfId: '' }),
   setActiveShelfEntry: mocks.setActiveShelfEntry,
   shelfEntryDisplayName: (entry: { name: string }) => entry.name,
-  SOURCE_TYPE_LABEL_KEYS: { server: 'mobileConnect.modeServer', pcloud: 'mobileConnect.modePCloud', local: 'mobileConnect.modeLocal' }
+  SOURCE_TYPE_LABEL_KEYS: { dav: 'mobileConnect.modeWebDav', server: 'mobileConnect.modeServer', pcloud: 'mobileConnect.modePCloud', local: 'mobileConnect.modeLocal' }
 }));
 // The real helpers, so the Go error wording is matched as in the app.
 vi.mock('@/providers/localShelf', async (importOriginal) => ({
@@ -37,6 +38,7 @@ vi.mock('@/providers/localShelf', async (importOriginal) => ({
   LocalShelf: {
     listShelves: mocks.listShelves,
     removeShelf: mocks.removeShelf,
+    removeVirtualShelfOffline: mocks.removeVirtualShelfOffline,
     exportShelf: mocks.exportShelf,
     importShelf: mocks.importShelf
   }
@@ -84,6 +86,7 @@ async function removeFirst(): Promise<HTMLElement> {
 }
 
 beforeEach(() => {
+  mocks.removeVirtualShelfOffline.mockReset().mockResolvedValue(undefined);
   mocks.removeShelf.mockReset().mockResolvedValue(undefined);
   mocks.deleteShelfEntry.mockReset().mockResolvedValue(undefined);
   mocks.loadShelfEntries.mockResolvedValue({ entries: [local, server], activeEntryID: 'e1' });
@@ -334,5 +337,21 @@ describe('restoring after a reinstall', () => {
 
     expect(host.querySelector('.mobile-shelves-restore')).not.toBeNull();
     expect(host.querySelector('.mobile-shelves-local-warning')).toBeNull();
+  });
+});
+
+describe('removing a virtual shelf', () => {
+  it.each(['pcloud', 'dav'])('cleans Go downloads before deleting a %s entry', async (type) => {
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [{ id: 'cloud', type, name: 'Cloud', davSource: 'webdav', davUrl: 'https://nas/books/' }, server], activeEntryID: 'e2' });
+    await removeFirst();
+    expect(mocks.removeVirtualShelfOffline).toHaveBeenCalledWith(type === 'dav' ? { scope: '', source: 'webdav', url: 'https://nas/books/', username: '' } : { scope: '' });
+    expect(mocks.removeVirtualShelfOffline.mock.invocationCallOrder[0]).toBeLessThan(mocks.deleteShelfEntry.mock.invocationCallOrder[0]);
+  });
+  it('keeps the entry so cleanup can be retried after failure', async () => {
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [{ id: 'cloud', type: 'pcloud', name: 'Cloud' }], activeEntryID: 'cloud' });
+    mocks.removeVirtualShelfOffline.mockRejectedValue(new Error('cleanup failed'));
+    const host = await removeFirst();
+    expect(mocks.deleteShelfEntry).not.toHaveBeenCalled();
+    expect(host.querySelector('.mobile-shelves-error')?.textContent).toContain('cleanup failed');
   });
 });

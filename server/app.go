@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -218,6 +219,15 @@ func (app *App) ClearShelfShowNSFW(shelfID string) {
 func offlineDir(storePath, scope string) string {
 	sum := sha256.Sum256([]byte(scope))
 	return filepath.Join(storePath, "offline", hex.EncodeToString(sum[:16]))
+}
+
+// RemoveOfflineScope removes only the device-local copies for a closed source.
+// The host must close shelves using this scope before calling it.
+func (app *App) RemoveOfflineScope(scope string) error {
+	if scope == "" {
+		return util.NewError("virtual shelf scope cannot be empty")
+	}
+	return os.RemoveAll(offlineDir(app.conf.StorePath, scope))
 }
 
 // resolveShelfConf finishes a shelf configuration the app was handed: it folds

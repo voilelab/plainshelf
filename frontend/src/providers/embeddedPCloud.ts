@@ -1,4 +1,10 @@
-import { getActiveShelfID, getApiBase } from '@/api/client';
+import { Capacitor } from '@capacitor/core';
+import { exportMobileBookContent } from './mobileBookExport';
+import { downloadOfflineBook, removeOfflineBook, listOfflineBooks } from '@/api/books';
+import { fetchJson, getActiveShelfID, getApiBase } from '@/api/client';
+import type { DownloadState } from '@/types/book';
+import type { BookshelfReader } from './bookshelfProvider';
+import { ShelfVisibility } from './shelfVisibility';
 import { getShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
 import type { NsfwMarks } from '@/types/book';
 import { currentCacheScopeKey } from './cacheScope';
@@ -126,10 +132,13 @@ function requestUrl(input: RequestInfo | URL): string {
  */
 export async function embeddedPCloudFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = requestUrl(input);
-  if (url === `${getApiBase()}/api/mode`) {
-    // Installation-wide: independent of opening the cloud shelf or its NSFW
-    // choice. A writable server does not grant this reader a write surface.
-    const target = `${LOCAL_API_BASE}/api/mode`;
+  if (url === `${getApiBase()}/api/mode` || url === `${getApiBase()}/api/shelves`) {
+    // Mode is installation-wide and can be read before the source opens.
+    // Shelf capabilities must wait until the virtual shelf is registered.
+    if (url.endsWith('/api/shelves') && !(await opened(init?.signal ?? (input instanceof Request ? input.signal : undefined)))) {
+      throw new TypeError('The virtual shelf is not open in the embedded server.');
+    }
+    const target = `${LOCAL_API_BASE}${url.slice(getApiBase().length)}`;
     return localShelfFetch(input instanceof Request ? new Request(target, input) : target, init);
   }
   const prefix = `${getApiBase()}/api/shelves/${encodeURIComponent(getActiveShelfID())}`;
@@ -147,11 +156,65 @@ export async function embeddedPCloudFetch(input: RequestInfo | URL, init?: Reque
 }
 
 /**
- * The reader MobileBookshelfProvider wraps for a pCloud or dav entry. Go
- * applies the device's adult-content choice, and the offline cache applies
- * it again to downloads.
+ * Reads a virtual shelf and its offline copies through Go. The engine applies
+ * the device's adult-content choice to both live and downloaded books.
  */
-export class EmbeddedPCloudReader extends ServerBookshelfProvider {
+export class EmbeddedPCloudReader implements BookshelfReader {
+  private readonly reader = new ServerBookshelfProvider();
+  listBooks = this.reader.listBooks.bind(this.reader);
+  getBook = this.reader.getBook.bind(this.reader);
+  getBookContent = this.reader.getBookContent.bind(this.reader);
+  downloadBookContent = this.reader.downloadBookContent.bind(this.reader);
+  getReadProgress = this.reader.getReadProgress.bind(this.reader);
+  saveReadProgress = this.reader.saveReadProgress.bind(this.reader);
+  addReadHistory = this.reader.addReadHistory.bind(this.reader);
+  listReadHistoryBooks = this.reader.listReadHistoryBooks.bind(this.reader);
+  clearReadHistory = this.reader.clearReadHistory.bind(this.reader);
+  getBookCover = this.reader.getBookCover.bind(this.reader);
+  getBookCoverUrl = this.reader.getBookCoverUrl.bind(this.reader);
+  getDuplicateBookGroups = this.reader.getDuplicateBookGroups.bind(this.reader);
+  getSimilarBookPairs = this.reader.getSimilarBookPairs.bind(this.reader);
+  getFingerprintStatus = this.reader.getFingerprintStatus.bind(this.reader);
+  listTrashedBooks = this.reader.listTrashedBooks.bind(this.reader);
+  listFolders = this.reader.listFolders.bind(this.reader);
+  listSources = this.reader.listSources.bind(this.reader);
+  getSource = this.reader.getSource.bind(this.reader);
+  getSourceContent = this.reader.getSourceContent.bind(this.reader);
+  getSourceAsset = this.reader.getSourceAsset.bind(this.reader);
+  getSourceAssetsBundle = this.reader.getSourceAssetsBundle.bind(this.reader);
+  supportsShelfRefresh = this.reader.supportsShelfRefresh.bind(this.reader);
+  refreshShelf = this.reader.refreshShelf.bind(this.reader);
+
+  coversMustBeFetchedAsBlob(): boolean {
+    return true;
+  }
+
+  saveBookContentToFile?: (bookId: string, suggestedName: string) => Promise<string>;
+
+  constructor() {
+    if (Capacitor.isNativePlatform()) {
+      this.saveBookContentToFile = async (bookId, suggestedName) =>
+        exportMobileBookContent(await this.downloadBookContent(bookId), suggestedName);
+    }
+  }
+
+  downloadBook = downloadOfflineBook;
+  removeDownload = removeOfflineBook;
+  async listDownloadedBookEntries() {
+    const entries = await listOfflineBooks();
+    const visibility = new ShelfVisibility({ showNsfw: getShowNsfwOnDevice() });
+    return entries.filter((entry) => visibility.allows(entry.book));
+  }
+
+  async getDownloadState(bookId: string): Promise<DownloadState> {
+    return (await this.getBook(bookId)).download_state ?? 'not_downloaded';
+  }
+
+  async supportsDownloads(): Promise<boolean> {
+    const infos = await fetchJson<Array<{ id: string; capabilities: { download: boolean } }>>('/api/shelves');
+    return infos.find((info) => info.id === EMBEDDED_PCLOUD_SHELF_ID)?.capabilities.download === true;
+  }
+
   filtersNsfwOnDevice(): boolean {
     return true;
   }

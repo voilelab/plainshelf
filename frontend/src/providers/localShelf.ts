@@ -75,6 +75,8 @@ interface LocalShelfPlugin {
    * Probes a source during setup, before an entry stores the secret, so the
    * form passes the one it holds.
    */
+  /** Removes Go offline copies for an entry; never used for switching entries. */
+  removeVirtualShelfOffline(options: { scope: string; source?: ShelfSourceKind; url?: string; username?: string }): Promise<void>;
   checkSource(options: {
     source: ShelfSourceKind;
     url: string;

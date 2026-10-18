@@ -166,6 +166,7 @@ export interface BookshelfReader {
   getPersistedShelfID?(): string;
 
   downloadBook?(bookId: string): Promise<void>;
+  supportsDownloads?(): Promise<boolean>;
   removeDownload?(bookId: string): Promise<void>;
   getDownloadState?(bookId: string): Promise<DownloadState>;
   listDownloadedBookEntries?(): Promise<DownloadedBookEntry[]>;

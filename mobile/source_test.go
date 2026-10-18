@@ -146,3 +146,29 @@ func TestCheckSourceReportsCode(t *testing.T) {
 		}
 	}
 }
+
+func TestSourceEntryRemovalCleansOfflineScope(t *testing.T) {
+	url, token := serveDAVShelf(t)
+	setSecretsT(t, mapSecrets{"entry-1": token})
+	dataDir := t.TempDir()
+	startT(t, dataDir)
+	if err := OpenSourceShelf("dav", "LAN", shelf.SourcePlainShelf, url, "", "entry-1", false); err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t)
+	src := shelf.SourceConf{Type: shelf.SourcePlainShelf, URL: url}
+	assertOfflineScope(t, dataDir, src.Scope(), true)
+	if err := CloseVirtualShelf("dav"); err != nil {
+		t.Fatal(err)
+	}
+	assertOfflineScope(t, dataDir, src.Scope(), true)
+	// Deletion must work without the entry open or its secret available.
+	SetSecretStore(nil)
+	if err := RemoveSourceShelfOffline(shelf.SourcePlainShelf, url, ""); err != nil {
+		t.Fatal(err)
+	}
+	assertOfflineScope(t, dataDir, src.Scope(), false)
+	if err := RemoveSourceShelfOffline(shelf.SourcePlainShelf, "", ""); err == nil {
+		t.Fatal("empty source URL accepted")
+	}
+}

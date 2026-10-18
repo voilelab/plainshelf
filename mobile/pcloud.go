@@ -45,8 +45,9 @@ func OpenPCloudShelf(id, name, host, token, folder, scope string, showNSFW bool)
 	conf := shelf.ShelfConfWithID{ID: id, Name: name}
 	root := pcloud.NewFS(client, folder)
 	next := virtualShelf{
-		conf: conf,
-		open: func(app *server.App) error { return app.AddVirtualShelf(conf, root, scope) },
+		scope: scope,
+		conf:  conf,
+		open:  func(app *server.App) error { return app.AddVirtualShelf(conf, root, scope) },
 	}
 	return rt.openVirtual(next, showNSFW)
 }
@@ -105,8 +106,9 @@ func SetShelfShowNSFW(id string, show bool) (err error) {
 
 // virtualShelf is what reopens a virtual shelf after a failed replacement.
 type virtualShelf struct {
-	conf shelf.ShelfConfWithID
-	open func(app *server.App) error
+	scope string
+	conf  shelf.ShelfConfWithID
+	open  func(app *server.App) error
 }
 
 // CloseVirtualShelf closes a shelf OpenPCloudShelf or OpenSourceShelf opened. Its offline copies
@@ -185,4 +187,35 @@ func ShelfNSFWMarks(id string) (out string, err error) {
 		return "", util.Errorf("%w", err)
 	}
 	return string(bs), nil
+}
+
+// RemoveVirtualShelfOffline deletes an entry's offline copies, even if it is
+// not open. Switching entries and stopping the app must not call this.
+func RemoveVirtualShelfOffline(scope string) (err error) {
+	defer recoverInto(&err)
+	rt, err := running()
+	if err != nil {
+		return err
+	}
+	if err := rt.lock(); err != nil {
+		return err
+	}
+	defer rt.mu.Unlock()
+	if scope == "" {
+		return util.NewError("virtual shelf scope cannot be empty")
+	}
+	if err := rt.quiesce(); err != nil {
+		return err
+	}
+	for id, opened := range rt.virtual {
+		if opened.scope != scope {
+			continue
+		}
+		if err := rt.app.RemoveShelf(id); err != nil {
+			return err
+		}
+		delete(rt.virtual, id)
+		rt.app.ClearShelfShowNSFW(id)
+	}
+	return rt.app.RemoveOfflineScope(scope)
 }

@@ -46,7 +46,7 @@ const pcloudEntry = { id: 'e1', type: 'pcloud', pcloudHost: 'eapi.pcloud.com', p
 /** The remote the registered shell's provider wraps. */
 function providerRemote(): unknown {
   h.registerShell.mock.calls[0][0].createProvider();
-  return h.mobileProvider.mock.calls[0][0];
+  return h.mobileProvider.mock.calls[0]?.[0] ?? h.registerShell.mock.calls[0][0].createProvider();
 }
 
 beforeEach(() => {
@@ -67,6 +67,7 @@ describe('installMobileShell', () => {
     expect(h.openShelf).toHaveBeenCalledWith(pcloudEntry);
     expect(h.setApiTransport).toHaveBeenCalledWith({ fetch: 'embeddedPCloudFetch', allowMobileWrites: false });
     expect((providerRemote() as object).constructor.name).toBe('EmbeddedPCloudReader');
+    expect(h.mobileProvider).not.toHaveBeenCalled();
   });
 
   it('does not wait for the shelf to open', async () => {
@@ -78,6 +79,7 @@ describe('installMobileShell', () => {
 
     expect(h.registerShell).toHaveBeenCalledTimes(1);
     expect((providerRemote() as object).constructor.name).toBe('EmbeddedPCloudReader');
+    expect(h.mobileProvider).not.toHaveBeenCalled();
   });
 
   it('leaves a pCloud entry without its token to the setup form', async () => {
@@ -87,4 +89,16 @@ describe('installMobileShell', () => {
     expect(h.openShelf).not.toHaveBeenCalled();
     expect((providerRemote() as object).constructor.name).toBe('ServerBookshelfProvider');
   });
+});
+
+it('uses the Go reader directly for dav, while server entries keep the mobile cache', async () => {
+  h.entry = { id: 'dav', type: 'dav', davSource: 'webdav', davUrl: 'https://nas.example/books/' };
+  await installMobileShell();
+  expect((providerRemote() as object).constructor.name).toBe('EmbeddedPCloudReader');
+  expect(h.mobileProvider).not.toHaveBeenCalled();
+  h.registerShell.mockClear();
+  h.entry = { id: 'server', type: 'server' };
+  await installMobileShell();
+  expect((providerRemote() as object).constructor.name).toBe('ServerBookshelfProvider');
+  expect(h.mobileProvider).toHaveBeenCalled();
 });

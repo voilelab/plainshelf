@@ -90,8 +90,9 @@ func OpenSourceShelf(id, name, sourceType, rawURL, username, entryID string, sho
 	}
 	conf := shelf.ShelfConfWithID{ID: id, Name: name, ShelfConf: shelf.ShelfConf{Source: src}}
 	next := virtualShelf{
-		conf: conf,
-		open: func(app *server.App) error { return app.AddShelf(conf) },
+		scope: src.Scope(),
+		conf:  conf,
+		open:  func(app *server.App) error { return app.AddShelf(conf) },
 	}
 	return rt.openVirtual(next, showNSFW)
 }
@@ -106,4 +107,14 @@ func CheckSource(sourceType, rawURL, username, secret string) (out string, err e
 		return "", util.Errorf("%w", err)
 	}
 	return marshalJSON(check)
+}
+
+// RemoveSourceShelfOffline derives the same scope used by OpenSourceShelf,
+// without resolving credentials or connecting to the source being removed.
+func RemoveSourceShelfOffline(sourceType, rawURL, username string) error {
+	if sourceType != shelf.SourcePlainShelf && sourceType != shelf.SourceWebDAV {
+		return util.Errorf("source type %q is not available here", sourceType)
+	}
+	src := &shelf.SourceConf{Type: sourceType, URL: rawURL, Username: username}
+	return RemoveVirtualShelfOffline(src.Scope())
 }
