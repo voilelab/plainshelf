@@ -55,6 +55,65 @@ func (conf *DAVExportConf) validate(apiAddr string) error {
 	return err
 }
 
+// checkTokenFileNotExported refuses a token_file the export itself would
+// serve: one inside a local shelf's root that shelf.IsShelfFile admits. Both
+// sides resolve against the working directory, as the server reads them, and
+// through symlinks, since the shelf opens its root through one. Hard links are
+// not detected.
+func (conf *DAVExportConf) checkTokenFileNotExported(shelves []*shelf.ShelfConfWithID) error {
+	tokenFile, err := davCanonicalPath(conf.TokenFile)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	for _, shelfConf := range shelves {
+		if shelfConf == nil {
+			continue
+		}
+		src, err := shelfConf.ResolveSource()
+		if err != nil || src.IsVirtual() {
+			// A broken entry fails when the shelf opens; a virtual one is not exported.
+			continue
+		}
+		root, err := davCanonicalPath(src.Path)
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
+		rel, err := filepath.Rel(root, tokenFile)
+		if err != nil || !filepath.IsLocal(rel) {
+			continue
+		}
+		if shelf.IsShelfFile(filepath.ToSlash(rel)) {
+			return util.Errorf("dav_export.token_file %q (%s) is inside shelf %q (%s) where the export would serve it", conf.TokenFile, tokenFile, shelfConf.ID, root)
+		}
+	}
+	return nil
+}
+
+// davCanonicalPath is p made absolute with symlinks resolved in its longest
+// existing prefix; the rest, not created yet, is appended as written.
+func davCanonicalPath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	var missing []string
+	for dir := abs; ; {
+		real, err := filepath.EvalSymlinks(dir)
+		if err == nil {
+			return filepath.Join(append([]string{real}, missing...)...), nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return abs, nil
+		}
+		missing = append([]string{filepath.Base(dir)}, missing...)
+		dir = parent
+	}
+}
+
 // davOriginSet normalizes allowed_origins; nil when there are none.
 func davOriginSet(origins []string) (map[string]struct{}, error) {
 	if len(origins) == 0 {

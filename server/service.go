@@ -50,6 +50,9 @@ func loadAppConf(confPath string) (*SrvConf, error) {
 		if err := conf.DAVExport.validate(conf.ServerConf.Addr); err != nil {
 			return nil, util.Errorf("%w", err)
 		}
+		if err := conf.DAVExport.checkTokenFileNotExported(conf.AppConf.Shelves); err != nil {
+			return nil, util.Errorf("%w", err)
+		}
 	}
 
 	return &conf, nil

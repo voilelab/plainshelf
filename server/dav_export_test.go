@@ -617,6 +617,73 @@ app_conf: {store_path: ./store}
 	}
 }
 
+// TestDAVExportRefusesExportedTokenFile: a token_file the export would serve
+// stops the server at config load.
+func TestDAVExportRefusesExportedTokenFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	shelves := `
+    - {id: local, lib_root: ./shelf}
+    - {id: src, source: {type: local, path: ./other}}
+    - {id: remote, source: {type: webdav, url: "http://127.0.0.1:1/dav/x/"}}
+    - {id: aliased, lib_root: ./alias}`
+	// The shelf opens its root through a symlink, so aliases must not hide a
+	// token; a link the export does not follow must not refuse one.
+	symlinks := runtime.GOOS != "windows"
+	if symlinks {
+		for _, d := range []string{"real", "shelf/books", "outside"} {
+			if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for link, target := range map[string]string{"alias": "real", "shelf-link": "shelf", "shelf/books/out": "../../outside"} {
+			if err := os.Symlink(target, filepath.Join(dir, link)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, tc := range []struct {
+		name, tokenFile string
+		refused         bool
+		symlink         bool
+	}{
+		{"root alias", "./real/books/t", true, true},
+		{"token alias", "./shelf-link/books/t", true, true},
+		{"link out of shelf", "./shelf/books/out/t", false, true},
+		{"books", "./shelf/books/dav.token", true, false},
+		{"trash", "shelf/trash/dav.token", true, false},
+		{"shelf.json", "./shelf/shelf.json", true, false},
+		{"book cache", "./shelf/app/book-cache-x.json", true, false},
+		{"unclean", "./shelf/../shelf/books/t", true, false},
+		{"absolute", filepath.Join(dir, "shelf", "books", "t"), true, false},
+		{"source path", "./other/books/t", true, false},
+		{"app", "./shelf/app/dav.token", false, false},
+		{"outside", "./dav.token", false, false},
+		{"sibling prefix", "./shelf-x/books/t", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.symlink && !symlinks {
+				t.Skip("no symlinks")
+			}
+			conf := `server_conf: {addr: "127.0.0.1:20000", read_timeout: 60s, write_timeout: 60s}
+dav_export: {addr: "127.0.0.1:20001", read_timeout: 60s, write_timeout: 60s, token_file: "` + filepath.ToSlash(tc.tokenFile) + `"}
+app_conf:
+  store_path: ./store
+  shelves:` + shelves + "\n"
+			writeTestFile(t, filepath.Join(dir, "config.yaml"), conf)
+			_, err := loadAppConf("config.yaml")
+			switch {
+			case tc.refused && err == nil:
+				t.Error("accepted")
+			case tc.refused && !strings.Contains(err.Error(), "dav_export.token_file"):
+				t.Errorf("error does not name token_file: %v", err)
+			case !tc.refused && err != nil:
+				t.Errorf("refused: %v", err)
+			}
+		})
+	}
+}
+
 func TestDAVTokenFileExposed(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("no permission bits")
