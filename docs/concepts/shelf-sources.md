@@ -39,6 +39,11 @@ on every client. Clients differ only in which sources their platform can reach
 A virtual shelf is a storage backend, not synchronisation: PlainShelf never
 writes to its source.
 
+Illustration bundles on pCloud fetch the requested images together with one
+`getziplink` request and one download, regardless of image count (after the
+folder listing is loaded). PlainShelf repacks them into the same flat zip as
+local and WebDAV shelves. Downloaded books continue to read from the local copy.
+
 ### Offline copies
 
 A virtual shelf opened with an offline directory keeps two things on the device,

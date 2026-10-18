@@ -339,6 +339,29 @@ func (f offlineFS) Stat(name string) (fs.FileInfo, error) {
 	return info, err
 }
 
+type offlineZipFS struct {
+	offlineFS
+}
+
+// OpenZip uses the remote batch capability only when every path is remote.
+// Downloaded books keep using the local copy even while the source is online.
+func (f offlineZipFS) OpenZip(names ...string) (io.ReadCloser, error) {
+	for _, name := range names {
+		if _, local := f.route(name); local {
+			return nil, errors.ErrUnsupported
+		}
+	}
+	z, ok := f.remote.(fsutil.ZipOpener)
+	if !ok {
+		return nil, errors.ErrUnsupported
+	}
+	stream, err := z.OpenZip(names...)
+	if err != nil && len(names) > 0 {
+		return nil, notDownloaded(names[0], err)
+	}
+	return stream, err
+}
+
 // openMirrored reads name from the source and keeps a copy, falling back to
 // the copy while the source is unavailable.
 func (f offlineFS) openMirrored(name string) (fs.File, error) {

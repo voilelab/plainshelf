@@ -1,6 +1,8 @@
 package shelf
 
 import (
+	"archive/zip"
+	"bytes"
 	"cmp"
 	"encoding/json/v2"
 	"errors"
@@ -463,6 +465,27 @@ func readConformanceAssets(t *testing.T, s *Shelf, source *Source) []string {
 	}
 
 	slices.Sort(names)
+	// The same fixture also pins batch reads to the per-file reading, across
+	// local, WebDAV and pCloud roots, without changing the shelf format.
+	var bundle bytes.Buffer
+	zw := zip.NewWriter(&bundle)
+	if err := source.WriteAssetsToZip(zw, names); err != nil {
+		t.Fatalf("WriteAssetsToZip: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(bundle.Bytes()), int64(bundle.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bundled []string
+	for _, entry := range zr.File {
+		bundled = append(bundled, entry.Name)
+	}
+	if !slices.Equal(bundled, names) {
+		t.Errorf("bundled assets = %v, want %v", bundled, names)
+	}
 	return names
 }
 

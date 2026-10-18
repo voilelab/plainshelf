@@ -16,6 +16,10 @@ through `NewShelfFromFS` over `internal/pcloud`, the Go pCloud client, against a
 fake pCloud API serving the case directory. All must produce the same
 `expected.json`, so the remote and pCloud paths cannot drift from the local walk.
 
+The asset fixtures also check that illustration bundles contain the same flat
+entry names as individual asset reads, including the pCloud batch zip path.
+No additional on-disk metadata is needed for batching.
+
 ## Layout
 
 ```

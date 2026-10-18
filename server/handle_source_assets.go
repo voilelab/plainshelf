@@ -2,7 +2,6 @@ package server
 
 import (
 	"archive/zip"
-	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -96,15 +95,11 @@ func (h *sourceHandlers) getAssetsBundle(w http.ResponseWriter, r *http.Request)
 	}
 
 	zw := zip.NewWriter(w)
-	for _, name := range names {
-		if err := h.writeAssetToZip(zw, source, name); err != nil {
-			// The 200 and the archive so far are already on the wire, so the
-			// status cannot change now. Stop and log: the client receives a
-			// truncated zip, which its unzip rejects, and falls back to
-			// per-file fetches.
-			h.Error("failed to add source asset to bundle", "error", err, "asset", name)
-			return
-		}
+	if err := source.WriteAssetsToZip(zw, names); err != nil {
+		// Leave the archive unfinished so clients reject it and fall back to
+		// individual asset requests.
+		h.Error("failed to add source assets to bundle", "error", err)
+		return
 	}
 	if err := zw.Close(); err != nil {
 		h.Error("failed to finalize source asset bundle", "error", err)
@@ -133,35 +128,6 @@ func (h *sourceHandlers) resolveBundleAssetNames(w http.ResponseWriter, source *
 		}
 	}
 	return requested, true
-}
-
-// writeAssetToZip adds one illustration to the archive under its flat name. A
-// named file that is not on the shelf is skipped, not fatal: the text may
-// reference an image never uploaded, and the reader falls back to alt text.
-func (h *sourceHandlers) writeAssetToZip(zw *zip.Writer, source *shelf.Source, name string) error {
-	asset, err := source.OpenAsset(name)
-	if err != nil {
-		if errors.Is(err, shelf.ErrAssetNotFound) {
-			return nil
-		}
-		return err
-	}
-	defer asset.File.Close()
-
-	// Store, not Deflate: jpeg/png/webp are already compressed, so the endpoint's
-	// gain is the request count, not bytes saved.
-	entry, err := zw.CreateHeader(&zip.FileHeader{
-		Name:     name,
-		Method:   zip.Store,
-		Modified: asset.Info.ModTime(),
-	})
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(entry, asset.File); err != nil {
-		return err
-	}
-	return nil
 }
 
 // PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
