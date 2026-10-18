@@ -90,8 +90,9 @@ func OpenSourceShelf(id, name, sourceType, rawURL, username, entryID string, sho
 	}
 	conf := shelf.ShelfConfWithID{ID: id, Name: name, ShelfConf: shelf.ShelfConf{Source: src}}
 	next := virtualShelf{
-		conf: conf,
-		open: func(app *server.App) error { return app.AddShelf(conf) },
+		scope: src.Scope(),
+		conf:  conf,
+		open:  func(app *server.App) error { return app.AddShelf(conf) },
 	}
 	return rt.openVirtual(next, showNSFW)
 }
@@ -106,4 +107,28 @@ func CheckSource(sourceType, rawURL, username, secret string) (out string, err e
 		return "", util.Errorf("%w", err)
 	}
 	return marshalJSON(check)
+}
+
+// RemoveSourceShelfOffline derives the same scope used by OpenSourceShelf,
+// without resolving credentials or connecting to the source being removed.
+func RemoveSourceShelfOffline(sourceType, rawURL, username string) error {
+	scope, err := SourceShelfOfflineScope(sourceType, rawURL, username)
+	if err != nil {
+		return err
+	}
+	return RemoveVirtualShelfOffline(scope)
+}
+
+// SourceShelfOfflineScope returns the engine's canonical scope without opening
+// the source or resolving credentials. Hosts use it to retain shared downloads.
+func SourceShelfOfflineScope(sourceType, rawURL, username string) (string, error) {
+	if sourceType != shelf.SourcePlainShelf && sourceType != shelf.SourceWebDAV {
+		return "", util.Errorf("source type %q is not available here", sourceType)
+	}
+	src := &shelf.SourceConf{Type: sourceType, URL: rawURL, Username: username}
+	scope := src.Scope()
+	if scope == "" {
+		return "", util.NewError("virtual shelf scope cannot be empty")
+	}
+	return scope, nil
 }

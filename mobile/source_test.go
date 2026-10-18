@@ -146,3 +146,50 @@ func TestCheckSourceReportsCode(t *testing.T) {
 		}
 	}
 }
+
+func TestSourceEntryRemovalCleansOfflineScope(t *testing.T) {
+	url, token := serveDAVShelf(t)
+	setSecretsT(t, mapSecrets{"entry-1": token})
+	dataDir := t.TempDir()
+	startT(t, dataDir)
+	if err := OpenSourceShelf("dav", "LAN", shelf.SourcePlainShelf, url, "", "entry-1", false); err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t)
+	src := shelf.SourceConf{Type: shelf.SourcePlainShelf, URL: url}
+	assertOfflineScope(t, dataDir, src.Scope(), true)
+	if err := CloseVirtualShelf("dav"); err != nil {
+		t.Fatal(err)
+	}
+	assertOfflineScope(t, dataDir, src.Scope(), true)
+	// Deletion must work without the entry open or its secret available.
+	SetSecretStore(nil)
+	if err := RemoveSourceShelfOffline(shelf.SourcePlainShelf, url, ""); err != nil {
+		t.Fatal(err)
+	}
+	assertOfflineScope(t, dataDir, src.Scope(), false)
+	if err := RemoveSourceShelfOffline(shelf.SourcePlainShelf, "", ""); err == nil {
+		t.Fatal("empty source URL accepted")
+	}
+}
+
+// Source type is not part of the offline scope, while account is. Hosts must
+// compare the engine's scope rather than a TS cache key when retaining aliases.
+func TestSourceShelfOfflineScope(t *testing.T) {
+	for _, sourceType := range []string{shelf.SourcePlainShelf, shelf.SourceWebDAV} {
+		scope, err := SourceShelfOfflineScope(sourceType, " https://NAS/books ", "reader")
+		if err != nil || scope != "https://reader@nas/books/" {
+			t.Fatalf("scope = %q, %v", scope, err)
+		}
+		other, err := SourceShelfOfflineScope(sourceType, "https://nas/books/", "other")
+		if err != nil || other == scope {
+			t.Fatalf("account scope = %q, %v", other, err)
+		}
+	}
+	if _, err := SourceShelfOfflineScope(shelf.SourcePCloud, "https://nas/books/", ""); err == nil {
+		t.Fatal("unsupported source type accepted")
+	}
+	if _, err := SourceShelfOfflineScope(shelf.SourceWebDAV, "", ""); err == nil {
+		t.Fatal("empty source accepted")
+	}
+}

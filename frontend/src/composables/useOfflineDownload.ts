@@ -18,10 +18,11 @@ import { t } from '@/i18n';
 export function useOfflineDownload(bookId: () => string) {
   const state = ref<DownloadState>('not_downloaded');
   const error = ref('');
+  const engineSupported = ref(true);
 
   const supported = computed(() => {
     const provider = getBookshelfProvider();
-    return Boolean(provider.downloadBook && provider.removeDownload && provider.getDownloadState);
+    return engineSupported.value && Boolean(provider.downloadBook && provider.removeDownload && provider.getDownloadState);
   });
 
   async function refresh(): Promise<void> {
@@ -32,6 +33,7 @@ export function useOfflineDownload(bookId: () => string) {
     }
 
     try {
+      engineSupported.value = await provider.supportsDownloads?.() ?? true;
       state.value = await provider.getDownloadState(bookId());
     } catch {
       state.value = 'not_downloaded';

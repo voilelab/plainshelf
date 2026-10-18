@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { plugin, localFetch } = vi.hoisted(() => ({
@@ -226,5 +227,37 @@ describe('EmbeddedPCloudReader', () => {
 
     plugin.nsfwMarks.mockRejectedValueOnce(new Error('not open'));
     expect(await reader.localNsfwMarks()).toBeNull();
+  });
+});
+
+describe('Go offline downloads', () => {
+  it('uses the engine for capabilities, state, download, listing and removal, while keeping library writes disabled', async () => {
+    const { setApiTransport } = await import('@/api/client');
+    window.__PLAINSHELF_READ_ONLY__ = true;
+    const { isWritableProvider } = await import('./index');
+    setApiTransport({ fetch: mod.embeddedPCloudFetch, allowMobileWrites: false });
+    await mod.openEmbeddedPCloudShelf(entry);
+    const reader = new mod.EmbeddedPCloudReader();
+    expect(isWritableProvider(reader)).toBe(false);
+    expect(reader.coversMustBeFetchedAsBlob()).toBe(true);
+    localFetch.mockResolvedValueOnce(Response.json([{ id: 'pcloud', capabilities: { download: true } }]));
+    expect(await reader.supportsDownloads()).toBe(true);
+    localFetch.mockResolvedValueOnce(Response.json([{ id: 'pcloud', capabilities: { download: false } }]));
+    expect(await reader.supportsDownloads()).toBe(false);
+    const book = { meta: { id: 'b', title: 'Book', authors: [], language: 'en', format: 'txt' }, folder: [], download_state: 'downloaded' };
+    localFetch.mockResolvedValueOnce(Response.json(book));
+    expect(await reader.getDownloadState('b')).toBe('downloaded');
+    localFetch.mockResolvedValueOnce(Response.json({ book }));
+    await reader.downloadBook('b');
+    expect(localFetch.mock.lastCall?.[0]).toBe('https://localhost/__plainshelf_local/api/shelves/pcloud/books/b/download');
+    expect(localFetch.mock.lastCall?.[1].method).toBe('PUT');
+    localFetch.mockResolvedValueOnce(Response.json({ books: [{ book, size_bytes: 123, downloaded_at: '2026-10-18T00:00:00Z' }, { book: { ...book, meta: { ...book.meta, id: 'adult', nsfw: true } }, size_bytes: 456, downloaded_at: '2026-10-18T00:00:00Z' }] }));
+    expect(await reader.listDownloadedBookEntries()).toMatchObject([{ book: { id: 'b', download_state: 'downloaded' }, sizeBytes: 123, downloadedAt: '2026-10-18T00:00:00Z' }]);
+    localFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await reader.removeDownload('b');
+    expect(localFetch.mock.lastCall?.[1].method).toBe('DELETE');
+    const { updateBook } = await import('@/api/books');
+    await expect(updateBook('b', { title: 'Changed' })).rejects.toThrow('read-only');
+    window.__PLAINSHELF_READ_ONLY__ = false;
   });
 });

@@ -66,6 +66,8 @@ interface BackendBookMeta {
 }
 
 interface BackendBook {
+  download_state?: Book['download_state'];
+  downloaded_at?: Book['downloaded_at'];
   meta: BackendBookMeta;
   // Never absent and never null: the server's Book.Folder carries no omitempty,
   // and json/v2 writes a book at the shelf root as [].
@@ -161,6 +163,8 @@ function transformBook(b: BackendBook): Book {
     identifiers: b.meta.identifiers,
     char_count: b.char_count,
     nsfw: b.meta.nsfw ?? false,
+    download_state: b.download_state,
+    downloaded_at: b.downloaded_at,
     nsfw_folder: b.nsfw_folder
   };
 }
@@ -728,4 +732,21 @@ export function getBookCoverUrl(id: string, cacheKey?: number): string {
     return buildApiUrl(buildShelfApiPath(`/books/${encodedId}/cover`));
   }
   return buildApiUrl(`${buildShelfApiPath(`/books/${encodedId}/cover`)}?t=${encodeURIComponent(String(cacheKey))}`);
+}
+
+/** Device-local copies owned by the Go engine; these never write the source. */
+export async function downloadOfflineBook(id: string): Promise<void> {
+  await fetchJson(buildShelfApiPath(`/books/${encodeURIComponent(id)}/download`),
+    { method: 'PUT' }, { readOnlySafe: true, timeoutMs: 300_000 });
+}
+
+export async function removeOfflineBook(id: string): Promise<void> {
+  await fetchJson(buildShelfApiPath(`/books/${encodeURIComponent(id)}/download`),
+    { method: 'DELETE' }, { readOnlySafe: true });
+}
+
+export async function listOfflineBooks(): Promise<Array<{ book: Book; sizeBytes: number; downloadedAt: string }>> {
+  const result = await fetchJson<{ books: Array<{ book: BackendBook; size_bytes: number; downloaded_at: string }> }>(
+    buildShelfApiPath('/downloads'));
+  return result.books.map((entry) => ({ book: transformBook(entry.book), sizeBytes: entry.size_bytes, downloadedAt: entry.downloaded_at }));
 }

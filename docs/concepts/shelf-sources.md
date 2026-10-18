@@ -8,10 +8,9 @@
     `webdav` sources; the desktop and Android hosts add them from their
     settings and resolve `host:`. It fixes the configuration format and the
     credential model before `1.0.0-rc1`, because both become compatibility
-    promises at that point. Android's remaining offline-layer consolidation
-    and the separate
+    promises at that point. The separate
     [platform interface](platform-capabilities.md#the-platform-interface)
-    remain planned.
+    remains planned.
 
 A shelf is opened from a **source**: where its files are and how PlainShelf
 reaches them. A local shelf uses `lib_root` or an explicit local source;
@@ -392,13 +391,16 @@ the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
   read-only `ReadFS` over the pCloud API, and the app opens its pCloud entry
   with `mobile.OpenPCloudShelf`. The native side reads
   the token from the Keystore and passes it on every start; Go holds it in
-  memory only. The entry keeps its cache scope, and its downloads, reading
-  progress and history stay in the app's own cache and are not moved into the
-  Go offline layer: downloads the earlier TypeScript reader took stay where
-  they are. Adult content follows the device's own
-  choice, given to Go per shelf (`App.SetShelfShowNSFW`) so it does not become
-  the setting local shelves use. A planned change will move virtual-shelf downloads to
-  the Go offline layer; until then pCloud and dav entries retain both layers.
+  memory only. pCloud and dav downloads, listings, and download status now use
+  the Go offline layer exclusively. Reading progress and history remain
+  device-local in the app. Legacy TypeScript downloads are not migrated or
+  offered by this reader; download those books again. This is an intentional
+  single-user upgrade decision. Removing an entry closes its open
+  virtual shelf and deletes its Go offline scope only when no other entry
+  uses that scope; switching entries or closing
+  the app preserves it. External PlainShelf server entries retain the
+  TypeScript download cache. Adult content follows the device's own choice,
+  given to Go per shelf (`App.SetShelfShowNSFW`).
 - **Removing the TypeScript reader.** Done: the frontend parses no
   shelf format. The app's pCloud setup asks Go whether a folder is a shelf and
   how many books it holds (`mobile.CheckPCloudShelf`, `mobile.ListPCloudFolder`);

@@ -64,7 +64,7 @@ export async function installMobileShell(): Promise<void> {
   if (isUsableEmbeddedEntry(active)) {
     // Read through the embedded Go server, still read-only. Not awaited; see
     // openEmbeddedPCloudShelf. After a failed open the reads fail like an
-    // unreachable shelf and fall back to the downloads.
+    // unreachable shelf; Go reopens its saved snapshot when offline.
     void openEmbeddedPCloudShelf(active);
     setApiTransport({ fetch: embeddedPCloudFetch, allowMobileWrites: false });
   }
@@ -81,11 +81,14 @@ export async function installMobileShell(): Promise<void> {
       if (isLocal) {
         return new ServerBookshelfProvider();
       }
+      if (isUsableEmbeddedEntry(getActiveShelfEntry())) {
+        return new EmbeddedPCloudReader();
+      }
       // Persist downloads and reading progress across app restarts, in
       // Directory.Data: app-private files are exempt from the WebView's
       // best-effort storage eviction, which the browser storage APIs are not.
       return new MobileBookshelfProvider(
-        isUsableEmbeddedEntry(getActiveShelfEntry()) ? new EmbeddedPCloudReader() : new ServerBookshelfProvider(),
+        new ServerBookshelfProvider(),
         new FilesystemMobileBookCache(),
         undefined,
         new FilesystemMobileCoverCache()

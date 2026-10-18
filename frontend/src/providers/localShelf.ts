@@ -71,6 +71,10 @@ interface LocalShelfPlugin {
     username: string;
     showNsfw: boolean;
   }): Promise<void>;
+  /** Canonical Go scope, without opening the source or resolving its secret. */
+  sourceShelfOfflineScope(options: { source: ShelfSourceKind; url: string; username: string }): Promise<{ scope: string }>;
+  /** Removes Go offline copies for an entry; never used for switching entries. */
+  removeVirtualShelfOffline(options: { scope: string; source?: ShelfSourceKind; url?: string; username?: string }): Promise<void>;
   /**
    * Probes a source during setup, before an entry stores the secret, so the
    * form passes the one it holds.

@@ -267,3 +267,67 @@ func TestPCloudShelfOpenedOfflineAnswersSourceUnavailable(t *testing.T) {
 		t.Errorf("books while down: %d %s", res.Status, res.Body)
 	}
 }
+
+// Closing or replacing a shelf keeps downloads; only deleting its entry
+// removes them, including when that entry is no longer open.
+func TestPCloudEntryRemovalCleansOnlyItsOfflineScope(t *testing.T) {
+	srv, bookID := servePCloudShelf(t)
+	dataDir := t.TempDir()
+	startT(t, dataDir)
+	const scope = "pcloud:scope-a"
+	if err := OpenPCloudShelf("cloud", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, scope, false); err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t)
+	if res := handle(t, http.MethodPut, "/api/shelves/cloud/books/"+bookID+"/download", ""); res.Status != http.StatusOK {
+		t.Fatalf("download: %d %s", res.Status, res.Body)
+	}
+	if err := CloseVirtualShelf("cloud"); err != nil {
+		t.Fatal(err)
+	}
+	assertOfflineScope(t, dataDir, scope, true)
+	srv.SetOffline(true)
+	if err := OpenPCloudShelf("cloud", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, scope, false); err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t)
+	if titles := bookTitles(t, "cloud"); !strings.Contains(titles, `"Dune"`) {
+		t.Fatalf("offline listing: %s", titles)
+	}
+	if res := handle(t, http.MethodGet, "/api/shelves/cloud/books/"+bookID+"/content", ""); res.Status != http.StatusOK {
+		t.Fatalf("offline content after reopening: %d %s", res.Status, res.Body)
+	}
+	// Protect a different entry's cache against an over-broad removal.
+	other := offlineScopePath(dataDir, "other")
+	if err := os.MkdirAll(other, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveVirtualShelfOffline(scope); err != nil {
+		t.Fatal(err)
+	}
+	assertOfflineScope(t, dataDir, scope, false)
+	assertOfflineScope(t, dataDir, "other", true)
+	if err := RemoveVirtualShelfOffline(scope); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if err := RemoveVirtualShelfOffline(""); err == nil {
+		t.Fatal("empty scope accepted")
+	}
+	assertOfflineScope(t, dataDir, "other", true)
+}
+
+func offlineScopePath(dataDir, scope string) string {
+	sum := sha256.Sum256([]byte(scope))
+	return filepath.Join(dataDir, "store", "offline", hex.EncodeToString(sum[:16]))
+}
+
+func assertOfflineScope(t *testing.T, dataDir, scope string, want bool) {
+	t.Helper()
+	_, err := os.Stat(offlineScopePath(dataDir, scope))
+	if want && err != nil {
+		t.Fatalf("scope %q missing: %v", scope, err)
+	}
+	if !want && !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("scope %q still exists: %v", scope, err)
+	}
+}
