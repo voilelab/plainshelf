@@ -55,6 +55,39 @@ func (conf *DAVExportConf) validate(apiAddr string) error {
 	return err
 }
 
+// checkTokenFileNotExported refuses a token_file the export itself would
+// serve: one inside a local shelf's root that shelf.IsShelfFile admits. Both
+// sides resolve against the working directory, as the server reads them.
+// Hard links are not detected.
+func (conf *DAVExportConf) checkTokenFileNotExported(shelves []*shelf.ShelfConfWithID) error {
+	tokenFile, err := filepath.Abs(conf.TokenFile)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	for _, shelfConf := range shelves {
+		if shelfConf == nil {
+			continue
+		}
+		src, err := shelfConf.ResolveSource()
+		if err != nil || src.IsVirtual() {
+			// A broken entry fails when the shelf opens; a virtual one is not exported.
+			continue
+		}
+		root, err := filepath.Abs(src.Path)
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
+		rel, err := filepath.Rel(root, tokenFile)
+		if err != nil || !filepath.IsLocal(rel) {
+			continue
+		}
+		if shelf.IsShelfFile(filepath.ToSlash(rel)) {
+			return util.Errorf("dav_export.token_file %q is inside shelf %q (%s) where the export would serve it", tokenFile, shelfConf.ID, root)
+		}
+	}
+	return nil
+}
+
 // davOriginSet normalizes allowed_origins; nil when there are none.
 func davOriginSet(origins []string) (map[string]struct{}, error) {
 	if len(origins) == 0 {

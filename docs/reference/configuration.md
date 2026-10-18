@@ -91,7 +91,7 @@ section is absent, and then no second port is opened.
 | `addr` | string | none (required) | Listen address of the export, `host:port`. Must differ from `server_conf.addr`. |
 | `read_timeout` | duration | none (required) | As in `server_conf`. |
 | `write_timeout` | duration | none (required) | As in `server_conf`. Raise it for large books on a slow mount. |
-| `token_file` | string | none (required) | File holding the token every request must send as `Authorization: Bearer <token>`. Generated with mode `0600` when missing, and kept across restarts. |
+| `token_file` | string | none (required) | File holding the token every request must send as `Authorization: Bearer <token>`. Generated with mode `0600` when missing, and kept across restarts. Must not be a file the export serves: see [Token file location](#token-file-location). |
 | `allowed_origins` | list of strings | empty | Browser origins sent CORS headers, so a page served from one of them — a self-hosted wasm demo — can read the export. An origin is `scheme://host[:port]` with no path; `*` is refused. Empty sends no CORS header at all. See [Browser access](#browser-access). |
 
 ```yaml
@@ -138,6 +138,21 @@ first.
     two devices can read the token and every file the export serves. Bind it
     only on a network you trust — a home LAN, a VPN — never on a port reachable
     from the internet. TLS is not supported yet.
+
+### Token file location
+
+The server refuses to start when `token_file` is one of the files the export
+serves — inside a local shelf's root, under `books/`, `trash/`, `shelf.json` or
+`app/book-cache-*.json` — because anyone who can reach the export could then
+download the token. The error names the shelf and the path. Both paths are made
+absolute against the working directory and cleaned first, so
+`./shelf/../shelf/books/dav.token` is refused too. Elsewhere in the shelf root
+(`<lib_root>/app/dav.token`) or outside every shelf is fine; the default
+`./dav-export.token` is outside.
+
+The check compares paths, so it does not see a hard link to the token file
+placed inside a shelf; do not create one. A symlink there is harmless, since the
+export does not follow symlinks.
 
 ### Browser access
 
