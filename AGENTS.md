@@ -87,8 +87,7 @@ web builds; do not use it for Capacitor asset generation.
    (`docs/development/releasing.md`); a compatibility break also gets
    `breaking`.
 8. Report checks that were not run or could not pass; do not imply verification.
-9. Reply to the user in Traditional Chinese; keep commit messages, code
-   comments, and repository docs in English.
+9. Reply to the user in Traditional Chinese; keep commit messages, code comments, and repository docs in English.
 
 ## Required guidance
 
