@@ -40,6 +40,7 @@ type FS struct {
 }
 
 var _ fsutil.ReadFS = (*FS)(nil)
+var _ fsutil.ZipOpener = (*FS)(nil)
 
 // NewFS reads the folder at root, a slash-separated path from the account's
 // top level. Nothing is requested until first use.

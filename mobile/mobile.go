@@ -102,6 +102,18 @@ func Start(dataDir string) (err error) {
 }
 
 func start(dataDir string) (*instance, error) {
+	// Android's default /data/local/tmp is not writable by an ordinary app.
+	// Configure Go's temporary files before opening shelves or starting workers.
+	tmpDir, err := filepath.Abs(filepath.Join(dataDir, "tmp"))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	if err := os.MkdirAll(tmpDir, 0o700); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	if err := os.Setenv("TMPDIR", tmpDir); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	if err := os.MkdirAll(filepath.Join(dataDir, shelvesDir), 0o700); err != nil {
 		return nil, util.Errorf("%w", err)
 	}

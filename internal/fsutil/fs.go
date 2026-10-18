@@ -41,6 +41,13 @@ type ReadFS interface {
 	Stat(name string) (fs.FileInfo, error)
 }
 
+// ZipOpener optionally downloads files together, with each entry named by its
+// basename. Callers must close the returned stream. ErrUnsupported means the
+// caller should fall back to individual reads.
+type ZipOpener interface {
+	OpenZip(names ...string) (io.ReadCloser, error)
+}
+
 // FS is a common interface for file system operations.
 // It abstracts over different file system implementations, such as local file systems.
 type FS interface {
@@ -96,12 +103,20 @@ func Writable(rfs ReadFS) (FS, error) {
 // property of the value: every mutation behind it fails with ErrReadOnly
 // instead of reaching a filesystem that may not accept writes at all.
 func ReadOnly(rfs ReadFS) ReadFS {
+	if z, ok := rfs.(ZipOpener); ok {
+		return readOnlyZipFS{readOnlyFS{rfs}, z}
+	}
 	return readOnlyFS{rfs}
 }
 
 // readOnlyFS embeds the read half only, so it deliberately does not implement FS.
 type readOnlyFS struct {
 	ReadFS
+}
+
+type readOnlyZipFS struct {
+	readOnlyFS
+	ZipOpener
 }
 
 // NoFollowFS opens a path only when no component of it is a symlink.

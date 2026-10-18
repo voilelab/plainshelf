@@ -364,7 +364,11 @@ func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS, offlineDir string) (*Sh
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		dbRoot = offlineFS{remote: root, store: offline}
+		routed := offlineFS{remote: root, store: offline}
+		dbRoot = routed
+		if _, ok := root.(fsutil.ZipOpener); ok {
+			dbRoot = offlineZipFS{routed}
+		}
 		closeOffline = offline.close
 	}
 

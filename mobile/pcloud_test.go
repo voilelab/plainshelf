@@ -1,13 +1,17 @@
 package mobile
 
 import (
+	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -37,7 +41,11 @@ func servePCloudShelf(t *testing.T) (*pcloudtest.Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := book.NewSource(strings.NewReader("Dune text")); err != nil {
+	source, err := book.NewSource(strings.NewReader("Dune text"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.WriteAsset("dune.png", []byte("Dune illustration")); err != nil {
 		t.Fatal(err)
 	}
 	adult, err := s.NewBook(shelf.FolderPath{}, "Adult")
@@ -57,6 +65,72 @@ func servePCloudShelf(t *testing.T) (*pcloudtest.Server, string) {
 	pcloudHTTPClient = srv.Client()
 	t.Cleanup(func() { pcloudHTTPClient = nil })
 	return srv, book.ID()
+}
+
+func TestPCloudBundleUsesAppTempDirectory(t *testing.T) {
+	srv, bookID := servePCloudShelf(t)
+	dataDir := t.TempDir()
+	// A file cannot serve as a temp directory, even when tests run as root.
+	blocked := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", blocked)
+	startT(t, dataDir)
+	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t)
+	rt, err := running()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := rt.app.ShelfManager().GetShelf("pcloud-a")
+	if !ok {
+		t.Fatal("pCloud shelf missing")
+	}
+	book, err := s.GetBook(bookID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := book.ResolveCurrentSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.Take()
+	var bundle bytes.Buffer
+	zw := zip.NewWriter(&bundle)
+	if err := source.WriteAssetsToZip(zw, []string{"dune.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(bundle.Bytes()), int64(bundle.Len()))
+	if err != nil {
+		t.Fatalf("invalid bundle: %v", err)
+	}
+	if len(zr.File) != 1 || zr.File[0].Name != "dune.png" {
+		t.Fatalf("unexpected bundle entries: %v", zr.File)
+	}
+	file, err := zr.File[0].Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil || string(data) != "Dune illustration" {
+		t.Fatalf("illustration = %q, %v", data, err)
+	}
+	if got := srv.Take(); !slices.Equal(got, []string{"getziplink", "download"}) {
+		t.Fatalf("bundle requests = %v", got)
+	}
+	if want := filepath.Join(dataDir, "tmp"); os.TempDir() != want {
+		t.Fatalf("temp directory = %q, want %q", os.TempDir(), want)
+	}
+	if entries, err := os.ReadDir(os.TempDir()); err != nil || len(entries) != 0 {
+		t.Fatalf("temporary files left after bundle: %v, %v", entries, err)
+	}
 }
 
 func TestPCloudShelfIsServedAndKeptOffline(t *testing.T) {
