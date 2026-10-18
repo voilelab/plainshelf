@@ -153,8 +153,8 @@ Read the relevant section before working in that area. Add entries according to
   Only chromium is installable: the egress policy 403s `cdn.playwright.dev` and
   `playwright.download.prss.microsoft.com`, so `npx playwright install webkit`
   cannot be worked around locally — the nightly matrix (`E2E_BROWSERS`) can only
-  be exercised on a runner. Dispatch `nightly.yml` on the branch: since PSW-111
-  a `workflow_dispatch` checks out the ref it was dispatched from, and only the
+  be exercised on a runner. Dispatch `nightly.yml` on the branch: a
+  `workflow_dispatch` checks out the ref it was dispatched from, and only the
   scheduled run files the failure issue.
   (`e2e/playwright.config.ts`, `.github/workflows/nightly.yml`)
 - **WebKit has no constructible `Touch`:** `new Touch({…})` throws "Illegal
@@ -211,7 +211,7 @@ Read the relevant section before working in that area. Add entries according to
   build wrote still reads the same, so do not reach for the v1-compat decode
   options → json/v2's strict defaults are the decision. A hand-edited `"Title"`
   now reads as absent, and `setMeta` rewrites `book.json` whole, so the next
-  save drops it; that is accepted, and PSW-93's unknown-member passthrough is
+  save drops it; that is accepted, and a planned unknown-member passthrough is
   what changes it. Proposing a compatibility layer here has already been
   rejected once. (`internal/jsonopt/jsonopt.go`)
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
@@ -221,7 +221,7 @@ Read the relevant section before working in that area. Add entries according to
 ## Documentation
 
 - **Section inserted by text replacement:** replacing an existing heading with
-  "new section + that heading" dropped the heading twice in PSW-146 → only
+  "new section + that heading" has dropped the heading twice → only
   `configuration.md` has a test that notices (`server/conf_docs_test.go`), and
   no PR gate builds the docs (`docs.yml` runs at release). Run
   `mkdocs build --strict`, which fails on a broken in-page anchor since

@@ -1,19 +1,17 @@
 # Shelf Sources and Credentials
 
 !!! note "Implemented"
-    This page describes the source and credential model from
-    [PSW-140](https://patchouli.atlassian.net/browse/PSW-140).
-    The engine can open a virtual shelf (PSW-137) and keep it readable
-    offline ([Offline copies](#offline-copies), PSW-145). The server reads the
-    `source` block and resolves `env:` and `file:` credentials, and opens
-    `plainshelf` and `webdav` sources (PSW-149); the desktop and Android hosts
-    add them from their settings and resolve `host:` (PSW-161). It fixes the
-    configuration format and the credential model before `1.0.0-rc1`, because
-    both become compatibility promises at that point. Android's remaining
-    offline-layer consolidation is tracked by
-    [PSW-169](https://patchouli.atlassian.net/browse/PSW-169); the separate
-    platform interface remains planned in
-    [PSW-170](https://patchouli.atlassian.net/browse/PSW-170).
+    This page describes the source and credential model. The engine can
+    open a virtual shelf and keep it readable offline
+    ([Offline copies](#offline-copies)). The server reads the `source` block
+    and resolves `env:` and `file:` credentials, and opens `plainshelf` and
+    `webdav` sources; the desktop and Android hosts add them from their
+    settings and resolve `host:`. It fixes the configuration format and the
+    credential model before `1.0.0-rc1`, because both become compatibility
+    promises at that point. Android's remaining offline-layer consolidation
+    and the separate
+    [platform interface](platform-capabilities.md#the-platform-interface)
+    remain planned.
 
 A shelf is opened from a **source**: where its files are and how PlainShelf
 reaches them. A local shelf uses `lib_root` or an explicit local source;
@@ -259,7 +257,7 @@ API response.
 pCloud's `poll_token` flow needs no redirect URI and no app secret. Its only
 platform-specific step is opening the authorization URL in the system browser,
 which the host currently provides through its browser binding; the planned
-platform interface is tracked by PSW-170. Generating the
+[platform interface](platform-capabilities.md#the-platform-interface) will take it over. Generating the
 `request_id`, polling both regional hosts and recording `host` and `user_id`
 still run in TypeScript; the resulting token is written to the platform's
 secret store through the host, and the shelf entry stores only `host:<entryID>`.
@@ -364,7 +362,7 @@ the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
   `CLAUDE.md` currently limits pCloud to the Android client. Until that product
   decision changes, the server and desktop refuse `type: pcloud` at startup. No
   format change is needed to lift it.
-- **CORS on the export.** Settled (PSW-163): off by default, and on only for
+- **CORS on the export.** Settled: off by default, and on only for
   the origins `dav_export.allowed_origins` lists by name. A wildcard is refused,
   because the token is a bearer token in a header: with `*`, any web page that
   learned it could read every exported shelf. No credentials mode, since no
@@ -378,16 +376,16 @@ the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
 
 ---
 
-## What this changes in the follow-up tickets
+## How the rest of the system follows
 
-- **PSW-136 (Android local shelf).** The app's local shelf is a `local` source
+- **Android local shelf.** The app's local shelf is a `local` source
   under the app's private directory, with `lock_mode: none`. Shelf entries reach
   Go as JSON `ShelfConfWithID` through the plugin; the engine opens no listener
   for the UI and has no shelf-management route.
-- **PSW-137 (remote read-only `ReadFS`).** Done as `shelf.NewShelfFromFS`, which
+- **Remote read-only `ReadFS`.** Done as `shelf.NewShelfFromFS`, which
   opens any read-only `ReadFS` whatever `read_only` says. Building that
-  `ReadFS` from `SourceConf` moved to PSW-149, the first real remote source.
-- **PSW-138 (pCloud in Go).** The pCloud client reads `host`, `user_id`, `path`
+  `ReadFS` from `SourceConf` came with WebDAV, the first real remote source.
+- **pCloud in Go.** The pCloud client reads `host`, `user_id`, `path`
   and resolves `credential` through the host resolver; the Keystore key does not
   change. The offline layer's scope identity follows the table above. Done:
   `internal/pcloud` is a
@@ -399,18 +397,18 @@ the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
   Go offline layer: downloads the earlier TypeScript reader took stay where
   they are. Adult content follows the device's own
   choice, given to Go per shelf (`App.SetShelfShowNSFW`) so it does not become
-  the setting local shelves use. PSW-169 will move virtual-shelf downloads to
+  the setting local shelves use. A planned change will move virtual-shelf downloads to
   the Go offline layer; until then pCloud and dav entries retain both layers.
-- **PSW-139 (remove the TypeScript reader).** Done: the frontend parses no
+- **Removing the TypeScript reader.** Done: the frontend parses no
   shelf format. The app's pCloud setup asks Go whether a folder is a shelf and
   how many books it holds (`mobile.CheckPCloudShelf`, `mobile.ListPCloudFolder`);
   only authorization and the picker's path walk still call pCloud from
   TypeScript.
-- **PSW-145 (offline copies).** Done as described in
+- **Offline copies.** Done as described in
   [Offline copies](#offline-copies). The engine takes the offline directory as
   a parameter; on the server the scope that names it comes from
-  `SourceConf.Scope` (PSW-149).
-- **PSW-146, PSW-149.** The server-mode export is the top-level
+  `SourceConf.Scope`.
+- **WebDAV export and source.** The server-mode export is the top-level
   [`dav_export`](../reference/configuration.md#dav_export) section; its token
   file is what a `plainshelf` source's `credential: file:…` points at on the
   other machine. Done on the server: `internal/davfs` is a read-only `ReadFS`
@@ -420,7 +418,7 @@ the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
   `AppConf.Credentials`, and files offline copies under the scope above. A 401
   answers `SOURCE_UNAUTHORIZED` and an unreachable remote `SOURCE_UNAVAILABLE`.
   None of them adds configuration keys of its own for the same purpose.
-- **PSW-161 (desktop and Android hosts).** Done. The desktop resolves `host:<shelf
+- **Desktop and Android hosts.** Done. The desktop resolves `host:<shelf
   id>` from the OS keychain and the Android app `host:<entry id>` from the
   Keystore through a native `mobile.SecretStore`; both hand every other scheme
   to `server.DefaultCredentialResolver`. Their add-shelf forms check the source

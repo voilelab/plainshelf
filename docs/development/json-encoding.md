@@ -5,8 +5,7 @@ what the conversion followed and what new code follows: which option set a call
 site marshals with, what each v1 API becomes, and which v2 defaults are adopted
 on purpose.
 
-Written for PSW-95. The conversion is complete: since PSW-99 no file in the
-repository imports `encoding/json`, so a call site copied from anywhere else is
+The conversion is complete: no file in the repository imports `encoding/json`, so a call site copied from anywhere else is
 already v2.
 
 ---
@@ -112,12 +111,12 @@ wrote and a v2 build reads.
 | v2 default | Effect here | Decision |
 |---|---|---|
 | Map entries in unspecified order | Defeats the three "unchanged, do not rewrite" checks above | **Override.** `Deterministic(true)` in all three sets |
-| `nil` slice and map encode as `[]` and `{}` | Settles the `"authors": null` question PSW-35 left open; a dozen or so API fields stop returning `null`. The Android pCloud reader already accepts both | **Adopt** (PSW-97, PSW-98). See [the API's array contract](#the-apis-array-contract) |
-| `<`, `>`, `&` are not escaped | An escape sequence in a file whose selling point is that a text editor shows what you typed is a defect. On disk only golden fixtures change; the two places that inject JSON into an inline `<script>` escape `<` themselves (see below) | **Adopt** (PSW-97, PSW-100) |
-| Object names match case-sensitively | A hand-edited `"Title"` stops being read, and `setMeta` rewrites the file whole, so the next save drops it. The unknown-member passthrough PSW-93 wants is what turns that into a preserved field | **Adopt** (PSW-97). Documented by PSW-99; the passthrough that stops the loss is still PSW-93's |
-| Duplicate object members rejected | Pure gain for a hand-editable format, provided the error names the file and the member | **Adopt** (PSW-97). PSW-99 added the file name: see `bookpkg.MalformedMetadataError` |
-| Invalid UTF-8 rejected | Same | **Adopt** (PSW-97), reported the same way |
-| `omitempty` means "would encode as null, empty string, empty object or empty array" | Every use is on a string, slice, map or pointer field; PSW-40 already moved the bool and int fields to `omitzero` | **Adopt.** No visible change |
+| `nil` slice and map encode as `[]` and `{}` | Settles the `"authors": null` question that had been left open; a dozen or so API fields stop returning `null`. The Android pCloud reader already accepts both | **Adopt.** See [the API's array contract](#the-apis-array-contract) |
+| `<`, `>`, `&` are not escaped | An escape sequence in a file whose selling point is that a text editor shows what you typed is a defect. On disk only golden fixtures change; the two places that inject JSON into an inline `<script>` escape `<` themselves (see below) | **Adopt** |
+| Object names match case-sensitively | A hand-edited `"Title"` stops being read, and `setMeta` rewrites the file whole, so the next save drops it. A planned unknown-member passthrough is what would turn that into a preserved field | **Adopt.** Documented in the data-format page; the passthrough that stops the loss is not built yet |
+| Duplicate object members rejected | Pure gain for a hand-editable format, provided the error names the file and the member | **Adopt.** The error names the file: see `bookpkg.MalformedMetadataError` |
+| Invalid UTF-8 rejected | Same | **Adopt**, reported the same way |
+| `omitempty` means "would encode as null, empty string, empty object or empty array" | Every use is on a string, slice, map or pointer field; the bool and int fields already use `omitzero` | **Adopt.** No visible change |
 
 Not done, deliberately:
 
@@ -202,11 +201,11 @@ cache miss rather than a failure.
 
 ---
 
-## Left for the conversion tickets
+## Left open
 
 - The `json:"…"` struct tags need no edits. v2 reads the same tag syntax,
   including `omitempty` and `omitzero`.
-- The unknown-member passthrough is not built. Until PSW-93 lands, a key outside
+- The unknown-member passthrough is not built. Until it is, a key outside
   the schema — including a `"Title"` that case-sensitive matching turned into
   one — is dropped by the next write to that book. `docs/concepts/data-format-versioning.md`
   is what tells a user so.

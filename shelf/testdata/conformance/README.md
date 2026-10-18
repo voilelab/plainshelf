@@ -2,7 +2,7 @@
 
 The Go shelf in `shelf/` is the only reader of the on-disk book package format:
 every server and desktop build, and the Android app, which reads a pCloud shelf
-through the Go shelf embedded in it. Until PSW-139 the app carried a second,
+through the Go shelf embedded in it. The app once carried a second,
 TypeScript reader, and this dataset was the fixture that kept the two in step.
 
 It now pins the Go reading of each case to a file written by hand from the
