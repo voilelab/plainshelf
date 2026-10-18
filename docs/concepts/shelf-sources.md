@@ -1,22 +1,26 @@
 # Shelf Sources and Credentials
 
-!!! note "Design, partly implemented"
-    This page is the agreed design for [PSW-140](https://patchouli.atlassian.net/browse/PSW-140).
+!!! note "Implemented"
+    This page describes the source and credential model from
+    [PSW-140](https://patchouli.atlassian.net/browse/PSW-140).
     The engine can open a virtual shelf (PSW-137) and keep it readable
     offline ([Offline copies](#offline-copies), PSW-145). The server reads the
     `source` block and resolves `env:` and `file:` credentials, and opens
     `plainshelf` and `webdav` sources (PSW-149); the desktop and Android hosts
     add them from their settings and resolve `host:` (PSW-161). It fixes the
     configuration format and the credential model before `1.0.0-rc1`, because
-    both become compatibility promises at that point. The implementation lands
-    through the tickets listed in [What this changes in the follow-up
-    tickets](#what-this-changes-in-the-follow-up-tickets).
+    both become compatibility promises at that point. Android's remaining
+    offline-layer consolidation is tracked by
+    [PSW-169](https://patchouli.atlassian.net/browse/PSW-169); the separate
+    platform interface remains planned in
+    [PSW-170](https://patchouli.atlassian.net/browse/PSW-170).
 
 A shelf is opened from a **source**: where its files are and how PlainShelf
-reaches them. Today every shelf is a local directory named by `lib_root`, and
-the Android client reads pCloud through the engine embedded in the app. This page
-defines one source format that the server, the desktop app, the Android app and
-the wasm demo all share, and how a source that needs a secret gets it.
+reaches them. A local shelf uses `lib_root` or an explicit local source;
+virtual shelves use remote sources opened by the same Go engine, including
+the one embedded in the Android app. This page describes the source format
+shared by the server, desktop, Android and wasm hosts, and how a source that
+needs a secret gets it.
 
 ---
 
@@ -154,11 +158,9 @@ being ignored, so a typo cannot silently open the wrong thing.
 - **The tuning keys still apply.** `scan_interval`, `book_check_interval` and
   `scan_cache` keep their meaning; a virtual source makes them more important,
   since every listing is a network request.
-- **The source never reaches the HTTP API.** `GET /api/shelves` returns `id`,
-  `name` and `read_only` today and does not return `lib_root`; it will not
-  return `source` either. What the UI needs to know about a shelf (local or
-  virtual, whether it can download) is reported as capability fields, designed
-  in [PSW-141](https://patchouli.atlassian.net/browse/PSW-141).
+- **The source never reaches the HTTP API.** `GET /api/shelves` returns shelf
+  identity and capability fields, but neither `lib_root` nor `source`. See
+  [Shelf and Platform Capabilities](platform-capabilities.md#shelf-capabilities).
 
 ### From a LAN share QR code
 
@@ -256,10 +258,11 @@ API response.
 
 pCloud's `poll_token` flow needs no redirect URI and no app secret. Its only
 platform-specific step is opening the authorization URL in the system browser,
-which the host provides as a platform capability (PSW-141). Generating the
-`request_id`, polling both regional hosts and recording `host` and `user_id` run
-in Go; the resulting token is written to the platform's secret store through the
-host, and the shelf entry stores only `host:<entryID>`.
+which the host currently provides through its browser binding; the planned
+platform interface is tracked by PSW-170. Generating the
+`request_id`, polling both regional hosts and recording `host` and `user_id`
+still run in TypeScript; the resulting token is written to the platform's
+secret store through the host, and the shelf entry stores only `host:<entryID>`.
 
 ### The `local_token` boundary does not move
 
@@ -389,14 +392,15 @@ the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
   change. The offline layer's scope identity follows the table above. Done:
   `internal/pcloud` is a
   read-only `ReadFS` over the pCloud API, and the app opens its pCloud entry
-  with `mobile.OpenPCloudShelf`. Until the resolver exists the native side reads
+  with `mobile.OpenPCloudShelf`. The native side reads
   the token from the Keystore and passes it on every start; Go holds it in
   memory only. The entry keeps its cache scope, and its downloads, reading
   progress and history stay in the app's own cache and are not moved into the
   Go offline layer: downloads the earlier TypeScript reader took stay where
   they are. Adult content follows the device's own
   choice, given to Go per shelf (`App.SetShelfShowNSFW`) so it does not become
-  the setting local shelves use.
+  the setting local shelves use. PSW-169 will move virtual-shelf downloads to
+  the Go offline layer; until then pCloud and dav entries retain both layers.
 - **PSW-139 (remove the TypeScript reader).** Done: the frontend parses no
   shelf format. The app's pCloud setup asks Go whether a folder is a shelf and
   how many books it holds (`mobile.CheckPCloudShelf`, `mobile.ListPCloudFolder`);

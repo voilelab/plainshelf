@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="plainshelf-architecture-title plainshelf-architecture-desc">
       <title id="plainshelf-architecture-title">PlainShelf System Architecture</title>
-      <desc id="plainshelf-architecture-desc">Web, desktop, and Android clients reach a local Go server behind a local-token boundary, where a shelf manager keeps an in-memory book cache over the shelf filesystem that holds the library; a separate key-value store holds app settings, and the Android client can also read a pCloud-hosted shelf directly as a read-only backend.</desc>
+      <desc id="plainshelf-architecture-desc">Browser clients reach the Go server over HTTP; desktop and Android clients use an embedded server in-process, and Android can also connect to an external server over HTTP. The Go engine manages local shelf files and read-only virtual sources (WebDAV, or pCloud on Android). A separate key-value store holds application settings. Desktop and Android LAN sharing opens an optional, separate read-only WebDAV listener.</desc>
       <defs>
         <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#66758a"/></marker>
         <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#1f6feb"/></marker>
@@ -14,8 +14,8 @@
       <text x="84" y="53" fill="rgba(20,32,51,0.40)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.14em">CLIENTS</text>
 
       <rect x="288" y="176" width="552" height="224" rx="8" fill="rgba(31,111,235,0.05)" stroke="rgba(31,111,235,0.50)" stroke-width="0.8" stroke-dasharray="4,4"/>
-      <rect x="688" y="180" width="140" height="12" rx="2" fill="#f4f6f8"/>
-      <text x="758" y="189" fill="rgba(31,111,235,0.85)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.14em">GO SERVER &#183; LOCAL_TOKEN</text>
+      <rect x="652" y="180" width="176" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="740" y="189" fill="rgba(31,111,235,0.85)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.14em">GO SERVER &#183; TOKEN ON HTTP API</text>
 
       <rect x="40" y="408" width="880" height="104" rx="8" fill="rgba(20,32,51,0.02)" stroke="rgba(20,32,51,0.10)" stroke-width="0.8"/>
       <rect x="52" y="412" width="64" height="12" rx="2" fill="#f4f6f8"/>
@@ -33,10 +33,10 @@
 
       <path d="M 768,128 V 160 Q 768,168 760,168 H 578 Q 570,168 570,176 V 208" fill="none" stroke="#66758a" stroke-width="1.2" marker-end="url(#arrow)"/>
 
-      <rect x="776" y="136" width="40" height="12" rx="2" fill="#f4f6f8"/>
-      <text x="776" y="144" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="start" letter-spacing="0.06em">HTTP</text>
+      <rect x="776" y="136" width="136" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="776" y="144" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="start" letter-spacing="0.06em">IN-PROCESS / HTTP</text>
 
-      <path d="M 856,128 V 440" fill="none" stroke="#66758a" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M 600,368 H 632 Q 640,368 640,376 V 400 Q 640,408 648,408 H 780 Q 788,408 788,416 V 440" fill="none" stroke="#66758a" stroke-width="1.2" marker-end="url(#arrow)"/>
 
       <rect x="792" y="416" width="56" height="12" rx="2" fill="#f4f6f8"/>
       <text x="820" y="424" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.06em">READ-ONLY</text>
@@ -126,8 +126,8 @@
       <rect x="680" y="440" width="216" height="56" rx="6" fill="rgba(20,32,51,0.03)" stroke="rgba(20,32,51,0.30)" stroke-width="1"/>
       <rect x="688" y="446" width="44" height="12" rx="2" fill="transparent" stroke="rgba(20,32,51,0.30)" stroke-width="0.8"/>
       <text x="710" y="455" fill="rgba(20,32,51,0.60)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">CLOUD</text>
-      <text x="788" y="476" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">pCloud shelf</text>
-      <text x="788" y="489" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">read-only backend</text>
+      <text x="788" y="476" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">Virtual shelf</text>
+      <text x="788" y="489" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">WebDAV / pCloud (Android)</text>
 
       <line x1="40" y1="532" x2="920" y2="532" stroke="rgba(20,32,51,0.12)" stroke-width="0.8"/>
       <text x="40" y="560" fill="#66758a" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" letter-spacing="0.14em">LEGEND</text>

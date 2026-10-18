@@ -7,9 +7,8 @@ import type { DavShelfEntry, PCloudShelfEntry } from './mobileConfig';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 
 /**
- * A pCloud shelf read through the embedded Go server (mobile/) instead of the
- * TypeScript reader in api/pcloud. A dav entry (another PlainShelf's LAN share,
- * or WebDAV) is read the same way, through Go's own source client.
+ * pCloud and dav entries (another PlainShelf's LAN share, or WebDAV) are read
+ * through the embedded Go server (mobile/), using Go's source clients.
  *
  * The API client keeps the entry's `pcloud://` base and shelf root, because
  * those are the cache scope (cacheScope.ts) that downloads, reading progress
@@ -148,9 +147,9 @@ export async function embeddedPCloudFetch(input: RequestInfo | URL, init?: Reque
 }
 
 /**
- * The reader MobileBookshelfProvider wraps for a pCloud entry. The adult-content
- * choice stays the device's, as it was with the TypeScript reader: Go applies
- * it, and the offline cache applies it again to downloads.
+ * The reader MobileBookshelfProvider wraps for a pCloud or dav entry. Go
+ * applies the device's adult-content choice, and the offline cache applies
+ * it again to downloads.
  */
 export class EmbeddedPCloudReader extends ServerBookshelfProvider {
   filtersNsfwOnDevice(): boolean {
