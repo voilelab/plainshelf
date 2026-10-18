@@ -207,14 +207,42 @@ read-only, to other devices on the same network. It is the server's
   on the export, the same as one that does not exist.
 - The page shows the address (`http://<LAN IP>:20001/dav/`, one shelf per
   `/dav/<shelf id>/`), the token every request must carry, and a QR code
-  holding both as `{"url":"…","token":"…"}`. **Replace token** revokes the old
-  one at once.
+  holding both plus every ticked shelf (see [the QR code](#the-qr-code)).
+  **Replace token** revokes the old one at once.
 - It binds one LAN address, never every interface; with more than one network
   the page lets you choose which. If that address is gone at the next start,
   the switch stays on and the page says why it is not running.
 - The switch, the ticked shelves and the token are kept in the app's data
   directory (`lan_share.json`, `lan_share.token`), not in any shelf, and
   survive a restart. The port is `20001` unless `lan_share.json` sets `port`.
+
+### The QR code
+
+The QR code is JSON, and its shape is a promise between devices:
+
+```json
+{
+  "v": 1,
+  "url": "http://192.168.1.20:20001/dav/",
+  "token": "…",
+  "shelves": [
+    {"id": "default_shelf", "name": "Default Shelf", "url": "http://192.168.1.20:20001/dav/default_shelf/"}
+  ]
+}
+```
+
+- `v` is the format version. A device reading the code must refuse any value
+  other than `1` instead of guessing at the fields.
+- `shelves` lists only the ticked shelves, in the order of the shelf list, and
+  is `[]` when none is ticked. Each `url` opens that shelf on its own, so a
+  scanner needs nothing else; the export root `url` itself lists nothing (404).
+- The token is only ever in `token`, never in a URL. Send it as
+  `Authorization: Bearer <token>`.
+- Ticking or unticking a shelf, replacing the token, or changing the address
+  changes the code; scan it again afterwards.
+- A QR code holds about 2 KB, roughly 18 shelves with short names; past that
+  the page shows an error instead of the code. The address and token are still
+  shown, so add the shelves by hand, or share fewer at a time.
 
 The first time it is turned on, the operating system's firewall may ask whether
 PlainShelf may accept incoming connections; allow it on private networks only.

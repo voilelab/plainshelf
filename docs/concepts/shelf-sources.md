@@ -160,6 +160,14 @@ being ignored, so a typo cannot silently open the wrong thing.
   virtual, whether it can download) is reported as capability fields, designed
   in [PSW-141](https://patchouli.atlassian.net/browse/PSW-141).
 
+### From a LAN share QR code
+
+The desktop app's LAN share QR code
+([format](../configuring-local-shelf.md#the-qr-code)) holds one entry per
+shared shelf. Each maps to a `plainshelf` source with `url` set to the entry's
+`url`; the code's `token` is stored as the secret behind `credential`, never
+written into the entry. A code whose `v` is not `1` is refused.
+
 ### In Go
 
 ```go

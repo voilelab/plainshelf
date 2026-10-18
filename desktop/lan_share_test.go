@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -175,6 +176,61 @@ func TestLANShareStartStop(t *testing.T) {
 		t.Fatalf("port not released: %v", err)
 	}
 	ln.Close()
+}
+
+func TestLANShareQRPayload(t *testing.T) {
+	env := newLANShareEnv(t)
+	st, err := env.share.apply(LANShareParams{Enabled: true, ShelfIDs: []string{"a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := json.Marshal(newLANShareQRPayload(st), jsonopt.API())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		V       int    `json:"v"`
+		URL     string `json:"url"`
+		Token   string `json:"token"`
+		Shelves []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"shelves"`
+	}
+	if err := json.Unmarshal(text, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.V != 1 || got.URL != st.URL || got.Token != st.Token {
+		t.Fatalf("payload = %s", text)
+	}
+	// Only the ticked shelf, opened by its own URL.
+	if len(got.Shelves) != 1 || got.Shelves[0].ID != "a" || got.Shelves[0].Name != "Shelf a" || got.Shelves[0].URL != st.URL+"a/" {
+		t.Fatalf("shelves = %s", text)
+	}
+	if strings.Contains(string(text), `"b"`) || strings.Contains(string(text), "Shelf b") {
+		t.Errorf("unticked shelf in payload: %s", text)
+	}
+	for _, u := range []string{got.URL, got.Shelves[0].URL} {
+		if strings.Contains(u, got.Token) {
+			t.Errorf("token in URL %q", u)
+		}
+	}
+	if code := lanGet(t, st, "a/", got.Token); code != http.StatusMultiStatus {
+		t.Errorf("PROPFIND shelf URL = %d, want 207", code)
+	}
+
+	st, err = env.share.apply(LANShareParams{Enabled: true, ShelfIDs: []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err = json.Marshal(newLANShareQRPayload(st), jsonopt.API())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(text), `"shelves":[]`) {
+		t.Errorf("payload with nothing ticked = %s, want empty shelves", text)
+	}
 }
 
 func TestLANShareSurvivesRestart(t *testing.T) {
