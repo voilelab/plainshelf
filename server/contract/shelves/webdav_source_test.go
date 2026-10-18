@@ -158,8 +158,8 @@ func TestAPIPlainShelfSourceRequestsDoNotGrowWithBooksContract(t *testing.T) {
 	}
 }
 
-// A refused token and an unreachable exporter answer different codes, so the
-// UI can say which one to fix.
+// A refused token, an unreachable exporter and a shelf the exporter does not
+// share answer different codes, so the UI can say which one to fix.
 func TestAPIPlainShelfSourceErrorsContract(t *testing.T) {
 	exporter := newDAVExporter(t)
 	exporter.seed(t, "Dune")
@@ -178,6 +178,13 @@ func TestAPIPlainShelfSourceErrorsContract(t *testing.T) {
 	offline := newFailingRemote(t, src)
 	rec = offline.Get(apitest.ShelfIDURL(remoteShelfID, "books"))
 	apitest.AssertErrorEnvelope(t, rec, http.StatusServiceUnavailable, "SOURCE_UNAVAILABLE", "the shelf source is unavailable")
+
+	// A mistyped URL and an unshared shelf both answer 404; not an empty shelf.
+	unshared := exporter.source("file:" + exporter.tokenFile)
+	unshared.URL = exporter.srv.URL + "/dav/not-shared/"
+	missing := newFailingRemote(t, unshared)
+	rec = missing.Get(apitest.ShelfIDURL(remoteShelfID, "books"))
+	apitest.AssertErrorEnvelope(t, rec, http.StatusServiceUnavailable, "NOT_A_SHELF", "the shelf source is not a shelf: it has no books/ directory")
 }
 
 // newFailingRemote opens a remote shelf whose first listing fails, waiting for

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -342,5 +343,132 @@ func TestRemoteShelfPicksUpAReexportInTheSameSecond(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 	if got, want := listedTitles(t, s), []string{"Dune", "Hyperion", "Solaris"}; !slices.Equal(got, want) {
 		t.Errorf("after a re-export in the same second, listed %v, want %v", got, want)
+	}
+}
+
+// goneFS stands in for a source whose folder is gone, as davfs reports a 404:
+// every call fails with fs.ErrNotExist while gone is set.
+type goneFS struct {
+	inner fsutil.ReadFS
+	gone  atomic.Bool
+}
+
+func (f *goneFS) check(op, name string) error {
+	if f.gone.Load() {
+		return &fs.PathError{Op: op, Path: name, Err: fs.ErrNotExist}
+	}
+	return nil
+}
+
+func (f *goneFS) Open(name string) (fs.File, error) {
+	if err := f.check("open", name); err != nil {
+		return nil, err
+	}
+	return f.inner.Open(name)
+}
+
+func (f *goneFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if err := f.check("readdir", name); err != nil {
+		return nil, err
+	}
+	return f.inner.ReadDir(name)
+}
+
+func (f *goneFS) Stat(name string) (fs.FileInfo, error) {
+	if err := f.check("stat", name); err != nil {
+		return nil, err
+	}
+	return f.inner.Stat(name)
+}
+
+// openGoneShelf opens libRoot through a goneFS, gone from the start when gone
+// is set, and waits for the first listing whatever its outcome.
+func openGoneShelf(t *testing.T, libRoot string, gone bool) (*Shelf, *goneFS, error) {
+	t.Helper()
+
+	rt, err := os.OpenRoot(libRoot)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	t.Cleanup(func() { rt.Close() })
+
+	source := &goneFS{inner: fsutil.NewRootFS(rt)}
+	source.gone.Store(gone)
+	s, err := NewShelfFromFS(&ShelfConf{ScanInterval: "1ms", BookCheckInterval: "1ms"}, source, "")
+	if err != nil {
+		t.Fatalf("NewShelfFromFS: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s, source, s.WaitReady(t.Context())
+}
+
+func TestRemoteShelfWithMissingRootIsNotAShelf(t *testing.T) {
+	cases := map[string]struct {
+		libRoot string
+		gone    bool
+	}{
+		"missing root":  {libRoot: seedExportedShelf(t, "Dune"), gone: true},
+		"missing books": {libRoot: t.TempDir()},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			s, source, err := openGoneShelf(t, tc.libRoot, tc.gone)
+			if !errors.Is(err, ErrNotAShelf) {
+				t.Fatalf("WaitReady = %v, want %v", err, ErrNotAShelf)
+			}
+			if s.IsReady() {
+				t.Error("IsReady() = true for a source that is not a shelf")
+			}
+			if _, err := s.ListBooks(); !errors.Is(err, ErrNotAShelf) {
+				t.Errorf("ListBooks error = %v, want %v", err, ErrNotAShelf)
+			}
+
+			// The share coming back is picked up without a restart.
+			if !tc.gone {
+				return
+			}
+			source.gone.Store(false)
+			if _, err := s.RescanUnthrottled(); err != nil {
+				t.Fatalf("Rescan after the source came back: %v", err)
+			}
+			if got, want := listedTitles(t, s), []string{"Dune"}; !slices.Equal(got, want) {
+				t.Errorf("listed %v after the source came back, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestRemoteShelfWithEmptyBooksOpensEmpty(t *testing.T) {
+	libRoot := t.TempDir()
+	if err := os.Mkdir(path.Join(libRoot, booksFolder), 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+
+	s, _, err := openGoneShelf(t, libRoot, false)
+	if err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
+	if got := listedTitles(t, s); len(got) != 0 {
+		t.Errorf("listed %v, want an empty shelf", got)
+	}
+}
+
+func TestRemoteShelfKeepsListingWhenSourceDisappears(t *testing.T) {
+	libRoot := seedExportedShelf(t, "Dune", "Solaris")
+	s, source, err := openGoneShelf(t, libRoot, false)
+	if err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
+
+	source.gone.Store(true)
+	time.Sleep(5 * time.Millisecond)
+	if got, want := listedTitles(t, s), []string{"Dune", "Solaris"}; !slices.Equal(got, want) {
+		t.Errorf("listing after the source disappeared = %v, want %v", got, want)
+	}
+	if _, err := s.RescanUnthrottled(); !errors.Is(err, ErrNotAShelf) {
+		t.Errorf("rescan error = %v, want %v", err, ErrNotAShelf)
+	}
+	if got, want := listedTitles(t, s), []string{"Dune", "Solaris"}; !slices.Equal(got, want) {
+		t.Errorf("listing after a rescan of the missing source = %v, want %v", got, want)
 	}
 }

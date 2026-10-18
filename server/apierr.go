@@ -125,6 +125,13 @@ var apiErrorTable = []struct {
 		status:  http.StatusServiceUnavailable,
 		message: "the shelf source refused the credential",
 	}},
+	// A virtual shelf whose folder is gone: a wrong URL, or a share that was
+	// revoked or moved. Same code as CheckSource's answer for it.
+	{shelf.ErrNotAShelf, apiError{
+		code:    SourceCheckNotAShelf,
+		status:  http.StatusServiceUnavailable,
+		message: "the shelf source is not a shelf: it has no books/ directory",
+	}},
 	// Before ErrSourceUnavailable, which it wraps: inside a book the refusal
 	// says what would have helped.
 	{shelf.ErrBookNotDownloaded, apiError{

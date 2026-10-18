@@ -331,7 +331,10 @@ remote has one, and kept readable offline from copies under `store_path`. See
 A key that does not belong to the declared `type` fails startup, as does a
 credential that is not a reference or names nothing. A remote that cannot be
 reached does not stop the server: the shelf answers `SOURCE_UNAVAILABLE`, or
-`SOURCE_UNAUTHORIZED` when the remote refuses the credential, until it can.
+`SOURCE_UNAUTHORIZED` when the remote refuses the credential, until it can. A
+`url` the remote answers 404 for (a typo, a shelf that is no longer shared, a
+moved folder) answers `NOT_A_SHELF` rather than an empty shelf; a shelf already
+listed keeps its books and offline snapshot until the folder is back.
 
 ```yaml
 shelves:

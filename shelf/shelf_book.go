@@ -362,6 +362,16 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 	// unreachable directory would publish an empty shelf.
 	root := s.walkRoot()
 	var unavailable error
+
+	// A missing books/ on a virtual shelf is a wrong URL or a revoked share,
+	// which davfs reports as fs.ErrNotExist; listing it as empty would replace
+	// the shelf's books and its offline snapshot with nothing.
+	notAShelf := false
+	stopIfNotAShelf := func(pth string) {
+		if s.remote && pth == booksFolder {
+			notAShelf, skipAll = true, true
+		}
+	}
 	stopIfUnavailable := func(err error) bool {
 		if errors.Is(err, fsutil.ErrSourceUnavailable) {
 			unavailable, skipAll = err, true
@@ -389,11 +399,14 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 			}
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to stat path during book scan", "path", pth, "error", err)
+			} else {
+				stopIfNotAShelf(pth)
 			}
 			return
 		}
 
 		if !isDir {
+			stopIfNotAShelf(pth)
 			return
 		}
 
@@ -437,6 +450,8 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 			}
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to read directory during book scan", "path", pth, "error", err)
+			} else {
+				stopIfNotAShelf(pth)
 			}
 			return
 		}
@@ -451,6 +466,9 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 	stats := walk.Install(!skipAll)
 	if unavailable != nil {
 		return stats, util.Errorf("%w", unavailable)
+	}
+	if notAShelf {
+		return stats, util.Errorf("%w", ErrNotAShelf)
 	}
 	return stats, nil
 }
