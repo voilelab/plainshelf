@@ -108,3 +108,5 @@ describe('useLibraryImport', () => {
     expect(reloadAfterImport).toHaveBeenCalledTimes(1);
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ openLocalBookFiles: mocks.openLocalBookFiles }) }));

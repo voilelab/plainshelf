@@ -188,7 +188,7 @@
           >{{ t('library.search') }}</button>
         </div>
         <div class="toolbar-actions-group">
-          <div v-if="shelfRefresh.supported" class="toolbar-bar shelf-refresh-bar">
+          <div v-if="shelfRefresh.supported.value" class="toolbar-bar shelf-refresh-bar">
             <button
               type="button"
               class="button toolbar-control toolbar-button toolbar-regular shelf-refresh-button"
@@ -234,6 +234,7 @@
 </template>
 
 <script setup lang="ts">
+import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
@@ -347,7 +348,7 @@ const charCountIndex = useCharCountIndex();
 // there too. A phone pointed at a self-hosted server is not in that position,
 // so it keeps the filter.
 const charCountFilterSupported = computed(
-  () => getBookshelfProvider().supportsCharCountListing?.() !== false
+  () => useShelfCapabilities().charCount.value
 );
 
 async function reloadBooks(): Promise<void> {
@@ -383,7 +384,7 @@ const shelfRefresh = useShelfRefresh();
 // walk found in a toast instead, so that a count of five digits cannot widen
 // the toolbar.
 const lastSyncedLabel = computed(() => {
-  if (!shelfRefresh.tracksLastSynced) {
+  if (!shelfRefresh.tracksLastSynced.value) {
     return '';
   }
   return shelfRefresh.lastSyncedAt.value === null

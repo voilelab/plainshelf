@@ -118,6 +118,7 @@ export function useShelvesStore() {
     error,
     selectedShelfID,
     selectedShelfReadOnly,
+    selectedShelf: computed(() => shelves.value.find((shelf) => shelf.id === selectedShelfID.value)),
     transferDestinationShelves,
     fetchShelves,
     ensureShelvesLoaded,

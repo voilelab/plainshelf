@@ -1,7 +1,5 @@
-import { Capacitor } from '@capacitor/core';
-import { exportMobileBookContent } from './mobileBookExport';
 import { downloadOfflineBook, removeOfflineBook, listOfflineBooks } from '@/api/books';
-import { fetchJson, getActiveShelfID, getApiBase } from '@/api/client';
+import { getActiveShelfID, getApiBase } from '@/api/client';
 import type { DownloadState } from '@/types/book';
 import type { BookshelfReader } from './bookshelfProvider';
 import { ShelfVisibility } from './shelfVisibility';
@@ -23,7 +21,7 @@ import { ServerBookshelfProvider } from './serverBookshelfProvider';
  */
 
 /** The Go shelf the active pCloud entry is opened as; one entry is active per app run. */
-const EMBEDDED_PCLOUD_SHELF_ID = 'pcloud';
+export const EMBEDDED_PCLOUD_SHELF_ID = 'pcloud';
 
 /** The device choice Go was last given, or null before the shelf is open. */
 let pushedShowNsfw: boolean | null = null;
@@ -182,21 +180,7 @@ export class EmbeddedPCloudReader implements BookshelfReader {
   getSourceContent = this.reader.getSourceContent.bind(this.reader);
   getSourceAsset = this.reader.getSourceAsset.bind(this.reader);
   getSourceAssetsBundle = this.reader.getSourceAssetsBundle.bind(this.reader);
-  supportsShelfRefresh = this.reader.supportsShelfRefresh.bind(this.reader);
   refreshShelf = this.reader.refreshShelf.bind(this.reader);
-
-  coversMustBeFetchedAsBlob(): boolean {
-    return true;
-  }
-
-  saveBookContentToFile?: (bookId: string, suggestedName: string) => Promise<string>;
-
-  constructor() {
-    if (Capacitor.isNativePlatform()) {
-      this.saveBookContentToFile = async (bookId, suggestedName) =>
-        exportMobileBookContent(await this.downloadBookContent(bookId), suggestedName);
-    }
-  }
 
   downloadBook = downloadOfflineBook;
   removeDownload = removeOfflineBook;
@@ -210,18 +194,8 @@ export class EmbeddedPCloudReader implements BookshelfReader {
     return (await this.getBook(bookId)).download_state ?? 'not_downloaded';
   }
 
-  async supportsDownloads(): Promise<boolean> {
-    const infos = await fetchJson<Array<{ id: string; capabilities: { download: boolean } }>>('/api/shelves');
-    return infos.find((info) => info.id === EMBEDDED_PCLOUD_SHELF_ID)?.capabilities.download === true;
-  }
-
   filtersNsfwOnDevice(): boolean {
     return true;
-  }
-
-  /** Go would read every book's source meta.json over pCloud for one listing. */
-  supportsCharCountListing(): boolean {
-    return false;
   }
 
   /** From Go, which holds them for every book, hidden or not. */

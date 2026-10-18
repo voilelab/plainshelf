@@ -1,3 +1,4 @@
+import { useShelfCapabilities } from './useShelfCapabilities';
 import { computed, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import type { DownloadState } from '@/types/book';
@@ -16,24 +17,23 @@ import { t } from '@/i18n';
  * disable/hide the control.
  */
 export function useOfflineDownload(bookId: () => string) {
+  const capability = useShelfCapabilities();
   const state = ref<DownloadState>('not_downloaded');
   const error = ref('');
-  const engineSupported = ref(true);
 
   const supported = computed(() => {
     const provider = getBookshelfProvider();
-    return engineSupported.value && Boolean(provider.downloadBook && provider.removeDownload && provider.getDownloadState);
+    return capability.download.value && Boolean(provider.downloadBook && provider.removeDownload && provider.getDownloadState);
   });
 
   async function refresh(): Promise<void> {
     const provider = getBookshelfProvider();
-    if (!provider.getDownloadState) {
+    if (!supported.value || !provider.getDownloadState) {
       state.value = 'not_downloaded';
       return;
     }
 
     try {
-      engineSupported.value = await provider.supportsDownloads?.() ?? true;
       state.value = await provider.getDownloadState(bookId());
     } catch {
       state.value = 'not_downloaded';
@@ -42,7 +42,7 @@ export function useOfflineDownload(bookId: () => string) {
 
   async function download(): Promise<void> {
     const provider = getBookshelfProvider();
-    if (!provider.downloadBook) {
+    if (!supported.value || !provider.downloadBook) {
       return;
     }
 
@@ -60,7 +60,7 @@ export function useOfflineDownload(bookId: () => string) {
 
   async function remove(): Promise<void> {
     const provider = getBookshelfProvider();
-    if (!provider.removeDownload) {
+    if (!supported.value || !provider.removeDownload) {
       return;
     }
 

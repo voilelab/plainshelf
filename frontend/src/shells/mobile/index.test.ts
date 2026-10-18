@@ -6,9 +6,11 @@ const h = vi.hoisted(() => ({
   openShelf: vi.fn(),
   setApiTransport: vi.fn(),
   registerShell: vi.fn(),
+  listServerShelves: vi.fn(),
   mobileProvider: vi.fn()
 }));
 
+vi.mock('@/api/shelves', () => ({ listServerShelves: h.listServerShelves }));
 vi.mock('@/api/client', () => ({ setApiTransport: h.setApiTransport }));
 vi.mock('@/providers/mobileConfig', () => ({
   initMobileConfig: vi.fn(),
@@ -18,6 +20,7 @@ vi.mock('@/providers/mobileConfig', () => ({
     entry?.type !== 'pcloud' || Boolean(entry.pcloudHost && entry.pcloudShelfRoot)
 }));
 vi.mock('@/providers/embeddedPCloud', () => ({
+  EMBEDDED_PCLOUD_SHELF_ID: 'pcloud',
   EmbeddedPCloudReader: class EmbeddedPCloudReader {},
   embeddedPCloudFetch: 'embeddedPCloudFetch',
   openEmbeddedPCloudShelf: h.openShelf
@@ -101,4 +104,41 @@ it('uses the Go reader directly for dav, while server entries keep the mobile ca
   await installMobileShell();
   expect((providerRemote() as object).constructor.name).toBe('ServerBookshelfProvider');
   expect(h.mobileProvider).toHaveBeenCalled();
+});
+
+vi.mock('./platform', () => ({ createMobilePlatform: () => ({}) }));
+
+
+describe('mobile shelf capabilities', () => {
+  it.each([undefined, { download: false, rescan: false, char_count: false, fingerprint: false }])(
+    'keeps wrapper downloads while preserving the remote engine answer: %j', async (capabilities) => {
+      h.entry = { id: 'e1', type: 'server' };
+      h.listServerShelves.mockResolvedValue([{ id: 'main', name: 'Remote name', capabilities,
+        offline: { snapshot_at: '2026-10-16T09:12:44Z' } }]);
+      await installMobileShell();
+      const shelf = await h.registerShell.mock.calls[0][0].loadActiveShelfInfo({ id: 'main', name: 'Device name' });
+      expect(shelf.name).toBe('Device name');
+      expect(shelf.capabilities).toEqual({ ...capabilities, download: true });
+      expect(shelf.offline.snapshot_at).toBe('2026-10-16T09:12:44Z');
+    }
+  );
+  it('keeps downloads reachable while a remote server is offline', async () => {
+    h.entry = { id: 'e1', type: 'server' };
+    h.listServerShelves.mockRejectedValue(new TypeError('offline'));
+    await installMobileShell();
+    const shelf = await h.registerShell.mock.calls[0][0].loadActiveShelfInfo({ id: 'main', name: 'Device name' });
+    expect(shelf.capabilities.download).toBe(true);
+  });
+  it.each([true, false])('reads embedded download capability %s without replacing the device identity', async (download) => {
+    h.entry = pcloudEntry;
+    h.token = 'secret';
+    h.listServerShelves.mockResolvedValue([{ id: 'local', name: 'Other shelf' }, { id: 'pcloud', name: 'Engine name', kind: 'virtual',
+      capabilities: { char_count: false, fingerprint: false, rescan: true, download } }]);
+    await installMobileShell();
+    const shelf = await h.registerShell.mock.calls[0][0].loadActiveShelfInfo({ id: '/Shelf', name: 'Device name' });
+    expect(shelf.id).toBe('/Shelf');
+    expect(shelf.kind).toBe('virtual');
+    expect(shelf.capabilities.char_count).toBe(false);
+    expect(shelf.capabilities.download).toBe(download);
+  });
 });

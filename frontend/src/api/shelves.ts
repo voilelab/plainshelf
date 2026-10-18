@@ -3,7 +3,17 @@ import { mockListBooks } from './mocks/books';
 import { getMockFolders } from './mocks/folders';
 import { getShell } from '@/providers/shell';
 
+interface ShelfCapabilities {
+  rescan?: boolean;
+  download?: boolean;
+  fingerprint?: boolean;
+  char_count?: boolean;
+}
+
 export interface ShelfInfo {
+  kind?: 'local' | 'virtual';
+  capabilities?: ShelfCapabilities;
+  offline?: { snapshot_at?: string };
   id: string;
   name: string;
 
@@ -56,17 +66,26 @@ export async function listServerShelves(): Promise<ShelfInfo[]> {
       // Defaulted rather than required: a server predating the field describes
       // shelves it never opened read-only, and treating those as read-only
       // would hide every write button against a shelf that accepts writes.
-      return [{ id, name, readOnly: shelf.read_only === true }];
+      const capabilities: ShelfCapabilities = {};
+      for (const key of ['rescan', 'download', 'fingerprint', 'char_count'] as const) {
+        if (typeof shelf.capabilities?.[key] === 'boolean') capabilities[key] = shelf.capabilities[key];
+      }
+      return [{
+        id, name, readOnly: shelf.read_only === true,
+        ...(shelf.kind === 'local' || shelf.kind === 'virtual' ? { kind: shelf.kind } : {}),
+        ...(shelf.capabilities && typeof shelf.capabilities === 'object' ? { capabilities } : {}),
+        ...(typeof shelf.offline?.snapshot_at === 'string'
+          ? { offline: { snapshot_at: shelf.offline.snapshot_at } } : {})
+      }];
     });
 }
 
 export async function listShelves(): Promise<ShelfInfo[]> {
-  // Short-circuited here rather than at each call site so every consumer — the
-  // shelves store, the reader layout, the sidebar — gets it for free and none
-  // of them issues a request that has no server to answer it.
+  // The shell owns the entry identity. Hosts with an engine may enrich it
+  // with capabilities; a standalone book reader needs no shelf-list request.
   const shellShelf = getShell()?.activeShelfInfo?.();
   if (shellShelf) {
-    return [shellShelf];
+    return [await getShell()?.loadActiveShelfInfo?.(shellShelf) ?? shellShelf];
   }
 
   return listServerShelves();

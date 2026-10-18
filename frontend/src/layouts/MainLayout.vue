@@ -365,6 +365,7 @@
 </template>
 
 <script setup lang="ts">
+import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import {
@@ -427,7 +428,7 @@ const router = useRouter();
 // runtime we are on. Only MobileBookshelfProvider implements it, so this is
 // the same answer by a name that says why.
 const hasDownloadsStore = computed(() =>
-  Boolean(getBookshelfProvider().listDownloadedBookEntries)
+  useShelfCapabilities().download.value && Boolean(getBookshelfProvider().listDownloadedBookEntries)
 );
 
 // The mobile shell gets a bottom tab bar for its frequent destinations. Gated

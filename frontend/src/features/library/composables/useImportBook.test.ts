@@ -404,3 +404,5 @@ describe('useImportBook', () => {
     expect(book.success.value).toBe('libraryForms.importBook.results.one');
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => mocks }));

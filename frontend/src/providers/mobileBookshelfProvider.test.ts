@@ -7,28 +7,6 @@ const { addReadHistoryMock, clearReadHistoryMock, getReadHistoryIDsMock } = vi.h
   getReadHistoryIDsMock: vi.fn()
 }));
 
-// isNativePlatform gates whether the provider exposes saveBookContentToFile; it
-// defaults to false so every existing test constructs the browser-shaped
-// provider (method absent), and the export suite below flips it to true.
-const { isNativePlatformMock, writeFileMock } = vi.hoisted(() => ({
-  isNativePlatformMock: vi.fn(() => false),
-  writeFileMock: vi.fn()
-}));
-
-vi.mock('@capacitor/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@capacitor/core')>();
-  return {
-    ...actual,
-    Capacitor: { ...actual.Capacitor, isNativePlatform: isNativePlatformMock }
-  };
-});
-
-vi.mock('@capacitor/filesystem', () => ({
-  Directory: { Documents: 'DOCUMENTS', Data: 'DATA' },
-  Encoding: { UTF8: 'utf8' },
-  Filesystem: { writeFile: writeFileMock }
-}));
-
 // Reading history is device-local; the provider must never route it through
 // the remote. Stubbing the store keeps these tests off real device storage.
 vi.mock('@/storage/readHistory', () => ({
@@ -44,7 +22,6 @@ import type { BookshelfReader } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
 import { setShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
 import { InMemoryMobileCoverCache } from './mobileCoverCache';
-import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import { DOWNLOAD_SHELF_CHANGED_ERROR, MobileBookshelfProvider } from './mobileBookshelfProvider';
 
 const SERVER_A = 'http://10.0.2.2:20000';
@@ -1088,52 +1065,6 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
   });
 });
 
-describe('MobileBookshelfProvider — export to Documents', () => {
-  beforeEach(() => {
-    isNativePlatformMock.mockReturnValue(false);
-    writeFileMock.mockReset();
-    writeFileMock.mockResolvedValue({ uri: 'file:///documents/PlainShelf/book.txt' });
-  });
-
-  // The browser preview must keep falling through to useBookActions' blob
-  // download; only the native shell can write to Documents.
-  it('does not expose saveBookContentToFile off a native platform', () => {
-    isNativePlatformMock.mockReturnValue(false);
-    const provider = new MobileBookshelfProvider(
-      {} as unknown as BookshelfReader,
-      new InMemoryMobileBookCache(),
-      () => true
-    );
-
-    expect(provider.saveBookContentToFile).toBeUndefined();
-  });
-
-  it('writes book content to the shared Documents folder and returns its location', async () => {
-    isNativePlatformMock.mockReturnValue(true);
-    const remote = {
-      downloadBookContent: vi
-        .fn()
-        .mockResolvedValue(new Blob(['book body'], { type: 'text/plain;charset=utf-8' }))
-    };
-    const provider = new MobileBookshelfProvider(
-      remote as unknown as BookshelfReader,
-      new InMemoryMobileBookCache(),
-      () => true
-    );
-
-    const location = await provider.saveBookContentToFile!('book-1', 'My Book.txt');
-
-    expect(location).toBe('Documents/PlainShelf/My Book.txt');
-    expect(writeFileMock).toHaveBeenCalledWith({
-      path: 'PlainShelf/My Book.txt',
-      data: 'book body',
-      directory: 'DOCUMENTS',
-      encoding: 'utf8',
-      recursive: true
-    });
-  });
-});
-
 describe('MobileBookshelfProvider — manual shelf refresh', () => {
   function makeProvider(remote: Partial<BookshelfReader>): MobileBookshelfProvider {
     return new MobileBookshelfProvider(remote as BookshelfReader, new InMemoryMobileBookCache(), () => true);
@@ -1142,8 +1073,6 @@ describe('MobileBookshelfProvider — manual shelf refresh', () => {
   it('reports no support when the backend refreshes its own listing', async () => {
     const provider = makeProvider({});
 
-    expect(provider.supportsShelfRefresh()).toBe(false);
-    expect(await provider.getShelfFetchedAt()).toBeNull();
     // Still safe to call: the UI hides the control, but nothing may throw.
     await expect(provider.refreshShelf()).resolves.toBeUndefined();
   });
@@ -1151,23 +1080,18 @@ describe('MobileBookshelfProvider — manual shelf refresh', () => {
   it('delegates to a backend whose listing is updated by hand', async () => {
     const refreshShelf = vi.fn().mockResolvedValue(undefined);
     const provider = makeProvider({
-      supportsShelfRefresh: () => true,
-      refreshShelf,
-      getShelfFetchedAt: async () => 4_242
+      refreshShelf
     });
 
     await provider.refreshShelf();
 
-    expect(provider.supportsShelfRefresh()).toBe(true);
     expect(refreshShelf).toHaveBeenCalledTimes(1);
-    expect(await provider.getShelfFetchedAt()).toBe(4_242);
   });
 
   // Only the backend can say what the walk found, so the wrapper must not eat
   // the answer on its way to the button.
   it('passes through what the backend found', async () => {
     const provider = makeProvider({
-      supportsShelfRefresh: () => true,
       refreshShelf: async () => ({ bookCount: 12, folderCount: 3 })
     });
 
@@ -1176,7 +1100,6 @@ describe('MobileBookshelfProvider — manual shelf refresh', () => {
 
   it('surfaces a failed update instead of reporting success', async () => {
     const provider = makeProvider({
-      supportsShelfRefresh: () => true,
       refreshShelf: async () => {
         throw unreachableError();
       }
@@ -1261,24 +1184,5 @@ describe('MobileBookshelfProvider shelf fallback', () => {
     // previous shelf's downloads after switching.
     connectTo(SERVER_B, SHELF_B);
     expect(provider.getPersistedShelfID()).toBe(SHELF_B);
-  });
-});
-
-describe('MobileBookshelfProvider backend cost forwarding', () => {
-  // The behaviour change this PR makes: a phone pointed at a self-hosted
-  // server can afford character counts, because the server aggregates them.
-  // Only a pCloud-backed shelf cannot.
-  it('reports what the wrapped backend can afford', () => {
-    const overServer = new MobileBookshelfProvider(
-      new ServerBookshelfProvider(),
-      new InMemoryMobileBookCache()
-    );
-    expect(overServer.supportsCharCountListing()).toBe(true);
-
-    const overPCloud = new MobileBookshelfProvider(
-      { supportsCharCountListing: () => false } as unknown as BookshelfReader,
-      new InMemoryMobileBookCache()
-    );
-    expect(overPCloud.supportsCharCountListing()).toBe(false);
   });
 });

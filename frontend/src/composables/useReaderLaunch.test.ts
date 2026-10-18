@@ -287,3 +287,5 @@ describe('useReaderLaunch onReaderLinkClick', () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ openReader: mocks.openDesktopReader }) }));

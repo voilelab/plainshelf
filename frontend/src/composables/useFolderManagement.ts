@@ -1,3 +1,4 @@
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -12,7 +13,7 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { bookshelfWriter } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import {
   booksRouteForFolderPath,
@@ -143,7 +144,7 @@ export function useFolderManagement() {
   });
 
   const folderTree = computed(() => buildFolderTreeNodes(folders.value));
-  const canOpenFolder = computed(() => Boolean(getBookshelfProvider().openDesktopFolder));
+  const canOpenFolder = computed(() => Boolean(getPlatformCapabilities().openFolder));
   const isDeletingPendingFolder = computed(
     () => pendingDeleteFolderPath.value.length > 0 && (deletingFolderMap.value[pendingDeleteFolderPath.value] ?? false)
   );
@@ -375,7 +376,7 @@ export function useFolderManagement() {
 
   async function onOpenFolder(path: string): Promise<void> {
     folderOperationError.value = '';
-    const openDesktopFolder = getBookshelfProvider().openDesktopFolder;
+    const openDesktopFolder = getPlatformCapabilities().openFolder;
     if (!openDesktopFolder) {
       return;
     }

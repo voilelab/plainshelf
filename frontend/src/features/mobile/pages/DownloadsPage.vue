@@ -87,12 +87,15 @@
 </template>
 
 <script setup lang="ts">
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import { getBookshelfProvider } from '@/providers';
-import type { DownloadedBookEntry, StorageEstimateResult } from '@/providers/bookshelfProvider';
+import type { StorageEstimateResult } from '@/providers/platformCapabilities';
+import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
+import type { DownloadedBookEntry } from '@/providers/bookshelfProvider';
 import type { Book } from '@/types/book';
 import { formatBytes } from '@/utils/bytes';
 import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
@@ -131,8 +134,10 @@ async function loadEntries(): Promise<void> {
   try {
     const provider = getBookshelfProvider();
     const [nextEntries, nextEstimate] = await Promise.all([
-      provider.listDownloadedBookEntries?.() ?? Promise.resolve([]),
-      provider.getStorageEstimate?.() ?? Promise.resolve({ supported: false })
+      useShelfCapabilities().download.value
+        ? provider.listDownloadedBookEntries?.() ?? Promise.resolve([])
+        : Promise.resolve([]),
+      getPlatformCapabilities().getStorageEstimate?.() ?? Promise.resolve({ supported: false })
     ]);
     entries.value = nextEntries;
     storageEstimate.value = nextEstimate;

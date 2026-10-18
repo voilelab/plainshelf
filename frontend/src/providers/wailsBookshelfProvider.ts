@@ -1,4 +1,6 @@
+import type { BookshelfProvider } from './bookshelfProvider';
 import {
+  openDesktopExternalURL,
   addDesktopShelf,
   checkDesktopShelfSource,
   getDesktopShelfDetails,
@@ -23,10 +25,14 @@ import type {
 } from '@/api/desktop';
 import { getActiveShelfID } from '@/api/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
-import type { DesktopImportBookResult } from './bookshelfProvider';
+import type { DesktopImportBookResult } from './platformCapabilities';
+import type { PlatformCapabilities } from './platformCapabilities';
 import type { ShelfSourceCheck } from '@/utils/shelfSourceCheck';
 
-export class WailsBookshelfProvider extends ServerBookshelfProvider {
+export class WailsBookshelfProvider extends ServerBookshelfProvider {}
+
+class WailsPlatform {
+  constructor(private readonly provider: BookshelfProvider) {}
   openLocalBookFiles(): Promise<string[] | null> {
     return openDesktopBookFiles();
   }
@@ -60,7 +66,7 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     // (requireHistoryKey() runs before the promise is returned), which a
     // trailing `.catch()` would miss.
     try {
-      await this.addReadHistory(bookId);
+      await this.provider.addReadHistory(bookId);
     } catch (err) {
       console.warn('Failed to update read history', err);
     }
@@ -101,4 +107,27 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
   saveBookContentToFile(bookId: string, suggestedName: string): Promise<void> {
     return saveDesktopBookContent(getActiveShelfID(), bookId, suggestedName);
   }
+}
+
+export function createWailsPlatform(provider: BookshelfProvider): PlatformCapabilities {
+  const host = new WailsPlatform(provider);
+  return {
+    shelves: {
+      previewShelfID: host.previewDesktopShelfID.bind(host),
+      addShelf: host.addDesktopShelf.bind(host),
+      checkShelfSource: host.checkDesktopShelfSource.bind(host),
+      getShelfDetails: host.getDesktopShelfDetails.bind(host),
+      modifyShelf: host.modifyDesktopShelf.bind(host),
+      removeShelf: host.removeDesktopShelf.bind(host)
+    },
+    openLocalBookFiles: host.openLocalBookFiles.bind(host),
+    importBookFromLocalPath: host.importBookFromLocalPath.bind(host),
+    openFolder: host.openDesktopFolder.bind(host),
+    openBookFolder: host.openDesktopBookFolder.bind(host),
+    openReader: host.openDesktopReader.bind(host),
+    chooseShelfDirectory: host.openDesktopShelfDirectory.bind(host),
+    openShelfFolder: host.openDesktopShelfFolder.bind(host),
+    saveBookContentToFile: host.saveBookContentToFile.bind(host),
+    openExternalUrl: openDesktopExternalURL
+  };
 }

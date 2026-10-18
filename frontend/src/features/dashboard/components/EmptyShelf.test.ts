@@ -112,3 +112,5 @@ describe('EmptyShelf', () => {
     expect(host.querySelector('.empty-shelf-path')).toBeNull();
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ shelves: { getShelfDetails: state.provider.getDesktopShelfDetails }, openShelfFolder: state.provider.openDesktopShelfFolder }) }));

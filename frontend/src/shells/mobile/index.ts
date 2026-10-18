@@ -1,8 +1,11 @@
+import { listServerShelves } from '@/api/shelves';
+import { createMobilePlatform } from './platform';
 import { setApiTransport } from '@/api/client';
 import { FilesystemMobileBookCache } from '@/providers/filesystemMobileBookCache';
 import { FilesystemMobileCoverCache } from '@/providers/filesystemMobileCoverCache';
 import {
   EmbeddedPCloudReader,
+  EMBEDDED_PCLOUD_SHELF_ID,
   embeddedPCloudFetch,
   openEmbeddedPCloudShelf
 } from '@/providers/embeddedPCloud';
@@ -58,6 +61,7 @@ export async function installMobileShell(): Promise<void> {
   await initMobileConfig();
   const active = getActiveShelfEntry();
   const isLocal = active?.type === 'local';
+  const wrapsRemote = !isLocal && !isUsableEmbeddedEntry(active);
   if (isLocal) {
     setApiTransport({ fetch: localShelfFetch, allowMobileWrites: true });
   }
@@ -70,7 +74,23 @@ export async function installMobileShell(): Promise<void> {
   }
 
   registerShell({
+    platform: createMobilePlatform(),
     activeShelfInfo: activeMobileShelfInfo,
+    async loadActiveShelfInfo(shelf) {
+      try {
+        const listed = await listServerShelves();
+        const engineID = isUsableEmbeddedEntry(active) ? EMBEDDED_PCLOUD_SHELF_ID : shelf.id;
+        const engine = listed.find((item) => item.id === engineID);
+        return {
+          ...shelf, ...engine, id: shelf.id, name: shelf.name,
+          capabilities: { ...engine?.capabilities, ...(wrapsRemote ? { download: true } : {}) },
+          offline: engine?.offline
+        };
+      } catch {
+        // Offline remote entries still have working device downloads.
+        return { ...shelf, capabilities: { download: wrapsRemote } };
+      }
+    },
     createShelfPicker: createMobileShelfPicker,
     installRouterGuards: installMobileRouterGuards,
     createDeviceDocumentStorage: createMobileDeviceDocumentStorage,

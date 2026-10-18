@@ -2,23 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PaginatedBooks } from '@/types/book';
 
-const supportsShelfRefresh = vi.fn();
+const capability = vi.hoisted(() => ({ rescan: true, snapshotAt: null as number | null }));
 const refreshShelf = vi.fn();
-const getShelfFetchedAt = vi.fn();
+
 const listBooks = vi.fn();
 const listFolders = vi.fn();
-
-// Whether the backend dates its stored listing at all. Absence of the method is
-// the signal, not a null return, so it has to be togglable per test.
-let datesItsListing = true;
 
 // The composable reads the provider through the same accessor the stores it
 // drives use, so one mock covers all three.
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
-    supportsShelfRefresh,
     refreshShelf,
-    ...(datesItsListing ? { getShelfFetchedAt } : {}),
     listBooks,
     listFolders
   })
@@ -48,10 +42,9 @@ function page(ids: string[]): PaginatedBooks {
 }
 
 beforeEach(() => {
-  datesItsListing = true;
-  supportsShelfRefresh.mockReset().mockReturnValue(true);
+  capability.rescan = true;
+  capability.snapshotAt = null;
   refreshShelf.mockReset().mockResolvedValue(undefined);
-  getShelfFetchedAt.mockReset().mockResolvedValue(null);
   listBooks.mockReset().mockResolvedValue(page(['a']));
   listFolders.mockReset().mockResolvedValue(['/']);
 
@@ -64,17 +57,17 @@ beforeEach(() => {
 
 describe('useShelfRefresh', () => {
   it('reports unsupported when the provider does not offer a manual update', async () => {
-    supportsShelfRefresh.mockReturnValue(false);
+    capability.rescan = false;
 
     const shelf = useShelfRefresh();
     await shelf.refresh();
 
-    expect(shelf.supported).toBe(false);
+    expect(shelf.supported.value).toBe(false);
     expect(refreshShelf).not.toHaveBeenCalled();
   });
 
   it('updates the shelf, then reloads books, folders and the sync time', async () => {
-    getShelfFetchedAt.mockResolvedValue(1_700_000_000_000);
+    capability.snapshotAt = 1_700_000_000_000;
     const shelf = useShelfRefresh();
 
     await shelf.refresh();
@@ -119,7 +112,7 @@ describe('useShelfRefresh', () => {
   });
 
   it('reads the last sync time without updating the shelf', async () => {
-    getShelfFetchedAt.mockResolvedValue(4_242);
+    capability.snapshotAt = 4_242;
     const shelf = useShelfRefresh();
 
     await shelf.loadLastSyncedAt();
@@ -154,14 +147,14 @@ describe('useShelfRefresh', () => {
   // server has no such date, so the toolbar must be able to leave the label out
   // rather than claim the shelf has never been read.
   it('reports whether the backend dates its listing at all', async () => {
-    expect(useShelfRefresh().tracksLastSynced).toBe(true);
+    capability.snapshotAt = 42;
+    expect(useShelfRefresh().tracksLastSynced.value).toBe(true);
 
-    datesItsListing = false;
+    capability.snapshotAt = null;
     const shelf = useShelfRefresh();
 
-    expect(shelf.tracksLastSynced).toBe(false);
+    expect(shelf.tracksLastSynced.value).toBe(false);
     await shelf.loadLastSyncedAt();
-    expect(getShelfFetchedAt).not.toHaveBeenCalled();
   });
 
   // Not a failure: another client is already walking the shelf, the previous
@@ -202,3 +195,12 @@ describe('useShelfRefresh', () => {
     expect(toastMessages()).toEqual([]);
   });
 });
+
+vi.mock('./useShelfCapabilities', async () => {
+  const { computed } = await import('vue');
+  return { useShelfCapabilities: () => ({
+    rescan: computed(() => capability.rescan),
+    snapshotAt: computed(() => capability.snapshotAt)
+  }) };
+});
+vi.mock('./useShelvesStore', () => ({ useShelvesStore: () => ({ fetchShelves: async () => {} }) }));

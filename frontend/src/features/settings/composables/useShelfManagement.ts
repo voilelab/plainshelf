@@ -1,6 +1,6 @@
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { computed, ref, watch } from 'vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
-import { getBookshelfProvider } from '@/providers';
 import { useI18n } from '@/i18n';
 import { isAbsoluteShelfPath } from '@/features/settings/utils/shelfPath';
 import {
@@ -26,7 +26,7 @@ type ShelfLocationMode = 'new' | 'existing' | 'remote';
  * still comes from the shared shelves store, so a change here is reflected
  * anywhere else that store is mounted.
  *
- * Every operation goes through the bookshelf provider and is a no-op when the
+ * Every operation goes through the host platform and is a no-op when the
  * running shell does not expose it, which is how the server build keeps its
  * shelves read-only.
  */
@@ -130,12 +130,12 @@ export function useShelfManagement() {
     // and, for the directory, submit — the old name's shelf under the new name.
     newShelfIDPreview.value = '';
     newShelfDefaultDirectory.value = '';
-    const provider = getBookshelfProvider();
-    if (!provider.previewDesktopShelfID || name.trim().length === 0) {
+    const platform = getPlatformCapabilities();
+    if (!platform.shelves?.previewShelfID || name.trim().length === 0) {
       return;
     }
     try {
-      const preview = await provider.previewDesktopShelfID(name.trim());
+      const preview = await platform.shelves!.previewShelfID(name.trim());
       if (token === shelfIDPreviewToken) {
         newShelfIDPreview.value = preview.id;
         newShelfDefaultDirectory.value = preview.defaultPath;
@@ -183,8 +183,8 @@ export function useShelfManagement() {
     if (!shelf) {
       return;
     }
-    const provider = getBookshelfProvider();
-    if (!provider.removeDesktopShelf) {
+    const platform = getPlatformCapabilities();
+    if (!platform.shelves?.removeShelf) {
       return;
     }
 
@@ -192,7 +192,7 @@ export function useShelfManagement() {
 
     shelfOpError.value = '';
     try {
-      await provider.removeDesktopShelf(shelf.id);
+      await platform.shelves!.removeShelf(shelf.id);
       await fetchShelves();
     } catch (err) {
       shelfOpError.value = err instanceof Error ? err.message : t('settings.shelves.removeFailed');
@@ -229,13 +229,13 @@ export function useShelfManagement() {
   // Reveals a shelf's lib_root in the host file explorer (desktop only); a
   // no-op elsewhere. Errors surface on the panel like the other shelf ops.
   async function openShelfFolder(shelfID: string): Promise<void> {
-    const provider = getBookshelfProvider();
-    if (!provider.openDesktopShelfFolder) {
+    const platform = getPlatformCapabilities();
+    if (!platform.openShelfFolder) {
       return;
     }
     shelfOpError.value = '';
     try {
-      await provider.openDesktopShelfFolder(shelfID);
+      await platform.openShelfFolder(shelfID);
     } catch (err) {
       shelfOpError.value =
         err instanceof Error ? err.message : t('settings.shelves.openFolderFailed');
@@ -257,11 +257,11 @@ export function useShelfManagement() {
   }
 
   async function onBrowseShelfDirectory(): Promise<void> {
-    const provider = getBookshelfProvider();
-    if (!provider.openDesktopShelfDirectory) {
+    const platform = getPlatformCapabilities();
+    if (!platform.chooseShelfDirectory) {
       return;
     }
-    const dir = await provider.openDesktopShelfDirectory();
+    const dir = await platform.chooseShelfDirectory();
     if (dir) {
       newShelfDirectory.value = dir;
     }
@@ -278,7 +278,7 @@ export function useShelfManagement() {
     addShelfError.value = '';
 
     try {
-      const provider = getBookshelfProvider();
+      const platform = getPlatformCapabilities();
       if (newShelfLocationMode.value === 'remote') {
         await addRemoteShelf(name);
         return;
@@ -286,7 +286,7 @@ export function useShelfManagement() {
       // Neither interval is part of creating a shelf: both keep the backend
       // default and stay adjustable in the modify dialog. Read-only likewise
       // only ever comes from the existing-folder branch.
-      await provider.addDesktopShelf!({
+      await platform.shelves!.addShelf!({
         name,
         libRoot: dir,
         scanInterval: '',
@@ -309,20 +309,20 @@ export function useShelfManagement() {
    * connection are told apart before anything is saved; then adds it.
    */
   async function addRemoteShelf(name: string): Promise<void> {
-    const provider = getBookshelfProvider();
+    const platform = getPlatformCapabilities();
     const remote = {
       source: newShelfSourceKind.value,
       url: newShelfSourceURL.value.trim(),
       username: sourceUsername(),
       secret: newShelfSourceSecret.value.trim()
     };
-    const check = await provider.checkDesktopShelfSource!(remote);
+    const check = await platform.shelves!.checkShelfSource!(remote);
     const messageKey = shelfSourceCheckMessageKey(check);
     if (messageKey) {
       addShelfError.value = t(messageKey);
       return;
     }
-    await provider.addDesktopShelf!({
+    await platform.shelves!.addShelf!({
       name,
       libRoot: '',
       scanInterval: '',
@@ -346,8 +346,8 @@ export function useShelfManagement() {
   }
 
   async function requestModifyShelf(shelf: ShelfRef): Promise<void> {
-    const provider = getBookshelfProvider();
-    if (!provider.getDesktopShelfDetails) {
+    const platform = getPlatformCapabilities();
+    if (!platform.shelves?.getShelfDetails) {
       return;
     }
 
@@ -355,7 +355,7 @@ export function useShelfManagement() {
     resetModifyShelfForm();
 
     try {
-      const details = await provider.getDesktopShelfDetails(shelf.id);
+      const details = await platform.shelves!.getShelfDetails(shelf.id);
       pendingModifyShelf.value = shelf;
       modifyShelfName.value = details.name;
       modifyShelfScanInterval.value = details.scan_interval;
@@ -394,8 +394,8 @@ export function useShelfManagement() {
       return;
     }
 
-    const provider = getBookshelfProvider();
-    if (!provider.modifyDesktopShelf) {
+    const platform = getPlatformCapabilities();
+    if (!platform.shelves?.modifyShelf) {
       return;
     }
 
@@ -403,7 +403,7 @@ export function useShelfManagement() {
     modifyShelfError.value = '';
 
     try {
-      await provider.modifyDesktopShelf({
+      await platform.shelves!.modifyShelf({
         shelfID: shelf.id,
         name,
         scanInterval,

@@ -16,7 +16,7 @@ vi.mock('@/api/desktop', async (importOriginal) => {
   };
 });
 
-import { WailsBookshelfProvider } from './wailsBookshelfProvider';
+import { createWailsPlatform, WailsBookshelfProvider } from './wailsBookshelfProvider';
 
 describe('WailsBookshelfProvider — read history on shell-out', () => {
   beforeEach(() => {
@@ -37,7 +37,7 @@ describe('WailsBookshelfProvider — read history on shell-out', () => {
     openDesktopReaderMock.mockResolvedValue(undefined);
     const { provider, addReadHistory } = makeProvider();
 
-    await provider.openDesktopReader('book-1', 3);
+    await createWailsPlatform(provider).openReader!('book-1', 3);
 
     expect(openDesktopReaderMock).toHaveBeenCalledWith('book-1', 3);
     expect(addReadHistory).toHaveBeenCalledWith('book-1');
@@ -48,7 +48,7 @@ describe('WailsBookshelfProvider — read history on shell-out', () => {
     openDesktopReaderMock.mockRejectedValue(launchError);
     const { provider, addReadHistory } = makeProvider();
 
-    await expect(provider.openDesktopReader('book-1')).rejects.toBe(launchError);
+    await expect(createWailsPlatform(provider).openReader!('book-1')).rejects.toBe(launchError);
     // The in-app fallback in useReaderLaunch writes the entry instead; writing
     // here too would double-count it.
     expect(addReadHistory).not.toHaveBeenCalled();
@@ -62,7 +62,7 @@ describe('WailsBookshelfProvider — read history on shell-out', () => {
 
     // A failed write must not reject: useReaderLaunch would misread the launch
     // as failed, pop a toast and open a second in-app reader.
-    await expect(provider.openDesktopReader('book-1')).resolves.toBeUndefined();
+    await expect(createWailsPlatform(provider).openReader!('book-1')).resolves.toBeUndefined();
     expect(addReadHistory).toHaveBeenCalledWith('book-1');
     expect(warnSpy).toHaveBeenCalled();
 
@@ -80,7 +80,7 @@ describe('WailsBookshelfProvider — read history on shell-out', () => {
     });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await expect(provider.openDesktopReader('book-1')).resolves.toBeUndefined();
+    await expect(createWailsPlatform(provider).openReader!('book-1')).resolves.toBeUndefined();
     expect(warnSpy).toHaveBeenCalled();
 
     warnSpy.mockRestore();

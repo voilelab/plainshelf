@@ -1,5 +1,5 @@
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue';
-import { getBookshelfProvider } from '@/providers';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 
 interface LibraryImportOptions {
@@ -34,7 +34,7 @@ export function useLibraryImport(options: LibraryImportOptions) {
 
     let desktopFiles: string[] | null = null;
     try {
-      desktopFiles = await getBookshelfProvider().openLocalBookFiles?.() ?? null;
+      desktopFiles = await getPlatformCapabilities().openLocalBookFiles?.() ?? null;
     } catch {
       desktopFiles = null;
     }

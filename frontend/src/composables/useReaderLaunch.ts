@@ -1,8 +1,9 @@
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { useRouter } from 'vue-router';
 import { useToasts } from '@/composables/useToasts';
 import { getReaderLaunchMode } from '@/composables/useReaderLaunchPreference';
 import { isReaderUnsupportedPlatform } from '@/api/desktop';
-import { getBookshelfProvider, isWebRuntime } from '@/providers';
+import { isWebRuntime } from '@/providers';
 import { t } from '@/i18n';
 
 /**
@@ -62,11 +63,11 @@ export function useReaderLaunch() {
 
     // On desktop, a new reader is the standalone app in its own window, whose
     // progress flows back through reading_progress.json. Only the desktop
-    // provider defines openDesktopReader, so web and mobile fall through, and the
+    // host defines openReader, so web and mobile fall through, and the
     // in-app route stays the fallback when the reader will not launch.
-    const provider = getBookshelfProvider();
-    if (provider.openDesktopReader && openInNewReader) {
-      provider.openDesktopReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch((err) => {
+    const platform = getPlatformCapabilities();
+    if (platform.openReader && openInNewReader) {
+      platform.openReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch((err) => {
         // Fall back to the in-app reader, but say why: the user explicitly asked
         // for a new reader, so a silent fallback reads as "my setting is broken".
         // Either this platform has no standalone reader, or it failed to launch.
