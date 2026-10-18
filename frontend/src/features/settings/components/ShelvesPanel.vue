@@ -49,7 +49,10 @@
         />
       </div>
       <ScanIntervalField v-model="modifyShelfScanInterval" :disabled="modifyingShelf" />
-      <ShelfReadOnlyField v-model="modifyShelfReadOnly" :disabled="modifyingShelf" />
+      <ShelfReadOnlyField
+        v-model="modifyShelfReadOnly"
+        :disabled="modifyingShelf || modifyShelfIsVirtual"
+      />
       <details class="shelf-advanced">
         <summary class="shelf-advanced-summary">
           {{ t('settings.shelves.advancedSettings') }}
@@ -125,7 +128,79 @@
             }}</span>
           </span>
         </RadioGroupItem>
+        <RadioGroupItem class="shelf-location-mode" value="remote" data-testid="shelf-location-remote">
+          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
+          <span class="shelf-location-copy">
+            <strong>{{ t('settings.shelves.addShelfLocationRemote') }}</strong>
+            <span class="shelf-add-help">{{ t('settings.shelves.addShelfLocationRemoteHelp') }}</span>
+          </span>
+        </RadioGroupItem>
       </RadioGroupRoot>
+
+      <template v-if="newShelfLocationMode === 'remote'">
+        <div class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfSourceKindId">
+            {{ t('shelfSource.kindLabel') }}
+          </label>
+          <select
+            :id="addShelfSourceKindId"
+            v-model="newShelfSourceKind"
+            class="shelf-add-input"
+            :disabled="addingShelf"
+            data-testid="shelf-source-kind"
+          >
+            <option value="plainshelf">{{ t('shelfSource.plainshelf') }}</option>
+            <option value="webdav">{{ t('shelfSource.webdav') }}</option>
+          </select>
+        </div>
+        <div class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfSourceURLId">
+            {{ t('shelfSource.urlLabel') }}
+          </label>
+          <input
+            :id="addShelfSourceURLId"
+            v-model="newShelfSourceURL"
+            class="shelf-add-input"
+            type="url"
+            spellcheck="false"
+            :placeholder="t('shelfSource.urlPlaceholder')"
+            :disabled="addingShelf"
+            data-testid="shelf-source-url"
+          />
+          <span class="shelf-add-help">{{ t('shelfSource.urlHint') }}</span>
+        </div>
+        <div v-if="newShelfSourceKind === 'webdav'" class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfSourceUsernameId">
+            {{ t('shelfSource.usernameLabel') }}
+          </label>
+          <input
+            :id="addShelfSourceUsernameId"
+            v-model="newShelfSourceUsername"
+            class="shelf-add-input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            :disabled="addingShelf"
+          />
+        </div>
+        <div class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfSourceSecretId">
+            {{
+              newShelfSourceKind === 'webdav' ? t('shelfSource.passwordLabel') : t('shelfSource.tokenLabel')
+            }}
+          </label>
+          <input
+            :id="addShelfSourceSecretId"
+            v-model="newShelfSourceSecret"
+            class="shelf-add-input"
+            type="password"
+            autocomplete="off"
+            :disabled="addingShelf"
+            data-testid="shelf-source-secret"
+          />
+          <span class="shelf-add-help">{{ t('shelfSource.secretHint') }}</span>
+        </div>
+      </template>
 
       <template v-if="newShelfLocationMode === 'existing'">
         <div class="shelf-field">
@@ -338,6 +413,10 @@ const isMobileEnv = computed(() => isMobileRuntime());
 // the field ids serve both the <label for> and the caret placement.
 const addShelfNameId = `shelf-add-name-${useId()}`;
 const addShelfDirectoryId = `shelf-add-directory-${useId()}`;
+const addShelfSourceKindId = `shelf-add-source-kind-${useId()}`;
+const addShelfSourceURLId = `shelf-add-source-url-${useId()}`;
+const addShelfSourceUsernameId = `shelf-add-source-username-${useId()}`;
+const addShelfSourceSecretId = `shelf-add-source-secret-${useId()}`;
 const modifyShelfNameId = `shelf-modify-name-${useId()}`;
 
 const bookCacheExporting = ref(false);
@@ -362,6 +441,10 @@ const {
   newShelfDirectory,
   newShelfDirectoryError,
   newShelfReadOnly,
+  newShelfSourceKind,
+  newShelfSourceURL,
+  newShelfSourceUsername,
+  newShelfSourceSecret,
   newShelfIDPreview,
   newShelfEffectiveDirectory,
   addingShelf,
@@ -379,6 +462,7 @@ const {
   modifyShelfBookCheckInterval,
   modifyShelfReadOnly,
   modifyShelfPath,
+  modifyShelfIsVirtual,
   modifyingShelf,
   modifyShelfError,
   canSubmitModifyShelf,

@@ -241,3 +241,51 @@ func TestAPILocalSourceOpensLikeLibRootContract(t *testing.T) {
 		t.Errorf("the book was not written under the source path: %v", err)
 	}
 }
+
+// CheckSource tells a wrong token from no connection, so the add-shelf form
+// can say which before anything is saved.
+func TestCheckSourceContract(t *testing.T) {
+	exporter := newDAVExporter(t)
+	exporter.seed(t, "Dune", "Solaris")
+	token, err := os.ReadFile(exporter.tokenFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	url := exporter.source("").URL
+
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closedURL := closed.URL + "/dav/x/"
+	closed.Close()
+
+	cases := []struct {
+		name, url, secret string
+		want              server.SourceCheck
+	}{
+		{"shelf", url, strings.TrimSpace(string(token)), server.SourceCheck{Books: 2}},
+		{"wrong token", url, "wrong", server.SourceCheck{Code: server.SourceCheckUnauthorized}},
+		{"unreachable", closedURL, "token", server.SourceCheck{Code: server.SourceCheckUnavailable}},
+		{"not a shelf", exporter.srv.URL + "/dav/" + apitest.DefaultShelfID + "/books/", strings.TrimSpace(string(token)),
+			server.SourceCheck{Code: server.SourceCheckNotAShelf}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := server.CheckSource(shelf.SourcePlainShelf, tc.url, "", tc.secret)
+			if err != nil {
+				t.Fatalf("CheckSource: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("CheckSource = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+
+	for _, typ := range []string{shelf.SourceLocal, shelf.SourcePCloud, "ftp"} {
+		if _, err := server.CheckSource(typ, url, "", "token"); err == nil {
+			t.Errorf("CheckSource(%q) succeeded, want an error", typ)
+		}
+	}
+	// A pasted secret is a parameter, never part of the URL.
+	if _, err := server.CheckSource(shelf.SourceWebDAV, strings.Replace(url, "://", "://user:pw@", 1), "", ""); err == nil {
+		t.Error("CheckSource accepted a URL carrying credentials")
+	}
+}

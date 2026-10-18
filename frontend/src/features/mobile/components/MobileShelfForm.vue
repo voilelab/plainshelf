@@ -103,6 +103,72 @@
 
       <p v-else-if="type === 'local'" class="mobile-connect-hint">{{ t('mobileConnect.localHint') }}</p>
 
+      <template v-else-if="type === 'dav'">
+        <label class="mobile-connect-field">
+          <span class="mobile-connect-label">{{ t('shelfSource.kindLabel') }}</span>
+          <select v-model="davSource" class="input" data-testid="dav-source">
+            <option value="plainshelf">{{ t('shelfSource.plainshelf') }}</option>
+            <option value="webdav">{{ t('shelfSource.webdav') }}</option>
+          </select>
+        </label>
+
+        <label class="mobile-connect-field">
+          <span class="mobile-connect-label">{{ t('shelfSource.urlLabel') }}</span>
+          <input
+            v-model="davUrl"
+            class="input"
+            type="url"
+            inputmode="url"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            :placeholder="t('shelfSource.urlPlaceholder')"
+          />
+          <span class="mobile-connect-hint">{{ t('shelfSource.urlHint') }}</span>
+        </label>
+
+        <label v-if="davSource === 'webdav'" class="mobile-connect-field">
+          <span class="mobile-connect-label">{{ t('shelfSource.usernameLabel') }}</span>
+          <input
+            v-model="davUsername"
+            class="input"
+            type="text"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+          />
+        </label>
+
+        <label class="mobile-connect-field">
+          <span class="mobile-connect-label">{{
+            davSource === 'webdav' ? t('shelfSource.passwordLabel') : t('shelfSource.tokenLabel')
+          }}</span>
+          <input
+            v-model="davSecret"
+            class="input"
+            type="password"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+          />
+          <span class="mobile-connect-hint">{{ t('shelfSource.secretHint') }}</span>
+        </label>
+
+        <button
+          type="button"
+          class="button"
+          :disabled="verifying || !davCanCheck"
+          @click="onCheckDavShelf"
+        >
+          {{ verifying ? t('shelfSource.checking') : t('shelfSource.check') }}
+        </button>
+
+        <p v-if="davBookCount !== null" class="mobile-connect-hint" role="status">
+          {{ t('shelfSource.shelfFound', { count: String(davBookCount) }) }}
+        </p>
+        <p class="mobile-connect-hint">{{ t('shelfSource.readOnlyHint') }}</p>
+      </template>
+
       <template v-else>
         <label class="mobile-connect-field">
           <span class="mobile-connect-label">{{ t('mobileConnect.pcloud.clientIdLabel') }}</span>
@@ -200,7 +266,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -231,6 +297,11 @@ import {
 } from '@/providers/mobileConfig';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
 import { checkPCloudShelf } from '@/features/mobile/utils/pcloudSetup';
+import {
+  shelfSourceCheckMessageKey,
+  shelfSourceNeedsSecret,
+  type ShelfSourceKind
+} from '@/utils/shelfSourceCheck';
 import PCloudFolderPicker from '@/features/mobile/components/PCloudFolderPicker.vue';
 
 const props = defineProps<{
@@ -250,7 +321,10 @@ const typeOptions: Array<{ value: ShelfSourceType; labelKey: string }> = [
   { value: 'pcloud', labelKey: 'mobileConnect.modePCloud' },
   // The embedded server exists only in the native app, not the browser preview.
   ...(Capacitor.isNativePlatform()
-    ? [{ value: 'local' as const, labelKey: 'mobileConnect.modeLocal' }]
+    ? [
+        { value: 'local' as const, labelKey: 'mobileConnect.modeLocal' },
+        { value: 'dav' as const, labelKey: 'mobileConnect.modeRemote' }
+      ]
     : [])
 ];
 
@@ -274,6 +348,27 @@ const pcloudAccountIdentity = ref('');
 const pcloudBookCount = ref<number | null>(null);
 const pickerOpen = ref(false);
 
+const davSource = ref<ShelfSourceKind>('plainshelf');
+const davUrl = ref('');
+const davUsername = ref('');
+const davSecret = ref('');
+/** Set by a successful source check; null means "not checked yet". */
+const davBookCount = ref<number | null>(null);
+/** Bumped by every edit, so a check answering for older values is dropped. */
+let davCheckToken = 0;
+/** A PlainShelf export takes a bearer token, never a username. */
+const davAccount = () => (davSource.value === 'webdav' ? davUsername.value.trim() : '');
+const davCanCheck = computed(
+  () =>
+    davUrl.value.trim().length > 0 &&
+    (!shelfSourceNeedsSecret(davSource.value, davAccount()) || davSecret.value.trim().length > 0)
+);
+// A check vouches only for what it was run with.
+watch([davSource, davUrl, davUsername, davSecret], () => {
+  davCheckToken++;
+  davBookCount.value = null;
+});
+
 const saving = ref(false);
 const authorizing = ref(false);
 const verifying = ref(false);
@@ -290,6 +385,9 @@ const message = computed(() => localError.value);
 const canSave = computed(() => {
   if (type.value === 'local') {
     return name.value.trim().length > 0;
+  }
+  if (type.value === 'dav') {
+    return davCanCheck.value && davBookCount.value !== null;
   }
   return type.value === 'server'
     ? serverUrl.value.trim().length > 0 && shelfId.value.length > 0
@@ -308,6 +406,14 @@ onMounted(async () => {
     return;
   }
   const secret = await getShelfEntryToken(existing.id);
+
+  if (existing.type === 'dav') {
+    davSource.value = existing.davSource;
+    davUrl.value = existing.davUrl;
+    davUsername.value = existing.davUsername ?? '';
+    davSecret.value = secret;
+    return;
+  }
 
   if (existing.type === 'pcloud') {
     pcloudClientId.value = existing.pcloudClientId;
@@ -512,10 +618,56 @@ async function onPickShelfRoot(path: string): Promise<void> {
   await onVerifyPCloudShelf();
 }
 
+/**
+ * Proves the URL is a shelf and the secret is accepted, before anything is
+ * saved: a wrong token and no connection get different messages.
+ */
+async function onCheckDavShelf(): Promise<void> {
+  localError.value = '';
+  davBookCount.value = null;
+  verifying.value = true;
+  const token = ++davCheckToken;
+  try {
+    const check = await LocalShelf.checkSource({
+      source: davSource.value,
+      url: davUrl.value.trim(),
+      username: davAccount(),
+      secret: davSecret.value.trim()
+    });
+    if (token !== davCheckToken) {
+      return;
+    }
+    const messageKey = shelfSourceCheckMessageKey(check);
+    if (messageKey) {
+      localError.value = t(messageKey);
+      return;
+    }
+    davBookCount.value = check.books;
+  } catch (err) {
+    localError.value = surfaceError(err);
+  } finally {
+    verifying.value = false;
+  }
+}
+
 function draftEntry(): { entry: ShelfEntry; secret: string } {
   // A new entry mints its id here; an edited one keeps its own, so the shelf it
   // names stays the same shelf to the picker and to the active-entry pointer.
   const base = entry.value ?? newShelfEntry(type.value);
+  if (type.value === 'dav') {
+    const username = davAccount();
+    return {
+      entry: {
+        id: base.id,
+        type: 'dav',
+        name: name.value.trim(),
+        davSource: davSource.value,
+        davUrl: davUrl.value.trim(),
+        ...(username ? { davUsername: username } : {})
+      },
+      secret: davSecret.value.trim()
+    };
+  }
   if (type.value === 'pcloud') {
     return {
       entry: {
@@ -587,7 +739,7 @@ async function onSave(): Promise<void> {
       return;
     }
   } else if (!canSave.value) {
-    localError.value = t('mobileConnect.pcloud.verifyRequired');
+    localError.value = t(type.value === 'dav' ? 'shelfSource.checkRequired' : 'mobileConnect.pcloud.verifyRequired');
     return;
   }
 

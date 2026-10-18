@@ -421,6 +421,8 @@ const zhHant = {
       addShelfLocationNewHelp: 'PlainShelf 會在自己的書架目錄下建立資料夾，不會動到硬碟上的其他東西。',
       addShelfLocationExisting: '使用我已經有的資料夾',
       addShelfLocationExistingHelp: '讓 PlainShelf 指向你自己選定的資料夾，硬碟上任何位置都可以，直接照原樣開啟。',
+      addShelfLocationRemote: '讀取其他裝置上的書架',
+      addShelfLocationRemoteHelp: '另一台 PlainShelf 的區網分享，或 NAS 這類 WebDAV 伺服器。以唯讀方式開啟；token 存在系統鑰匙圈。',
       addShelfDefaultPath: '將建立的資料夾：',
       addShelfDirectoryNotAbsolute: '請輸入從磁碟根目錄開始的完整路徑。',
       removeConfirmYes: '刪除書架',
@@ -1072,6 +1074,26 @@ const zhHant = {
       lastSection: '已是最後一章'
     }
   },
+  shelfSource: {
+    kindLabel: '來源',
+    plainshelf: '另一台 PlainShelf',
+    webdav: 'WebDAV',
+    urlLabel: '書架網址',
+    urlPlaceholder: 'http://192.168.1.20:20001/dav/default_shelf/',
+    urlHint: '書架資料夾的網址，也就是含有 books/ 的那一層。另一台 PlainShelf 的區網分享會顯示這個網址。',
+    tokenLabel: 'Token',
+    usernameLabel: '帳號（選填）',
+    passwordLabel: '密碼或 token（選填）',
+    secretHint: '存在這台裝置的安全儲存區，不會寫進書架清單。',
+    check: '檢查書架',
+    checking: '檢查中…',
+    shelfFound: '找到 {count} 本書。',
+    unauthorized: 'token 錯誤：來源拒絕了這組憑證。',
+    unavailable: '連不上這個來源。',
+    notAShelf: '這個網址沒有 books/ 資料夾，不是 PlainShelf 書架。',
+    checkRequired: '請先檢查書架再儲存。',
+    readOnlyHint: '以唯讀方式開啟。可以把書下載到這台裝置離線閱讀。'
+  },
   mobileConnect: {
     title: '連線到 PlainShelf',
     description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。App 不會變更伺服器或 pCloud 上的書庫；本機書庫存在這台裝置上，可以編輯。',
@@ -1079,6 +1101,7 @@ const zhHant = {
     modeServer: 'PlainShelf 伺服器',
     modePCloud: 'pCloud',
     modeLocal: '本機書庫',
+    modeRemote: '其他裝置',
     localHint: '存在這個 App 自己的儲存空間，離線也能用。解除安裝 App 或移除書庫時，裡面的書會一起刪除。',
     localNameRequired: '請先為書庫命名。',
     pcloud: {

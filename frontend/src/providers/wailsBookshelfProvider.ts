@@ -1,5 +1,6 @@
 import {
   addDesktopShelf,
+  checkDesktopShelfSource,
   getDesktopShelfDetails,
   importDesktopBookFromLocalPath,
   modifyDesktopShelf,
@@ -17,11 +18,13 @@ import type {
   DesktopAddShelfParams,
   DesktopModifyShelfParams,
   DesktopShelfDetails,
-  DesktopShelfIDPreview
+  DesktopShelfIDPreview,
+  DesktopShelfSourceParams
 } from '@/api/desktop';
 import { getActiveShelfID } from '@/api/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import type { DesktopImportBookResult } from './bookshelfProvider';
+import type { ShelfSourceCheck } from '@/utils/shelfSourceCheck';
 
 export class WailsBookshelfProvider extends ServerBookshelfProvider {
   openLocalBookFiles(): Promise<string[] | null> {
@@ -77,6 +80,10 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
 
   addDesktopShelf(params: DesktopAddShelfParams): Promise<void> {
     return addDesktopShelf(params);
+  }
+
+  checkDesktopShelfSource(params: DesktopShelfSourceParams): Promise<ShelfSourceCheck> {
+    return checkDesktopShelfSource(params);
   }
 
   removeDesktopShelf(shelfID: string): Promise<void> {

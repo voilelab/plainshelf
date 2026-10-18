@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -96,4 +98,56 @@ func addShelfEntry(sm *shelf.ShelfManager, conf shelf.ShelfConfWithID, storePath
 	conf.ReadOnly = true
 	conf.BookCacheWriterID = ""
 	return sm.AddVirtualShelf(conf, root, offlineDir(storePath, scope))
+}
+
+// Source check codes, the API's error codes for the same failures.
+const (
+	SourceCheckUnauthorized = "SOURCE_UNAUTHORIZED"
+	SourceCheckUnavailable  = "SOURCE_UNAVAILABLE"
+	SourceCheckNotAShelf    = "NOT_A_SHELF"
+)
+
+// SourceCheck is what CheckSource found. Code is empty when the source is a
+// shelf; Books is then its book count.
+type SourceCheck struct {
+	Code  string `json:"code,omitzero"`
+	Books int    `json:"books"`
+}
+
+// CheckSource probes a plainshelf or webdav source with a secret the user has
+// typed but not yet stored, so a host's add-shelf form can tell a wrong token
+// from no connection before saving. secret may be empty for a webdav server
+// that needs none. It is a host call, never an HTTP route.
+func CheckSource(sourceType, rawURL, username, secret string) (SourceCheck, error) {
+	src := shelf.SourceConf{Type: sourceType, URL: rawURL, Username: username}
+	if secret != "" {
+		// Validate checks the reference's shape only; the secret is passed below.
+		src.Credential = "host:check"
+	}
+	if src.Type != shelf.SourcePlainShelf && src.Type != shelf.SourceWebDAV {
+		return SourceCheck{}, util.Errorf("source type %q cannot be checked here", src.Type)
+	}
+	if err := src.Validate(); err != nil {
+		return SourceCheck{}, util.Errorf("%w", err)
+	}
+	opts := davfs.Options{Username: username}
+	if secret != "" {
+		opts.Secret = func(context.Context) (string, error) { return secret, nil }
+	}
+	dav, err := davfs.New(src.URL, opts)
+	if err != nil {
+		return SourceCheck{}, util.Errorf("%w", err)
+	}
+	books, err := shelf.CountBookPackages(dav)
+	switch {
+	case err == nil:
+		return SourceCheck{Books: books}, nil
+	case errors.Is(err, shelf.ErrNotAShelf), errors.Is(err, fs.ErrNotExist):
+		return SourceCheck{Code: SourceCheckNotAShelf}, nil
+	case errors.Is(err, fsutil.ErrSourceUnauthorized):
+		return SourceCheck{Code: SourceCheckUnauthorized}, nil
+	case errors.Is(err, fsutil.ErrSourceUnavailable):
+		return SourceCheck{Code: SourceCheckUnavailable}, nil
+	}
+	return SourceCheck{}, util.Errorf("%w", err)
 }

@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/pcloud"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -42,12 +42,18 @@ func OpenPCloudShelf(id, name, host, token, folder, scope string, showNSFW bool)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+	conf := shelf.ShelfConfWithID{ID: id, Name: name}
+	root := pcloud.NewFS(client, folder)
 	next := virtualShelf{
-		conf:  shelf.ShelfConfWithID{ID: id, Name: name},
-		root:  pcloud.NewFS(client, folder),
-		scope: scope,
+		conf: conf,
+		open: func(app *server.App) error { return app.AddVirtualShelf(conf, root, scope) },
 	}
+	return rt.openVirtual(next, showNSFW)
+}
 
+// openVirtual opens next, replacing a virtual shelf already open under its ID.
+func (rt *instance) openVirtual(next virtualShelf, showNSFW bool) error {
+	id := next.conf.ID
 	if err := rt.lock(); err != nil {
 		return err
 	}
@@ -66,9 +72,9 @@ func OpenPCloudShelf(id, name, host, token, folder, scope string, showNSFW bool)
 		}
 		delete(rt.virtual, id)
 	}
-	if err := rt.app.AddVirtualShelf(next.conf, next.root, next.scope); err != nil {
+	if err := next.open(rt.app); err != nil {
 		// Put back the shelf that was working.
-		if replacing && rt.app.AddVirtualShelf(previous.conf, previous.root, previous.scope) == nil {
+		if replacing && previous.open(rt.app) == nil {
 			rt.virtual[id] = previous
 		}
 		return util.Errorf("%w", err)
@@ -79,7 +85,7 @@ func OpenPCloudShelf(id, name, host, token, folder, scope string, showNSFW bool)
 }
 
 // SetShelfShowNSFW changes the adult-content choice of a shelf OpenPCloudShelf
-// opened.
+// or OpenSourceShelf opened.
 func SetShelfShowNSFW(id string, show bool) (err error) {
 	defer recoverInto(&err)
 	rt, err := running()
@@ -99,12 +105,11 @@ func SetShelfShowNSFW(id string, show bool) (err error) {
 
 // virtualShelf is what reopens a virtual shelf after a failed replacement.
 type virtualShelf struct {
-	conf  shelf.ShelfConfWithID
-	root  fsutil.ReadFS
-	scope string
+	conf shelf.ShelfConfWithID
+	open func(app *server.App) error
 }
 
-// CloseVirtualShelf closes a shelf OpenPCloudShelf opened. Its offline copies
+// CloseVirtualShelf closes a shelf OpenPCloudShelf or OpenSourceShelf opened. Its offline copies
 // stay on the device.
 func CloseVirtualShelf(id string) (err error) {
 	defer recoverInto(&err)

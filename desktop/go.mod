@@ -5,12 +5,14 @@ go 1.27.2
 require (
 	github.com/voilelab/plainshelf v0.0.0
 	github.com/wailsapp/wails/v2 v2.16.0
+	github.com/zalando/go-keyring v0.2.6
 	rsc.io/qr v0.2.0
 )
 
 tool github.com/wailsapp/wails/v2/cmd/wails
 
 require (
+	al.essio.dev/pkg/shellescape v1.5.1 // indirect
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
@@ -31,6 +33,7 @@ require (
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
+	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/dgraph-io/badger/v4 v4.9.6 // indirect
 	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect

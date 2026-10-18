@@ -3,12 +3,13 @@ import { getShowNsfwOnDevice } from '@/composables/useDeviceNsfwPreference';
 import type { NsfwMarks } from '@/types/book';
 import { currentCacheScopeKey } from './cacheScope';
 import { LOCAL_API_BASE, LocalShelf, localShelfFetch } from './localShelf';
-import type { PCloudShelfEntry } from './mobileConfig';
+import type { DavShelfEntry, PCloudShelfEntry } from './mobileConfig';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 
 /**
  * A pCloud shelf read through the embedded Go server (mobile/) instead of the
- * TypeScript reader in api/pcloud.
+ * TypeScript reader in api/pcloud. A dav entry (another PlainShelf's LAN share,
+ * or WebDAV) is read the same way, through Go's own source client.
  *
  * The API client keeps the entry's `pcloud://` base and shelf root, because
  * those are the cache scope (cacheScope.ts) that downloads, reading progress
@@ -31,23 +32,35 @@ let opening: Promise<boolean> | null = null;
  * hangs rather than fails takes as long as its timeouts. Requests wait for it
  * instead, within their own time budget.
  */
-export function openEmbeddedPCloudShelf(entry: PCloudShelfEntry): Promise<boolean> {
+export function openEmbeddedPCloudShelf(entry: PCloudShelfEntry | DavShelfEntry): Promise<boolean> {
   const showNsfw = getShowNsfwOnDevice();
-  opening = LocalShelf.openPCloudShelf({
-    id: EMBEDDED_PCLOUD_SHELF_ID,
-    entryId: entry.id,
-    name: entry.name,
-    host: entry.pcloudHost,
-    folder: entry.pcloudShelfRoot,
-    scope: currentCacheScopeKey(),
-    showNsfw
-  }).then(
+  const open =
+    entry.type === 'dav'
+      ? LocalShelf.openSourceShelf({
+          id: EMBEDDED_PCLOUD_SHELF_ID,
+          entryId: entry.id,
+          name: entry.name,
+          source: entry.davSource,
+          url: entry.davUrl,
+          username: entry.davUsername ?? '',
+          showNsfw
+        })
+      : LocalShelf.openPCloudShelf({
+          id: EMBEDDED_PCLOUD_SHELF_ID,
+          entryId: entry.id,
+          name: entry.name,
+          host: entry.pcloudHost,
+          folder: entry.pcloudShelfRoot,
+          scope: currentCacheScopeKey(),
+          showNsfw
+        });
+  opening = open.then(
     () => {
       pushedShowNsfw = showNsfw;
       return true;
     },
     (err: unknown) => {
-      console.error('Could not open the pCloud shelf in the embedded server.', err);
+      console.error('Could not open the virtual shelf in the embedded server.', err);
       return false;
     }
   );

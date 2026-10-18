@@ -134,6 +134,54 @@ public class LocalShelfPlugin extends Plugin {
         }
     }
 
+    /**
+     * Opens a plainshelf or webdav shelf entry in the embedded server. Go
+     * resolves its credential from secure storage (host:<entryId>).
+     */
+    @PluginMethod
+    public void openSourceShelf(PluginCall call) {
+        try {
+            LocalShelf.ensureStarted(getContext());
+            Mobile.openSourceShelf(
+                call.getString("id", ""),
+                call.getString("name", ""),
+                call.getString("source", ""),
+                call.getString("url", ""),
+                call.getString("username", ""),
+                call.getString("entryId", ""),
+                Boolean.TRUE.equals(call.getBoolean("showNsfw", false))
+            );
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Probes a source during setup, before an entry stores its secret, so the
+     * form passes the one it holds. code is SOURCE_UNAUTHORIZED,
+     * SOURCE_UNAVAILABLE, NOT_A_SHELF, or empty.
+     */
+    @PluginMethod
+    public void checkSource(PluginCall call) {
+        try {
+            JSONObject check = new JSONObject(
+                Mobile.checkSource(
+                    call.getString("source", ""),
+                    call.getString("url", ""),
+                    call.getString("username", ""),
+                    call.getString("secret", "")
+                )
+            );
+            JSObject result = new JSObject();
+            result.put("code", check.optString("code", ""));
+            result.put("books", check.getInt("books"));
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
     @PluginMethod
     public void setShelfShowNsfw(PluginCall call) {
         try {

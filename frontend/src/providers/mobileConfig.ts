@@ -3,6 +3,7 @@ import { Preferences } from '@capacitor/preferences';
 import { normalizeApiBase, setActiveShelfID, setApiBase } from '@/api/client';
 import { LOCAL_API_BASE } from '@/providers/localShelf';
 import { SecureStorage } from '@/providers/secureStorage';
+import { shelfSourceNeedsSecret, type ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 // Native (Capacitor) builds load a static bundle with no backend to inject the
 // server address, token, or selected shelf, so the device keeps its own list of
@@ -42,15 +43,17 @@ const LEGACY_KEY_PCLOUD_SHELF_ROOT = 'plainshelf.mobile.pcloud.shelfRoot';
  * shelf straight out of pCloud with no server involved — the one case a server
  * cannot cover, because a phone cannot mount cloud storage the way a host can.
  * `local` is a shelf in the app's own storage, served by the embedded Go server
- * and the only source the app writes to.
+ * and the only source the app writes to. `dav` reads another PlainShelf's LAN
+ * share or a WebDAV server through the embedded Go server, read-only.
  */
-export type ShelfSourceType = 'server' | 'pcloud' | 'local';
+export type ShelfSourceType = 'server' | 'pcloud' | 'local' | 'dav';
 
 /** The i18n key naming each source type, for the shelf list and picker. */
 export const SOURCE_TYPE_LABEL_KEYS: Record<ShelfSourceType, string> = {
   server: 'mobileConnect.modeServer',
   pcloud: 'mobileConnect.modePCloud',
-  local: 'mobileConnect.modeLocal'
+  local: 'mobileConnect.modeLocal',
+  dav: 'mobileConnect.modeRemote'
 };
 
 interface ShelfEntryBase {
@@ -97,7 +100,19 @@ interface LocalShelfEntry extends ShelfEntryBase {
   localShelfId: string;
 }
 
-export type ShelfEntry = ServerShelfEntry | PCloudShelfEntry | LocalShelfEntry;
+export interface DavShelfEntry extends ShelfEntryBase {
+  type: 'dav';
+  davSource: ShelfSourceKind;
+  /** The shelf folder's URL, the one holding books/. */
+  davUrl: string;
+  /** A WebDAV account; its password is the entry's secret. */
+  davUsername?: string;
+}
+
+export type ShelfEntry = ServerShelfEntry | PCloudShelfEntry | LocalShelfEntry | DavShelfEntry;
+
+/** The shelf id a dav entry's API client is pointed at; one shelf per URL. */
+const DAV_SHELF_ID = 'shelf';
 
 /**
  * Kept here so callers that cannot await — provider construction runs
@@ -203,6 +218,18 @@ function parseShelfEntry(raw: unknown): ShelfEntry | null {
 
   if (record.type === 'local') {
     return { id, type: 'local', name, localShelfId: normalizeString(record.localShelfId) };
+  }
+
+  if (record.type === 'dav') {
+    const davUsername = normalizeString(record.davUsername);
+    return {
+      id,
+      type: 'dav',
+      name,
+      davSource: record.davSource === 'webdav' ? 'webdav' : 'plainshelf',
+      davUrl: normalizeString(record.davUrl),
+      ...(davUsername ? { davUsername } : {})
+    };
   }
 
   // Anything unrecognised is a server entry, matching how the single-connection
@@ -341,6 +368,31 @@ function pcloudShelfRootName(shelfRoot: string): string {
   return segments[segments.length - 1] ?? shelfRoot;
 }
 
+function parseURL(raw: string): URL | null {
+  try {
+    return new URL(raw);
+  } catch {
+    return null;
+  }
+}
+
+function davHost(url: string): string {
+  return parseURL(url)?.host || url;
+}
+
+/** The URL with the account in it, lower-case host, no trailing slash. */
+function davScopeURL(entry: DavShelfEntry): string {
+  const url = parseURL(entry.davUrl);
+  if (!url) {
+    return entry.davUrl;
+  }
+  url.username = entry.davUsername ?? '';
+  url.password = '';
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
 /** A display name for an entry that was saved without one. */
 export function shelfEntryDisplayName(entry: ShelfEntry): string {
   if (entry.name) {
@@ -351,6 +403,9 @@ export function shelfEntryDisplayName(entry: ShelfEntry): string {
   }
   if (entry.type === 'local') {
     return entry.localShelfId;
+  }
+  if (entry.type === 'dav') {
+    return davHost(entry.davUrl);
   }
   return entry.shelfId || entry.serverUrl;
 }
@@ -373,6 +428,14 @@ export function shelfEntryTarget(entry: ShelfEntry | null): {
   }
   if (entry.type === 'local') {
     return { apiBase: LOCAL_API_BASE, shelfID: entry.localShelfId };
+  }
+  if (entry.type === 'dav') {
+    if (!entry.davUrl) {
+      return { apiBase: '', shelfID: DAV_SHELF_ID };
+    }
+    // Where the shelf lives, as Go's source scope has it: the type, the URL
+    // and the account. Never an HTTP base, like pcloud://.
+    return { apiBase: normalizeApiBase(`${entry.davSource}+${davScopeURL(entry)}`), shelfID: DAV_SHELF_ID };
   }
   if (entry.type === 'pcloud') {
     if (!entry.pcloudHost) {
@@ -409,6 +472,9 @@ export function isShelfEntryConfigured(entry: ShelfEntry | null | undefined): bo
   if (entry.type === 'local') {
     return Boolean(entry.localShelfId);
   }
+  if (entry.type === 'dav') {
+    return Boolean(entry.davUrl);
+  }
   return Boolean(entry.serverUrl && entry.shelfId);
 }
 
@@ -428,7 +494,9 @@ export async function isShelfEntryUsable(entry: ShelfEntry | null | undefined): 
   if (!isShelfEntryConfigured(entry) || !entry) {
     return false;
   }
-  if (entry.type !== 'pcloud') {
+  const needsToken =
+    entry.type === 'pcloud' || (entry.type === 'dav' && shelfSourceNeedsSecret(entry.davSource, entry.davUsername));
+  if (!needsToken) {
     return true;
   }
   return Boolean(await getShelfEntryToken(entry.id));
@@ -572,6 +640,9 @@ export function newShelfEntry(type: ShelfSourceType): ShelfEntry {
   }
   if (type === 'local') {
     return { id, type, name: '', localShelfId: '' };
+  }
+  if (type === 'dav') {
+    return { id, type, name: '', davSource: 'plainshelf', davUrl: '' };
   }
   return { id, type, name: '', serverUrl: '', shelfId: '' };
 }

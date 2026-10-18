@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -31,6 +32,17 @@ type DesktopApp struct {
 	startupErr          error
 	progressStager      *readingclose.Stager
 	lanShare            *lanShare
+	// secrets is the OS keychain when nil; see secretStore.
+	secrets secretStore
+	// shelfOpenErrs are the virtual shelves that failed to open at startup.
+	shelfOpenErrs []error
+}
+
+func (a *DesktopApp) secretStore() secretStore {
+	if a.secrets == nil {
+		return osKeychain{}
+	}
+	return a.secrets
 }
 
 var openFinder = util.OpenFinder
@@ -59,6 +71,7 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 // quit gracefully instead of leaving the user staring at a dead UI.
 func (a *DesktopApp) DomReady(ctx context.Context) {
 	if a.startupErr == nil {
+		a.warnShelfOpenErrs(ctx)
 		return
 	}
 
@@ -72,6 +85,22 @@ func (a *DesktopApp) DomReady(ctx context.Context) {
 	}
 
 	wailsruntime.Quit(ctx)
+}
+
+// warnShelfOpenErrs reports the virtual shelves startup skipped; the local
+// ones are open regardless.
+func (a *DesktopApp) warnShelfOpenErrs(ctx context.Context) {
+	if len(a.shelfOpenErrs) == 0 {
+		return
+	}
+	_, err := wailsruntime.MessageDialog(ctx, wailsruntime.MessageDialogOptions{
+		Type:    wailsruntime.WarningDialog,
+		Title:   "Some shelves could not be opened",
+		Message: errors.Join(a.shelfOpenErrs...).Error(),
+	})
+	if err != nil {
+		log.Println("Failed to show shelf warning dialog:", err)
+	}
 }
 
 func (a *DesktopApp) Shutdown() {
@@ -184,6 +213,9 @@ func (a *DesktopApp) startServer() error {
 		conf := toShelfConfWithID(entry)
 		shelves = append(shelves, &conf)
 	}
+	// Virtual shelves open after the app does, so one whose secret cannot be
+	// read (a locked keychain) is skipped instead of failing every shelf.
+	virtual := storedConf.VirtualShelves
 
 	appConf := &server.AppConf{
 		Logger: logutil.LogConf{
@@ -201,6 +233,7 @@ func (a *DesktopApp) startServer() error {
 		Security: &server.SecurityConf{
 			Mode: server.SecurityModeNone,
 		},
+		Credentials: desktopCredentialResolver{store: a.secretStore()},
 	}
 
 	app, err := server.NewApp(appConf)
@@ -212,6 +245,7 @@ func (a *DesktopApp) startServer() error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+	a.shelfOpenErrs = openVirtualShelves(app, virtual)
 
 	a.shelvesConfigPath = shelvesConfigPath
 	a.readHistoryPath = filepath.Join(dataRoot, "read_history.json")
@@ -223,4 +257,18 @@ func (a *DesktopApp) startServer() error {
 	a.lanShare = newLANShare(app, dataRoot, shelvesConfigPath)
 	a.lanShare.startSaved()
 	return nil
+}
+
+// openVirtualShelves opens each entry and returns the failures, which are
+// logged; the entries stay in shelves.json.
+func openVirtualShelves(app *server.App, entries []desktopShelfEntry) []error {
+	var errs []error
+	for _, entry := range entries {
+		if err := app.AddShelf(toShelfConfWithID(entry)); err != nil {
+			err = util.Errorf("shelf %q: %w", entry.Name, err)
+			log.Println("Failed to open virtual shelf:", err)
+			errs = append(errs, err)
+		}
+	}
+	return errs
 }

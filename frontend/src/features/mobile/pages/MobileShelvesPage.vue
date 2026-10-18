@@ -311,6 +311,9 @@ function detail(entry: ShelfEntry): string {
   if (entry.type === 'local') {
     return t('mobileShelves.localDetail');
   }
+  if (entry.type === 'dav') {
+    return `${t(`shelfSource.${entry.davSource}`)} · ${entry.davUrl}`;
+  }
   return entry.type === 'pcloud'
     ? `${entry.pcloudHost} · ${entry.pcloudShelfRoot}`
     : `${entry.serverUrl} · ${entry.shelfId}`;

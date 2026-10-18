@@ -1,5 +1,6 @@
 import { registerPlugin } from '@capacitor/core';
 import type { NsfwMarks } from '@/types/book';
+import type { ShelfSourceCheck, ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 /**
  * The Android app's local shelves: the embedded Go server (mobile/), reached
@@ -56,7 +57,31 @@ interface LocalShelfPlugin {
     scope: string;
     showNsfw: boolean;
   }): Promise<void>;
-  /** Changes the adult-content choice of a shelf openPCloudShelf opened. */
+  /**
+   * Opens a plainshelf or webdav entry in the embedded server as the virtual
+   * shelf `id`. Go resolves the entry's secret from secure storage itself
+   * (`host:<entryId>`), so it never crosses the bridge.
+   */
+  openSourceShelf(options: {
+    id: string;
+    entryId: string;
+    name: string;
+    source: ShelfSourceKind;
+    url: string;
+    username: string;
+    showNsfw: boolean;
+  }): Promise<void>;
+  /**
+   * Probes a source during setup, before an entry stores the secret, so the
+   * form passes the one it holds.
+   */
+  checkSource(options: {
+    source: ShelfSourceKind;
+    url: string;
+    username: string;
+    secret: string;
+  }): Promise<ShelfSourceCheck>;
+  /** Changes the adult-content choice of a shelf openPCloudShelf or openSourceShelf opened. */
   setShelfShowNsfw(options: { id: string; show: boolean }): Promise<void>;
   /** Every book's marks on that shelf, whatever the device shows. */
   nsfwMarks(options: { id: string }): Promise<{ marks: Record<string, NsfwMarks> }>;

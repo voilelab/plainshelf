@@ -1,11 +1,13 @@
 import type {
   DesktopAddShelfParams,
+  DesktopShelfSourceParams,
   DesktopModifyShelfParams,
   DesktopShelfDetails,
   DesktopShelfIDPreview
 } from '@/api/desktop';
 import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type { FolderChangeOptions } from '@/api/folders';
+import type { ShelfSourceCheck } from '@/utils/shelfSourceCheck';
 import type {
   BookmarkPayload,
   Book,
@@ -197,6 +199,11 @@ export interface BookshelfReader {
    * created.
    */
   addDesktopShelf?(params: DesktopAddShelfParams): Promise<void>;
+  /**
+   * Probes a virtual shelf's source with the typed secret before it is added,
+   * so the form can tell a wrong token from no connection.
+   */
+  checkDesktopShelfSource?(params: DesktopShelfSourceParams): Promise<ShelfSourceCheck>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
   modifyDesktopShelf?(params: DesktopModifyShelfParams): Promise<void>;
