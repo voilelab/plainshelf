@@ -168,11 +168,9 @@ func (s *Shelf) markRemoteRefreshAttempt() {
 // usable one whose walk began last, ties broken by name so the choice does not
 // depend on listing order.
 //
-// The pCloud client picks by file modification time instead, which is enough
-// there because it still lists the tree and only takes book.json contents from
-// the cache. Here the cache is the whole listing, so the pick has to be the most
-// recent walk, which only the content records. The candidates number the
-// installations writing the shelf, not its books.
+// The cache supplies the whole listing, so the pick must use the walk timestamp
+// recorded in its content rather than the file modification time. The
+// candidates number the installations writing the shelf, not its books.
 //
 // The error is set only when the source is unavailable.
 func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {

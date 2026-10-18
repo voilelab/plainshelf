@@ -1,20 +1,19 @@
 # Architecture
 
-PlainShelf is one Go binary with an embedded Vue frontend. The same frontend is
-served three ways — over HTTP to a browser, inside a Wails desktop window, and
-inside a Capacitor WebView on Android — and every one of them is a client of the
-same API surface.
+PlainShelf uses a Go server and a shared Vue frontend. The server binary embeds
+the frontend for browsers; the Wails desktop app and Capacitor Android app each
+package it with an embedded Go server. Every client uses the same API surface.
 
 ---
 
 ## System shape
 
-![Architecture diagram: web, desktop and Android clients reach a local Go server
-behind a local-token boundary, where a shelf manager keeps an in-memory book
-cache over the shelf filesystem that holds the library. A separate key-value
-store holds application settings, and the Android client can also read a
-pCloud-hosted shelf directly as a read-only
-backend.](../assets/plainshelf-architecture.svg)
+![Architecture diagram: browsers use HTTP and desktop and Android clients can
+reach an embedded Go server in-process. The HTTP API has a local-token boundary.
+A shelf manager keeps an in-memory book cache over the shelf filesystem that
+holds the library. A separate key-value
+store holds application settings. The Go engine also opens read-only virtual
+shelves over WebDAV or, on Android, pCloud.](../assets/plainshelf-architecture.svg)
 
 Three things in that picture are load-bearing.
 
@@ -26,13 +25,21 @@ in-memory book cache, but the cache is only an accelerator — it is rebuilt fro
 
 **The desktop client does not speak HTTP.** Wails serves the embedded frontend
 and routes any request whose path starts with `/api/` straight into the server's
-handler in the same process. There is no listening socket, which is why the
-desktop app needs no port and no token.
+handler in the same process. By default there is no listening socket, so the
+desktop UI needs no port and no token. **Share on local network** opens a
+separate listener for the selected shelves' read-only WebDAV export, protected
+by its own token; it exposes neither the API nor the web UI. See
+[the read-only WebDAV export](../deployment-and-threat-model.md#the-read-only-webdav-export).
 
-**The Android client has two independent paths.** It can talk to a PlainShelf
-server over HTTP like any other client, or it can read a shelf held on pCloud
-directly, bypassing the server entirely. The second path is a read-only storage
-backend, not synchronisation: nothing is ever written back to pCloud.
+**The Android app embeds the Go server.** Local shelves, pCloud shelves and
+WebDAV sources (including another PlainShelf's LAN share) are all read through
+that server, reached in-process through the native bridge and WebView request
+interception, without a UI listener. The Go engine opens each source; virtual
+shelves are read-only storage backends, and nothing is written back to them.
+The app also retains a mode that connects to an external PlainShelf server's
+full API over HTTP. Like the desktop app, Android can explicitly open a
+separate read-only LAN share for selected local shelves; see
+[Android development](../development/android.md).
 
 ### The security boundary
 

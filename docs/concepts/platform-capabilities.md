@@ -3,7 +3,9 @@
 !!! note "Design, partly implemented"
     This page is the agreed design for [PSW-141](https://patchouli.atlassian.net/browse/PSW-141).
     The [shelf capability fields](#shelf-capabilities) are served since
-    PSW-145; the platform interface is not implemented yet.
+    PSW-145; the platform interface and migration of its callers are not
+    implemented yet and are tracked by
+    [PSW-170](https://patchouli.atlassian.net/browse/PSW-170).
     It fixes the capability fields the server reports before `1.0.0-rc1`,
     because they become part of the API's compatibility promise then. It
     builds on [Shelf Sources and Credentials](shelf-sources.md) (PSW-140).
@@ -43,10 +45,10 @@ Every optional method on `BookshelfProvider` today, in
 | `supportsCharCountListing` | mobile, pCloud | Shelf capability `char_count` |
 | `getShelfFetchedAt` | mobile, pCloud | Shelf field `offline.snapshot_at` |
 | `downloadBook`, `removeDownload`, `getDownloadState`, `listDownloadedBookEntries` | mobile | Shelf interface, backed by the Go API (PSW-145), gated by `download` |
-| `getPersistedShelfID` | mobile | Remote-server connection only (see below) |
+| `getPersistedShelfID` | mobile | Offline wrapper for remote-server and embedded virtual-shelf entries (see below) |
 | `supportsServerMode` (removed in PSW-159) | — | Every backend now has a Go server to answer `/api/mode` |
 | `filtersNsfwOnDevice`, `localNsfwMarks` | mobile, pCloud | Still used by `EmbeddedPCloudReader` for the device preference and offline filtering |
-| `coversMustBeFetchedAsBlob` | mobile, pCloud | Platform capability, until PSW-136 shows whether it is still needed |
+| `coversMustBeFetchedAsBlob` | mobile | Still used by the offline wrapper; PSW-170 decides whether to keep it as a platform capability or remove it |
 | `getStorageEstimate` | mobile | Platform interface |
 | `openLocalBookFiles`, `importBookFromLocalPath` | desktop | Platform interface |
 | `openDesktopFolder`, `openDesktopBookFolder`, `openDesktopShelfFolder`, `openDesktopShelfDirectory` | desktop | Platform interface, renamed without `Desktop` |
@@ -56,13 +58,15 @@ Every optional method on `BookshelfProvider` today, in
 | *(new)* `openExternalUrl` | — | Platform interface: opens the system browser for pCloud authorization |
 
 No method is left unassigned. "Mobile" here is `MobileBookshelfProvider`, the
-wrapper that adds offline downloads to a remote PlainShelf server connection.
+wrapper that adds offline downloads to remote PlainShelf server connections
+and embedded pCloud/WebDAV entries. Local shelves are not wrapped.
 
 ---
 
 ## Shelf capabilities
 
-`GET /api/shelves` returns `id`, `name` and `read_only` today. It gains:
+`GET /api/shelves` returns `kind`, `capabilities` and `offline` alongside `id`,
+`name` and `read_only`:
 
 ```json
 [
@@ -126,6 +130,10 @@ response, as [the source design](shelf-sources.md#rules) requires.
 
 ## The platform interface
 
+The following interface and host table are the proposed design, still awaiting
+implementation in PSW-170. Current hosts use provider methods and direct host
+bindings instead.
+
 ```ts
 interface PlatformCapabilities {
   // Shelf management: present only where the host can manage shelves.
@@ -156,7 +164,7 @@ interface PlatformCapabilities {
 }
 ```
 
-The host builds this object when the app starts and the frontend reads it
+The host will build this object when the app starts and the frontend will read it
 through one accessor, beside `getBookshelfProvider()`. A missing member means the
 platform cannot do it, which is the same rule the optional methods follow today,
 in one place instead of spread over the provider.
@@ -183,22 +191,27 @@ it does today. That connection is client-side state, not a shelf source (see
 [Compatibility](shelf-sources.md#compatibility)), and its offline downloads
 remain the job of `MobileBookshelfProvider` wrapping a `ServerBookshelfProvider`.
 
-That wrapper is applied **only** to a remote-server connection. A local shelf and
-a virtual shelf opened by the embedded Go engine get their offline behaviour
-from the engine (PSW-145) and are not wrapped.
+In the current Android shell (`frontend/src/shells/mobile/index.ts`), the wrapper
+also wraps `EmbeddedPCloudReader` for pCloud and dav entries (WebDAV or another
+PlainShelf's LAN share). Only a local shelf uses `ServerBookshelfProvider`
+without the wrapper. The embedded Go engine has its own virtual-shelf offline
+layer (PSW-145), but the app's download actions still use the wrapper's
+Filesystem cache. This leaves two offline layers for embedded virtual shelves;
+[PSW-169](https://patchouli.atlassian.net/browse/PSW-169) will move those actions
+to Go and remove that wrapper from embedded virtual shelves.
 
-Because those downloads are the wrapper's own, the wrapper reports
-`capabilities.download: true` on every shelf it wraps, whatever the remote
-server says. A remote server reports `download: false` for its local shelves,
-and an older server reports nothing, so the UI would otherwise hide downloads
-that work today. The rule is that the layer that owns the offline copy answers
-`download`: the engine for shelves it opens, the wrapper for a remote
-connection. `getPersistedShelfID` stays with
-the wrapper, which needs it to scope the remote connection's downloads.
+The capability migration in PSW-170 must keep downloads available on a wrapped
+remote connection, whatever the remote server reports. A remote server reports
+`download: false` for its local shelves, and an older server reports nothing,
+so using that answer alone would hide the wrapper's working downloads. The
+design is that the layer that owns the offline copy answers `download`: the
+engine for shelves it opens, the wrapper for a remote connection.
+`getPersistedShelfID` currently belongs to the wrapper for both remote-server
+and embedded virtual-shelf entries.
 
-Once virtual shelves cover reading another PlainShelf (PSW-146, PSW-149), the
-remote-server connection and its wrapper can be retired; that is a separate
-decision and not part of this design.
+Virtual shelves now cover reading another PlainShelf through its WebDAV export
+(PSW-146, PSW-149). Retiring the full-API remote-server connection and its
+wrapper remains a separate decision.
 
 ---
 
@@ -233,7 +246,11 @@ decision and not part of this design.
   omits either fails the type check. `MobileBookshelfProvider` forwards a bundle
   request to its remote while online and rejects it offline, since the cache
   stores figures one by one; the reader's per-image path still reads them.
-- **PSW-145 (offline download).** Implements `capabilities.download` and
-  `offline.snapshot_at`, and the shelf-interface download methods call its API.
-- **PSW-147, PSW-136.** The desktop and Android hosts expose shelf management
-  through `PlatformCapabilities.shelves`, with the generic names above.
+- **PSW-145 (offline download).** Done in Go: `capabilities.download`,
+  `offline.snapshot_at` and the download API exist. Android's embedded virtual
+  entries still use wrapper downloads until PSW-169.
+- **PSW-147, PSW-136 (desktop and Android hosts).** LAN sharing and Android
+  local shelves are implemented through host bindings. Exposing shelf
+  management through `PlatformCapabilities.shelves`, with the generic names
+  above, remains unimplemented and belongs to PSW-170. That ticket also decides
+  the fate of `coversMustBeFetchedAsBlob`, which PSW-136 left in use.
