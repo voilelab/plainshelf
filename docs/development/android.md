@@ -396,6 +396,10 @@ first-launch offer or from **Import from zip** later.
   On `android` the settings store is the JSON file the wasm build uses rather
   than badger, and the frontend is not embedded in the library, since the APK
   already carries it.
+- The embedded Go runtime sets `TMPDIR` to
+  `<files dir>/local-shelves/tmp/` before opening shelves. Batch illustration
+  archives are spooled there and removed after the response; Android's default
+  `/data/local/tmp` is not writable by the app.
 - `scripts/build-android-lib.sh <out-dir>` builds the arm64 AAR and reports
   each `.so`'s size and 16 KB page alignment. It needs the Android SDK, an NDK
   in `ANDROID_NDK_HOME` and a JDK, on Linux or macOS (where it reads the

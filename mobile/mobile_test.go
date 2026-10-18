@@ -22,6 +22,9 @@ import (
 
 func startT(t *testing.T, dataDir string) {
 	t.Helper()
+	// Start configures the process temp directory for the embedded app. Restore
+	// it before this test's private directory is removed.
+	t.Setenv("TMPDIR", os.Getenv("TMPDIR"))
 	if err := Start(dataDir); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
