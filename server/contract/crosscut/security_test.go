@@ -137,3 +137,54 @@ func TestAPISecurityProtectReadOptionContract(t *testing.T) {
 	rec = env.DoRaw(req)
 	apitest.AssertStatus(t, rec, http.StatusOK)
 }
+
+// A browser leaves the default port out of Origin and Referer, so the same
+// origin written with or without it has to match; nothing else may merge.
+func TestAPISecurityOriginDefaultPortContract(t *testing.T) {
+	cases := []struct {
+		name    string
+		allowed string
+		origin  string
+		ok      bool
+	}{
+		{"http listed with :80", "http://demo.example:80", "http://demo.example", true},
+		{"https listed with :443", "https://demo.example:443", "https://demo.example", true},
+		{"http request with :80", "http://demo.example", "http://demo.example:80", true},
+		{"https request with :443", "https://demo.example", "https://demo.example:443", true},
+		{"non-default port", "http://demo.example", "http://demo.example:8080", false},
+		{"non-default port listed", "http://demo.example:8080", "http://demo.example", false},
+		{"https on :80", "https://demo.example:80", "https://demo.example", false},
+		{"http on :443", "http://demo.example:443", "http://demo.example", false},
+		{"unlisted host", "http://demo.example:80", "http://other.example", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			security := apitest.LocalTokenSecurity()
+			security.AllowedOrigins = []string{tc.allowed}
+			env := apitest.New(t, apitest.WithSecurity(security))
+			want := http.StatusForbidden
+			if tc.ok {
+				want = http.StatusNoContent
+			}
+
+			req := httptest.NewRequest(http.MethodPost, apitest.SettingPath, strings.NewReader(mutationBody))
+			req.Header.Set(env.App.SecurityTokenHeader(), env.App.SecurityToken())
+			req.Header.Set("Origin", tc.origin)
+			rec := env.DoRaw(req)
+			apitest.AssertStatus(t, rec, want)
+			wantACAO := ""
+			if tc.ok {
+				wantACAO = tc.origin
+			}
+			if got := rec.Header().Get("Access-Control-Allow-Origin"); got != wantACAO {
+				t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, wantACAO)
+			}
+
+			req = httptest.NewRequest(http.MethodPost, apitest.SettingPath, strings.NewReader(mutationBody))
+			req.Header.Set(env.App.SecurityTokenHeader(), env.App.SecurityToken())
+			req.Header.Set("Referer", tc.origin+"/books")
+			rec = env.DoRaw(req)
+			apitest.AssertStatus(t, rec, want)
+		})
+	}
+}
