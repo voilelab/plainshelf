@@ -1,19 +1,13 @@
 # Shelf and Platform Capabilities
 
-!!! note "Design, partly implemented"
-    This page is the agreed capability design.
-    The [shelf capability fields](#shelf-capabilities) are served; the
-    platform interface and migration of its callers are not implemented yet.
-    It fixes the capability fields the server reports before `1.0.0-rc1`,
-    because they become part of the API's compatibility promise then. It
-    builds on [Shelf Sources and Credentials](shelf-sources.md).
+!!! note "Implemented"
+    Shelf capability fields are served by Go and read by the frontend.
+    Device operations are exposed through `PlatformCapabilities`, accessed with
+    `getPlatformCapabilities()` beside `getBookshelfProvider()`.
 
-The frontend reaches its data through one `BookshelfProvider`. Today that
-interface also carries every client's special cases as optional methods: the
-desktop app's "open in Finder", the Android app's downloads, and the pCloud
-reader's device NSFW preference. A screen that wants to know whether a
-feature exists asks the provider with a `supportsXxx()` call, so every new
-source grows another one.
+The frontend reads and writes shelf data through `BookshelfProvider`. The
+host supplies file pickers, native readers, file exports and shelf management
+through a separate platform object.
 
 This design splits those methods by **who knows the answer**:
 
@@ -24,14 +18,14 @@ This design splits those methods by **who knows the answer**:
   platform interface, never over the HTTP API.
 
 Since pCloud moved into Go and the TypeScript reader was removed, every client reads every shelf through the same Go
-API. The remaining capability changes below leave the provider with one job:
+API. The capability split leaves the provider with one job:
 reading and writing a shelf.
 
 ---
 
 ## Where each optional method goes
 
-Every optional method on `BookshelfProvider` today, in
+The implemented migration from the optional methods formerly on `BookshelfProvider`, in
 `frontend/src/providers/bookshelfProvider.ts`:
 
 | Method | Implemented by | Goes to |
@@ -43,10 +37,10 @@ Every optional method on `BookshelfProvider` today, in
 | `supportsCharCountListing` | mobile, pCloud | Shelf capability `char_count` |
 | `getShelfFetchedAt` | mobile, pCloud | Shelf field `offline.snapshot_at` |
 | `downloadBook`, `removeDownload`, `getDownloadState`, `listDownloadedBookEntries` | mobile | Shelf interface, backed by the Go API, gated by `download` |
-| `getPersistedShelfID` | mobile | Offline wrapper for remote-server and embedded virtual-shelf entries (see below) |
+| `getPersistedShelfID` | mobile | Offline wrapper for remote-server entries (see below) |
 | `supportsServerMode` (removed) | — | Every backend now has a Go server to answer `/api/mode` |
 | `filtersNsfwOnDevice`, `localNsfwMarks` | mobile, pCloud | Still used by `EmbeddedPCloudReader` for the device preference and offline filtering |
-| `coversMustBeFetchedAsBlob` | mobile | Still used by the offline wrapper; the platform-interface migration decides whether to keep it as a platform capability or remove it |
+| `coversMustBeFetchedAsBlob` | mobile | Platform boolean, retained on Android: direct WebView image requests bypass CapacitorHttp and can be blocked as mixed content |
 | `getStorageEstimate` | mobile | Platform interface |
 | `openLocalBookFiles`, `importBookFromLocalPath` | desktop | Platform interface |
 | `openDesktopFolder`, `openDesktopBookFolder`, `openDesktopShelfFolder`, `openDesktopShelfDirectory` | desktop | Platform interface, renamed without `Desktop` |
@@ -56,8 +50,8 @@ Every optional method on `BookshelfProvider` today, in
 | *(new)* `openExternalUrl` | — | Platform interface: opens the system browser for pCloud authorization |
 
 No method is left unassigned. "Mobile" here is `MobileBookshelfProvider`, the
-wrapper that adds offline downloads to remote PlainShelf server connections
-and embedded pCloud/WebDAV entries. Local shelves are not wrapped.
+wrapper that adds offline downloads to remote PlainShelf server connections.
+Embedded pCloud/WebDAV entries use Go downloads directly; local shelves are not wrapped.
 
 ---
 
@@ -106,7 +100,7 @@ local shelf can be read-only too.
 
 ### Who reads them
 
-| Today | After |
+| Former caller | Implemented behavior |
 |---|---|
 | `composables/useShelfRefresh.ts` asks `supportsShelfRefresh` and `getShelfFetchedAt` | reads `capabilities.rescan` and `offline.snapshot_at` |
 | `features/library/pages/LibraryPage.vue`, `features/maintenance/pages/SimilarContentPage.vue` and `utils/bookFilters/registry.ts` ask `supportsCharCountListing` | read `capabilities.char_count` |
@@ -128,9 +122,11 @@ response, as [the source design](shelf-sources.md#rules) requires.
 
 ## The platform interface
 
-The following interface and host table are the proposed design, still awaiting
-implementation. Current hosts use provider methods and direct host
-bindings instead.
+The interface is implemented in `frontend/src/providers/platformCapabilities.ts`.
+Wails supplies its host operations in `providers/wailsBookshelfProvider.ts`;
+Capacitor supplies its object in `shells/mobile/platform.ts`. Web and the wasm
+app use the browser implementation. The wasm toolbar continues to manage its
+own engine outside the shared app; it does not expose `shelves` to that app.
 
 ```ts
 interface PlatformCapabilities {
@@ -138,6 +134,7 @@ interface PlatformCapabilities {
   shelves?: {
     previewShelfID(name: string): Promise<ShelfIDPreview>;
     addShelf(params: AddShelfParams): Promise<void>;
+    checkShelfSource(params: ShelfSourceParams): Promise<ShelfSourceCheck>;
     getShelfDetails(shelfID: string): Promise<ShelfDetails>;
     modifyShelf(params: ModifyShelfParams): Promise<void>;
     removeShelf(shelfID: string): Promise<void>;
@@ -162,8 +159,8 @@ interface PlatformCapabilities {
 }
 ```
 
-The host will build this object when the app starts and the frontend will read it
-through one accessor, beside `getBookshelfProvider()`. A missing member means the
+The host builds this object during bootstrap (lazily for desktop), and the frontend
+reads it through `getPlatformCapabilities()`, beside `getBookshelfProvider()`. A missing member means the
 platform cannot do it, which is the same rule the optional methods follow today,
 in one place instead of spread over the provider.
 
@@ -171,8 +168,8 @@ in one place instead of spread over the provider.
 |---|---|---|---|
 | Server (browser) | absent: shelves come only from the YAML file | absent | browser `window.open` |
 | Desktop (Wails) | Wails bindings | Wails bindings | Wails `BrowserOpenURL` |
-| Android (Capacitor) | Capacitor plugin into Go | Capacitor plugins | Capacitor `Browser` |
-| wasm demo | host routes around the engine, once the demo gets a shelf list | absent | `window.open` |
+| Android (Capacitor) | absent from the shared desktop management form; the mobile entry editor uses its existing Go plugin | Documents export, storage estimate, blob covers | Capacitor `Browser` (browser preview uses `window.open`) |
+| wasm demo | absent in the shared app; the host toolbar manages the engine | absent | `window.open` |
 
 **None of this goes over the HTTP API.** Shelf management stays a host
 capability, as [Who holds the shelf list](shelf-sources.md#who-holds-the-shelf-list)
@@ -189,23 +186,18 @@ it does today. That connection is client-side state, not a shelf source (see
 [Compatibility](shelf-sources.md#compatibility)), and its offline downloads
 remain the job of `MobileBookshelfProvider` wrapping a `ServerBookshelfProvider`.
 
-In the current Android shell (`frontend/src/shells/mobile/index.ts`), the wrapper
-also wraps `EmbeddedPCloudReader` for pCloud and dav entries (WebDAV or another
-PlainShelf's LAN share). Only a local shelf uses `ServerBookshelfProvider`
-without the wrapper. The embedded Go engine has its own virtual-shelf offline
-layer, but the app's download actions still use the wrapper's
-Filesystem cache. This leaves two offline layers for embedded virtual shelves;
-A planned change will move those actions
-to Go and remove that wrapper from embedded virtual shelves.
+In the Android shell (`frontend/src/shells/mobile/index.ts`), only remote-server
+entries use `MobileBookshelfProvider`. Embedded pCloud and WebDAV entries use
+`EmbeddedPCloudReader` directly: Go owns their offline content and snapshots.
+Local shelves use `ServerBookshelfProvider` without a wrapper.
 
-The capability migration must keep downloads available on a wrapped
+The capability migration keeps downloads available on a wrapped
 remote connection, whatever the remote server reports. A remote server reports
 `download: false` for its local shelves, and an older server reports nothing,
-so using that answer alone would hide the wrapper's working downloads. The
-design is that the layer that owns the offline copy answers `download`: the
+so the mobile shell overrides `download` to true for its wrapped entries. The
+layer that owns the offline copy answers `download`: the
 engine for shelves it opens, the wrapper for a remote connection.
-`getPersistedShelfID` currently belongs to the wrapper for both remote-server
-and embedded virtual-shelf entries.
+`getPersistedShelfID` belongs to the remote-server wrapper.
 
 Virtual shelves now cover reading another PlainShelf through its WebDAV export.
 Retiring the full-API remote-server connection and its
@@ -216,7 +208,7 @@ wrapper remains a separate decision.
 ## What stays the same
 
 - `WailsBookshelfProvider` keeps extending `ServerBookshelfProvider`: the
-  desktop is already the target shape. Its desktop-only methods move to the
+  desktop is already the target shape. Its desktop-only methods have moved to the
   platform object; the shelf methods do not change.
 - `read_only` on `GET /api/shelves` keeps its meaning and its place.
 - An older client against a newer server ignores `kind`, `capabilities` and
@@ -232,8 +224,8 @@ wrapper remains a separate decision.
 - **pCloud in Go.** A pCloud shelf reports `kind: virtual`,
   `download: true` and `offline.snapshot_at`, so the UI that reads them needs no
   pCloud branch. `PCloudBookshelfProvider` is no longer constructed for pCloud,
-  and the screens listed in [Who reads them](#who-reads-them) move to the new
-  fields in the same change.
+  and the screens listed in [Who reads them](#who-reads-them) read the new
+  fields.
 - **Removing the TS pCloud reader.** Done. `EmbeddedPCloudReader`
   reads through Go and still answers `filtersNsfwOnDevice` and `localNsfwMarks`
   for the device preference and offline filtering. A follow-up removed
@@ -246,9 +238,25 @@ wrapper remains a separate decision.
   stores figures one by one; the reader's per-image path still reads them.
 - **Offline download.** Done in Go: `capabilities.download`,
   `offline.snapshot_at` and the download API exist. Android's embedded virtual
-  entries still use wrapper downloads until the offline layers are consolidated.
+  entries now use Go downloads directly; only remote-server entries use the wrapper.
 - **Desktop and Android hosts.** LAN sharing and Android
   local shelves are implemented through host bindings. Exposing shelf
   management through `PlatformCapabilities.shelves`, with the generic names
-  above, remains unimplemented. That migration also decides the fate of
-  `coversMustBeFetchedAsBlob`, which the Android local shelf left in use.
+  above, is implemented for Wails. Android keeps its mobile entry editor and Go
+  plugin outside the desktop management form. `coversMustBeFetchedAsBlob` is
+  retained as a platform boolean for all Android shelves, including local ones.
+
+### Reading shell metadata
+
+`listServerShelves()` preserves validated `kind`, `capabilities` and
+`offline.snapshot_at` fields. The mobile shell enriches its device-local entry
+with the engine response, retaining the device's entry ID and display name.
+Embedded virtual entries route `/api/shelves` to Go as well as their shelf
+routes. A disconnected wrapped entry still advertises its working downloads.
+The selected shelf's capabilities are reactive, so switching shelves updates
+refresh, character-count and fingerprint controls without rebuilding a provider.
+
+Missing `rescan`, `char_count` or `fingerprint` members default to true.
+Missing `download` defaults to false unless the offline wrapper overrides it.
+Invalid snapshot dates are ignored. This keeps older servers compatible while
+honoring explicit false values from newer servers.

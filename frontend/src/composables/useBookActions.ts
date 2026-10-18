@@ -1,3 +1,4 @@
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useBookStore } from '@/composables/useBookStore';
@@ -115,7 +116,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     [...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort()
   );
 
-  const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
+  const canOpenBookFolder = computed(() => Boolean(getPlatformCapabilities().openBookFolder));
 
   /**
    * Forwards to `useReaderLaunch`, which owns the launch policy, so existing
@@ -132,7 +133,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   async function openBookFolder(id: string): Promise<void> {
     try {
-      await getBookshelfProvider().openDesktopBookFolder?.(id);
+      await getPlatformCapabilities().openBookFolder?.(id);
       actionError.value = '';
     } catch (err) {
       actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.openFolderFailed');
@@ -158,11 +159,12 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
         ? await provider.getSource(book.id, book.current_source).then((source) => source.format).catch(() => undefined)
         : undefined;
 
-      if (provider.saveBookContentToFile) {
+      const platform = getPlatformCapabilities();
+      if (platform.saveBookContentToFile) {
         // A returned location string means the file was written somewhere with
         // no save dialog of its own (the mobile Documents export), so confirm it
         // with a toast; the desktop dialog resolves to void and needs none.
-        const location = await provider.saveBookContentToFile(
+        const location = await platform.saveBookContentToFile(
           book.id,
           formatDownloadFilename(book, sourceFormat)
         );

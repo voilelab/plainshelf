@@ -227,3 +227,5 @@ describe('useCoverSrc', () => {
     scope.stop();
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ coversMustBeFetchedAsBlob: capability.declared ? coversMustBeFetchedAsBlobMock() : undefined }) }));

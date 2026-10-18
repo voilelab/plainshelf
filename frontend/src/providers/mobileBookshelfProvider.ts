@@ -1,5 +1,3 @@
-import { Capacitor } from '@capacitor/core';
-import { exportMobileBookContent } from './mobileBookExport';
 import { unzipSync } from 'fflate';
 import type {
   BookmarkPayload,
@@ -27,8 +25,7 @@ import type {
   BookshelfReader,
   DownloadedBookEntry,
   ListBooksOptions,
-  ShelfRefreshResult,
-  StorageEstimateResult
+  ShelfRefreshResult
 } from './bookshelfProvider';
 import {
   downloadedBookFromManifest,
@@ -110,12 +107,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
   // corrected it.
   private readonly coverUrlCache = new Map<string, string>();
 
-  // Present only in a native shell: a browser preview leaves it undefined so
-  // useBookActions.downloadBook falls back to its blob `<a download>` path,
-  // which the Android WebView silently ignores. Gated at construction because
-  // native-ness is fixed for the page lifetime.
-  saveBookContentToFile?: (bookId: string, suggestedName: string) => Promise<string>;
-
   /**
    * The offline cache, wrapped so it withholds what this device hides.
    *
@@ -138,28 +129,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
       () => this.filtersNsfwOnDevice(),
       () => this.remote.localNsfwMarks?.() ?? Promise.resolve(null)
     );
-
-    if (Capacitor.isNativePlatform()) {
-      this.saveBookContentToFile = (bookId, suggestedName) =>
-        this.exportBookContentToDocuments(bookId, suggestedName);
-    }
-  }
-
-  /**
-   * Writes into the shared Documents folder so the user can reach the file from
-   * the Files app, returning the saved location for a toast.
-   *
-   * `suggestedName` is already filesystem-safe (useBookActions sanitizes it),
-   * and Documents needs no runtime permission for a file the app itself creates.
-   * An existing file of the same name is overwritten, matching a browser
-   * download into a folder that already holds one.
-   */
-  private async exportBookContentToDocuments(
-    bookId: string,
-    suggestedName: string
-  ): Promise<string> {
-    const blob = await this.downloadBookContent(bookId);
-    return exportMobileBookContent(blob, suggestedName);
   }
 
   // `options` only affects the remote call; the offline cache stores whatever
@@ -223,7 +192,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
   }
 
-
   async getBookContent(bookId: string): Promise<BookContent> {
     const cached = await this.cache.getCachedBookContent(bookId);
     if (cached) {
@@ -255,7 +223,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
   listFolders(): Promise<string[]> {
     return this.remote.listFolders();
   }
-
 
   async getReadProgress(bookId: string): Promise<ReadingProgress> {
     const cached = await this.cache.getReadProgress(bookId);
@@ -297,7 +264,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return clearLocalReadHistory();
   }
 
-
   async getBookCover(bookId: string): Promise<Blob> {
     const cached = await this.cache.getCachedCover(bookId);
     if (cached) {
@@ -321,21 +287,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Always, on this shell: the WebView issues an `<img src="http://...">`
-   * itself rather than through CapacitorHttp, so the request is not the one
-   * the native bridge would have made. Going through getBookCover() also
-   * reuses the offline cover cache for a downloaded book.
-   */
-  coversMustBeFetchedAsBlob(): boolean {
-    return true;
-  }
-
-  /** The cost belongs to whatever backend this shell is pointed at. */
-  supportsCharCountListing(): boolean {
-    return this.remote.supportsCharCountListing?.() ?? true;
-  }
-
-  /**
    * Also the backend's answer, not the shell's. The same app reads a pCloud
    * shelf on one device and a PlainShelf server on the next, and only the first
    * has no server to apply the setting for it — so this cannot be read off the
@@ -344,7 +295,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
   filtersNsfwOnDevice(): boolean {
     return this.remote.filtersNsfwOnDevice?.() ?? false;
   }
-
 
   getDuplicateBookGroups(): Promise<string[][]> {
     return this.remote.getDuplicateBookGroups();
@@ -362,21 +312,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.listTrashedBooks();
   }
 
-
-  // Entirely the wrapped backend's business — nothing here caches the listing.
-  // Unsupported unless the backend says otherwise, and both do.
-  supportsShelfRefresh(): boolean {
-    return Boolean(this.remote.supportsShelfRefresh?.());
-  }
-
   // Whatever the backend found is passed straight through: it is the only thing
   // that can say, and dropping it would leave the button with nothing to report.
   async refreshShelf(): Promise<ShelfRefreshResult | void> {
     return this.remote.refreshShelf?.();
-  }
-
-  async getShelfFetchedAt(): Promise<number | null> {
-    return (await this.remote.getShelfFetchedAt?.()) ?? null;
   }
 
   async listSources(bookId: string): Promise<SourceMeta[]> {
@@ -460,7 +399,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
     throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
   }
-
 
   /**
    * The shelf chosen during connection setup, applied to the API client at
@@ -725,24 +663,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     );
   }
 
-  async getStorageEstimate(): Promise<StorageEstimateResult> {
-    if (typeof navigator === 'undefined' || !navigator.storage?.estimate) {
-      return { supported: false };
-    }
-
-    try {
-      const estimate = await navigator.storage.estimate();
-      return { supported: true, usage: estimate.usage, quota: estimate.quota };
-    } catch {
-      return { supported: false };
-    }
-  }
-
-  openLocalBookFiles?(): Promise<string[] | null> {
-    return this.remote.openLocalBookFiles?.() ?? Promise.resolve(null);
-  }
-
-
   private async annotateDownloadState(book: Book): Promise<Book> {
     const cached = await this.cache.getCachedBook(book.id);
     if (!cached) {
@@ -776,7 +696,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
       this.coverUrlCache.delete(key);
     }
   }
-
 
   // Rewrites `cover_url` to a memoized object URL for a cached cover blob
   // when one is available locally. Used for offline reads and for the

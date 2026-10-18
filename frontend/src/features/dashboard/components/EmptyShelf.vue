@@ -41,29 +41,29 @@
 </template>
 
 <script setup lang="ts">
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { ref, watch } from 'vue';
 import { useI18n } from '@/i18n';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useShelvesStore } from '@/composables/useShelvesStore';
-import { getBookshelfProvider } from '@/providers';
 
 const { t } = useI18n();
 const { writesEnabled } = useWriteAccess();
 const { selectedShelfID } = useShelvesStore();
 
 // The active shelf's real lib_root, resolved through the desktop provider.
-// Empty off the desktop (the provider has no getDesktopShelfDetails there) and
+// Empty off the desktop (the host has no shelf-management capability there) and
 // while nothing is selected, which hides the path row entirely.
 const shelfPath = ref('');
 
 async function loadShelfPath(shelfID: string): Promise<void> {
-  const provider = getBookshelfProvider();
-  if (!provider.getDesktopShelfDetails || !shelfID) {
+  const platform = getPlatformCapabilities();
+  if (!platform.shelves?.getShelfDetails || !shelfID) {
     shelfPath.value = '';
     return;
   }
   try {
-    const details = await provider.getDesktopShelfDetails(shelfID);
+    const details = await platform.shelves!.getShelfDetails(shelfID);
     // The lookup is async; ignore a response for a shelf we have since left.
     if (selectedShelfID.value === shelfID) {
       shelfPath.value = details.path;
@@ -76,12 +76,12 @@ async function loadShelfPath(shelfID: string): Promise<void> {
 watch(selectedShelfID, (id) => void loadShelfPath(id), { immediate: true });
 
 async function onOpenShelfFolder(): Promise<void> {
-  const provider = getBookshelfProvider();
-  if (!provider.openDesktopShelfFolder) {
+  const platform = getPlatformCapabilities();
+  if (!platform.openShelfFolder) {
     return;
   }
   try {
-    await provider.openDesktopShelfFolder(selectedShelfID.value);
+    await platform.openShelfFolder(selectedShelfID.value);
   } catch {
     // Best-effort: revealing the folder is a convenience, and the shelf
     // settings panel is where a genuine shelf error is surfaced.

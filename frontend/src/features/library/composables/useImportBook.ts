@@ -1,3 +1,4 @@
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { t } from '@/i18n';
 import { computed, ref } from 'vue';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
@@ -308,7 +309,8 @@ export function useImportBook() {
   function createLocalPathExecutor(currentFolderPath?: string): ImportExecutor<LocalPathImportUnit> {
     const folder = normalizeImportFolderPath(currentFolderPath);
     return async (unit) => {
-      const result = (await bookshelfWriter().importBookFromLocalPath?.(unit.localPath, folder)) ?? null;
+      bookshelfWriter();
+      const result = (await getPlatformCapabilities().importBookFromLocalPath?.(unit.localPath, folder)) ?? null;
       if (result?.error) {
         throw new Error(result.error);
       }

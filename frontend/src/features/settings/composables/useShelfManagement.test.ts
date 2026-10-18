@@ -536,3 +536,5 @@ describe('useShelfManagement remote shelves', () => {
     expect(m.modifyShelfIsVirtual.value).toBe(true);
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ shelves: { previewShelfID: provider.value.previewDesktopShelfID, addShelf: provider.value.addDesktopShelf, checkShelfSource: provider.value.checkDesktopShelfSource, getShelfDetails: provider.value.getDesktopShelfDetails, modifyShelf: provider.value.modifyDesktopShelf, removeShelf: provider.value.removeDesktopShelf }, openShelfFolder: provider.value.openDesktopShelfFolder, chooseShelfDirectory: provider.value.openDesktopShelfDirectory }) }));

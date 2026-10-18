@@ -401,12 +401,13 @@ import ShelfReadOnlyField from '@/features/settings/components/ShelfReadOnlyFiel
 import { exportShelfBookCache } from '@/api/shelves';
 import { useI18n } from '@/i18n';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { isMobileRuntime, isWailsRuntime } from '@/providers';
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
+import { isMobileRuntime } from '@/providers';
 import { useShelfManagement } from '@/features/settings/composables/useShelfManagement';
 
 const { t } = useI18n();
 const { serverSettingsEditable } = useWriteAccess();
-const isDesktopEnv = computed(() => isWailsRuntime());
+const isDesktopEnv = computed(() => Boolean(getPlatformCapabilities().shelves));
 const isMobileEnv = computed(() => isMobileRuntime());
 
 // ConfirmModal resolves `initial-focus` as a selector inside its own panel, so

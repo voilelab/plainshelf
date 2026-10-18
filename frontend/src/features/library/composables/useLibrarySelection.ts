@@ -1,3 +1,4 @@
+import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
@@ -36,7 +37,8 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
   const downloadBatchSucceeded = ref(0);
   const downloadBatchTotal = ref(0);
   const downloadBatchFailures = ref<Array<{ id: string; title: string; message: string }>>([]);
-  const selectionEnabled = computed(() => isMobileEnv.value || !readOnly.value);
+  const capability = useShelfCapabilities();
+  const selectionEnabled = computed(() => isMobileEnv.value ? capability.download.value : !readOnly.value);
   const downloadBatchStatusText = computed(() => {
     if (downloadBatchRunning.value) return t('bookCollection.selection.processing');
     if (downloadBatchFailures.value.length === 0) {
@@ -78,7 +80,7 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
   }
 
   function onLongPress(id: string): void {
-    if (isMobileEnv.value && !downloadBatchRunning.value) selection.toggle(id);
+    if (selectionEnabled.value && isMobileEnv.value && !downloadBatchRunning.value) selection.toggle(id);
   }
 
   function selectVisibleBooks(): void {
@@ -107,7 +109,7 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
 
   async function startBatchDownload(): Promise<void> {
     const provider = getBookshelfProvider();
-    if (!provider.downloadBook || downloadBatchRunning.value) return;
+    if (!capability.download.value || !provider.downloadBook || downloadBatchRunning.value) return;
     const targets = selectedBooks();
     if (targets.length === 0) return;
 

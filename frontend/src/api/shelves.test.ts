@@ -169,3 +169,21 @@ describe('rescanShelf', () => {
     await expect(rescanShelf()).resolves.toEqual({ bookCount: 0, folderCount: 1 });
   });
 });
+
+it('preserves engine capabilities and snapshot without accepting malformed members', async () => {
+  fetchJsonMock.mockResolvedValue([{
+    id: 'cloud', name: 'Cloud', kind: 'virtual', read_only: true,
+    capabilities: { rescan: false, download: true, char_count: false, fingerprint: false, unknown: true },
+    offline: { snapshot_at: '2026-10-16T09:12:44Z' }
+  }, { id: 'old', name: 'Old' }, {
+    id: 'malformed', name: 'Malformed', capabilities: { rescan: 'false', download: 1 }
+  }]);
+  const shelves = await listServerShelves();
+  expect(shelves[0]).toEqual({
+    id: 'cloud', name: 'Cloud', kind: 'virtual', readOnly: true,
+    capabilities: { rescan: false, download: true, char_count: false, fingerprint: false },
+    offline: { snapshot_at: '2026-10-16T09:12:44Z' }
+  });
+  expect(shelves[1].capabilities).toBeUndefined();
+  expect(shelves[2].capabilities).toEqual({});
+});

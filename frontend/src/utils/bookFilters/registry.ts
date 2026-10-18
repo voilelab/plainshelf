@@ -1,3 +1,4 @@
+import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
 /**
  * Declarative registry of the library page's book filters: a condition states
  * everything about itself in one entry, so adding one is not also editing the
@@ -186,7 +187,7 @@ export const charCountFilter = defineBookFilter<CharCountRange>({
   predicate: (book, value) => isCharCountInRange(book.char_count, value),
   // Hidden on a backend that cannot afford the counts (pCloud would read every
   // book's source over the network to answer includeCharCount).
-  supported: () => getBookshelfProvider().supportsCharCountListing?.() !== false,
+  supported: () => useShelfCapabilities().charCount.value,
   createDependency: () => {
     const index = useCharCountIndex();
     return {

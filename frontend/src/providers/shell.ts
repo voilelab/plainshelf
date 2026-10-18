@@ -1,3 +1,4 @@
+import type { PlatformCapabilities } from './platformCapabilities';
 import type { Router } from 'vue-router';
 
 import type { BookshelfProvider } from './bookshelfProvider';
@@ -15,6 +16,7 @@ import type { DeviceDocumentStorage } from '@/storage/deviceDocument';
  * Add a member when a concrete branch needs one, not in anticipation.
  */
 export interface RuntimeShell {
+  platform?: PlatformCapabilities;
   /** Called lazily, so a shell may rely on anything it set up during install. */
   createProvider(): BookshelfProvider;
 
@@ -33,6 +35,7 @@ export interface RuntimeShell {
    * server, so the app-wide list collapses to this.
    */
   activeShelfInfo?(): ShelfInfo | null;
+  loadActiveShelfInfo?(shelf: ShelfInfo): Promise<ShelfInfo>;
 
   /**
    * The shelf dropdown this shell puts in the sidebar. On mobile, picking one

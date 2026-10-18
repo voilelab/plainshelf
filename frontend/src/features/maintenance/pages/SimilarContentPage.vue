@@ -117,6 +117,7 @@
 </template>
 
 <script setup lang="ts">
+import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
@@ -239,10 +240,10 @@ async function load(): Promise<void> {
   const provider = getBookshelfProvider();
   // Skip the char_count join on backends that would answer it one network
   // meta.json read per book (pCloud); there the count simply shows as unknown.
-  const wantCharCount = provider.supportsCharCountListing?.() ?? true;
+  const wantCharCount = useShelfCapabilities().charCount.value;
   const [statusResult, pairsResult, booksResult] = await Promise.allSettled([
-    provider.getFingerprintStatus(),
-    provider.getSimilarBookPairs(SIMILARITY_FLOOR),
+    useShelfCapabilities().fingerprint.value ? provider.getFingerprintStatus() : Promise.resolve(null),
+    useShelfCapabilities().fingerprint.value ? provider.getSimilarBookPairs(SIMILARITY_FLOOR) : Promise.resolve([]),
     provider.listBooks(1, Number.MAX_SAFE_INTEGER, wantCharCount ? { includeCharCount: true } : undefined)
   ]);
 

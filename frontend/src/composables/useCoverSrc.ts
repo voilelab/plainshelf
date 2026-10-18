@@ -1,3 +1,4 @@
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { onScopeDispose, ref, watch, type Ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { acquireObjectUrl, releaseObjectUrl } from '@/composables/objectUrlCache';
@@ -25,13 +26,12 @@ function isShelfCoverApiUrl(url: string): boolean {
  * (same string when `cacheKey` is unset — this only matters for adding
  * cache-busting after a cover upload, see BookCover.vue).
  *
- * A provider that reports coversMustBeFetchedAsBlob(): the cover is fetched
+ * A host with coversMustBeFetchedAsBlob: the cover is fetched
  * through the provider and exposed as a `blob:` object URL instead. That is
  * the mobile shell, where a plain `<img src="http://...">` is issued by the
  * WebView directly and bypasses CapacitorHttp — tripping mixed-content
- * blocking against the `https://localhost` origin — and pCloud, whose cover
- * URL is an internal reference rather than a fetchable address. Going through
- * the provider also reuses the offline cover cache for a downloaded book.
+ * blocking against the `https://localhost` origin — including embedded virtual shelves. Going through the
+ * provider also reuses the offline cover cache for a downloaded book.
  */
 export function useCoverSrc(
   bookId: () => string,
@@ -62,7 +62,7 @@ export function useCoverSrc(
     }
 
     const provider = getBookshelfProvider();
-    if (!provider.coversMustBeFetchedAsBlob?.()) {
+    if (!getPlatformCapabilities().coversMustBeFetchedAsBlob) {
       src.value = isShelfCoverApiUrl(url)
         ? provider.getBookCoverUrl(bookId(), cacheKeyGetter())
         : url;
@@ -73,7 +73,7 @@ export function useCoverSrc(
     activeKey = key;
 
     // The provider resolved above, not a fresh lookup: the fetch has to come
-    // from the same one whose capability decided this path.
+    // from the active shelf reader.
     acquireObjectUrl(key, () => provider.getBookCover(bookId()))
       .then((objectUrl) => {
         if (token === requestToken) {

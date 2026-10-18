@@ -96,3 +96,7 @@ describe('DownloadsPage', () => {
     expect(titles(host)).toEqual(['plain', 'marked']);
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ getStorageEstimate: mocks.getStorageEstimate }) }));
+
+vi.mock('@/composables/useShelfCapabilities', () => ({ useShelfCapabilities: () => ({ download: { value: true } }) }));

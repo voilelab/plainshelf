@@ -213,10 +213,6 @@ describe('EmbeddedPCloudReader', () => {
     expect(new mod.EmbeddedPCloudReader().filtersNsfwOnDevice()).toBe(true);
   });
 
-  it('offers no character-count listing, which costs a request per book', () => {
-    expect(new mod.EmbeddedPCloudReader().supportsCharCountListing()).toBe(false);
-  });
-
   it('reads every mark from Go, and none when Go cannot answer', async () => {
     plugin.nsfwMarks.mockResolvedValueOnce({ marks: { b1: { nsfw: true }, b2: { nsfw: false } } });
     const reader = new mod.EmbeddedPCloudReader();
@@ -239,11 +235,6 @@ describe('Go offline downloads', () => {
     await mod.openEmbeddedPCloudShelf(entry);
     const reader = new mod.EmbeddedPCloudReader();
     expect(isWritableProvider(reader)).toBe(false);
-    expect(reader.coversMustBeFetchedAsBlob()).toBe(true);
-    localFetch.mockResolvedValueOnce(Response.json([{ id: 'pcloud', capabilities: { download: true } }]));
-    expect(await reader.supportsDownloads()).toBe(true);
-    localFetch.mockResolvedValueOnce(Response.json([{ id: 'pcloud', capabilities: { download: false } }]));
-    expect(await reader.supportsDownloads()).toBe(false);
     const book = { meta: { id: 'b', title: 'Book', authors: [], language: 'en', format: 'txt' }, folder: [], download_state: 'downloaded' };
     localFetch.mockResolvedValueOnce(Response.json(book));
     expect(await reader.getDownloadState('b')).toBe('downloaded');

@@ -1,4 +1,6 @@
-import { ref } from 'vue';
+import { useShelfCapabilities } from './useShelfCapabilities';
+import { useShelvesStore } from './useShelvesStore';
+import { computed, ref } from 'vue';
 import { ShelfScanInProgressError, ShelfScanRateLimitedError } from '@/api/shelves';
 import { getBookshelfProvider } from '@/providers';
 import { useBookStore } from './useBookStore';
@@ -12,34 +14,20 @@ const lastSyncedAt = ref<number | null>(null);
 const refreshing = ref(false);
 const error = ref('');
 
-/**
- * Drives the manual shelf update for a backend whose listing may not reflect the
- * shelf right now: pCloud scans once and then reads a stored copy, and a server
- * rescans only every `scan_interval`, told nothing by an SMB or cloud mount in
- * between. `supported` is asked of the provider, not inferred from the runtime,
- * because the mobile shell can be connected to either.
- *
- * They report differently and neither reports both. pCloud dates its stored
- * listing, durable state that belongs beside the button as `lastSyncedAt`. A
- * server instead says what the walk found, a fact about one press: that goes to
- * a toast, because a line whose width follows a book count would push the
- * toolbar around every time the shelf grows.
- */
+/** Rescans and dates the listing using the selected shelf's engine metadata. */
 export function useShelfRefresh() {
   const provider = getBookshelfProvider();
   const { showToast } = useToasts();
-  const supported = Boolean(provider.supportsShelfRefresh?.());
-  const tracksLastSynced = supported && typeof provider.getShelfFetchedAt === 'function';
+  const capability = useShelfCapabilities();
+  const supported = capability.rescan;
+  const tracksLastSynced = computed(() => capability.snapshotAt.value !== null);
 
   async function loadLastSyncedAt(): Promise<void> {
-    if (!tracksLastSynced) {
-      return;
-    }
-    lastSyncedAt.value = (await provider.getShelfFetchedAt?.()) ?? null;
+    lastSyncedAt.value = capability.snapshotAt.value;
   }
 
   async function refresh(): Promise<void> {
-    if (!supported || refreshing.value) {
+    if (!supported.value || refreshing.value) {
       return;
     }
     refreshing.value = true;
@@ -51,6 +39,7 @@ export function useShelfRefresh() {
       const { fetchBooks } = useBookStore();
       const { fetchFolders } = useFolderStore();
       await Promise.all([fetchBooks(), fetchFolders()]);
+      await useShelvesStore().fetchShelves();
       await loadLastSyncedAt();
       if (result) {
         showToast(t('library.scanFound', { books: result.bookCount, folders: result.folderCount }));

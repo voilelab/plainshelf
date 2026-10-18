@@ -475,3 +475,5 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ shelves: state.desktop ? {} : undefined }) }));
