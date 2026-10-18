@@ -22,7 +22,7 @@ site/
 # scripts/build-android-lib.sh output (just android-lib)
 /build/android-lib/
 
-# downloaded lint toolchain (contributors fetch their own; see .claude/rules/50-lessons.md)
+# downloaded lint toolchain (contributors fetch their own; see docs/development/agent/lessons.md)
 /golangci-lint
 
 # runtime state the shelf writes into the committed fixture library when tests
