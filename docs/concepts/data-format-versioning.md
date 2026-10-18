@@ -657,7 +657,7 @@ what happens when its version does not match.
 
 Every shelf is read by the Go shelf, including the Android app's pCloud shelf,
 which the app opens in its embedded Go server (`shelf.NewShelfFromFS` over
-`internal/pcloud`). The frontend parses none of the format: until PSW-139 it
+`internal/pcloud`). The frontend parses none of the format: it once
 carried a second, TypeScript reader, kept in step with Go only by the shared
 fixture in `shelf/testdata/conformance/`. A format change is therefore made in
 Go alone, and `BookCacheSchemaVersion` and `book.json`'s version have no

@@ -37,7 +37,7 @@ this page is for. L4's line count went down without its case count moving:
 browser.
 
 The L4 row is the only one in this repository's history to go down. It was 30
-files / 101 cases / 4,247 lines when this page was written; PSW-78 moved the
+files / 101 cases / 4,247 lines when this page was written; a later change moved the
 assertions that never needed a browser down to L3 — which is why the L3 row grew
 by 75 cases in the same change — and it went down twice more when the two
 `security-headers` cases that only issued `fetch` calls were deleted as
@@ -166,8 +166,8 @@ is red, the workflow opens (or comments on) one issue on this repository.
 
 Chromium is the engine Windows (WebView2) and Android (Chromium WebView) ship,
 so it is the one the merge gate runs. It is not the engine the macOS cask
-ships: Wails renders there in **WKWebView**, and until PSW-111 no E2E case had
-ever run against a WebKit build — `desktop-shell.spec.ts` included. The nightly
+ships: Wails renders there in **WKWebView**, and for a long time no E2E
+case had run against a WebKit build — `desktop-shell.spec.ts` included. The nightly
 therefore runs a second round on Playwright's `webkit`.
 
 `E2E_BROWSERS` picks the round, as a comma-separated list; it defaults to
@@ -227,7 +227,7 @@ verification, it is a guess.
 
 #### Layout checks with no runner
 
-One more category landed here with PSW-78, and it is worth naming because it is
+One more category landed here when the E2E suite was shrunk, and it is worth naming because it is
 the least comfortable part of that change. A handful of E2E cases asserted
 things only a layout engine can answer — that a control clears the fold, that a
 row does not overflow its container, that a form taller than the screen still
@@ -320,7 +320,7 @@ automation for it. A step done once is not a process.
 **When a budget is exceeded, the answer is to delete tests, not to raise the
 budget.** A budget that moves whenever it binds is a description, not a limit.
 
-All four rows are green as of PSW-78, which brought the suite from 101 cases in
+All four rows are green since the change that brought the suite from 101 cases in
 30 files to 39 in 23 by moving down everything a stubbed server could not have
 broken; deleting the two L2-duplicate `security-headers` cases took it to 37.
 Green is the normal state, not slack to spend: three cases of headroom is one
@@ -330,7 +330,7 @@ another in the same pull request.
 The rows are green for different reasons, and only one of them is a reason to
 relax. The smoke row is a limit that was chosen and is enforced on every pull
 request. The wall-clock row is cheap because the expensive level was moved off
-the gate first (PSW-77) and then shrunk (PSW-78); "about two times' headroom",
+the gate first (the smoke/nightly split) and then shrunk; "about two times' headroom",
 which this page claimed before either change, was optimistic, and the table
 below is where the number comes from now.
 
@@ -356,8 +356,8 @@ parallel behind it.
 | Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
 | **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
 
-† The E2E row measures the job as it was: 101 cases, one worker. PSW-77 made
-it 15 cases at two workers, which ran in 20s on a 4-core container against
+† The E2E row measures the job as it was: 101 cases, one worker. The smoke/nightly
+split made it 15 cases at two workers, which ran in 20s on a 4-core container against
 2:47–2:55 for the whole suite on CI, so both the measurement and the cap above
 it are stale in the same direction. The cap is provisionally 10 — enough for a
 3:05 browser-cache miss plus setup — and has to be re-measured over three `dev`
@@ -371,7 +371,7 @@ checks took about 10s in the cloud container. It then installs the frontend's
 dependencies, rebuilds the demo under `/demo/` as `docs.yml` deploys it, and
 runs the smoke again there. The cap is provisional on the same terms as E2E's.
 
-§ Added by PSW-136, with no baseline. It installs gomobile and binds `mobile/`
+§ Added after this measurement, with no baseline. It installs gomobile and binds `mobile/`
 for `android/arm64` with the runner's NDK; the cap is provisional on the same
 terms as E2E's.
 
@@ -391,7 +391,7 @@ The gap between those two rows is setup, not testing, and it is worth keeping
 separate: installing the Playwright browser took 23s, **3:05** and 21s across
 the same three runs. The 3:05 is a browser-cache miss, and it is the whole
 difference between #1383's 7:52 and the other two. The E2E test step itself was
-steady at 2:47 / 2:55 / 2:42 — so an improvement there (PSW-77) would be
+steady at 2:47 / 2:55 / 2:42 — so an improvement there (the smoke/nightly split) would be
 invisible in the job total if the install were folded into it.
 
 ### How the caps were chosen
@@ -399,7 +399,7 @@ invisible in the job total if the install were folded into it.
 `timeout-minutes` is **twice the slowest of the three runs, rounded up to a
 whole minute, and never under 5**.
 
-This is not the 1.5×-median rule PSW-76 proposed, and the measurement is why:
+This is not the 1.5×-median rule proposed earlier, and the measurement is why:
 1.5 × the E2E median is 5:21, which #1383 would have failed on a browser-cache
 miss alone. A cap that turns a cold cache into a red build teaches people to
 re-run CI, which is the opposite of what a cap is for. The floor of 5 minutes
