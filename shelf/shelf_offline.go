@@ -302,6 +302,26 @@ type offlineFS struct {
 	store  *offlineStore
 }
 
+// Batch reads must obey the same routing as Open: an offline copy wins even
+// while the remote is reachable. Mixed or local reads use the ordinary path.
+type offlineZipFS struct {
+	offlineFS
+	opener fsutil.ZipOpener
+}
+
+func (f offlineZipFS) OpenZip(names ...string) (io.ReadCloser, error) {
+	for _, name := range names {
+		if _, local := f.route(name); local {
+			return nil, errors.ErrUnsupported
+		}
+	}
+	body, err := f.opener.OpenZip(names...)
+	if err != nil && len(names) > 0 {
+		return nil, notDownloaded(names[0], err)
+	}
+	return body, err
+}
+
 func (f offlineFS) route(name string) (fsutil.ReadFS, bool) {
 	if pkgPath, ok := bookPackageOf(name); ok && f.store.hasPackage(pkgPath) {
 		return f.store.fs, true

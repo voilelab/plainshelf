@@ -1,9 +1,12 @@
 package shelf
 
 import (
+	"archive/zip"
+	"bytes"
 	"cmp"
 	"encoding/json/v2"
 	"errors"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -439,6 +442,7 @@ func readConformanceAssets(t *testing.T, s *Shelf, source *Source) []string {
 	}
 
 	names := make([]string, 0, len(entries))
+	contents := make(map[string][]byte, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -459,10 +463,43 @@ func readConformanceAssets(t *testing.T, s *Shelf, source *Source) []string {
 			t.Errorf("OpenAsset(%s): %v", name, err)
 			continue
 		}
+		data, err := io.ReadAll(asset.File)
 		asset.File.Close() //nolint:errcheck // read-only probe
+		if err != nil {
+			t.Fatalf("read asset %s: %v", name, err)
+		}
+		contents[name] = data
 	}
 
 	slices.Sort(names)
+	var bundle bytes.Buffer
+	zw := zip.NewWriter(&bundle)
+	if err := source.WriteAssetsZip(zw, names); err != nil {
+		t.Fatalf("WriteAssetsZip: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(bundle.Bytes()), int64(bundle.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bundled []string
+	for _, entry := range zr.File {
+		bundled = append(bundled, entry.Name)
+		rc, err := entry.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close() //nolint:errcheck // read error is checked below
+		if err != nil || entry.Method != zip.Store || !bytes.Equal(data, contents[entry.Name]) {
+			t.Fatalf("bundle entry %q differs from the individual asset: %v", entry.Name, err)
+		}
+	}
+	if !slices.Equal(bundled, names) {
+		t.Fatalf("bundle names = %v, want %v", bundled, names)
+	}
 	return names
 }
 

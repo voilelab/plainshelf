@@ -271,6 +271,12 @@ the app scans as described above.
 Book *contents* are unaffected — opening a book always reads it from pCloud
 unless the book has been downloaded for offline reading.
 
+Illustration bundles use pCloud's `getziplink` plus one archive download,
+regardless of how many images the bundle contains. Go repacks the images into
+the same flat, uncompressed zip served for a local shelf, using a temporary file
+so the archive need not fit in memory. A book already in the Go offline store
+is read locally. Whole-book downloads still copy files individually.
+
 ### What this mode does not have
 
 - **No access token and no `protect_read`.** Those are server settings, and

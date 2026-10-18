@@ -16,6 +16,9 @@ through `NewShelfFromFS` over `internal/pcloud`, the Go pCloud client, against a
 fake pCloud API serving the case directory. All must produce the same
 `expected.json`, so the remote and pCloud paths cannot drift from the local walk.
 
+The asset cases also compare bundled images with individual reads, including
+flat entry names, Store compression, and file contents on every backend.
+
 ## Layout
 
 ```
@@ -57,7 +60,7 @@ of the shelf observes:
 | `books[].current_source` | `Book.ResolveCurrentSource` |
 | `books[].sources[]` | `Book.ListSource` |
 | `books[].sources[].schema_version`, `created_at`, `comment`, `format`, `md5_hash`, `line_count`, `char_count` | `Source.GetMeta` |
-| `books[].sources[].assets` | `Source.AssetPath` / `OpenAsset` |
+| `books[].sources[].assets` | `Source.AssetPath` / `OpenAsset` / `WriteAssetsZip` |
 | `book_caches[]` | `Shelf.readBookCacheFile` |
 
 A case's `shelf.json`, when it has one, is part of the input rather than a field
