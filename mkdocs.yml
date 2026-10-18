@@ -24,6 +24,10 @@ markdown_extensions:
   - toc:
       permalink: true
 
+# Agent instructions stay in the repository, outside the published user docs.
+exclude_docs: |
+  /development/agent/
+
 nav:
   - Home: index.md
   - Try the Demo: try-the-demo.md

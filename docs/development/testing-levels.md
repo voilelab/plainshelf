@@ -1,6 +1,6 @@
 # Testing Levels
 
-`CLAUDE.md` asks for a test with every behavior change. It does not say where
+`AGENTS.md` asks for a test with every behavior change. It does not say where
 that test goes, and the level is the expensive half of the decision: the
 cheapest place to *write* a test is rarely the cheapest place to *keep* one.
 Writing a UI assertion as an end-to-end case takes ten minutes and costs the
@@ -94,7 +94,7 @@ case does not depend on the request or the response, it does not belong in
 The HTTP surface: status codes, request and response shapes, JSON field names,
 method gates, and the `local_token` boundary. It runs the real router, so it
 catches a route that was registered wrongly, which L1 cannot. These tests are
-the specification, so per `CLAUDE.md` rule 4 you read the matching one before
+the specification, so per `AGENTS.md` rule 4 you read the matching one before
 changing a route.
 
 They live in one package per area of the API, so the directory says where to
@@ -143,7 +143,7 @@ behavior jsdom does not reproduce.
 It is also the only level whose failures are routinely ambiguous. Its known
 traps — preview routing, offline simulation, teardown `ENOTEMPTY`, the pinned
 browser revision — are listed under "Mobile and end-to-end tests" in
-`.claude/rules/50-lessons.md`. Read them before charging a red spec to your
+`docs/development/agent/lessons.md`. Read them before charging a red spec to your
 diff.
 
 #### L4 runs in two tiers
@@ -438,9 +438,9 @@ is still alive — a job killed by `timeout-minutes` leaves no stack at all.
 
 ## Where this fits
 
-- `CLAUDE.md` working rule 3 routes here for the level decision.
-- `.claude/rules/20-judgment.md` holds the minimum checks per area — which
+- `AGENTS.md` working rule 3 routes here for the level decision.
+- `docs/development/agent/judgment.md` holds the minimum checks per area — which
   commands to run, as opposed to which level to write at.
-- `.claude/rules/50-lessons.md` holds the verified traps per level.
+- `docs/development/agent/lessons.md` holds the verified traps per level.
 - [Mutation testing](mutation-testing.md) asks the next question down: given a
   test at the right level, does it actually check anything?

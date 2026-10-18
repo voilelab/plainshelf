@@ -229,7 +229,7 @@ async function stopServer(server: ChildProcess): Promise<void> {
  *
  * The server is gone by the time this runs, but its last writes are not
  * necessarily visible to `rm` yet, and the whole-suite failure recorded in
- * `.claude/rules/50-lessons.md` was exactly that: `ENOTEMPTY … rmdir
+ * `docs/development/agent/lessons.md` was exactly that: `ENOTEMPTY … rmdir
  * '<tmp>/shelf/app'`, landing on a different spec each run. Parallel workers
  * multiply the chances, so retry briefly instead of failing a green spec in
  * teardown.

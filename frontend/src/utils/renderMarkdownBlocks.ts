@@ -177,7 +177,7 @@ export const READER_BLOCK_LINE_BUDGET = 80;
  *
  * The boundaries are a render concern only and carry no offset meaning, so the
  * reader's char-offset progress bridge is unaffected (see
- * `.claude/rules/50-lessons.md` on `markdownChapters.ts`).
+ * `docs/development/agent/lessons.md` on `markdownChapters.ts`).
  */
 function splitSourceIntoRenderChunks(
   source: string,

@@ -359,7 +359,7 @@ the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
 ## Open decisions
 
 - **pCloud on the server and desktop.** The format can express it, but
-  `CLAUDE.md` currently limits pCloud to the Android client. Until that product
+  `AGENTS.md` currently limits pCloud to the Android client. Until that product
   decision changes, the server and desktop refuse `type: pcloud` at startup. No
   format change is needed to lift it.
 - **CORS on the export.** Settled: off by default, and on only for
