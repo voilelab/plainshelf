@@ -24,6 +24,10 @@ markdown_extensions:
   - toc:
       permalink: true
 
+# Agent instructions stay in the repository, outside the published user docs.
+exclude_docs: |
+  /development/agent/
+
 nav:
   - Home: index.md
   - Try the Demo: try-the-demo.md
@@ -53,7 +57,6 @@ nav:
       - Testing Levels: development/testing-levels.md
       - Mutation Testing: development/mutation-testing.md
       - Releasing: development/releasing.md
-      - Agent Guidance: development/agent/index.md
   - Known Issues: known-issue.md
 
 # A missing in-page anchor is only INFO by default, which --strict lets through.

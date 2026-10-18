@@ -62,7 +62,7 @@ func openSourceFS(conf *shelf.ShelfConf, resolver CredentialResolver) (root fsut
 	case shelf.SourceLocal:
 		return nil, "", nil
 	case shelf.SourcePCloud:
-		// CLAUDE.md limits pCloud to the Android client for now.
+		// AGENTS.md limits pCloud to the Android client for now.
 		return nil, "", util.Errorf("source type %q is not available on this client", src.Type)
 	}
 

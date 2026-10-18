@@ -5,6 +5,9 @@ with the root `AGENTS.md`, then follow its required guidance and task routing.
 These files are specific to PlainShelf; copying them to another project requires
 adapting product constraints, commands, branches, and documentation paths.
 
+This directory is excluded from the MkDocs site, including this index and both
+workflows. Open it in the repository; it is not part of the published user docs.
+
 ## Loading map
 
 | Entry point | Shared source | When read |

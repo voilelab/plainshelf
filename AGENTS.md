@@ -1,9 +1,7 @@
 # PlainShelf — agent project guide
 
-PlainShelf is a local-first reading library approaching its `1.0.0-rc1` release
-candidate, at which the on-disk format freezes. The Go server embeds a Vue
-frontend and is also used by Wails desktop and experimental Capacitor Android
-clients.
+PlainShelf is a local-first reading library approaching its `1.0.0-rc1` release candidate, at which the on-disk format freezes.
+The Go server embeds a Vue frontend and is also used by Wails desktop and experimental Capacitor Android clients.
 
 ## Product constraints
 
@@ -37,8 +35,7 @@ clients.
 
 ## Commands
 
-The Go build embeds `frontend/dist`; build the frontend before Go builds or
-tests when that directory is absent or stale.
+The Go build embeds `frontend/dist`; build the frontend before Go builds or tests when that directory is absent or stale.
 
 | Scope | Command |
 |---|---|
@@ -50,8 +47,8 @@ tests when that directory is absent or stale.
 | Frontend dependency licenses | `npm --prefix frontend run check-licenses` |
 | Version resolver | `./scripts/test-resolve-version.sh` |
 | Main Go module | `go test ./...` |
-| Desktop and reader Go modules | `cd desktop && go test ./...`, `cd reader && go test ./...` |
-| Go lint (all three modules) | `golangci-lint run` in the root, `desktop`, and `reader` |
+| Desktop and reader Go modules | `(cd desktop && go test ./...)`, `(cd reader && go test ./...)` |
+| Go lint (all three modules) | `golangci-lint run`, `(cd desktop && golangci-lint run)`, `(cd reader && golangci-lint run)` |
 | All Go tests with frontend build | `just test-go` |
 | End-to-end tests | `just test-e2e` |
 | Wasm demo smoke | `just test-wasm-demo` |
@@ -95,19 +92,10 @@ web builds; do not use it for Capacitor asset generation.
 
 ## Required guidance
 
-Read and follow these shared instructions before working in the repository:
-
-- [Scope, judgment, and completion](docs/development/agent/judgment.md)
-- [Rule maintenance](docs/development/agent/maintenance.md)
-- [Verified project pitfalls](docs/development/agent/lessons.md), focusing on the
-  sections relevant to the task
-
-For the corresponding task, also read and follow the complete workflow:
-
-- [Work a tracked ticket](docs/development/agent/workflows/work-ticket.md)
-- [Update documentation](docs/development/agent/workflows/update-docs.md)
-
-These linked files are instructions, not optional background. If your tool does
-not expand links automatically, open them explicitly. Claude Code imports the
-same rules through `CLAUDE.md` and `.claude/rules/`; its skill entry points live
-in `.claude/skills/`. See [the loading map](docs/development/agent/index.md).
+Before every task, read and follow [judgment](docs/development/agent/judgment.md),
+[maintenance](docs/development/agent/maintenance.md), and the relevant sections of
+[lessons](docs/development/agent/lessons.md).
+For tracked tickets, follow the complete [ticket workflow](docs/development/agent/workflows/work-ticket.md).
+For documentation synchronization, follow the complete [docs workflow](docs/development/agent/workflows/update-docs.md).
+These are required instructions: open linked files explicitly if your tool does
+not expand links. See the [loading map](docs/development/agent/index.md) for tool adapters.

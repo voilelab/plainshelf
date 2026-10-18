@@ -68,7 +68,6 @@ spells the commands; neither is a licence to stop before a required gate because
 the ticket looked small. Two things neither can tell you, and that are easy to
 get wrong:
 
-
 - **There are three Go modules**, not two: the root, `desktop`, and `reader`.
   The root's `./...` reaches neither of the others, and a bare `golangci-lint
   run` lints only the directory it is standing in — so an unparenthesised
@@ -127,9 +126,12 @@ review body says nothing but
 submitted reviews alone has not been reviewed.
 
 Read every page of checks, reviews, and inline comments using the integration's
-actual pagination contract (cursor or page number). Stop only when it reports
-no next page. Legacy commit statuses can report `pending` with zero statuses
-when the repository uses check runs; inspect the individual check runs instead.
+actual pagination contract. For cursor pagination, follow the cursor until the
+response says there is no next page. For page-number pagination, increase the
+page until a response contains fewer items than the requested page size (an
+exactly full final page requires one more request). Legacy commit statuses can
+report `pending` with zero statuses when the repository uses check runs; inspect
+the individual check runs instead.
 A wake event echoing your own comment is not a new request; skip it.
 
 **An empty review is not the same as no findings.** The automated reviewer
