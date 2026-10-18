@@ -172,3 +172,24 @@ func TestSourceEntryRemovalCleansOfflineScope(t *testing.T) {
 		t.Fatal("empty source URL accepted")
 	}
 }
+
+// Source type is not part of the offline scope, while account is. Hosts must
+// compare the engine's scope rather than a TS cache key when retaining aliases.
+func TestSourceShelfOfflineScope(t *testing.T) {
+	for _, sourceType := range []string{shelf.SourcePlainShelf, shelf.SourceWebDAV} {
+		scope, err := SourceShelfOfflineScope(sourceType, " https://NAS/books ", "reader")
+		if err != nil || scope != "https://reader@nas/books/" {
+			t.Fatalf("scope = %q, %v", scope, err)
+		}
+		other, err := SourceShelfOfflineScope(sourceType, "https://nas/books/", "other")
+		if err != nil || other == scope {
+			t.Fatalf("account scope = %q, %v", other, err)
+		}
+	}
+	if _, err := SourceShelfOfflineScope(shelf.SourcePCloud, "https://nas/books/", ""); err == nil {
+		t.Fatal("unsupported source type accepted")
+	}
+	if _, err := SourceShelfOfflineScope(shelf.SourceWebDAV, "", ""); err == nil {
+		t.Fatal("empty source accepted")
+	}
+}

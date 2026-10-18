@@ -396,7 +396,8 @@ the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
   device-local in the app. Legacy TypeScript downloads are not migrated or
   offered by this reader; download those books again. This is an intentional
   single-user upgrade decision. Removing an entry closes its open
-  virtual shelf and deletes its Go offline scope; switching entries or closing
+  virtual shelf and deletes its Go offline scope only when no other entry
+  uses that scope; switching entries or closing
   the app preserves it. External PlainShelf server entries retain the
   TypeScript download cache. Adult content follows the device's own choice,
   given to Go per shelf (`App.SetShelfShowNSFW`).

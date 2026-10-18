@@ -112,9 +112,23 @@ func CheckSource(sourceType, rawURL, username, secret string) (out string, err e
 // RemoveSourceShelfOffline derives the same scope used by OpenSourceShelf,
 // without resolving credentials or connecting to the source being removed.
 func RemoveSourceShelfOffline(sourceType, rawURL, username string) error {
+	scope, err := SourceShelfOfflineScope(sourceType, rawURL, username)
+	if err != nil {
+		return err
+	}
+	return RemoveVirtualShelfOffline(scope)
+}
+
+// SourceShelfOfflineScope returns the engine's canonical scope without opening
+// the source or resolving credentials. Hosts use it to retain shared downloads.
+func SourceShelfOfflineScope(sourceType, rawURL, username string) (string, error) {
 	if sourceType != shelf.SourcePlainShelf && sourceType != shelf.SourceWebDAV {
-		return util.Errorf("source type %q is not available here", sourceType)
+		return "", util.Errorf("source type %q is not available here", sourceType)
 	}
 	src := &shelf.SourceConf{Type: sourceType, URL: rawURL, Username: username}
-	return RemoveVirtualShelfOffline(src.Scope())
+	scope := src.Scope()
+	if scope == "" {
+		return "", util.NewError("virtual shelf scope cannot be empty")
+	}
+	return scope, nil
 }

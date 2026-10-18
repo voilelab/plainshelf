@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   listShelves: vi.fn(),
   removeShelf: vi.fn(),
   removeVirtualShelfOffline: vi.fn(),
+  sourceShelfOfflineScope: vi.fn(),
+  removeCacheScope: vi.fn(),
   exportShelf: vi.fn(),
   importShelf: vi.fn(),
   addShelfEntry: vi.fn(),
@@ -39,12 +41,13 @@ vi.mock('@/providers/localShelf', async (importOriginal) => ({
     listShelves: mocks.listShelves,
     removeShelf: mocks.removeShelf,
     removeVirtualShelfOffline: mocks.removeVirtualShelfOffline,
+    sourceShelfOfflineScope: mocks.sourceShelfOfflineScope,
     exportShelf: mocks.exportShelf,
     importShelf: mocks.importShelf
   }
 }));
-vi.mock('@/providers/mobileCacheFs', () => ({ removeCacheScope: vi.fn() }));
-vi.mock('@/providers/cacheScope', () => ({ cacheScopeKeyForEntry: () => '' }));
+vi.mock('@/providers/mobileCacheFs', () => ({ removeCacheScope: mocks.removeCacheScope }));
+vi.mock('@/providers/cacheScope', () => ({ cacheScopeKeyForEntry: (entry: { id: string; scope?: string }) => entry.scope ?? entry.id }));
 vi.mock('@/features/mobile/utils/reloadIntoApp', () => ({ reloadIntoApp: mocks.reloadIntoApp }));
 vi.mock('@/features/mobile/components/MobileShelfForm.vue', () => ({ default: { render: () => null } }));
 vi.mock('@/features/mobile/components/MobileLanSharePanel.vue', () => ({ default: { render: () => null } }));
@@ -87,6 +90,12 @@ async function removeFirst(): Promise<HTMLElement> {
 
 beforeEach(() => {
   mocks.removeVirtualShelfOffline.mockReset().mockResolvedValue(undefined);
+  mocks.removeCacheScope.mockReset().mockResolvedValue(undefined);
+  mocks.sourceShelfOfflineScope.mockReset().mockImplementation(async ({ url, username }) => {
+    const canonical = new URL(url);
+    if (!canonical.pathname.endsWith('/')) canonical.pathname += '/';
+    return { scope: `${canonical.href}|${username}` };
+  });
   mocks.removeShelf.mockReset().mockResolvedValue(undefined);
   mocks.deleteShelfEntry.mockReset().mockResolvedValue(undefined);
   mocks.loadShelfEntries.mockResolvedValue({ entries: [local, server], activeEntryID: 'e1' });
@@ -344,7 +353,7 @@ describe('removing a virtual shelf', () => {
   it.each(['pcloud', 'dav'])('cleans Go downloads before deleting a %s entry', async (type) => {
     mocks.loadShelfEntries.mockResolvedValue({ entries: [{ id: 'cloud', type, name: 'Cloud', davSource: 'webdav', davUrl: 'https://nas/books/' }, server], activeEntryID: 'e2' });
     await removeFirst();
-    expect(mocks.removeVirtualShelfOffline).toHaveBeenCalledWith(type === 'dav' ? { scope: '', source: 'webdav', url: 'https://nas/books/', username: '' } : { scope: '' });
+    expect(mocks.removeVirtualShelfOffline).toHaveBeenCalledWith(type === 'dav' ? { scope: 'cloud', source: 'webdav', url: 'https://nas/books/', username: '' } : { scope: 'cloud' });
     expect(mocks.removeVirtualShelfOffline.mock.invocationCallOrder[0]).toBeLessThan(mocks.deleteShelfEntry.mock.invocationCallOrder[0]);
   });
   it('keeps the entry so cleanup can be retried after failure', async () => {
@@ -353,5 +362,44 @@ describe('removing a virtual shelf', () => {
     const host = await removeFirst();
     expect(mocks.deleteShelfEntry).not.toHaveBeenCalled();
     expect(host.querySelector('.mobile-shelves-error')?.textContent).toContain('cleanup failed');
+  });
+});
+
+describe('removing entries that share a scope', () => {
+  it.each([
+    { type: 'pcloud', davSource: undefined },
+    { type: 'dav', davSource: 'webdav' },
+    { type: 'dav', davSource: 'plainshelf' }
+  ])('preserves the active alias when removing an inactive $type / $davSource entry, then cleans the last alias', async ({ type, davSource }) => {
+    const target = { id: 'alias', type, name: 'Alias', scope: type === 'dav' ? `dav-${davSource}` : 'shared', davSource, davUrl: 'https://NAS/books' };
+    const active = { ...target, id: 'active', name: 'Active', scope: type === 'dav' ? 'dav-webdav' : 'shared', davSource: 'webdav', davUrl: 'https://nas/books/' };
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [target, active], activeEntryID: 'active' });
+    await removeFirst();
+    expect(mocks.deleteShelfEntry).toHaveBeenCalledWith('alias');
+    expect(mocks.removeVirtualShelfOffline).not.toHaveBeenCalled();
+    if (davSource === 'plainshelf') {
+      expect(mocks.removeCacheScope).toHaveBeenCalledWith('dav-plainshelf');
+    } else {
+      expect(mocks.removeCacheScope).not.toHaveBeenCalled();
+    }
+    expect(mocks.reloadIntoApp).not.toHaveBeenCalled();
+    mounted?.app.unmount();
+    mounted?.host.remove();
+    mounted = null;
+
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [active], activeEntryID: 'active' });
+    await removeFirst();
+    expect(mocks.removeVirtualShelfOffline).toHaveBeenCalledTimes(1);
+    expect(mocks.removeCacheScope).toHaveBeenCalledWith(active.scope);
+    expect(mocks.reloadIntoApp).toHaveBeenCalled();
+  });
+
+  it('keeps distinct DAV accounts independent even when their URLs match', async () => {
+    const target = { id: 'alias', type: 'dav', name: 'Alias', davSource: 'webdav', davUrl: 'https://nas/books/', davUsername: 'alice' };
+    const other = { ...target, id: 'other', davUsername: 'bob' };
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [target, other], activeEntryID: 'other' });
+    await removeFirst();
+    expect(mocks.removeVirtualShelfOffline).toHaveBeenCalledWith({ scope: 'alias', source: 'webdav', url: target.davUrl, username: 'alice' });
+    expect(mocks.removeCacheScope).toHaveBeenCalledWith('alias');
   });
 });

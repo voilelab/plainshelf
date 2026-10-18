@@ -348,6 +348,20 @@ async function onUse(entryID: string): Promise<void> {
   }
 }
 
+/** Go owns DAV scope normalization, including sharing across source types. */
+async function offlineScopeForEntry(entry: ShelfEntry): Promise<string | null> {
+  if (entry.type === 'pcloud') {
+    return cacheScopeKeyForEntry(entry);
+  }
+  if (entry.type === 'dav') {
+    const { scope } = await LocalShelf.sourceShelfOfflineScope({
+      source: entry.davSource, url: entry.davUrl, username: entry.davUsername ?? ''
+    });
+    return scope;
+  }
+  return null;
+}
+
 /**
  * Native local-shelf removal and Go offline cleanup run before dropping the
  * entry, so a failure remains retryable. Legacy TS cache files are swept after
@@ -371,16 +385,27 @@ async function onRemove(): Promise<void> {
       }
       await deleteShelfEntry(target.id);
     } else {
+      const remaining = entries.value.filter((entry) => entry.id !== target.id);
+      const cacheScope = cacheScopeKeyForEntry(target);
+      const sharedCache = remaining.some((entry) => cacheScopeKeyForEntry(entry) === cacheScope);
       // Keep the entry retryable if Go cannot stop a running download or
       // remove its files. Credentials are still present until cleanup succeeds.
       if (target.type === 'pcloud' || target.type === 'dav') {
-        await LocalShelf.removeVirtualShelfOffline({
-          scope: cacheScopeKeyForEntry(target),
-          ...(target.type === 'dav' ? { source: target.davSource, url: target.davUrl, username: target.davUsername ?? '' } : {})
-        });
+        const peers = remaining.filter((entry) => entry.type === target.type);
+        const scopes = await Promise.all(peers.map(offlineScopeForEntry));
+        const sharedOffline = peers.length > 0 && scopes.includes(await offlineScopeForEntry(target));
+        // Deleting one alias must not close the active alias or delete its books.
+        if (!sharedOffline) {
+          await LocalShelf.removeVirtualShelfOffline({
+            scope: cacheScope,
+            ...(target.type === 'dav' ? { source: target.davSource, url: target.davUrl, username: target.davUsername ?? '' } : {})
+          });
+        }
       }
       await deleteShelfEntry(target.id);
-      await removeCacheScope(cacheScopeKeyForEntry(target));
+      if (!sharedCache) {
+        await removeCacheScope(cacheScope);
+      }
     }
     pendingRemoval.value = null;
     await refresh();

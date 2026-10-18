@@ -157,6 +157,20 @@ public class LocalShelfPlugin extends Plugin {
         }
     }
 
+    /** Compares source identities without opening a shelf or needing credentials. */
+    @PluginMethod
+    public void sourceShelfOfflineScope(PluginCall call) {
+        try {
+            JSObject result = new JSObject();
+            result.put("scope", Mobile.sourceShelfOfflineScope(
+                call.getString("source", ""), call.getString("url", ""), call.getString("username", "")
+            ));
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
     /** Deletes only the offline copies of the entry being removed. */
     @PluginMethod
     public void removeVirtualShelfOffline(PluginCall call) {
