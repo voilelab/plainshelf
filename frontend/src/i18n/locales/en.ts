@@ -96,7 +96,20 @@ const en = {
       invalidName: 'Folder name cannot be empty or contain /.',
       creating: 'Creating...',
       create: 'Create',
-      loadingFolders: 'Loading folders...'
+      loadingFolders: 'Loading folders...',
+      iconLabel: 'Icon',
+      iconFailed: 'The folder was created, but its icon could not be saved: {message}'
+    },
+    folderIcon: {
+      shortAction: 'Change icon',
+      title: 'Icon for "{name}"',
+      label: 'Folder icon',
+      default: 'Default',
+      save: 'Save',
+      saving: 'Saving...',
+      closeLabel: 'Close folder icon dialog',
+      conflict: "This folder's settings changed elsewhere and have been reloaded. Choose the icon again.",
+      failed: 'Failed to save the folder icon'
     },
     deleteFolder: {
       title: 'Delete folder',

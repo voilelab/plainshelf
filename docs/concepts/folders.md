@@ -55,12 +55,19 @@ not carry the file yet: a move leaves the emptied source folder in place, still
 holding its `folder.json`, rather than delete a setting it did not take along.
 The shelf root has no `folder.json` of its own.
 
-PlainShelf reads and keeps this file, and serves it to clients through
-`GET` and `PUT /api/shelves/{shelf_id}/folder-meta`, but the interface does not
-show or set folder icons yet; for now the file is written by hand. A hand edit
-shows after the next shelf scan, as described in
-[Shelf cache and disk I/O](shelf-cache-and-io.md#folder-listing). The icon names it
-accepts, and exactly what happens to a file it cannot read, are in
+Every folder in the sidebar and in a book's folder path shows its icon, or the
+plain folder icon when it has none. To choose one, right-click the folder in the
+sidebar and pick **Change icon**, or choose an icon while creating the folder;
+picking **Default** clears it. The choice is saved to that folder's
+`folder.json`, so it is the same on every client reading the shelf. The entry is
+not offered on a read-only shelf, nor for a folder whose `folder.json` PlainShelf
+cannot read safely.
+
+The file can also be written by hand. A hand edit shows after the next shelf
+scan, as described in
+[Shelf cache and disk I/O](shelf-cache-and-io.md#folder-listing); clients reach
+it through `GET` and `PUT /api/shelves/{shelf_id}/folder-meta`. The icon names
+it accepts, and exactly what happens to a file it cannot read, are in
 [`folder.json` schema v1](data-format-versioning.md#folderjson-schema-v1). In
 short: a broken or unrecognized file never hides the folder — it reads as "no
 settings" — and PlainShelf will not overwrite a file it cannot read.

@@ -15,7 +15,7 @@ vi.mock('./client', async () => {
 });
 
 const { ApiError } = await import('./client');
-const { createFolder, moveFolder, renameFolder, transferFolder } = await import('./folders');
+const { createFolder, getFolderMeta, moveFolder, renameFolder, setFolderIcon, transferFolder } = await import('./folders');
 
 describe('transferFolder', () => {
   it('posts the source and target folders as segment arrays and returns the chain id', async () => {
@@ -175,5 +175,56 @@ describe('folder changes that would unhide marked content', () => {
       name: 'NsfwRevealConfirmationError',
       hiddenBooks: 0
     });
+  });
+});
+
+describe('getFolderMeta', () => {
+  it('reads the icons and each folder\'s metadata, normalizing the paths', async () => {
+    fetchJsonMock.mockResolvedValueOnce({
+      icons: ['book', 'rocket', 7],
+      folders: {
+        'Fiction/Classics': { icon: 'book', version: 'abc', read_only: false },
+        Broken: { icon: '', version: '', read_only: true },
+        Odd: 'not an object'
+      }
+    });
+
+    await expect(getFolderMeta()).resolves.toEqual({
+      icons: ['book', 'rocket'],
+      folders: {
+        'Fiction/Classics': { icon: 'book', version: 'abc', readOnly: false },
+        Broken: { icon: '', version: '', readOnly: true }
+      }
+    });
+    expect(fetchJsonMock.mock.calls.at(-1)?.[0]).toBe('/folder-meta');
+  });
+});
+
+describe('setFolderIcon', () => {
+  it('puts the icon and the version it was read at to the folder\'s path', async () => {
+    fetchJsonMock.mockResolvedValueOnce(undefined);
+
+    await setFolderIcon('Fiction/Sci Fi', 'rocket', 'abc');
+
+    const [path, init] = fetchJsonMock.mock.calls.at(-1) ?? [];
+    expect(path).toBe('/folder-meta/Fiction/Sci%20Fi');
+    expect((init as RequestInit).method).toBe('PUT');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ icon: 'rocket', version: 'abc' });
+  });
+
+  it('raises a typed conflict when folder.json changed since it was read', async () => {
+    const conflict = new ApiError('folder.json changed since it was read', { status: 409 });
+    conflict.code = 'FOLDER_META_CONFLICT';
+    fetchJsonMock.mockRejectedValueOnce(conflict);
+
+    await expect(setFolderIcon('Fiction', 'star', 'stale')).rejects.toMatchObject({ name: 'FolderMetaConflictError' });
+  });
+
+  it('passes any other refusal through with the server\'s message', async () => {
+    const refusal = new ApiError('folder.json cannot be read safely', { status: 409 });
+    refusal.code = 'FOLDER_META_NOT_WRITABLE';
+    fetchJsonMock.mockRejectedValueOnce(refusal);
+
+    await expect(setFolderIcon('Fiction', 'star', 'v')).rejects.toBe(refusal);
   });
 });

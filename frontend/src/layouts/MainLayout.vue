@@ -39,6 +39,15 @@
       </p>
       <p>{{ t('layout.folderReveal.note') }}</p>
     </ConfirmModal>
+    <FolderIconModal
+      :open="pendingIconFolderPath.length > 0"
+      :folder-name="pendingIconFolderName"
+      :current-icon="pendingFolderIcon"
+      :busy="savingFolderIcon"
+      :error="folderIconError"
+      @cancel="cancelChangeFolderIcon"
+      @submit="confirmChangeFolderIcon"
+    />
     <CreateFolderModal
       :open="showCreateFolderModal"
       :busy="creatingFolder"
@@ -210,6 +219,7 @@
                 :read-only="readOnly"
                 :can-open-folder="canOpenFolder"
                 :can-transfer-folder="canTransferFolder"
+                :folder-meta="folderMeta"
                 @select="onSelectFolder"
                 @create-folder="openCreateFolderModal"
                 @move-book="onMoveBook"
@@ -218,6 +228,7 @@
                 @open-folder="onOpenFolder"
                 @transfer-folder="requestTransferFolder"
                 @move-folder="onMoveFolder"
+                @change-icon="requestChangeFolderIcon"
               />
               <p v-if="moveBookError" class="sidebar-error" role="alert">
                 {{ moveBookError }}
@@ -386,6 +397,7 @@ import CreateFolderModal from '@/components/CreateFolderModal.vue';
 import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import FolderIconModal from '@/components/FolderIconModal.vue';
 import FolderTree from '@/components/FolderTree.vue';
 import MainTopbar from '@/components/MainTopbar.vue';
 import MobileTabBar from '@/components/MobileTabBar.vue';
@@ -451,6 +463,15 @@ const {
   renameFolderError,
   deletingFolderMap,
   pendingDeleteFolderPath,
+  pendingIconFolderPath,
+  pendingIconFolderName,
+  pendingFolderIcon,
+  savingFolderIcon,
+  folderIconError,
+  requestChangeFolderIcon,
+  cancelChangeFolderIcon,
+  confirmChangeFolderIcon,
+  folderMeta,
   currentFolder,
   folderTree,
   canOpenFolder,

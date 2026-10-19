@@ -37,7 +37,7 @@ import {
   setCurrentSource,
   updateSourceContent
 } from '@/api/sources';
-import { type FolderChangeOptions, getFolders, transferFolder } from '@/api/folders';
+import { type FolderChangeOptions, type FolderMetaListing, getFolderMeta, getFolders, transferFolder } from '@/api/folders';
 import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
@@ -223,6 +223,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   listFolders(): Promise<string[]> {
     return getFolders();
+  }
+
+  listFolderMeta(): Promise<FolderMetaListing> {
+    return getFolderMeta();
   }
 
   listSources(bookId: string): Promise<SourceMeta[]> {
