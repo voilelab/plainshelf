@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
 	"io/fs"
@@ -22,9 +20,9 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/lanshare"
+	"github.com/voilelab/plainshelf/internal/lanshareqr"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
-	"rsc.io/qr"
 )
 
 // The desktop UI reaches Go in-process; this export is the only listener the
@@ -425,18 +423,7 @@ func newLANShareQRPayload(st LANShareStatus) lanShareQRPayload {
 }
 
 func lanShareQRCode(payload lanShareQRPayload) (string, error) {
-	text, err := json.Marshal(payload, jsonopt.API())
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	code, err := qr.Encode(string(text), qr.M)
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	var buf bytes.Buffer
-	buf.WriteString("data:image/png;base64,")
-	buf.WriteString(base64.StdEncoding.EncodeToString(code.PNG()))
-	return buf.String(), nil
+	return lanshareqr.Encode(payload)
 }
 
 // currentLANHost returns host while it is still a LAN address, else the first

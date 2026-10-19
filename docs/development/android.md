@@ -422,6 +422,12 @@ It is a temporary share, not a server:
   [`dav_export`](../reference/configuration.md#dav_export) and the desktop's
   [share](../configuring-local-shelf.md#share-shelves-on-your-local-network-desktop-app):
   a request without the token is `401`, and any write is `405`.
+- The panel shows the same [v1 QR payload](../configuring-local-shelf.md#the-qr-code)
+  as the desktop: the root URL, token, and each selected shelf's ID, name and
+  URL. Selection, address and token changes refresh the QR. Stopping sharing
+  removes the address, token and QR from the panel. If the payload exceeds QR
+  capacity, the panel explains why and keeps the address and token available;
+  share fewer shelves or enter their connection details manually.
 - While it runs a notification shows the address and a **Stop** button, and the
   share is announced over mDNS as `_webdav._tcp` with `path=/dav/`.
 - It stops by itself, with a notification saying why, after 30 minutes without
@@ -429,7 +435,9 @@ It is a temporary share, not a server:
   request without the token does not keep it open.
 - The token is `<files dir>/local-shelves/lan_share.token`, excluded from
   Android backup; it stays the same between shares, so a device that saved it
-  keeps working.
+  keeps working. **Replace token** saves a new token and immediately updates the
+  panel and QR. The old token's next request returns `401`; devices must obtain
+  the new token. Stopping and restarting sharing keeps the replacement token.
 - Off a Wi-Fi or Ethernet network, for example on mobile data or as a hotspot,
   it does not start.
 

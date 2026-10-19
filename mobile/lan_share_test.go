@@ -3,6 +3,8 @@ package mobile
 import (
 	"encoding/json/v2"
 	"errors"
+	"github.com/voilelab/plainshelf/internal/lanshare"
+	"github.com/voilelab/plainshelf/internal/lanshareqr"
 	"io"
 	"net"
 	"net/http"
@@ -238,5 +240,92 @@ func TestLANShareNotStarted(t *testing.T) {
 	}
 	if got := LANShareIdleMillis(); got != -1 {
 		t.Fatalf("idle before Start = %d", got)
+	}
+}
+
+func TestLANShareRotationRevokesAndPersists(t *testing.T) {
+	shareOnLoopback(t)
+	startT(t, t.TempDir())
+	id := createShelf(t, "Phone")
+	first := startShare(t, id)
+	out, err := RotateLANShareToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var next lanShareState
+	if err := json.Unmarshal([]byte(out), &next); err != nil {
+		t.Fatal(err)
+	}
+	if next.Token == "" || next.Token == first.Token || next.URL != first.URL || next.QRCode == first.QRCode {
+		t.Fatal("rotation must replace credentials and QR without rebinding")
+	}
+	if got := davDo(t, "PROPFIND", first.URL+id+"/", first.Token); got != http.StatusUnauthorized {
+		t.Fatalf("old token: %d", got)
+	}
+	if got := davDo(t, "PROPFIND", next.URL+id+"/", next.Token); got != http.StatusMultiStatus {
+		t.Fatalf("new token: %d", got)
+	}
+	if err := StopLANShare(); err != nil {
+		t.Fatal(err)
+	}
+	out, err = LANShareStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stopped lanShareState
+	if err := json.Unmarshal([]byte(out), &stopped); err != nil {
+		t.Fatal(err)
+	}
+	if stopped.URL != "" || stopped.Token != "" || stopped.QRCode != "" || len(stopped.ShelfIDs) != 0 {
+		t.Fatal("stopped share retains connection information")
+	}
+	if again := startShare(t, id); again.Token != next.Token {
+		t.Fatal("replacement token did not persist")
+	}
+}
+
+func TestLANShareQRUsesCurrentSelectionAndNames(t *testing.T) {
+	shareOnLoopback(t)
+	startT(t, t.TempDir())
+	a := createShelf(t, "Phone")
+	b := createShelf(t, "Private")
+	st := startShare(t, a)
+	expected, err := lanshareqr.Encode(lanshare.Payload{V: 1, URL: st.URL, Token: st.Token, Shelves: []lanshare.Shelf{{ID: a, Name: "Phone", URL: st.URL + a + "/"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.QRCode != expected || st.Error != "" {
+		t.Fatal("QR does not encode the v1 connection details")
+	}
+	next := startShare(t, b)
+	expected, err = lanshareqr.Encode(lanshare.Payload{V: 1, URL: st.URL, Token: st.Token, Shelves: []lanshare.Shelf{{ID: b, Name: "Private", URL: st.URL + b + "/"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.QRCode != expected || next.QRCode == st.QRCode {
+		t.Fatal("QR does not follow the selection")
+	}
+	// An oversized QR must not make the active share or token inaccessible.
+	rt, err := running()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.mu.Lock()
+	for i := range rt.conf.Shelves {
+		if rt.conf.Shelves[i].ID == b {
+			rt.conf.Shelves[i].Name = strings.Repeat("x", 5000)
+		}
+	}
+	rt.mu.Unlock()
+	out, err := LANShareStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oversized lanShareState
+	if err := json.Unmarshal([]byte(out), &oversized); err != nil {
+		t.Fatal(err)
+	}
+	if !oversized.Running || oversized.QRCode != "" || oversized.Error == "" || oversized.Token != st.Token || oversized.URL != st.URL {
+		t.Fatal("QR capacity error lost connection details")
 	}
 }

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
   start: vi.fn(),
   stop: vi.fn(),
+  rotateToken: vi.fn(),
   listener: null as ((status: LanShareStatus) => void) | null
 }));
 
@@ -15,6 +16,7 @@ vi.mock('@/features/mobile/utils/lanShare', () => ({
     getStatus: mocks.getStatus,
     start: mocks.start,
     stop: mocks.stop,
+    rotateToken: mocks.rotateToken,
     addListener: (_event: string, listener: (status: LanShareStatus) => void) => {
       mocks.listener = listener;
       return Promise.resolve({ remove: () => Promise.resolve() });
@@ -28,6 +30,8 @@ const stopped: LanShareStatus = {
   running: false,
   url: '',
   token: '',
+  qr_code: '',
+  error: '',
   shelf_ids: [],
   endedReason: '',
   idleLimitMinutes: 30
@@ -37,6 +41,7 @@ const running: LanShareStatus = {
   running: true,
   url: 'http://192.168.1.5:20001/dav/',
   token: 'tok',
+  qr_code: 'data:image/png;base64,first',
   shelf_ids: ['local-1']
 };
 const shelves = [
@@ -72,6 +77,7 @@ describe('MobileLanSharePanel', () => {
     mocks.getStatus.mockReset().mockResolvedValue(stopped);
     mocks.start.mockReset().mockResolvedValue(running);
     mocks.stop.mockReset().mockResolvedValue(stopped);
+    mocks.rotateToken.mockReset().mockResolvedValue({ ...running, token: "new", qr_code: "data:image/png;base64,new" });
     mocks.listener = null;
     shelvesProp.value = shelves;
   });
@@ -142,4 +148,51 @@ describe('MobileLanSharePanel', () => {
     expect(host.querySelector('.mobile-lan-share-url')).toBeNull();
     expect(host.querySelector('.mobile-lan-share-ended')!.textContent).toContain('30 minutes');
   });
+  it('replaces the token and QR, then clears sharing information on stop', async () => {
+    mocks.getStatus.mockResolvedValue(running);
+    const host = await mountPanel();
+    expect(host.querySelector('img')!.getAttribute('src')).toBe(running.qr_code);
+    host.querySelector<HTMLButtonElement>('.mobile-lan-share-rotate')!.click();
+    await flush();
+    expect(mocks.rotateToken).toHaveBeenCalledOnce();
+    expect(host.querySelector('.mobile-lan-share-token')!.textContent).toBe('new');
+    expect(host.querySelector('img')!.getAttribute('src')).toBe('data:image/png;base64,new');
+    host.querySelector<HTMLButtonElement>('.mobile-lan-share-stop')!.click();
+    await flush();
+    expect(host.querySelector('img')).toBeNull();
+    expect(host.querySelector('.mobile-lan-share-token')).toBeNull();
+  });
+
+  it('updates the QR with selection and native address changes, and shows capacity errors', async () => {
+    mocks.getStatus.mockResolvedValue(running);
+    mocks.start.mockResolvedValue({ ...running, shelf_ids: ['local-1', 'local-2'], qr_code: 'data:image/png;base64,two' });
+    const host = await mountPanel();
+    boxes(host)[1].click();
+    await flush();
+    expect(mocks.start).toHaveBeenCalledWith({ shelfIds: ['local-1', 'local-2'] });
+    expect(host.querySelector('img')!.getAttribute('src')).toBe('data:image/png;base64,two');
+    mocks.listener!({ ...running, url: 'http://192.168.1.6:20001/dav/', qr_code: 'data:image/png;base64,address' });
+    await flush();
+    expect(host.querySelector('img')!.getAttribute('src')).toBe('data:image/png;base64,address');
+    mocks.listener!({ ...running, qr_code: '', error: 'QR capacity exceeded' });
+    await flush();
+    expect(host.querySelector('img')).toBeNull();
+    expect(host.querySelector('[role="alert"]')!.textContent).toBe('QR capacity exceeded');
+    expect(host.querySelector('.mobile-lan-share-token')!.textContent).toBe('tok');
+  });
+
+  it('disables actions during rotation and reports failure without losing the current QR', async () => {
+    mocks.getStatus.mockResolvedValue(running);
+    let reject!: (error: Error) => void;
+    mocks.rotateToken.mockImplementation(() => new Promise((_resolve, fail) => { reject = fail; }));
+    const host = await mountPanel();
+    host.querySelector<HTMLButtonElement>('.mobile-lan-share-rotate')!.click();
+    await flush();
+    expect([...host.querySelectorAll<HTMLButtonElement>('button')].every(button => button.disabled)).toBe(true);
+    reject(new Error('Cannot save token'));
+    await flush();
+    expect(host.querySelector('[role="alert"]')!.textContent).toBe('Cannot save token');
+    expect(host.querySelector('img')!.getAttribute('src')).toBe(running.qr_code);
+  });
+
 });

@@ -19,12 +19,22 @@
       <dt>{{ t('mobileShelves.lanShare.tokenLabel') }}</dt>
       <dd class="mobile-lan-share-token">{{ status.token }}</dd>
     </dl>
-    <p v-else-if="status?.endedReason" class="mobile-lan-share-ended" role="status">
+    <img
+      v-if="status?.running && status.qr_code"
+      class="mobile-lan-share-qr"
+      :src="status.qr_code"
+      :alt="t('settings.lanShare.qrAlt')"
+    />
+    <p v-if="status?.running && status.error" class="mobile-lan-share-error" role="alert">{{ status.error }}</p>
+    <p v-if="!status?.running && status?.endedReason" class="mobile-lan-share-ended" role="status">
       {{ t('mobileShelves.lanShare.ended', { reason: status.endedReason }) }}
     </p>
     <p v-if="error" class="mobile-lan-share-error" role="alert">{{ error }}</p>
 
     <div class="mobile-lan-share-actions">
+      <button v-if="status?.running" type="button" class="button mobile-lan-share-rotate" :disabled="busy" @click="onRotate">
+        {{ t('settings.lanShare.rotate') }}
+      </button>
       <button
         v-if="status?.running"
         type="button"
@@ -123,6 +133,10 @@ function onStart(): Promise<void> {
   return run(() => LanShare.start({ shelfIds: selected.value }));
 }
 
+function onRotate(): Promise<void> {
+  return run(() => LanShare.rotateToken());
+}
+
 function onStop(): Promise<void> {
   return run(() => LanShare.stop());
 }
@@ -193,7 +207,15 @@ function onSelectionChange(): Promise<void> | undefined {
   font-size: 0.9rem;
 }
 
+.mobile-lan-share-qr {
+  width: 100%;
+  max-width: 320px;
+  image-rendering: pixelated;
+  justify-self: center;
+}
+
 .mobile-lan-share-actions {
+  flex-wrap: wrap;
   display: flex;
   gap: 8px;
 }
