@@ -41,13 +41,25 @@ test('creates a nested folder level by level and filters books by exact folder',
   await expect(page.getByText('No books in ftnested.')).toBeVisible();
 });
 
-test('renames a folder, updating the tree and the active URL filter', async ({ page }) => {
+// Merged with the icon flow (PSW-180) rather than added beside it: folder.json
+// lives in the folder directory, so the rename is also what proves the icon
+// travels with it.
+test('renames a folder, keeping its icon and updating the tree and the active URL filter', async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
   await addFolder(page, 'ftrename');
   await selectFolder(page, 'ftrename');
   await expect(page).toHaveURL(foldersQueryRegex('ftrename'));
+  await expect(folderRow(page, 'ftrename').locator('[data-folder-icon="folder"]')).toBeVisible();
+
+  await openFolderContextMenu(page, 'ftrename');
+  await page.getByRole('menuitem', { name: 'Change icon', exact: true }).click();
+  const iconDialog = page.getByRole('dialog', { name: 'Icon for "ftrename"' });
+  await iconDialog.getByRole('radio', { name: 'rocket', exact: true }).click();
+  await iconDialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(iconDialog).not.toBeVisible();
+  await expect(folderRow(page, 'ftrename').locator('[data-folder-icon="rocket"]')).toBeVisible();
 
   await openFolderContextMenu(page, 'ftrename');
   await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
@@ -60,6 +72,18 @@ test('renames a folder, updating the tree and the active URL filter', async ({ p
   await expect(folderRow(page, 'ftrename')).toHaveCount(0);
   await expect(folderRow(page, 'ftrenamed')).toBeVisible();
   await expect(page).toHaveURL(foldersQueryRegex('ftrenamed'));
+
+  // Read back from the server, not the store this page wrote it into.
+  await page.reload();
+  await expect(folderRow(page, 'ftrenamed').locator('[data-folder-icon="rocket"]')).toBeVisible();
+
+  await openFolderContextMenu(page, 'ftrenamed');
+  await page.getByRole('menuitem', { name: 'Change icon', exact: true }).click();
+  const clearDialog = page.getByRole('dialog', { name: 'Icon for "ftrenamed"' });
+  await clearDialog.getByRole('radio', { name: 'Default', exact: true }).click();
+  await clearDialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(clearDialog).not.toBeVisible();
+  await expect(folderRow(page, 'ftrenamed').locator('[data-folder-icon="folder"]')).toBeVisible();
 });
 
 test('only offers Delete for empty folders, and deleting removes it from the tree', async ({ page }) => {

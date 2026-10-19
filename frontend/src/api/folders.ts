@@ -1,14 +1,17 @@
 import type { BookTransferMode } from './books';
 import { ApiError, buildShelfApiPath, fetchJson, isMockApiMode } from './client';
-import { FolderHttpError } from './folderErrors';
+import { FolderHttpError, FolderMetaConflictError } from './folderErrors';
 import { delay } from './mocks/latency';
 import {
   addMockFolder,
   deleteMockFolder,
+  getMockFolderMeta,
   getMockFolders,
   moveMockFolder,
-  renameMockFolder
+  renameMockFolder,
+  setMockFolderIcon
 } from './mocks/folders';
+import { FOLDER_ICON_NAMES } from '@/components/icons/folderIcons';
 import { mockTransferFolder } from './mocks/books';
 import { normalizeFolderPath } from '@/utils/folders';
 
@@ -413,5 +416,87 @@ export async function deleteFolder(folderPath: string): Promise<void> {
 
     const message = err instanceof Error ? err.message : 'Failed to delete folder';
     throw new FolderHttpError(message || 'Failed to delete folder');
+  }
+}
+
+/** One folder's folder.json, as GET .../folder-meta lists it. */
+export interface FolderMeta {
+  /** '' for the default icon, which includes a name this server does not offer. */
+  icon: string;
+  /** What setFolderIcon passes back; '' on a shelf that is never written. */
+  version: string;
+  /** The folder.json is one the server will not rewrite. */
+  readOnly: boolean;
+}
+
+export interface FolderMetaListing {
+  /** The icon names the server accepts. */
+  icons: string[];
+  /** Keyed by folder path ('Fiction/Classics'); an absent folder has no metadata. */
+  folders: Record<string, FolderMeta>;
+}
+
+function parseFolderMeta(value: unknown): FolderMeta | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  return {
+    icon: typeof raw.icon === 'string' ? raw.icon : '',
+    version: typeof raw.version === 'string' ? raw.version : '',
+    readOnly: raw.read_only === true
+  };
+}
+
+/** Lists the active shelf's folder metadata and the icons it accepts. */
+export async function getFolderMeta(): Promise<FolderMetaListing> {
+  if (isMockApiMode()) {
+    return delay({ icons: [...FOLDER_ICON_NAMES], folders: getMockFolderMeta() });
+  }
+
+  const data = await fetchJson<unknown>(buildShelfApiPath('/folder-meta'), { method: 'GET' });
+  const raw = (typeof data === 'object' && data !== null ? data : {}) as Record<string, unknown>;
+
+  const icons = Array.isArray(raw.icons) ? raw.icons.filter((icon): icon is string => typeof icon === 'string') : [];
+  const folders: Record<string, FolderMeta> = {};
+  if (typeof raw.folders === 'object' && raw.folders !== null) {
+    for (const [path, value] of Object.entries(raw.folders as Record<string, unknown>)) {
+      const meta = parseFolderMeta(value);
+      const normalized = normalizeFolderPath(path);
+      if (meta && normalized) {
+        folders[normalized] = meta;
+      }
+    }
+  }
+  return { icons, folders };
+}
+
+/**
+ * Sets a folder's icon, or clears it with ''. `version` is the folder's
+ * FolderMeta.version from the listing, '' for a folder it did not list.
+ */
+export async function setFolderIcon(folderPath: string, icon: string, version: string): Promise<void> {
+  const normalized = normalizeFolderPath(folderPath);
+  if (!normalized) {
+    throw new FolderHttpError('Invalid folder path');
+  }
+
+  if (isMockApiMode()) {
+    setMockFolderIcon(normalized, icon, version);
+    await delay(undefined);
+    return;
+  }
+
+  try {
+    await fetchJson<void>(buildShelfApiPath(`/folder-meta/${encodeFolderPath(normalized)}`), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ icon, version })
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.code === 'FOLDER_META_CONFLICT') {
+      throw new FolderMetaConflictError(err.message);
+    }
+    throw err;
   }
 }

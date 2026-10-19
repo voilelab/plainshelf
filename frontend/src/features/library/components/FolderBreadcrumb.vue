@@ -1,7 +1,10 @@
 <template>
   <nav class="folder-breadcrumb" :aria-label="t('bookDetail.folderPath')">
     <template v-for="(item, index) in breadcrumbItems" :key="`${item.path}-${index}`">
-      <RouterLink class="breadcrumb-item" :to="item.to">{{ item.label }}</RouterLink>
+      <RouterLink class="breadcrumb-item" :to="item.to">
+        <FolderIcon v-if="item.path" :icon="folderMeta[item.path]?.icon" />
+        {{ item.label }}
+      </RouterLink>
       <span v-if="index < breadcrumbItems.length - 1" class="breadcrumb-separator" aria-hidden="true">
         /
       </span>
@@ -12,10 +15,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, type RouteLocationRaw } from 'vue-router';
+import FolderIcon from '@/components/FolderIcon.vue';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { booksRouteForFolderPath, normalizeFolderInput } from '@/utils/folders';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
+const { folderMeta } = useFolderStore();
 
 const props = defineProps<{
   folders?: string | string[] | null;
@@ -64,6 +70,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
 .breadcrumb-item {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);

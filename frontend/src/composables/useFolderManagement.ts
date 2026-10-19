@@ -7,8 +7,10 @@ import {
   FolderTransferConflictError,
   moveFolder,
   NsfwRevealConfirmationError,
-  renameFolder
+  renameFolder,
+  setFolderIcon
 } from '@/api/folders';
+import { FolderMetaConflictError } from '@/api/folderErrors';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
@@ -85,7 +87,7 @@ export function useFolderManagement() {
   const router = useRouter();
   const { t } = useI18n();
   const { books, fetchBooks } = useBookStore();
-  const { folders, fetchFolders } = useFolderStore();
+  const { folders, folderMeta, fetchFolders, fetchFolderMeta } = useFolderStore();
   const { writesEnabled, writeDisabledMessageKey, outgoingCopyEnabled } = useWriteAccess();
   const readOnly = computed(() => !writesEnabled.value);
   const batchOperations = useBookBatchOperations();
@@ -102,6 +104,9 @@ export function useFolderManagement() {
   const renamingFolder = ref(false);
   const deletingFolderMap = ref<Record<string, boolean>>({});
   const pendingDeleteFolderPath = ref('');
+  const pendingIconFolderPath = ref('');
+  const savingFolderIcon = ref(false);
+  const folderIconError = ref('');
 
   /*
    * A folder rule in shelf.json marks a path, so moving or renaming the folder
@@ -204,7 +209,7 @@ export function useFolderManagement() {
     createFolderError.value = '';
   }
 
-  async function onSubmitCreateFolder(payload: { name: string }): Promise<void> {
+  async function onSubmitCreateFolder(payload: { name: string; icon?: string }): Promise<void> {
     if (readOnly.value) {
       createFolderError.value = t(writeDisabledMessageKey.value);
       return;
@@ -227,6 +232,17 @@ export function useFolderManagement() {
 
     try {
       await createFolder(normalized);
+
+      // The folder exists from here on, so an icon that fails to save is
+      // reported beside the tree rather than as a failure to create it.
+      if (payload.icon) {
+        try {
+          await setFolderIcon(normalized, payload.icon, '');
+        } catch (err) {
+          const message = err instanceof Error ? err.message : t('layout.folderIcon.failed');
+          folderOperationError.value = t('layout.createFolder.iconFailed', { message });
+        }
+      }
       await fetchFolders();
 
       showCreateFolderModal.value = false;
@@ -523,6 +539,56 @@ export function useFolderManagement() {
     });
   }
 
+  const pendingIconFolderName = computed(() => {
+    const segments = pendingIconFolderPath.value.split('/').filter((segment) => segment.length > 0);
+    return segments[segments.length - 1] ?? '';
+  });
+  const pendingFolderIcon = computed(() => folderMeta.value[pendingIconFolderPath.value]?.icon ?? '');
+
+  function requestChangeFolderIcon(path: string): void {
+    if (readOnly.value) {
+      folderOperationError.value = t(writeDisabledMessageKey.value);
+      return;
+    }
+    folderOperationError.value = '';
+    folderIconError.value = '';
+    pendingIconFolderPath.value = path;
+  }
+
+  function cancelChangeFolderIcon(): void {
+    if (savingFolderIcon.value) {
+      return;
+    }
+    pendingIconFolderPath.value = '';
+    folderIconError.value = '';
+  }
+
+  async function confirmChangeFolderIcon(payload: { icon: string }): Promise<void> {
+    const path = pendingIconFolderPath.value;
+    if (!path || savingFolderIcon.value) {
+      return;
+    }
+
+    savingFolderIcon.value = true;
+    folderIconError.value = '';
+    try {
+      await setFolderIcon(path, payload.icon, folderMeta.value[path]?.version ?? '');
+      await fetchFolderMeta();
+      pendingIconFolderPath.value = '';
+    } catch (err) {
+      // The refusal already refreshed what the server lists, so reading it
+      // again gives the dialog the version the next attempt needs.
+      if (err instanceof FolderMetaConflictError) {
+        await fetchFolderMeta();
+        folderIconError.value = t('layout.folderIcon.conflict');
+      } else {
+        folderIconError.value = (err instanceof Error && err.message) || t('layout.folderIcon.failed');
+      }
+    } finally {
+      savingFolderIcon.value = false;
+    }
+  }
+
   function requestDeleteFolder(path: string): void {
     if (readOnly.value) {
       deleteFolderError.value = t(writeDisabledMessageKey.value);
@@ -592,6 +658,15 @@ export function useFolderManagement() {
     renameFolderError,
     deletingFolderMap,
     pendingDeleteFolderPath,
+    pendingIconFolderPath,
+    pendingIconFolderName,
+    pendingFolderIcon,
+    savingFolderIcon,
+    folderIconError,
+    requestChangeFolderIcon,
+    cancelChangeFolderIcon,
+    confirmChangeFolderIcon,
+    folderMeta,
     currentFolder,
     folderTree,
     canOpenFolder,

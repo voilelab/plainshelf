@@ -70,6 +70,7 @@
             </button>
             <span v-else class="tree-toggle-placeholder" aria-hidden="true"></span>
 
+            <FolderIcon :icon="folderIcon(item.value)" />
             <button
               type="button"
               class="sidebar-nav-item-label"
@@ -105,6 +106,11 @@
               @select="emit('rename-folder', item.value.path)"
             >{{ t('layout.renameFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
+              v-if="canChangeIcon(item.value)"
+              class="reka-menu-item"
+              @select="emit('change-icon', item.value.path)"
+            >{{ t('layout.folderIcon.shortAction') }}</ContextMenuItem>
+            <ContextMenuItem
               v-if="showDeleteButton(item.value)"
               class="reka-menu-item danger"
               :disabled="isDeleting(item.value)"
@@ -137,6 +143,8 @@ import {
   TreeItem,
   TreeRoot
 } from 'reka-ui';
+import FolderIcon from './FolderIcon.vue';
+import type { FolderMeta } from '@/api/folders';
 import { useBookStore } from '@/composables/useBookStore';
 import { useI18n } from '@/i18n';
 import { getFolderPath } from '@/utils/folders';
@@ -154,6 +162,8 @@ const props = defineProps<{
   readOnly?: boolean;
   canOpenFolder?: boolean;
   canTransferFolder?: boolean;
+  /** Each folder's folder.json by path; an absent folder shows the default icon. */
+  folderMeta?: Record<string, FolderMeta>;
 }>();
 
 const emit = defineEmits<{
@@ -165,6 +175,7 @@ const emit = defineEmits<{
   'open-folder': [path: string];
   'transfer-folder': [path: string];
   'move-folder': [payload: { folderPath: string; targetFolder: string }];
+  'change-icon': [path: string];
 }>();
 
 const { t } = useI18n();
@@ -228,6 +239,16 @@ function folderBookCount(node: FolderNode): number {
 
 function canManageFolder(node: FolderNode): boolean {
   return node.path !== '/';
+}
+
+function folderIcon(node: FolderNode): string {
+  return props.folderMeta?.[node.path]?.icon ?? '';
+}
+
+// A folder.json the server will not rewrite keeps its icon, so the dialog that
+// would only end in a refusal is not offered.
+function canChangeIcon(node: FolderNode): boolean {
+  return canManageFolder(node) && !props.readOnly && !props.folderMeta?.[node.path]?.readOnly;
 }
 
 function showDeleteButton(node: FolderNode): boolean {

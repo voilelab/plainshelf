@@ -1,5 +1,5 @@
 import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
-import type { FolderChangeOptions } from '@/api/folders';
+import type { FolderChangeOptions, FolderMetaListing } from '@/api/folders';
 import type {
   BookmarkPayload,
   Book,
@@ -80,6 +80,12 @@ export interface BookshelfReader {
 
   /** Folder paths in the shape `api/folders.ts` returns: '/' for the top level. */
   listFolders(): Promise<string[]>;
+
+  /**
+   * Each folder's folder.json, for its icon. Absent where the backend has no
+   * such listing; every folder then shows the default icon.
+   */
+  listFolderMeta?(): Promise<FolderMetaListing>;
 
   listSources(bookId: string): Promise<SourceMeta[]>;
   getSource(bookId: string, sourceId: string): Promise<SourceMeta>;

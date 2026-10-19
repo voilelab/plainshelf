@@ -1,4 +1,4 @@
-import { FolderHttpError } from '../folderErrors';
+import { FolderHttpError, FolderMetaConflictError } from '../folderErrors';
 import { mockBooks } from './books';
 import { normalizeFolderInput, normalizeFolderPath } from '@/utils/folders';
 
@@ -42,6 +42,35 @@ function deriveMockFoldersFromBooks(): string[] {
 
 const mockFolders = new Set<string>(deriveMockFoldersFromBooks());
 
+// Icons by folder path, standing in for each folder's folder.json. A version
+// counter plays the content hash the server hands out, so a stale write can be
+// refused the same way.
+const mockFolderIcons = new Map<string, { icon: string; version: string }>();
+let mockFolderMetaVersion = 0;
+
+export function getMockFolderMeta(): Record<string, { icon: string; version: string; readOnly: boolean }> {
+  const folders: Record<string, { icon: string; version: string; readOnly: boolean }> = {};
+  for (const [path, meta] of mockFolderIcons) {
+    folders[path] = { ...meta, readOnly: false };
+  }
+  return folders;
+}
+
+export function setMockFolderIcon(path: string, icon: string, version: string): void {
+  if (!mockFolders.has(path)) {
+    throw new FolderHttpError('folder not found');
+  }
+  if ((mockFolderIcons.get(path)?.version ?? '') !== version) {
+    throw new FolderMetaConflictError('folder.json changed since it was read; read it again and retry');
+  }
+  if (icon === '') {
+    mockFolderIcons.delete(path);
+    return;
+  }
+  mockFolderMetaVersion += 1;
+  mockFolderIcons.set(path, { icon, version: String(mockFolderMetaVersion) });
+}
+
 export function getMockFolders(): string[] {
   return Array.from(mockFolders).sort((a, b) => a.localeCompare(b));
 }
@@ -66,6 +95,15 @@ function moveMockSubtree(from: string, to: string): void {
     if (folder === from || folder.startsWith(`${from}/`)) {
       mockFolders.delete(folder);
       mockFolders.add(replaceFolderPrefix(folder, from, to));
+    }
+  }
+
+  // folder.json lives in the directory, so it moves with it.
+  for (const [path, meta] of [...mockFolderIcons]) {
+    const nextPath = replaceFolderPrefix(path, from, to);
+    if (nextPath !== path) {
+      mockFolderIcons.delete(path);
+      mockFolderIcons.set(nextPath, meta);
     }
   }
 
@@ -108,4 +146,5 @@ export function deleteMockFolder(normalized: string): void {
   }
 
   mockFolders.delete(normalized);
+  mockFolderIcons.delete(normalized);
 }

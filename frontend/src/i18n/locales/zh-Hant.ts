@@ -94,7 +94,20 @@ const zhHant = {
       invalidName: '資料夾名稱不得為空，也不能包含 /。',
       creating: '建立中...',
       create: '建立',
-      loadingFolders: '載入資料夾中...'
+      loadingFolders: '載入資料夾中...',
+      iconLabel: '圖示',
+      iconFailed: '資料夾已建立，但圖示無法儲存：{message}'
+    },
+    folderIcon: {
+      shortAction: '更換圖示',
+      title: '「{name}」的圖示',
+      label: '資料夾圖示',
+      default: '預設',
+      save: '儲存',
+      saving: '儲存中...',
+      closeLabel: '關閉資料夾圖示對話框',
+      conflict: '這個資料夾的設定已在別處變更，已重新載入。請再選一次圖示。',
+      failed: '資料夾圖示儲存失敗'
     },
     deleteFolder: {
       title: '刪除資料夾',
