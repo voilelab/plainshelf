@@ -116,5 +116,15 @@
       "sources": []
     }
   ],
-  "book_caches": []
+  "book_caches": [
+    {
+      "name": "book-cache-foldermeta.json",
+      "usable": true,
+      "book_ids": [
+        "f1m9td3kq7xw2nab",
+        "f2p4rz8hc6vy3mde",
+        "f3s7jw5ub2qn8kfg"
+      ]
+    }
+  ]
 }

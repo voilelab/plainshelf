@@ -78,7 +78,7 @@ func TestBookCacheExportDuringBookWrites(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			meta := s.collectExportBooks()[bookID].Meta
+			meta := s.collectExportSnapshot(testWriterID).Books[bookID].Meta
 			if meta.Title != meta.Tags[0] || meta.Title != meta.Authors[0] || meta.Title != meta.Identifiers["test"] {
 				t.Errorf("inconsistent metadata snapshot: %+v", meta)
 			}
@@ -668,7 +668,7 @@ func TestBookCacheExportCarriesCurrentSourceMD5(t *testing.T) {
 		t.Fatalf("UpdateContent: %v", err)
 	}
 	s.RefreshBookCharCount(book.ID())
-	if got := s.collectExportBooks()[book.ID()].CurrentSourceMD5; got == want || got == "" {
+	if got := s.collectExportSnapshot(testWriterID).Books[book.ID()].CurrentSourceMD5; got == want || got == "" {
 		t.Errorf("current_source_md5 after an edit = %q, want a new hash", got)
 	}
 }

@@ -260,14 +260,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.exportMu.Lock()
 	defer s.exportMu.Unlock()
 
-	payload := BookCacheFile{
-		SchemaVersion: BookCacheSchemaVersion,
-		WriterID:      s.bookCacheWriterID,
-		Generator:     "plainshelf/" + version.Version,
-		Folders:       s.collectExportFolders(),
-		FolderMeta:    s.collectExportFolderMeta(),
-		Books:         s.collectExportBooks(),
-	}
+	payload := s.collectExportSnapshot(s.bookCacheWriterID)
 
 	// Hash only the content, never the timestamp, so an unchanged shelf does not
 	// rewrite the file every interval: on pCloud or SMB that is a pointless
@@ -278,7 +271,6 @@ func (s *Shelf) exportBookCache(force bool) error {
 	}
 
 	s.bookCache.RLock()
-	scannedAt := s.bookCache.lastScanStart
 	unchanged := digest == s.bookCache.lastExportDigest
 	s.bookCache.RUnlock()
 
@@ -289,8 +281,6 @@ func (s *Shelf) exportBookCache(force bool) error {
 		s.bookCache.Unlock()
 		return nil
 	}
-
-	payload.Timestamp = scannedAt.Unix()
 
 	data, err := json.Marshal(payload, jsonopt.Disk())
 	if err != nil {
@@ -316,16 +306,38 @@ func (s *Shelf) exportBookCache(force bool) error {
 	return nil
 }
 
+// collectExportSnapshot copies the listing and its scan timestamp under one
+// cache lock. A scan publishes all four together: sampling them separately can
+// pair old folders with new metadata, then advertise the newer scan's freshness.
+// The same snapshot feeds both the shared export and the local offline store.
+func (s *Shelf) collectExportSnapshot(writerID string) BookCacheFile {
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
+	return BookCacheFile{
+		SchemaVersion: BookCacheSchemaVersion,
+		WriterID:      writerID,
+		Timestamp:     s.bookCache.lastScanStart.Unix(),
+		Generator:     "plainshelf/" + version.Version,
+		Folders:       s.collectExportFoldersLocked(),
+		FolderMeta:    s.collectExportFolderMetaLocked(),
+		Books:         s.collectExportBooksLocked(),
+	}
+}
+
 // collectExportFolders lists every folder directory, in the shape the API and the
 // pCloud client both use ("/" for the top level).
 //
-// Snapshots the in-memory cache, like collectExportBooks: both halves of the
-// file then describe the same walk, and an export costs no filesystem access of
-// its own. The scan behind that cache is what ExportBookCache forces before
-// writing.
+// This standalone view is also used by conformance tests. Exports use
+// collectExportSnapshot to copy every part of the listing together.
 func (s *Shelf) collectExportFolders() []string {
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
+	return s.collectExportFoldersLocked()
+}
+
+func (s *Shelf) collectExportFoldersLocked() []string {
 	var folders []string
-	for _, folder := range s.listFoldersFromCache() {
+	for _, folder := range s.bookCache.folders {
 		name := folder.String()
 		if name == "" {
 			name = "/"
@@ -337,12 +349,9 @@ func (s *Shelf) collectExportFolders() []string {
 	return folders
 }
 
-// collectExportFolderMeta snapshots the cached folder metadata, nil when no
+// collectExportFolderMetaLocked snapshots the cached folder metadata, nil when no
 // folder has any.
-func (s *Shelf) collectExportFolderMeta() map[string]BookCacheFolderMeta {
-	s.bookCache.RLock()
-	defer s.bookCache.RUnlock()
-
+func (s *Shelf) collectExportFolderMetaLocked() map[string]BookCacheFolderMeta {
 	if len(s.bookCache.folderMeta) == 0 {
 		return nil
 	}
@@ -353,12 +362,9 @@ func (s *Shelf) collectExportFolderMeta() map[string]BookCacheFolderMeta {
 	return metas
 }
 
-// collectExportBooks snapshots the in-memory cache. No filesystem access: the
+// collectExportBooksLocked snapshots the in-memory cache. No filesystem access: the
 // cache already holds every book.json this process has read.
-func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
-	s.bookCache.RLock()
-	defer s.bookCache.RUnlock()
-
+func (s *Shelf) collectExportBooksLocked() map[string]BookCacheEntry {
 	books := make(map[string]BookCacheEntry, len(s.bookCache.cache))
 	for bookID, entry := range s.bookCache.cache {
 		meta := entry.book.GetMeta()

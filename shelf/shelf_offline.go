@@ -20,7 +20,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/internal/version"
 )
 
 /*
@@ -681,20 +680,8 @@ func (s *Shelf) saveOfflineSnapshot() {
 		return
 	}
 
-	s.bookCache.RLock()
-	takenAt := s.bookCache.lastScanStart
-	s.bookCache.RUnlock()
-
-	listing := &BookCacheFile{
-		SchemaVersion: BookCacheSchemaVersion,
-		WriterID:      "offline",
-		Timestamp:     takenAt.Unix(),
-		Generator:     "plainshelf/" + version.Version,
-		Folders:       s.collectExportFolders(),
-		FolderMeta:    s.collectExportFolderMeta(),
-		Books:         s.collectExportBooks(),
-	}
-	if err := s.offline.saveSnapshot(listing); err != nil {
+	listing := s.collectExportSnapshot("offline")
+	if err := s.offline.saveSnapshot(&listing); err != nil {
 		s.Warn("failed to save the offline snapshot", "error", err)
 	}
 }

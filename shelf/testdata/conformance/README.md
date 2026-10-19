@@ -141,3 +141,7 @@ rule starts at the tag.
 Keep source metadata self-consistent: `md5_hash`, `line_count` and `char_count`
 must describe the `source.txt` beside them, the way `RefreshContentMetadata`
 would write them.
+
+The `folder-metadata` case includes a v2 exported book cache with `folder_meta`.
+Local reads walk the source files; ReadFS, pCloud and WebDAV reads restore the
+same icons and read-only metadata flags from that export.

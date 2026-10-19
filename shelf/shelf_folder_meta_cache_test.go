@@ -291,3 +291,211 @@ func TestRemoteShelfReadsAnExportWithoutUsableFolderMeta(t *testing.T) {
 		t.Fatalf("an export without folder_meta listed %v", metas)
 	}
 }
+
+// Legacy exports must not pin the default icon once a metadata-capable writer
+// publishes, including a re-export within the same timestamp second.
+func TestRemoteFolderMetaRefreshesLegacyAndSameSecondExports(t *testing.T) {
+	libRoot := seedExportedShelf(t, "One", "Two")
+	name := bookCacheFilePrefix + testWriterID + bookCacheFileSuffix
+	cache, err := readBookCacheFileAt(filepath.Join(libRoot, appFolder, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, counter := openRemoteShelf(t, libRoot, ShelfConf{})
+	assertIcons(t, listedIcons(t, s), map[string]string{})
+	counter.take()
+
+	for _, icon := range []string{"rocket", "moon", ""} {
+		cache.FolderMeta = map[string]BookCacheFolderMeta{"Fiction": {Icon: icon}}
+		writeRawBookCache(t, libRoot, name, cache)
+		if err := s.refreshRemoteBookCache(nil); err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]string{}
+		if icon != "" {
+			want["Fiction"] = icon
+		}
+		assertIcons(t, listedIcons(t, s), want)
+	}
+	if calls := booksCalls(counter.take()); len(calls) != 0 {
+		t.Fatalf("metadata refresh accessed books/: %v", calls)
+	}
+}
+
+func TestFolderMetaSurvivesOfflineSnapshotAndReconnect(t *testing.T) {
+	libRoot := seedExportedShelf(t, "One", "Two")
+	name := bookCacheFilePrefix + testWriterID + bookCacheFileSuffix
+	cache, err := readBookCacheFileAt(filepath.Join(libRoot, appFolder, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache.FolderMeta = map[string]BookCacheFolderMeta{"Fiction": {Icon: "rocket"}}
+	writeRawBookCache(t, libRoot, name, cache)
+	offlineDir := t.TempDir()
+	online, _, counter := openOffline(t, libRoot, offlineDir, false)
+	assertIcons(t, listedIcons(t, online), map[string]string{"Fiction": "rocket"})
+	if calls := booksCalls(counter.take()); len(calls) != 0 {
+		t.Fatalf("opening from export accessed books/: %v", calls)
+	}
+	if err := online.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s, source, counter := openOffline(t, libRoot, offlineDir, true)
+	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction": "rocket"})
+	if err := s.refreshRemoteBookCache(nil); err != nil {
+		t.Fatal(err)
+	}
+	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction": "rocket"})
+
+	// Reconnect to a new export whose timestamp is unchanged. The offline
+	// snapshot's digest must not suppress metadata fetched from the source.
+	cache.FolderMeta["Fiction"] = BookCacheFolderMeta{Icon: "moon"}
+	writeRawBookCache(t, libRoot, name, cache)
+	source.down.Store(false)
+	if err := s.refreshRemoteBookCache(nil); err != nil {
+		t.Fatal(err)
+	}
+	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction": "moon"})
+	if calls := booksCalls(counter.take()); len(calls) != 0 {
+		t.Fatalf("reconnecting accessed books/: %v", calls)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, _, _ := openOffline(t, libRoot, offlineDir, true)
+	assertIcons(t, listedIcons(t, reopened), map[string]string{"Fiction": "moon"})
+}
+
+func TestFolderMetaOnlyChangesReexportButUnchangedMetadataDoesNot(t *testing.T) {
+	s, libRoot := newCachedFolderMetaShelf(t, ShelfConf{BookCacheWriterID: testWriterID})
+	for _, icon := range FolderIcons() {
+		if err := s.NewFolder(nil, icon); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetFolderIcon(FolderPath{icon}, icon, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.ExportBookCache(); err != nil {
+		t.Fatal(err)
+	}
+	filePath := filepath.Join(libRoot, appFolder, s.bookCacheFileName())
+	for range 8 {
+		shiftModTime(t, filePath, -time.Hour)
+		before, err := os.Stat(filePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.exportBookCache(false); err != nil {
+			t.Fatal(err)
+		}
+		after, err := os.Stat(filePath)
+		if err != nil || !after.ModTime().Equal(before.ModTime()) {
+			t.Fatalf("unchanged folder metadata rewrote the export: %v", err)
+		}
+	}
+	meta := mustListFolderMeta(t, s)["book"]
+	if err := s.SetFolderIcon(FolderPath{"book"}, "moon", meta.Version); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.exportBookCache(false); err != nil {
+		t.Fatal(err)
+	}
+	cache, err := readBookCacheFileAt(filePath)
+	if err != nil || cache.FolderMeta["book"].Icon != "moon" {
+		t.Fatalf("metadata-only edit was not exported: %v, %v", cache, err)
+	}
+}
+
+// Each simulated scan publishes a complete generation under the cache lock.
+// An export must take its timestamp, paths, metadata and books from that same
+// generation even while the next scan is being published.
+func TestExportSnapshotKeepsOneScanGeneration(t *testing.T) {
+	s, _ := newCachedFolderMetaShelf(t, ShelfConf{})
+	book, err := s.NewBook(FolderPath{"First"}, "One")
+	if err != nil {
+		t.Fatal(err)
+	}
+	publish := func(generation int64) {
+		name, icon := "First", "book"
+		if generation == 2 {
+			name, icon = "Second", "moon"
+		}
+		s.bookCache.Lock()
+		s.bookCache.folders = []FolderPath{{}, {name}}
+		s.bookCache.folderMeta = map[string]FolderMeta{name: {Icon: icon}}
+		s.bookCache.cache = map[string]*bookIDCacheEntry{book.ID(): {
+			folders: FolderPath{name}, path: "books/" + name + "/one.bookpkg", book: book,
+		}}
+		s.bookCache.lastScanStart = time.Unix(generation, 0)
+		s.bookCache.Unlock()
+	}
+	publish(1)
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				publish(1)
+				publish(2)
+			}
+		}
+	}()
+	defer func() { close(stop); <-done }()
+	for range 2000 {
+		cache := s.collectExportSnapshot(testWriterID)
+		name, icon := "First", "book"
+		if cache.Timestamp == 2 {
+			name, icon = "Second", "moon"
+		}
+		if len(cache.Folders) != 2 || cache.Folders[1] != name || len(cache.FolderMeta) != 1 ||
+			cache.FolderMeta[name].Icon != icon || cache.Books[book.ID()].Path != "books/"+name+"/one.bookpkg" {
+			t.Fatalf("export mixed scan generations: %+v", cache)
+		}
+	}
+}
+
+func TestFolderMetaRemoteListingIO(t *testing.T) {
+	s, libRoot := newCachedFolderMetaShelf(t, ShelfConf{BookCacheWriterID: testWriterID})
+	for i := range 40 {
+		name := "Folder" + string(rune('A'+i%26)) + string(rune('a'+i/26))
+		if err := s.NewFolder(nil, name); err != nil {
+			t.Fatal(err)
+		}
+		if i < 5 {
+			if err := s.SetFolderIcon(FolderPath{name}, "book", ""); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if _, err := s.ExportBookCache(); err != nil {
+		t.Fatal(err)
+	}
+	remote, counter := openRemoteShelf(t, libRoot, ShelfConf{ScanInterval: "10m", BookCheckInterval: "10m"})
+	cold := counter.take()
+	assertIcons(t, listedIcons(t, remote), map[string]string{
+		"FolderAa": "book", "FolderBa": "book", "FolderCa": "book", "FolderDa": "book", "FolderEa": "book",
+	})
+	for range 5 {
+		if _, err := remote.GetAllFolders(); err != nil {
+			t.Fatal(err)
+		}
+		mustListFolderMeta(t, remote)
+	}
+	warm := counter.take()
+	if len(warm) != 0 {
+		t.Fatalf("warm listings made remote calls: %v", warm)
+	}
+	if err := remote.refreshRemoteBookCache(nil); err != nil {
+		t.Fatal(err)
+	}
+	refresh := counter.take()
+	if calls := booksCalls(append(cold, refresh...)); len(calls) != 0 {
+		t.Fatalf("export-backed listings accessed books/: %v", calls)
+	}
+	t.Logf("40 folders, 5 with metadata: cold=%v; warm=%v; export refresh=%v", cold, warm, refresh)
+}

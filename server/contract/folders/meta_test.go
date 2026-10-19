@@ -155,3 +155,14 @@ func TestAPIFolderMetaFollowsFolderVisibilityContract(t *testing.T) {
 	apitest.AssertErrorEnvelope(t, putFolderIcon(s.Env, apitest.NSFWMarkedFolder, "star", hiddenVersion), http.StatusNotFound,
 		"FOLDER_NOT_FOUND", "folder not found")
 }
+
+func TestAPIFolderMetaReadRespectsLocalTokenContract(t *testing.T) {
+	security := apitest.LocalTokenSecurity()
+	security.ProtectRead = true
+	env := apitest.New(t, apitest.WithSecurity(security))
+	url := apitest.ShelfURL("folder-meta")
+	apitest.AssertStatus(t, env.Get(url), http.StatusUnauthorized)
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set(env.App.SecurityTokenHeader(), env.App.SecurityToken())
+	apitest.AssertStatus(t, env.DoRaw(req), http.StatusOK)
+}
