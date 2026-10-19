@@ -82,7 +82,20 @@ interface DesktopLANShareParams {
   shelfIDs: string[];
 }
 
+export interface DesktopQRShelf {
+  id: string;
+  name: string;
+  url: string;
+}
+export interface DesktopQRResult {
+  name: string;
+  url: string;
+  status: string;
+}
+
 interface DesktopAppBinding {
+  PreviewLANShareQR?: (text: string) => Promise<DesktopQRShelf[]>;
+  ImportLANShareQR?: (text: string) => Promise<DesktopQRResult[]>;
   OpenBookFiles?: () => Promise<string[]>;
   ImportBookFromLocalPath?: (
     shelfID: string,
@@ -524,4 +537,16 @@ export async function openDesktopExternalURL(url: string): Promise<void> {
   }
 
   await desktopApp.OpenExternalURL(url);
+}
+
+export async function previewDesktopLANShareQR(text: string): Promise<DesktopQRShelf[]> {
+  const binding = (window as DesktopWindow).go?.main?.DesktopApp?.PreviewLANShareQR;
+  if (!binding) throw new Error('PreviewLANShareQR binding not available');
+  return binding(text);
+}
+
+export async function importDesktopLANShareQR(text: string): Promise<DesktopQRResult[]> {
+  const binding = (window as DesktopWindow).go?.main?.DesktopApp?.ImportLANShareQR;
+  if (!binding) throw new Error('ImportLANShareQR binding not available');
+  return binding(text);
 }

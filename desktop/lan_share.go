@@ -21,6 +21,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
+	"github.com/voilelab/plainshelf/internal/lanshare"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
 	"rsc.io/qr"
@@ -89,25 +90,10 @@ type LANShareStatus struct {
 
 // lanShareQRVersion is lanShareQRPayload's "v". A reader refuses any other
 // value rather than guess at the fields.
-const lanShareQRVersion = 1
+const lanShareQRVersion = lanshare.Version
 
-// lanShareQRPayload is the QR code's text: everything another device needs to
-// open the shared shelves. It is a format between devices; see
-// docs/configuring-local-shelf.md.
-type lanShareQRPayload struct {
-	V     int    `json:"v"`
-	URL   string `json:"url"`
-	Token string `json:"token"`
-	// Shelves lists only the ticked shelves, so the code changes with the
-	// selection.
-	Shelves []lanShareQRShelf `json:"shelves"`
-}
-
-type lanShareQRShelf struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	URL  string `json:"url"`
-}
+type lanShareQRPayload = lanshare.Payload
+type lanShareQRShelf = lanshare.Shelf
 
 type lanShare struct {
 	app               *server.App
