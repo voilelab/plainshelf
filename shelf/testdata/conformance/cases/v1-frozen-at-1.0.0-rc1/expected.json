@@ -3,6 +3,7 @@
     "/",
     "Classics"
   ],
+  "folder_meta": {},
   "books": [
     {
       "path": "books/Classics/genji.bookpkg",

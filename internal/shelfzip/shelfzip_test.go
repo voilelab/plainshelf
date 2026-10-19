@@ -83,6 +83,8 @@ func importBytes(b []byte, root string) error {
 	return Import(bytes.NewReader(b), int64(len(b)), root)
 }
 
+// folder.json travels with books/ as it is: a folder's metadata is part of the
+// shelf, not a cache.
 func TestRoundTripKeepsBooksTrashAndEmptyFolders(t *testing.T) {
 	src := t.TempDir()
 	writeTree(t, src, map[string]string{
@@ -91,6 +93,8 @@ func TestRoundTripKeepsBooksTrashAndEmptyFolders(t *testing.T) {
 		"books/在瀏覽器裡建立的書.bookpkg/book.json":       `{"title":"在瀏覽器裡建立的書"}`,
 		"books/收藏/x.bookpkg/sources/1/source.txt": "text",
 		"books/空的資料夾/":                            "",
+		"books/收藏/folder.json":                    `{"icon":"star","sort_key":1}`,
+		"books/只有圖示/folder.json":                  `{"icon":"book"}`,
 		"trash/books/old.bookpkg/book.json":       "{}",
 		"app/book-cache-abc.json":                 "cache",
 	})

@@ -3,6 +3,7 @@
     "/",
     "R&D"
   ],
+  "folder_meta": {},
   "books": [
     {
       "path": "books/R&D/ampersand.bookpkg",

@@ -114,6 +114,10 @@ type Shelf struct {
 	// nil on a shelf that keeps no offline copies. See shelf_offline.go.
 	remoteRoot fsutil.ReadFS
 	offline    *offlineStore
+
+	// folderMetaWarnings maps a folder.json path to the last problem logged for
+	// it; see warnFolderMeta.
+	folderMetaWarnings sync.Map
 }
 
 type ShelfConf struct {

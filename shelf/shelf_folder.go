@@ -38,6 +38,9 @@ func (s *Shelf) NewFolder(parent FolderPath, name string) error {
 	if err := s.ValidateFolderPath(folder); err != nil {
 		return util.Errorf("%w", err)
 	}
+	if err := validateNewFolderName(name); err != nil {
+		return util.Errorf("%w", err)
+	}
 
 	root, err := s.writeRoot()
 	if err != nil {
@@ -63,8 +66,20 @@ func (s *Shelf) NewFolder(parent FolderPath, name string) error {
 	return nil
 }
 
-// DeleteFolder removes a folder from the library. It checks if the folder is empty (i.e., contains no books) before deleting it. If the folder is not empty, it returns an error.
+// DeleteFolder removes an empty folder from the library: one holding nothing,
+// or nothing but its folder.json. Any other content is refused with an error.
 func (s *Shelf) DeleteFolder(folder FolderPath) error {
+	return s.deleteFolder(folder, true)
+}
+
+// PruneFolder removes folder only when it holds nothing at all, folder.json
+// included. It is for cleanup after books were carried elsewhere, which must
+// not discard metadata the carrying did not take along.
+func (s *Shelf) PruneFolder(folder FolderPath) error {
+	return s.deleteFolder(folder, false)
+}
+
+func (s *Shelf) deleteFolder(folder FolderPath, withMeta bool) error {
 	if err := s.ValidateFolderPath(folder); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -86,12 +101,23 @@ func (s *Shelf) DeleteFolder(folder FolderPath) error {
 		return util.Errorf("%w", err)
 	}
 
-	if len(entries) > 0 {
-		return util.Errorf("cannot delete non-empty folder")
+	// A folder holding only its own folder.json is empty to the user: the
+	// metadata goes with it. Anything else - a book, a subfolder, a stray file -
+	// keeps it.
+	for _, entry := range entries {
+		if !withMeta || entry.Name() != FolderMetaFile || entry.IsDir() {
+			return util.Errorf("cannot delete non-empty folder")
+		}
 	}
 
-	err = root.RemoveAll(folderPath)
-	if err != nil {
+	// File, then directory, each removed singly: a file that appears in between
+	// makes the second Remove fail instead of being deleted with the folder.
+	if len(entries) > 0 {
+		if err := root.Remove(path.Join(folderPath, FolderMetaFile)); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+	if err := root.Remove(folderPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -116,6 +142,9 @@ func (s *Shelf) RenameFolder(folder FolderPath, newName string) error {
 		return util.Errorf("invalid old folder: %w", err)
 	}
 	if err := s.ValidateFolderPath(newFolder); err != nil {
+		return util.Errorf("invalid new folder: %w", err)
+	}
+	if err := validateNewFolderName(newName); err != nil {
 		return util.Errorf("invalid new folder: %w", err)
 	}
 
@@ -170,6 +199,9 @@ func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 	}
 	if len(folder) == 0 {
 		return util.Errorf("cannot move root folder")
+	}
+	if err := validateNewFolderName(folder[len(folder)-1]); err != nil {
+		return util.Errorf("invalid folder: %w", err)
 	}
 
 	root, err := s.writeRoot()

@@ -33,7 +33,7 @@ cache, over pCloud, and over WebDAV.
 // matching schema_version in testdata/conformance/manifest.json. Both harnesses
 // check it, so a dataset change that outpaces one of them fails loudly instead
 // of being read as a behavior difference.
-const conformanceDatasetVersion = 3
+const conformanceDatasetVersion = 4
 
 const conformanceRoot = "testdata/conformance"
 
@@ -47,9 +47,17 @@ type conformanceManifest struct {
 
 // conformanceReading is what both implementations must report for one case.
 type conformanceReading struct {
-	Folders    []string               `json:"folders"`
-	Books      []conformanceBook      `json:"books"`
-	BookCaches []conformanceBookCache `json:"book_caches"`
+	Folders    []string                         `json:"folders"`
+	FolderMeta map[string]conformanceFolderMeta `json:"folder_meta"`
+	Books      []conformanceBook                `json:"books"`
+	BookCaches []conformanceBookCache           `json:"book_caches"`
+}
+
+// conformanceFolderMeta is one folder's folder.json as the shelf reads it.
+type conformanceFolderMeta struct {
+	Icon       string `json:"icon"`
+	IconOnDisk string `json:"icon_on_disk"`
+	ReadOnly   bool   `json:"read_only"`
 }
 
 type conformanceBook struct {
@@ -134,6 +142,7 @@ func TestBookPackageConformanceThroughPCloud(t *testing.T) {
 			s, _ := openPCloudShelf(t, filepath.Join(caseDir, "shelf"), ShelfConf{})
 			observed := conformanceReading{
 				Folders:    s.collectExportFolders(),
+				FolderMeta: readConformanceFolderMeta(t, s),
 				Books:      readConformanceBooks(t, s),
 				BookCaches: readConformanceBookCaches(t, s),
 			}
@@ -154,6 +163,7 @@ func TestBookPackageConformanceThroughWebDAV(t *testing.T) {
 			s := openWebDAVShelf(t, filepath.Join(caseDir, "shelf"))
 			observed := conformanceReading{
 				Folders:    s.collectExportFolders(),
+				FolderMeta: readConformanceFolderMeta(t, s),
 				Books:      readConformanceBooks(t, s),
 				BookCaches: readConformanceBookCaches(t, s),
 			}
@@ -272,6 +282,7 @@ func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 
 	return conformanceReading{
 		Folders:    s.collectExportFolders(),
+		FolderMeta: readConformanceFolderMeta(t, s),
 		Books:      readConformanceBooks(t, s),
 		BookCaches: readConformanceBookCaches(t, s),
 	}
@@ -299,6 +310,7 @@ func readConformanceCaseThroughReadFS(t *testing.T, shelfDir string) conformance
 
 	return conformanceReading{
 		Folders:    s.collectExportFolders(),
+		FolderMeta: readConformanceFolderMeta(t, s),
 		Books:      readConformanceBooks(t, s),
 		BookCaches: readConformanceBookCaches(t, s),
 	}
@@ -323,6 +335,32 @@ func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
 		t.Fatalf("decode book.json (%s): %v", bookPath, err)
 	}
 	return meta.SchemaVersion
+}
+
+// readConformanceFolderMeta records every folder that has a folder.json, keyed
+// the way folders are. The root never has one, even with a file of that name.
+func readConformanceFolderMeta(t *testing.T, s *Shelf) map[string]conformanceFolderMeta {
+	t.Helper()
+
+	reading := map[string]conformanceFolderMeta{}
+	for _, name := range s.collectExportFolders() {
+		if name == "/" {
+			continue
+		}
+		meta, err := s.ReadFolderMeta(strings.Split(name, "/"))
+		if err != nil {
+			t.Fatalf("ReadFolderMeta(%s): %v", name, err)
+		}
+		if meta.Version == "" && !meta.ReadOnly {
+			continue
+		}
+		reading[name] = conformanceFolderMeta{
+			Icon:       meta.DisplayIcon(),
+			IconOnDisk: meta.Icon,
+			ReadOnly:   meta.ReadOnly,
+		}
+	}
+	return reading
 }
 
 func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {

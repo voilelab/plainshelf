@@ -208,6 +208,68 @@ before the book is moved.
 
 ---
 
+## `folder.json` schema v1
+
+A folder may carry its own metadata in a `folder.json` inside the folder
+directory, for example `books/Fiction/folder.json`. Because the file lives in
+the directory it describes, it moves with the folder: a rename or move in
+PlainShelf, or an `mv` outside it, carries it along with no list to update.
+
+```json
+{
+  "icon": "rocket",
+  "schema_version": 1
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | On-disk format version of this file. Managed by PlainShelf; a file without it reads as v1. |
+| `icon` | The folder's icon: one name from the list below. Absent means the default folder icon. |
+| `sort_key` | Reserved for ordering a folder among its siblings: a finite number, lower first. Defined here so the name is fixed with the rest of v1; this build keeps it but does not use it yet. |
+
+The icon names are a subset of [Tabler](https://tabler.io/icons) icon names:
+`alien`, `atom`, `bolt`, `book`, `bookmark`, `books`, `briefcase`, `camera`,
+`code`, `coffee`, `compass`, `crown`, `device-gamepad-2`, `diamond`, `flame`,
+`flask`, `flower`, `folder`, `ghost`, `heart`, `leaf`, `map`, `mood-smile`,
+`moon`, `movie`, `music`, `notebook`, `palette`, `paw`, `planet`, `puzzle`,
+`robot`, `rocket`, `school`, `shield`, `skull`, `star`, `sun`, `sword`, `world`.
+A later release may add names. A name this build does not offer is shown as the
+default icon and kept as written.
+
+The shelf root — `books/` itself — has no metadata: a `books/folder.json` is
+not read.
+
+**Reading never hides a folder.** A missing file, malformed JSON, a top-level
+value that is not an object, a member of the wrong type, an icon this build
+does not offer, or a `schema_version` other than 1 all read as "no metadata"
+for that folder, and the problem is logged once rather than on every listing.
+Reading never rewrites the file.
+
+**Writing changes only what it is asked to.** Unlike the three files above,
+`folder.json` is written member by member: setting or clearing the icon
+replaces that one member and keeps every other one — `sort_key`, a member a
+newer build added, a member you added by hand — with its value and nested
+structure intact. Formatting is not kept: the file is rewritten with two-space
+indentation and members in alphabetical order. Clearing the icon of a file that
+then holds nothing but `schema_version` deletes the file, so the folder is left
+as it was before it had any metadata.
+
+A write is refused, and the file left exactly as it is, when this build cannot
+read the file safely: malformed JSON, not an object, or a `schema_version`
+other than 1. It is also refused when the file changed after the caller read
+it, whether by hand or by another PlainShelf sharing the shelf, so an edit made
+in between is never overwritten. That check covers writers that take the shelf
+lock; a program that does not cannot be fenced off, and PlainShelf does not
+promise a transaction across machines.
+
+Because the file is named `folder.json`, no folder may be given that name, in
+any letter case. A directory of that name made outside PlainShelf is still
+listed as a folder and can be renamed or deleted, but its parent's metadata
+reads as none and refuses writes until it is renamed.
+
+---
+
 ## Compatibility policy
 
 The on-disk format freezes at **`1.0.0-rc1`**, not at `1.0.0`. The first
@@ -262,13 +324,14 @@ rest of the 1.x line. From that tag on, for any shelf whose books are at
 
 #### What the freeze covers
 
-Three files, the shelf's user data:
+Four files, the shelf's user data:
 
 - `books/**/book.json`
 - `books/**/sources/{id}/meta.json`
 - `trash/**/trash.json`
+- `books/**/folder.json`
 
-It covers the **on-disk format of those three files** and nothing else. Three
+It covers the **on-disk format of those four files** and nothing else. Three
 exclusions are deliberate:
 
 - **The HTTP API and the user interface**, which may still change. The freeze is
@@ -290,7 +353,7 @@ data the freeze undertakes to migrate.
 
 #### What backward compatible means
 
-Every later change to those three files is backward compatible, which here is a
+Every later change to those four files is backward compatible, which here is a
 narrow and checkable statement rather than a general intention:
 
 - **A new field is always an optional addition.** It may be absent, and a build
@@ -302,9 +365,10 @@ narrow and checkable statement rather than a general intention:
   field exactly as before.
 - **`schema_version` is not raised again.** Raising it is exactly what a
   breaking change would need, and there is no longer such a change to make, so
-  `book.json` stays at schema v1, source `meta.json` at schema v1, and
-  `trash.json` at schema v2 for the life of the promise. A build that meets a
-  higher version on disk is meeting a file PlainShelf did not write.
+  `book.json` stays at schema v1, source `meta.json` at schema v1,
+  `trash.json` at schema v2, and `folder.json` at schema v1 for the life of the
+  promise. A build that meets a higher version on disk is meeting a file
+  PlainShelf did not write.
 
 Both halves point one way: a **newer build reads an older shelf**. That is the
 direction the freeze protects, and it is not the same as making mixed-version
@@ -313,7 +377,9 @@ use safe — see
 
 #### Unknown fields are not covered
 
-None of the three files passes unknown fields through. PlainShelf reads each
+`book.json`, source `meta.json` and `trash.json` do not pass unknown fields
+through; `folder.json` does, and is described
+[on its own](#folderjson-schema-v1). PlainShelf reads each of the other three
 into a fixed set of fields — `book.json` into [the table
 above](#bookjson-schema-v1), source `meta.json` and `trash.json` into their own
 — and rewrites the whole file from those fields, so a top-level key it does not
@@ -338,10 +404,11 @@ a key a newer build wrote alike. What counts as "next time" differs per file:
 
 This is the commitment most easily read as its opposite. The freeze says
 PlainShelf will not break the fields *it* defines; it does not say a field of
-your own survives. None of these files is a place to keep data PlainShelf does
-not know about. Passthrough for such fields would itself be an optional
-addition, so nothing here rules it out later — but until it exists, assume each
-file holds only the fields this page documents.
+your own survives. None of those three files is a place to keep data PlainShelf
+does not know about. Passthrough for such fields is itself an optional addition
+— `folder.json` is written that way from its first release — so nothing here
+rules it out for the others later; but until a file gains it, assume it holds
+only the fields this page documents.
 
 #### What we promise
 
@@ -397,7 +464,7 @@ file holds only the fields this page documents.
   To go back to an older release, restore from a backup taken before the
   upgrade — see [Rolling back to an older
   release](../backup-and-restore.md#rolling-back-to-an-older-release).
-- Nothing outside the three files listed in
+- Nothing outside the four files listed in
   [What the freeze covers](#what-the-freeze-covers) is promised — not the caches
   under `app/`, and not per-device reading state. A file that gains user-data
   versioning later gets these promises from then on, not retroactively.
@@ -790,14 +857,14 @@ to be upgraded; it is the only kind there is.
 
 ## What is versioned today
 
-Book, source, and trash metadata carry independent schema versions, and so do
+Book, source, trash, and folder metadata carry independent schema versions, and so do
 the caches under `app/`. What differs is what a version is *for*, which sorts the
 versioned files into three kinds:
 
-- **User data** — `book.json`, source `meta.json`, `trash.json`. Losing them
-  loses your library, so the version is a guard: a build that meets a newer
-  version refuses to overwrite it, and upgrades are lazy and per-book. This is
-  the versioning the rest of this page describes.
+- **User data** — `book.json`, source `meta.json`, `trash.json`,
+  `folder.json`. Losing them loses your library, so the version is a guard: a
+  build that meets a newer version refuses to overwrite it, and upgrades are
+  lazy and per-book. This is the versioning the rest of this page describes.
 - **Local disposable cache** — `app/scan-cache.json` and
   `app/fingerprint-cache.json`. Rebuildable from the shelf and read only by the
   same Go implementation that writes them — shared across the installations that
@@ -816,6 +883,7 @@ versioned files into three kinds:
 | `books/**/book.json` | Yes — `schema_version`, described on this page | User data |
 | `books/**/sources/{id}/meta.json` | Yes — `schema_version`; schema v1 owns source `format` | User data |
 | `trash/**/trash.json` | Yes — `schema_version`; schema v2 owns the book's restore path | User data |
+| `books/**/folder.json` | Yes — `schema_version`; written member by member, so unknown members survive a write — see [`folder.json` schema v1](#folderjson-schema-v1) | User data |
 | `app/scan-cache.json` | Yes — `schema_version` (`scancache/scancache.go:53`); no migration, discarded and rebuilt on any mismatch, unlike `books/` and `trash/` which are upgraded in place | Local cache |
 | `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) | Local cache |
 | `app/book-cache-{writer-id}.json` | Yes — `schema_version` (`shelf_cache_export.go:43`); no migration, discarded and rebuilt on any mismatch, but read across devices — see [The exported book cache](#the-exported-book-cache) | Cross-device contract |

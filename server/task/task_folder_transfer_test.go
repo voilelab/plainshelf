@@ -192,6 +192,34 @@ func TestFolderTransferTaskMoveNested(t *testing.T) {
 	}
 }
 
+// The transfer does not carry folder.json yet (PSW-178), so a moved folder that
+// has one must keep it on the source rather than have the prune delete it.
+func TestFolderTransferTaskMoveKeepsUncarriedFolderMeta(t *testing.T) {
+	source := newTransferTestShelf(t, "source")
+	target := newTransferTestShelf(t, "target")
+
+	seedTransferBook(t, source, shelf.FolderPath{"fiction"}, "Top")
+	seedTransferBook(t, source, shelf.FolderPath{"fiction", "sci-fi"}, "Deep")
+	if err := source.SetFolderIcon(shelf.FolderPath{"fiction", "sci-fi"}, "rocket", ""); err != nil {
+		t.Fatalf("SetFolderIcon: %v", err)
+	}
+
+	books, subfolders := folderTransferPlan(t, source, shelf.FolderPath{"fiction"})
+	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
+		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, subfolders)
+	if err := task.Run(t.Context()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	meta, err := source.ReadFolderMeta(shelf.FolderPath{"fiction", "sci-fi"})
+	if err != nil {
+		t.Fatalf("ReadFolderMeta: %v", err)
+	}
+	if meta.Icon != "rocket" {
+		t.Fatalf("source folder.json after the move = %+v, want it kept", meta)
+	}
+}
+
 // A cancel arriving before the first book leaves both shelves untouched and the
 // task fails at 0%, recording no per-book results.
 func TestFolderTransferTaskCancelledBeforeStart(t *testing.T) {

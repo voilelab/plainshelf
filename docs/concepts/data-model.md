@@ -16,6 +16,7 @@ A typical shelf looks like this:
 ├─ books/
 │  ├─ {book1-folder}.bookpkg/
 │  ├─ {folder1}/
+│  │  ├─ folder.json   (optional; this folder's icon and other settings)
 │  │  └─ {book2-folder}.bookpkg/
 │  └─ {folder2}/
 │     └─ {folder3}/
@@ -57,6 +58,11 @@ what counts as a layout change and how one is expected to be detected.
 Source of truth. This directory contains all user-owned data: book metadata,
 text files, cover images, and other long-lived files. Books can be nested under
 [folders](folders.md) by placing them inside sub-directories.
+
+A folder directory may hold a `folder.json` with that folder's own settings,
+such as its icon. It is user data like `book.json` and moves with the folder;
+see [`folder.json` schema
+v1](data-format-versioning.md#folderjson-schema-v1).
 
 ### `trash/`
 
