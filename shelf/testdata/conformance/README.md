@@ -50,6 +50,7 @@ of the shelf observes:
 | Field | Go |
 |---|---|
 | `folders` | `collectExportFolders` |
+| `folder_meta` | `Shelf.ReadFolderMeta` |
 | `books[].path` | `Book.FolderPath` |
 | `books[].folders` | `BookListing.Folders` |
 | `books[].id`, `title`, `format`, `authors`, `tags`, `identifiers`, `language`, `comments`, `star`, `created_at`, `updated_at`, `published_at`, `cover` | `Book.GetMeta` |
@@ -88,6 +89,10 @@ Conventions of the recorded reading:
   it out of a marked folder. Folder paths are matched case-insensitively
   (`shelfutil.foldSegment`), which is why the marked folder in `nsfw-marked` is
   spelled in a different case than its rule.
+- `folder_meta` lists only the folders that have a `folder.json` entry, keyed
+  like `folders`; the root never has one. `icon` is what is shown
+  (`DisplayIcon`, `""` for the default), `icon_on_disk` the member as written,
+  and `read_only` that a write would be refused for the file's content.
 - An absent value is recorded as `""`, `0`, `[]` or `{}` rather than `null`.
 - Timestamps are recorded exactly as PlainShelf writes them: `created_at` and
   `updated_at` in RFC 3339 (`2026-03-15T08:30:00Z`), `published_at` as a date

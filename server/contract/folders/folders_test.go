@@ -85,6 +85,33 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 	}
 }
 
+// folder.json is the name of a folder's metadata file, so a folder may not take
+// it - in any case - through any route that places a name.
+func TestAPIReservedFolderNameIsARequestErrorContract(t *testing.T) {
+	env := apitest.New(t)
+	if rec := env.Request(http.MethodPost, apitest.ShelfURL("folders", "alpha"), nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("create alpha: %d %s", rec.Code, rec.Body.String())
+	}
+
+	tests := []struct {
+		name         string
+		method, path string
+		body         string
+	}{
+		{name: "create", method: http.MethodPost, path: apitest.ShelfURL("folders", "folder.json")},
+		{name: "create in another case", method: http.MethodPost, path: apitest.ShelfURL("folders", "alpha", "Folder.JSON")},
+		{name: "rename", method: http.MethodPatch, path: apitest.ShelfURL("folders", "alpha"), body: `{"name":"folder.json"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := env.Request(tt.method, tt.path, strings.NewReader(tt.body))
+
+			apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest,
+				"INVALID_FOLDER", "invalid folder name")
+		})
+	}
+}
+
 // The folder routes answer outcomes the error table cannot name as a conflict.
 // Routing them through the table must not turn those into 500s.
 func TestAPIFolderConflictsStillAnswerConflictContract(t *testing.T) {
