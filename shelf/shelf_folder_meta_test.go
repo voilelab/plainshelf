@@ -454,7 +454,7 @@ func TestFolderMetaFileNameIsReserved(t *testing.T) {
 }
 
 func TestDeleteFolderHoldingOnlyItsMetadata(t *testing.T) {
-	s, libRoot := newFolderMetaShelf(t, FolderPath{"Empty"}, FolderPath{"Stray"}, FolderPath{"Parent"}, FolderPath{"Parent", "Child"})
+	s, libRoot := newFolderMetaShelf(t, FolderPath{"Empty"}, FolderPath{"Stray"}, FolderPath{"Parent"}, FolderPath{"Parent", "Child"}, FolderPath{"Carried"})
 	for _, folder := range []FolderPath{{"Empty"}, {"Stray"}, {"Parent"}} {
 		if err := s.SetFolderIcon(folder, "book", ""); err != nil {
 			t.Fatalf("SetFolderIcon(%v): %v", folder, err)
@@ -465,11 +465,28 @@ func TestDeleteFolderHoldingOnlyItsMetadata(t *testing.T) {
 	}
 
 	// PruneFolder is the strict form: metadata is content to it.
-	if err := s.PruneFolder(FolderPath{"Empty"}); err == nil {
+	if err := s.PruneFolder(FolderPath{"Empty"}, ""); err == nil {
 		t.Fatal("PruneFolder deleted a folder holding folder.json")
 	}
 	if _, ok := readFolderMetaRaw(t, libRoot, "Empty"); !ok {
 		t.Fatal("a refused prune removed folder.json")
+	}
+	if err := s.PruneFolder(FolderPath{"Empty"}, folderMetaVersion([]byte("{}"))); err == nil {
+		t.Fatal("PruneFolder deleted a folder holding a folder.json it was not told was carried")
+	}
+	if err := s.PruneFolder(FolderPath{"Parent"}, ""); err == nil {
+		t.Fatal("PruneFolder deleted a folder holding a subfolder")
+	}
+
+	if err := s.SetFolderIcon(FolderPath{"Carried"}, "moon", ""); err != nil {
+		t.Fatalf("SetFolderIcon(Carried): %v", err)
+	}
+	carried, err := s.ReadFolderMeta(FolderPath{"Carried"})
+	if err != nil {
+		t.Fatalf("ReadFolderMeta(Carried): %v", err)
+	}
+	if err := s.PruneFolder(FolderPath{"Carried"}, carried.Version); err != nil {
+		t.Fatalf("PruneFolder with the carried version: %v", err)
 	}
 
 	if err := s.DeleteFolder(FolderPath{"Empty"}); err != nil {

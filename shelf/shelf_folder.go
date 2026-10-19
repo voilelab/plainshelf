@@ -69,17 +69,22 @@ func (s *Shelf) NewFolder(parent FolderPath, name string) error {
 // DeleteFolder removes an empty folder from the library: one holding nothing,
 // or nothing but its folder.json. Any other content is refused with an error.
 func (s *Shelf) DeleteFolder(folder FolderPath) error {
-	return s.deleteFolder(folder, true)
+	return s.deleteFolder(folder, nil)
 }
 
-// PruneFolder removes folder only when it holds nothing at all, folder.json
-// included. It is for cleanup after books were carried elsewhere, which must
-// not discard metadata the carrying did not take along.
-func (s *Shelf) PruneFolder(folder FolderPath) error {
-	return s.deleteFolder(folder, false)
+// PruneFolder removes folder only when it holds nothing, or nothing but a
+// folder.json whose FolderMeta.Version is carriedMeta. It is for cleanup after
+// a folder was carried elsewhere: carriedMeta is the version the carrying took
+// along, "" when it took none, so metadata it did not take is never discarded.
+func (s *Shelf) PruneFolder(folder FolderPath, carriedMeta string) error {
+	return s.deleteFolder(folder, func(data []byte) bool {
+		return carriedMeta != "" && folderMetaVersion(data) == carriedMeta
+	})
 }
 
-func (s *Shelf) deleteFolder(folder FolderPath, withMeta bool) error {
+// deleteFolder removes an empty folder. A lone folder.json goes with it when
+// dropMeta is nil or accepts its content.
+func (s *Shelf) deleteFolder(folder FolderPath, dropMeta func([]byte) bool) error {
 	if err := s.ValidateFolderPath(folder); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -105,8 +110,14 @@ func (s *Shelf) deleteFolder(folder FolderPath, withMeta bool) error {
 	// metadata goes with it. Anything else - a book, a subfolder, a stray file -
 	// keeps it.
 	for _, entry := range entries {
-		if !withMeta || entry.Name() != FolderMetaFile || entry.IsDir() {
+		if entry.Name() != FolderMetaFile || entry.IsDir() {
 			return util.Errorf("cannot delete non-empty folder")
+		}
+	}
+	if len(entries) > 0 && dropMeta != nil {
+		data, err := readFolderMetaFile(s.dbRoot, path.Join(folderPath, FolderMetaFile))
+		if err != nil || !dropMeta(data) {
+			return util.Errorf("cannot delete a folder whose folder.json was not carried")
 		}
 	}
 
