@@ -141,6 +141,8 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/folders", h.folders.getFolders)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/folder-moves", h.folders.moveFolder)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/folder-meta", h.folders.getFolderMeta)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/folder-meta/{folder_path...}", h.folders.setFolderMeta)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/folder-transfers", h.folderXfer.transferFolder)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/folders/{folder_path...}", h.folders.createFolder)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/folders/{folder_path...}", h.folders.renameFolder)

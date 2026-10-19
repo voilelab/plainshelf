@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -56,6 +57,9 @@ var ErrInvalidFolderIcon = util.NewError("folder icon is not one this build offe
 // ErrFolderMetaNotWritable refuses a write to a folder.json this build cannot
 // read safely: malformed, not an object, or from a newer schema version.
 var ErrFolderMetaNotWritable = util.NewError("folder.json cannot be updated by this build")
+
+// ErrFolderNotFound refuses a metadata write to a folder that does not exist.
+var ErrFolderNotFound = util.NewError("folder not found")
 
 // ErrFolderMetaConflict refuses a write whose caller read a different
 // folder.json than the one on disk now.
@@ -110,10 +114,11 @@ func (m FolderMeta) DisplayIcon() string {
 	return ""
 }
 
-// ReadFolderMeta reads folder's folder.json. Every problem with the file reads
-// as no metadata and is logged once per distinct problem, never as an error: a
-// listing must not fail on a hand-edited file. The error is for an invalid path
-// or a shelf that cannot be read at all.
+// ReadFolderMeta reads folder's folder.json from disk now. Every problem with
+// the file reads as no metadata and is logged once per distinct problem, never
+// as an error: a listing must not fail on a hand-edited file. The error is for
+// an invalid path or a shelf that cannot be read at all. A listing reads the
+// cached copy instead; see ListFolderMeta.
 func (s *Shelf) ReadFolderMeta(folder FolderPath) (FolderMeta, error) {
 	if len(folder) == 0 {
 		return FolderMeta{}, nil
@@ -127,8 +132,14 @@ func (s *Shelf) ReadFolderMeta(folder FolderPath) (FolderMeta, error) {
 	}
 	defer s.shelfLock.Unlock()
 
+	return s.loadFolderMeta(s.dbRoot, folder)
+}
+
+// loadFolderMeta is ReadFolderMeta without the checks and the lock, for a
+// caller that already holds it. The only error is an unavailable source.
+func (s *Shelf) loadFolderMeta(root fsutil.ReadFS, folder FolderPath) (FolderMeta, error) {
 	metaPath := folderMetaPath(folder)
-	data, err := readFolderMetaFile(s.dbRoot, metaPath)
+	data, err := readFolderMetaFile(root, metaPath)
 	if err != nil {
 		if errors.Is(err, fsutil.ErrSourceUnavailable) {
 			return FolderMeta{}, util.Errorf("%w", err)
@@ -136,19 +147,29 @@ func (s *Shelf) ReadFolderMeta(folder FolderPath) (FolderMeta, error) {
 		s.warnFolderMeta(metaPath, "failed to read folder metadata, showing the folder without it", err)
 		return FolderMeta{ReadOnly: true}, nil
 	}
+	meta, err := folderMetaFromData(data)
+	if err != nil {
+		s.warnFolderMeta(metaPath, "folder metadata cannot be read, showing the folder without it", err)
+		return meta, nil
+	}
+	s.folderMetaWarnings.Delete(metaPath)
+	return meta, nil
+}
+
+// folderMetaFromData reads a folder.json's bytes, nil for no file. The error
+// says why the file is unusable; the FolderMeta returned with it is the
+// fallback to show.
+func folderMetaFromData(data []byte) (FolderMeta, error) {
 	if data == nil {
-		s.folderMetaWarnings.Delete(metaPath)
 		return FolderMeta{}, nil
 	}
 
 	meta := FolderMeta{Version: folderMetaVersion(data)}
 	obj, err := parseFolderMeta(data)
 	if err != nil {
-		s.warnFolderMeta(metaPath, "folder metadata cannot be read, showing the folder without it", err)
 		meta.ReadOnly = true
-		return meta, nil
+		return meta, util.Errorf("%w", err)
 	}
-	s.folderMetaWarnings.Delete(metaPath)
 
 	// A wrong-typed icon reads as none, but the file stays writable: setting an
 	// icon replaces exactly that member.
@@ -206,6 +227,9 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 	dirPath := path.Join(booksFolder, path.Join(folder...))
 	info, err := s.dbRoot.Stat(dirPath)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return util.Errorf("%w: %w", ErrFolderNotFound, err)
+		}
 		return util.Errorf("%w", err)
 	}
 	if !info.IsDir() {
@@ -218,6 +242,10 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 		return util.Errorf("%w: %w", ErrFolderMetaNotWritable, err)
 	}
 	if folderMetaVersion(data) != version {
+		// The cache missed this edit (made by hand, or by another process), so
+		// the caller's next listing would hand back the same stale version.
+		current, _ := folderMetaFromData(data)
+		s.cacheFolderMeta(folder, current)
 		return util.Errorf("%w", ErrFolderMetaConflict)
 	}
 
@@ -239,6 +267,7 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 		if err := root.Remove(metaPath); err != nil {
 			return util.Errorf("%w", err)
 		}
+		s.cacheFolderMeta(folder, FolderMeta{})
 		return nil
 	}
 
@@ -252,7 +281,67 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 	if err := fsutil.WriteFileAtomic(root, metaPath, payload); err != nil {
 		return util.Errorf("%w", err)
 	}
+
+	// Recorded rather than left to the next scan, like a new folder: the change
+	// was just made here and has to show in the very next listing.
+	written, _ := folderMetaFromData(payload)
+	s.cacheFolderMeta(folder, written)
 	return nil
+}
+
+// ListFolderMeta returns the cached metadata of every folder that has a
+// folder.json, keyed like the folder list ("Fiction/Classics"). It is as fresh
+// as GetAllFolders: a change made here shows at once, one made outside
+// PlainShelf after the next full scan.
+func (s *Shelf) ListFolderMeta() (map[string]FolderMeta, error) {
+	if !s.IsReady() {
+		return nil, s.notReady()
+	}
+
+	if err := s.shelfLock.RLock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
+
+	s.scheduleBookCacheRefreshIfNeeded()
+
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
+	return maps.Clone(s.bookCache.folderMeta), nil
+}
+
+// cacheFolderMeta records folder's metadata in the book cache; the zero value
+// removes the entry.
+func (s *Shelf) cacheFolderMeta(folder FolderPath, meta FolderMeta) {
+	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+
+	if meta == (FolderMeta{}) {
+		delete(s.bookCache.folderMeta, folder.String())
+		return
+	}
+	if s.bookCache.folderMeta == nil {
+		s.bookCache.folderMeta = map[string]FolderMeta{}
+	}
+	s.bookCache.folderMeta[folder.String()] = meta
+}
+
+// readFolderMetaForScan reads the folder.json of every folder a walk found one
+// in. Only those are read: the walk saw the file in its parent's listing, so a
+// folder without one costs nothing, and a file's content is re-read on every
+// full scan because an edit in place does not move its parent's mtime.
+func (s *Shelf) readFolderMetaForScan(root fsutil.ReadFS, folders []FolderPath) (map[string]FolderMeta, error) {
+	metas := make(map[string]FolderMeta, len(folders))
+	for _, folder := range folders {
+		meta, err := s.loadFolderMeta(root, folder)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		if meta != (FolderMeta{}) {
+			metas[folder.String()] = meta
+		}
+	}
+	return metas, nil
 }
 
 func folderMetaPath(folder FolderPath) string {

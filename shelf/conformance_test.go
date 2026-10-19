@@ -338,22 +338,17 @@ func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
 }
 
 // readConformanceFolderMeta records every folder that has a folder.json, keyed
-// the way folders are. The root never has one, even with a file of that name.
+// the way folders are, as the listing reports it: walked, or taken from the
+// exported cache. The root never has one, even with a file of that name.
 func readConformanceFolderMeta(t *testing.T, s *Shelf) map[string]conformanceFolderMeta {
 	t.Helper()
 
+	metas, err := s.ListFolderMeta()
+	if err != nil {
+		t.Fatalf("ListFolderMeta: %v", err)
+	}
 	reading := map[string]conformanceFolderMeta{}
-	for _, name := range s.collectExportFolders() {
-		if name == "/" {
-			continue
-		}
-		meta, err := s.ReadFolderMeta(strings.Split(name, "/"))
-		if err != nil {
-			t.Fatalf("ReadFolderMeta(%s): %v", name, err)
-		}
-		if meta.Version == "" && !meta.ReadOnly {
-			continue
-		}
+	for name, meta := range metas {
 		reading[name] = conformanceFolderMeta{
 			Icon:       meta.DisplayIcon(),
 			IconOnDisk: meta.Icon,

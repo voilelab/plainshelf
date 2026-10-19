@@ -68,7 +68,7 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	if snapshot == nil {
 		return false
 	}
-	entries, folders, err := s.bookCacheSnapshot(snapshot)
+	entries, folders, folderMeta, err := s.bookCacheSnapshot(snapshot)
 	if err != nil {
 		s.Warn("ignoring an unusable offline snapshot", "error", err)
 		return false
@@ -77,6 +77,7 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	s.bookCache.Lock()
 	s.bookCache.cache = entries
 	s.bookCache.folders = folders
+	s.bookCache.folderMeta = folderMeta
 	s.bookCache.treeDirty = false
 	s.bookCache.lastScanStart = time.Unix(snapshot.Timestamp, 0)
 	// Not the source's digest: the next export it offers is applied even when
@@ -112,7 +113,7 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 		return nil
 	}
 
-	digest, err := bookCacheDigest(cache.Folders, cache.Books)
+	digest, err := bookCacheDigest(cache)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -131,7 +132,7 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 		return nil
 	}
 
-	entries, folders, err := s.bookCacheSnapshot(cache)
+	entries, folders, folderMeta, err := s.bookCacheSnapshot(cache)
 	if err != nil {
 		// Strict on purpose: building the listing from a half-valid file would
 		// show a silently truncated library instead of the cache miss it is.
@@ -146,6 +147,7 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 	s.bookCache.Lock()
 	s.bookCache.cache = entries
 	s.bookCache.folders = folders
+	s.bookCache.folderMeta = folderMeta
 	s.bookCache.treeDirty = false
 	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.lastScanStart = takenAt
@@ -210,14 +212,17 @@ func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {
 // reading any book package. The file comes from another installation and maybe
 // another machine, so every path is checked to name a book package under books/
 // before a read is ever addressed to it.
-func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCacheEntry, []FolderPath, error) {
+//
+// folder_meta is the exception to that strictness: an entry naming no listed
+// folder is dropped on its own, since an icon is not worth a full walk.
+func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCacheEntry, []FolderPath, map[string]FolderMeta, error) {
 	entries := make(map[string]*bookIDCacheEntry, len(cache.Books))
 	for bookID, entry := range cache.Books {
 		if entry.Meta == nil || entry.Meta.ID != bookID {
-			return nil, nil, util.Errorf("entry %q does not carry its own book ID", bookID)
+			return nil, nil, nil, util.Errorf("entry %q does not carry its own book ID", bookID)
 		}
 		if !isBookPackagePath(entry.Path) {
-			return nil, nil, util.Errorf("entry %q has an invalid path %q", bookID, entry.Path)
+			return nil, nil, nil, util.Errorf("entry %q has an invalid path %q", bookID, entry.Path)
 		}
 
 		// Not built with newBookIDCacheEntry: that reads the current source's
@@ -237,13 +242,23 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 			continue
 		}
 		if !isRelativeShelfPath(name) {
-			return nil, nil, util.Errorf("invalid folder %q", name)
+			return nil, nil, nil, util.Errorf("invalid folder %q", name)
 		}
 		folders = append(folders, strings.Split(name, "/"))
 	}
 	sortFolders(folders)
 
-	return entries, folders, nil
+	folderMeta := make(map[string]FolderMeta, len(cache.FolderMeta))
+	for name, meta := range cache.FolderMeta {
+		if name == "/" || meta == (BookCacheFolderMeta{}) || !slices.Contains(cache.Folders, name) {
+			continue
+		}
+		// No Version: a remote shelf is never written, so there is nothing to
+		// compare a write against.
+		folderMeta[name] = FolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
+	}
+
+	return entries, folders, folderMeta, nil
 }
 
 // isBookPackagePath reports whether p is a clean path to a book package under

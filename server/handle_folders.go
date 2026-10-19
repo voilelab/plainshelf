@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -286,4 +287,134 @@ func (h *folderHandlers) deleteFolder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// folderMetaResponse is GET .../folder-meta. It is its own route rather than a
+// change to GET .../folders, whose path arrays existing clients parse as they
+// are.
+type folderMetaResponse struct {
+	// Icons are the icon names this server accepts, so a client offers exactly
+	// those.
+	Icons []string `json:"icons"`
+
+	// Folders holds every folder this request can see that has metadata, keyed
+	// by its path joined with "/" ("Fiction/Classics"). A folder absent here
+	// shows the default icon.
+	Folders map[string]folderMetaJSON `json:"folders"`
+}
+
+type folderMetaJSON struct {
+	// Icon is "" for the default icon, which includes a name this server does
+	// not offer.
+	Icon string `json:"icon"`
+
+	// Version is what a write passes back; "" on a shelf that is never written.
+	Version string `json:"version"`
+
+	// ReadOnly reports a folder.json this server will not rewrite.
+	ReadOnly bool `json:"read_only"`
+}
+
+// GET /api/shelves/{shelf_id}/folder-meta
+func (h *folderHandlers) getFolderMeta(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
+	if !ok {
+		return
+	}
+
+	visible, err := h.visibleFolders(shelfData)
+	if err != nil {
+		h.writeErr(w, r, err, "failed to get folder metadata")
+		return
+	}
+	metas, err := shelfData.ListFolderMeta()
+	if err != nil {
+		h.writeErr(w, r, err, "failed to get folder metadata")
+		return
+	}
+
+	resp := folderMetaResponse{Icons: shelf.FolderIcons(), Folders: map[string]folderMetaJSON{}}
+	for name, meta := range metas {
+		// The same filter as the folder list: metadata of a folder the
+		// listing hides would name what the filter is hiding.
+		if !visible[name] {
+			continue
+		}
+		resp.Folders[name] = folderMetaJSON{Icon: meta.DisplayIcon(), Version: meta.Version, ReadOnly: meta.ReadOnly}
+	}
+	h.writeJSON(w, http.StatusOK, resp)
+}
+
+type setFolderMetaRequest struct {
+	// Icon is the icon to set, "" to clear it.
+	Icon string `json:"icon"`
+
+	// Version is the folder's version from GET .../folder-meta, "" for a
+	// folder it did not list.
+	Version string `json:"version"`
+}
+
+// PUT /api/shelves/{shelf_id}/folder-meta/{folder_path}
+func (h *folderHandlers) setFolderMeta(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
+	if !ok {
+		return
+	}
+
+	folderParts, err := readFolderParts(r)
+	if err != nil || len(folderParts) == 0 || strings.Join(folderParts, "") == "" {
+		http.Error(w, "invalid folder path", http.StatusBadRequest)
+		return
+	}
+
+	var req setFolderMetaRequest
+	if err := json.UnmarshalRead(r.Body, &req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if !h.validFolderPaths(w, r, shelfData, folderParts) {
+		return
+	}
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
+		return
+	}
+
+	// A folder the listing hides answers as one that does not exist, so a
+	// write cannot be used to probe for it.
+	visible, err := h.visibleFolders(shelfData)
+	if err != nil {
+		h.writeErr(w, r, err, "failed to set folder metadata")
+		return
+	}
+	if !visible[shelf.FolderPath(folderParts).String()] {
+		h.writeErr(w, r, shelf.ErrFolderNotFound, "failed to set folder metadata")
+		return
+	}
+
+	if err := shelfData.SetFolderIcon(folderParts, req.Icon, req.Version); err != nil {
+		h.writeErr(w, r, err, "failed to set folder metadata")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// visibleFolders is the folder list this request sees, as a set of joined
+// paths.
+func (h *folderHandlers) visibleFolders(shelfData *shelf.ShelfData) (map[string]bool, error) {
+	folders, err := shelfData.GetAllFolders()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	folders, err = h.visibility(shelfData).filterFolders(folders)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	visible := make(map[string]bool, len(folders))
+	for _, folder := range folders {
+		visible[folder.String()] = true
+	}
+	return visible, nil
 }
