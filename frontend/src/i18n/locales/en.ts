@@ -453,6 +453,7 @@ const en = {
       addShelfDefaultPath: 'Folder to create:',
       addShelfDirectoryNotAbsolute: 'Enter a full path, starting from the root of the drive.',
       removeConfirmYes: 'Delete shelf',
+      virtualOpenFailed: 'Could not open this virtual shelf. Check the connection and unlock the keychain, then retry.',
       openFolder: 'Open folder',
       openFolderFailed: 'Failed to open shelf folder',
       modify: 'Modify',

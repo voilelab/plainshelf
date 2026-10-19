@@ -28,6 +28,8 @@ export interface PlatformCapabilities {
     previewShelfID(name: string): Promise<DesktopShelfIDPreview>;
     addShelf(params: DesktopAddShelfParams): Promise<void>;
     checkShelfSource(params: DesktopShelfSourceParams): Promise<ShelfSourceCheck>;
+    listShelfDetails?(): Promise<DesktopShelfDetails[]>;
+    retryShelf?(id: string): Promise<void>;
     getShelfDetails(id: string): Promise<DesktopShelfDetails>;
     modifyShelf(params: DesktopModifyShelfParams): Promise<void>;
     removeShelf(id: string): Promise<void>;

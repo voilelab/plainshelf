@@ -537,7 +537,56 @@ describe('useShelfManagement remote shelves', () => {
   });
 });
 
-vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ shelves: { previewLANShareQR: provider.value.previewLANShareQR, importLANShareQR: provider.value.importLANShareQR, previewShelfID: provider.value.previewDesktopShelfID, addShelf: provider.value.addDesktopShelf, checkShelfSource: provider.value.checkDesktopShelfSource, getShelfDetails: provider.value.getDesktopShelfDetails, modifyShelf: provider.value.modifyDesktopShelf, removeShelf: provider.value.removeDesktopShelf }, openShelfFolder: provider.value.openDesktopShelfFolder, chooseShelfDirectory: provider.value.openDesktopShelfDirectory }) }));
+vi.mock('@/providers/platformCapabilities', () => ({
+  getPlatformCapabilities: () => ({
+    shelves: {
+      previewLANShareQR: provider.value.previewLANShareQR,
+      importLANShareQR: provider.value.importLANShareQR,
+      listShelfDetails: provider.value.listShelfDetails,
+      retryShelf: provider.value.retryShelf,
+      previewShelfID: provider.value.previewDesktopShelfID,
+      addShelf: provider.value.addDesktopShelf,
+      checkShelfSource: provider.value.checkDesktopShelfSource,
+      getShelfDetails: provider.value.getDesktopShelfDetails,
+      modifyShelf: provider.value.modifyDesktopShelf,
+      removeShelf: provider.value.removeDesktopShelf
+    },
+    openShelfFolder: provider.value.openDesktopShelfFolder,
+    chooseShelfDirectory: provider.value.openDesktopShelfDirectory
+  })
+}));
+
+it('loads configured failed virtual shelves and refreshes runtime shelves after retry', async () => {
+  const remote = {
+    id: 'failed',
+    name: 'Remote',
+    source: 'webdav',
+    url: 'https://example.test/',
+    read_only: true,
+    open_error: 'unavailable'
+  };
+  const listShelfDetails = vi.fn().mockResolvedValue([remote]);
+  const retryShelf = vi.fn().mockImplementation(async () => {
+    listShelfDetails.mockResolvedValue([{ ...remote, open_error: '' }]);
+  });
+  provider.value = { listShelfDetails, retryShelf };
+  const m = useShelfManagement();
+  await m.ensureShelvesLoaded();
+  expect(m.shelves.value[0]).toMatchObject({
+    id: 'failed',
+    source: 'webdav',
+    open_error: 'unavailable'
+  });
+  await m.retryShelf('failed');
+  expect(retryShelf).toHaveBeenCalledWith('failed');
+  expect(m.shelves.value[0]?.open_error).toBe('');
+  expect(m.retryingShelfIDs.value.size).toBe(0);
+  retryShelf.mockRejectedValue(new Error('secret must never be displayed'));
+  await m.retryShelf('failed');
+  expect(m.shelfOpError.value).toContain('Could not open this virtual shelf');
+  expect(m.shelfOpError.value).not.toContain('secret');
+});
+
 
 
 describe('LAN QR import', () => {

@@ -338,3 +338,67 @@ func TestRemoveVirtualShelfKeepsEntryWhenKeychainRefuses(t *testing.T) {
 		t.Fatal("the retry left the secret in the keychain")
 	}
 }
+
+// A startup failure stays manageable even though it is absent from the runtime
+// shelf picker. Retry resolves the secret anew after the keychain is unlocked.
+func TestFailedVirtualShelfManagement(t *testing.T) {
+	secrets := newFakeSecrets()
+	a := desktopAppWithSecrets(t, secrets)
+	url, token := davExport(t)
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf.VirtualShelves = append(conf.VirtualShelves, desktopShelfEntry{
+		ID: "failed", Name: "Remote", ReadOnly: true,
+		Source: &shelf.SourceConf{Type: shelf.SourceWebDAV, URL: url, Credential: hostCredentialPrefix + "failed"},
+	})
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		t.Fatal(err)
+	}
+	if errs := openVirtualShelves(a.app, conf.VirtualShelves); len(errs) != 1 {
+		t.Fatalf("startup failures = %d, want 1", len(errs))
+	}
+	details, err := a.ListShelfDetails()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(details) != 2 || details[0].Source != "" || details[0].OpenError != "" ||
+		details[1].ID != "failed" || details[1].Source != shelf.SourceWebDAV ||
+		details[1].URL != url || details[1].OpenError == "" {
+		t.Fatalf("management details = %+v", details)
+	}
+	if err := a.RetryShelf("failed"); err == nil || strings.Contains(err.Error(), token) {
+		t.Fatalf("retry without secret = %v", err)
+	}
+	if err := secrets.Set("failed", token); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RetryShelf("failed"); err != nil {
+		t.Fatalf("retry after unlocking: %v", err)
+	}
+	if err := a.RetryShelf("failed"); err != nil {
+		t.Fatalf("retry already open: %v", err)
+	}
+	detail, err := a.GetShelfDetails("failed")
+	if err != nil || detail.OpenError != "" {
+		t.Fatalf("opened details = %+v, %v", detail, err)
+	}
+	// Removing after a later startup failure also deletes the keychain secret.
+	if err := a.app.RemoveShelf("failed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RemoveShelf("failed"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := secrets.Get("failed"); !errors.Is(err, errSecretNotFound) {
+		t.Fatalf("secret remains: %v", err)
+	}
+	details, err = a.ListShelfDetails()
+	if err != nil || len(details) != 1 {
+		t.Fatalf("after removal = %+v, %v", details, err)
+	}
+	if err := a.RetryShelf(details[0].ID); err == nil {
+		t.Fatal("retry accepted a local shelf")
+	}
+}

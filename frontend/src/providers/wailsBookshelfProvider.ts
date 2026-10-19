@@ -1,6 +1,9 @@
 import type { BookshelfProvider } from './bookshelfProvider';
 import {
   openDesktopExternalURL,
+  hasDesktopShelfManagementBindings,
+  listDesktopShelfDetails,
+  retryDesktopShelf,
   previewDesktopLANShareQR,
   importDesktopLANShareQR,
   addDesktopShelf,
@@ -115,6 +118,9 @@ export function createWailsPlatform(provider: BookshelfProvider): PlatformCapabi
   const host = new WailsPlatform(provider);
   return {
     shelves: {
+      ...(hasDesktopShelfManagementBindings()
+        ? { listShelfDetails: listDesktopShelfDetails, retryShelf: retryDesktopShelf }
+        : {}),
       previewLANShareQR: previewDesktopLANShareQR,
       importLANShareQR: importDesktopLANShareQR,
       previewShelfID: host.previewDesktopShelfID.bind(host),

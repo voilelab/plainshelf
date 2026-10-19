@@ -1,5 +1,6 @@
 import type { DesktopQRShelf, DesktopQRResult } from '@/api/desktop';
 import { getPlatformCapabilities } from '@/providers/platformCapabilities';
+import type { DesktopShelfDetails } from '@/api/desktop';
 import { computed, ref, watch } from 'vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useI18n } from '@/i18n';
@@ -33,7 +34,64 @@ type ShelfLocationMode = 'new' | 'existing' | 'remote' | 'qr';
  */
 export function useShelfManagement() {
   const { t } = useI18n();
-  const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves, ensureShelvesLoaded } = useShelvesStore();
+  const store = useShelvesStore();
+  const managementDetails = ref<DesktopShelfDetails[] | null>(null);
+  const shelvesLoading = ref(false);
+  const shelvesError = ref('');
+  const shelves = computed(() =>
+    managementDetails.value
+      ? managementDetails.value.map((detail) => ({
+          ...detail,
+          readOnly: detail.read_only
+        }))
+      : store.shelves.value.map((shelf) => ({
+          ...shelf,
+          source: '',
+          url: '',
+          open_error: ''
+        }))
+  );
+
+  async function loadManagementDetails(): Promise<void> {
+    const list = getPlatformCapabilities().shelves?.listShelfDetails;
+    if (list) managementDetails.value = await list();
+  }
+
+  async function refreshShelves(ensure: boolean): Promise<void> {
+    shelvesLoading.value = true;
+    shelvesError.value = '';
+    try {
+      await (ensure ? store.ensureShelvesLoaded() : store.fetchShelves());
+      await loadManagementDetails();
+      shelvesError.value = store.error.value;
+    } catch (err) {
+      shelvesError.value = err instanceof Error ? err.message : t('settings.shelves.loadFailed');
+    } finally {
+      shelvesLoading.value = false;
+    }
+  }
+
+  const fetchShelves = () => refreshShelves(false);
+  const ensureShelvesLoaded = () => refreshShelves(true);
+  const retryingShelfIDs = ref(new Set<string>());
+
+  async function retryShelf(id: string): Promise<void> {
+    const retry = getPlatformCapabilities().shelves?.retryShelf;
+    if (!retry || retryingShelfIDs.value.has(id)) return;
+    retryingShelfIDs.value = new Set([...retryingShelfIDs.value, id]);
+    shelfOpError.value = '';
+    try {
+      await retry(id);
+      await fetchShelves();
+    } catch {
+      shelfOpError.value = t('settings.shelves.virtualOpenFailed');
+      await fetchShelves();
+    } finally {
+      const next = new Set(retryingShelfIDs.value);
+      next.delete(id);
+      retryingShelfIDs.value = next;
+    }
+  }
 
   const shelfOpError = ref('');
 
@@ -187,7 +245,7 @@ export function useShelfManagement() {
   const modifyShelfBookCheckInterval = ref('');
   const modifyShelfReadOnly = ref(false);
   const modifyShelfPath = ref('');
-  // A virtual shelf is read-only whatever it is set to, so its toggle is locked.
+  // A virtual shelf is always read-only; its toggle is hidden.
   const modifyShelfIsVirtual = ref(false);
   const modifyingShelf = ref(false);
   const modifyShelfError = ref('');
@@ -466,6 +524,8 @@ export function useShelfManagement() {
 
   return {
     shelves,
+    retryShelf,
+    retryingShelfIDs,
     shelvesLoading,
     shelvesError,
     fetchShelves,

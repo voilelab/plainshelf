@@ -50,6 +50,7 @@
       </div>
       <ScanIntervalField v-model="modifyShelfScanInterval" :disabled="modifyingShelf" />
       <ShelfReadOnlyField
+        v-if="!modifyShelfIsVirtual"
         v-model="modifyShelfReadOnly"
         :disabled="modifyingShelf || modifyShelfIsVirtual"
       />
@@ -351,21 +352,44 @@
         </thead>
         <tbody>
           <tr v-for="shelf in shelves" :key="shelf.id">
-            <td>{{ shelf.name }}</td>
+            <td>
+              {{ shelf.name }}
+              <template v-if="shelf.source">
+                <p class="setting-description">{{ shelf.source }} · {{ shelf.url }}</p>
+                <p
+                  v-if="shelf.open_error"
+                  class="settings-message settings-message-error"
+                  role="alert"
+                >
+                  {{ t('settings.shelves.virtualOpenFailed') }}
+                </p>
+              </template>
+            </td>
             <td class="shelf-id-cell">{{ shelf.id }}</td>
             <td v-if="isDesktopEnv" class="shelf-action-cell">
               <button
                 type="button"
                 class="shelf-modify-btn"
-                :disabled="removingShelfIDs.has(shelf.id)"
+                :disabled="removingShelfIDs.has(shelf.id) || retryingShelfIDs.has(shelf.id)"
+                v-if="!shelf.source"
                 @click="openShelfFolder(shelf.id)"
               >
                 {{ t('settings.shelves.openFolder') }}
               </button>
               <button
+                v-if="shelf.open_error"
                 type="button"
                 class="shelf-modify-btn"
-                :disabled="removingShelfIDs.has(shelf.id)"
+                :disabled="removingShelfIDs.has(shelf.id) || retryingShelfIDs.has(shelf.id)"
+                @click="retryShelf(shelf.id)"
+              >
+                {{ t('common.retry') }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="shelf-modify-btn"
+                :disabled="removingShelfIDs.has(shelf.id) || retryingShelfIDs.has(shelf.id)"
                 @click="requestModifyShelf(shelf)"
               >
                 {{ t('settings.shelves.modify') }}
@@ -373,7 +397,7 @@
               <button
                 type="button"
                 class="shelf-remove-btn"
-                :disabled="removingShelfIDs.has(shelf.id)"
+                :disabled="removingShelfIDs.has(shelf.id) || retryingShelfIDs.has(shelf.id)"
                 @click="requestRemoveShelf(shelf)"
               >
                 {{ t('settings.shelves.remove') }}
@@ -463,6 +487,8 @@ const bookCacheError = ref('');
 
 const {
   shelves,
+  retryShelf,
+  retryingShelfIDs,
   shelvesLoading,
   shelvesError,
   ensureShelvesLoaded,
