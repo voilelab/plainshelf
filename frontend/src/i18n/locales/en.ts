@@ -1,4 +1,11 @@
 const en = {
+  mobileQR: {
+    scan: 'Scan a LAN share QR code',
+    open: 'Open imported shelf',
+    unavailable: 'QR scanning is unavailable on this device. Enter the address and token manually.',
+    failed: 'Could not scan. Allow camera access, check the camera, and try again, or enter the address and token manually.',
+    invalid: 'Invalid LAN share QR payload.'
+  },
   app: {
     name: 'PlainShelf',
     mockModeBadge: 'MOCK API MODE',

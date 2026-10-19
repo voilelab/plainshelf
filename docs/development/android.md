@@ -487,3 +487,84 @@ Android assets from the `frontend` directory:
 ```bash
 npx capacitor-assets generate --android
 ```
+
+## Scan a LAN share QR code
+
+On **Add shelf**, tap **Scan a LAN share QR code** and allow camera access.
+Scan the desktop publisher's QR code, check the listed names and URLs, then
+confirm **Import shelves**. Previewing makes no network request and saves no
+credentials. Each confirmed shelf is checked through `LocalShelf.checkSource`
+before becoming a read-only `plainshelf` entry. Results stay visible until you
+choose **Open imported shelf** or scan again. Failed sources are not saved;
+scan and confirm again to retry them. Existing PlainShelf URLs (ignoring trailing
+slashes) are skipped without changing their names or tokens. The last successful
+import becomes active, as with manual setup. Names can repeat; device-local IDs
+are freshly generated.
+
+Cancelling scanning or the preview stores nothing. An unavailable scanner,
+missing camera permission, or scan failure leaves manual URL/token setup
+available. Invalid JSON, unsupported versions, missing fields and unsafe URLs
+are rejected as a whole by the same `internal/lanshare` parser used by desktop.
+The transient QR payload is discarded on cancel, import or leaving the form.
+Imported tokens go only through the existing SecureStorage/Android Keystore
+path, separately from the entry metadata in Preferences; they are not put into
+URLs, logs or `shelves.json`.
+
+### Scanner dependency and permissions
+
+The native `PlainShelfQRScanner` plugin uses
+[`zxing-android-embedded` 4.3.0](https://github.com/journeyapps/zxing-android-embedded/tree/v4.3.0)
+(Apache-2.0), including ZXing core (Apache-2.0). It bundles the decoder rather
+than depending on Google Play services, Google Code Scanner or a downloaded
+ML model. Its default ZXing core 3.4.1 requires API 24, matching this app's
+unchanged minimum; its Java 8 requirement is covered by the existing JDK 21
+Android build.
+Their license text and attribution ship in
+`frontend/public/licenses/android-qr-Apache-2.0.txt`.
+It does not add an npm dependency. Barcode image saving and the completion
+beep are disabled.
+
+The scanner activity requests `CAMERA` at use time. Camera and autofocus
+features are explicitly optional in the manifest, so installing or using the
+app on a camera-less device remains possible. No media/storage permission is
+needed for scanning. Inspect the merged manifest when building the APK to
+confirm these optional feature declarations survive dependency merging.
+
+LAN source reads use the embedded Go HTTP client and existing `INTERNET`
+permission, not browser camera or WebView fetch access. The app targets API 36.
+[Android 16 local network protection](https://developer.android.com/privacy-and-security/local-network-permission)
+is an opt-in compatibility test at that target; this app does not enable that
+opt-in or require `NEARBY_WIFI_DEVICES` just to import a QR code. Devices running
+that compatibility experiment must grant the experiment's nearby-device
+permission for LAN reads; camera permission alone does not grant network access.
+Recheck the local-network runtime permission requirements before raising the
+target SDK to 37. QR import does not change cleartext-network configuration;
+validate the merged manifest and actual HTTP LAN reachability on a device.
+
+### L5 verification record (required before claiming device validation)
+
+Status for this change: **not run**. The development environment has no Android
+SDK, emulator or attached physical device. No camera, permission-dialog or LAN
+connection result, or device screenshot, has been collected.
+
+Record device/model, Android API, WebView version, build commit, Play services
+presence, LAN topology and publisher version in the PR. Run these steps and
+attach screenshots of the preview/results and native scan/permission screens
+with tokens and QR contents redacted:
+
+1. On the same Wi-Fi as a desktop publisher, scan a v:1 QR containing multiple
+   shelves. Check the preview, confirm, open the imported shelf and read a book.
+2. Cancel with Back during scanning, then cancel the preview. Restart the app
+   and confirm neither created entries nor credentials.
+3. Deny camera permission (including permanent denial), and test unavailable
+   camera hardware where possible. Confirm manual setup still works.
+4. Scan unknown-version, missing-field and non-HTTP(S) QR payloads. Verify the
+   reason is visible and no partial entry or secret is stored.
+5. Stop one source or use a wrong token; confirm successful sources are saved
+   and failed sources are absent. Repeat import and verify existing names and
+   credentials remain unchanged.
+6. Inspect Preferences and exported shelf metadata for absence of the token;
+   restart and verify the imported credentials still resolve from Keystore.
+7. Include an API 24 device and a device without Play services, plus API 36
+   with normal LAN access. If testing local-network protection's compatibility
+   experiment, record its settings and denied/granted behavior separately.

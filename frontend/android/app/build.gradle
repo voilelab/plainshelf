@@ -53,6 +53,8 @@ if (!plainshelfAar.exists()) {
 }
 
 dependencies {
+    // Apache-2.0; bundled ZXing, no Google Play services; min SDK 24 unchanged.
+    implementation "com.journeyapps:zxing-android-embedded:4.3.0"
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation files(plainshelfAar)
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
