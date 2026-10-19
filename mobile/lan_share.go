@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
+	"github.com/voilelab/plainshelf/internal/lanshareqr"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
 )
@@ -70,6 +72,8 @@ func (s *lanShare) sharedIDs() []string {
 
 // lanShareState is what LANShareStatus reports, as JSON.
 type lanShareState struct {
+	QRCode   string   `json:"qr_code"`
+	Error    string   `json:"error"`
 	Running  bool     `json:"running"`
 	URL      string   `json:"url"`
 	Token    string   `json:"token"`
@@ -147,6 +151,24 @@ func StartLANShare(host, shelfIDsJSON string) (status string, err error) {
 	return rt.lanShareStatusLocked()
 }
 
+// RotateLANShareToken replaces the persisted token. The handler reads it on
+// every request, so the old token is refused without restarting the share.
+func RotateLANShareToken() (status string, err error) {
+	defer recoverInto(&err)
+	rt, err := running()
+	if err != nil {
+		return "", err
+	}
+	if err := rt.lock(); err != nil {
+		return "", err
+	}
+	defer rt.mu.Unlock()
+	if _, err := server.RotateDAVExportToken(filepath.Join(rt.dataDir, lanShareTokenName)); err != nil {
+		return "", err
+	}
+	return rt.lanShareStatusLocked()
+}
+
 // StopLANShare closes the listener at once, open transfers included.
 func StopLANShare() (err error) {
 	defer recoverInto(&err)
@@ -200,6 +222,16 @@ func (rt *instance) lanShareStatusLocked() (string, error) {
 			return "", util.Errorf("%w", err)
 		}
 		st = lanShareState{Running: true, URL: s.url, Token: strings.TrimSpace(string(token)), ShelfIDs: s.sharedIDs()}
+		payload := lanshareqr.Payload{V: lanshareqr.Version, URL: st.URL, Token: st.Token, Shelves: []lanshareqr.Shelf{}}
+		for _, sh := range rt.conf.Shelves {
+			if s.isShared(sh.ID) {
+				payload.Shelves = append(payload.Shelves, lanshareqr.Shelf{ID: sh.ID, Name: sh.Name, URL: st.URL + url.PathEscape(sh.ID) + "/"})
+			}
+		}
+		st.QRCode, err = lanshareqr.Encode(payload)
+		if err != nil {
+			st.Error = err.Error()
+		}
 	}
 	bs, err := json.Marshal(st, jsonopt.API())
 	if err != nil {

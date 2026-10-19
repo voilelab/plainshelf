@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
 	"io/fs"
@@ -21,9 +19,9 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
+	"github.com/voilelab/plainshelf/internal/lanshareqr"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
-	"rsc.io/qr"
 )
 
 // The desktop UI reaches Go in-process; this export is the only listener the
@@ -89,25 +87,14 @@ type LANShareStatus struct {
 
 // lanShareQRVersion is lanShareQRPayload's "v". A reader refuses any other
 // value rather than guess at the fields.
-const lanShareQRVersion = 1
+const lanShareQRVersion = lanshareqr.Version
 
 // lanShareQRPayload is the QR code's text: everything another device needs to
 // open the shared shelves. It is a format between devices; see
 // docs/configuring-local-shelf.md.
-type lanShareQRPayload struct {
-	V     int    `json:"v"`
-	URL   string `json:"url"`
-	Token string `json:"token"`
-	// Shelves lists only the ticked shelves, so the code changes with the
-	// selection.
-	Shelves []lanShareQRShelf `json:"shelves"`
-}
+type lanShareQRPayload = lanshareqr.Payload
 
-type lanShareQRShelf struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	URL  string `json:"url"`
-}
+type lanShareQRShelf = lanshareqr.Shelf
 
 type lanShare struct {
 	app               *server.App
@@ -439,18 +426,7 @@ func newLANShareQRPayload(st LANShareStatus) lanShareQRPayload {
 }
 
 func lanShareQRCode(payload lanShareQRPayload) (string, error) {
-	text, err := json.Marshal(payload, jsonopt.API())
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	code, err := qr.Encode(string(text), qr.M)
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	var buf bytes.Buffer
-	buf.WriteString("data:image/png;base64,")
-	buf.WriteString(base64.StdEncoding.EncodeToString(code.PNG()))
-	return buf.String(), nil
+	return lanshareqr.Encode(payload)
 }
 
 // currentLANHost returns host while it is still a LAN address, else the first

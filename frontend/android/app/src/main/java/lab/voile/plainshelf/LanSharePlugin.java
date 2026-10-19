@@ -105,6 +105,19 @@ public class LanSharePlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void rotateToken(PluginCall call) {
+        try {
+            LocalShelf.ensureStarted(getContext());
+            Mobile.rotateLANShareToken();
+            JSObject next = status();
+            notifyListeners("lanShareChanged", next);
+            call.resolve(next);
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), e);
+        }
+    }
+
     /** Go's LANShareState plus why the last share ended on its own. */
     private static JSObject status() throws Exception {
         JSObject out = JSObject.fromJSONObject(new JSONObject(Mobile.lanShareStatus()));
