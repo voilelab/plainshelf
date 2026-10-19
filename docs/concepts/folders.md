@@ -39,7 +39,7 @@ appears after the next shelf scan. See
 ## Folder metadata
 
 A folder may keep its own settings in a `folder.json` inside its directory —
-today, an icon:
+an icon and an optional sibling sort key:
 
 ```json
 {
@@ -75,6 +75,46 @@ it accepts, and exactly what happens to a file it cannot read, are in
 [`folder.json` schema v1](data-format-versioning.md#folderjson-schema-v1). In
 short: a broken or unrecognized file never hides the folder — it reads as "no
 settings" — and PlainShelf will not overwrite a file it cannot read.
+
+## Custom sibling order
+
+Choose **Reorder folders** in the sidebar. Drag a folder onto a sibling to place
+it before that sibling, or use the labelled up/down buttons with the keyboard.
+Choose **Finish reordering** to return to normal folder moves. Sorting never
+changes directory locations, and a cross-parent sorting drop does nothing.
+Read-only shelves show the saved order without offering sorting controls.
+Breadcrumb ancestors keep their path order.
+
+Folders with a finite `sort_key` appear first, in ascending order. Equal keys
+and folders without keys retain each interface's existing name/path order.
+The sidebar and destination pickers use the same sibling priority. New folders
+do not get a key until reordered. Moving within a shelf keeps the folder's own
+key; it is compared against the new parent's siblings. Cross-shelf copies and
+moves also carry the file unchanged and compare its key under the destination
+parent. To put a folder last, use its down button; a drag always inserts before
+the target sibling.
+
+A drop or keyboard action saves immediately. If every sibling already has a
+strictly increasing key, only the moved folder gets a key between its neighbours
+(or 1024 beyond an end). Otherwise, including the first reorder of an unkeyed
+group, every sibling gets a key in steps of 1024. This creates one `folder.json`
+per previously unconfigured sibling and costs one write per sibling; duplicate
+keys or an exhausted numeric gap also cause this full normalization. Icons and
+unknown metadata survive. Each write checks the metadata version.
+These are separate atomic file writes, **not** a transaction across files. On a
+failure, saving stops and the actual persisted order is reloaded; repeat the
+move against that order to retry. Cancelling a drag writes nothing. Controls
+stay disabled during a save; leaving the mode does not cancel accepted writes.
+If reloading fails, an error asks you to reload folders before retrying.
+
+`GET .../folder-meta` and exported `folder_meta` include optional `sort_key`.
+`PUT .../folder-meta/{path}` with `sort_key` and `version` changes only that key;
+null sort keys and requests containing both icon and sort_key are rejected with
+400 before writing. Clearing sort_key through this endpoint is not supported;
+the existing icon-only request remains unchanged. External edits and remote
+shelves
+use the same scan, export, startup and offline cache model as icons, without
+per-folder remote reads.
 
 ## Ignored directories
 

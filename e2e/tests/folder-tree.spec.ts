@@ -25,6 +25,25 @@ test('creates a nested folder level by level and filters books by exact folder',
   await expect(folderRow(page, 'ftnested')).toBeVisible();
   await expect(folderRow(page, 'ftnested-scifi')).toBeVisible();
 
+  // Sibling order persists without changing either directory's parent.
+  await addFolder(page, 'ftorder-a');
+  await addFolder(page, 'ftorder-b');
+  await page.getByRole('button', { name: 'Reorder folders', exact: true }).click();
+  await page.getByRole('button', { name: 'Move ftorder-b up', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Finish reordering', exact: true })).toBeEnabled();
+  const orderLabels = () => page.locator('.folder-node > .sidebar-nav-item-label').allTextContents();
+  await expect.poll(async () => {
+    const labels = (await orderLabels()).map(label => label.trim());
+    return labels.indexOf('ftorder-b') < labels.indexOf('ftorder-a');
+  }).toBe(true);
+  await page.reload();
+  await expect(folderRow(page, 'ftorder-b')).toBeVisible();
+  await expect.poll(async () => {
+    const labels = (await orderLabels()).map(label => label.trim());
+    return labels.indexOf('ftorder-b') < labels.indexOf('ftorder-a');
+  }).toBe(true);
+
+
   await selectFolder(page, 'ftnested-scifi');
   await expect(page).toHaveURL(foldersQueryRegex('ftnested/ftnested-scifi'));
 

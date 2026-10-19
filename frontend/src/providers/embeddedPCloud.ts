@@ -175,6 +175,7 @@ export class EmbeddedPCloudReader implements BookshelfReader {
   getFingerprintStatus = this.reader.getFingerprintStatus.bind(this.reader);
   listTrashedBooks = this.reader.listTrashedBooks.bind(this.reader);
   listFolders = this.reader.listFolders.bind(this.reader);
+  listFolderMeta = this.reader.listFolderMeta.bind(this.reader);
   listSources = this.reader.listSources.bind(this.reader);
   getSource = this.reader.getSource.bind(this.reader);
   getSourceContent = this.reader.getSourceContent.bind(this.reader);

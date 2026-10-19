@@ -92,6 +92,15 @@ const zhHant = {
       maintenance: '切換側欄維護區塊',
       admin: '切換側欄管理區塊'
     },
+    folderOrder: {
+      action: '調整資料夾順序',
+      done: '完成排序',
+      hint: '拖曳到同層資料夾前方，或使用上下按鈕；資料夾位置不變。',
+      up: '將 {name} 往上排序',
+      down: '將 {name} 往下排序',
+      failed: '未能儲存完整順序。已重新讀取儲存結果，請重試排序。',
+      reloadFailed: '未能重新讀取儲存結果。請重新載入資料夾後再試。'
+    },
     createFolder: {
       add: '新增資料夾',
       title: '新增資料夾',

@@ -60,7 +60,10 @@ text files, cover images, and other long-lived files. Books can be nested under
 [folders](folders.md) by placing them inside sub-directories.
 
 A folder directory may hold a `folder.json` with that folder's own settings,
-such as its icon. It is user data like `book.json` and moves with the folder;
+such as its icon and optional `sort_key` for
+[custom sibling order](folders.md#custom-sibling-order). It is user data like
+`book.json` and moves with the folder. Display metadata is carried in the cached
+and exported `folder_meta` map; directory location defines the hierarchy;
 see [`folder.json` schema
 v1](data-format-versioning.md#folderjson-schema-v1).
 

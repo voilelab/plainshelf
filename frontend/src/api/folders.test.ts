@@ -228,3 +228,18 @@ describe('setFolderIcon', () => {
     await expect(setFolderIcon('Fiction', 'star', 'v')).rejects.toBe(refusal);
   });
 });
+
+describe('folder path listing', () => {
+ it('does not request optional metadata or fail when it is unavailable', async () => {
+  const { getFolders } = await import('./folders');
+  fetchJsonMock.mockReset();
+  const paths = ['Z','a','A','á','中','a/z','a/m'];
+  fetchJsonMock.mockImplementation(async (path: string) => {
+    if (path !== '/folders') throw new ApiError('metadata not supported', {status:404});
+    return paths.map(path => path.split('/'));
+  });
+  expect(await getFolders()).toEqual([...paths].sort((a,b)=>a.localeCompare(b)));
+  expect(fetchJsonMock).toHaveBeenCalledTimes(1);
+  fetchJsonMock.mockReset();
+ });
+});

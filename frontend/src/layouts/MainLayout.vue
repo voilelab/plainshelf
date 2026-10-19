@@ -211,8 +211,9 @@
                 <p>{{ foldersError }}</p>
                 <button type="button" class="button" @click="fetchFolders">{{ t('common.retry') }}</button>
               </div>
+              <!-- Keep sorting mode and failure messages alive while folders reload. -->
               <FolderTree
-                v-else
+                v-show="!foldersLoading && !foldersError"
                 :nodes="folderTree"
                 :selected="currentFolder"
                 :deleting-map="deletingFolderMap"

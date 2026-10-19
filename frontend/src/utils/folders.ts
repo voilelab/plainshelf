@@ -91,7 +91,57 @@ export function booksRouteForFolderPath(folderPath: string): BooksFolderRoute {
     : { path: '/books', query: { folders: normalized, page: '1' } };
 }
 
-export function buildFolderTreeNodes(folderPaths: string[]): FolderTreeNode[] {
+export type FolderMetadata = Record<
+  string,
+  { sort_key?: number; version: string; read_only?: boolean }
+>;
+
+function compareFolderKeys(
+  a: string,
+  b: string,
+  metadata: FolderMetadata
+): number {
+  const x = metadata[a]?.sort_key,
+    y = metadata[b]?.sort_key;
+  const hasX = typeof x === 'number' && Number.isFinite(x);
+  const hasY = typeof y === 'number' && Number.isFinite(y);
+  if (hasX !== hasY) return hasX ? -1 : 1;
+  return hasX && hasY ? x! - y! : 0;
+}
+
+/** Keep the exact legacy order without keys; otherwise emit whole subtrees. */
+export function sortFolderPaths(paths: string[], metadata: FolderMetadata): string[] {
+  if (!paths.some(path => Number.isFinite(metadata[path]?.sort_key))) return [...paths];
+  const present = new Set(paths);
+  const children = new Map<string, string[]>();
+  const seen = new Set<string>();
+  function add(path: string): void {
+    if (!path || path === '/' || seen.has(path)) return;
+    const parent = path.split('/').slice(0, -1).join('/');
+    add(parent);
+    seen.add(path);
+    const siblings = children.get(parent) ?? [];
+    siblings.push(path);
+    children.set(parent, siblings);
+  }
+  paths.forEach(add);
+  const result: string[] = paths.filter(path => path === '/' || path === '');
+  function visit(parent: string): void {
+    const siblings = children.get(parent) ?? [];
+    siblings.sort((a, b) => compareFolderKeys(a, b, metadata));
+    for (const path of siblings) {
+      if (present.has(path)) result.push(path);
+      visit(path);
+    }
+  }
+  visit('');
+  return result;
+}
+
+export function buildFolderTreeNodes(
+  folderPaths: string[],
+  metadata: FolderMetadata = {}
+): FolderTreeNode[] {
   const roots: FolderTreeNode[] = [];
   const nodeByPath = new Map<string, FolderTreeNode>();
 
@@ -130,7 +180,9 @@ export function buildFolderTreeNodes(folderPaths: string[]): FolderTreeNode[] {
   }
 
   const sortNodes = (nodes: FolderTreeNode[]): void => {
-    nodes.sort((a, b) => a.name.localeCompare(b.name));
+    nodes.sort((a, b) =>
+      compareFolderKeys(a.path, b.path, metadata) || a.name.localeCompare(b.name)
+    );
     for (const node of nodes) {
       sortNodes(node.children);
     }

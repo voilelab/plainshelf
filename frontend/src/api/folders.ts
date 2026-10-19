@@ -9,11 +9,29 @@ import {
   getMockFolders,
   moveMockFolder,
   renameMockFolder,
-  setMockFolderIcon
+  setMockFolderIcon,
+  setMockFolderSortKey
 } from './mocks/folders';
 import { FOLDER_ICON_NAMES } from '@/components/icons/folderIcons';
 import { mockTransferFolder } from './mocks/books';
 import { normalizeFolderPath } from '@/utils/folders';
+
+export async function setFolderSortKey(
+  path: string,
+  sort_key: number,
+  version: string,
+  shelfID?: string
+): Promise<void> {
+  if (isMockApiMode()) {
+    setMockFolderSortKey(path, sort_key, version);
+    await delay(undefined);
+    return;
+  }
+  await fetchJson<void>(
+    buildShelfApiPath(`/folder-meta/${encodeFolderPath(path)}`, shelfID),
+    { method: 'PUT', body: JSON.stringify({ sort_key, version }) }
+  );
+}
 
 function normalizeFolderValue(value: unknown): string | null {
   if (typeof value === 'string') {
@@ -421,6 +439,7 @@ export async function deleteFolder(folderPath: string): Promise<void> {
 
 /** One folder's folder.json, as GET .../folder-meta lists it. */
 export interface FolderMeta {
+  sort_key?: number;
   /** '' for the default icon, which includes a name this server does not offer. */
   icon: string;
   /** What setFolderIcon passes back; '' on a shelf that is never written. */
@@ -444,17 +463,18 @@ function parseFolderMeta(value: unknown): FolderMeta | null {
   return {
     icon: typeof raw.icon === 'string' ? raw.icon : '',
     version: typeof raw.version === 'string' ? raw.version : '',
-    readOnly: raw.read_only === true
+    readOnly: raw.read_only === true,
+    ...(typeof raw.sort_key === 'number' && Number.isFinite(raw.sort_key) ? {sort_key: raw.sort_key} : {})
   };
 }
 
 /** Lists the active shelf's folder metadata and the icons it accepts. */
-export async function getFolderMeta(): Promise<FolderMetaListing> {
+export async function getFolderMeta(shelfID?: string): Promise<FolderMetaListing> {
   if (isMockApiMode()) {
     return delay({ icons: [...FOLDER_ICON_NAMES], folders: getMockFolderMeta() });
   }
 
-  const data = await fetchJson<unknown>(buildShelfApiPath('/folder-meta'), { method: 'GET' });
+  const data = await fetchJson<unknown>(buildShelfApiPath('/folder-meta', shelfID), { method: 'GET' });
   const raw = (typeof data === 'object' && data !== null ? data : {}) as Record<string, unknown>;
 
   const icons = Array.isArray(raw.icons) ? raw.icons.filter((icon): icon is string => typeof icon === 'string') : [];

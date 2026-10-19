@@ -227,7 +227,7 @@ copy or move to another shelf copies the file unchanged.
 |---|---|
 | `schema_version` | On-disk format version of this file. Managed by PlainShelf; a file without it reads as v1. |
 | `icon` | The folder's icon: one name from the list below. Absent means the default folder icon. |
-| `sort_key` | Reserved for ordering a folder among its siblings: a finite number, lower first. Defined here so the name is fixed with the rest of v1; this build keeps it but does not use it yet. |
+| `sort_key` | Orders a folder among its siblings: a finite number, lower first, before siblings without a key. Zero and negative values are valid. Missing, null, and wrong-typed values mean unspecified. Equal or absent keys retain each interface’s existing name/path fallback; reading never rewrites the file. |
 
 The icon names are a subset of [Tabler](https://tabler.io/icons) icon names:
 `alien`, `atom`, `bolt`, `book`, `bookmark`, `books`, `briefcase`, `camera`,

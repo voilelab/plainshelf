@@ -220,6 +220,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
   // Delegated without an offline branch: the folder store surfaces a failure in
   // the sidebar, which is what the server path already does when unreachable.
+  listFolderMeta() {
+    return this.remote.listFolderMeta?.() ?? Promise.resolve({icons: [], folders: {}});
+  }
+
   listFolders(): Promise<string[]> {
     return this.remote.listFolders();
   }

@@ -3,6 +3,7 @@ package shelf
 import (
 	"cmp"
 	"errors"
+	"math"
 	"os"
 	"path"
 	"slices"
@@ -255,7 +256,11 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 		}
 		// No Version: a remote shelf is never written, so there is nothing to
 		// compare a write against.
-		folderMeta[name] = FolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
+		entry := FolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
+		if meta.SortKey != nil && !math.IsNaN(*meta.SortKey) && !math.IsInf(*meta.SortKey, 0) {
+			entry.SortKey, entry.HasSortKey = *meta.SortKey, true
+		}
+		folderMeta[name] = entry
 	}
 
 	return entries, folders, folderMeta, nil

@@ -166,3 +166,43 @@ func TestAPIFolderMetaReadRespectsLocalTokenContract(t *testing.T) {
 	req.Header.Set(env.App.SecurityTokenHeader(), env.App.SecurityToken())
 	apitest.AssertStatus(t, env.DoRaw(req), http.StatusOK)
 }
+
+func TestAPIFolderSortKeyContract(t *testing.T) {
+	env := apitest.New(t)
+	for _, name := range []string{"A", "B"} {
+		apitest.AssertStatus(t, env.Post(apitest.ShelfURL("folders", name), nil), http.StatusNoContent)
+	}
+	apitest.AssertStatus(t, putFolderIcon(env, "B", "moon", ""), http.StatusNoContent)
+	version := getFolderMeta(t, env).Folders["B"].Version
+	body := `{"sort_key":0,"version":"` + version + `"}`
+	apitest.AssertMutationGated(t, env, http.MethodPut, apitest.ShelfURL("folder-meta", "B"), []byte(body))
+	apitest.AssertStatus(t, env.Put(apitest.ShelfURL("folder-meta", "B"), strings.NewReader(body)), http.StatusNoContent)
+	result := apitest.GetJSON[struct {
+		Folders map[string]struct {
+			SortKey *float64 `json:"sort_key"`
+			Icon    string   `json:"icon"`
+		} `json:"folders"`
+	}](t, env, apitest.ShelfURL("folder-meta"))
+	if result.Folders["B"].SortKey == nil || *result.Folders["B"].SortKey != 0 || result.Folders["B"].Icon != "moon" {
+		t.Fatalf("metadata: %+v", result)
+	}
+	folders := apitest.GetJSON[[]shelf.FolderPath](t, env, apitest.ShelfURL("folders"))
+	if len(folders) != 3 || folders[1].String() != "B" || folders[2].String() != "A" {
+		t.Fatal(folders)
+	}
+	apitest.AssertStatus(t, env.Put(apitest.ShelfURL("folder-meta", "A"), strings.NewReader(`{"sort_key":"bad"}`)), http.StatusBadRequest)
+}
+
+func TestAPIFolderMetaRejectsAmbiguousSortWritesWithoutChangingIcon(t *testing.T) {
+	env := apitest.New(t)
+	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("folders", "A"), nil), http.StatusNoContent)
+	apitest.AssertStatus(t, putFolderIcon(env, "A", "moon", ""), http.StatusNoContent)
+	before := getFolderMeta(t, env).Folders["A"]
+	for _, fields := range []string{`"sort_key":null`, `"sort_key":3,"icon":"star"`, `"sort_key":3,"icon":null`} {
+		body := `{` + fields + `,"version":"` + before.Version + `"}`
+		apitest.AssertStatus(t, env.Put(apitest.ShelfURL("folder-meta", "A"), strings.NewReader(body)), http.StatusBadRequest)
+		if after := getFolderMeta(t, env).Folders["A"]; after != before {
+			t.Fatalf("refused write changed metadata: %+v", after)
+		}
+	}
+}

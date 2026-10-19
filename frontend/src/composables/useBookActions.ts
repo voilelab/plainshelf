@@ -1,3 +1,4 @@
+import { sortFolderPaths } from '@/utils/folders';
 import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -47,7 +48,7 @@ function sanitizeDownloadName(name: string): string {
  */
 export function useBookActions(options: UseBookActionsOptions = {}) {
   const router = useRouter();
-  const { folders, loaded: foldersLoaded, fetchFolders } = useFolderStore();
+  const { folders, folderMeta: metadata, loaded: foldersLoaded, fetchFolders } = useFolderStore();
   const { fetchBooks } = useBookStore();
   const { showToast } = useToasts();
   // In its own composable so the home dashboard's reading entries share it
@@ -102,9 +103,8 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
    */
   const moveFolderOptions = computed(() => {
     const currentFolder = moveTarget.value ? getFolderPath(moveTarget.value) : '';
-    return [...new Set(folders.value.filter((folder) => folder && folder !== '/'))]
-      .filter((folder) => !folderPathEquals(folder, currentFolder))
-      .sort();
+    return sortFolderPaths([...new Set(folders.value.filter((folder) => folder && folder !== '/'))]
+      .filter((folder) => !folderPathEquals(folder, currentFolder)).sort(), metadata?.value ?? {});
   });
 
   /**
@@ -113,7 +113,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
    * "duplicate here", not a no-op. The root is offered by the modal itself.
    */
   const copyFolderOptions = computed(() =>
-    [...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort()
+    sortFolderPaths([...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort(), metadata?.value ?? {})
   );
 
   const canOpenBookFolder = computed(() => Boolean(getPlatformCapabilities().openBookFolder));

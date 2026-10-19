@@ -148,7 +148,7 @@ export function useFolderManagement() {
     return typeof q === 'string' && q.length > 0 ? q : undefined;
   });
 
-  const folderTree = computed(() => buildFolderTreeNodes(folders.value));
+  const folderTree = computed(() => buildFolderTreeNodes(folders.value, folderMeta.value));
   const canOpenFolder = computed(() => Boolean(getPlatformCapabilities().openFolder));
   const isDeletingPendingFolder = computed(
     () => pendingDeleteFolderPath.value.length > 0 && (deletingFolderMap.value[pendingDeleteFolderPath.value] ?? false)

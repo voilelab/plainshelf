@@ -8,7 +8,9 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// GetAllFolders returns a sorted list of all unique folders present in the library.
+// GetAllFolders lists unique folders using sibling sort keys and the legacy path
+// fallback. Keyed listings keep each parent before its complete subtree; listings
+// without keys retain their exact legacy flat order.
 //
 // The list comes from the book cache, which records folders during the same walk
 // it builds the book listing from, so this is throttled by scan_interval like

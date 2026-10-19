@@ -399,7 +399,62 @@ func (s *Shelf) listFoldersFromCache() []FolderPath {
 	for i, folder := range s.bookCache.folders {
 		folders[i] = slices.Clone(folder)
 	}
+	sortFolderSiblings(folders, s.bookCache.folderMeta)
 	return folders
+}
+
+// sortFolderSiblings emits a pre-order traversal when keys apply, moving each
+// folder with its descendants. With no keys, the exact legacy flat order stays.
+func sortFolderSiblings(folders []FolderPath, metas map[string]FolderMeta) {
+	if !slices.ContainsFunc(folders, func(f FolderPath) bool { return metas[f.String()].HasSortKey }) {
+		return
+	}
+	children := map[string][]FolderPath{}
+	present := map[string]bool{}
+	seen := map[string]bool{}
+	var add func(FolderPath)
+	add = func(folder FolderPath) {
+		if len(folder) == 0 || seen[folder.String()] {
+			return
+		}
+		parent := folder[:len(folder)-1]
+		add(parent)
+		seen[folder.String()] = true
+		children[parent.String()] = append(children[parent.String()], folder)
+	}
+	for _, folder := range folders {
+		present[folder.String()] = true
+		add(folder)
+	}
+	result := make([]FolderPath, 0, len(folders))
+	if present[""] {
+		result = append(result, FolderPath{})
+	}
+	var visit func(string)
+	visit = func(parent string) {
+		siblings := children[parent]
+		slices.SortStableFunc(siblings, func(a, b FolderPath) int {
+			x, y := metas[a.String()], metas[b.String()]
+			if x.HasSortKey != y.HasSortKey {
+				if x.HasSortKey {
+					return -1
+				}
+				return 1
+			}
+			if x.HasSortKey {
+				return cmp.Compare(x.SortKey, y.SortKey)
+			}
+			return 0
+		})
+		for _, folder := range siblings {
+			if present[folder.String()] {
+				result = append(result, folder)
+			}
+			visit(folder.String())
+		}
+	}
+	visit("")
+	copy(folders, result)
 }
 
 // addFolderToBookCache records a folder and every ancestor it needed, so that a
