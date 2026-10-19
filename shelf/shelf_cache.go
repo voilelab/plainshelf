@@ -89,6 +89,11 @@ type bookCache struct {
 	// be rebuilt from cache above — the same reason BookCacheFile.Folders does.
 	folders []FolderPath
 
+	// folderMeta is each folder's folder.json, keyed by FolderPath.String(),
+	// for the folders that have one. Read by the same walk as folders; see
+	// readFolderMetaForScan.
+	folderMeta map[string]FolderMeta
+
 	treeDirty    bool
 	lastFullScan time.Time
 
@@ -185,11 +190,13 @@ func (s *Shelf) scanToBookCache() error {
 	// of. The exported cache publishes it as its Timestamp.
 	scanStart := time.Now()
 
-	var folders []FolderPath
+	var folders, metaFolders []FolderPath
 
 	stats, err := s.iterateShelfTree(func(ls FolderPath) bool {
 		folders = append(folders, ls)
 		return true
+	}, func(folder FolderPath) {
+		metaFolders = append(metaFolders, folder)
 	}, func(b *Book) bool {
 		entry := newBookIDCacheEntry(bookFolderPath(b.PackagePath()), b.PackagePath(), b)
 		// Read from the source; listed through the offline overlay, so a
@@ -206,6 +213,11 @@ func (s *Shelf) scanToBookCache() error {
 
 	sortFolders(folders)
 
+	folderMeta, err := s.readFolderMetaForScan(s.walkRoot(), metaFolders)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	s.Debug("completed a full shelf scan",
 		"books", len(cache), "folders", len(folders),
 		"dirs", stats.Dirs, "listed_dirs", stats.ReadDirs, "reused_dirs", stats.ReusedDirs,
@@ -217,6 +229,7 @@ func (s *Shelf) scanToBookCache() error {
 	}
 	s.bookCache.cache = cache
 	s.bookCache.folders = folders
+	s.bookCache.folderMeta = folderMeta
 	s.bookCache.treeDirty = false
 	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.lastScanStart = scanStart
@@ -419,6 +432,7 @@ func (s *Shelf) removeFolderFromBookCache(folder FolderPath) {
 	defer s.bookCache.Unlock()
 
 	s.bookCache.folders = slices.DeleteFunc(s.bookCache.folders, folder.Equal)
+	delete(s.bookCache.folderMeta, folder.String())
 }
 
 func sortFolders(folders []FolderPath) {

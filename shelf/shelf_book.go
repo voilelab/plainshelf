@@ -346,15 +346,15 @@ func bookFolderPath(folderPath string) FolderPath {
 }
 
 // iterateShelfTree walks the books folder once, reporting every folder
-// directory to onFolder and every book package to onBook. Either callback may be
-// nil. Returning false from a callback stops the whole walk. It returns what
+// directory to onFolder, every folder holding a folder.json to onFolderMeta, and
+// every book package to onBook. Any callback may be nil. Returning false from a callback stops the whole walk. It returns what
 // the walk cost, which is what makes the effect of the scan cache visible.
 //
 // Books and folders share one walk because they are answers to the same
 // question: a listing and a folder tree both describe the shape of books/, and
 // walking it twice is the cost this shelf can least afford on a network mount.
 // scanToBookCache is the only production caller for that reason.
-func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Book) bool) (scanStats, error) {
+func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onFolderMeta func(FolderPath), onBook func(*Book) bool) (scanStats, error) {
 	skipAll := false
 
 	// A virtual shelf walks the source itself, never its offline copies, and
@@ -406,6 +406,13 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 		}
 
 		if !isDir {
+			// A folder.json the listing kept (see newScanCache) names its
+			// folder; the shelf root has none.
+			if child != nil && child.File && onFolderMeta != nil && path.Base(pth) == FolderMetaFile {
+				if parent := path.Dir(pth); parent != booksFolder {
+					onFolderMeta(strings.Split(parent, "/")[1:])
+				}
+			}
 			stopIfNotAShelf(pth)
 			return
 		}

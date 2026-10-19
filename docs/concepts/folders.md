@@ -55,8 +55,11 @@ not carry the file yet: a move leaves the emptied source folder in place, still
 holding its `folder.json`, rather than delete a setting it did not take along.
 The shelf root has no `folder.json` of its own.
 
-PlainShelf reads and keeps this file, but the interface does not show or set
-folder icons yet; for now the file is written by hand. The icon names it
+PlainShelf reads and keeps this file, and serves it to clients through
+`GET` and `PUT /api/shelves/{shelf_id}/folder-meta`, but the interface does not
+show or set folder icons yet; for now the file is written by hand. A hand edit
+shows after the next shelf scan, as described in
+[Shelf cache and disk I/O](shelf-cache-and-io.md#folder-listing). The icon names it
 accepts, and exactly what happens to a file it cannot read, are in
 [`folder.json` schema v1](data-format-versioning.md#folderjson-schema-v1). In
 short: a broken or unrecognized file never hides the folder — it reads as "no

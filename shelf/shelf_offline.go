@@ -177,7 +177,7 @@ func (o *offlineStore) loadSnapshot() {
 		o.logger.Warn("ignoring an offline snapshot from another build", "schema_version", file.SchemaVersion)
 		return
 	}
-	digest, err := bookCacheDigest(file.Listing.Folders, file.Listing.Books)
+	digest, err := bookCacheDigest(file.Listing)
 	if err != nil {
 		o.logger.Warn("ignoring an unusable offline snapshot", "error", err)
 		return
@@ -248,7 +248,7 @@ func (o *offlineStore) download(bookID string) (offlineDownload, bool) {
 
 // saveSnapshot writes listing unless its content is what is already stored.
 func (o *offlineStore) saveSnapshot(listing *BookCacheFile) error {
-	digest, err := bookCacheDigest(listing.Folders, listing.Books)
+	digest, err := bookCacheDigest(listing)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -691,6 +691,7 @@ func (s *Shelf) saveOfflineSnapshot() {
 		Timestamp:     takenAt.Unix(),
 		Generator:     "plainshelf/" + version.Version,
 		Folders:       s.collectExportFolders(),
+		FolderMeta:    s.collectExportFolderMeta(),
 		Books:         s.collectExportBooks(),
 	}
 	if err := s.offline.saveSnapshot(listing); err != nil {

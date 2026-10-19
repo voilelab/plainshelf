@@ -22,8 +22,9 @@ const scanCacheFileName = scancache.FileName
 // the previous run's snapshot, so the first walk is already cheap.
 func newScanCache(dbRoot fsutil.ReadFS, enabled bool, logger logutil.Logger) *scancache.Cache {
 	return scancache.Open(scancache.Config{
-		Store:   appcache.NewFSStore(dbRoot, appFolder),
-		Enabled: enabled,
-		Logger:  logger,
+		Store:     appcache.NewFSStore(dbRoot, appFolder),
+		Enabled:   enabled,
+		Logger:    logger,
+		KeepFiles: []string{FolderMetaFile},
 	})
 }

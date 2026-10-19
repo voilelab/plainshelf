@@ -6,6 +6,7 @@ import (
 	"path"
 	"slices"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -236,5 +237,34 @@ func TestScanCacheDistrustsAReplacedDirectory(t *testing.T) {
 	}
 	if found["books/Fiction/kept"] {
 		t.Errorf("walk still reports the replaced directory's child")
+	}
+}
+
+// A kept file is listed as one, so the walk learns it exists from the snapshot;
+// every other plain file, and a directory carrying a kept name, is not.
+func TestDirChildrenListsOnlyKeptFiles(t *testing.T) {
+	fsys := fstest.MapFS{
+		"d/folder.json":         {Data: []byte("{}")},
+		"d/notes.txt":           {Data: []byte("x")},
+		"d/Sub/folder.json/x":   {Data: []byte("x")},
+		"d/book.bookpkg/x.json": {Data: []byte("x")},
+	}
+	entries, err := fsys.ReadDir("d")
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+
+	got := dirChildren(entries, []string{"folder.json"})
+	want := []DirChild{{Name: "Sub"}, {Name: "book.bookpkg"}, {Name: "folder.json", File: true}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("dirChildren = %+v, want %+v", got, want)
+	}
+
+	sub, err := fsys.ReadDir("d/Sub")
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if got := dirChildren(sub, []string{"folder.json"}); !slices.Equal(got, []DirChild{{Name: "folder.json"}}) {
+		t.Fatalf("a directory named folder.json = %+v, want it listed as a directory", got)
 	}
 }

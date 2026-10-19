@@ -126,6 +126,16 @@ as they happen, so they appear in the very next listing regardless of the
 interval. Only a folder created or removed outside PlainShelf waits for the next
 full scan.
 
+A folder's own settings — its [`folder.json`](folders.md#folder-metadata) —
+are cached the same way. An icon set through PlainShelf shows at once; a
+`folder.json` edited by hand shows after the next full scan, or after **Update
+book list**. Only folders that have the file cost anything: the scan sees the
+file in its folder's listing, and reads it once per full scan. It reads it every
+time rather than trusting the folder's modification time, because editing a
+file in place does not change the time of the folder that holds it. A shelf
+with five folders that carry an icon adds five small reads to each full scan,
+and nothing to a listing between scans.
+
 ### Skipping folders that did not change
 
 A full scan does not have to list every folder to find out that nothing moved.
@@ -342,6 +352,14 @@ folder rules in `shelf.json` and the book's own flag. It is there so that a
 client which downloads only this file — which is the point of the file — reaches
 the same answer as the server without reading `shelf.json` itself. Like the flag
 in `book.json`, it is written only when `true`.
+
+Folders with a [`folder.json`](folders.md#folder-metadata) are listed under
+`folder_meta`, keyed like the folder list, with the icon as written. A client
+reading the export gets the icons without opening one `folder.json` of its own;
+in exchange, an icon changed on the server reaches it when the server next
+exports, like any other change. The member is omitted when no folder has
+metadata, so such a shelf exports what it did before the field existed, and a
+client built before it ignores it.
 
 Each entry also carries `current_source_md5`, the content hash from the current
 source's `meta.json`. Editing a source's text in place rewrites that file but

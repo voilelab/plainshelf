@@ -713,7 +713,8 @@ remote, read-only source — the Android app's pCloud shelf — does not have to
 walked book by book. It is also where such a reader learns which books are
 [adult content](folders.md#marking-a-folder-as-adult-content): each entry carries
 the finished `nsfw` answer, and `current_source_md5`, which tells an offline copy
-that a source's text changed. Being a cache, such a field is an ordinary
+that a source's text changed; `folder_meta` carries each folder's icon. Being a
+cache, such a field is an ordinary
 addition — nothing here is frozen, and a reader that does not know it simply
 does not read it.
 [Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache)

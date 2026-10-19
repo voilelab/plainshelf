@@ -30,6 +30,10 @@ type Config struct {
 
 	// Logger receives diagnostics; pass the shelf's. Optional.
 	Logger logutil.Logger
+
+	// KeepFiles names the regular files a listing reports (DirChild.File), so
+	// the walk learns they exist without a read of its own. Optional.
+	KeepFiles []string
 }
 
 // Cache is one process's directory scan snapshot for a shelf: the entries the
@@ -37,9 +41,10 @@ type Config struct {
 // under app/. Its own mutex guards the snapshot - deliberately not the book
 // cache's lock, since publishing the two is unrelated.
 type Cache struct {
-	store   appcache.Store
-	enabled bool
-	logger  logutil.Logger
+	store     appcache.Store
+	enabled   bool
+	logger    logutil.Logger
+	keepFiles []string
 
 	mu sync.RWMutex
 
@@ -61,9 +66,10 @@ func Open(cfg Config) *Cache {
 	}
 
 	c := &Cache{
-		store:   cfg.Store,
-		enabled: cfg.Enabled,
-		logger:  logger,
+		store:     cfg.Store,
+		enabled:   cfg.Enabled,
+		logger:    logger,
+		keepFiles: cfg.KeepFiles,
 	}
 	c.load()
 	return c
@@ -160,7 +166,7 @@ func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild
 			return nil, false, util.Errorf("%w", err)
 		}
 		w.stats.ReadDirs++
-		return dirChildren(entries), false, nil
+		return dirChildren(entries, w.cache.keepFiles), false, nil
 	}
 
 	// Stat before the listing, never after: reading the other way could pair a
@@ -184,7 +190,7 @@ func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild
 	}
 	w.stats.ReadDirs++
 
-	children := dirChildren(entries)
+	children := dirChildren(entries, w.cache.keepFiles)
 	// Only remember a directory whose mtime is settled; see fsutil.RacyWindow.
 	if !modTime.IsZero() && modTime.Before(readAt.Add(-fsutil.RacyWindow)) {
 		w.next[pth] = dirSnapshot{ModTime: modTime, Children: children}
@@ -271,6 +277,9 @@ func (c *Cache) Save() error {
 // symlink's type describes the link, not its target. child is nil at the root
 // of a walk.
 func ChildIsDir(root fsutil.ReadFS, pth string, child *DirChild) (bool, error) {
+	if child != nil && child.File {
+		return false, nil
+	}
 	if child != nil && !child.Symlink {
 		return true, nil
 	}

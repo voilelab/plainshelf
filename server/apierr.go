@@ -76,6 +76,26 @@ var apiErrorTable = []struct {
 		status:  http.StatusBadRequest,
 		message: "invalid folder name",
 	}},
+	{shelf.ErrFolderNotFound, apiError{
+		code:    "FOLDER_NOT_FOUND",
+		status:  http.StatusNotFound,
+		message: "folder not found",
+	}},
+	{shelf.ErrInvalidFolderIcon, apiError{
+		code:    "INVALID_FOLDER_ICON",
+		status:  http.StatusBadRequest,
+		message: "folder icon is not one this server offers; see icons in GET .../folder-meta",
+	}},
+	{shelf.ErrFolderMetaConflict, apiError{
+		code:    "FOLDER_META_CONFLICT",
+		status:  http.StatusConflict,
+		message: "folder.json changed since it was read; read it again and retry",
+	}},
+	{shelf.ErrFolderMetaNotWritable, apiError{
+		code:    "FOLDER_META_NOT_WRITABLE",
+		status:  http.StatusConflict,
+		message: "folder.json cannot be read safely by this server, so it was left unchanged; repair or remove the file",
+	}},
 	{shelf.ErrShelfInitializing, apiError{
 		code:       "SHELF_INITIALIZING",
 		status:     http.StatusServiceUnavailable,

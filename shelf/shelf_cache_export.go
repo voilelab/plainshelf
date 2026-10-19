@@ -81,8 +81,26 @@ type BookCacheFile struct {
 	// reconstructed from Books.
 	Folders []string `json:"folders"`
 
+	// FolderMeta is each folder's folder.json as the walk read it, keyed like
+	// Folders, for the folders that have one. Added without a version bump: a
+	// reader that predates it ignores the member, and a file without it reads
+	// as no folder having metadata. Omitted when empty, so a shelf with no
+	// folder.json exports the bytes it did before this field existed.
+	FolderMeta map[string]BookCacheFolderMeta `json:"folder_meta,omitzero"`
+
 	// Books maps book ID to its location and metadata.
 	Books map[string]BookCacheEntry `json:"books"`
+}
+
+// BookCacheFolderMeta is one folder's folder.json as exported: what a reader
+// shows, not what it writes back, so there is no version to write against.
+type BookCacheFolderMeta struct {
+	// Icon is the member as written; a reader shows the default icon for a
+	// name it does not offer.
+	Icon string `json:"icon,omitzero"`
+
+	// ReadOnly reports a file the writing build could not read safely.
+	ReadOnly bool `json:"read_only,omitzero"`
 }
 
 // BookCacheEntry is one book as the walk found it.
@@ -242,13 +260,19 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.exportMu.Lock()
 	defer s.exportMu.Unlock()
 
-	folders := s.collectExportFolders()
-	books := s.collectExportBooks()
+	payload := BookCacheFile{
+		SchemaVersion: BookCacheSchemaVersion,
+		WriterID:      s.bookCacheWriterID,
+		Generator:     "plainshelf/" + version.Version,
+		Folders:       s.collectExportFolders(),
+		FolderMeta:    s.collectExportFolderMeta(),
+		Books:         s.collectExportBooks(),
+	}
 
 	// Hash only the content, never the timestamp, so an unchanged shelf does not
 	// rewrite the file every interval: on pCloud or SMB that is a pointless
 	// upload, and on a sync client a pointless conflict opportunity.
-	digest, err := bookCacheDigest(folders, books)
+	digest, err := bookCacheDigest(&payload)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -266,14 +290,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 		return nil
 	}
 
-	payload := BookCacheFile{
-		SchemaVersion: BookCacheSchemaVersion,
-		WriterID:      s.bookCacheWriterID,
-		Timestamp:     scannedAt.Unix(),
-		Generator:     "plainshelf/" + version.Version,
-		Folders:       folders,
-		Books:         books,
-	}
+	payload.Timestamp = scannedAt.Unix()
 
 	data, err := json.Marshal(payload, jsonopt.Disk())
 	if err != nil {
@@ -293,7 +310,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.bookCache.lastExportDigest = digest
 	s.bookCache.Unlock()
 
-	s.Debug("exported book cache", "path", target, "books", len(books), "folders", len(folders))
+	s.Debug("exported book cache", "path", target, "books", len(payload.Books), "folders", len(payload.Folders))
 
 	s.pruneStaleBookCaches(root)
 	return nil
@@ -318,6 +335,22 @@ func (s *Shelf) collectExportFolders() []string {
 
 	slices.Sort(folders)
 	return folders
+}
+
+// collectExportFolderMeta snapshots the cached folder metadata, nil when no
+// folder has any.
+func (s *Shelf) collectExportFolderMeta() map[string]BookCacheFolderMeta {
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
+
+	if len(s.bookCache.folderMeta) == 0 {
+		return nil
+	}
+	metas := make(map[string]BookCacheFolderMeta, len(s.bookCache.folderMeta))
+	for name, meta := range s.bookCache.folderMeta {
+		metas[name] = BookCacheFolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
+	}
+	return metas
 }
 
 // collectExportBooks snapshots the in-memory cache. No filesystem access: the
@@ -346,11 +379,12 @@ func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 // carries Deterministic: json/v2 leaves map order unspecified otherwise, and an
 // unchanged shelf would re-export on every scan. The folder slice is already
 // sorted.
-func bookCacheDigest(folders []string, books map[string]BookCacheEntry) (string, error) {
+func bookCacheDigest(cache *BookCacheFile) (string, error) {
 	data, err := json.Marshal(struct {
-		Folders []string                  `json:"folders"`
-		Books   map[string]BookCacheEntry `json:"books"`
-	}{Folders: folders, Books: books}, jsonopt.DiskCompact())
+		Folders    []string                       `json:"folders"`
+		FolderMeta map[string]BookCacheFolderMeta `json:"folder_meta,omitzero"`
+		Books      map[string]BookCacheEntry      `json:"books"`
+	}{Folders: cache.Folders, FolderMeta: cache.FolderMeta, Books: cache.Books}, jsonopt.DiskCompact())
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
