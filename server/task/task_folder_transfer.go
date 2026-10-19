@@ -44,12 +44,18 @@ type FolderTransferResult struct {
 	SucceededIDs []string                `json:"succeeded_ids"`
 	Failures     []folderTransferFailure `json:"failures"`
 
-	// FolderFailures counts destination folders that could not be created. A book's
-	// own folder is re-created when the book publishes, so this only ever bites an
-	// empty sub-folder that has no book to rebuild it - but it still means the
-	// transfer did not fully reproduce the structure, so it holds the task back
-	// from a clean completion.
+	// FolderFailures counts destination folders that could not be created or
+	// whose folder.json could not be carried. A book's own folder is re-created
+	// when the book publishes, so a creation failure only bites an empty
+	// sub-folder - but either way the transfer did not fully reproduce the
+	// structure, so it holds the task back from a clean completion.
 	FolderFailures int `json:"folder_failures"`
+}
+
+// plannedFolder is one source folder paired with the destination it maps to.
+type plannedFolder struct {
+	source shelf.FolderPath
+	target shelf.FolderPath
 }
 
 // plannedTransfer is one book paired with the destination folder it lands in,
@@ -68,9 +74,14 @@ type folderTransferTask struct {
 	// sourceFolder is the folder being transferred, kept so a completed move can
 	// prune the folders it emptied on the source.
 	sourceFolder shelf.FolderPath
-	// createFolders are the destination folders to reproduce before any book is
-	// published, so an empty sub-folder carries across too.
-	createFolders []shelf.FolderPath
+	// createFolders are the destination folders to reproduce, with their
+	// folder.json, before any book is published, so an empty sub-folder carries
+	// across too.
+	createFolders []plannedFolder
+	// carriedMeta maps a source folder to the folder.json version copied to the
+	// target, "" when it had none. A folder missing from it did not carry, so a
+	// move keeps it.
+	carriedMeta map[string]string
 	// books are the per-book transfers, each with its remapped destination folder,
 	// sorted by ID for a deterministic transfer order.
 	books []plannedTransfer
@@ -84,9 +95,9 @@ func newFolderTransferTask(sourceShelfID string, source *shelf.Shelf, targetShel
 	sourceFolder = append(shelf.FolderPath(nil), sourceFolder...)
 	targetFolder = append(shelf.FolderPath(nil), targetFolder...)
 
-	createFolders := make([]shelf.FolderPath, 0, len(sourceSubfolders))
+	createFolders := make([]plannedFolder, 0, len(sourceSubfolders))
 	for _, sl := range sourceSubfolders {
-		createFolders = append(createFolders, remapFolder(sl, sourceFolder, targetFolder))
+		createFolders = append(createFolders, plannedFolder{source: sl, target: remapFolder(sl, sourceFolder, targetFolder)})
 	}
 
 	planned := make([]plannedTransfer, 0, len(books))
@@ -105,6 +116,7 @@ func newFolderTransferTask(sourceShelfID string, source *shelf.Shelf, targetShel
 		operation:     operation,
 		sourceFolder:  sourceFolder,
 		createFolders: createFolders,
+		carriedMeta:   make(map[string]string, len(createFolders)),
 		books:         planned,
 		result: FolderTransferResult{
 			Operation:    operation,
@@ -230,21 +242,20 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 		return util.Errorf("%w", err)
 	}
 
-	// Reproduce the destination folder tree first - empty sub-folders included -
-	// so the structure carries across even where there is no book to publish.
-	// Publishing a book re-creates its own folder, so re-creating one here is
-	// harmless and a book's folder survives a failure here. A failure only strands
-	// an empty folder, so it does not abort the transfer, but it is counted so the
-	// task settles short of a clean completion rather than claiming it copied a
+	// Reproduce the destination folder tree first - empty sub-folders and
+	// folder.json included - so the structure carries across even where there is
+	// no book to publish. Publishing a book re-creates its own folder, so
+	// re-creating one here is harmless and a book's folder survives a failure
+	// here. A failure does not abort the transfer, but it is counted so the task
+	// settles short of a clean completion rather than claiming it copied a
 	// structure it did not.
 	for _, folder := range t.createFolders {
-		parent := append(shelf.FolderPath(nil), folder[:len(folder)-1]...)
-		if err := t.target.NewFolder(parent, folder[len(folder)-1]); err != nil {
+		if err := t.createFolder(folder); err != nil {
 			t.mu.Lock()
 			t.result.FolderFailures++
 			t.mu.Unlock()
-			t.logger.Error("folder transfer could not create a target folder",
-				"target_shelf", t.result.TargetShelf, "folder", folder.String(), "error", err)
+			t.logger.Error("folder transfer could not reproduce a target folder",
+				"target_shelf", t.result.TargetShelf, "folder", folder.target.String(), "error", err)
 		}
 	}
 
@@ -283,11 +294,27 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 	return nil
 }
 
+// createFolder creates folder.target and copies folder.source's folder.json into
+// it, recording the carried version.
+func (t *folderTransferTask) createFolder(folder plannedFolder) error {
+	parent := append(shelf.FolderPath(nil), folder.target[:len(folder.target)-1]...)
+	if err := t.target.NewFolder(parent, folder.target[len(folder.target)-1]); err != nil {
+		return util.Errorf("%w", err)
+	}
+	version, err := t.target.CopyFolderMetaFrom(t.source, folder.source, folder.target)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	t.carriedMeta[folder.source.String()] = version
+	return nil
+}
+
 // pruneSourceFolder removes the now-empty folders a completed move left under the
-// source folder. It leans on PruneFolder, which refuses a non-empty folder, so a
-// book that failed to move (still on the source), a package the scan could not
-// read, or a folder.json the transfer does not carry yet (PSW-178) keeps its
-// folder - the move never deletes anything it did not carry.
+// source folder. It leans on PruneFolder, which refuses a non-empty folder and a
+// folder.json other than the one carried, so a book that failed to move (still
+// on the source), a package the scan could not read, or metadata that did not
+// reach the target keeps its folder - the move never deletes anything it did not
+// carry.
 // Deepest folders first, so a parent is empty by the time it is reached.
 func (t *folderTransferTask) pruneSourceFolder() {
 	folders, err := t.source.GetAllFolders()
@@ -312,8 +339,9 @@ func (t *folderTransferTask) pruneSourceFolder() {
 
 	for _, l := range under {
 		// A non-empty folder (a failed book or an unreadable package) is left in
-		// place, exactly as the shelf's own folder move does.
-		_ = t.source.PruneFolder(l)
+		// place, exactly as the shelf's own folder move does. A folder that did
+		// not carry reads as "", which keeps any folder.json it holds.
+		_ = t.source.PruneFolder(l, t.carriedMeta[l.String()])
 	}
 }
 

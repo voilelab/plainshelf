@@ -50,9 +50,13 @@ today, an icon:
 
 The file lives in the folder it describes, so it goes wherever the folder goes:
 renaming or moving the folder in PlainShelf, or with `mv` outside it, keeps the
-setting with no list to update. Copying or moving a folder to another shelf does
-not carry the file yet: a move leaves the emptied source folder in place, still
-holding its `folder.json`, rather than delete a setting it did not take along.
+setting with no list to update. Copying or moving a folder to another shelf
+copies every `folder.json` in the folder and its subfolders byte for byte, even
+one this build cannot read, and adds none where there was none. A file that
+cannot be copied — for example because the destination folder already has one —
+leaves the transfer partially completed, and a move keeps that source folder,
+its `folder.json` and the folders above it rather than delete a setting it did
+not take along. A cancelled move removes no source folder or `folder.json`.
 The shelf root has no `folder.json` of its own.
 
 Every folder in the sidebar and in a book's folder path shows its icon, or the

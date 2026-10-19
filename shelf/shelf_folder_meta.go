@@ -289,6 +289,84 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 	return nil
 }
 
+// CopyFolderMetaFrom copies the folder.json of from in source, byte for byte,
+// to the existing folder to on this (the target) shelf, and returns the version
+// it carried, "" when from has none and nothing was written. The content is not
+// parsed: a file this build cannot read is still someone's data. A folder.json
+// already at to is refused with ErrFolderMetaConflict, never overwritten.
+func (target *Shelf) CopyFolderMetaFrom(source *Shelf, from, to FolderPath) (string, error) {
+	if len(from) == 0 || len(to) == 0 {
+		return "", util.Errorf("%w: the shelf root has no folder metadata", ErrInvalidFolder)
+	}
+	if source == target {
+		return "", util.Errorf("%w", ErrSameShelfTransfer)
+	}
+	if err := source.ValidateFolderPath(from); err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	if err := target.ValidateFolderPath(to); err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	data, err := source.readFolderMetaLocked(from)
+	if err != nil {
+		return "", err
+	}
+	if data == nil {
+		return "", nil
+	}
+
+	root, err := target.writeRoot()
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	if err := target.shelfLock.Lock(); err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	defer target.shelfLock.Unlock()
+
+	dirPath := path.Join(booksFolder, path.Join(to...))
+	info, err := target.dbRoot.Stat(dirPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", util.Errorf("%w: %w", ErrFolderNotFound, err)
+		}
+		return "", util.Errorf("%w", err)
+	}
+	if !info.IsDir() {
+		return "", util.Errorf("%w: %s is not a folder", ErrInvalidFolder, to)
+	}
+
+	metaPath := path.Join(dirPath, FolderMetaFile)
+	if _, err := target.dbRoot.Stat(metaPath); err == nil {
+		return "", util.Errorf("%w: %s already has one", ErrFolderMetaConflict, to)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return "", util.Errorf("%w", err)
+	}
+	if err := fsutil.WriteFileAtomic(root, metaPath, data); err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	meta, _ := folderMetaFromData(data)
+	target.cacheFolderMeta(to, meta)
+	return meta.Version, nil
+}
+
+// readFolderMetaLocked reads folder's folder.json bytes under the shelf's read
+// lock, nil when there is none.
+func (s *Shelf) readFolderMetaLocked(folder FolderPath) ([]byte, error) {
+	if err := s.shelfLock.RLock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
+
+	data, err := readFolderMetaFile(s.dbRoot, folderMetaPath(folder))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	return data, nil
+}
+
 // ListFolderMeta returns the cached metadata of every folder that has a
 // folder.json, keyed like the folder list ("Fiction/Classics"). It is as fresh
 // as GetAllFolders: a change made here shows at once, one made outside

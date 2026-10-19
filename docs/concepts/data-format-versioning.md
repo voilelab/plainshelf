@@ -213,7 +213,8 @@ before the book is moved.
 A folder may carry its own metadata in a `folder.json` inside the folder
 directory, for example `books/Fiction/folder.json`. Because the file lives in
 the directory it describes, it moves with the folder: a rename or move in
-PlainShelf, or an `mv` outside it, carries it along with no list to update.
+PlainShelf, or an `mv` outside it, carries it along with no list to update. A
+copy or move to another shelf copies the file unchanged.
 
 ```json
 {
