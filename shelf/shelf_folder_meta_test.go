@@ -435,6 +435,10 @@ func TestFolderMetaFileNameIsReserved(t *testing.T) {
 	if !meta.ReadOnly || meta.DisplayIcon() != "" {
 		t.Fatalf("parent of a folder.json directory read as %+v", meta)
 	}
+	// The listing says the same, so a client does not offer a write that fails.
+	if listed, ok := mustListFolderMeta(t, s)["Fiction"]; !ok || !listed.ReadOnly {
+		t.Fatalf("ListFolderMeta reported the parent of a folder.json directory as %+v (listed %v)", listed, ok)
+	}
 	if err := s.SetFolderIcon(FolderPath{"Fiction"}, "book", meta.Version); !errors.Is(err, ErrFolderMetaNotWritable) {
 		t.Fatalf("SetFolderIcon over a folder.json directory: %v, want ErrFolderMetaNotWritable", err)
 	}

@@ -405,14 +405,16 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onFolderMeta fu
 			return
 		}
 
-		if !isDir {
-			// A folder.json the listing kept (see newScanCache) names its
-			// folder; the shelf root has none.
-			if child != nil && child.File && onFolderMeta != nil && path.Base(pth) == FolderMetaFile {
-				if parent := path.Dir(pth); parent != booksFolder {
-					onFolderMeta(strings.Split(parent, "/")[1:])
-				}
+		// A folder.json names its folder whether it is the kept file (see
+		// newScanCache) or a directory of that name, which leaves the parent's
+		// metadata unreadable rather than absent. The shelf root has none.
+		if onFolderMeta != nil && path.Base(pth) == FolderMetaFile {
+			if parent := path.Dir(pth); parent != booksFolder {
+				onFolderMeta(strings.Split(parent, "/")[1:])
 			}
+		}
+
+		if !isDir {
 			stopIfNotAShelf(pth)
 			return
 		}
