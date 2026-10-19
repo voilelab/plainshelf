@@ -86,3 +86,23 @@ describe('WailsBookshelfProvider — read history on shell-out', () => {
     warnSpy.mockRestore();
   });
 });
+
+it('exposes virtual-shelf management only when the native bindings exist', async () => {
+  try {
+    vi.stubGlobal('window', { location: { search: '?desktop-shell-preview=1' } });
+    const preview = createWailsPlatform(new WailsBookshelfProvider());
+    expect(preview.shelves?.listShelfDetails).toBeUndefined();
+    expect(preview.shelves?.retryShelf).toBeUndefined();
+
+    const ListShelfDetails = vi.fn().mockResolvedValue([]);
+    const RetryShelf = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('window', { go: { main: { DesktopApp: { ListShelfDetails, RetryShelf } } } });
+    const native = createWailsPlatform(new WailsBookshelfProvider());
+    await expect(native.shelves?.listShelfDetails?.()).resolves.toEqual([]);
+    await native.shelves?.retryShelf?.('remote');
+    expect(ListShelfDetails).toHaveBeenCalledOnce();
+    expect(RetryShelf).toHaveBeenCalledWith('remote');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

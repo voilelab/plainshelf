@@ -540,3 +540,10 @@ export async function retryDesktopShelf(id: string): Promise<void> {
   if (!app?.RetryShelf) throw new Error('RetryShelf binding not available');
   return app.RetryShelf(id);
 }
+
+// The desktop-shell preview uses the desktop layout without a native host.
+export function hasDesktopShelfManagementBindings(): boolean {
+  if (typeof window === 'undefined') return false;
+  const app = (window as DesktopWindow).go?.main?.DesktopApp;
+  return typeof app?.ListShelfDetails === 'function' && typeof app?.RetryShelf === 'function';
+}
