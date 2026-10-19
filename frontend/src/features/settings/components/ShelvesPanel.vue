@@ -74,7 +74,7 @@
   <ConfirmModal
     :open="showAddShelfModal"
     :title="t('settings.shelves.addShelfTitle')"
-    :confirm-text="t('settings.shelves.addShelfSubmit')"
+    :confirm-text="newShelfLocationMode === 'qr' ? t('settings.shelves.qrConfirm') : t('settings.shelves.addShelfSubmit')"
     :cancel-text="t('common.cancel')"
     :busy-text="t('settings.shelves.addShelfAdding')"
     :busy="addingShelf"
@@ -85,7 +85,7 @@
     @confirm="onSubmitAddShelf"
   >
     <form class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
-      <div class="shelf-field">
+      <div v-if="newShelfLocationMode !== 'qr'" class="shelf-field">
         <label class="shelf-field-label" :for="addShelfNameId">
           {{ t('settings.shelves.addShelfNameLabel') }}
         </label>
@@ -136,7 +136,43 @@
             <span class="shelf-add-help">{{ t('settings.shelves.addShelfLocationRemoteHelp') }}</span>
           </span>
         </RadioGroupItem>
+        <RadioGroupItem
+          v-if="getPlatformCapabilities().shelves?.previewLANShareQR"
+          class="shelf-location-mode"
+          value="qr"
+          data-testid="shelf-location-qr"
+        >
+          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
+          <span class="shelf-location-copy"><strong>{{ t('settings.shelves.qrTitle') }}</strong></span>
+        </RadioGroupItem>
       </RadioGroupRoot>
+      <template v-if="newShelfLocationMode === 'qr'">
+        <label class="shelf-field-label" :for="addShelfQRId">{{ t('settings.shelves.qrPaste') }}</label>
+        <textarea
+          :id="addShelfQRId"
+          v-model="qrText"
+          class="shelf-add-input"
+          :disabled="addingShelf"
+          spellcheck="false"
+          autocomplete="off"
+          data-testid="shelf-qr-json"
+        />
+        <button
+          type="button"
+          class="shelf-browse-btn"
+          :disabled="addingShelf || !qrText.trim()"
+          @click="previewQR"
+        >
+          {{ t('settings.shelves.qrPreview') }}
+        </button>
+        <p class="shelf-add-help">{{ t('settings.shelves.qrHelp') }}</p>
+        <ul v-if="qrShelves.length" data-testid="shelf-qr-preview">
+          <li v-for="shelf in qrShelves" :key="shelf.id">{{ shelf.name }} — {{ shelf.url }}</li>
+        </ul>
+        <ul v-if="qrResults.length" role="status" data-testid="shelf-qr-results">
+          <li v-for="(result, index) in qrResults" :key="index">{{ result.name }} — {{ qrStatus(result.status) }}</li>
+        </ul>
+      </template>
 
       <template v-if="newShelfLocationMode === 'remote'">
         <div class="shelf-field">
@@ -242,7 +278,7 @@
       <!-- Previews what submitting would create: on the default branch the
            folder that is actually sent as lib_root, and either way the id it
            would be frozen with. -->
-      <p v-if="newShelfIDPreview" class="shelf-add-help shelf-id-preview">
+      <p v-if="newShelfLocationMode !== 'qr' && newShelfIDPreview" class="shelf-add-help shelf-id-preview">
         <span
           v-if="newShelfLocationMode === 'new' && newShelfEffectiveDirectory"
           class="shelf-preview-line"
@@ -436,6 +472,7 @@ const isMobileEnv = computed(() => isMobileRuntime());
 
 // ConfirmModal resolves `initial-focus` as a selector inside its own panel, so
 // the field ids serve both the <label for> and the caret placement.
+const addShelfQRId = `shelf-add-qr-${useId()}`;
 const addShelfNameId = `shelf-add-name-${useId()}`;
 const addShelfDirectoryId = `shelf-add-directory-${useId()}`;
 const addShelfSourceKindId = `shelf-add-source-kind-${useId()}`;
@@ -462,6 +499,11 @@ const {
   requestRemoveShelf,
   cancelRemoveShelf,
   confirmRemoveShelf,
+  qrText,
+  qrShelves,
+  qrResults,
+  previewQR,
+  qrStatus,
   showAddShelfModal,
   newShelfName,
   newShelfLocationMode,

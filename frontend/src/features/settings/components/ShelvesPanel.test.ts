@@ -69,6 +69,11 @@ import { setLocale } from '@/i18n';
 
 function buildManagement(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
+    qrText: ref(''),
+    qrShelves: ref([]),
+    qrResults: ref([]),
+    previewQR: vi.fn(),
+    qrStatus: (status: string) => status,
     shelves: ref([{ id: 'my-books', name: 'My Books' }]),
     retryShelf: vi.fn(),
     retryingShelfIDs: ref(new Set<string>()),
@@ -479,7 +484,7 @@ describe('ShelvesPanel', () => {
 });
 
 vi.mock('@/providers/platformCapabilities', () => ({
-  getPlatformCapabilities: () => ({ shelves: state.desktop ? {} : undefined })
+  getPlatformCapabilities: () => ({ shelves: state.desktop ? { previewLANShareQR: vi.fn() } : undefined })
 }));
 
 it('shows source and safe failure state with retry and remove, without local-only actions', async () => {
@@ -529,4 +534,28 @@ it('hides the read-only toggle while modifying a virtual shelf', () => {
   expect(host.querySelector('[data-testid="shelf-read-only"]')).toBeNull();
   expect(host.querySelector('button[role="switch"]')).toBeNull();
   app.unmount();
+});
+
+
+
+it('renders the QR preview and per-source results in the add dialog', async () => {
+  state.desktop = true;
+  const previewQR = vi.fn();
+  mgmt.value = buildManagement({
+    showAddShelfModal: ref(true),
+    newShelfLocationMode: ref('qr'),
+    qrText: ref('pasted JSON'),
+    qrShelves: ref([{ id: 'one', name: 'One', url: 'http://lan/dav/one/' }]),
+    qrResults: ref([{ name: 'Two', url: 'http://lan/dav/two/', status: 'SOURCE_UNAVAILABLE' }]),
+    previewQR
+  });
+  const { host } = mount();
+  await nextTick();
+  expect(host.querySelector('[data-testid="shelf-location-qr"]')).not.toBeNull();
+  expect(host.querySelector('[data-testid="shelf-qr-json"]')).not.toBeNull();
+  expect(host.querySelector('[data-testid="shelf-qr-preview"]')?.textContent).toContain('One — http://lan/dav/one/');
+  expect(host.querySelector('[data-testid="shelf-qr-results"]')?.textContent).toContain('Two — SOURCE_UNAVAILABLE');
+  const preview = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Preview shelves');
+  preview!.click();
+  expect(previewQR).toHaveBeenCalledOnce();
 });

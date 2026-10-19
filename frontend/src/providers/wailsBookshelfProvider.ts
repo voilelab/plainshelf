@@ -4,6 +4,8 @@ import {
   hasDesktopShelfManagementBindings,
   listDesktopShelfDetails,
   retryDesktopShelf,
+  previewDesktopLANShareQR,
+  importDesktopLANShareQR,
   addDesktopShelf,
   checkDesktopShelfSource,
   getDesktopShelfDetails,
@@ -119,6 +121,8 @@ export function createWailsPlatform(provider: BookshelfProvider): PlatformCapabi
       ...(hasDesktopShelfManagementBindings()
         ? { listShelfDetails: listDesktopShelfDetails, retryShelf: retryDesktopShelf }
         : {}),
+      previewLANShareQR: previewDesktopLANShareQR,
+      importLANShareQR: importDesktopLANShareQR,
       previewShelfID: host.previewDesktopShelfID.bind(host),
       addShelf: host.addDesktopShelf.bind(host),
       checkShelfSource: host.checkDesktopShelfSource.bind(host),

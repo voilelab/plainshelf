@@ -439,6 +439,14 @@ const en = {
       addShelfLocationExisting: 'Use a folder I already have',
       addShelfLocationExistingHelp:
         'Point PlainShelf at a folder you choose, anywhere on your disk. It is opened as it is.',
+      qrConfirm: 'Import shelves',
+      qrTitle: 'Paste a LAN share QR payload',
+      qrPaste: 'QR JSON content',
+      qrPreview: 'Preview shelves',
+      qrHelp: 'Preview first, then confirm to add all listed shelves as read-only PlainShelf sources. Failed sources are not saved. Existing sources and their tokens are kept.',
+      qrAdded: 'Added',
+      qrExists: 'Already exists; skipped',
+      qrFailed: 'Could not import this shelf',
       addShelfLocationRemote: 'Read a shelf from another device',
       addShelfLocationRemoteHelp:
         'Another PlainShelf’s LAN share or a WebDAV server such as a NAS. Opened read-only; the token is kept in the system keychain.',

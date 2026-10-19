@@ -1,3 +1,4 @@
+import type { DesktopQRShelf, DesktopQRResult } from '@/api/desktop';
 import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import type { DesktopShelfDetails } from '@/api/desktop';
 import { computed, ref, watch } from 'vue';
@@ -19,7 +20,7 @@ interface ShelfRef {
  * Where a new shelf comes from: a folder PlainShelf creates, one adopted, or
  * a remote source read as a virtual shelf.
  */
-type ShelfLocationMode = 'new' | 'existing' | 'remote';
+type ShelfLocationMode = 'new' | 'existing' | 'remote' | 'qr';
 
 /**
  * The settings page's shelf table: adding, modifying and removing a shelf, plus
@@ -114,6 +115,35 @@ export function useShelfManagement() {
   const newShelfSourceUsername = ref('');
   const newShelfSourceSecret = ref('');
   const addingShelf = ref(false);
+  const qrText = ref('');
+  const qrShelves = ref<DesktopQRShelf[]>([]);
+  const qrResults = ref<DesktopQRResult[]>([]);
+  let qrPreviewToken = 0;
+  watch(qrText, () => {
+    qrPreviewToken++;
+    qrShelves.value = [];
+    qrResults.value = [];
+  }, { flush: 'sync' });
+
+  async function previewQR(): Promise<void> {
+    const text = qrText.value;
+    const token = ++qrPreviewToken;
+    addShelfError.value = '';
+    try {
+      const shelves = await getPlatformCapabilities().shelves!.previewLANShareQR!(text);
+      if (token === qrPreviewToken) qrShelves.value = shelves;
+    } catch (err) {
+      if (token === qrPreviewToken) addShelfError.value = err instanceof Error ? err.message : t('settings.shelves.qrFailed');
+    }
+  }
+
+  function qrStatus(status: string): string {
+    if (status === 'added') return t('settings.shelves.qrAdded');
+    if (status === 'exists') return t('settings.shelves.qrExists');
+    if (status === 'failed') return t('settings.shelves.qrFailed');
+    const key = shelfSourceCheckMessageKey({ code: status, books: 0 });
+    return key ? t(key) : t('settings.shelves.qrFailed');
+  }
   // A PlainShelf export takes a bearer token, never a username.
   const sourceUsername = () =>
     newShelfSourceKind.value === 'webdav' ? newShelfSourceUsername.value.trim() : '';
@@ -167,6 +197,7 @@ export function useShelfManagement() {
   });
 
   const canSubmitAddShelf = computed(() => {
+    if (newShelfLocationMode.value === 'qr') return qrShelves.value.length > 0;
     if (newShelfName.value.trim().length === 0) {
       return false;
     }
@@ -268,6 +299,9 @@ export function useShelfManagement() {
   }
 
   function resetAddShelfForm(): void {
+    qrText.value = '';
+    qrShelves.value = [];
+    qrResults.value = [];
     newShelfName.value = '';
     newShelfLocationMode.value = 'new';
     newShelfDirectory.value = '';
@@ -337,6 +371,14 @@ export function useShelfManagement() {
 
     try {
       const platform = getPlatformCapabilities();
+      if (newShelfLocationMode.value === 'qr') {
+        const results = await platform.shelves!.importLANShareQR!(qrText.value);
+        qrText.value = '';
+        qrShelves.value = [];
+        qrResults.value = results;
+        await fetchShelves();
+        return;
+      }
       if (newShelfLocationMode.value === 'remote') {
         await addRemoteShelf(name);
         return;
@@ -495,6 +537,11 @@ export function useShelfManagement() {
     requestRemoveShelf,
     cancelRemoveShelf,
     confirmRemoveShelf,
+    qrText,
+    qrShelves,
+    qrResults,
+    previewQR,
+    qrStatus,
     showAddShelfModal,
     newShelfName,
     newShelfLocationMode,

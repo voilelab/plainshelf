@@ -1,6 +1,6 @@
 import type {
   DesktopAddShelfParams, DesktopModifyShelfParams, DesktopShelfDetails,
-  DesktopShelfIDPreview, DesktopShelfSourceParams
+  DesktopShelfIDPreview, DesktopShelfSourceParams, DesktopQRShelf, DesktopQRResult
 } from '@/api/desktop';
 import type { ShelfSourceCheck } from '@/utils/shelfSourceCheck';
 import { getShell } from './shell';
@@ -23,6 +23,8 @@ export interface StorageEstimateResult {
 /** Device operations supplied by the host; never part of the shelf HTTP API. */
 export interface PlatformCapabilities {
   shelves?: {
+    previewLANShareQR?(text: string): Promise<DesktopQRShelf[]>;
+    importLANShareQR?(text: string): Promise<DesktopQRResult[]>;
     previewShelfID(name: string): Promise<DesktopShelfIDPreview>;
     addShelf(params: DesktopAddShelfParams): Promise<void>;
     checkShelfSource(params: DesktopShelfSourceParams): Promise<ShelfSourceCheck>;

@@ -244,6 +244,32 @@ The QR code is JSON, and its shape is a promise between devices:
   the page shows an error instead of the code. The address and token are still
   shown, so add the shelves by hand, or share fewer at a time.
 
+#### Import on another desktop
+
+In **Settings → Shelves → Create shelf**, choose **Paste a LAN share QR
+payload**, paste the QR's JSON text, then click **Preview shelves**. Check the
+names and addresses before confirming with **Import shelves**. Pasting or previewing
+does not connect, save entries or store the token. This accepts text, not images.
+
+The shared Go parser (`internal/lanshare`) rejects unknown versions, missing
+fields and non-HTTP(S) addresses before any entry is created. URLs must have no
+userinfo, query or fragment, and shelf URLs must use the share root's origin.
+An empty `shelves: []` is valid but offers nothing to import.
+
+After confirmation, each shelf becomes a read-only `plainshelf` source using
+its supplied name and URL. Each source is checked before saving. A failed
+connection or refused token leaves that source unsaved; other sources are
+still attempted, and the dialog shows each result. Paste and confirm again to
+retry failures. An existing PlainShelf source with the same URL (ignoring a
+trailing slash) is skipped, including on retries: its name and token are never
+replaced. Name collisions receive the usual new shelf ID suffix.
+
+Imported tokens use the existing OS keychain flow, never `shelves.json`, logs
+or URLs. The pasted JSON is cleared after import or closing the dialog.
+The share publisher's existing `lan_share.token` storage is separate from
+imported credentials. Android scanning and Android publisher changes are
+separate features; both readers can reuse this parser and its contract tests.
+
 The first time it is turned on, the operating system's firewall may ask whether
 PlainShelf may accept incoming connections; allow it on private networks only.
 The export is plain HTTP, so share only on a network you trust; see
