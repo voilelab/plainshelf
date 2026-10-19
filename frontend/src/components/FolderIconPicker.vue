@@ -53,6 +53,12 @@ const options = computed(() => [
   display: grid;
   gap: 4px;
   grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  /* The dialog it sits in caps its height without scrolling, so on a short
+     window the grid scrolls on its own rather than push the dialog's buttons
+     out of reach. vh is divided by --app-zoom like the dialog's own cap. */
+  max-height: min(240px, calc(35vh / var(--app-zoom, 1)));
+  overflow-y: auto;
+  padding: 2px;
 }
 
 .folder-icon-option {
