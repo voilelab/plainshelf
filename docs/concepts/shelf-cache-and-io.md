@@ -412,6 +412,59 @@ three choices are the conservative one:
 Each of those costs a couple of requests for one book. The alternative is
 showing a title or current source that is quietly wrong.
 
+### Folder metadata freshness on remote shelves
+
+`folder_meta` shares the export's `timestamp`: it is the metadata observed by
+that scan, not a promise that every folder is still unchanged now. The writer
+captures the folder paths, metadata, book entries and scan timestamp together,
+so a concurrent rescan cannot mix two listings in the export or offline snapshot.
+
+A virtual shelf (`NewShelfFromFS`, including pCloud and LAN shares) takes the
+whole listing from the newest usable export and checks for another export at
+`scan_interval`. It does **not** stat individual `book.json` or `folder.json`
+files to validate that listing. The per-book mtime rule above is not applied to
+this export-backed listing; opening an individual book is a separate read. An
+icon edited on the source reaches the client after the writer next scans and
+exports, then the client refreshes. Manual rescan walks the source directly and
+revalidates its `folder.json` files.
+
+A legacy export without `folder_meta` shows default icons and makes no extra
+folder requests. It does not prevent a later export from supplying metadata.
+Exports older than the current listing are ignored; at the same timestamp second,
+a changed content digest still refreshes icons, including clearing an icon.
+
+With an offline store configured, the listing and metadata survive restart in
+the local snapshot. If the source is unavailable, the current listing or stored
+snapshot remains visible with its original freshness. Reconnecting applies the
+source's usable export again, including metadata changed within the same second.
+Without an offline store there is no persisted listing to restore on an offline
+cold start. A source with no usable export is walked at first open (or restored
+from an existing offline snapshot); later interval checks look for an export,
+and manual rescan can walk it again.
+
+### Folder metadata I/O measurement
+
+Measured on Linux with local temporary files and a counting `ReadFS`, 2026-10-19:
+40 folder directories, five with `folder.json`, and no books in the remote case.
+The local rescan case also holds one book per folder. Counts describe metadata
+costs; they are not measured SMB or pCloud latency.
+
+| Operation | Observed I/O | Folder metadata cost |
+|---|---|---|
+| Local cold scan | 41 folder directory listings | Five `folder.json` opens/reads, each also checking the opened file's stat |
+| Local warm rescan | 41 directory snapshots reused, zero directory listings | The same five opens/reads; directory mtime never substitutes for reading existing metadata |
+| Warm folder and metadata listings | Zero `ReadFS` calls within the intervals | Zero |
+| Remote cold open from one export | Open `shelf.json`, list `app/`, open one export | Zero accesses under `books/` |
+| Remote export refresh | List `app/`, open one export | Zero accesses under `books/` |
+
+The tests are `TestFolderMetaScanReadsOnlyFoldersThatHaveIt` and
+`TestFolderMetaRemoteListingIO` in `shelf/shelf_folder_meta_cache_test.go`.
+On SMB, each metadata open/read/stat may require network round trips depending
+on the OS and mount cache; five files do not imply exactly five wire requests.
+On a request-metered backend an export read may require a link lookup and a
+download, but the number does not grow per folder. Actual SMB/NAS, pCloud, LAN,
+Windows, macOS and Android transport timings were not measured here.
+
 ### Several machines, one shelf
 
 The writer ID is generated on first start and stored outside the shelf, with the

@@ -1,0 +1,85 @@
+{
+  "schema_version": 2,
+  "writer_id": "foldermeta",
+  "timestamp": 1775034000,
+  "generator": "plainshelf/0.0.0-fixture",
+  "folders": [
+    "/",
+    "Broken",
+    "Future",
+    "Iconic",
+    "Nested",
+    "Nested/Deep",
+    "Newer",
+    "Plain"
+  ],
+  "folder_meta": {
+    "Broken": {
+      "icon": "",
+      "read_only": true
+    },
+    "Future": {
+      "icon": "icon-from-a-newer-build",
+      "read_only": false
+    },
+    "Iconic": {
+      "icon": "rocket",
+      "read_only": false
+    },
+    "Nested/Deep": {
+      "icon": "moon",
+      "read_only": false
+    },
+    "Newer": {
+      "icon": "",
+      "read_only": true
+    }
+  },
+  "books": {
+    "f2p4rz8hc6vy3mde": {
+      "path": "books/Newer/two.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "f2p4rz8hc6vy3mde",
+        "title": "Two",
+        "cover": "",
+        "authors": [],
+        "language": "",
+        "comments": "",
+        "star": 0,
+        "created_at": "2026-04-01T09:00:00Z",
+        "current_source": ""
+      }
+    },
+    "f3s7jw5ub2qn8kfg": {
+      "path": "books/Plain/three.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "f3s7jw5ub2qn8kfg",
+        "title": "Three",
+        "cover": "",
+        "authors": [],
+        "language": "",
+        "comments": "",
+        "star": 0,
+        "created_at": "2026-04-01T09:00:00Z",
+        "current_source": ""
+      }
+    },
+    "f1m9td3kq7xw2nab": {
+      "path": "books/Iconic/one.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "f1m9td3kq7xw2nab",
+        "title": "One",
+        "cover": "",
+        "authors": [],
+        "language": "",
+        "comments": "",
+        "star": 0,
+        "created_at": "2026-04-01T09:00:00Z",
+        "current_source": ""
+      }
+    }
+  }
+}
