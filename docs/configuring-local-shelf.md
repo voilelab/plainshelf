@@ -268,6 +268,11 @@ any WebDAV server holding a shelf directory, such as a NAS.
   `shelves.json`. Removing the shelf removes it from the keychain.
 - If the keychain cannot answer at startup, for example because it is locked,
   that shelf is skipped and the app says so; your other shelves open as usual.
+  It remains visible in **Settings → Shelves**, with its source, URL and a safe
+  failure summary. Unlock the keychain or restore the connection, then choose
+  **Retry** to open it without restarting, or remove it there (including its
+  keychain secret). Virtual shelves have no **Open folder** action or read-only
+  toggle.
 
 The same is available in a server's config file as a
 [`source` block](concepts/shelf-sources.md#the-source-block).

@@ -70,6 +70,8 @@ import { setLocale } from '@/i18n';
 function buildManagement(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     shelves: ref([{ id: 'my-books', name: 'My Books' }]),
+    retryShelf: vi.fn(),
+    retryingShelfIDs: ref(new Set<string>()),
     shelvesLoading: ref(false),
     shelvesError: ref(''),
     ensureShelvesLoaded: vi.fn(),
@@ -476,4 +478,55 @@ describe('ShelvesPanel', () => {
   });
 });
 
-vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ shelves: state.desktop ? {} : undefined }) }));
+vi.mock('@/providers/platformCapabilities', () => ({
+  getPlatformCapabilities: () => ({ shelves: state.desktop ? {} : undefined })
+}));
+
+it('shows source and safe failure state with retry and remove, without local-only actions', async () => {
+  state.desktop = true;
+  const retryShelf = vi.fn();
+  mgmt.value = buildManagement({
+    shelves: ref([
+      { id: 'local', name: 'Local' },
+      {
+        id: 'remote',
+        name: 'Remote',
+        source: 'webdav',
+        url: 'https://example.test/shelf',
+        open_error: 'safe'
+      },
+      {
+        id: 'ready',
+        name: 'Ready',
+        source: 'plainshelf',
+        url: 'https://example.test/dav'
+      }
+    ]),
+    retryShelf
+  });
+  const { host, app } = mount();
+  const rows = host.querySelectorAll('tbody tr');
+  expect(rows[0]?.textContent).toContain('Open folder');
+  expect(rows[1]?.textContent).toContain('webdav');
+  expect(rows[1]?.textContent).toContain('https://example.test/shelf');
+  expect(rows[1]?.textContent).toContain('Could not open this virtual shelf');
+  expect(rows[1]?.textContent).not.toContain('Open folder');
+  expect(rows[1]?.textContent).not.toContain('Modify');
+  expect(rows[1]?.textContent).toContain('Delete');
+  rows[1]?.querySelector<HTMLButtonElement>('button')?.click();
+  expect(retryShelf).toHaveBeenCalledWith('remote');
+  expect(rows[2]?.textContent).not.toContain('Open folder');
+  expect(rows[2]?.textContent).toContain('Modify');
+  app.unmount();
+});
+
+it('hides the read-only toggle while modifying a virtual shelf', () => {
+  mgmt.value = buildManagement({
+    showModifyShelfModal: ref(true),
+    modifyShelfIsVirtual: ref(true)
+  });
+  const { host, app } = mount();
+  expect(host.querySelector('[data-testid="shelf-read-only"]')).toBeNull();
+  expect(host.querySelector('button[role="switch"]')).toBeNull();
+  app.unmount();
+});

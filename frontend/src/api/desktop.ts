@@ -19,6 +19,7 @@ export interface DesktopShelfDetails {
   source: ShelfSourceKind | '';
   url: string;
   username: string;
+  open_error?: string;
 }
 
 /**
@@ -98,6 +99,8 @@ interface DesktopAppBinding {
   AddShelf?: (params: DesktopAddShelfParams) => Promise<void>;
   CheckShelfSource?: (params: DesktopShelfSourceParams) => Promise<ShelfSourceCheck>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
+  ListShelfDetails?: () => Promise<DesktopShelfDetails[]>;
+  RetryShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
   ModifyShelf?: (params: DesktopModifyShelfParams) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
@@ -524,4 +527,16 @@ export async function openDesktopExternalURL(url: string): Promise<void> {
   }
 
   await desktopApp.OpenExternalURL(url);
+}
+
+export async function listDesktopShelfDetails(): Promise<DesktopShelfDetails[]> {
+  const app = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!app?.ListShelfDetails) throw new Error('ListShelfDetails binding not available');
+  return app.ListShelfDetails();
+}
+
+export async function retryDesktopShelf(id: string): Promise<void> {
+  const app = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!app?.RetryShelf) throw new Error('RetryShelf binding not available');
+  return app.RetryShelf(id);
 }

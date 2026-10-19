@@ -426,6 +426,7 @@ const zhHant = {
       addShelfDefaultPath: '將建立的資料夾：',
       addShelfDirectoryNotAbsolute: '請輸入從磁碟根目錄開始的完整路徑。',
       removeConfirmYes: '刪除書架',
+      virtualOpenFailed: '無法開啟此虛擬書架。請確認連線並解鎖鑰匙圈後重試。',
       openFolder: '開啟資料夾',
       openFolderFailed: '無法開啟書架資料夾',
       modify: '修改',

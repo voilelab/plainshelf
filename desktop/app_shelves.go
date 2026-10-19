@@ -23,6 +23,9 @@ type DesktopShelfDetails struct {
 	Source   string `json:"source"`
 	URL      string `json:"url"`
 	Username string `json:"username"`
+
+	// OpenError is a safe summary; backend errors can contain credentials.
+	OpenError string `json:"open_error"`
 }
 
 // ShelfSourceParams names a virtual shelf's source as the add-shelf form
@@ -257,6 +260,10 @@ func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, erro
 	if entry == nil {
 		return nil, util.Errorf("shelf with ID %q not found", shelfID)
 	}
+	return a.shelfDetails(*entry), nil
+}
+
+func (a *DesktopApp) shelfDetails(entry desktopShelfEntry) *DesktopShelfDetails {
 	details := &DesktopShelfDetails{
 		ID:                entry.ID,
 		Name:              entry.Name,
@@ -267,8 +274,51 @@ func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, erro
 	}
 	if entry.Source != nil {
 		details.Source, details.URL, details.Username = entry.Source.Type, entry.Source.URL, entry.Source.Username
+		if _, open := a.app.ShelfManager().GetShelf(entry.ID); !open {
+			details.OpenError = "The virtual shelf could not be opened. Check the connection and unlock the keychain, then retry."
+		}
+	}
+	return details
+}
+
+// ListShelfDetails includes configured virtual shelves that never opened. This
+// management list is separate from the runtime list used to select a shelf.
+func (a *DesktopApp) ListShelfDetails() ([]DesktopShelfDetails, error) {
+	if a.app == nil {
+		return nil, util.NewError("desktop backend app instance is nil")
+	}
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return nil, util.Errorf("loading shelf config: %w", err)
+	}
+	details := make([]DesktopShelfDetails, 0, len(conf.Shelves)+len(conf.VirtualShelves))
+	for _, entry := range append(slices.Clone(conf.Shelves), conf.VirtualShelves...) {
+		details = append(details, *a.shelfDetails(entry))
 	}
 	return details, nil
+}
+
+// RetryShelf opens a configured virtual shelf without restarting the desktop.
+// Never send raw source/keychain errors to the UI: they may contain secrets.
+func (a *DesktopApp) RetryShelf(shelfID string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+	entry := conf.find(strings.TrimSpace(shelfID))
+	if entry == nil || entry.Source == nil {
+		return util.NewError("configured virtual shelf not found")
+	}
+	if _, open := a.app.ShelfManager().GetShelf(entry.ID); open {
+		return nil
+	}
+	if err := a.app.AddShelf(toShelfConfWithID(*entry)); err != nil {
+		return util.NewError("The virtual shelf could not be opened. Check the connection and unlock the keychain, then retry.")
+	}
+	return nil
 }
 
 // ModifyShelf applies edited settings to an existing shelf.

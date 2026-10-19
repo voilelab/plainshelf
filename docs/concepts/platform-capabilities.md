@@ -135,6 +135,8 @@ interface PlatformCapabilities {
     previewShelfID(name: string): Promise<ShelfIDPreview>;
     addShelf(params: AddShelfParams): Promise<void>;
     checkShelfSource(params: ShelfSourceParams): Promise<ShelfSourceCheck>;
+    listShelfDetails?(): Promise<ShelfDetails[]>; // Includes failed virtual entries.
+    retryShelf?(shelfID: string): Promise<void>;
     getShelfDetails(shelfID: string): Promise<ShelfDetails>;
     modifyShelf(params: ModifyShelfParams): Promise<void>;
     removeShelf(shelfID: string): Promise<void>;
