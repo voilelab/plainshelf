@@ -2,6 +2,7 @@ package mobile
 
 import (
 	"encoding/json/v2"
+	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/lanshare"
@@ -22,7 +23,7 @@ func TestParseLANShareQRBridge(t *testing.T) {
 	if got.Token != "private-token" || len(got.Shelves) != 1 || got.Shelves[0].Name != "One" {
 		t.Fatal("bridge lost payload fields")
 	}
-	if out, err := ParseLANShareQR("{private-token"); err == nil || out != "" || err.Error() != "invalid QR JSON" {
-		t.Fatal("bridge lost safe parser error")
+	if out, err := ParseLANShareQR("{private-token"); err == nil || out != "" || !strings.Contains(err.Error(), "invalid QR JSON") || strings.Contains(err.Error(), "private-token") {
+		t.Fatalf("bridge lost safe parser error: output %q, error %v", out, err)
 	}
 }
