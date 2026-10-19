@@ -306,7 +306,7 @@ const { t } = useI18n();
 const route = useRoute();
 
 const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
-const { folders, metadata: folderMetadata } = useFolderStore();
+const { folders, folderMeta: folderMetadata } = useFolderStore();
 const { selectedShelfID } = useShelvesStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 const {

@@ -4,6 +4,7 @@ import { nextTick, ref } from 'vue';
 import { mount } from '../../testing/mount';
 import FolderTree from './FolderTree.vue';
 
+const metadataError = ref('');
 const mocks = vi.hoisted(() => ({ save: vi.fn(), reload: vi.fn() }));
 vi.mock('@/api/folders', () => ({ setFolderSortKey: mocks.save }));
 vi.mock('@/composables/useBookStore', () => ({
@@ -11,7 +12,7 @@ vi.mock('@/composables/useBookStore', () => ({
 }));
 vi.mock('@/composables/useFolderStore', () => ({
   useFolderStore: () => ({
-    folderMeta: ref({}), folderMetaError: ref(''),
+    folderMeta: ref({}), folderMetaError: metadataError,
     error: ref(''),
     fetchFolders: mocks.reload
   })
@@ -50,6 +51,7 @@ function drag(
 describe('folder sorting gestures', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    metadataError.value = "";
     mocks.save.mockResolvedValue(undefined);
     mocks.reload.mockResolvedValue(undefined);
   });
@@ -96,6 +98,15 @@ describe('folder sorting gestures', () => {
     drag(host, 'b', 'a', false);
     await settle();
     expect(move).toHaveBeenCalledWith({ folderPath: 'b', targetFolder: 'a' });
+  });
+  it('reports a metadata reload failure after writing instead of claiming success', async () => {
+    const { host } = mount(FolderTree, {props: {nodes, selected: undefined}});
+    (host.querySelector('button[aria-pressed]') as HTMLButtonElement).click();
+    await settle();
+    mocks.reload.mockImplementationOnce(async () => { metadataError.value = 'offline'; });
+    (host.querySelector('button[aria-label="Move b up"]') as HTMLButtonElement).click();
+    await settle();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Could not reload');
   });
   it('has no sorting controls or writes on read-only shelves', async () => {
     const { host } = mount(FolderTree, {

@@ -9,11 +9,12 @@ import {
   getMockFolders,
   moveMockFolder,
   renameMockFolder,
-  setMockFolderIcon
+  setMockFolderIcon,
+  setMockFolderSortKey
 } from './mocks/folders';
 import { FOLDER_ICON_NAMES } from '@/components/icons/folderIcons';
 import { mockTransferFolder } from './mocks/books';
-import { normalizeFolderPath, sortFolderPaths, type FolderMetadata } from '@/utils/folders';
+import { normalizeFolderPath, sortFolderPaths } from '@/utils/folders';
 
 export async function setFolderSortKey(
   path: string,
@@ -21,6 +22,11 @@ export async function setFolderSortKey(
   version: string,
   shelfID?: string
 ): Promise<void> {
+  if (isMockApiMode()) {
+    setMockFolderSortKey(path, sort_key, version);
+    await delay(undefined);
+    return;
+  }
   await fetchJson<void>(
     buildShelfApiPath(`/folder-meta/${encodeFolderPath(path)}`, shelfID),
     { method: 'PUT', body: JSON.stringify({ sort_key, version }) }
@@ -71,7 +77,7 @@ function encodeFolderPath(path: string): string {
  */
 export async function getFolders(shelfID?: string): Promise<string[]> {
   if (isMockApiMode()) {
-    return delay(getMockFolders());
+    return delay(sortFolderPaths(getMockFolders(), getMockFolderMeta()));
   }
 
   const data: unknown = await fetchJson<unknown>(buildShelfApiPath('/folders', shelfID), {

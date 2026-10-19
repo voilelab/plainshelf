@@ -81,7 +81,6 @@ export function useFolderStore() {
   return {
     folders,
     folderMeta,
-    metadata: folderMeta,
     folderMetaError,
     loading,
     error,

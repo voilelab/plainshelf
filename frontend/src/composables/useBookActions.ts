@@ -48,7 +48,7 @@ function sanitizeDownloadName(name: string): string {
  */
 export function useBookActions(options: UseBookActionsOptions = {}) {
   const router = useRouter();
-  const { folders, metadata, loaded: foldersLoaded, fetchFolders } = useFolderStore();
+  const { folders, folderMeta: metadata, loaded: foldersLoaded, fetchFolders } = useFolderStore();
   const { fetchBooks } = useBookStore();
   const { showToast } = useToasts();
   // In its own composable so the home dashboard's reading entries share it

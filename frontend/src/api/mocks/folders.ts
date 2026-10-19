@@ -45,11 +45,11 @@ const mockFolders = new Set<string>(deriveMockFoldersFromBooks());
 // Icons by folder path, standing in for each folder's folder.json. A version
 // counter plays the content hash the server hands out, so a stale write can be
 // refused the same way.
-const mockFolderIcons = new Map<string, { icon: string; version: string }>();
+const mockFolderIcons = new Map<string, { icon: string; version: string; sort_key?: number }>();
 let mockFolderMetaVersion = 0;
 
-export function getMockFolderMeta(): Record<string, { icon: string; version: string; readOnly: boolean }> {
-  const folders: Record<string, { icon: string; version: string; readOnly: boolean }> = {};
+export function getMockFolderMeta(): Record<string, { icon: string; version: string; readOnly: boolean; sort_key?: number }> {
+  const folders: Record<string, { icon: string; version: string; readOnly: boolean; sort_key?: number }> = {};
   for (const [path, meta] of mockFolderIcons) {
     folders[path] = { ...meta, readOnly: false };
   }
@@ -63,12 +63,23 @@ export function setMockFolderIcon(path: string, icon: string, version: string): 
   if ((mockFolderIcons.get(path)?.version ?? '') !== version) {
     throw new FolderMetaConflictError('folder.json changed since it was read; read it again and retry');
   }
-  if (icon === '') {
+  const current = mockFolderIcons.get(path);
+  if (icon === '' && current?.sort_key === undefined) {
     mockFolderIcons.delete(path);
     return;
   }
   mockFolderMetaVersion += 1;
-  mockFolderIcons.set(path, { icon, version: String(mockFolderMetaVersion) });
+  mockFolderIcons.set(path, { ...current, icon, version: String(mockFolderMetaVersion) });
+}
+
+export function setMockFolderSortKey(path: string, sort_key: number, version: string): void {
+  if (!mockFolders.has(path)) throw new FolderHttpError('folder not found');
+  const current = mockFolderIcons.get(path);
+  if ((current?.version ?? '') !== version) {
+    throw new FolderMetaConflictError('folder.json changed since it was read; read it again and retry');
+  }
+  mockFolderMetaVersion += 1;
+  mockFolderIcons.set(path, {icon: current?.icon ?? '', sort_key, version: String(mockFolderMetaVersion)});
 }
 
 export function getMockFolders(): string[] {
