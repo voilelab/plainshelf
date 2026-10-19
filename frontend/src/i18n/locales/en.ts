@@ -87,6 +87,17 @@ const en = {
       maintenance: 'Toggle sidebar maintenance',
       admin: 'Toggle sidebar administration'
     },
+    folderOrder: {
+      action: 'Reorder folders',
+      done: 'Finish reordering',
+      hint: 'Drag before a sibling, or use the up/down buttons. Folder locations stay the same.',
+      up: 'Move {name} up',
+      down: 'Move {name} down',
+      failed:
+        'Could not save the complete order. The saved order was reloaded; try the move again.',
+      reloadFailed:
+        'Could not reload the saved order. Reload folders before trying again.'
+    },
     createFolder: {
       add: 'Add folder',
       title: 'New folder',

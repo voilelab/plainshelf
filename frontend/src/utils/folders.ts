@@ -91,7 +91,53 @@ export function booksRouteForFolderPath(folderPath: string): BooksFolderRoute {
     : { path: '/books', query: { folders: normalized, page: '1' } };
 }
 
-export function buildFolderTreeNodes(folderPaths: string[]): FolderTreeNode[] {
+export type FolderMetadata = Record<
+  string,
+  { sort_key?: number; version: string; read_only?: boolean }
+>;
+
+function compareFolderKeys(
+  a: string,
+  b: string,
+  metadata: FolderMetadata
+): number {
+  const x = metadata[a]?.sort_key,
+    y = metadata[b]?.sort_key;
+  const hasX = typeof x === 'number' && Number.isFinite(x);
+  const hasY = typeof y === 'number' && Number.isFinite(y);
+  if (hasX !== hasY) return hasX ? -1 : 1;
+  return hasX && hasY ? x! - y! : 0;
+}
+
+/** Sort each parent independently, retaining the caller’s fallback for ties. */
+export function sortFolderPaths(
+  paths: string[],
+  metadata: FolderMetadata
+): string[] {
+  const result = [...paths];
+  const groups = new Map<string, number[]>();
+  result.forEach((path, index) => {
+    if (path === '/') return;
+    const parent = path.split('/').slice(0, -1).join('/');
+    const group = groups.get(parent) ?? [];
+    group.push(index);
+    groups.set(parent, group);
+  });
+  for (const indexes of groups.values()) {
+    const siblings = indexes
+      .map((index) => result[index]!)
+      .sort((a, b) => compareFolderKeys(a, b, metadata));
+    indexes.forEach((index, i) => {
+      result[index] = siblings[i]!;
+    });
+  }
+  return result;
+}
+
+export function buildFolderTreeNodes(
+  folderPaths: string[],
+  metadata: FolderMetadata = {}
+): FolderTreeNode[] {
   const roots: FolderTreeNode[] = [];
   const nodeByPath = new Map<string, FolderTreeNode>();
 
@@ -130,7 +176,9 @@ export function buildFolderTreeNodes(folderPaths: string[]): FolderTreeNode[] {
   }
 
   const sortNodes = (nodes: FolderTreeNode[]): void => {
-    nodes.sort((a, b) => a.name.localeCompare(b.name));
+    nodes.sort((a, b) =>
+      compareFolderKeys(a.path, b.path, metadata) || a.name.localeCompare(b.name)
+    );
     for (const node of nodes) {
       sortNodes(node.children);
     }

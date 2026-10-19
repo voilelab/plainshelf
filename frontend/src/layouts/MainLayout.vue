@@ -212,7 +212,7 @@
                 <button type="button" class="button" @click="fetchFolders">{{ t('common.retry') }}</button>
               </div>
               <FolderTree
-                v-else
+                v-show="!foldersLoading && !foldersError"
                 :nodes="folderTree"
                 :selected="currentFolder"
                 :deleting-map="deletingFolderMap"

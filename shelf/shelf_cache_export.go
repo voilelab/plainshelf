@@ -95,6 +95,7 @@ type BookCacheFile struct {
 // BookCacheFolderMeta is one folder's folder.json as exported: what a reader
 // shows, not what it writes back, so there is no version to write against.
 type BookCacheFolderMeta struct {
+	SortKey *float64 `json:"sort_key,omitzero"`
 	// Icon is the member as written; a reader shows the default icon for a
 	// name it does not offer.
 	Icon string `json:"icon,omitzero"`
@@ -357,7 +358,12 @@ func (s *Shelf) collectExportFolderMetaLocked() map[string]BookCacheFolderMeta {
 	}
 	metas := make(map[string]BookCacheFolderMeta, len(s.bookCache.folderMeta))
 	for name, meta := range s.bookCache.folderMeta {
-		metas[name] = BookCacheFolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
+		entry := BookCacheFolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
+		if meta.HasSortKey {
+			key := meta.SortKey
+			entry.SortKey = &key
+		}
+		metas[name] = entry
 	}
 	return metas
 }

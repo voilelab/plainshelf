@@ -234,6 +234,7 @@
 </template>
 
 <script setup lang="ts">
+import { sortFolderPaths } from '@/utils/folders';
 import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -305,7 +306,7 @@ const { t } = useI18n();
 const route = useRoute();
 
 const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
-const { folders } = useFolderStore();
+const { folders, metadata: folderMetadata } = useFolderStore();
 const { selectedShelfID } = useShelvesStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 const {
@@ -334,7 +335,7 @@ const booksLoaded = ref<boolean>(false);
 // runtime does not change during a session, but a computed keeps it consistent
 // with the other environment checks used in the template.
 const isMobileEnv = computed(() => isMobileRuntime());
-const folderOptions = computed(() => [...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort());
+const folderOptions = computed(() => sortFolderPaths([...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort(), folderMetadata.value));
 const visibleBookIds = computed(() => visibleBooks.value.map((book) => book.id));
 
 // Character counts are not part of the shared listing: asking for them makes

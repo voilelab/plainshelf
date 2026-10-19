@@ -18,17 +18,20 @@
     "Future": {
       "icon": "",
       "icon_on_disk": "icon-from-a-newer-build",
-      "read_only": false
+      "read_only": false,
+      "sort_key": -2.5
     },
     "Iconic": {
       "icon": "rocket",
       "icon_on_disk": "rocket",
-      "read_only": false
+      "read_only": false,
+      "sort_key": -1
     },
     "Nested/Deep": {
       "icon": "moon",
       "icon_on_disk": "moon",
-      "read_only": false
+      "read_only": false,
+      "sort_key": 0
     },
     "Newer": {
       "icon": "",

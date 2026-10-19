@@ -399,7 +399,41 @@ func (s *Shelf) listFoldersFromCache() []FolderPath {
 	for i, folder := range s.bookCache.folders {
 		folders[i] = slices.Clone(folder)
 	}
+	sortFolderSiblings(folders, s.bookCache.folderMeta)
 	return folders
+}
+
+// sortFolderSiblings preserves the legacy positions of other parents.
+func sortFolderSiblings(folders []FolderPath, metas map[string]FolderMeta) {
+	groups := map[string][]int{}
+	for i, f := range folders {
+		if len(f) > 0 {
+			parent := FolderPath(f[:len(f)-1]).String()
+			groups[parent] = append(groups[parent], i)
+		}
+	}
+	for _, indexes := range groups {
+		siblings := make([]FolderPath, len(indexes))
+		for i, index := range indexes {
+			siblings[i] = folders[index]
+		}
+		slices.SortStableFunc(siblings, func(a, b FolderPath) int {
+			x, y := metas[a.String()], metas[b.String()]
+			if x.HasSortKey != y.HasSortKey {
+				if x.HasSortKey {
+					return -1
+				}
+				return 1
+			}
+			if x.HasSortKey {
+				return cmp.Compare(x.SortKey, y.SortKey)
+			}
+			return 0
+		})
+		for i, index := range indexes {
+			folders[index] = siblings[i]
+		}
+	}
 }
 
 // addFolderToBookCache records a folder and every ancestor it needed, so that a

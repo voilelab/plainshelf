@@ -5,6 +5,7 @@ import { createShelfInitRetry, isShelfInitializing } from './shelfInitRetry';
 import { t } from '@/i18n';
 
 const folders = ref<string[]>([]);
+const folderMetaError = ref('');
 // Keyed by folder path; a folder absent here shows the default icon.
 const folderMeta = ref<Record<string, FolderMeta>>({});
 const loading = ref(false);
@@ -52,6 +53,7 @@ async function run(isAutoRetry: boolean): Promise<void> {
 // Icons are decoration: a listing that fails, or a backend without one, leaves
 // every folder on the default icon rather than failing the folder tree.
 async function loadFolderMeta(): Promise<Record<string, FolderMeta>> {
+  folderMetaError.value = '';
   const provider = getBookshelfProvider();
   if (!provider.listFolderMeta) {
     return {};
@@ -59,6 +61,7 @@ async function loadFolderMeta(): Promise<Record<string, FolderMeta>> {
   try {
     return (await provider.listFolderMeta()).folders;
   } catch {
+    folderMetaError.value = t('layout.folderOrder.reloadFailed');
     return {};
   }
 }
@@ -78,6 +81,8 @@ export function useFolderStore() {
   return {
     folders,
     folderMeta,
+    metadata: folderMeta,
+    folderMetaError,
     loading,
     error,
     loaded,

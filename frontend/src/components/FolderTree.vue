@@ -1,5 +1,18 @@
 <template>
   <nav class="sidebar-nav-list" :aria-label="t('layout.foldersNavLabel')">
+    <button
+      v-if="!readOnly"
+      type="button"
+      :aria-pressed="sorting"
+      :disabled="savingOrder"
+      @click="sorting = !sorting"
+    >
+      {{
+        sorting ? t('layout.folderOrder.done') : t('layout.folderOrder.action')
+      }}
+    </button>
+    <p v-if="sorting" role="status">{{ t('layout.folderOrder.hint') }}</p>
+    <p v-if="orderError" role="alert">{{ orderError }}</p>
     <ContextMenuRoot>
       <ContextMenuTrigger as-child :disabled="readOnly">
         <div
@@ -79,6 +92,28 @@
               {{ item.value.name }}
             </button>
             <span class="sidebar-nav-count">{{ folderBookCount(item.value) }}</span>
+            <template v-if="sorting && canManageFolder(item.value)">
+              <button
+                type="button"
+                :aria-label="
+                  t('layout.folderOrder.up', { name: item.value.name })
+                "
+                :disabled="savingOrder || !orderNeighbor(item.value.path, -1)"
+                @click.stop="stepOrder(item.value.path, -1)"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                :aria-label="
+                  t('layout.folderOrder.down', { name: item.value.name })
+                "
+                :disabled="savingOrder || !orderNeighbor(item.value.path, 1)"
+                @click.stop="stepOrder(item.value.path, 1)"
+              >
+                ↓
+              </button>
+            </template>
           </TreeItem>
         </ContextMenuTrigger>
         <ContextMenuPortal>
@@ -148,6 +183,10 @@ import type { FolderMeta } from '@/api/folders';
 import { useBookStore } from '@/composables/useBookStore';
 import { useI18n } from '@/i18n';
 import { getFolderPath } from '@/utils/folders';
+import { planFolderOrder } from '@/utils/folderOrder';
+import { setFolderSortKey } from '@/api/folders';
+import { getActiveShelfID } from '@/api/client';
+import { useFolderStore } from '@/composables/useFolderStore';
 
 type FolderNode = {
   name: string;
@@ -179,6 +218,64 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const { folderMeta, folderMetaError, fetchFolders, error: folderLoadError } = useFolderStore();
+const sorting = ref(false);
+const savingOrder = ref(false);
+const orderError = ref('');
+const SORT_MIME = 'application/x-plainshelf-folder-sort';
+function siblingsOf(path: string): string[] {
+  const parent = path.split('/').slice(0, -1).join('/');
+  const nodes = parent
+    ? (findNodeByPath(props.nodes, parent)?.children ?? [])
+    : props.nodes;
+  return nodes.filter((node) => node.path !== '/').map((node) => node.path);
+}
+function orderNeighbor(path: string, direction: number): string | undefined {
+  const siblings = siblingsOf(path);
+  return siblings[siblings.indexOf(path) + direction];
+}
+function stepOrder(path: string, direction: number): void {
+  const neighbor = orderNeighbor(path, direction);
+  if (!neighbor) return;
+  // Moving down is equivalent to moving the next sibling before this one.
+  void saveOrder(
+    direction < 0 ? path : neighbor,
+    direction < 0 ? neighbor : path
+  );
+}
+async function saveOrder(source: string, target: string): Promise<void> {
+  if (props.readOnly || savingOrder.value || !sorting.value) return;
+  const shelfID = getActiveShelfID();
+  const plan = planFolderOrder(
+    siblingsOf(target),
+    source,
+    target,
+    folderMeta.value
+  );
+  if (!plan.length) return;
+  savingOrder.value = true;
+  orderError.value = '';
+  try {
+    for (const change of plan) {
+      if (props.readOnly || shelfID !== getActiveShelfID())
+        throw new Error('Shelf changed');
+      await setFolderSortKey(change.path, change.key, change.version, shelfID);
+    }
+  } catch {
+    orderError.value = t('layout.folderOrder.failed');
+  } finally {
+    await fetchFolders();
+    if (folderLoadError.value || folderMetaError.value)
+      orderError.value = t('layout.folderOrder.reloadFailed');
+    savingOrder.value = false;
+  }
+}
+watch(
+  () => props.readOnly,
+  (value) => {
+    if (value) sorting.value = false;
+  }
+);
 const { books } = useBookStore();
 
 const totalBookCount = computed(() => books.value.length);
@@ -256,7 +353,7 @@ function showDeleteButton(node: FolderNode): boolean {
 }
 
 function canDragFolder(node: FolderNode): boolean {
-  return canManageFolder(node) && !props.readOnly;
+  return canManageFolder(node) && !props.readOnly && !savingOrder.value;
 }
 
 function isDeleting(node: FolderNode): boolean {
@@ -310,11 +407,19 @@ function onDragStart(event: DragEvent, node: FolderNode): void {
     return;
   }
 
-  event.dataTransfer?.setData('application/x-plainshelf-folder-path', node.path);
+  event.dataTransfer?.setData(
+    sorting.value ? SORT_MIME : 'application/x-plainshelf-folder-path',
+    node.path
+  );
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
   }
-  startDragFolder({ folderPath: node.path, folderName: node.name, x: event.clientX, y: event.clientY });
+  startDragFolder({
+    folderPath: node.path,
+    folderName: node.name,
+    x: event.clientX,
+    y: event.clientY
+  });
 }
 
 function onDragEnd(node: FolderNode): void {
@@ -349,14 +454,30 @@ function onDrop(event: DragEvent, node: FolderNode): void {
     return;
   }
 
+  const sortedPath = event.dataTransfer?.getData(SORT_MIME);
+  if (sortedPath) {
+    void saveOrder(sortedPath, node.path);
+    return;
+  }
+  if (sorting.value) return;
   const draggedBooks = readDraggedBookIDs(event.dataTransfer);
   if (draggedBooks.ids.length > 0) {
-    emit('move-book', { bookIds: draggedBooks.ids, targetFolder: node.path, batch: draggedBooks.batch });
+    emit('move-book', {
+      bookIds: draggedBooks.ids,
+      targetFolder: node.path,
+      batch: draggedBooks.batch
+    });
     return;
   }
 
-  const folderPath = event.dataTransfer?.getData('application/x-plainshelf-folder-path');
-  if (!folderPath || folderPath === node.path || node.path.startsWith(`${folderPath}/`)) {
+  const folderPath = event.dataTransfer?.getData(
+    'application/x-plainshelf-folder-path'
+  );
+  if (
+    !folderPath ||
+    folderPath === node.path ||
+    node.path.startsWith(`${folderPath}/`)
+  ) {
     return;
   }
   emit('move-folder', { folderPath, targetFolder: node.path });
@@ -384,14 +505,28 @@ function onRootDragLeave(event: DragEvent): void {
 function onRootDrop(event: DragEvent): void {
   isRootDropTarget.value = false;
 
+  if (
+    props.readOnly ||
+    sorting.value ||
+    event.dataTransfer?.getData(SORT_MIME)
+  ) {
+    endDragFolder();
+    return;
+  }
   const draggedBooks = readDraggedBookIDs(event.dataTransfer);
   if (draggedBooks.ids.length > 0) {
-    emit('move-book', { bookIds: draggedBooks.ids, targetFolder: '/', batch: draggedBooks.batch });
+    emit('move-book', {
+      bookIds: draggedBooks.ids,
+      targetFolder: '/',
+      batch: draggedBooks.batch
+    });
     endDragFolder();
     return;
   }
 
-  const folderPath = event.dataTransfer?.getData('application/x-plainshelf-folder-path');
+  const folderPath = event.dataTransfer?.getData(
+    'application/x-plainshelf-folder-path'
+  );
   if (folderPath) {
     emit('move-folder', { folderPath, targetFolder: '/' });
   }

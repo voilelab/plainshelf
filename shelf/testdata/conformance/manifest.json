@@ -51,7 +51,7 @@
     },
     {
       "name": "folder-metadata",
-      "covers": "folder.json in folder directories: a supported icon is read; an icon a newer build offers reads as the default while its value is still read, beside members this build does not know (a nested object, sort_key); a file with no schema_version reads as v1; a malformed file and a newer schema_version read as no metadata and refuse writes; a folder holding only folder.json is still a folder; books/folder.json gives the root nothing; and none of these files is a book or a folder."
+      "covers": "folder.json in folder directories: a supported icon is read; an icon a newer build offers reads as the default while its value is still read, beside unknown nested members; finite sort_key values including zero and negatives survive local and remote cache reads; a file with no schema_version reads as v1; a malformed file and a newer schema_version read as no metadata and refuse writes; a folder holding only folder.json is still a folder; books/folder.json gives the root nothing; and none of these files is a book or a folder."
     }
   ]
 }

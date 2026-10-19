@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"math"
 	"path"
 	"slices"
 	"strings"
@@ -89,6 +90,10 @@ func IsFolderIcon(name string) bool {
 
 // FolderMeta is one folder's folder.json as this build reads it.
 type FolderMeta struct {
+	// SortKey orders siblings when HasSortKey is true; zero and negatives are valid.
+	SortKey    float64
+	HasSortKey bool
+
 	// Icon is the icon member as written, "" when absent, of the wrong type, or
 	// unreadable. It may name an icon this build does not offer; see
 	// DisplayIcon.
@@ -177,7 +182,19 @@ func folderMetaFromData(data []byte) (FolderMeta, error) {
 	if _, err := obj.Lookup(folderMetaIconKey, &icon); err == nil {
 		meta.Icon = icon
 	}
+	var key float64
+	if found, err := obj.Lookup("sort_key", &key); found && err == nil && strings.TrimSpace(string(obj["sort_key"])) != "null" && !math.IsNaN(key) && !math.IsInf(key, 0) {
+		meta.SortKey, meta.HasSortKey = key, true
+	}
 	return meta, nil
+}
+
+// SetFolderSortKey changes only sort_key, preserving icons and unknown members.
+func (s *Shelf) SetFolderSortKey(folder FolderPath, key float64, version string) error {
+	if math.IsNaN(key) || math.IsInf(key, 0) {
+		return util.NewError("sort_key must be finite")
+	}
+	return s.updateFolderMeta(folder, version, func(obj jsonopt.Object) error { return obj.Set("sort_key", key) })
 }
 
 // SetFolderIcon sets folder's icon, or clears it when icon is "". version is the

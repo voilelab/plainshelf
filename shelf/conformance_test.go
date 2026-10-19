@@ -55,9 +55,10 @@ type conformanceReading struct {
 
 // conformanceFolderMeta is one folder's folder.json as the shelf reads it.
 type conformanceFolderMeta struct {
-	Icon       string `json:"icon"`
-	IconOnDisk string `json:"icon_on_disk"`
-	ReadOnly   bool   `json:"read_only"`
+	SortKey    *float64 `json:"sort_key,omitzero"`
+	Icon       string   `json:"icon"`
+	IconOnDisk string   `json:"icon_on_disk"`
+	ReadOnly   bool     `json:"read_only"`
 }
 
 type conformanceBook struct {
@@ -349,9 +350,15 @@ func readConformanceFolderMeta(t *testing.T, s *Shelf) map[string]conformanceFol
 	}
 	reading := map[string]conformanceFolderMeta{}
 	for name, meta := range metas {
+		var key *float64
+		if meta.HasSortKey {
+			value := meta.SortKey
+			key = &value
+		}
 		reading[name] = conformanceFolderMeta{
 			Icon:       meta.DisplayIcon(),
 			IconOnDisk: meta.Icon,
+			SortKey:    key,
 			ReadOnly:   meta.ReadOnly,
 		}
 	}

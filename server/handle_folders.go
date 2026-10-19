@@ -304,6 +304,7 @@ type folderMetaResponse struct {
 }
 
 type folderMetaJSON struct {
+	SortKey *float64 `json:"sort_key,omitzero"`
 	// Icon is "" for the default icon, which includes a name this server does
 	// not offer.
 	Icon string `json:"icon"`
@@ -340,12 +341,18 @@ func (h *folderHandlers) getFolderMeta(w http.ResponseWriter, r *http.Request) {
 		if !visible[name] {
 			continue
 		}
-		resp.Folders[name] = folderMetaJSON{Icon: meta.DisplayIcon(), Version: meta.Version, ReadOnly: meta.ReadOnly}
+		entry := folderMetaJSON{Icon: meta.DisplayIcon(), Version: meta.Version, ReadOnly: meta.ReadOnly}
+		if meta.HasSortKey {
+			key := meta.SortKey
+			entry.SortKey = &key
+		}
+		resp.Folders[name] = entry
 	}
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
 type setFolderMetaRequest struct {
+	SortKey *float64 `json:"sort_key"`
 	// Icon is the icon to set, "" to clear it.
 	Icon string `json:"icon"`
 
@@ -392,7 +399,12 @@ func (h *folderHandlers) setFolderMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := shelfData.SetFolderIcon(folderParts, req.Icon, req.Version); err != nil {
+	if req.SortKey != nil {
+		err = shelfData.SetFolderSortKey(folderParts, *req.SortKey, req.Version)
+	} else {
+		err = shelfData.SetFolderIcon(folderParts, req.Icon, req.Version)
+	}
+	if err != nil {
 		h.writeErr(w, r, err, "failed to set folder metadata")
 		return
 	}
