@@ -229,18 +229,17 @@ describe('setFolderIcon', () => {
   });
 });
 
-describe('folder sibling order API', () => {
- it('applies keys after the legacy locale fallback rather than overwriting them', async () => {
+describe('folder path listing', () => {
+ it('does not request optional metadata or fail when it is unavailable', async () => {
   const { getFolders } = await import('./folders');
-  fetchJsonMock.mockResolvedValueOnce([[], ['a'], ['b'], ['a','z'], ['a','m']]);
-  fetchJsonMock.mockResolvedValueOnce({folders: {b: {sort_key:0,version:''}, 'a/z': {sort_key:-2,version:''}}});
-  expect(await getFolders()).toEqual(['/','b','a/z','a/m','a']);
- });
- it('retains the exact previous locale order when no folder has a key', async () => {
-  const { getFolders } = await import('./folders');
+  fetchJsonMock.mockReset();
   const paths = ['Z','a','A','á','中','a/z','a/m'];
-  fetchJsonMock.mockResolvedValueOnce(paths.map(path => path.split('/')));
-  fetchJsonMock.mockResolvedValueOnce({folders: {}});
+  fetchJsonMock.mockImplementation(async (path: string) => {
+    if (path !== '/folders') throw new ApiError('metadata not supported', {status:404});
+    return paths.map(path => path.split('/'));
+  });
   expect(await getFolders()).toEqual([...paths].sort((a,b)=>a.localeCompare(b)));
+  expect(fetchJsonMock).toHaveBeenCalledTimes(1);
+  fetchJsonMock.mockReset();
  });
 });

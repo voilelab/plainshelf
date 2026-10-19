@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"net/http"
 	"strings"
@@ -351,10 +352,12 @@ func (h *folderHandlers) getFolderMeta(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
+// Raw members preserve presence: null must not dispatch as an icon edit, and
+// a request must not silently drop one of two supplied settings.
 type setFolderMetaRequest struct {
-	SortKey *float64 `json:"sort_key"`
+	SortKey jsontext.Value `json:"sort_key"`
 	// Icon is the icon to set, "" to clear it.
-	Icon string `json:"icon"`
+	Icon jsontext.Value `json:"icon"`
 
 	// Version is the folder's version from GET .../folder-meta, "" for a
 	// folder it did not list.
@@ -380,6 +383,18 @@ func (h *folderHandlers) setFolderMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var sortKey float64
+	var icon string
+	if len(req.SortKey) > 0 {
+		if len(req.Icon) > 0 || strings.TrimSpace(string(req.SortKey)) == "null" || json.Unmarshal(req.SortKey, &sortKey) != nil {
+			http.Error(w, "send a finite sort_key alone; null and combined icon writes are not supported", http.StatusBadRequest)
+			return
+		}
+	} else if len(req.Icon) > 0 && json.Unmarshal(req.Icon, &icon) != nil {
+		http.Error(w, "invalid icon", http.StatusBadRequest)
+		return
+	}
+
 	if !h.validFolderPaths(w, r, shelfData, folderParts) {
 		return
 	}
@@ -399,10 +414,10 @@ func (h *folderHandlers) setFolderMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.SortKey != nil {
-		err = shelfData.SetFolderSortKey(folderParts, *req.SortKey, req.Version)
+	if len(req.SortKey) > 0 {
+		err = shelfData.SetFolderSortKey(folderParts, sortKey, req.Version)
 	} else {
-		err = shelfData.SetFolderIcon(folderParts, req.Icon, req.Version)
+		err = shelfData.SetFolderIcon(folderParts, icon, req.Version)
 	}
 	if err != nil {
 		h.writeErr(w, r, err, "failed to set folder metadata")

@@ -1,6 +1,7 @@
 import type { FolderMetadata } from './folders';
 
-/** Move before the target; only siblings are legal. One key normally suffices.
+/** Move before the target; only siblings are legal. Fully keyed groups can
+ * update one file; unkeyed or duplicate groups require full normalization.
  * Missing/duplicate keys or exhausted floating point gaps normalize all siblings.
  * Writes are individually versioned, never a cross-file transaction. */
 export function planFolderOrder(

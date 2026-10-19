@@ -109,28 +109,32 @@ function compareFolderKeys(
   return hasX && hasY ? x! - y! : 0;
 }
 
-/** Sort each parent independently, retaining the caller’s fallback for ties. */
-export function sortFolderPaths(
-  paths: string[],
-  metadata: FolderMetadata
-): string[] {
-  const result = [...paths];
-  const groups = new Map<string, number[]>();
-  result.forEach((path, index) => {
-    if (path === '/') return;
+/** Keep the exact legacy order without keys; otherwise emit whole subtrees. */
+export function sortFolderPaths(paths: string[], metadata: FolderMetadata): string[] {
+  if (!paths.some(path => Number.isFinite(metadata[path]?.sort_key))) return [...paths];
+  const present = new Set(paths);
+  const children = new Map<string, string[]>();
+  const seen = new Set<string>();
+  function add(path: string): void {
+    if (!path || path === '/' || seen.has(path)) return;
     const parent = path.split('/').slice(0, -1).join('/');
-    const group = groups.get(parent) ?? [];
-    group.push(index);
-    groups.set(parent, group);
-  });
-  for (const indexes of groups.values()) {
-    const siblings = indexes
-      .map((index) => result[index]!)
-      .sort((a, b) => compareFolderKeys(a, b, metadata));
-    indexes.forEach((index, i) => {
-      result[index] = siblings[i]!;
-    });
+    add(parent);
+    seen.add(path);
+    const siblings = children.get(parent) ?? [];
+    siblings.push(path);
+    children.set(parent, siblings);
   }
+  paths.forEach(add);
+  const result: string[] = paths.filter(path => path === '/' || path === '');
+  function visit(parent: string): void {
+    const siblings = children.get(parent) ?? [];
+    siblings.sort((a, b) => compareFolderKeys(a, b, metadata));
+    for (const path of siblings) {
+      if (present.has(path)) result.push(path);
+      visit(path);
+    }
+  }
+  visit('');
   return result;
 }
 

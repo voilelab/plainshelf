@@ -38,6 +38,7 @@ import {
   updateSourceContent
 } from '@/api/sources';
 import { type FolderChangeOptions, type FolderMetaListing, getFolderMeta, getFolders, transferFolder } from '@/api/folders';
+import { sortFolderPaths } from '@/utils/folders';
 import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
@@ -96,8 +97,14 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return copyBook(bookId, folder);
   }
 
-  listShelfFolders(shelfID: string): Promise<string[]> {
-    return getFolders(shelfID);
+  async listShelfFolders(shelfID: string): Promise<string[]> {
+    const folders = await getFolders(shelfID);
+    try {
+      return sortFolderPaths(folders, (await getFolderMeta(shelfID)).folders);
+    } catch {
+      // Metadata is optional, including on older target servers.
+      return folders;
+    }
   }
 
   transferBook(

@@ -3,6 +3,7 @@
     <button
       v-if="!readOnly"
       type="button"
+      class="folder-order-toggle"
       :aria-pressed="sorting"
       :disabled="savingOrder"
       @click="sorting = !sorting"
@@ -95,6 +96,7 @@
             <template v-if="sorting && canManageFolder(item.value)">
               <button
                 type="button"
+                class="tree-toggle folder-order-step"
                 :aria-label="
                   t('layout.folderOrder.up', { name: item.value.name })
                 "
@@ -105,6 +107,7 @@
               </button>
               <button
                 type="button"
+                class="tree-toggle folder-order-step"
                 :aria-label="
                   t('layout.folderOrder.down', { name: item.value.name })
                 "
@@ -584,6 +587,20 @@ watch(
 </script>
 
 <style scoped>
+.folder-order-toggle {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 8px;
+}
+.folder-order-toggle[aria-pressed="true"] { background: var(--surface); }
+.folder-order-toggle:disabled,
+.folder-order-step:disabled { opacity: 0.5; cursor: default; }
+
 .folder-tree-root {
   display: flex;
   flex-direction: column;

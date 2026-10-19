@@ -403,20 +403,36 @@ func (s *Shelf) listFoldersFromCache() []FolderPath {
 	return folders
 }
 
-// sortFolderSiblings preserves the legacy positions of other parents.
+// sortFolderSiblings emits a pre-order traversal when keys apply, moving each
+// folder with its descendants. With no keys, the exact legacy flat order stays.
 func sortFolderSiblings(folders []FolderPath, metas map[string]FolderMeta) {
-	groups := map[string][]int{}
-	for i, f := range folders {
-		if len(f) > 0 {
-			parent := FolderPath(f[:len(f)-1]).String()
-			groups[parent] = append(groups[parent], i)
-		}
+	if !slices.ContainsFunc(folders, func(f FolderPath) bool { return metas[f.String()].HasSortKey }) {
+		return
 	}
-	for _, indexes := range groups {
-		siblings := make([]FolderPath, len(indexes))
-		for i, index := range indexes {
-			siblings[i] = folders[index]
+	children := map[string][]FolderPath{}
+	present := map[string]bool{}
+	seen := map[string]bool{}
+	var add func(FolderPath)
+	add = func(folder FolderPath) {
+		if len(folder) == 0 || seen[folder.String()] {
+			return
 		}
+		parent := folder[:len(folder)-1]
+		add(parent)
+		seen[folder.String()] = true
+		children[parent.String()] = append(children[parent.String()], folder)
+	}
+	for _, folder := range folders {
+		present[folder.String()] = true
+		add(folder)
+	}
+	result := make([]FolderPath, 0, len(folders))
+	if present[""] {
+		result = append(result, FolderPath{})
+	}
+	var visit func(string)
+	visit = func(parent string) {
+		siblings := children[parent]
 		slices.SortStableFunc(siblings, func(a, b FolderPath) int {
 			x, y := metas[a.String()], metas[b.String()]
 			if x.HasSortKey != y.HasSortKey {
@@ -430,10 +446,15 @@ func sortFolderSiblings(folders []FolderPath, metas map[string]FolderMeta) {
 			}
 			return 0
 		})
-		for i, index := range indexes {
-			folders[index] = siblings[i]
+		for _, folder := range siblings {
+			if present[folder.String()] {
+				result = append(result, folder)
+			}
+			visit(folder.String())
 		}
 	}
+	visit("")
+	copy(folders, result)
 }
 
 // addFolderToBookCache records a folder and every ancestor it needed, so that a

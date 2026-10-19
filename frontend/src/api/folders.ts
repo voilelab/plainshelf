@@ -14,7 +14,7 @@ import {
 } from './mocks/folders';
 import { FOLDER_ICON_NAMES } from '@/components/icons/folderIcons';
 import { mockTransferFolder } from './mocks/books';
-import { normalizeFolderPath, sortFolderPaths } from '@/utils/folders';
+import { normalizeFolderPath } from '@/utils/folders';
 
 export async function setFolderSortKey(
   path: string,
@@ -77,7 +77,7 @@ function encodeFolderPath(path: string): string {
  */
 export async function getFolders(shelfID?: string): Promise<string[]> {
   if (isMockApiMode()) {
-    return delay(sortFolderPaths(getMockFolders(), getMockFolderMeta()));
+    return delay(getMockFolders());
   }
 
   const data: unknown = await fetchJson<unknown>(buildShelfApiPath('/folders', shelfID), {
@@ -95,10 +95,7 @@ export async function getFolders(shelfID?: string): Promise<string[]> {
     }
   }
 
-  return sortFolderPaths(
-    Array.from(unique).sort((a, b) => a.localeCompare(b)),
-    (await getFolderMeta(shelfID)).folders
-  );
+  return Array.from(unique).sort((a, b) => a.localeCompare(b));
 }
 
 /** Which cross-shelf conflict a folder transfer was refused for. */

@@ -30,7 +30,7 @@ func TestFolderSortKeyParsingAndPreservingMembers(t *testing.T) {
 	}
 }
 
-func TestSortFolderSiblingsKeepsLegacyPositions(t *testing.T) {
+func TestSortFolderSiblingsKeepsLegacyFallbackAndWholeSubtrees(t *testing.T) {
 	paths := []FolderPath{{}, {"a"}, {"a", "child"}, {"b"}, {"c"}, {"d"}}
 	original := slices.Clone(paths)
 	sortFolderSiblings(paths, nil)
@@ -42,7 +42,7 @@ func TestSortFolderSiblingsKeepsLegacyPositions(t *testing.T) {
 	for _, p := range paths {
 		got = append(got, p.String())
 	}
-	if !slices.Equal(got, []string{"", "c", "a/child", "b", "d", "a"}) {
+	if !slices.Equal(got, []string{"", "c", "b", "d", "a", "a/child"}) {
 		t.Fatal(got)
 	}
 }

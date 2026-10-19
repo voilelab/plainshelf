@@ -15,10 +15,18 @@ describe('folder ordering', () => {
     expect(tree[1]!.children.map((n) => n.path)).toEqual(['a/z', 'a/m']);
     expect(sortFolderPaths(['a', 'a/m', 'a/z', 'b'], meta)).toEqual([
       'b',
+      'a',
       'a/z',
-      'a/m',
-      'a'
+      'a/m'
     ]);
+  });
+  it('moves complete subtrees while keeping the unkeyed legacy fallback exact', () => {
+    const paths = ['A', 'A-branch', 'A/x', 'B', 'B/y', 'B/y/z'];
+    expect(sortFolderPaths(paths, {})).toEqual(paths);
+    expect(sortFolderPaths(paths, {B: {version: '', sort_key: 0}})).toEqual([
+      'B', 'B/y', 'B/y/z', 'A', 'A/x', 'A-branch'
+    ]);
+    expect(sortFolderPaths(['A/x', 'B/y'], {'B/y': {version:'', sort_key:0}})).toEqual(['A/x','B/y']);
   });
   it('keeps duplicate keys stable and ignores invalid numbers', () => {
     const metadata = {

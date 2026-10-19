@@ -192,3 +192,17 @@ func TestAPIFolderSortKeyContract(t *testing.T) {
 	}
 	apitest.AssertStatus(t, env.Put(apitest.ShelfURL("folder-meta", "A"), strings.NewReader(`{"sort_key":"bad"}`)), http.StatusBadRequest)
 }
+
+func TestAPIFolderMetaRejectsAmbiguousSortWritesWithoutChangingIcon(t *testing.T) {
+	env := apitest.New(t)
+	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("folders", "A"), nil), http.StatusNoContent)
+	apitest.AssertStatus(t, putFolderIcon(env, "A", "moon", ""), http.StatusNoContent)
+	before := getFolderMeta(t, env).Folders["A"]
+	for _, fields := range []string{`"sort_key":null`, `"sort_key":3,"icon":"star"`, `"sort_key":3,"icon":null`} {
+		body := `{` + fields + `,"version":"` + before.Version + `"}`
+		apitest.AssertStatus(t, env.Put(apitest.ShelfURL("folder-meta", "A"), strings.NewReader(body)), http.StatusBadRequest)
+		if after := getFolderMeta(t, env).Folders["A"]; after != before {
+			t.Fatalf("refused write changed metadata: %+v", after)
+		}
+	}
+}
