@@ -284,9 +284,10 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 }
 
 // pruneSourceFolder removes the now-empty folders a completed move left under the
-// source folder. It leans on DeleteFolder, which refuses a non-empty folder, so a
-// book that failed to move (still on the source) or a package the scan could not
-// read keeps its folder - the move never deletes anything it did not carry.
+// source folder. It leans on PruneFolder, which refuses a non-empty folder, so a
+// book that failed to move (still on the source), a package the scan could not
+// read, or a folder.json the transfer does not carry yet (PSW-178) keeps its
+// folder - the move never deletes anything it did not carry.
 // Deepest folders first, so a parent is empty by the time it is reached.
 func (t *folderTransferTask) pruneSourceFolder() {
 	folders, err := t.source.GetAllFolders()
@@ -312,7 +313,7 @@ func (t *folderTransferTask) pruneSourceFolder() {
 	for _, l := range under {
 		// A non-empty folder (a failed book or an unreadable package) is left in
 		// place, exactly as the shelf's own folder move does.
-		_ = t.source.DeleteFolder(l)
+		_ = t.source.PruneFolder(l)
 	}
 }
 

@@ -3,6 +3,7 @@
     "/",
     "Fiction"
   ],
+  "folder_meta": {},
   "books": [
     {
       "path": "books/Fiction/solaris.bookpkg",

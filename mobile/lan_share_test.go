@@ -3,6 +3,7 @@ package mobile
 import (
 	"encoding/json/v2"
 	"errors"
+	"github.com/voilelab/plainshelf/internal/lanshare"
 	"github.com/voilelab/plainshelf/internal/lanshareqr"
 	"io"
 	"net"
@@ -289,7 +290,7 @@ func TestLANShareQRUsesCurrentSelectionAndNames(t *testing.T) {
 	a := createShelf(t, "Phone")
 	b := createShelf(t, "Private")
 	st := startShare(t, a)
-	expected, err := lanshareqr.Encode(lanshareqr.Payload{V: 1, URL: st.URL, Token: st.Token, Shelves: []lanshareqr.Shelf{{ID: a, Name: "Phone", URL: st.URL + a + "/"}}})
+	expected, err := lanshareqr.Encode(lanshare.Payload{V: 1, URL: st.URL, Token: st.Token, Shelves: []lanshare.Shelf{{ID: a, Name: "Phone", URL: st.URL + a + "/"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +298,7 @@ func TestLANShareQRUsesCurrentSelectionAndNames(t *testing.T) {
 		t.Fatal("QR does not encode the v1 connection details")
 	}
 	next := startShare(t, b)
-	expected, err = lanshareqr.Encode(lanshareqr.Payload{V: 1, URL: st.URL, Token: st.Token, Shelves: []lanshareqr.Shelf{{ID: b, Name: "Private", URL: st.URL + b + "/"}}})
+	expected, err = lanshareqr.Encode(lanshare.Payload{V: 1, URL: st.URL, Token: st.Token, Shelves: []lanshare.Shelf{{ID: b, Name: "Private", URL: st.URL + b + "/"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

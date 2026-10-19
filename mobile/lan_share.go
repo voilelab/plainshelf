@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
+	"github.com/voilelab/plainshelf/internal/lanshare"
 	"github.com/voilelab/plainshelf/internal/lanshareqr"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
@@ -222,10 +223,10 @@ func (rt *instance) lanShareStatusLocked() (string, error) {
 			return "", util.Errorf("%w", err)
 		}
 		st = lanShareState{Running: true, URL: s.url, Token: strings.TrimSpace(string(token)), ShelfIDs: s.sharedIDs()}
-		payload := lanshareqr.Payload{V: lanshareqr.Version, URL: st.URL, Token: st.Token, Shelves: []lanshareqr.Shelf{}}
+		payload := lanshare.Payload{V: lanshare.Version, URL: st.URL, Token: st.Token, Shelves: []lanshare.Shelf{}}
 		for _, sh := range rt.conf.Shelves {
 			if s.isShared(sh.ID) {
-				payload.Shelves = append(payload.Shelves, lanshareqr.Shelf{ID: sh.ID, Name: sh.Name, URL: st.URL + url.PathEscape(sh.ID) + "/"})
+				payload.Shelves = append(payload.Shelves, lanshare.Shelf{ID: sh.ID, Name: sh.Name, URL: st.URL + url.PathEscape(sh.ID) + "/"})
 			}
 		}
 		st.QRCode, err = lanshareqr.Encode(payload)

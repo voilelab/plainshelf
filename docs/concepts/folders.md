@@ -27,11 +27,40 @@ appears after the next shelf scan. See
 ## Rules
 
 - A folder cannot be deleted while it still holds books. Move or delete the
-  books first.
+  books first. A folder holding nothing but its `folder.json` counts as empty,
+  and the file is deleted with it.
+- No folder may be named `folder.json`, in any letter case: that name belongs
+  to the folder metadata file below.
 - A book belongs to exactly one folder, because it lives in exactly one
   directory.
 - Moving a book between folders does not change its ID, so reading progress and
   bookmarks follow it.
+
+## Folder metadata
+
+A folder may keep its own settings in a `folder.json` inside its directory —
+today, an icon:
+
+```json
+{
+  "icon": "rocket",
+  "schema_version": 1
+}
+```
+
+The file lives in the folder it describes, so it goes wherever the folder goes:
+renaming or moving the folder in PlainShelf, or with `mv` outside it, keeps the
+setting with no list to update. Copying or moving a folder to another shelf does
+not carry the file yet: a move leaves the emptied source folder in place, still
+holding its `folder.json`, rather than delete a setting it did not take along.
+The shelf root has no `folder.json` of its own.
+
+PlainShelf reads and keeps this file, but the interface does not show or set
+folder icons yet; for now the file is written by hand. The icon names it
+accepts, and exactly what happens to a file it cannot read, are in
+[`folder.json` schema v1](data-format-versioning.md#folderjson-schema-v1). In
+short: a broken or unrecognized file never hides the folder — it reads as "no
+settings" — and PlainShelf will not overwrite a file it cannot read.
 
 ## Ignored directories
 
@@ -104,9 +133,13 @@ settings page for it yet; it is a file you write by hand.
 
 ## Marking a folder as adult content
 
-A folder has no settings file of its own — it is a directory, and nothing else —
-so a mark that applies to a whole folder lives in
-[`shelf.json`](data-model.md#shelfjson), under `content.nsfw_folders`:
+A mark that applies to a whole folder lives in
+[`shelf.json`](data-model.md#shelfjson), under `content.nsfw_folders`, not in
+that folder's [`folder.json`](#folder-metadata). The difference is deliberate:
+an icon should follow its folder when the folder moves, while an adult-content
+mark belongs to a place in the shelf, so moving a folder out of a marked path is
+a visible change (see [Moving a marked folder](#moving-a-marked-folder)) rather
+than a mark that silently travels or stays behind:
 
 ```json
 {

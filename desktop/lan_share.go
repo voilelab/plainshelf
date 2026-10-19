@@ -19,6 +19,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
+	"github.com/voilelab/plainshelf/internal/lanshare"
 	"github.com/voilelab/plainshelf/internal/lanshareqr"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
@@ -87,14 +88,10 @@ type LANShareStatus struct {
 
 // lanShareQRVersion is lanShareQRPayload's "v". A reader refuses any other
 // value rather than guess at the fields.
-const lanShareQRVersion = lanshareqr.Version
+const lanShareQRVersion = lanshare.Version
 
-// lanShareQRPayload is the QR code's text: everything another device needs to
-// open the shared shelves. It is a format between devices; see
-// docs/configuring-local-shelf.md.
-type lanShareQRPayload = lanshareqr.Payload
-
-type lanShareQRShelf = lanshareqr.Shelf
+type lanShareQRPayload = lanshare.Payload
+type lanShareQRShelf = lanshare.Shelf
 
 type lanShare struct {
 	app               *server.App

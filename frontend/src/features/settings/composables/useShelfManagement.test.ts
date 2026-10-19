@@ -537,4 +537,55 @@ describe('useShelfManagement remote shelves', () => {
   });
 });
 
-vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ shelves: { previewShelfID: provider.value.previewDesktopShelfID, addShelf: provider.value.addDesktopShelf, checkShelfSource: provider.value.checkDesktopShelfSource, getShelfDetails: provider.value.getDesktopShelfDetails, modifyShelf: provider.value.modifyDesktopShelf, removeShelf: provider.value.removeDesktopShelf }, openShelfFolder: provider.value.openDesktopShelfFolder, chooseShelfDirectory: provider.value.openDesktopShelfDirectory }) }));
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ shelves: { previewLANShareQR: provider.value.previewLANShareQR, importLANShareQR: provider.value.importLANShareQR, previewShelfID: provider.value.previewDesktopShelfID, addShelf: provider.value.addDesktopShelf, checkShelfSource: provider.value.checkDesktopShelfSource, getShelfDetails: provider.value.getDesktopShelfDetails, modifyShelf: provider.value.modifyDesktopShelf, removeShelf: provider.value.removeDesktopShelf }, openShelfFolder: provider.value.openDesktopShelfFolder, chooseShelfDirectory: provider.value.openDesktopShelfDirectory }) }));
+
+
+describe('LAN QR import', () => {
+  const listed = [{ id: 'one', name: 'One', url: 'http://lan/dav/one/' }];
+  it('previews without importing, requires confirmation, and clears secret text after results', async () => {
+    const previewLANShareQR = vi.fn().mockResolvedValue(listed);
+    const importLANShareQR = vi.fn().mockResolvedValue([{ name: 'One', url: listed[0].url, status: 'added' }]);
+    provider.value = { previewLANShareQR, importLANShareQR };
+    const form = useShelfManagement();
+    form.openAddShelfModal();
+    form.newShelfLocationMode.value = 'qr';
+    form.qrText.value = 'secret JSON';
+    expect(form.canSubmitAddShelf.value).toBe(false);
+    await form.previewQR();
+    expect(importLANShareQR).not.toHaveBeenCalled();
+    expect(form.qrShelves.value).toEqual(listed);
+    expect(form.canSubmitAddShelf.value).toBe(true);
+    await form.onSubmitAddShelf();
+    expect(importLANShareQR).toHaveBeenCalledWith('secret JSON');
+    expect(form.qrText.value).toBe('');
+    expect(form.qrResults.value[0].status).toBe('added');
+    expect(form.showAddShelfModal.value).toBe(true);
+    form.closeAddShelfModal();
+    expect(form.qrResults.value).toEqual([]);
+  });
+  it('invalidates the preview on edits and ignores a stale async response', async () => {
+    let resolve!: (value: typeof listed) => void;
+    provider.value = { previewLANShareQR: vi.fn(() => new Promise((r) => { resolve = r; })) };
+    const form = useShelfManagement();
+    form.newShelfLocationMode.value = 'qr';
+    form.qrText.value = 'first';
+    const pending = form.previewQR();
+    form.qrText.value = 'second';
+    resolve(listed);
+    await pending;
+    expect(form.qrShelves.value).toEqual([]);
+    expect(form.canSubmitAddShelf.value).toBe(false);
+  });
+  it('surfaces parser rejection and clears pasted secrets when cancelled', async () => {
+    provider.value = { previewLANShareQR: vi.fn().mockRejectedValue(new Error('unsupported QR version')) };
+    const form = useShelfManagement();
+    form.openAddShelfModal();
+    form.newShelfLocationMode.value = 'qr';
+    form.qrText.value = 'secret JSON';
+    await form.previewQR();
+    expect(form.addShelfError.value).toBe('unsupported QR version');
+    expect(form.canSubmitAddShelf.value).toBe(false);
+    form.closeAddShelfModal();
+    expect(form.qrText.value).toBe('');
+  });
+});
