@@ -23,7 +23,10 @@
       </button>
     </div>
 
+    <MobileQRImport v-if="!entry && Capacitor.isNativePlatform()" @busy="qrBusy = $event" />
+
     <form class="mobile-connect-form" @submit.prevent="onSave">
+      <fieldset class="mobile-connect-fields" :disabled="qrBusy">
       <label class="mobile-connect-field">
         <span class="mobile-connect-label">{{ t('mobileConnect.nameLabel') }}</span>
         <input
@@ -261,6 +264,7 @@
       <button v-if="cancellable" type="button" class="button" @click="emit('cancel')">
         {{ t('mobileConnect.cancel') }}
       </button>
+      </fieldset>
     </form>
   </section>
 </template>
@@ -302,6 +306,7 @@ import {
   shelfSourceNeedsSecret,
   type ShelfSourceKind
 } from '@/utils/shelfSourceCheck';
+import MobileQRImport from '@/features/mobile/components/MobileQRImport.vue';
 import PCloudFolderPicker from '@/features/mobile/components/PCloudFolderPicker.vue';
 
 const props = defineProps<{
@@ -369,6 +374,7 @@ watch([davSource, davUrl, davUsername, davSecret], () => {
   davBookCount.value = null;
 });
 
+const qrBusy = ref(false);
 const saving = ref(false);
 const authorizing = ref(false);
 const verifying = ref(false);
@@ -788,6 +794,15 @@ async function onSave(): Promise<void> {
   display: grid;
   gap: 16px;
   margin-top: 8px;
+}
+
+.mobile-connect-fields {
+  display: grid;
+  gap: 16px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
 }
 
 .mobile-connect-field {

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   upsertShelfEntry: vi.fn()
 }));
 
-vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true } }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true }, registerPlugin: () => ({}) }));
 vi.mock('@capacitor/browser', () => ({ Browser: { open: vi.fn(), close: vi.fn() } }));
 vi.mock('@/providers/localShelf', () => ({ LocalShelf: { checkSource: mocks.checkSource } }));
 vi.mock('@/providers/mobileConfig', () => ({

@@ -1,4 +1,11 @@
 const zhHant = {
+  mobileQR: {
+    scan: '掃描區網分享 QR code',
+    open: '開啟匯入的書庫',
+    unavailable: '此裝置無法掃描 QR code，請手動輸入網址與 token。',
+    failed: '掃描失敗。請允許相機權限、檢查相機後重試，或手動輸入網址與 token。',
+    invalid: '無效的區網分享 QR 內容。'
+  },
   app: {
     name: 'PlainShelf',
     mockModeBadge: '模擬 API 模式',

@@ -31,6 +31,11 @@ interface LocalShelfResponse {
 }
 
 interface LocalShelfPlugin {
+  /** Shared Go parser; this transient result contains a secret and must not be logged. */
+  parseLANShareQR(options: { text: string }): Promise<{
+    token: string;
+    shelves: Array<{ id: string; name: string; url: string }>;
+  }>;
   listShelves(): Promise<{ shelves: LocalShelfInfo[] }>;
   createShelf(options: { name: string }): Promise<{ id: string }>;
   renameShelf(options: { id: string; name: string }): Promise<void>;

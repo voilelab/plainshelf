@@ -188,6 +188,19 @@ public class LocalShelfPlugin extends Plugin {
         }
     }
 
+    /** Validates the entire payload in the shared Go parser, without I/O. */
+    @PluginMethod
+    public void parseLANShareQR(PluginCall call) {
+        try {
+            call.resolve(JSObject.fromJSONObject(new JSONObject(
+                Mobile.parseLANShareQR(call.getString("text", ""))
+            )));
+        } catch (Exception error) {
+            // The shared parser returns field-only errors, never payload values.
+            call.reject(String.valueOf(error.getMessage()));
+        }
+    }
+
     /**
      * Probes a source during setup, before an entry stores its secret, so the
      * form passes the one it holds. code is SOURCE_UNAUTHORIZED,

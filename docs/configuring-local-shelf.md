@@ -267,8 +267,11 @@ replaced. Name collisions receive the usual new shelf ID suffix.
 Imported tokens use the existing OS keychain flow, never `shelves.json`, logs
 or URLs. The pasted JSON is cleared after import or closing the dialog.
 The share publisher's existing `lan_share.token` storage is separate from
-imported credentials. Android scanning and Android publisher changes are
-separate features; both readers can reuse this parser and its contract tests.
+imported credentials. For Android, use **Add shelf → Scan a LAN share QR code**,
+then preview and confirm the shelves. The Android reader uses this same parser and import
+semantics, with tokens in Android Keystore; see
+[Android QR import](development/android.md#scan-a-lan-share-qr-code) for camera
+permissions, results and device verification.
 
 The first time it is turned on, the operating system's firewall may ask whether
 PlainShelf may accept incoming connections; allow it on private networks only.
