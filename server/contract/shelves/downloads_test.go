@@ -46,7 +46,6 @@ func TestAPIShelvesReportKindAndCapabilitiesContract(t *testing.T) {
 		t.Errorf("virtual shelf offline = %+v, want a snapshot time", virtual.Offline)
 	}
 
-	// The wire names are the contract, not the Go fields.
 	rec := env.Get("/api/shelves")
 	for _, key := range []string{`"kind"`, `"capabilities"`, `"rescan"`, `"download"`, `"fingerprint"`, `"char_count"`, `"offline"`, `"snapshot_at"`} {
 		if !strings.Contains(rec.Body.String(), key) {
@@ -134,7 +133,6 @@ func TestAPIOfflineVirtualShelfContract(t *testing.T) {
 		t.Errorf("offline listing holds %d books, want 2", len(books))
 	}
 
-	// A download reads the source itself, so it reports the source.
 	rec = env.Put(apitest.BookDownloadURL(ids["Solaris"]), nil)
 	apitest.AssertErrorEnvelope(t, rec, http.StatusServiceUnavailable, "SOURCE_UNAVAILABLE", "the shelf source is unavailable")
 }

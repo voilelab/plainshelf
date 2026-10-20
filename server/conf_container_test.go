@@ -7,18 +7,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// containerConfigPath is the config the published image runs unmodified, so
-// what it parses to is what a user who forgets a port mapping is protected by.
 const containerConfigPath = "../docker/config.yaml"
 
-// TestContainerDefaultConfigProtectsWrites pins the shipped container default.
-// A regression to mode: "none" would silently answer anonymous writes on any
-// exposed port, which is exactly what this default exists to prevent.
-//
-// Parsing a file and checking a pure guard asks nothing of the router, so it is
-// pinned here. That the parsed block then actually gates a request is the half
-// that needs one, and lives in
-// server/contract/crosscut/security_test.go.
 func TestContainerDefaultConfigProtectsWrites(t *testing.T) {
 	conf := loadContainerConf(t)
 
@@ -29,8 +19,6 @@ func TestContainerDefaultConfigProtectsWrites(t *testing.T) {
 		t.Fatalf("container config security mode = %q, want %q", got, SecurityModeLocalToken)
 	}
 
-	// addr stays 0.0.0.0:20000 (required inside the container) and the
-	// listen-addr guard still passes because the mode is set explicitly.
 	if conf.ServerConf == nil {
 		t.Fatal("container config has no server_conf block")
 	}

@@ -18,10 +18,6 @@ const (
 	BookTransferOperationMove = "move"
 )
 
-// BookTransferResult is what a client reads back from the chain once a
-// cross-shelf transfer settles. On success BookID and Folder name where the book
-// landed on the target; on failure FailureCode classifies why, the same way the
-// batch task's failure codes do.
 type BookTransferResult struct {
 	Operation    string           `json:"operation"`
 	SourceShelf  string           `json:"source_shelf"`
@@ -101,9 +97,6 @@ func (t *bookTransferTask) Result() any {
 	return result
 }
 
-// failureCode classifies a transfer error the same way the batch task does, so a
-// client sees stable codes across both endpoints, plus the two failures only a
-// cross-shelf transfer can raise.
 func failureCode(operation string, err error) string {
 	switch {
 	case errors.Is(err, shelf.ErrBookNotFound):
@@ -121,8 +114,6 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 	t.progress.SetTotal(1)
 	t.progress.SetStatus(taskutil.StatusRunning)
 
-	// The transfer itself cannot be cancelled partway - a half-copied book would
-	// be published or not, never both - so only refuse before it starts.
 	if err := ctx.Err(); err != nil {
 		t.progress.SetStatus(taskutil.StatusFailed)
 		return err
@@ -142,7 +133,7 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 	if err != nil {
 		t.result.FailureCode = failureCode(t.operation, err)
 	} else {
-		// The book landed under targetFolder; the book itself does not carry it.
+
 		t.result.BookID = book.ID()
 		t.result.Folder = append(shelf.FolderPath(nil), t.targetFolder...)
 	}
@@ -165,10 +156,6 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 	return nil
 }
 
-// NewBookTransferChain builds the one-task chain that copies or moves a single
-// book from one shelf to another. The dedupe key folds in both shelves, the
-// operation, the book and the destination folder so that re-submitting the same
-// transfer attaches to the one already running instead of starting a second.
 func NewBookTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetFolder shelf.FolderPath) *taskutil.TaskChain {
 	key := strings.Join([]string{
 		BookTransferTaskName, sourceShelfID, targetShelfID, operation, bookID, targetFolder.String(),

@@ -21,14 +21,8 @@ const (
 	settingKeyShowNSFW           = "show_nsfw"
 )
 
-// maxLogRetentionDays bounds the stored retention window. Ten years is well
-// past any use for a daily log file and keeps the value something the date
-// arithmetic in logutil can carry.
 const maxLogRetentionDays = 3650
 
-// settings resolves a setting to the value the rest of the server should act on:
-// the stored one when usable, the configured one otherwise. A component rather
-// than App methods because the import path reads settings too.
 type settings struct {
 	*logutil.Logger
 
@@ -36,8 +30,6 @@ type settings struct {
 	conf *AppConf
 }
 
-// readJSONSetting reports a stored value as absent when it no longer parses or
-// validates, so one bad row cannot wedge a setting.
 func readJSONSetting[T any](s *settings, key string, validate func(T) error) (T, bool) {
 	var value T
 
@@ -64,14 +56,8 @@ func readJSONSetting[T any](s *settings, key string, validate func(T) error) (T,
 	return value, true
 }
 
-// A settingValidator returns the message shown to the client separately from
-// the error, which is logged and carries util.Errorf's function prefix.
 type settingValidator[T any] func(T) (message string, err error)
 
-// setJSONSetting stores the decoded value rather than the raw body, so what is
-// persisted is always exactly the fields this build understands. It reports
-// whether the value was stored, for a setting that also has to be applied to
-// something already running.
 func setJSONSetting[T any](s *settings, w http.ResponseWriter, r *http.Request, key string, validate settingValidator[T]) bool {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -110,8 +96,6 @@ func setJSONSetting[T any](s *settings, w http.ResponseWriter, r *http.Request, 
 	return true
 }
 
-// validateLogRetentionDays rejects a window the writers could not act on. Zero
-// is meaningful: it is how an operator turns deletion off.
 func validateLogRetentionDays(days int) (string, error) {
 	if err := checkLogRetentionDays(days); err != nil {
 		return fmt.Sprintf("retention days must be between 0 and %d", maxLogRetentionDays), err
@@ -126,10 +110,6 @@ func checkLogRetentionDays(days int) error {
 	return nil
 }
 
-// logRetentionDays is the window the log writers currently apply. A per-shelf
-// logger may be configured with a different one, which is what it returns to
-// when the setting is cleared; the app logger's is the honest single answer for
-// a single control.
 func (s *settings) logRetentionDays() int {
 	if days, ok := readJSONSetting(s, settingKeyLogRetentionDays, checkLogRetentionDays); ok {
 		return days
@@ -137,10 +117,6 @@ func (s *settings) logRetentionDays() int {
 	return s.conf.Logger.LogFile.ResolvedRetentionDays()
 }
 
-// applyLogRetention pushes the stored window to every log writer, which reads
-// it on its next rotation. With no stored value each writer returns to the one
-// its own configuration names, which is why this clears rather than pushing the
-// app logger's fallback over the others.
 func (s *settings) applyLogRetention() {
 	retention := s.conf.Logger.LogFile.Retention
 	if days, ok := readJSONSetting(s, settingKeyLogRetentionDays, checkLogRetentionDays); ok {
@@ -150,10 +126,6 @@ func (s *settings) applyLogRetention() {
 	retention.Clear()
 }
 
-// shareLogRetention gives every logger an app builds the same runtime retention
-// window, so one setting change reaches all of them. It is attached to the
-// configuration because the loggers are built from it, some of them before the
-// store this setting lives in has even been opened.
 func shareLogRetention(conf *AppConf, retention *logutil.Retention) {
 	conf.Logger.LogFile.Retention = retention
 	if conf.Worker != nil {
@@ -166,15 +138,10 @@ func shareLogRetention(conf *AppConf, retention *logutil.Retention) {
 	}
 }
 
-// setRaw stores a value that is not a JSON document: a body that is the bare
-// literal true or false, which is the shape cover_to_jpg established and
-// show_nsfw follows.
 func (s *settings) setRaw(key string, value []byte) error {
 	return s.db.SetSetting(key, value)
 }
 
-// deleteSetting reports whether the stored value is gone, for a setting that
-// also has to be applied to something already running.
 func (s *settings) deleteSetting(w http.ResponseWriter, key string) bool {
 	if err := s.db.DeleteSetting(key); err != nil {
 		s.Error("failed to delete setting", "key", key, "err", err)
@@ -199,12 +166,6 @@ func (s *settings) coverToJPG() bool {
 	return val
 }
 
-// epubImportStrategy is the conversion strategy an import uses when the request
-// does not carry one of its own.
-//
-// It is applied server-side during import, the same shape as cover_to_jpg. That
-// matters for the desktop client, which imports without opening the import
-// dialog and so has no other way to choose.
 func (s *settings) epubImportStrategy() epub.Strategy {
 	if strategy, ok := readJSONSetting(s, settingKeyEPUBImportStrategy, validateNormalizedStrategy); ok {
 		return strategy.Normalized()
@@ -220,25 +181,10 @@ func (s *settings) epubImportStrategy() epub.Strategy {
 	return epub.DefaultStrategy().Normalized()
 }
 
-// validateNormalizedStrategy accepts a strategy that leaves fields out: an
-// omitted preset is the default one, so a configuration block that only turns
-// keep_images off keeps its other keys instead of being discarded whole. An
-// unknown preset is still rejected, which is what keeps a typo loud.
-//
-// A strategy submitted through the API is validated as written instead - there
-// the client named a preset on purpose, so an unrecognized one is an error
-// rather than a field to fill in.
 func validateNormalizedStrategy(strategy epub.Strategy) error {
 	return strategy.Normalized().Validate()
 }
 
-// showNSFW reports whether this server serves the books its shelves mark as
-// adult content. Off is the default, and there is no configuration key behind
-// it: the answer has to be changeable from the settings page of a desktop build
-// that has no config file to edit, and a stored value is the only source.
-//
-// Every failure answers false. A setting whose whole job is to hide something
-// fails closed: an unreadable store is a reason to show less, not more.
 func (s *settings) showNSFW() bool {
 	bs, exists, err := s.db.GetSetting(settingKeyShowNSFW)
 	if err != nil {

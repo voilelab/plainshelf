@@ -84,8 +84,6 @@ func MainService(confPath string) error {
 	defer app.Close()
 	rootLogger.Info("Create App...done")
 
-	// The listen address lives in ServerConf, which NewApp (given only AppConf)
-	// never sees; wire the warning here where both halves are known.
 	app.SetInsecureNetworkWarning(app.security.InsecureNetworkExposure(conf.ServerConf.Addr))
 
 	rootLogger.Info("Start App...")
@@ -103,11 +101,9 @@ func MainService(confPath string) error {
 	}
 	server.Handler = app.Handler()
 
-	// Bound before the export, so an export address overlapping this one
-	// cannot take the port first and leave the export up without the API.
 	addr := server.Addr
 	if addr == "" {
-		addr = ":http" // as ListenAndServe
+		addr = ":http"
 	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -121,8 +117,6 @@ func MainService(confPath string) error {
 		}
 	}()
 
-	// Registered before the export starts: the API is serving already, and a
-	// failed export start must not leave it bound.
 	defer func() {
 		rootLogger.Info("shutting down http server")
 		err = server.Shutdown(context.TODO())
@@ -143,8 +137,6 @@ func MainService(confPath string) error {
 		}()
 	}
 
-	// listen sigterm and sigint, and gracefully shutdown the server
-	// prevent sig
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
@@ -172,7 +164,6 @@ func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger) (*htt
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Bound here so a taken port fails startup instead of only a log line.
 	ln, err := net.Listen("tcp", conf.Addr)
 	if err != nil {
 		return nil, util.Errorf("dav_export: %w", err)
@@ -187,10 +178,6 @@ func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger) (*htt
 	return server, nil
 }
 
-// RotateDAVExportTokenForConf replaces the export token named by the config
-// file at confPath. It returns the new token and the file it wrote, made
-// absolute against the working directory as the server resolves it, so a run
-// from the wrong directory shows where it went.
 func RotateDAVExportTokenForConf(confPath string) (token, tokenFile string, err error) {
 	conf, err := loadAppConf(confPath)
 	if err != nil {

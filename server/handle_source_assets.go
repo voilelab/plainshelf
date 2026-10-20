@@ -9,16 +9,8 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// maxAssetBodySize caps an uploaded illustration. A file placed on the shelf by
-// hand has no bound - which is why the read path streams rather than buffers -
-// but an upload is read into memory to be written, so it needs one.
-const maxAssetBodySize = 20 << 20 // 20 MB
+const maxAssetBodySize = 20 << 20
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
-//
-// Serves an illustration the source's text references. A plain read, so
-// neither the token gate nor read-only mode stands between a reader and it -
-// unlike the PUT and DELETE below.
 func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
 	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -44,8 +36,6 @@ func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", imageContentTypeForExt(asset.Ext))
 	w.Header().Set("Content-Length", strconv.FormatInt(asset.Info.Size(), 10))
 
-	// Commit the response before copying: a zero-byte asset writes nothing, and
-	// a copy that writes nothing never commits a status of its own.
 	w.WriteHeader(http.StatusOK)
 
 	// A GET pattern also matches HEAD, and net/http discards the body for it.
@@ -61,18 +51,6 @@ func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets.zip
-//
-// Packs the source's illustrations into one zip so a download fetches them in a
-// single request instead of one per file — the round trips, not the bytes, are
-// what a high-latency mobile connection pays for. The path is assets.zip, not a
-// child of assets/, so it cannot collide with the assets/{asset_name} route.
-//
-// A plain GET, so it inherits getAsset's security exactly: gated only under
-// protect_read. The repeated `name` query parameter picks which files to pack
-// (none = the whole assets/ directory); each is validated like getAsset's path
-// segment, so an unsafe name is a 400 before any byte is written, while an
-// absent one is skipped rather than failing the request.
 func (h *sourceHandlers) getAssetsBundle(w http.ResponseWriter, r *http.Request) {
 	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -96,8 +74,7 @@ func (h *sourceHandlers) getAssetsBundle(w http.ResponseWriter, r *http.Request)
 
 	zw := zip.NewWriter(w)
 	if err := source.WriteAssetsToZip(zw, names); err != nil {
-		// Leave the archive unfinished so clients reject it and fall back to
-		// individual asset requests.
+
 		h.Error("failed to add source assets to bundle", "error", err)
 		return
 	}
@@ -106,10 +83,6 @@ func (h *sourceHandlers) getAssetsBundle(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// resolveBundleAssetNames returns the names to pack: the whole assets/ directory
-// when none were requested, otherwise the requested names validated up front —
-// before the archive's first byte — so an unsafe name is a 400, not a truncated
-// 200. A valid-but-absent name stays in the list and is skipped while packing.
 func (h *sourceHandlers) resolveBundleAssetNames(w http.ResponseWriter, source *shelf.Source, r *http.Request) ([]string, bool) {
 	requested := r.URL.Query()["name"]
 	if len(requested) == 0 {
@@ -130,17 +103,6 @@ func (h *sourceHandlers) resolveBundleAssetNames(w http.ResponseWriter, source *
 	return requested, true
 }
 
-// PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
-//
-// Stores an illustration under the name the request addressed, replacing one
-// already there. The name carries the format, so the body is written as sent
-// and Content-Type is not consulted: the extension is what the read path
-// serves by and what shelf validates, and a second opinion could only
-// disagree with it.
-//
-// This is the first route that writes into assets/, so it is a mutating
-// request like any other: the token gate and the read-only mode both apply
-// before it is reached.
 func (h *sourceHandlers) updateAsset(w http.ResponseWriter, r *http.Request) {
 	_, book, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -152,8 +114,6 @@ func (h *sourceHandlers) updateAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Refuse before reading the body, not after: a book this build must not
-	// write should not have an upload spooled for it either.
 	if err := book.EnsureWritable(); err != nil {
 		h.writeErr(w, r, err, "failed to store source asset")
 		return
@@ -179,11 +139,6 @@ func (h *sourceHandlers) updateAsset(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
-//
-// The source's text is left alone. A link pointing at a removed file renders
-// as its alt text, and editing someone's prose to preserve an invariant the
-// shelf does not enforce would be the worse trade.
 func (h *sourceHandlers) deleteAsset(w http.ResponseWriter, r *http.Request) {
 	_, book, source, ok := h.loadBookSource(w, r)
 	if !ok {

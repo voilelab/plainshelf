@@ -7,10 +7,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// The similarity endpoints share the fingerprint-task helpers in
-// fingerprints_test.go: a pair only appears once the task
-// has written the fingerprints these read.
-
 type similarPairResponse struct {
 	A string `json:"a"`
 	B string `json:"b"`
@@ -37,9 +33,6 @@ type fingerprintStatusResponse struct {
 	} `json:"algo"`
 }
 
-// sharedProse is long enough to yield many distinct 5-gram shingles, so two
-// books built on top of it overlap heavily while a third built on other words
-// does not.
 const sharedProse = "the quick brown fox jumps over the lazy dog while the industrious " +
 	"bee gathers nectar from a thousand summer flowers and the river winds " +
 	"slowly toward the distant glimmering sea beneath an indifferent sky " +
@@ -65,7 +58,7 @@ func TestAPISimilarBooksContract(t *testing.T) {
 		"utterly unrelated vocabulary weaving mercury zephyr quartz lantern across every improbable clause")
 
 	for _, book := range []string{left.Meta.ID, right.Meta.ID, stranger.Meta.ID} {
-		backdateSources(t, env, book)
+		backdateSourcesForFingerprintCache(t, env, book)
 	}
 	runFingerprintSources(t, env)
 
@@ -101,7 +94,7 @@ func TestAPISimilarBooksFloorContract(t *testing.T) {
 	left := apitest.ImportTextBook(t, env, "Left", "", "left.txt", sharedProse+"unique left tail")
 	right := apitest.ImportTextBook(t, env, "Right", "", "right.txt", sharedProse+"unique right tail")
 	for _, book := range []string{left.Meta.ID, right.Meta.ID} {
-		backdateSources(t, env, book)
+		backdateSourcesForFingerprintCache(t, env, book)
 	}
 	runFingerprintSources(t, env)
 
@@ -111,8 +104,6 @@ func TestAPISimilarBooksFloorContract(t *testing.T) {
 		t.Errorf("floor=1 returned %d pairs, more than floor=0's %d", len(narrow), len(wide))
 	}
 
-	// A floor that is not a number in [0, 1] is a client error, not a silent
-	// default.
 	for _, bad := range []string{"abc", "2", "-0.5"} {
 		if rec := env.Get(apitest.SimilarURL() + "?floor=" + bad); rec.Code != http.StatusBadRequest {
 			t.Errorf("floor=%s gave status %d, want 400", bad, rec.Code)
@@ -140,7 +131,7 @@ func TestAPIFingerprintStatusContract(t *testing.T) {
 	}
 
 	for _, book := range []string{first.Meta.ID, second.Meta.ID} {
-		backdateSources(t, env, book)
+		backdateSourcesForFingerprintCache(t, env, book)
 	}
 	runFingerprintSources(t, env)
 
@@ -150,8 +141,6 @@ func TestAPIFingerprintStatusContract(t *testing.T) {
 	}
 }
 
-// defaultSimilarFloorContract mirrors the server's default floor; the contract
-// package cannot see the unexported server constant.
 const defaultSimilarFloorContract = 0.15
 
 func knownRelation(relation string) bool {

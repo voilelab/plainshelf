@@ -25,30 +25,20 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// The desktop UI reaches Go in-process; this export is the only listener the
-// desktop ever opens, and only while the user has it switched on.
-
 const (
 	lanShareConfigName = "lan_share.json"
 	lanShareTokenName  = "lan_share.token"
 )
 
-// lanShareDefaultPort is used unless lan_share.json names a port; a var so
-// tests can ask for any free one.
 var lanShareDefaultPort = 20001
 
-// lanAddresses lists the addresses the export may bind; a var for tests.
 var lanAddresses = detectLANAddresses
 
-// lanListen and saveLANShare are vars so tests can stand in for the network
-// and the disk.
 var (
 	lanListen    = net.Listen
 	saveLANShare = saveLANShareConfig
 )
 
-// lanShareConfig is lan_share.json in the desktop data root, outside every
-// shelf.
 type lanShareConfig struct {
 	Enabled  bool     `json:"enabled,omitzero"`
 	Host     string   `json:"host,omitempty"`
@@ -56,8 +46,6 @@ type lanShareConfig struct {
 	ShelfIDs []string `json:"shelf_ids"`
 }
 
-// LANShareParams is what the settings page submits; see AddShelfParams for
-// why bindings take a struct.
 type LANShareParams struct {
 	Enabled  bool     `json:"enabled"`
 	Host     string   `json:"host"`
@@ -72,22 +60,18 @@ type LANShareShelf struct {
 
 type LANShareStatus struct {
 	Enabled bool `json:"enabled"`
-	// Running is false while enabled when the listener could not start; Error
-	// says why.
+
 	Running   bool            `json:"running"`
 	Host      string          `json:"host"`
 	Addresses []string        `json:"addresses"`
 	Shelves   []LANShareShelf `json:"shelves"`
-	// URL, Token and QRCode are set only while running. QRCode is a PNG data
-	// URL of lanShareQRPayload.
+
 	URL    string `json:"url"`
 	Token  string `json:"token"`
 	QRCode string `json:"qr_code"`
 	Error  string `json:"error"`
 }
 
-// lanShareQRVersion is lanShareQRPayload's "v". A reader refuses any other
-// value rather than guess at the fields.
 const lanShareQRVersion = lanshare.Version
 
 type lanShareQRPayload = lanshare.Payload
@@ -102,14 +86,11 @@ type lanShare struct {
 	mu   sync.Mutex
 	conf lanShareConfig
 	srv  *http.Server
-	// requested is the host:port srv was asked for, bound what it got.
+
 	requested, bound string
-	// startErr says why the saved share is not running; saveErr that what
-	// runs differs from lan_share.json, which the next start would follow.
+
 	startErr, saveErr string
 
-	// shared is read by the handler on every request, so a changed selection
-	// applies without restarting the listener.
 	shared atomic.Pointer[map[string]bool]
 }
 
@@ -122,8 +103,7 @@ func newLANShare(app *server.App, dataRoot, shelvesConfigPath string) *lanShare 
 	}
 	conf, err := loadLANShareConfig(s.configPath)
 	if err != nil {
-		// Not fatal: the app runs with sharing off, and the next save
-		// replaces the file.
+
 		log.Println("Failed to load LAN share config:", err)
 		s.startErr = err.Error()
 		conf = lanShareConfig{}
@@ -178,8 +158,6 @@ func (s *lanShare) port() int {
 	return lanShareDefaultPort
 }
 
-// startSaved restores the state the app was closed in. A failure is kept for
-// the settings page rather than stopping the app.
 func (s *lanShare) startSaved() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -192,7 +170,6 @@ func (s *lanShare) startSaved() {
 	}
 }
 
-// listen (re)binds the export to host; s.mu is held.
 func (s *lanShare) listen(host string) error {
 	addrs, err := lanAddresses()
 	if err != nil {
@@ -218,7 +195,7 @@ func (s *lanShare) listen(host string) error {
 		Handler:           s.app.DAVExportShelvesHandler(s.tokenFile, s.isShared),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
-		// Generous: a large book over Wi-Fi.
+
 		WriteTimeout: 300 * time.Second,
 	}
 	go func() {
@@ -231,7 +208,6 @@ func (s *lanShare) listen(host string) error {
 	return nil
 }
 
-// close stops the listener at once, open transfers included; s.mu is held.
 func (s *lanShare) close() {
 	if s.srv == nil {
 		return
@@ -278,13 +254,11 @@ func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
 
 	var listenErr error
 	if next.Enabled {
-		// The saved host may be gone after a network change; only a host the
-		// user just picked is refused instead of replaced.
+
 		if next.Host == s.conf.Host {
 			next.Host = currentLANHost(next.Host)
 		}
-		// Saved before it applies, so a share that cannot be saved never
-		// opens: neither now nor, unasked, at the next start.
+
 		if widens(s.conf, next) {
 			if err := saveLANShare(s.configPath, next); err != nil {
 				return s.statusLocked(shelves), util.Errorf("saving LAN share config: %w", err)
@@ -292,7 +266,7 @@ func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
 		}
 		listenErr = s.listen(next.Host)
 		if listenErr != nil {
-			// Saved off, so a restart does not retry what just failed.
+
 			next.Enabled = false
 			s.close()
 		}
@@ -300,8 +274,6 @@ func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
 		s.close()
 	}
 
-	// Narrowing applies at once, saved or not; a failed save is kept on the
-	// page until one succeeds.
 	s.setShared(next.ShelfIDs)
 	s.conf = next
 	s.startErr = ""
@@ -337,7 +309,7 @@ func (s *lanShare) statusLocked(shelves *desktopShelvesConfig) LANShareStatus {
 		st.Addresses = addrs
 	}
 	if !st.Running {
-		// What the next switch-on binds, so the page never offers a gone address.
+
 		st.Host = currentLANHost(st.Host)
 	}
 	for _, e := range shelves.Shelves {
@@ -376,8 +348,6 @@ func (s *lanShare) rotateToken() (LANShareStatus, error) {
 	return s.statusLocked(shelves), nil
 }
 
-// forgetShelf drops a removed shelf, so a later shelf given the same id is not
-// shared without being ticked.
 func (s *lanShare) forgetShelf(shelfID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -389,7 +359,6 @@ func (s *lanShare) forgetShelf(shelfID string) error {
 	return s.saveApplied()
 }
 
-// saveApplied writes s.conf, which is already in effect; s.mu is held.
 func (s *lanShare) saveApplied() error {
 	if err := saveLANShare(s.configPath, s.conf); err != nil {
 		s.saveErr = "LAN share settings were not saved, so the next start may share as before: " + err.Error()
@@ -399,8 +368,6 @@ func (s *lanShare) saveApplied() error {
 	return nil
 }
 
-// widens reports whether next shares anything cur does not: switching on, a
-// different address, or another shelf.
 func widens(cur, next lanShareConfig) bool {
 	if !next.Enabled {
 		return false
@@ -411,7 +378,6 @@ func widens(cur, next lanShareConfig) bool {
 	return slices.ContainsFunc(next.ShelfIDs, func(id string) bool { return !slices.Contains(cur.ShelfIDs, id) })
 }
 
-// newLANShareQRPayload builds the payload of a running status.
 func newLANShareQRPayload(st LANShareStatus) lanShareQRPayload {
 	p := lanShareQRPayload{V: lanShareQRVersion, URL: st.URL, Token: st.Token, Shelves: []lanShareQRShelf{}}
 	for _, sh := range st.Shelves {
@@ -426,8 +392,6 @@ func lanShareQRCode(payload lanShareQRPayload) (string, error) {
 	return lanshareqr.Encode(payload)
 }
 
-// currentLANHost returns host while it is still a LAN address, else the first
-// one there is (or host, when there is none).
 func currentLANHost(host string) string {
 	addrs, err := lanAddresses()
 	if err != nil || len(addrs) == 0 || slices.Contains(addrs, host) {
@@ -436,9 +400,6 @@ func currentLANHost(host string) string {
 	return addrs[0]
 }
 
-// detectLANAddresses lists this computer's IPv4 unicast addresses on up,
-// non-loopback interfaces, private ranges first. Never 0.0.0.0: the export
-// binds one network, not every one.
 func detectLANAddresses() ([]string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -472,8 +433,6 @@ func detectLANAddresses() ([]string, error) {
 	return slices.Compact(append(private, other...)), nil
 }
 
-// GetLANShare reports the LAN share switch, the shelves it may export, and
-// while running the URL, token and QR code another device opens it with.
 func (a *DesktopApp) GetLANShare() (LANShareStatus, error) {
 	if a.lanShare == nil {
 		return LANShareStatus{}, util.NewError("desktop backend app instance is nil")
@@ -481,8 +440,6 @@ func (a *DesktopApp) GetLANShare() (LANShareStatus, error) {
 	return a.lanShare.status()
 }
 
-// SetLANShare switches the LAN share and sets what it exports. It is a Wails
-// binding rather than an HTTP route, so nothing on the network can turn it on.
 func (a *DesktopApp) SetLANShare(params LANShareParams) (LANShareStatus, error) {
 	if a.lanShare == nil {
 		return LANShareStatus{}, util.NewError("desktop backend app instance is nil")
@@ -490,7 +447,6 @@ func (a *DesktopApp) SetLANShare(params LANShareParams) (LANShareStatus, error) 
 	return a.lanShare.apply(params)
 }
 
-// RotateLANShareToken replaces the token; the old one stops working at once.
 func (a *DesktopApp) RotateLANShareToken() (LANShareStatus, error) {
 	if a.lanShare == nil {
 		return LANShareStatus{}, util.NewError("desktop backend app instance is nil")

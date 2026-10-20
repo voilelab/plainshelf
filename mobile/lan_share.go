@@ -23,18 +23,10 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// The LAN share is the only listener the app ever opens, and only while the
-// native foreground service runs it. Nothing about it is saved but the token,
-// so a killed app comes back not sharing.
-
 const lanShareTokenName = "lan_share.token"
 
-// lanSharePort is the export's port, the desktop's default too; a var so tests
-// can ask for any free one.
 var lanSharePort = 20001
 
-// lanHostAllowed reports whether the export may bind ip; a var so tests can
-// bind loopback.
 var lanHostAllowed = func(ip netip.Addr) bool {
 	return ip.Is4() && ip.IsGlobalUnicast()
 }
@@ -43,12 +35,11 @@ type lanShare struct {
 	srv *http.Server
 	// ln is closed here too: srv.Close misses it until Serve has started.
 	ln net.Listener
-	// host is what srv was asked for, url what another device opens.
+
 	host, url string
-	// shared is read on every request, so a changed selection applies without
-	// rebinding.
+
 	shared atomic.Pointer[map[string]bool]
-	// lastActive is the unix nanos of the last request the token admitted.
+
 	lastActive atomic.Int64
 }
 
@@ -71,7 +62,6 @@ func (s *lanShare) sharedIDs() []string {
 	return ids
 }
 
-// lanShareState is what LANShareStatus reports, as JSON.
 type lanShareState struct {
 	QRCode   string   `json:"qr_code"`
 	Error    string   `json:"error"`
@@ -135,12 +125,12 @@ func StartLANShare(host, shelfIDsJSON string) (status string, err error) {
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			aw := &activityWriter{ResponseWriter: w, share: s}
 			export.ServeHTTP(aw, r)
-			// Again at the end, so a long transfer counts until it finishes.
+
 			aw.mark()
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
-		// Generous: a large book over Wi-Fi.
+
 		WriteTimeout: 300 * time.Second,
 	}
 	go func() {
@@ -181,14 +171,13 @@ func StopLANShare() (err error) {
 		return err
 	}
 	if rt.lock() != nil {
-		return nil // Stop closed it.
+		return nil
 	}
 	defer rt.mu.Unlock()
 	rt.closeLANShare()
 	return nil
 }
 
-// closeLANShare stops the share; rt.mu is held exclusively.
 func (rt *instance) closeLANShare() {
 	if rt.share == nil {
 		return
@@ -259,15 +248,12 @@ func LANShareIdleMillis() int64 {
 	return time.Since(time.Unix(0, rt.share.lastActive.Load())).Milliseconds()
 }
 
-// forgetShared drops a removed shelf from the share; rt.mu is held.
 func (rt *instance) forgetShared(id string) {
 	if s := rt.share; s != nil && s.isShared(id) {
 		s.setShared(slices.DeleteFunc(s.sharedIDs(), func(x string) bool { return x == id }))
 	}
 }
 
-// activityWriter marks the share active when a response starts below 400, so
-// a device without the token cannot keep the share open.
 type activityWriter struct {
 	http.ResponseWriter
 	share       *lanShare

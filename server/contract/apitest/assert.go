@@ -124,12 +124,9 @@ func AssertMutationGated(t *testing.T, env *Env, method, url string, body []byte
 		return bytes.NewReader(body)
 	}
 
-	// DoRaw omits the token Do() would attach.
 	rec := env.DoRaw(httptest.NewRequest(method, url, newBody()))
 	AssertStatus(t, rec, http.StatusUnauthorized)
 
-	// Read-only mode is restored right away, so each gate is exercised on its own
-	// and a caller can keep making requests afterwards.
 	previous := env.App.Conf().ReadOnly
 	env.App.Conf().ReadOnly = true
 	rec = env.Do(httptest.NewRequest(method, url, newBody()))

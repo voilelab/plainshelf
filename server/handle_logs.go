@@ -12,9 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/logutil"
 )
 
-// logHandlers lists and serves the log files the configured loggers write.
-// It walks AppConf itself, so it holds the config rather than a copy of the
-// paths, which would go stale.
 type logHandlers struct {
 	*apiCore
 
@@ -23,7 +20,6 @@ type logHandlers struct {
 
 type LogFileEntry = logutil.Entry
 
-// GET /api/logs
 func (h *logHandlers) getLogs(w http.ResponseWriter, r *http.Request) {
 	logs, err := logutil.ListLogFilesForSources(h.logSources())
 	if err != nil {
@@ -35,12 +31,6 @@ func (h *logHandlers) getLogs(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, logs)
 }
 
-// GET /api/logs/{log_id}/content?tail_bytes=N
-//
-// The response is the end of the file rather than all of it: a log file that
-// has been written to for weeks does not fit in the page that displays it. The
-// caller pairs this with the size reported by GET /api/logs to tell whether it
-// holds the whole file.
 func (h *logHandlers) getLogContent(w http.ResponseWriter, r *http.Request) {
 	logID, err := readLogID(r)
 	if err != nil {
@@ -75,9 +65,6 @@ func (h *logHandlers) getLogContent(w http.ResponseWriter, r *http.Request) {
 	h.streamTextFile(w, fp, "failed to write log file content", "log_id", logID, "filename", entry.Filename)
 }
 
-// parseLogTailBytes reads the tail_bytes query parameter: absent applies
-// logutil.DefaultTailBytes, and an explicit 0 asks for the whole file, which is
-// how a caller that means to download it says so.
 func parseLogTailBytes(r *http.Request) (int64, bool) {
 	raw := strings.TrimSpace(r.URL.Query().Get("tail_bytes"))
 	if raw == "" {

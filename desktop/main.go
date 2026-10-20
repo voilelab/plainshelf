@@ -24,12 +24,12 @@ func main() {
 			Assets: frontend.WebFS,
 			Middleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					// If the request is for an API endpoint, use the app's API handler
+
 					if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
 						app.GetAPIHandler().ServeHTTP(w, r)
 						return
 					}
-					// Otherwise, serve the static assets
+
 					next.ServeHTTP(w, r)
 				})
 			},

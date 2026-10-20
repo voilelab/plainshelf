@@ -1,6 +1,3 @@
-// Persists memfs to the Origin Private File System: load() restores the tree
-// before Go starts, then changes are written back shortly after they happen.
-// Load after memfs.js. Without OPFS support the demo stays in memory.
 (() => {
   const ROOT = 'plainshelf-demo';
   const DEBOUNCE_MS = 200;
@@ -21,10 +18,10 @@
 
   let rootHandle;
   let writer;
-  const writes = new Map(); // id -> { resolve, reject }
+  const writes = new Map();
   let nextWrite = 0;
   let timer;
-  let queue = Promise.resolve(); // writes run one batch at a time, in order
+  let queue = Promise.resolve();
 
   async function dirAt(path, create) {
     let h = rootHandle;
@@ -45,7 +42,6 @@
     }
   }
 
-  // A dirty directory drops OPFS entries memfs no longer has; a dirty file is rewritten.
   async function write({ path, type, data }) {
     if (type === 'dir') {
       const h = await dirAt(path, true);
@@ -65,7 +61,6 @@
     });
   }
 
-  // A failed entry stays dirty and is retried with the next change.
   async function drain() {
     for (const entry of memfs.takeDirty()) {
       try {
@@ -99,9 +94,9 @@
         else pending?.resolve();
       };
       await restore(rootHandle, '');
-      memfs.takeDirty(); // restored nodes are already on disk
+      memfs.takeDirty();
       window.plainshelfStorage.persistent = true;
-      // At most DEBOUNCE_MS after the first change, however busy the shelf is.
+
       memfs.onChange(() => {
         timer ??= setTimeout(flush, DEBOUNCE_MS);
       });

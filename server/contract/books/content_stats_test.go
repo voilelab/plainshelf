@@ -14,11 +14,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// clearSourceCharCount rewrites a book's current source meta.json with a zero
-// character count, reproducing the on-disk state of a book whose count was
-// never computed. Once the shelf has been walked again the API omits
-// char_count for it, which is exactly what the maintenance page reports as an
-// unknown count.
 func clearSourceCharCount(t *testing.T, env *apitest.Env, bookID string) {
 	t.Helper()
 
@@ -84,9 +79,6 @@ func TestAPIRefreshContentStatsContract(t *testing.T) {
 
 	clearSourceCharCount(t, env, stale.Meta.ID)
 
-	// The listing reports counts held in the book cache, so an edit made
-	// straight on disk reaches it through a walk of the shelf - the rescan a
-	// user runs after changing a shelf from outside PlainShelf.
 	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
 
 	if got := charCountByBookID(t, env)[stale.Meta.ID]; got != 0 {
@@ -149,7 +141,6 @@ func TestAPIRefreshContentStatsConflictReportsRunningChainContract(t *testing.T)
 		return refreshContentStats(t, env, wantStatus)
 	})
 
-	// Once the sweep has finished, a fresh request is accepted again.
 	if next := refreshContentStats(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
 		t.Errorf("expected a new chain after the previous one finished")
 	}

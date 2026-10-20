@@ -19,8 +19,6 @@ func TestAPIGetLogsContract(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	shelfLogDir := t.TempDir()
 
-	// The app is left unstarted, so the only file the shelf logger has is the
-	// seeded one. The app logger writes to its own file as requests are served.
 	env := apitest.NewUnstarted(t,
 		apitest.WithAppLogFile(appLogFile),
 		apitest.WithShelfLogDir(shelfLogDir, "shelf"),
@@ -34,7 +32,6 @@ func TestAPIGetLogsContract(t *testing.T) {
 	}
 	apitest.WriteLogFile(t, filepath.Join(shelfLogDir, "shelf-2024-01-02.log"), "shelf log")
 
-	// A file that does not look like a log is not listed.
 	apitest.WriteLogFile(t, filepath.Join(shelfLogDir, "ignore.txt"), "nope")
 
 	rec := env.Get(apitest.LogURL())
@@ -53,9 +50,6 @@ func TestAPIGetLogsContract(t *testing.T) {
 		t.Fatalf("second log = %#v, want shelf logger entry", logs[1])
 	}
 
-	// The size is what tells a caller reading a bounded tail that it is holding
-	// only the end of the file. The app's own log grows as requests are served,
-	// so it is checked against the file rather than against what was seeded.
 	info, err := os.Stat(appLogFile)
 	if err != nil {
 		t.Fatalf("Stat app log: %v", err)
@@ -70,8 +64,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 
 func TestAPIGetLogContentContract(t *testing.T) {
 	logDir := t.TempDir()
-	// Retention is off so the past-dated fixture survives the rotation the
-	// app's own logging performs into today's file.
+
 	env := apitest.NewUnstarted(t, apitest.WithAppLogDir(logDir, "app"), apitest.WithLogRetention(0))
 
 	apitest.WriteLogFile(t, filepath.Join(logDir, "app-2024-01-02.log"), "line 1\nline 2\n")
@@ -100,7 +93,6 @@ func TestAPIGetLogContentTailContract(t *testing.T) {
 
 	target := apitest.LogEntryByFilename(t, env, "app-2024-01-02.log")
 
-	// A tail that falls inside a line is moved forward to the next one.
 	rec := env.Get(apitest.LogURL(target.ID, "content") + "?tail_bytes=12")
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	apitest.AssertContentType(t, rec, apitest.PlainTextContentType)
@@ -108,7 +100,6 @@ func TestAPIGetLogContentTailContract(t *testing.T) {
 		t.Fatalf("tail = %q, want whole trailing lines", got)
 	}
 
-	// An explicit zero is how a caller asks for the whole file.
 	rec = env.Get(apitest.LogURL(target.ID, "content") + "?tail_bytes=0")
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	if got := rec.Body.String(); got != "aaaa\nbbbb\ncccc\n" {
@@ -141,7 +132,7 @@ func TestAPIGetLogContentDefaultsToABoundedTail(t *testing.T) {
 	if int64(len(body)) > logutil.DefaultTailBytes {
 		t.Fatalf("default response = %d bytes, want at most %d", len(body), logutil.DefaultTailBytes)
 	}
-	// Aligning to a line boundary drops at most one whole line off the front.
+
 	if int64(len(body)) < logutil.DefaultTailBytes-int64(len(line)) {
 		t.Fatalf("default response = %d bytes, want close to the %d-byte window", len(body), logutil.DefaultTailBytes)
 	}
@@ -167,14 +158,9 @@ func TestAPILogsRequireTokenWithoutProtectReadContract(t *testing.T) {
 	rec := env.DoRaw(httptest.NewRequest(http.MethodGet, apitest.LogURL(), nil))
 	apitest.AssertStatus(t, rec, http.StatusUnauthorized)
 
-	// An ordinary read is still open, so this is the log routes being excepted
-	// rather than protect_read having been ignored. A setting is read instead of
-	// the book list because this env is deliberately unstarted, and a shelf that
-	// has not finished its initial scan answers 503.
 	rec = env.DoRaw(httptest.NewRequest(http.MethodGet, apitest.SettingPath, nil))
 	apitest.AssertStatus(t, rec, http.StatusOK)
 
-	// With the token the page works unchanged.
 	target := apitest.LogEntryByFilename(t, env, "app-2024-01-02.log")
 
 	rec = env.DoRaw(httptest.NewRequest(http.MethodGet, apitest.LogURL(target.ID, "content"), nil))

@@ -24,8 +24,6 @@ import (
 
 const pcloudFolder = "/PlainShelf/Shelf"
 
-// servePCloudShelf serves a shelf holding one book with text over a fake
-// pCloud API, and returns the server and the book's ID.
 func servePCloudShelf(t *testing.T) (*pcloudtest.Server, string) {
 	t.Helper()
 	libRoot := t.TempDir()
@@ -70,7 +68,7 @@ func servePCloudShelf(t *testing.T) (*pcloudtest.Server, string) {
 func TestPCloudBundleUsesAppTempDirectory(t *testing.T) {
 	srv, bookID := servePCloudShelf(t)
 	dataDir := t.TempDir()
-	// A file cannot serve as a temp directory, even when tests run as root.
+
 	blocked := filepath.Join(t.TempDir(), "not-a-directory")
 	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
 		t.Fatal(err)
@@ -156,7 +154,7 @@ func TestPCloudShelfIsServedAndKeptOffline(t *testing.T) {
 	if srv.TokenLeaked() {
 		t.Error("the token reached a download or a query string")
 	}
-	// Not one of the shelves the app keeps.
+
 	if entries := listShelves(t); len(entries) != 0 {
 		t.Errorf("ListShelves = %v, want no local shelves", entries)
 	}
@@ -199,8 +197,6 @@ func TestPCloudShelfFailedReplacementKeepsTheOldOne(t *testing.T) {
 	}
 	waitReady(t)
 
-	// A file where scope-b's offline directory goes makes opening it fail
-	// after the old shelf is closed.
 	sum := sha256.Sum256([]byte("pcloud:scope-b"))
 	blocked := filepath.Join(dataDir, "store", "offline", hex.EncodeToString(sum[:16]))
 	if err := os.MkdirAll(filepath.Dir(blocked), 0o700); err != nil {
@@ -265,8 +261,6 @@ func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
 	}
 }
 
-// The device's choice decides what the pCloud shelf serves, whatever the
-// install-wide setting the local shelves follow says.
 func TestPCloudShelfFollowsTheDevicesAdultContentChoice(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 	startT(t, t.TempDir())
@@ -288,7 +282,6 @@ func TestPCloudShelfFollowsTheDevicesAdultContentChoice(t *testing.T) {
 		t.Errorf("the install-wide setting changed: %s", res.Body)
 	}
 
-	// The marks cover the books the device hides, too.
 	if err := SetShelfShowNSFW("pcloud-a", false); err != nil {
 		t.Fatal(err)
 	}
@@ -317,8 +310,6 @@ func TestPCloudShelfFollowsTheDevicesAdultContentChoice(t *testing.T) {
 	}
 }
 
-// Opened while pCloud is down, with nothing listed before, the shelf answers
-// with the code the app falls back to its downloads on.
 func TestPCloudShelfOpenedOfflineAnswersSourceUnavailable(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 	srv.SetOffline(true)
@@ -342,8 +333,6 @@ func TestPCloudShelfOpenedOfflineAnswersSourceUnavailable(t *testing.T) {
 	}
 }
 
-// Closing or replacing a shelf keeps downloads; only deleting its entry
-// removes them, including when that entry is no longer open.
 func TestPCloudEntryRemovalCleansOnlyItsOfflineScope(t *testing.T) {
 	srv, bookID := servePCloudShelf(t)
 	dataDir := t.TempDir()
@@ -371,7 +360,7 @@ func TestPCloudEntryRemovalCleansOnlyItsOfflineScope(t *testing.T) {
 	if res := handle(t, http.MethodGet, "/api/shelves/cloud/books/"+bookID+"/content", ""); res.Status != http.StatusOK {
 		t.Fatalf("offline content after reopening: %d %s", res.Status, res.Body)
 	}
-	// Protect a different entry's cache against an over-broad removal.
+
 	other := offlineScopePath(dataDir, "other")
 	if err := os.MkdirAll(other, 0700); err != nil {
 		t.Fatal(err)

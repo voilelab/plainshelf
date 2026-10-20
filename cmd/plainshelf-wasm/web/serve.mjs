@@ -1,7 +1,3 @@
-// Static server for a site from build.sh. An unknown path gets index.html, the
-// SPA fallback, or, when the site has a 404.html, that page with status 404, as
-// GitHub Pages does.
-// Usage: node serve.mjs <site dir> [port]
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,7 +14,7 @@ export async function serveStatic(siteDir, port = 0) {
   const srv = http.createServer((req, res) => {
     const { pathname, search } = new URL(req.url, 'http://x');
     let file = path.join(root, decodeURIComponent(pathname));
-    if (file !== root && !file.startsWith(root + path.sep)) { // no escaping the site dir
+    if (file !== root && !file.startsWith(root + path.sep)) {
       res.writeHead(404).end();
       return;
     }

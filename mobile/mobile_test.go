@@ -22,8 +22,7 @@ import (
 
 func startT(t *testing.T, dataDir string) {
 	t.Helper()
-	// Start configures the process temp directory for the embedded app. Restore
-	// it before this test's private directory is removed.
+
 	t.Setenv("TMPDIR", os.Getenv("TMPDIR"))
 	if err := Start(dataDir); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -32,7 +31,6 @@ func startT(t *testing.T, dataDir string) {
 	waitReady(t)
 }
 
-// waitReady waits out the initial scan, which answers reads with 503.
 func waitReady(t *testing.T) {
 	t.Helper()
 	rt, err := running()
@@ -46,7 +44,6 @@ func waitReady(t *testing.T) {
 	}
 }
 
-// result is a Response with its body read back from the out file.
 type result struct {
 	Status int
 	Header map[string]string
@@ -154,8 +151,6 @@ func TestShelfAndBooksSurviveRestart(t *testing.T) {
 	}
 }
 
-// Shelves are managed through this package only; the HTTP API has no route
-// that creates or deletes one.
 func TestHandlerHasNoShelfManagementRoutes(t *testing.T) {
 	startT(t, t.TempDir())
 	id := createShelf(t, "Phone")
@@ -218,7 +213,7 @@ func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
 	if res := handle(t, http.MethodPost, "/api/shelves/"+id+"/books", `{"title":"Kept Apart","folder":["Adult"]}`); res.Status/100 != 2 {
 		t.Fatalf("create book: %d %s", res.Status, res.Body)
 	}
-	// The folder rule has to survive the trip; the source shelf never rereads it.
+
 	shelfJSON := `{"schema_version":1,"content":{"nsfw_folders":[{"path":"Adult"}]}}`
 	if err := os.WriteFile(filepath.Join(libRootOf(dataDir, id), "shelf.json"), []byte(shelfJSON), 0o644); err != nil {
 		t.Fatal(err)
@@ -228,7 +223,7 @@ func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
 	if err := ExportShelf(id, zipPath); err != nil {
 		t.Fatalf("ExportShelf: %v", err)
 	}
-	// The zip may still have a copy to survive; the caller marks it after.
+
 	if got := listShelves(t); got[0].LastExport != "" {
 		t.Fatalf("last export recorded before MarkExported: %q", got[0].LastExport)
 	}
@@ -242,7 +237,6 @@ func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
 		t.Fatal("MarkExported accepted an unknown shelf")
 	}
 
-	// Unzipped, it is a lib_root the desktop app or server opens as is.
 	libRoot := t.TempDir()
 	unzip(t, zipPath, libRoot)
 	s, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: libRoot, LockMode: "none"})
@@ -269,7 +263,7 @@ func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
 	if body := bookTitles(t, newID); !strings.Contains(body, "Round Trip") || strings.Contains(body, "Kept Apart") {
 		t.Fatalf("imported shelf with adult content hidden: %s", body)
 	}
-	// The book did travel; only the rule is hiding it.
+
 	if res := handle(t, http.MethodPost, "/api/setting/show_nsfw", "true"); res.Status != http.StatusNoContent {
 		t.Fatalf("show_nsfw: %d %s", res.Status, res.Body)
 	}
@@ -310,7 +304,6 @@ func TestImportRejectsNonShelfZip(t *testing.T) {
 	}
 }
 
-// A zip over the cap is refused before it is read, as the web handler does.
 func TestImportRejectsOversizedZip(t *testing.T) {
 	dataDir := t.TempDir()
 	startT(t, dataDir)
@@ -319,7 +312,7 @@ func TestImportRejectsOversizedZip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Sparse: no real disk use.
+
 	if err := f.Truncate(MaxImportBytes() + 1); err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +326,6 @@ func TestImportRejectsOversizedZip(t *testing.T) {
 	}
 }
 
-// unzip extracts every entry as a file manager would.
 func unzip(t *testing.T, zipPath, dst string) {
 	t.Helper()
 	zr, err := zip.OpenReader(zipPath)
@@ -367,7 +359,6 @@ func unzip(t *testing.T, zipPath, dst string) {
 	}
 }
 
-// An instance fetched just before Stop refuses to serve once it gets the lock.
 func TestStaleInstanceAfterStop(t *testing.T) {
 	startT(t, t.TempDir())
 	rt, err := running()
@@ -385,7 +376,6 @@ func TestStaleInstanceAfterStop(t *testing.T) {
 	}
 }
 
-// heldTask runs until release is closed.
 type heldTask struct {
 	release chan struct{}
 	done    atomic.Bool
@@ -403,8 +393,6 @@ func (h *heldTask) Status() taskutil.Status {
 	return taskutil.StatusRunning
 }
 
-// Export and removal wait for task chains accepted earlier, which keep writing
-// after their request returned.
 func TestExportImportAndRemoveWaitForTasks(t *testing.T) {
 	dataDir := t.TempDir()
 	startT(t, dataDir)
@@ -420,7 +408,7 @@ func TestExportImportAndRemoveWaitForTasks(t *testing.T) {
 
 	task := &heldTask{release: make(chan struct{})}
 	release := sync.OnceFunc(func() { close(task.release) })
-	// Before Stop's cleanup, which would wait on the task forever.
+
 	t.Cleanup(release)
 	if _, err := rt.app.TaskChains().Submit(&taskutil.TaskChain{Tasks: []taskutil.Task{task}}); err != nil {
 		t.Fatal(err)
@@ -458,8 +446,6 @@ func TestExportImportAndRemoveWaitForTasks(t *testing.T) {
 	}
 }
 
-// A large body goes through Handle as files on both sides and comes back
-// byte for byte.
 func TestHandleStreamsBodiesThroughFiles(t *testing.T) {
 	startT(t, t.TempDir())
 	shelfID := createShelf(t, "Phone")

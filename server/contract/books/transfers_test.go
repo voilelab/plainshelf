@@ -36,13 +36,11 @@ func TestAPIBookTransferCopyContract(t *testing.T) {
 		t.Fatalf("transferred book_id = %q, want a fresh id distinct from %q", newID, original.Meta.ID)
 	}
 
-	// The original stays on the source shelf.
 	sourceBooks := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL())
 	if len(sourceBooks) != 1 || sourceBooks[0].Meta.ID != original.Meta.ID {
 		t.Errorf("source books = %#v, want just the original", sourceBooks)
 	}
 
-	// The copy is on the target shelf, in the requested folder.
 	targetBooks := apitest.GetJSON[[]server.Book](t, env, apitest.SecondShelfBooksURL())
 	if len(targetBooks) != 1 || targetBooks[0].Meta.ID != newID {
 		t.Fatalf("target books = %#v, want the copy %q", targetBooks, newID)
@@ -75,14 +73,11 @@ func TestAPIBookTransferMoveContract(t *testing.T) {
 		t.Errorf("result = %#v, want a move preserving id %q", result, original.Meta.ID)
 	}
 
-	// The source shelf no longer lists it.
 	sourceBooks := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL())
 	if len(sourceBooks) != 0 {
 		t.Errorf("source books = %#v, want none after a move", sourceBooks)
 	}
 
-	// The target shelf lists it under the original ID, in the source book's folder
-	// (no target_folder was given).
 	targetBooks := apitest.GetJSON[[]server.Book](t, env, apitest.SecondShelfBooksURL())
 	if len(targetBooks) != 1 || targetBooks[0].Meta.ID != original.Meta.ID {
 		t.Fatalf("target books = %#v, want the moved book %q", targetBooks, original.Meta.ID)
@@ -108,7 +103,6 @@ func TestAPIBookTransferMoveIDConflictContract(t *testing.T) {
 		t.Fatalf("first move chain = %+v, want completed", chain)
 	}
 
-	// Restore the source's trashed copy so the ID lives on both shelves.
 	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("trash", "books", id, "restore"), nil), http.StatusNoContent)
 
 	rec := env.Post(apitest.BookTransfersURL(id), strings.NewReader(`{

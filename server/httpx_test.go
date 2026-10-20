@@ -7,9 +7,6 @@ import (
 	"testing"
 )
 
-// resolveShelf's 400 branch is not reachable through the mux, so it is
-// exercised directly. What the routed shelf errors look like to a client is
-// pinned by the contract tests instead.
 func TestResolveShelfRejectsMissingShelfID(t *testing.T) {
 	app := newTestApp(t)
 
@@ -27,15 +24,13 @@ func TestResolveShelfRejectsMissingShelfID(t *testing.T) {
 	}
 }
 
-// Every mutating endpoint's body comes through these two helpers, which differ
-// only in how they read an absent body.
 func TestDecodeJSONBody(t *testing.T) {
 	type request struct {
 		Folder string `json:"folder"`
 	}
 
 	const (
-		accept = http.StatusOK // the helper wrote nothing and reported true
+		accept = http.StatusOK
 		reject = http.StatusBadRequest
 	)
 
@@ -50,7 +45,6 @@ func TestDecodeJSONBody(t *testing.T) {
 		{"trailing whitespace", "{\"folder\":\"fiction\"}\n ", accept, accept, "fiction"},
 		{"a JSON null", `null`, accept, accept, ""},
 
-		// Only an absent body is optional; a truncated one stays an error.
 		{"no body", ``, reject, accept, ""},
 		{"whitespace only", "  \n\t", reject, accept, ""},
 		{"truncated after the name", `{"folder":`, reject, reject, ""},
@@ -61,7 +55,6 @@ func TestDecodeJSONBody(t *testing.T) {
 		{"a non-object", `[1,2]`, reject, reject, ""},
 		{"not JSON at all", `@@@`, reject, reject, ""},
 
-		// v2 defaults, not softened back to v1's.
 		{"a differently cased name", `{"Folder":"fiction"}`, reject, reject, ""},
 		{"a repeated member", `{"folder":"a","folder":"b"}`, reject, reject, ""},
 		{"invalid UTF-8", "{\"folder\":\"bad \xff\"}", reject, reject, ""},
@@ -104,8 +97,6 @@ func TestDecodeJSONBody(t *testing.T) {
 	}
 }
 
-// A body past http.MaxBytesReader's limit is the request being too large, not
-// the JSON being malformed, so it has to keep reaching the client as 413.
 func TestDecodeJSONBodyReportsAnOversizedBody(t *testing.T) {
 	body := `{"folder":"` + strings.Repeat("x", 4096) + `"}`
 
@@ -124,8 +115,6 @@ func TestDecodeJSONBodyReportsAnOversizedBody(t *testing.T) {
 	}
 }
 
-// The frontend shows a failed request's body verbatim, so these messages are
-// user-facing text and are pinned here.
 func TestJSONDecodeMessage(t *testing.T) {
 	type identifiers struct {
 		ISBN string `json:"isbn"`
@@ -154,13 +143,11 @@ func TestJSONDecodeMessage(t *testing.T) {
 		{"a truncated value", `{"folder":`, `invalid JSON at "folder"`},
 		{"invalid UTF-8", "{\"folder\":\"bad \xff\"}", `invalid JSON at "folder"`},
 
-		// Nothing here failed inside a member, so there is no field to name.
 		{"an empty body", ``, "invalid JSON"},
 		{"a body of the wrong shape", `[1,2]`, "invalid JSON"},
 		{"a second document", `{"folder":"a"}{"folder":"b"}`, "invalid JSON"},
 		{"not JSON at all", `@@@`, "invalid JSON"},
 
-		// A member name is quoted back only when it reads as a field name.
 		{"a field name carrying markup", `{"<script>alert(1)</script>":1}`, "invalid JSON"},
 		{"an overlong field name", `{"` + strings.Repeat("a", maxDescribedFieldLength+1) + `":1}`, "invalid JSON"},
 	}

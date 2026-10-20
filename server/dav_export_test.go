@@ -28,8 +28,6 @@ type davTestEnv struct {
 	libRoot   string
 }
 
-// newDAVTestEnv exports one writable shelf, "default_shelf", with a few files
-// of each kind already under app/.
 func newDAVTestEnv(t *testing.T) *davTestEnv {
 	t.Helper()
 	libRoot := t.TempDir()
@@ -41,7 +39,7 @@ func newDAVTestEnv(t *testing.T) *davTestEnv {
 		t.Fatalf("NewApp: %v", err)
 	}
 	t.Cleanup(func() { app.Close() })
-	waitForShelves(t, app)
+	waitForInitialShelfScans(t, app)
 
 	for name, body := range map[string]string{
 		"shelf.json":                     `{"schema_version":1}`,
@@ -87,7 +85,7 @@ func (e *davTestEnv) do(t *testing.T, method, target, token string, header map[s
 func davDo(t *testing.T, h http.Handler, method, target, token string, header map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, "http://lan.example:20001/", nil)
-	// Set raw so a ".." segment reaches the handler as a client could send it.
+
 	req.URL.Path = target
 	req.URL.RawPath = ""
 	if token != "" {
@@ -101,7 +99,6 @@ func davDo(t *testing.T, h http.Handler, method, target, token string, header ma
 	return rec
 }
 
-// propfindHrefs returns the hrefs of a multistatus body, decoded.
 func propfindHrefs(t *testing.T, body []byte) []string {
 	t.Helper()
 	var ms struct {
@@ -218,7 +215,6 @@ func TestDAVExportToken(t *testing.T) {
 		t.Fatalf("GET with token = %d", rec.Code)
 	}
 
-	// Persisted: a second start keeps the same token.
 	if err := EnsureDAVExportToken(env.tokenFile); err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +225,6 @@ func TestDAVExportToken(t *testing.T) {
 		t.Errorf("token file mode = %v, %v; want no group or other access", info.Mode(), err)
 	}
 
-	// Rotation takes effect on the next request, without a restart.
 	rotated, err := RotateDAVExportToken(env.tokenFile)
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +239,6 @@ func TestDAVExportToken(t *testing.T) {
 		t.Errorf("new token after rotation = %d, want 200", rec.Code)
 	}
 
-	// A missing token file fails closed.
 	if err := os.Remove(env.tokenFile); err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +254,7 @@ func TestDAVExportOnlyShelfFiles(t *testing.T) {
 	if rec.Code != http.StatusMultiStatus {
 		t.Fatalf("PROPFIND app/ = %d: %s", rec.Code, rec.Body)
 	}
-	// The shelf exports its own book cache beside the planted one.
+
 	got := propfindHrefs(t, rec.Body.Bytes())
 	if !slices.Contains(got, "/dav/default_shelf/app/book-cache-abc.json") {
 		t.Errorf("PROPFIND app/ hrefs = %q, missing book-cache-abc.json", got)
@@ -294,9 +288,6 @@ func TestDAVExportOnlyShelfFiles(t *testing.T) {
 	}
 }
 
-// TestDAVExportHidesWritesInProgress plants the two temp names a shelf write
-// leaves under books/: neither is listed nor readable, while look-alike user
-// files still are.
 func TestDAVExportHidesWritesInProgress(t *testing.T) {
 	env := newDAVTestEnv(t)
 	tempFile := "books/a.bookpkg/book.json.aB3dE6gH.tmp"
@@ -375,7 +366,7 @@ func TestDAVExportShelvesHandler(t *testing.T) {
 	if err := app.AddShelf(shelf.ShelfConfWithID{ID: "b", LibRoot: t.TempDir()}); err != nil {
 		t.Fatal(err)
 	}
-	waitForShelves(t, app)
+	waitForInitialShelfScans(t, app)
 
 	shared := map[string]bool{"a": true}
 	h := app.DAVExportShelvesHandler(env.tokenFile, func(id string) bool { return shared[id] })
@@ -391,21 +382,17 @@ func TestDAVExportShelvesHandler(t *testing.T) {
 			t.Errorf("PROPFIND %s = %d, want 404", target, rec.Code)
 		}
 	}
-	// Still behind the token.
+
 	if rec := davDo(t, h, "PROPFIND", "/dav/b/", "", depth); rec.Code != http.StatusUnauthorized {
 		t.Errorf("PROPFIND without token = %d, want 401", rec.Code)
 	}
 
-	// Asked per request, so a changed selection applies at once.
 	shared = map[string]bool{"b": true}
 	if rec := davDo(t, h, "PROPFIND", "/dav/a/", env.token, depth); rec.Code != http.StatusNotFound {
 		t.Errorf("PROPFIND unshared shelf = %d, want 404", rec.Code)
 	}
 }
 
-// TestDAVExportConformanceBytes reads every conformance case back through the
-// export, walking it with PROPFIND as a client would, and requires the same set
-// of shelf files with the same bytes.
 func TestDAVExportConformanceBytes(t *testing.T) {
 	casesDir, err := filepath.Abs("../shelf/testdata/conformance/cases")
 	if err != nil {
@@ -418,7 +405,7 @@ func TestDAVExportConformanceBytes(t *testing.T) {
 
 	var shelves []*shelf.ShelfConfWithID
 	for _, e := range entries {
-		// Read-only, so the fixture tree is never written.
+
 		shelves = append(shelves, &shelf.ShelfConfWithID{
 			ID:      e.Name(),
 			LibRoot: filepath.Join(casesDir, e.Name(), "shelf"), ReadOnly: true,
@@ -429,7 +416,7 @@ func TestDAVExportConformanceBytes(t *testing.T) {
 		t.Fatalf("NewApp: %v", err)
 	}
 	t.Cleanup(func() { app.Close() })
-	waitForShelves(t, app)
+	waitForInitialShelfScans(t, app)
 
 	tokenFile := filepath.Join(t.TempDir(), "dav.token")
 	token, err := RotateDAVExportToken(tokenFile)
@@ -517,8 +504,6 @@ func TestDAVExportConf(t *testing.T) {
 	}
 }
 
-// TestShippedConfigOpensNoExport: the shipped example, unchanged, exports
-// nothing.
 func TestShippedConfigOpensNoExport(t *testing.T) {
 	conf, err := loadAppConf("../cmd/plainshelf-srv/conf/config.yaml")
 	if err != nil {
@@ -530,8 +515,7 @@ func TestShippedConfigOpensNoExport(t *testing.T) {
 }
 
 func TestIsShelfFileMatchesPathClean(t *testing.T) {
-	// The FS hands IsShelfFile cleaned paths only; a hidden file must stay
-	// hidden however the request spells it.
+
 	fsys := davFS{}
 	for _, name := range []string{"/app/./library.lock", "//app//library.lock", "/books/../app/library.lock", "app/tmp/../library.lock"} {
 		if rel, ok := fsys.rel(name); ok {
@@ -575,7 +559,7 @@ func TestDAVExportRefusesSymlinks(t *testing.T) {
 
 func TestDAVExportNotFoundIsUniform(t *testing.T) {
 	env := newDAVTestEnv(t)
-	// A path through a file is ENOTDIR underneath; it must read as missing.
+
 	for _, target := range []string{"books/a.bookpkg/book.json/x", "books/nope", "app/nope", "app/library.lock"} {
 		rec := env.do(t, "PROPFIND", "/dav/default_shelf/"+target, env.token, map[string]string{"Depth": "0"})
 		if rec.Code != http.StatusNotFound {
@@ -617,8 +601,6 @@ app_conf: {store_path: ./store}
 	}
 }
 
-// TestDAVExportRefusesExportedTokenFile: a token_file the export would serve
-// stops the server at config load.
 func TestDAVExportRefusesExportedTokenFile(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -627,8 +609,7 @@ func TestDAVExportRefusesExportedTokenFile(t *testing.T) {
     - {id: src, source: {type: local, path: ./other}}
     - {id: remote, source: {type: webdav, url: "http://127.0.0.1:1/dav/x/"}}
     - {id: aliased, lib_root: ./alias}`
-	// The shelf opens its root through a symlink, so aliases must not hide a
-	// token; a link the export does not follow must not refuse one.
+
 	symlinks := runtime.GOOS != "windows"
 	if symlinks {
 		for _, d := range []string{"real", "shelf/books", "outside"} {
@@ -703,14 +684,12 @@ func TestDAVTokenFileExposed(t *testing.T) {
 	}
 }
 
-// TestDAVExportSymlinkSwapRace swaps a path between a real entry and a symlink
-// into app/ while it is read, the race a check-then-open walk loses.
 func TestDAVExportSymlinkSwapRace(t *testing.T) {
 	env := newDAVTestEnv(t)
 	books := filepath.Join(env.libRoot, "books")
 	secret := []byte("hidden runtime state")
 	writeTestFile(t, filepath.Join(env.libRoot, "app", "secret.json"), string(secret))
-	// A real file and a real directory, so the walk has something to pass.
+
 	writeTestFile(t, filepath.Join(books, "probe"), "plain")
 	writeTestFile(t, filepath.Join(books, "dd", "secret.json"), "plain")
 	writeTestFile(t, filepath.Join(books, "dd", "library.lock"), "plain")
@@ -724,7 +703,7 @@ func TestDAVExportSymlinkSwapRace(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		// Each swap is a rename, so the path always exists as one or the other.
+
 		swap := func(name string) {
 			p := filepath.Join(books, name)
 			_ = os.Rename(p, p+".real")
@@ -763,8 +742,6 @@ func TestDAVExportSymlinkSwapRace(t *testing.T) {
 	}
 }
 
-// TestMainServiceReleasesAPIWhenExportFails: the API is already listening when
-// the export starts, so an export that fails must not leave it bound.
 func TestMainServiceReleasesAPIWhenExportFails(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -794,7 +771,6 @@ app_conf:
 	again.Close()
 }
 
-// withDAVOrigins is env's handler with CORS for origins.
 func withDAVOrigins(t *testing.T, env *davTestEnv, origins ...string) http.Handler {
 	t.Helper()
 	h, err := env.app.davExportCORSHandler(env.tokenFile, origins)
@@ -817,7 +793,6 @@ func TestDAVExportCORS(t *testing.T) {
 		t.Errorf("allowed origin header = %q", got)
 	}
 
-	// A browser leaves a default port out of Origin.
 	for _, conf := range []string{"http://plain.example:80", "https://secure.example:443"} {
 		origin := strings.TrimSuffix(strings.TrimSuffix(conf, ":80"), ":443")
 		rec = davDo(t, withDAVOrigins(t, env, conf), http.MethodOptions, target, "", map[string]string{"Origin": origin, "Access-Control-Request-Method": "PROPFIND"})
@@ -833,7 +808,6 @@ func TestDAVExportCORS(t *testing.T) {
 		}
 	}
 
-	// Unconfigured: no CORS header of any kind, preflight included.
 	header := map[string]string{"Origin": "http://demo.example:8080", "Access-Control-Request-Method": "PROPFIND", "Depth": "1"}
 	for _, method := range []string{"PROPFIND", http.MethodOptions} {
 		rec = env.do(t, method, target, env.token, header)
@@ -857,7 +831,6 @@ func TestDAVExportCORSPreflight(t *testing.T) {
 		"Access-Control-Request-Headers": "authorization, depth",
 	}
 
-	// No token: answered, with nothing from the shelf in it.
 	for _, target := range []string{"/dav/default_shelf/", "/dav/default_shelf/books/a.bookpkg/book.json", "/dav/missing/", "/dav/default_shelf/app/scan-cache.json"} {
 		rec := davDo(t, h, http.MethodOptions, target, "", preflight)
 		if rec.Code != http.StatusNoContent || rec.Body.Len() != 0 {
@@ -892,14 +865,12 @@ func TestDAVExportCORSPreflight(t *testing.T) {
 		}
 	}
 
-	// A disallowed origin's preflight is the plain OPTIONS it was before: 401.
 	preflight["Origin"] = "http://evil.example"
 	rec := davDo(t, h, http.MethodOptions, "/dav/default_shelf/", "", preflight)
 	if rec.Code != http.StatusUnauthorized || rec.Header().Get("Access-Control-Allow-Origin") != "" {
 		t.Errorf("disallowed preflight = %d, Allow-Origin %q", rec.Code, rec.Header().Get("Access-Control-Allow-Origin"))
 	}
 
-	// An allowed origin still needs the token, and still cannot write.
 	origin := map[string]string{"Origin": "http://demo.example", "Depth": "1"}
 	if rec = davDo(t, h, "PROPFIND", "/dav/default_shelf/", "", origin); rec.Code != http.StatusUnauthorized {
 		t.Errorf("tokenless PROPFIND = %d, want 401", rec.Code)

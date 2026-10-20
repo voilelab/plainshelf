@@ -6,10 +6,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/epub"
 )
 
-// Every getter falls back to a usable default, so a getter that ignored the
-// store entirely would still answer plausibly. These assert with values that
-// differ from the fallback.
-
 func TestStoredJSONSettingsAreReturned(t *testing.T) {
 	app := newTestApp(t)
 
@@ -24,8 +20,6 @@ func TestStoredJSONSettingsAreReturned(t *testing.T) {
 	}
 }
 
-// One unreadable row must not wedge a setting: it is ignored in favour of the
-// fallback rather than surfaced.
 func TestUnusableStoredSettingsFallBack(t *testing.T) {
 	t.Run("corrupt JSON", func(t *testing.T) {
 		app := newTestApp(t)
@@ -69,9 +63,6 @@ func TestDeleteSettingRestoresTheFallback(t *testing.T) {
 	}
 }
 
-// A configuration block or a stored value that leaves fields out fills them in
-// per field. Omitting the preset used to invalidate the whole strategy, so
-// keys written beside it were silently dropped.
 func TestPartialStrategyKeepsItsOtherFields(t *testing.T) {
 	keepImages := false
 
@@ -107,8 +98,6 @@ func TestPartialStrategyKeepsItsOtherFields(t *testing.T) {
 	})
 }
 
-// Filling in an omitted preset must not make an unknown one acceptable: the
-// whole block is still rejected and the built-in default applies.
 func TestUnknownConfiguredPresetIsStillRejected(t *testing.T) {
 	app := newTestApp(t)
 	keepImages := false
@@ -129,7 +118,6 @@ func TestUnknownConfiguredPresetIsStillRejected(t *testing.T) {
 	}
 }
 
-// A fully written block is unchanged by the normalization above.
 func TestCompleteConfiguredStrategyIsUsedAsWritten(t *testing.T) {
 	app := newTestApp(t)
 	keepImages := false

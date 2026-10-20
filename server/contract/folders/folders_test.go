@@ -30,8 +30,6 @@ func TestAPIFolderMoveAndRenameContract(t *testing.T) {
 		t.Fatalf("folder = %#v, want gamma/renamed", got.Folder)
 	}
 
-	// Moving onto a folder that does not exist is a conflict, and a name that is
-	// not a single path segment is a client error.
 	rec = env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(`{"folder":["gamma","renamed"],"target_folder":["missing"]}`))
 	apitest.AssertStatus(t, rec, http.StatusConflict)
 
@@ -66,8 +64,7 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 			body:   `{"folder":[".."]}`,
 		},
 		{
-			// Creating and importing a book place it in a folder too, so they
-			// reject a bad one on the same terms.
+
 			name:   "create book in folder",
 			method: http.MethodPost,
 			path:   apitest.BooksURL(),
@@ -197,8 +194,6 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 		})
 	}
 
-	// A folder that is invalid for any other reason keeps the general message,
-	// so the specific entry must not swallow the table's existing one.
 	t.Run("other invalid folder keeps the general message", func(t *testing.T) {
 		rec := env.Post(apitest.ShelfURL("folders", "bad%2F..%2Fesc"), nil)
 
@@ -230,7 +225,6 @@ func TestAPIConfiguredIgnoredFolderNameCarriesTheShelfsReasonContract(t *testing
 		}
 	}
 
-	// The directory must not have been created on the way to the rejection.
 	if _, err := os.Stat(filepath.Join(libRoot, "books", "@Snapshot")); !os.IsNotExist(err) {
 		t.Errorf("Stat books/@Snapshot = %v, want it never to have been created", err)
 	}

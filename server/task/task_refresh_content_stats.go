@@ -25,26 +25,11 @@ type RefreshContentStatsResult struct {
 	Failures  []refreshContentStatsFailure `json:"failures"`
 }
 
-// refreshContentStatsTask recomputes the content metadata of every book whose
-// current source reports no character count.
-//
-// A stored count of 0 is what an unknown count looks like on disk: SourceMeta
-// carries CharCount as a plain int with omitempty, so a book whose count was
-// never computed is indistinguishable from a genuinely empty one. Both are
-// cheap to recompute and land on the same maintenance page, so both are swept.
-//
-// Sources are refreshed one at a time through the regular single-source
-// primitive rather than under one long-held shelf lock, matching emptyTrashTask:
-// the lock is a flock with a finite timeout, and holding it for the whole sweep
-// would block every read for as long as the sweep takes.
 type refreshContentStatsTask struct {
 	shelfID string
 	shelf   *shelf.Shelf
 	logger  *logutil.Logger
 
-	// visible limits the sweep to the books the request that started it was
-	// allowed to see, so neither the total it reports nor a failure naming a
-	// book ID says anything about a book that request was answered 404 for.
 	visible VisibleBooks
 
 	progress taskutil.Progress
@@ -121,26 +106,12 @@ func (t *refreshContentStatsTask) recordFailure(bookID string, err error) {
 	t.logger.Error("failed to refresh content stats", "shelf_id", t.shelfID, "book_id", bookID, "error", err)
 }
 
-// collectCandidates opens each book's current source to read its stored count
-// and returns the IDs of the books that need recomputing. It deliberately reads
-// meta.json rather than the count the book cache holds: the sweep exists to
-// repair counts that were never computed, including ones written into the shelf
-// from outside, and only the file says what is actually stored. That is still
-// far cheaper than the recompute pass that follows, and lets the task report an
-// accurate total before it starts.
-//
-// It deliberately returns IDs rather than the opened sources: a Source carries
-// its whole meta.json in memory and writes all of it back, so keeping one for
-// the length of the sweep would let this task overwrite a split config or
-// comment that another request stored in the meantime.
-func (t *refreshContentStatsTask) collectCandidates(books []*shelf.Book) []string {
+func (t *refreshContentStatsTask) collectBookIDsNeedingContentStats(books []*shelf.Book) []string {
 	ids := make([]string, 0)
 	for _, book := range books {
 		source, err := book.GetSource(book.CurrentSource())
 		if err != nil {
-			// A source that cannot be opened has no count to report, so it
-			// belongs in the sweep: the recompute pass reports why it failed
-			// rather than skipping it silently.
+
 			ids = append(ids, book.ID())
 			continue
 		}
@@ -151,10 +122,7 @@ func (t *refreshContentStatsTask) collectCandidates(books []*shelf.Book) []strin
 	return ids
 }
 
-// refreshBook re-resolves the book and its current source immediately before
-// writing, so the sweep reads and writes the same meta.json the single-source
-// refresh endpoint would.
-func (t *refreshContentStatsTask) refreshBook(bookID string) error {
+func (t *refreshContentStatsTask) refreshCurrentSourceContentStats(bookID string) error {
 	book, err := t.shelf.GetBook(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -176,9 +144,6 @@ func (t *refreshContentStatsTask) refreshBook(bookID string) error {
 func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 	t.progress.SetStatus(taskutil.StatusRunning)
 
-	// A failure here means the sweep never started at all, for example because
-	// the shelf is still initializing or its lock timed out. That is the only
-	// outcome reported as an outright failure.
 	books, err := t.shelf.ListBooks()
 	if err != nil {
 		t.progress.SetStatus(taskutil.StatusFailed)
@@ -186,9 +151,7 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 		return util.Errorf("%w", err)
 	}
 
-	// A book added since the snapshot was taken is left to the next sweep rather
-	// than swept without anyone having decided it is visible.
-	bookIDs := t.collectCandidates(t.visible.Only(books))
+	bookIDs := t.collectBookIDsNeedingContentStats(t.visible.Only(books))
 	t.progress.SetTotal(len(bookIDs))
 	if len(bookIDs) == 0 {
 		t.progress.SetStatus(taskutil.StatusCompleted)
@@ -202,7 +165,7 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 			return util.Errorf("%w", err)
 		}
 
-		if refreshErr := t.refreshBook(bookID); refreshErr != nil {
+		if refreshErr := t.refreshCurrentSourceContentStats(bookID); refreshErr != nil {
 			t.recordFailure(bookID, refreshErr)
 		} else {
 			t.mu.Lock()
@@ -210,8 +173,6 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 			t.mu.Unlock()
 		}
 
-		// Advance on failure too: the percentage tracks books processed, so it
-		// still reaches 100% when some sources could not be recomputed.
 		t.progress.Advance()
 	}
 
@@ -220,7 +181,7 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 	t.mu.Unlock()
 
 	if failed > 0 {
-		// The chain itself did run, so do not report an error and abort it.
+
 		t.progress.SetStatus(taskutil.StatusPartiallyCompleted)
 		return nil
 	}
@@ -229,8 +190,6 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 	return nil
 }
 
-// NewRefreshContentStatsChain builds the sweep over the books the requesting
-// client may see; see VisibleBooks.
 func NewRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, visible VisibleBooks) *taskutil.TaskChain {
 	return &taskutil.TaskChain{
 		Key:         RefreshContentStatsTaskName + ":" + shelfID,

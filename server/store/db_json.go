@@ -43,7 +43,6 @@ func New(dbPath string) (*DB, error) {
 
 func (db *DB) Close() error { return nil }
 
-// GetSetting returns the value, whether the key exists, and any error.
 func (db *DB) GetSetting(key string) ([]byte, bool, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()

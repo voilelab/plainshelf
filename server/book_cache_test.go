@@ -8,15 +8,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// The writer ID identifies the installation, so it has to outlive a restart:
-// two runs against the same store must keep writing the same file rather than
-// leaving a new one behind on every start.
-//
-// This asks nothing of the HTTP surface — the ID is minted from the store and
-// handed to the shelf at open time — so it is pinned here rather than in
-// server/contract, where it would only be a slower way to call the same
-// methods. The runtime half of the same promise, a shelf added after startup
-// getting the ID too, does go through the API and is pinned there.
 func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 	storePath := t.TempDir()
 	libRoot := t.TempDir()
@@ -63,6 +54,5 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 	if first == "" || first != second {
 		t.Fatalf("writer ID changed across restarts: %q then %q", first, second)
 	}
-	// WaitForExportedBookCache fails when a second file appears, so reaching
-	// here also proves the restart did not orphan the first run's cache.
+
 }

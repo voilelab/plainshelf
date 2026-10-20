@@ -13,16 +13,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// apiCore is what every handler group needs and nothing more: somewhere to log,
-// the shelves to look things up in, and a single way to write a response.
-//
-// security is here only so cacheVisibility can derive Cache-Control visibility
-// from the token gate rather than from the config; the gate itself runs in
-// Security.Middleware, before routing.
-//
-// settings is here for the one setting that decides what a request may see at
-// all rather than how a handler behaves: show_nsfw. It sits on the shared core
-// because the book lookups below apply it - see bookVisibility.
 type apiCore struct {
 	*logutil.Logger
 
@@ -30,14 +20,9 @@ type apiCore struct {
 	security *Security
 	settings *settings
 
-	// showNSFWByShelf holds a shelf's own show_nsfw answer, by shelf ID, for a
-	// shelf whose client decides it; see App.SetShelfShowNSFW.
 	showNSFWByShelf sync.Map
 }
 
-// requestLogger stamps the request's ID on every line, for work that outlives
-// the response: a background chain keeps logging long after the 202 that gave
-// the user their number.
 func (c *apiCore) requestLogger(r *http.Request) *logutil.Logger {
 	return c.With("request_id", logutil.RequestIDFrom(r.Context()))
 }
@@ -58,17 +43,6 @@ func (c *apiCore) resolveShelf(w http.ResponseWriter, r *http.Request) (*shelf.S
 	return shelfData, true
 }
 
-// rejectReadOnlyShelf answers a read-only shelf's refusal before the work, for
-// endpoints where something would otherwise run ahead of it:
-//
-//   - Endpoints that queue a background chain would answer 202 and leave the
-//     refusal to a task report, or to nothing.
-//   - The folder move and rename first ask whether to unhide a marked subtree
-//     (refuseUnconfirmedReveal); the user must not approve a disclosure for a
-//     change that was never going to happen.
-//
-// Other synchronous handlers need none of this: the shelf returns
-// fsutil.ErrReadOnly and writeErr turns it into the same 409.
 func (c *apiCore) rejectReadOnlyShelf(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData) bool {
 	if !shelfData.ReadOnly() {
 		return false
@@ -78,9 +52,6 @@ func (c *apiCore) rejectReadOnlyShelf(w http.ResponseWriter, r *http.Request, sh
 	return true
 }
 
-// lookupBook goes through the listing because half the visibility answer is the
-// book's folder, which the book does not carry. The shelf does the same work
-// either way, so this costs nothing beyond the folder it discards.
 func (c *apiCore) lookupBook(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
 	listing, ok := c.lookupBookListing(w, r, shelfData, bookID)
 	if !ok {
@@ -90,14 +61,6 @@ func (c *apiCore) lookupBook(w http.ResponseWriter, r *http.Request, shelfData *
 	return listing.Book, true
 }
 
-// lookupBookListing is the single gate every route naming a book passes
-// through, via loadBook, loadBookListing and loadBookSource.
-//
-// A book the request may not see is answered as one that is not there: 403 would
-// confirm it exists, which is the fact being withheld, so this writes the
-// response an unknown ID gets, byte for byte apart from the incident ID. The
-// lookup still happens first, so a caller timing the two could in principle tell
-// them apart; closing that would mean not consulting the shelf at all.
 func (c *apiCore) lookupBookListing(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (shelf.BookListing, bool) {
 	listing, err := shelfData.GetBookListing(bookID)
 	if err != nil {
@@ -142,7 +105,6 @@ func (c *apiCore) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.Shelf
 	return shelfData, book, true
 }
 
-// loadBookListing is loadBook for a handler that also needs the book's folder.
 func (c *apiCore) loadBookListing(w http.ResponseWriter, r *http.Request) (*shelf.ShelfData, shelf.BookListing, bool) {
 	shelfData, ok := c.resolveShelf(w, r)
 	if !ok {
@@ -191,10 +153,6 @@ func (c *apiCore) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf
 	return shelfData, book, source, true
 }
 
-// streamTextFile writes an open file as the plain-text response body.
-//
-// A zero-length file needs the explicit 200: a copy that writes nothing never
-// commits the response.
 func (c *apiCore) streamTextFile(w http.ResponseWriter, file fs.File, failureMsg string, logArgs ...any) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
@@ -209,14 +167,6 @@ func (c *apiCore) streamTextFile(w http.ResponseWriter, file fs.File, failureMsg
 	}
 }
 
-// writeJSON marshals before writing any header so an encoding failure can still
-// be reported as 500 - which is also why it is json.Marshal rather than
-// json.MarshalWrite, since writing straight to w would commit a 200 before the
-// encoder had a chance to fail.
-//
-// Every array-valued field reaches the client as [] rather than null, because
-// jsonopt.API() takes json/v2's default for a nil slice or map. That is a
-// contract - see the never-null assertions in server/contract.
 func (c *apiCore) writeJSON(w http.ResponseWriter, status int, v any) {
 	bs, err := json.Marshal(v, jsonopt.API())
 	if err != nil {
@@ -225,9 +175,6 @@ func (c *apiCore) writeJSON(w http.ResponseWriter, status int, v any) {
 		return
 	}
 
-	// Kept from the json.Encoder.Encode this replaced, which terminated each
-	// value with a newline. json.MarshalWrite does not, and changing the bytes
-	// of every response body is not what this conversion is for.
 	bs = append(bs, '\n')
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
