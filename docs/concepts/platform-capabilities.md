@@ -1,4 +1,4 @@
-# Shelf and Platform Capabilities
+# Shelf and platform capabilities
 
 !!! note "Implemented"
     Shelf capability fields are served by Go and read by the frontend.

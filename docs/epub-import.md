@@ -1,4 +1,4 @@
-# EPUB Import
+# EPUB import
 
 PlainShelf can import EPUB files. EPUB is an **import format, not a storage
 format**: the text is extracted and stored as an ordinary book, exactly like a

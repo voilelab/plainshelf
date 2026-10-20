@@ -53,11 +53,11 @@ renaming or moving the folder in PlainShelf, or with `mv` outside it, keeps the
 setting with no list to update. Copying or moving a folder to another shelf
 copies every `folder.json` in the folder and its subfolders byte for byte, even
 one this build cannot read, and adds none where there was none. A file that
-cannot be copied — for example because the destination folder already has one —
+cannot be copied, for example because the destination folder already has one,
 leaves the transfer partially completed, and a move keeps that source folder,
 its `folder.json` and the folders above it rather than delete a setting it did
-not take along. A cancelled move removes no source folder or `folder.json`.
-The shelf root has no `folder.json` of its own.
+not take along. A cancelled move removes no source folder or `folder.json`. The
+shelf root has no `folder.json` of its own.
 
 Every folder in the sidebar and in a book's folder path shows its icon, or the
 plain folder icon when it has none. To choose one, right-click the folder in the
@@ -68,13 +68,13 @@ not offered on a read-only shelf, nor for a folder whose `folder.json` PlainShel
 cannot read safely.
 
 The file can also be written by hand. A hand edit shows after the next shelf
-scan, as described in
-[Shelf cache and disk I/O](shelf-cache-and-io.md#folder-listing); clients reach
-it through `GET` and `PUT /api/shelves/{shelf_id}/folder-meta`. The icon names
-it accepts, and exactly what happens to a file it cannot read, are in
-[`folder.json` schema v1](data-format-versioning.md#folderjson-schema-v1). In
-short: a broken or unrecognized file never hides the folder — it reads as "no
-settings" — and PlainShelf will not overwrite a file it cannot read.
+scan, as described in [Shelf cache and disk
+I/O](shelf-cache-and-io.md#folder-listing); clients reach it through `GET` and
+`PUT /api/shelves/{shelf_id}/folder-meta`. The icon names it accepts, and
+exactly what happens to a file it cannot read, are in [`folder.json` schema
+v1](data-format-versioning.md#folderjson-schema-v1). In short: a broken or
+unrecognized file never hides the folder (it reads as "no settings"), and
+PlainShelf will not overwrite a file it cannot read.
 
 ## Custom sibling order
 
@@ -141,8 +141,8 @@ for a name that is malformed.
 ### Choosing the list for one shelf
 
 The four names above are defaults, not a fixed list. A shelf can name its own
-directories: create a [`shelf.json`](data-model.md#shelfjson) at the shelf root —
-beside `books/`, not inside it — and list what it should skip.
+directories: create a [`shelf.json`](data-model.md#shelfjson) at the shelf root,
+beside `books/` and not inside it, and list what it should skip.
 
 ```json
 {
@@ -240,22 +240,22 @@ setting, `show_nsfw`. It is off by default, so a freshly marked book disappears
 from the library as soon as the shelf is reopened.
 
 The filtering happens on the server, not in the browser: with `show_nsfw` off, a
-marked book is absent from the library listing, from the duplicate and similarity
-pages and from the dashboard's totals, and every address that names it — the
-book, its cover, its content, its sources — answers **404**, exactly as a book
-that is not on the shelf does. Naming it some other way does not get round that:
-a batch move or trash refuses the ID the same way, and the background sweeps
-(content statistics, source fingerprints) and the fingerprint coverage count
-leave it out too, so none of their totals can report that it exists. A folder
-disappears with its books: a marked
-folder is not listed, and neither is one left with nothing but marked books, so
-it cannot show up in a breadcrumb or in the destination list when moving a book.
+marked book is absent from the library listing, from the duplicate and
+similarity pages and from the dashboard's totals, and every address that names
+it (the book, its cover, its content, its sources) answers **404**, exactly as a
+book that is not on the shelf does. Naming it some other way does not get round
+that: a batch move or trash refuses the ID the same way, and the background
+sweeps (content statistics, source fingerprints) and the fingerprint coverage
+count leave it out too, so none of their totals can report that it exists. A
+folder disappears with its books: a marked folder is not listed, and neither is
+one left with nothing but marked books, so it cannot show up in a breadcrumb or
+in the destination list when moving a book.
 
 Deleting a book does not take it out of the setting's reach. The trash page
-leaves out a marked book — its title, its authors and the folder it was deleted
-from are all withheld — and restoring or permanently deleting it answers **404**,
-the same as an ID that was never issued. The folder rule still applies there:
-the trash remembers where each book was deleted from, so a book deleted out of a
+leaves out a marked book, withholding its title, its authors and the folder it
+was deleted from, and restoring or permanently deleting it answers **404**, the
+same as an ID that was never issued. The folder rule still applies there: the
+trash remembers where each book was deleted from, so a book deleted out of a
 marked folder stays marked while it sits in the trash.
 
 ### Moving a marked folder
@@ -279,7 +279,7 @@ subtree is refused with **409** and this body, and nothing happens:
 ```
 
 `hidden_books` counts the books that would become visible. It is `0` when the
-whole disclosure is a folder name — an empty marked folder is hidden too — so it
+whole disclosure is a folder name (an empty marked folder is hidden too), so it
 does not mean "nothing would change". Repeat the same request with `?confirm=1`
 to go ahead:
 
@@ -357,16 +357,16 @@ offers a **Show adult content on this device** switch, off by default and stored
 only on that device.
 
 It hides the same things the server setting hides, computed from the same two
-marks the shelf carries — the book's own `nsfw` and the `content.nsfw_folders`
+marks the shelf carries: the book's own `nsfw` and the `content.nsfw_folders`
 rules, which the app reads out of `shelf.json` itself rather than trusting the
 exported book cache's precomputed answer. A marked book is absent from the
 library listing, its address answers "not found", a marked folder and one left
 holding nothing but marked books drop out of the folder tree, and a book already
-downloaded for offline reading is withheld by the offline cache itself — its
-entry, its text, its cover, its sources and its illustrations — so it is gone
-from **Downloaded books** and unreadable even in flight mode. Being on the device
-is not a way past the switch; the stored copy is kept, because the switch hides
-books rather than deleting downloads.
+downloaded for offline reading is withheld by the offline cache itself (its
+entry, its text, its cover, its sources and its illustrations), so it is gone
+from **Downloaded books** and unreadable even in flight mode. Being on the
+device is not a way past the switch; the stored copy is kept, because the switch
+hides books rather than deleting downloads.
 
 The two settings are deliberately **not** synchronised. They are separate
 machines' decisions, and syncing them would turn "not on this phone" into "on no

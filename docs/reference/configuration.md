@@ -136,20 +136,20 @@ first.
 !!! warning "The token travels in plaintext"
     The export speaks plain HTTP. Anyone who can watch the network between the
     two devices can read the token and every file the export serves. Bind it
-    only on a network you trust — a home LAN, a VPN — never on a port reachable
-    from the internet. TLS is not supported yet.
+    only on a network you trust, such as a home LAN or a VPN, never on a port
+    reachable from the internet. TLS is not supported yet.
 
 ### Token file location
 
 The server refuses to start when `token_file` is one of the files the export
-serves — inside a local shelf's root, under `books/`, `trash/`, `shelf.json` or
-`app/book-cache-*.json` — because anyone who can reach the export could then
+serves (inside a local shelf's root, under `books/`, `trash/`, `shelf.json` or
+`app/book-cache-*.json`), because anyone who can reach the export could then
 download the token. The error names the shelf and the path. Both paths are made
 absolute against the working directory and their symlinks resolved first, so
 `./shelf/../shelf/books/dav.token` is refused too, and so is a token reached
-through another name for a shelf root that is itself a symlink. Elsewhere in the shelf root
-(`<lib_root>/app/dav.token`) or outside every shelf is fine; the default
-`./dav-export.token` is outside.
+through another name for a shelf root that is itself a symlink. Elsewhere in the
+shelf root (`<lib_root>/app/dav.token`) or outside every shelf is fine; the
+default `./dav-export.token` is outside.
 
 The check compares paths, so it does not see a hard link to the token file
 placed inside a shelf; do not create one. A symlink inside a shelf that points
@@ -199,7 +199,7 @@ can.
 `store_path` holds server settings only — the cover-to-JPEG flag, the EPUB
 import default, the log retention window, and whether books marked as adult
 content are shown. It is not the book store: the shelf on disk is. See
-[Backup and Restore](../backup-and-restore.md).
+[Backup and restore](../backup-and-restore.md).
 
 `cover_to_jpg` is one of the three settings that have both a key here and a
 runtime value. A value saved from the settings page wins over the config file;
@@ -272,8 +272,8 @@ fingerprinting. The whole section is optional.
 A [logger block](#logger-blocks) for the application log — API requests,
 imports, shelf operations.
 
-The **Logs** page lists the files of every logger under `app_conf` — this one,
-`app_conf.worker.logger` and each shelf's — and the retention window saved there
+The **Logs** page lists the files of every logger under `app_conf` (this one,
+`app_conf.worker.logger` and each shelf's), and the retention window saved there
 applies to all of them. Only the ones writing to `filename` or `filename_rotate`
 have files to list.
 
@@ -303,11 +303,11 @@ for this installation. Explicitly setting it to `""` on a writable shelf is
 therefore not the way to disable the export — the server fills it back in.
 
 For what these tuning keys cost and buy on each kind of filesystem, see
-[Shelf Cache and Disk I/O](../concepts/shelf-cache-and-io.md#tuning-options)
+[Shelf cache and disk I/O](../concepts/shelf-cache-and-io.md#tuning-options)
 and [Configure an SMB shelf file source](../configuring-smb-shelf.md).
 
 Scan settings held in the shelf's own `shelf.json` are a separate mechanism and
-are not listed here; see [Data Model](../concepts/data-model.md).
+are not listed here; see [Data model](../concepts/data-model.md).
 
 ### `shelves[].source`
 
@@ -315,7 +315,7 @@ Opens a shelf from somewhere other than a local path. A `plainshelf` or
 `webdav` source is a **virtual shelf**: always read-only whatever `read_only`
 says, never locked or exported, listed from the exported book cache when the
 remote has one, and kept readable offline from copies under `store_path`. See
-[Shelf Sources and Credentials](../concepts/shelf-sources.md).
+[Shelf sources and credentials](../concepts/shelf-sources.md).
 
 | Key | Type | Used by | What it does |
 |---|---|---|---|
@@ -436,7 +436,7 @@ loopback HTTP; use HTTPS when credentials cross the network.
 ### `app_conf.epub_import_strategy`
 
 The default conversion options for an EPUB import that does not carry its own.
-See [EPUB Import](../epub-import.md) for what each one produces.
+See [EPUB import](../epub-import.md) for what each one produces.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
@@ -486,11 +486,11 @@ and read; `stderr`, `stdout` and `none` leave it with nothing to show.
     `missing log dir: filename_rotate requires dir`. Both shipped example
     configs set `dir`; if you write your own, set it too.
 
-Deletion happens at rotation — the first log line written on a new day — so an
-idle or stopped server deletes nothing. Nothing else ever removes these files.
-A retention window saved from **Settings → Logs** overrides `retention_days`
-for the application, worker and shelf loggers while the server runs; see
-[Logs](../logs.md#retention).
+Deletion happens at rotation, when the first log line is written on a new day,
+so an idle or stopped server deletes nothing. Nothing else ever removes these
+files. A retention window saved from **Settings → Logs** overrides
+`retention_days` for the application, worker and shelf loggers while the server
+runs; see [Logs](../logs.md#retention).
 
 ## A complete example
 

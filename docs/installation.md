@@ -174,11 +174,11 @@ docker run --rm \
     The default container config protects writes with `local_token`, which is a
     CSRF boundary and not a login: anything that can reach the port can read the
     token out of the served page. Publish the port on the loopback address
-    (`127.0.0.1`) only, and do not expose `0.0.0.0:20000` to an untrusted network
-    without a real boundary (reverse proxy auth or a VPN edge) in front of the
-    container — see [Deployment and threat
+    (`127.0.0.1`) only, and do not expose `0.0.0.0:20000` to an untrusted
+    network without a real boundary (reverse proxy auth or a VPN edge) in front
+    of the container. See [Deployment and threat
     model](deployment-and-threat-model.md). Reaching the UI through any other
-    origin — another host port, a NAS LAN IP, a custom domain — needs that exact
+    origin (another host port, a NAS LAN IP, a custom domain) needs that exact
     origin in `app_conf.security.allowed_origins` too, or the Origin check
     rejects writes; the [Docker](development/docker.md) page has both settings.
 
@@ -209,5 +209,5 @@ For custom configuration and the bundled defaults, see the
 
 Because PlainShelf keeps data in human-readable files, back up your shelf and
 application store directories before upgrading across breaking changes. See
-[Backup and Restore](backup-and-restore.md) for what to copy, what a shelf-only
+[Backup and restore](backup-and-restore.md) for what to copy, what a shelf-only
 copy leaves behind, and how to roll back to an older release.

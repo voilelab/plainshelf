@@ -1,4 +1,4 @@
-# Known Issues
+# Known issues
 
 ## Shelf cache limitations
 
@@ -10,7 +10,7 @@ shelf. Every delay below that comes from an interval is bounded by it. See
 [Rescanning on demand](concepts/shelf-cache-and-io.md#rescanning-on-demand).
 
 For the operational model, the initial metadata scan, and tuning guidance, see
-[Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md).
+[Shelf cache and disk I/O](concepts/shelf-cache-and-io.md).
 
 Two limits run through every setup, so they are stated once here rather than
 repeated below.
@@ -24,14 +24,14 @@ shortens the wait to now.
 **Between scans, staleness is judged from `book.json`'s size and modification
 time.** The per-book refresh that runs on `book_check_interval` stats
 `book.json` and reopens a book only when its size or modification time changed,
-so an edit that leaves both unchanged is not noticed by that check — and neither
+so an edit that leaves both unchanged is not noticed by that check, and neither
 is a change to a cover or a source file, which does not move `book.json` at all.
 A full scan on a shelf a PlainShelf server reads is different: it reopens every
 `book.json` outright rather than trusting its stat, so **Update book list**,
-which forces one, does pick these up. A client that reads a shelf directly is the
-exception — it keeps its own metadata cache keyed on size and modification time,
-so even an update reuses the stale copy; the pCloud client below is the one such
-reader today.
+which forces one, does pick these up. A client that reads a shelf directly is
+the exception: it keeps its own metadata cache keyed on size and modification
+time, so even an update reuses the stale copy; the pCloud client below is the
+one such reader today.
 
 It takes a full scan to find such an edit, whether the timer starts one or you
 force one with the button. Until that scan the stale reading stands — though the
@@ -53,7 +53,7 @@ pressed on any device refreshes what all of them see.
 
 ### A shelf inside a sync folder (Dropbox, Google Drive, Syncthing, iCloud)
 
-A file caught mid-sync — being renamed, copied, or still written — can fail to
+A file caught mid-sync (being renamed, copied, or still written) can fail to
 reopen and is skipped for that pass, then picked up once the sync settles.
 
 Sync clients also tend to preserve or normalize timestamps, which turns the
@@ -87,8 +87,8 @@ are not individually serialized, which produces the following known behavior.
 
 ### Last-writer-wins on the same book
 
-When two requests modify the same book concurrently — for example, editing
-metadata in two browser tabs — both read the current `book.json`, apply their
+When two requests modify the same book concurrently, for example by editing
+metadata in two browser tabs, both read the current `book.json`, apply their
 changes independently, and write the result back. The second write silently
 replaces the first, and the first edit's changes are lost without warning.
 

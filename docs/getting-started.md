@@ -1,4 +1,4 @@
-# Getting Started
+# Getting started
 
 This guide takes you from an installed PlainShelf release to your first local
 library. To build the project itself, use [Local Development Setup](development/setup.md).
@@ -15,8 +15,8 @@ open -a PlainShelf
 ```
 
 Use the shelf controls in the app to add a shelf. Creating one needs only a
-name — PlainShelf makes the folder in its own shelves directory — or you can
-choose an existing folder to open instead.
+name, because PlainShelf makes the folder in its own shelves directory, or you
+can choose an existing folder to open instead.
 
 ### Prebuilt server
 
@@ -82,12 +82,12 @@ first time you open a book; the **?** button in the reader's controls brings the
 reminder back at any time.
 
 An EPUB is converted to text as it is imported; see
-[EPUB Import](epub-import.md) for what is kept, what is dropped, and how to
+[EPUB import](epub-import.md) for what is kept, what is dropped, and how to
 choose the output layout.
 
 PlainShelf creates a `.bookpkg` directory in the shelf and assigns a stable book
 ID. Renaming the title or moving the book between folders does not change that
-ID. See [Data Model](concepts/data-model.md) for the on-disk layout.
+ID. See [Data model](concepts/data-model.md) for the on-disk layout.
 
 ## 4. Back up before experimenting
 

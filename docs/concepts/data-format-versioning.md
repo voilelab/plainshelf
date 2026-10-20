@@ -1,23 +1,22 @@
-# Data Format Versioning
+# Data format versioning
 
 This page explains how PlainShelf marks the on-disk format of your library, what
 happens to your files when you upgrade, and what PlainShelf does when it meets
 data it cannot safely write.
 
-For what is stored where, see [Data Model](data-model.md); for how to copy your
-library and put it back, see [Backup and Restore](../backup-and-restore.md).
+For what is stored where, see [Data model](data-model.md); for how to copy your
+library and put it back, see [Backup and restore](../backup-and-restore.md).
 
 ---
 
 ## Why the shelf has a schema version
 
-Your files outlive the program that wrote them. A shelf created today may be
-opened years from now by a much later PlainShelf release — or, on a machine you
-forgot to update, by a much older one.
+A shelf created today may be opened years from now by a much later PlainShelf
+release, or by a much older one on a machine you forgot to update.
 
-A version marker in the file is what makes that safe. It lets a build recognize
-data it does not fully understand and refuse to overwrite it, instead of
-silently rewriting the file into a shape that loses information.
+The version marker in each file lets a build recognize data it does not fully
+understand and refuse to overwrite it, instead of silently rewriting the file
+into a shape that loses information.
 
 ---
 
@@ -137,17 +136,17 @@ section, unless the book is Markdown, in which case the `## ` headings already i
 its text still divide it into chapters. What no build does any more is read a
 source's chapter structure out of its own metadata.
 
-To give a plain-text legacy source chapters, open it in the source editor and run
-a **TXT → Markdown** conversion, either by a regular expression or by a fixed line
-count. The conversion writes the chapter boundaries into the text as `## `
-headings and saves them as a **new** schema v1 source, leaving your legacy source
-untouched, so nothing about the original is lost. Making that new source the
-book's current source also switches `book.json`'s compatibility `format` to `md`;
-pointing the book back at the legacy source restores its text but not that format
-mirror, so correct the book's `format` back to `txt` as well if you want it read
-as plain text again. This per-source conversion is the only supported way to
-re-chapter a legacy source — there is no batch or in-place upgrade, and a one-off
-migration tool that once did this shelf-wide has been removed.
+To give a plain-text legacy source chapters, open it in the source editor and
+run a **TXT → Markdown** conversion, either by a regular expression or by a
+fixed line count. The conversion writes the chapter boundaries into the text as
+`## ` headings and saves them as a **new** schema v1 source, leaving your legacy
+source untouched, so nothing about the original is lost. Making that new source
+the book's current source also switches `book.json`'s compatibility `format` to
+`md`; pointing the book back at the legacy source restores its text but not that
+format mirror, so correct the book's `format` back to `txt` as well if you want
+it read as plain text again. This per-source conversion is the only supported
+way to re-chapter a legacy source. There is no batch or in-place upgrade, and a
+one-off migration tool that once did this shelf-wide has been removed.
 
 Two fields survive in older `meta.json` files and no longer do anything:
 
@@ -202,9 +201,9 @@ skips that book, reports the sweep as partially completed, and leaves the book
 in the trash.
 
 Deleting a book is also a *write to the trash*: if the book folder already
-carries a `trash.json` from a newer build — which happens when a book was
-carried back out of the trash by hand — moving it to the trash is refused
-before the book is moved.
+carries a `trash.json` from a newer build, which happens when a book was carried
+back out of the trash by hand, moving it to the trash is refused before the book
+is moved.
 
 ---
 
@@ -238,8 +237,8 @@ The icon names are a subset of [Tabler](https://tabler.io/icons) icon names:
 A later release may add names. A name this build does not offer is shown as the
 default icon and kept as written.
 
-The shelf root — `books/` itself — has no metadata: a `books/folder.json` is
-not read.
+The shelf root, `books/` itself, has no metadata: a `books/folder.json` is not
+read.
 
 **Reading never hides a folder.** A missing file, malformed JSON, a top-level
 value that is not an object, a member of the wrong type, an icon this build
@@ -248,13 +247,13 @@ for that folder, and the problem is logged once rather than on every listing.
 Reading never rewrites the file.
 
 **Writing changes only what it is asked to.** Unlike the three files above,
-`folder.json` is written member by member: setting or clearing the icon
-replaces that one member and keeps every other one — `sort_key`, a member a
-newer build added, a member you added by hand — with its value and nested
-structure intact. Formatting is not kept: the file is rewritten with two-space
-indentation and members in alphabetical order. Clearing the icon of a file that
-then holds nothing but `schema_version` deletes the file, so the folder is left
-as it was before it had any metadata.
+`folder.json` is written member by member: setting or clearing the icon replaces
+that one member and keeps every other one (`sort_key`, a member a newer build
+added, a member you added by hand) with its value and nested structure intact.
+Formatting is not kept: the file is rewritten with two-space indentation and
+members in alphabetical order. Clearing the icon of a file that then holds
+nothing but `schema_version` deletes the file, so the folder is left as it was
+before it had any metadata.
 
 A write is refused, and the file left exactly as it is, when this build cannot
 read the file safely: malformed JSON, not an object, or a `schema_version`
@@ -273,14 +272,13 @@ reads as none and refuses writes until it is renamed.
 
 ## Compatibility policy
 
-The on-disk format freezes at **`1.0.0-rc1`**, not at `1.0.0`. The first
-release candidate is the point from which the shelf's user-data files stop
-taking breaking changes; every release after it — a further `1.0.0-rc2` should
-one be needed, the stable `1.0.0`, and the rest of 1.x — inherits those
-commitments rather than starting them. What a shelf can rely on therefore
-depends on which side of that tag it runs on, and the two are described
-separately below: the 0.x series is still unstable, and everything from
-`1.0.0-rc1` on is covered.
+The on-disk format freezes at **`1.0.0-rc1`**, not at `1.0.0`. The first release
+candidate is the point from which the shelf's user-data files stop taking
+breaking changes; every release after it (a further `1.0.0-rc2` should one be
+needed, the stable `1.0.0`, and the rest of 1.x) inherits those commitments
+rather than starting them. What a shelf can rely on therefore depends on which
+side of that tag it runs on, and the two are described separately below: the 0.x
+series is still unstable, and everything from `1.0.0-rc1` on is covered.
 
 ### Before the freeze — the 0.x series
 
@@ -302,16 +300,17 @@ Concretely, for a shelf you are running on a 0.x build today:
   guarantee that holds today rather than at the freeze: PlainShelf will not
   write a `book.json`, source `meta.json`, or `trash.json` whose on-disk
   `schema_version` is higher than the running build understands
-  (`bookpkg.Book.EnsureWritable`, `bookpkg.Source.EnsureWritable`, and
-  `shelf`'s `trashMetaWritable`). Such an object stays readable on a
-  best-effort basis, and every attempt to modify it fails with an explicit error
-  instead of overwriting the file. So an older build cannot silently rewrite an
-  object whose `schema_version` a newer build actually raised — its guard refuses
-  it (see [When PlainShelf refuses to write](#when-plainshelf-refuses-to-write)).
-  It does **not** cover a field a newer build added *without* raising the version:
-  that object still reads as a version the older build accepts, so the guard does
-  not fire and the field is dropped on the older build's next write — see
-  [What we do not promise](#what-we-do-not-promise).
+  (`bookpkg.Book.EnsureWritable`, `bookpkg.Source.EnsureWritable`, and `shelf`'s
+  `trashMetaWritable`). Such an object stays readable on a best-effort basis,
+  and every attempt to modify it fails with an explicit error instead of
+  overwriting the file. So an older build cannot silently rewrite an object
+  whose `schema_version` a newer build actually raised, because its guard
+  refuses it (see [When PlainShelf refuses to
+  write](#when-plainshelf-refuses-to-write)). It does **not** cover a field a
+  newer build added *without* raising the version: that object still reads as a
+  version the older build accepts, so the guard does not fire and the field is
+  dropped on the older build's next write. See [What we do not
+  promise](#what-we-do-not-promise).
 
 Beyond that write refusal, treat the 0.x on-disk format as unstable: keep a
 backup before each upgrade, and do not rely on the frozen commitments below.
@@ -337,16 +336,15 @@ exclusions are deliberate:
 
 - **The HTTP API and the user interface**, which may still change. The freeze is
   a promise about your files, not about the application around them.
-- **The derived caches under `app/`** — `scan-cache.json`,
+- **The derived caches under `app/`:** `scan-cache.json`,
   `fingerprint-cache.json`, and `book-cache-{writer-id}.json`. Their
   `schema_version` is the opposite kind: no migration, discarded and rebuilt on
   any mismatch. Nothing of yours is lost when one is thrown away, so nothing
-  about them is frozen — see
-  [What is versioned today](#what-is-versioned-today).
+  about them is frozen. See [What is versioned today](#what-is-versioned-today).
 - **Per-device reading state**, which is not shelf data at all: the desktop and
   standalone reader's `reading_progress.json` in the application store, the
   browser's `localStorage`, and the Android client's per-book `progress.json`.
-  [Backup and Restore](../backup-and-restore.md) says where each one lives.
+  [Backup and restore](../backup-and-restore.md) says where each one lives.
 
 Releases before the freeze are not covered either: v0.8's server-side reading
 history and reading time, in particular, are a documented breaking change, not
@@ -379,21 +377,21 @@ use safe — see
 #### Unknown fields are not covered
 
 `book.json`, source `meta.json` and `trash.json` do not pass unknown fields
-through; `folder.json` does, and is described
-[on its own](#folderjson-schema-v1). PlainShelf reads each of the other three
-into a fixed set of fields — `book.json` into [the table
-above](#bookjson-schema-v1), source `meta.json` and `trash.json` into their own
-— and rewrites the whole file from those fields, so a top-level key it does not
-recognize is gone the next time it writes that file: a key you added by hand and
-a key a newer build wrote alike. What counts as "next time" differs per file:
+through; `folder.json` does, and is described [on its
+own](#folderjson-schema-v1). PlainShelf reads each of the other three into a
+fixed set of fields (`book.json` into [the table above](#bookjson-schema-v1),
+source `meta.json` and `trash.json` into their own) and rewrites the whole file
+from those fields, so a top-level key it does not recognize is gone the next
+time it writes that file: a key you added by hand and a key a newer build wrote
+alike. What counts as "next time" differs per file:
 
-- `book.json` is rewritten by any change to the book — its metadata, its cover,
+- `book.json` is rewritten by any change to the book: its metadata, its cover,
   its current source. This is where `nsfw` is lost: a build that predates the
   field drops it the first time it writes that book, and the book stops being
-  marked. That is accepted rather than worked around — the alternative would be
-  passthrough, which none of these files does — and it is one more reason to
-  mark a whole folder in
-  [`shelf.json`](data-model.md#shelfjson), which no build rewrites at all.
+  marked. That is accepted rather than worked around, since the alternative
+  would be passthrough, which none of these files does. It is one more reason to
+  mark a whole folder in [`shelf.json`](data-model.md#shelfjson), which no build
+  rewrites at all.
 - Source `meta.json` is rewritten by any change to that source: editing its
   comment, replacing its content, or a background hash repair.
   [`split_config`](#giving-a-legacy-source-chapters-again) is the worked
@@ -407,7 +405,7 @@ This is the commitment most easily read as its opposite. The freeze says
 PlainShelf will not break the fields *it* defines; it does not say a field of
 your own survives. None of those three files is a place to keep data PlainShelf
 does not know about. Passthrough for such fields is itself an optional addition
-— `folder.json` is written that way from its first release — so nothing here
+(`folder.json` is written that way from its first release), so nothing here
 rules it out for the others later; but until a file gains it, assume it holds
 only the fields this page documents.
 
@@ -417,18 +415,18 @@ only the fields this page documents.
   release, from `1.0.0-rc1` through the 1.x line. Read support for schema v1 is
   not removed.
 - The schema version is not raised again. Only a change that an older build
-  cannot read correctly would raise it — a field changing meaning or type, a
-  field being removed, or a new field becoming required — and the freeze rules
+  cannot read correctly would raise it (a field changing meaning or type, a
+  field being removed, or a new field becoming required), and the freeze rules
   all three out. Additive changes never raised it in the first place.
-- Upgrades are lazy and per-book. Opening a library never rewrites a book; a book
-  is written in the new format only when you next change something about that
-  book. Source `meta.json` is the one exception to the *upgrade* half: it is
-  never raised as a side effect of an ordinary write. A legacy source keeps its
-  unversioned metadata even when something else about it is written — the write
-  preserves the version it found rather than stamping the current one. A legacy
-  source is therefore never upgraded in place; to get a schema v1 source with
-  chapters, convert it in the source editor — see
-  [Giving a legacy source chapters again](#giving-a-legacy-source-chapters-again).
+- Upgrades are lazy and per-book. Opening a library never rewrites a book; a
+  book is written in the new format only when you next change something about
+  that book. Source `meta.json` is the one exception to the *upgrade* half: it
+  is never raised as a side effect of an ordinary write. A legacy source keeps
+  its unversioned metadata even when something else about it is written, because
+  the write preserves the version it found rather than stamping the current one.
+  A legacy source is therefore never upgraded in place; to get a schema v1
+  source with chapters, convert it in the source editor. See [Giving a legacy
+  source chapters again](#giving-a-legacy-source-chapters-again).
 - PlainShelf will never write a `book.json`, source `meta.json`, or `trash.json`
   whose on-disk `schema_version` is higher than the running build understands.
   Such data stays visible and readable on a best-effort basis, and every attempt
@@ -444,18 +442,16 @@ only the fields this page documents.
 #### What we do not promise
 
 - **Top-level keys PlainShelf does not recognize are removed the next time it
-  writes that file** — in `book.json`, source `meta.json` and `trash.json`
-  alike; see
-  [Unknown fields are not covered](#unknown-fields-are-not-covered) above. That
-  is why editing such a book from an older build loses the values only a newer
-  one knows about: run one version against a shelf, or upgrade both. A read-only
-  reader — the Android client on a pCloud shelf — is
-  exempt from the losing half of this, since it never rewrites a book, but it can
-  still be built against an older schema than the shelf and show stale or missing
-  fields (see
-  [What a version mismatch costs a remote shelf](#what-a-version-mismatch-costs-a-remote-shelf)).
-  [Hand-editing `book.json`](#hand-editing-bookjson) below says which edits do
-  survive.
+  writes that file**, in `book.json`, source `meta.json` and `trash.json` alike;
+  see [Unknown fields are not covered](#unknown-fields-are-not-covered) above.
+  That is why editing such a book from an older build loses the values only a
+  newer one knows about: run one version against a shelf, or upgrade both. A
+  read-only reader, such as the Android client on a pCloud shelf, is exempt from
+  the losing half of this, since it never rewrites a book, but it can still be
+  built against an older schema than the shelf and show stale or missing fields
+  (see [What a version mismatch costs a remote
+  shelf](#what-a-version-mismatch-costs-a-remote-shelf)). [Hand-editing
+  `book.json`](#hand-editing-bookjson) below says which edits do survive.
 - Reading a book whose `schema_version` is higher than the build supports is
   best-effort. Fields may be missing or misinterpreted, and the displayed
   metadata may be wrong. It is shown so you can see the book exists, not so you
@@ -469,8 +465,8 @@ only the fields this page documents.
   [What the freeze covers](#what-the-freeze-covers) is promised — not the caches
   under `app/`, and not per-device reading state. A file that gains user-data
   versioning later gets these promises from then on, not retroactively.
-- Hand-edited `book.json` files are read on a best-effort basis. Malformed JSON —
-  which includes a duplicated key and invalid UTF-8, not only a missing brace —
+- Hand-edited `book.json` files are read on a best-effort basis. Malformed JSON,
+  which includes a duplicated key and invalid UTF-8 as well as a missing brace,
   makes that book unopenable; the error names the file and the key at fault. See
   [How the file is parsed](#how-the-file-is-parsed).
 
@@ -501,8 +497,8 @@ PlainShelf reads its metadata files strictly, and says so rather than guessing:
 
 A file that fails any of these makes that one book unopenable. It does not stop
 the rest of the shelf from loading: the other books list as usual, and the error
-names the file and the key at fault — `books/Dune.bookpkg/book.json: duplicate
-object member name "title"` — in the log, and in the message PlainShelf answers
+names the file and the key at fault (`books/Dune.bookpkg/book.json: duplicate
+object member name "title"`) in the log, and in the message PlainShelf answers
 with when you act on that book.
 
 The same rules apply to a source's `meta.json`, to `trash.json`, and to
@@ -539,18 +535,17 @@ looking fine while the book you just rated has quietly lost it.
 
 None of this is a reason to leave the file alone. These edits are safe:
 
-- **Changing the value of any field in the
-  [schema table](#bookjson-schema-v1), within the type and range that table
-  gives** — title, authors, tags, identifiers, language, comments, star,
-  published date. A value that fits is read back exactly as written. A value
-  that does not is worse than a typo, because PlainShelf validates on write
-  rather than on read: `"star": 6`, a `language` that is not a BCP-47 tag, or a
-  blank key in `identifiers` all load fine, and then every later edit to that
-  book is refused until you repair the file by hand. A `published_at` that is
-  neither `YYYY-MM-DD` nor an RFC 3339 timestamp is worse still — it fails at
-  read time and makes the book unopenable, exactly like malformed JSON.
-  `schema_version` is its own exception: it is managed by PlainShelf, and
-  raising it locks you out of the book.
+- **Changing the value of any field in the [schema table](#bookjson-schema-v1),
+  within the type and range that table gives**: title, authors, tags,
+  identifiers, language, comments, star, published date. A value that fits is
+  read back exactly as written. A value that does not is worse than a typo,
+  because PlainShelf validates on write rather than on read: `"star": 6`, a
+  `language` that is not a BCP-47 tag, or a blank key in `identifiers` all load
+  fine, and then every later edit to that book is refused until you repair the
+  file by hand. A `published_at` that is neither `YYYY-MM-DD` nor an RFC 3339
+  timestamp is worse still: it fails at read time and makes the book unopenable,
+  exactly like malformed JSON. `schema_version` is its own exception: it is
+  managed by PlainShelf, and raising it locks you out of the book.
 - **Renaming the `.bookpkg` directory, or moving it into another folder with a
   file manager.** Identity lives in the `id` field, not in the path — see
   [Book IDs](data-model.md#book-ids).
@@ -576,8 +571,8 @@ somewhere PlainShelf never touches, not in an invented key:
 
 PlainShelf does not promise to preserve unknown keys, and no build implements
 passthrough today. Carrying a key through means writing back data this build
-cannot validate, into the file the promises above rest on. A narrower scheme —
-reserving a prefix such as `x_` for keys PlainShelf preserves untouched — is
+cannot validate, into the file the promises above rest on. A narrower scheme,
+reserving a prefix such as `x_` for keys PlainShelf preserves untouched, is
 still under consideration, but nothing is committed and nothing has been built.
 Until that changes, assume any key outside the table is temporary.
 
@@ -588,7 +583,7 @@ Until that changes, assume any key outside the table is temporary.
 Take a backup before every upgrade: until 1.0, an upgrade can write a format the
 release you are on will not touch, and the backup is the only way back.
 
-[Backup and Restore](../backup-and-restore.md) is the full procedure — what to
+[Backup and restore](../backup-and-restore.md) is the full procedure — what to
 copy for each installation, what a shelf-only copy silently leaves behind, and
 how to put it back. Two points matter specifically for an upgrade:
 
@@ -616,7 +611,7 @@ Upgrade from v0.8 only if you accept that they will no longer be accessible.
 
 ## Restoring from a backup
 
-[Backup and Restore](../backup-and-restore.md#restoring) has the steps for the
+[Backup and restore](../backup-and-restore.md#restoring) has the steps for the
 server, Docker, and the macOS desktop app, along with what can be skipped and
 what a restore cannot bring back. For going back to an older release
 specifically, see [Rolling back to an older
@@ -680,24 +675,25 @@ no migration and, deliberately, no field-level salvage: changing how text is
 normalized invalidates every fingerprint built on top of it, so keeping "the
 parts that did not change" would mean trusting entries nobody can vouch for.
 
-That is the right trade only because the file is a cache. Discarding it costs one
-recomputation — the next similarity build reads the sources again — and never
-loses anything, which is exactly what the migration promises above exist to avoid
-for `books/` and `trash/`. See
-[the `app/` directory](data-model.md#app) for what the file holds.
+That is the right trade only because the file is a cache. Discarding it costs
+one recomputation (the next similarity build reads the sources again) and never
+loses anything, which is exactly what the migration promises above exist to
+avoid for `books/` and `trash/`. See [the `app/` directory](data-model.md#app)
+for what the file holds.
 
 !!! note "Building fingerprints can write one source file"
     The Similar Books page reads like pure analysis, but building fingerprints
     has one write side effect on `books/`. When it reads a source whose stored
-    `md5_hash` no longer matches the source's actual bytes — content changed
-    outside PlainShelf, or an older import that recorded a different hash — it
-    corrects that source's `meta.json` in place (`fingerprint_facade.go:42` →
-    `source.go:245`, `RepairContentHash`). It deliberately leaves the UI-visible
-    line and character counts at their stale values rather than recomputing them,
-    but the write still rebuilds the whole file from the fields PlainShelf knows —
-    so, like any `meta.json` write, it drops top-level keys outside that set. It
-    goes through the same write refusal as any other write, so it never touches a
-    read-only shelf or a source whose schema version is newer than this build.
+    `md5_hash` no longer matches the source's actual bytes (content changed
+    outside PlainShelf, or an older import that recorded a different hash), it
+    corrects that source's `meta.json` in place (`fingerprint_facade.go:42`
+    calls `source.go:245`, `RepairContentHash`). It deliberately leaves the
+    UI-visible line and character counts at their stale values rather than
+    recomputing them, but the write still rebuilds the whole file from the
+    fields PlainShelf knows, so, like any `meta.json` write, it drops top-level
+    keys outside that set. It goes through the same write refusal as any other
+    write, so it never touches a read-only shelf or a source whose schema
+    version is newer than this build.
 
 ---
 
@@ -709,18 +705,17 @@ cache it is versioned the throw-away way: there is no migration path, and a
 reader that meets a version it does not recognize discards the whole file and
 falls back to walking the shelf.
 
-The server and desktop app export the file so that a shelf opened from a
-remote, read-only source — the Android app's pCloud shelf — does not have to be
+The server and desktop app export the file so that a shelf opened from a remote,
+read-only source such as the Android app's pCloud shelf does not have to be
 walked book by book. It is also where such a reader learns which books are
-[adult content](folders.md#marking-a-folder-as-adult-content): each entry carries
-the finished `nsfw` answer, and `current_source_md5`, which tells an offline copy
-that a source's text changed; `folder_meta` carries each folder's icon. Being a
-cache, such a field is an ordinary
-addition — nothing here is frozen, and a reader that does not know it simply
-does not read it.
-[Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache)
-describes what the file holds and when it is written; this section adds only
-what happens when its version does not match.
+[adult content](folders.md#marking-a-folder-as-adult-content): each entry
+carries the finished `nsfw` answer, and `current_source_md5`, which tells an
+offline copy that a source's text changed; `folder_meta` carries each folder's
+icon. Being a cache, such a field is an ordinary addition. Nothing here is
+frozen, and a reader that does not know it simply does not read it. [Shelf cache
+and disk I/O](shelf-cache-and-io.md#the-exported-book-cache) describes what the
+file holds and when it is written; this section adds only what happens when its
+version does not match.
 
 ### One reader
 
@@ -748,7 +743,7 @@ app declines, until that app is updated too.
 
 This is the one sense in which "deleting the book cache is safe" needs a
 qualifier. From the server's side it is exactly as safe as the caches above: the
-next export rebuilds it, and [Data Model](data-model.md#app) says as much. From
+next export rebuilds it, and [Data model](data-model.md#app) says as much. From
 a remote reader's side, deleting or invalidating it is the difference between
 one download and a full per-book walk — still safe, still never an error, but no
 longer free.
@@ -774,7 +769,7 @@ The two are worth separating because only one of them is versioned.
   in a diff of that one file, and it is what `schema_version` exists to mark: an
   older build meets a version it does not understand and refuses to overwrite it.
 - A **layout change** alters the shelf around those files without changing any
-  file's contents: renaming a top-level directory (`.trash/` → `trash/`),
+  file's contents: renaming a top-level directory (`.trash/` to `trash/`),
   introducing or removing one, or changing how book folders are named or nested.
   Read every versioned file in such a shelf and you cannot tell the change
   happened; only the directory tree did.
@@ -792,14 +787,13 @@ by looking at what is on disk, and its cross-version consequences are
 communicated in the release notes, not enforced by a version guard.
 
 PlainShelf has made two layout changes so far, and neither used a manifest. The
-earlier one — book folders changing extension from `.novl` to `.bookpkg` — was a
+earlier one, book folders changing extension from `.novl` to `.bookpkg`, was a
 hard cut: no code detects `.novl` today, so an existing shelf was expected to be
-renamed out-of-band rather than migrated at runtime. The later one, the
-`.trash/` → `trash/` rename, is the model this policy follows:
-`migrateLegacyTrash` (`shelf/trash.go`) decides entirely by whether `.trash/`
-exists, consulting no marker and writing none, and it moves nothing
-destructively. [What is versioned today](#what-is-versioned-today) records the
-same fact in its table.
+renamed out-of-band rather than migrated at runtime. The later one, renaming
+`.trash/` to `trash/`, is the model this policy follows: `migrateLegacyTrash`
+(`shelf/trash.go`) decides entirely by whether `.trash/` exists, consulting no
+marker and writing none, and it moves nothing destructively. [What is versioned
+today](#what-is-versioned-today) records the same fact in its table.
 
 A manifest was rejected deliberately. It would be the first file under `app/`
 that could not be thrown away and rebuilt, breaking the rule that [everything
@@ -811,9 +805,9 @@ more than it saves.
 #### `shelf.json` is not that manifest
 
 A shelf may carry a [`shelf.json`](data-model.md#shelfjson) at its root, and it
-does not reverse the decision above. It holds settings the user wrote —
-currently which directories the scanners skip — and nothing else reads it as a
-statement about the shelf's shape:
+does not reverse the decision above. It holds settings the user wrote (currently
+which directories the scanners skip), and nothing else reads it as a statement
+about the shelf's shape:
 
 - It is optional, and a shelf without one is not an older shelf. Absent means
   "the defaults", not "an earlier layout".
@@ -841,19 +835,19 @@ Presence detection instead of a manifest is not free:
   stops an older build from clobbering a newer `book.json` has no layout
   analogue: an older build meeting a newer directory shape has no version to
   refuse on. Downgrade and cross-version behavior can therefore only be
-  *communicated* — through a pull request labelled `breaking` — never
-  *enforced*.
+  *communicated*, through a pull request labelled `breaking`, never *enforced*.
 
-What makes the trade acceptable today: layout changes are rare — two in the
-project's history (`.novl` → `.bookpkg`, then `.trash/` → `trash/`) — and each is
-a one-way startup migration that must be idempotent and destroy nothing. Going
-forward this policy requires every layout change to be a pull request labelled
-`breaking` whose title states its cross-version effect, as the `.trash/` →
-`trash/` rename's `Breaking (pre-1.0)` entry did. If that frequency ever rises enough that the bespoke conditions
-become a burden, revisit this decision — an `app/`-external manifest is the escape
-hatch — but that is a future call made on evidence, and taking it would not
-retrofit any existing shelf. A shelf carrying no layout marker is not one waiting
-to be upgraded; it is the only kind there is.
+What makes the trade acceptable today: layout changes are rare. There have been
+two in the project's history (`.novl` to `.bookpkg`, then `.trash/` to
+`trash/`), and each is a one-way startup migration that must be idempotent and
+destroy nothing. Going forward this policy requires every layout change to be a
+pull request labelled `breaking` whose title states its cross-version effect, as
+the `Breaking (pre-1.0)` entry for renaming `.trash/` to `trash/` did. If that
+frequency ever rises enough that the bespoke conditions become a burden, revisit
+this decision (an `app/`-external manifest is the escape hatch), but that is a
+future call made on evidence, and taking it would not retrofit any existing
+shelf. A shelf carrying no layout marker is not one waiting to be upgraded; it
+is the only kind there is.
 
 ---
 
@@ -867,18 +861,18 @@ versioned files into three kinds:
   `folder.json`. Losing them loses your library, so the version is a guard: a
   build that meets a newer version refuses to overwrite it, and upgrades are
   lazy and per-book. This is the versioning the rest of this page describes.
-- **Local disposable cache** — `app/scan-cache.json` and
-  `app/fingerprint-cache.json`. Rebuildable from the shelf and read only by the
-  same Go implementation that writes them — shared across the installations that
-  mount one shelf (`scan-cache.json` is one file; `fingerprint-cache.json` merges
-  every machine's entries), but never parsed by any reader outside that
-  implementation — so their version carries no migration: any mismatch throws the
-  whole file away and it is recomputed.
-- **Cross-device contract** — `app/book-cache-{writer-id}.json`. Thrown away on
-  a mismatch like the caches above, but read on another device — the Android
-  app's pCloud shelf, possibly built from an older release — so a mismatch has a
-  real cost there even though it is never an error. See
-  [The exported book cache](#the-exported-book-cache).
+- **Local disposable cache:** `app/scan-cache.json` and
+  `app/fingerprint-cache.json`. They are rebuildable from the shelf and read
+  only by the same Go implementation that writes them. They are shared across
+  the installations that mount one shelf (`scan-cache.json` is one file;
+  `fingerprint-cache.json` merges every machine's entries), but no reader
+  outside that implementation parses them, so their version carries no
+  migration: any mismatch throws the whole file away and it is recomputed.
+- **Cross-device contract:** `app/book-cache-{writer-id}.json`. It is thrown
+  away on a mismatch like the caches above, but read on another device (the
+  Android app's pCloud shelf, possibly built from an older release), so a
+  mismatch has a real cost there even though it is never an error. See [The
+  exported book cache](#the-exported-book-cache).
 
 | Path | Versioned? | Kind |
 |---|---|---|

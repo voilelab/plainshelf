@@ -1,4 +1,4 @@
-# Shelf Sources and Credentials
+# Shelf sources and credentials
 
 !!! note "Implemented"
     This page describes the source and credential model. The engine can
@@ -162,7 +162,7 @@ being ignored, so a typo cannot silently open the wrong thing.
   since every listing is a network request.
 - **The source never reaches the HTTP API.** `GET /api/shelves` returns shelf
   identity and capability fields, but neither `lib_root` nor `source`. See
-  [Shelf and Platform Capabilities](platform-capabilities.md#shelf-capabilities).
+  [Shelf and platform capabilities](platform-capabilities.md#shelf-capabilities).
 
 ### From a LAN share QR code
 
