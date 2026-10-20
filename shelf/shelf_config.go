@@ -43,9 +43,7 @@ type shelfConfigJSON struct {
 		//
 		// Unlike IgnoredDirs there is no built-in list to replace: absent and
 		// empty both mean "this shelf marks no folder", because only the user
-		// knows what their own folders hold. A folder has no metadata file of its
-		// own (docs/concepts/folders.md), so this is the only place a
-		// folder-level mark can live.
+		// knows what their own folders hold.
 		//
 		// An entry is always an object, for the same reason IgnoredDirs entries
 		// are: one shape wherever the reader looks.

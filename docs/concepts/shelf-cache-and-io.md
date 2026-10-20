@@ -274,6 +274,9 @@ copied in from outside would never be discovered. If new books appear only after
 you restart the server or delete `app/scan-cache.json`, this is the setting to
 try.
 
+A virtual shelf (`NewShelfFromFS`) always runs with it off: a remote tree need
+not report directory times the way the machine that saved the snapshot saw them.
+
 ### `book_cache_interval`
 
 How quickly a change reaches the exported book cache described below. It applies

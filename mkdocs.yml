@@ -50,6 +50,7 @@ nav:
       - Folders: concepts/folders.md
       - Shelf sources and credentials: concepts/shelf-sources.md
       - Shelf and platform capabilities: concepts/platform-capabilities.md
+      - Similarity fingerprints: concepts/similarity-fingerprints.md
   - Development:
       - Local Setup: development/setup.md
       - Android: development/android.md

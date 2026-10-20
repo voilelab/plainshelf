@@ -112,6 +112,13 @@ own localStorage, but when the desktop shells out to it the launching side
 own `readHistory` after the launch succeeds, so the desktop app's "recent
 reading" sees a book read this way.
 
+The frontend autosaves reading progress every 10 seconds. So that closing a Wails
+window between two saves loses nothing, the frontend also stages its latest
+position in Go memory, and `OnBeforeClose` writes it synchronously
+(`internal/readingclose`); a flush request over an async event proved unreliable
+during window teardown. The staged write merges newest-wins, so it never
+overwrites a newer entry from the other process.
+
 `readingProgress` has no Android-specific path today: it stays on the WebView's
 localStorage there, while read history and reading stats do not. That matters,
 because the Capacitor backend was chosen precisely to escape WebView storage —
