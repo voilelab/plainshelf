@@ -36,7 +36,7 @@ Read the relevant section before working in that area. Add entries according to
   (`.golangci.yml`, `.github/workflows/ci.yml`)
 - **Frontend suite needs a supported Node:** ten unrelated suites fail at import
   with `TypeError: Cannot read properties of undefined (reading 'getItem')`
-  pointing at `src/api/client.ts` → from Node 26 the runtime defines its own
+  pointing at `src/api/client.ts`. From Node 26 the runtime defines its own
   experimental `localStorage` global, which leaves `window.localStorage`
   `undefined` inside Vitest's jsdom environment while `'localStorage' in window`
   stays true. Guarding one access does not fix it: other suites store and read
@@ -44,7 +44,7 @@ Read the relevant section before working in that area. Add entries according to
   names as supported. (`docs/development/setup.md`)
 - **Test support in a package is not a `_test.go` file:** moving shared test
   helpers into an importable package (`server/contract/apitest`) takes them out
-  of every rule that keys on the `_test.go` suffix → `internal/repocheck`'s CJK
+  of every rule that keys on the `_test.go` suffix. `internal/repocheck`'s CJK
   check then reads a CJK fixture string as shipped text, and staticcheck's
   `unused` stops reporting the now-exported helpers. Allowlist the fixture file
   with a reason and keep a caller check for the exported helpers.
@@ -64,15 +64,15 @@ Read the relevant section before working in that area. Add entries according to
   reset list styles where the semantic element is not wanted.
 - **Hidden tab/collapsible panels:** Reka keeps every panel's wrapper element in
   the DOM and only sets the `hidden` attribute; any author `display` rule on the
-  panel class beats the user-agent `[hidden]` default, so inactive panels stay as
-  layout boxes and their parent's grid/flex gap shifts the visible one. Pair such
-  a rule with `.panel-class[hidden] { display: none; }`. The persistent wrapper
-  also hides that `TabsRoot` defaults `unmountOnHide` to true, so an inactive
-  tab's *slot content* is destroyed and rebuilt on every visit. A tab body that
-  owns state — an in-flight request, a fetched list, a cache — silently resets
-  and refetches. Set `:unmount-on-hide="false"` when moving stateful markup into a
-  per-tab component, and keep the `[hidden]` rule above, which is then what stops
-  the retained content from rendering in full.
+  panel class beats the user-agent `[hidden]` default, so inactive panels stay
+  as layout boxes and their parent's grid/flex gap shifts the visible one. Pair
+  such a rule with `.panel-class[hidden] { display: none; }`. The persistent
+  wrapper also hides that `TabsRoot` defaults `unmountOnHide` to true, so an
+  inactive tab's *slot content* is destroyed and rebuilt on every visit. A tab
+  body that owns state, such as an in-flight request, a fetched list, or a
+  cache, silently resets and refetches. Set `:unmount-on-hide="false"` when
+  moving stateful markup into a per-tab component, and keep the `[hidden]` rule
+  above, which is then what stops the retained content from rendering in full.
   (`frontend/src/features/settings/pages/SettingsPage.vue`,
   `reka-ui/src/Tabs/TabsRoot.vue`)
 - **Scoped styles and fragments:** styles targeting nodes rendered through a
@@ -105,24 +105,24 @@ Read the relevant section before working in that area. Add entries according to
   `ViewPlugin` and must check `SearchQuery.valid` before dispatching.
 - **Line endings:** a document is split on any line break and rendered back with
   `\n`, so a CRLF source is rewritten end to end unless the state carries
-  `EditorState.lineSeparator` and the text is read with
-  `doc.sliceString(0, len, separator)`. A break is one *position* whatever it was
-  written with, so a string offset is not a document offset — build the `Text`
-  before deriving any position from it. The chapter dimming, the outline's jumps
-  and the rename/merge edits all drifted on CRLF sources by one character per
-  preceding line break → the page indexes `content` as a plain string
+  `EditorState.lineSeparator` and the text is read with `doc.sliceString(0, len,
+  separator)`. A break is one *position* whatever it was written with, so a
+  string offset is not a document offset. Build the `Text` before deriving any
+  position from it. The chapter dimming, the outline's jumps and the
+  rename/merge edits all drifted on CRLF sources by one character per preceding
+  line break, because the page indexes `content` as a plain string
   (`markdownChapters.ts`, shared with the reader's persisted progress) while
   CodeMirror counts positions. The adapter contract is stated in source-text
   offsets and `useSourceCodeMirror` converts at its own edge; never hand a
   `markdownChapters` offset straight to a CodeMirror API, and cover a change
-  here with a CRLF case — an LF-only test cannot see the difference.
+  here with a CRLF case, because an LF-only test cannot see the difference.
   (`frontend/src/features/sources/types/editorAdapter.ts`)
 - **Dimming under highlighting:** a `Decoration.mark` that dims by `color` is
   overridden wherever syntax highlighting paints a nested span. Dim with
   `opacity`, which applies to the whole subtree.
 - **Caret on load:** a textarea parks its caret at the end once its value is
-  assigned; a fresh `EditorState` starts at zero. Anything that acts on "where
-  the caret is" — the chapter outline's Add button — silently changes target.
+  assigned; a fresh `EditorState` starts at zero. Anything that acts on the
+  caret, such as the chapter outline's Add button, silently changes target.
 
 ## Mobile and end-to-end tests
 
@@ -144,23 +144,22 @@ Read the relevant section before working in that area. Add entries according to
   pagination state, intercept the Vite module or API in the test instead of
   changing production fixtures globally.
 - **Cloud e2e browser revision:** the pinned Playwright may expect a newer
-  browser revision than the preinstalled one → do not run `playwright install`;
-  run with a throwaway local config that sets
-  `launchOptions.executablePath: '/opt/pw-browsers/chromium'`. Put that config
-  *inside* `e2e/`: Playwright resolves `globalSetup` and reporter paths relative
-  to the config file, so a copy in a scratch directory dies with a bare
-  `MODULE_NOT_FOUND` naming Playwright's own internals rather than the path.
-  Only chromium is installable: the egress policy 403s `cdn.playwright.dev` and
+  browser revision than the preinstalled one. Do not run `playwright install`;
+  run with a throwaway local config that sets `launchOptions.executablePath:
+  '/opt/pw-browsers/chromium'`. Put that config *inside* `e2e/`: Playwright
+  resolves `globalSetup` and reporter paths relative to the config file, so a
+  copy in a scratch directory dies with a bare `MODULE_NOT_FOUND` naming
+  Playwright's own internals rather than the path. Only chromium is installable:
+  the egress policy 403s `cdn.playwright.dev` and
   `playwright.download.prss.microsoft.com`, so `npx playwright install webkit`
-  cannot be worked around locally — the nightly matrix (`E2E_BROWSERS`) can only
-  be exercised on a runner. Dispatch `nightly.yml` on the branch: a
-  `workflow_dispatch` checks out the ref it was dispatched from, and only the
-  scheduled run files the failure issue.
+  fails locally and the nightly matrix (`E2E_BROWSERS`) runs only on a runner.
+  Dispatch `nightly.yml` on the branch: a `workflow_dispatch` checks out the ref
+  it was dispatched from, and only the scheduled run files the failure issue.
   (`e2e/playwright.config.ts`, `.github/workflows/nightly.yml`)
 - **WebKit has no constructible `Touch`:** `new Touch({…})` throws "Illegal
   constructor" there, so a spec that synthesises touch events passes on chromium
-  and dies on webkit. Use `document.createTouch`/`createTouchList` — page
-  coordinates, real `TouchList` — behind a presence check, the same branch
+  and dies on webkit. Use `document.createTouch`/`createTouchList` (page
+  coordinates, a real `TouchList`) behind a presence check, the same branch
   Playwright makes inside its own `dispatchEvent`. Keep the whole gesture in one
   `evaluate`: a tap needs touchstart and touchend within
   `MOBILE_READER_TAP_DURATION_MS`. (`e2e/tests/mobile-reader.spec.ts`)
@@ -170,18 +169,19 @@ Read the relevant section before working in that area. Add entries according to
   which reaches CodeMirror's own view the way `EditorView.findFromDOM` does.
 - **Platform-dependent editor keys:** `Control+z` is not undo on macOS, and
   `End` runs `cursorLineBoundaryForward`, which stops at the end of the *visual*
-  row — the editor pane is a few hundred pixels wide with wrapping on, so
-  whether a line fits in one row comes down to font metrics and differs from CI.
-  Both passed on Linux and failed on a Mac. Use `ControlOrMeta` for CodeMirror's
+  row. The editor pane is a few hundred pixels wide with wrapping on, so whether
+  a line fits in one row comes down to font metrics and differs from CI. Both
+  passed on Linux and failed on a Mac. Use `ControlOrMeta` for CodeMirror's
   `Mod-` bindings, and place the caret with `setEditorCaret` rather than walking
   it with arrow keys. (`e2e/tests/source-editor.spec.ts`)
-- **Teardown ENOTEMPTY:** whole-suite runs fail a handful of unrelated specs with
-  `ENOTEMPTY … rmdir '<tmp>/shelf/app'` → the temp shelf is deleted while the
-  just-signalled server still writes into it, so the failure is teardown-only and
-  lands on different specs each run; re-run the spec alone before charging it to
-  the diff. `dispose()` now retries the removal five times with a backoff, so a
-  surviving ENOTEMPTY is a directory still held after half a second — a leaked
-  server process, not this race. (`e2e/tests/support/server.ts`)
+- **Teardown ENOTEMPTY:** whole-suite runs fail a handful of unrelated specs
+  with `ENOTEMPTY … rmdir '<tmp>/shelf/app'`. The temp shelf is deleted while
+  the just-signalled server still writes into it, so the failure is
+  teardown-only and lands on different specs each run; re-run the spec alone
+  before charging it to the diff. `dispose()` now retries the removal five times
+  with a backoff, so a surviving ENOTEMPTY means a leaked server process still
+  held the directory after half a second, not this race.
+  (`e2e/tests/support/server.ts`)
 - **A green pull request is not a green E2E suite:** `ci.yml` runs `--grep
   @smoke` (13 of 37 cases) and `nightly.yml` runs the rest on `dev`. A change
   outside the smoke set is unproven until `just test-e2e` runs locally or the
@@ -193,23 +193,23 @@ Read the relevant section before working in that area. Add entries according to
 - **E2E server ports are per worker, not per kernel:** `getFreePort()` takes a
   port from a band derived from `TEST_PARALLEL_INDEX` instead of asking for port
   0. Asking for 0 lets two parallel workers be handed the same number, and the
-  loser then finds a *healthy* `/health` on it — the other worker's server, over
-  the other worker's shelf — so it attaches and both specs mutate one shelf.
-  Verified by pinning one start onto a port a second `plainshelf-srv` already
-  held. (`e2e/tests/support/server.ts`)
+     loser then finds a *healthy* `/health` on it (the other worker's server,
+     over the other worker's shelf), so it attaches and both specs mutate one
+     shelf. Verified by pinning one start onto a port a second `plainshelf-srv`
+     already held. (`e2e/tests/support/server.ts`)
 
 ## Filesystem and API
 
 - **JSON encoding:** marshal through `internal/jsonopt`, not bare
-  `encoding/json/v2` options → v2 leaves map order unspecified, which defeats
-  the three "unchanged, do not rewrite" checks (`fingerprint/cache.go`'s byte
+  `encoding/json/v2` options. v2 leaves map order unspecified, which defeats the
+  three "unchanged, do not rewrite" checks (`fingerprint/cache.go`'s byte
   compare, `bookCacheDigest`, `scanCacheDigest`) with no compile error and no
   test failure, costing a re-upload per scan on pCloud or SMB. Importing
   `encoding/json` at all fails `internal/repocheck` unless the file is on the
   shrinking allowlist. (`docs/development/json-encoding.md`)
 - **No v1 read compatibility:** the shelf does not promise that a file an older
   build wrote still reads the same, so do not reach for the v1-compat decode
-  options → json/v2's strict defaults are the decision. A hand-edited `"Title"`
+  options. json/v2's strict defaults are the decision. A hand-edited `"Title"`
   now reads as absent, and `setMeta` rewrites `book.json` whole, so the next
   save drops it; that is accepted, and a planned unknown-member passthrough is
   what changes it. Proposing a compatibility layer here has already been
@@ -221,9 +221,9 @@ Read the relevant section before working in that area. Add entries according to
 ## Documentation
 
 - **Section inserted by text replacement:** replacing an existing heading with
-  "new section + that heading" has dropped the heading twice → only
+  "new section + that heading" has dropped the heading twice. Only
   `configuration.md` has a test that notices (`server/conf_docs_test.go`), and
-  no PR gate builds the docs (`docs.yml` runs at release). Run
-  `mkdocs build --strict`, which fails on a broken in-page anchor since
-  `validation.anchors: warn`, and read every removed line with
-  `git diff origin/dev -- docs | grep '^-[^-]'`. (`mkdocs.yml`)
+  no PR gate builds the docs (`docs.yml` runs at release). Run `mkdocs build
+  --strict`, which fails on a broken in-page anchor since `validation.anchors:
+  warn`, and read every removed line with `git diff origin/dev -- docs | grep
+  '^-[^-]'`. (`mkdocs.yml`)
