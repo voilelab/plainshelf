@@ -16,8 +16,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// switchFS stands in for a remote source that can go offline: every call
-// fails with fsutil.ErrSourceUnavailable while down is set.
 type switchFS struct {
 	inner fsutil.ReadFS
 	down  atomic.Bool
@@ -51,8 +49,6 @@ func (f *switchFS) Stat(name string) (fs.FileInfo, error) {
 	return f.inner.Stat(name)
 }
 
-// failAfterFS fails every Open after the first n inside books/, cutting a
-// download off part way.
 type failAfterFS struct {
 	fsutil.ReadFS
 	n atomic.Int32
@@ -65,11 +61,9 @@ func (f *failAfterFS) Open(name string) (fs.File, error) {
 	return f.ReadFS.Open(name)
 }
 
-// offlineFixture is a source shelf with two books, each with text and a
-// cover, exported the way a sharing server would.
 type offlineFixture struct {
 	libRoot string
-	ids     map[string]string // title → book ID
+	ids     map[string]string
 }
 
 func seedOfflineSource(t *testing.T) offlineFixture {
@@ -108,8 +102,6 @@ func seedOfflineSource(t *testing.T) offlineFixture {
 	return fixture
 }
 
-// openOffline opens libRoot as a virtual shelf behind a switchFS and a
-// countingFS, keeping its offline store in offlineDir.
 func openOffline(t *testing.T, libRoot, offlineDir string, down bool) (*Shelf, *switchFS, *countingFS) {
 	t.Helper()
 
@@ -336,7 +328,6 @@ func TestEditedSourceMarksTheCopyUpdateAvailable(t *testing.T) {
 		t.Fatalf("DownloadBook: %v", err)
 	}
 
-	// The exporter edits the text in place: book.json does not change.
 	local := newTestShelf(t, &ShelfConf{LibRoot: fixture.libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
 	book, err := local.GetBook(dune)
 	if err != nil {
@@ -393,7 +384,6 @@ func TestUnchangedListingDoesNotRewriteTheSnapshot(t *testing.T) {
 		t.Fatalf("Chtimes: %v", err)
 	}
 
-	// A new export of the same content.
 	cachePath := path.Join(fixture.libRoot, appFolder, bookCacheFilePrefix+testWriterID+bookCacheFileSuffix)
 	cache, err := readBookCacheFileAt(cachePath)
 	if err != nil {
@@ -501,8 +491,6 @@ func TestOfflineShelfKeepsFolderRules(t *testing.T) {
 	}
 }
 
-// reexport has the exporter at libRoot export again, dated later than the
-// listing a test shelf already holds.
 func reexport(t *testing.T, local *Shelf, libRoot string) {
 	t.Helper()
 	if _, err := local.ExportBookCache(); err != nil {
@@ -525,8 +513,6 @@ func TestCopyIsNotReadForAnotherBookAtItsPath(t *testing.T) {
 		t.Fatalf("DownloadBook: %v", err)
 	}
 
-	// The source deletes Dune and makes a new book of the same title, which
-	// lands at the same package path.
 	local := newTestShelf(t, &ShelfConf{LibRoot: fixture.libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
 	if err := local.DeleteBook(fixture.ids["Dune"]); err != nil {
 		t.Fatalf("DeleteBook: %v", err)
@@ -600,7 +586,6 @@ func TestRescanReadsTheSourceAndSavesTheSnapshot(t *testing.T) {
 		t.Fatalf("DownloadBook: %v", err)
 	}
 
-	// Renamed on the source, with no new export: only a walk can see it.
 	local := newTestShelf(t, &ShelfConf{LibRoot: fixture.libRoot, LockMode: "none"})
 	book, err := local.GetBook(dune)
 	if err != nil {
@@ -658,7 +643,6 @@ func TestSourceDisappearingKeepsTheSnapshot(t *testing.T) {
 		t.Fatalf("read snapshot: %v", err)
 	}
 
-	// Unshared or moved: the source answers not found for everything.
 	for _, dir := range []string{booksFolder, appFolder} {
 		if err := os.RemoveAll(filepath.Join(fixture.libRoot, dir)); err != nil {
 			t.Fatalf("remove %s: %v", dir, err)

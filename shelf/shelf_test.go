@@ -37,13 +37,11 @@ func TestShelfMakeStructure(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	_ = newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	// Check if the Books folder was created
 	booksPath := path.Join(tmpLib, booksFolder)
 	if _, err := os.Open(booksPath); err != nil {
 		t.Fatalf("Expected Books folder to be created, but got error: %v", err)
 	}
 
-	// Check if the AppTmp folder was created
 	appTmpPath := path.Join(tmpLib, appFolder, appTmpFolder)
 	if _, err := os.Open(appTmpPath); err != nil {
 		t.Fatalf("Expected AppTmp folder to be created, but got error: %v", err)
@@ -95,8 +93,6 @@ func TestShelfRuntimeStateAndScanInterval(t *testing.T) {
 		t.Fatalf("book check interval = %v, want %v", bookCheckInterval, 5*time.Minute)
 	}
 
-	// An empty value falls back to whichever scan interval is in effect now
-	// (a minute, set above), not the 3m it was opened with.
 	if err := shelf.SetBookCheckInterval(""); err != nil {
 		t.Fatalf("SetBookCheckInterval(default): %v", err)
 	}
@@ -122,13 +118,9 @@ func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	if _, err := shelf.GetBook("book"); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("GetBook error = %v, want ErrShelfInitializing", err)
 	}
-	// The folder tree comes from the same cache, so an empty list before the
-	// first scan would read as "no folders" instead of "not scanned yet".
 	if _, err := shelf.GetAllFolders(); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("GetAllFolders error = %v, want ErrShelfInitializing", err)
 	}
-	// A rescan is refused for the same reason: the initial scan is the very walk
-	// it would duplicate.
 	if _, err := shelf.Rescan(); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("Rescan error = %v, want ErrShelfInitializing", err)
 	}
@@ -457,9 +449,6 @@ func TestShelfRenameFolderStaysUnderSameParent(t *testing.T) {
 		t.Fatalf("Failed to create book: %v", err)
 	}
 
-	// RenameFolder only ever renames the last segment, so a rename can never move
-	// the folder to a different parent: alpha/beta becomes alpha/delta, not
-	// gamma/delta.
 	if err := shelf.RenameFolder([]string{"alpha", "beta"}, "delta"); err != nil {
 		t.Fatalf("RenameFolder failed: %v", err)
 	}
@@ -680,12 +669,6 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 	}
 }
 
-// TestListBooksKeepsBookWithFutureSchemaVersion pins the decision that a book
-// written by a newer PlainShelf build stays visible instead of disappearing.
-// If openBook were ever changed to reject an unsupported schema version, the
-// book would vanish from listings, be evicted from the cache, 404 from the API,
-// and become impossible to restore from trash — and every other test would
-// still pass. This is the regression guard for that.
 func TestListBooksKeepsBookWithFutureSchemaVersion(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "lib")
 

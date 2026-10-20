@@ -19,13 +19,6 @@ var retryableStatus = map[int]bool{
 	http.StatusGatewayTimeout:      true,
 }
 
-// Error is a failed WebDAV request: an HTTP status, or a transport failure
-// (Status 0).
-//
-// It matches fs.ErrNotExist for 404, fsutil.ErrSourceUnauthorized as well as
-// fsutil.ErrSourceUnavailable for 401, and fsutil.ErrSourceUnavailable for
-// everything else, which is how a shelf tells a missing file from being
-// offline and the UI tells a wrong credential from no connection.
 type Error struct {
 	Op      string
 	Path    string
@@ -73,7 +66,6 @@ func isRetryable(err error) bool {
 		return false
 	}
 	if e.transport {
-		// A cancelled or timed-out caller is not a transient failure.
 		return !errors.Is(e.cause, context.Canceled) && !errors.Is(e.cause, context.DeadlineExceeded)
 	}
 	return retryableStatus[e.Status]

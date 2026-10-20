@@ -11,20 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
-// The NSFW fixture shelf. The tree is chosen so that every way a rule can go
-// wrong is representable: a marked folder, a folder below it, a sibling whose
-// name STARTS with the marked one (the prefix trap), and an unmarked folder.
-//
-//	books/
-//	├─ loose-0001.bookpkg              (top level, says nothing)
-//	├─ flagged-0001.bookpkg            (top level, nsfw: true)
-//	└─ Fiction/
-//	   ├─ Classics/clean-0001.bookpkg
-//	   ├─ AdultManga/manga-0001.bookpkg
-//	   └─ Adult/
-//	      ├─ adult-0001.bookpkg
-//	      ├─ denied-0001.bookpkg       (nsfw: false)
-//	      └─ Deep/adult-0002.bookpkg
 var nsfwFixtureBooks = []struct {
 	folderDir string
 	bookID    string
@@ -39,9 +25,6 @@ var nsfwFixtureBooks = []struct {
 	{"Fiction/Adult/Deep", "adult-0002", ""},
 }
 
-// writeNSFWFixtureBook plants a book package on disk with a hand-written
-// book.json, so the nsfw member can be present as true, present as false, or
-// absent - three states the Go struct alone cannot express.
 func writeNSFWFixtureBook(t *testing.T, libRoot, folderDir, bookID, nsfwField string) {
 	t.Helper()
 
@@ -55,8 +38,6 @@ func writeNSFWFixtureBook(t *testing.T, libRoot, folderDir, bookID, nsfwField st
 	}
 }
 
-// openNSFWShelf builds the fixture shelf above with the given shelf.json, or
-// none when body is empty.
 func openNSFWShelf(t *testing.T, body string) *Shelf {
 	t.Helper()
 
@@ -71,10 +52,6 @@ func openNSFWShelf(t *testing.T, body string) *Shelf {
 	return newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 }
 
-// markedBookIDs is what the shelf answers for every book it holds, as a sorted
-// list of the IDs it marks. wantCount guards the answer against a listing that
-// quietly returned fewer books than the fixture holds, which would otherwise
-// read as "nothing is marked".
 func markedBookIDs(t *testing.T, s *Shelf, wantCount int) []string {
 	t.Helper()
 
@@ -104,10 +81,6 @@ func assertMarked(t *testing.T, got, want []string) {
 	}
 }
 
-// A folder rule marks the folder itself and everything below it, and nothing
-// beside it. "Fiction/AdultManga" is the case worth pinning: a plain string
-// prefix test would match it against "Fiction/Adult" and mark a folder the user
-// never named.
 func TestNSFWFolderMarksItsWholeSubtree(t *testing.T) {
 	s := openNSFWShelf(t, `{
 		"schema_version": 1,
@@ -121,18 +94,12 @@ func TestNSFWFolderMarksItsWholeSubtree(t *testing.T) {
 	assertMarked(t, markedBookIDs(t, s, len(nsfwFixtureBooks)), []string{"adult-0001", "adult-0002", "denied-0001", "flagged-0001"})
 }
 
-// A book's own flag marks that one book wherever it sits, with no folder rule in
-// play at all.
 func TestNSFWBookFlagMarksOneBook(t *testing.T) {
 	s := openNSFWShelf(t, "")
 
 	assertMarked(t, markedBookIDs(t, s, len(nsfwFixtureBooks)), []string{"flagged-0001"})
 }
 
-// The asymmetry the mark depends on: a book may add itself, but it may not take
-// itself out of a marked folder. The failure this rules out is a book that
-// should have been marked and quietly was not, so nsfw: false on denied-0001
-// changes nothing while it sits under a marked folder.
 func TestNSFWBookFalseCannotCancelTheFolder(t *testing.T) {
 	s := openNSFWShelf(t, `{
 		"content": {"nsfw_folders": [{"path": "Fiction/Adult"}]}
@@ -163,9 +130,6 @@ func TestNSFWBookFalseCannotCancelTheFolder(t *testing.T) {
 	}
 }
 
-// A path is a location, so the three spellings of one location agree. Case
-// folds like the ignored-directory names do, for the same reason: a share
-// exported over SMB may report either.
 func TestNSFWFolderPathSpellings(t *testing.T) {
 	want := []string{"adult-0001", "adult-0002", "denied-0001", "flagged-0001"}
 	for _, spelling := range []string{
@@ -184,8 +148,6 @@ func TestNSFWFolderPathSpellings(t *testing.T) {
 	}
 }
 
-// Marking a top-level folder marks everything under it, including the folder
-// below it - and still not the books sitting directly in books/.
 func TestNSFWTopLevelFolderMarksEverythingUnderIt(t *testing.T) {
 	s := openNSFWShelf(t, `{
 		"content": {"nsfw_folders": [{"path": "Fiction"}]}
@@ -195,10 +157,6 @@ func TestNSFWTopLevelFolderMarksEverythingUnderIt(t *testing.T) {
 		[]string{"adult-0001", "adult-0002", "clean-0001", "denied-0001", "flagged-0001", "manga-0001"})
 }
 
-// An entry that cannot name a folder is dropped on its own, the way an unusable
-// ignored_dirs entry is: the rest of the list is still what the shelf said. A
-// bare string is among them - one entry, one shape - and so is the empty path,
-// which would otherwise mark the whole shelf on a typo.
 func TestNSFWSkipsUnusableEntries(t *testing.T) {
 	s := openNSFWShelf(t, `{
 		"content": {
@@ -217,9 +175,6 @@ func TestNSFWSkipsUnusableEntries(t *testing.T) {
 	assertMarked(t, markedBookIDs(t, s, len(nsfwFixtureBooks)), []string{"flagged-0001", "manga-0001"})
 }
 
-// A shelf with no content block behaves exactly as it did before the field
-// existed: nothing is marked, and a book.json with no nsfw member reads as a
-// book that says nothing.
 func TestNSFWAbsentConfigurationMarksNothing(t *testing.T) {
 	libRoot := t.TempDir()
 	writeNSFWFixtureBook(t, libRoot, "Fiction/Adult", "adult-0001", "")
@@ -228,8 +183,6 @@ func TestNSFWAbsentConfigurationMarksNothing(t *testing.T) {
 	assertMarked(t, markedBookIDs(t, s, 1), nil)
 }
 
-// The zero value is what a shelf that has said nothing gets: no folder is
-// marked, including the top level.
 func TestNSFWRulesZeroValue(t *testing.T) {
 	var rules shelfutil.NSFWRules
 
@@ -241,8 +194,6 @@ func TestNSFWRulesZeroValue(t *testing.T) {
 	}
 }
 
-// quoteJSON renders a Go string as a JSON string literal, so a test can build a
-// shelf.json body around a path without hand-escaping it.
 func quoteJSON(t *testing.T, value string) string {
 	t.Helper()
 
@@ -253,9 +204,6 @@ func quoteJSON(t *testing.T, value string) string {
 	return string(encoded)
 }
 
-// The exported cache is the answer for a client that never reads shelf.json —
-// the Android client on a pCloud shelf downloads this one file — so each entry
-// carries the assembled answer, not the book's own half of it.
 func TestNSFWExportedCacheCarriesTheAssembledAnswer(t *testing.T) {
 	libRoot := t.TempDir()
 	for _, book := range nsfwFixtureBooks {
@@ -293,8 +241,6 @@ func TestNSFWExportedCacheCarriesTheAssembledAnswer(t *testing.T) {
 		if entry.NSFW != wantNSFW {
 			t.Errorf("%s exported nsfw = %v, want %v", bookID, entry.NSFW, wantNSFW)
 		}
-		// The book's own half stays exactly what its book.json says, so a
-		// reader can still tell a marked folder from a marked book.
 		wantOwn := bookID == "flagged-0001"
 		if entry.Meta.NSFW != wantOwn {
 			t.Errorf("%s exported meta.nsfw = %v, want %v", bookID, entry.Meta.NSFW, wantOwn)
@@ -302,10 +248,6 @@ func TestNSFWExportedCacheCarriesTheAssembledAnswer(t *testing.T) {
 	}
 }
 
-// The reverse case, and the one that has to hold for every shelf in the world
-// that has not asked for any of this: with no content block and no book marked,
-// the exported file is byte-identical to the one written before the field
-// existed. Both new fields are omitted when false, so nothing re-uploads.
 func TestNSFWUnmarkedShelfExportsUnchangedBytes(t *testing.T) {
 	libRoot := t.TempDir()
 	writeNSFWFixtureBook(t, libRoot, "Fiction/Classics", "clean-0001", "")
@@ -325,8 +267,6 @@ func TestNSFWUnmarkedShelfExportsUnchangedBytes(t *testing.T) {
 	}
 }
 
-// The same for book.json: a book written through the shelf with nothing marked
-// carries no nsfw member at all, so an older build rewriting it drops nothing.
 func TestNSFWUnmarkedBookWritesNoField(t *testing.T) {
 	libRoot := t.TempDir()
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
@@ -345,8 +285,6 @@ func TestNSFWUnmarkedBookWritesNoField(t *testing.T) {
 	}
 }
 
-// A marked book survives an ordinary metadata edit, which is what makes the mark
-// usable at all: the flag is set once and every later write carries it.
 func TestNSFWSurvivesAMetadataWrite(t *testing.T) {
 	libRoot := t.TempDir()
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
@@ -377,15 +315,6 @@ func TestNSFWSurvivesAMetadataWrite(t *testing.T) {
 	}
 }
 
-// Case-insensitive matching has to mean what Unicode means by it, not what
-// lowercasing happens to do. Both halves of this are a folder rule silently
-// missed — a book that should have been marked quietly is not — so both are
-// pinned:
-//
-//   - Greek final sigma: "Σ" lowercases to "σ" and "ς" lowercases to itself, so
-//     lowercase keys alone give one letter two spellings that never meet;
-//   - Turkish dotted capital I: Unicode's simple case folding leaves "İ" alone,
-//     so folding alone loses a match that lowercasing gets right.
 func TestNSFWFolderPathCaseFolding(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

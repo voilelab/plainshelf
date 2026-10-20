@@ -22,7 +22,6 @@ func TestObjectRoundTripKeepsUnknownMembers(t *testing.T) {
 		t.Fatalf("MarshalDisk: %v", err)
 	}
 
-	// Top-level names are sorted; a nested object keeps its own member order.
 	want := `{
   "alpha": true,
   "icon": "star",

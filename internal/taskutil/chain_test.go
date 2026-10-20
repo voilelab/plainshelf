@@ -24,8 +24,6 @@ func TestTaskChainStatusAggregation(t *testing.T) {
 		{"failure dominates", chainOf(StatusCompleted, StatusFailed), StatusFailed},
 		{"failure dominates a partial result", chainOf(StatusPartiallyCompleted, StatusFailed), StatusFailed},
 		{"partial result surfaces once every task settled", chainOf(StatusPartiallyCompleted, StatusCompleted), StatusPartiallyCompleted},
-		// A partial result must not settle the chain while the worker still has
-		// tasks to run, or a pool would release its key and could evict it.
 		{"partial result while a later task runs", chainOf(StatusPartiallyCompleted, StatusRunning), StatusRunning},
 		{"partial result while a later task is queued", chainOf(StatusPartiallyCompleted, StatusPending), StatusRunning},
 	}

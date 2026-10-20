@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// writeBookOnDisk drops a book package into books/ the way an external file
-// operation would: PlainShelf never sees the write, so only a walk can find it.
 func writeBookOnDisk(t *testing.T, libRoot, dirName, bookID, title string) {
 	t.Helper()
 
@@ -34,10 +32,8 @@ func writeBookOnDisk(t *testing.T, libRoot, dirName, bookID, title string) {
 func TestRescanFindsBooksAddedOnDiskWithinTheScanInterval(t *testing.T) {
 	libRoot := t.TempDir()
 	s := newTestShelf(t, &ShelfConf{
-		LibRoot:  libRoot,
-		LockMode: "none",
-		// Long enough that nothing but the explicit rescan can walk the tree
-		// again, which is the whole point of the endpoint behind it.
+		LibRoot:      libRoot,
+		LockMode:     "none",
 		ScanInterval: "24h",
 	})
 
@@ -74,8 +70,6 @@ func TestRescanFindsBooksAddedOnDiskWithinTheScanInterval(t *testing.T) {
 	}
 }
 
-// The folder count describes the shelf, not the books, so a folder nobody has
-// filed a book into still counts.
 func TestRescanCountsFoldersIncludingEmptyOnes(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
@@ -96,14 +90,11 @@ func TestRescanCountsFoldersIncludingEmptyOnes(t *testing.T) {
 	if result.BookCount != 1 {
 		t.Errorf("BookCount = %d, want 1", result.BookCount)
 	}
-	// "/", "Empty", "Fiction", "Fiction/Classics".
 	if result.FolderCount != 4 {
 		t.Errorf("LayerCount = %d, want 4", result.FolderCount)
 	}
 }
 
-// A rescan is a read. Unlike ExportBookCache, which forces the same walk, it
-// must leave nothing behind on disk.
 func TestRescanWritesNothing(t *testing.T) {
 	libRoot := t.TempDir()
 	s := newTestShelf(t, &ShelfConf{
@@ -111,7 +102,6 @@ func TestRescanWritesNothing(t *testing.T) {
 		LockMode:          "none",
 		BookCacheWriterID: testWriterID,
 		ScanInterval:      "24h",
-		// Long enough that the export cannot come due on its own during the test.
 		BookCacheInterval: "24h",
 	})
 	waitForBookCacheExport(t, libRoot, testWriterID)
@@ -147,9 +137,6 @@ func readBookCacheFileOrFail(t *testing.T, libRoot string) BookCacheFile {
 func TestRescanRefusesASecondWalkAndNamesTheRunningOne(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
-	// Claimed directly rather than by racing two Rescan calls: the refusal is
-	// what is under test, and a race that has to be won to observe it would be
-	// flaky in exactly the direction that hides a regression.
 	runningID := s.beginRescan(time.Now(), true).scanID
 	if runningID == "" {
 		t.Fatal("beginRescan did not claim a free shelf")
@@ -172,8 +159,6 @@ func TestRescanRefusesASecondWalkAndNamesTheRunningOne(t *testing.T) {
 	}
 }
 
-// The loop the rate limit exists for: repeated calls that each cost a full walk,
-// arriving far faster than a hand could produce them.
 func TestRescanRefusesAConsecutiveLoopOnceTheBurstIsSpent(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
@@ -198,10 +183,6 @@ func TestRescanRefusesAConsecutiveLoopOnceTheBurstIsSpent(t *testing.T) {
 	}
 }
 
-// The reverse condition: pressing the button, letting the walk finish, and
-// pressing it again is the sequence the button exists for and must never be
-// refused. Run well past the burst to prove it is the pace, not the count, that
-// the limit measures.
 func TestRescanAllowsAHumanPacePressAfterPress(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
@@ -210,8 +191,6 @@ func TestRescanAllowsAHumanPacePressAfterPress(t *testing.T) {
 			t.Fatalf("Rescan %d at a human pace: %v", i+1, err)
 		}
 
-		// Stands in for the user reading the result before pressing again. The
-		// clock is only advanced inside the limiter, so the test does not sleep.
 		s.bookCache.Lock()
 		s.bookCache.rescanTokensAt = s.bookCache.rescanTokensAt.Add(-rescanRefill)
 		s.bookCache.Unlock()
@@ -235,7 +214,6 @@ func TestRescanTokensRefillOverTime(t *testing.T) {
 		t.Fatalf("claim past the burst was allowed: %+v", claim)
 	}
 
-	// One refill short, then one refill on.
 	if claim := s.beginRescan(now.Add(rescanRefill/2), true); claim.retryAfter <= 0 {
 		t.Errorf("half a refill later the claim was allowed: %+v", claim)
 	}
@@ -245,8 +223,6 @@ func TestRescanTokensRefillOverTime(t *testing.T) {
 	}
 	s.endRescan()
 
-	// A long absence refills the bucket but never past the burst, so a shelf
-	// left alone overnight does not hand out an unbounded run of walks.
 	later := now.Add(24 * time.Hour)
 	for i := range rescanBurst {
 		if claim := s.beginRescan(later, true); claim.scanID == "" {
@@ -259,9 +235,6 @@ func TestRescanTokensRefillOverTime(t *testing.T) {
 	}
 }
 
-// A rescan refused because another walk holds the shelf must not spend a token:
-// otherwise a loop against a busy shelf drains the bucket for free and the next
-// real user is told they are going too fast when they are not.
 func TestRescanConflictDoesNotSpendARateLimitToken(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
@@ -276,7 +249,6 @@ func TestRescanConflictDoesNotSpendARateLimitToken(t *testing.T) {
 	}
 	s.endRescan()
 
-	// The claim above spent one token; the rest of the burst must still be there.
 	for i := range rescanBurst - 1 {
 		if _, err := s.Rescan(); err != nil {
 			t.Fatalf("Rescan %d after the conflicts: %v", i+1, err)
@@ -284,29 +256,21 @@ func TestRescanConflictDoesNotSpendARateLimitToken(t *testing.T) {
 	}
 }
 
-// The folder-transfer preflight forces the same walk from inside a larger
-// operation. It must not spend the button's budget, and must not be refused
-// once that budget is gone: it has nowhere to report the refusal and would
-// plan from the stale cache it exists to avoid.
 func TestRescanUnthrottledNeitherSpendsNorIsRefusedByTheRateLimit(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
-	// Stands in for a run of transfers, each forcing its own walk.
 	for i := range rescanBurst * 4 {
 		if _, err := s.RescanUnthrottled(); err != nil {
 			t.Fatalf("RescanUnthrottled %d: %v", i+1, err)
 		}
 	}
 
-	// The button's budget is untouched, so a user who never pressed it does not
-	// find it already spent.
 	for i := range rescanBurst {
 		if _, err := s.Rescan(); err != nil {
 			t.Fatalf("Rescan %d after the transfers: %v", i+1, err)
 		}
 	}
 
-	// And with the budget now genuinely spent, the preflight still walks.
 	if _, err := s.Rescan(); !errors.Is(err, ErrRescanRateLimited) {
 		t.Fatalf("Rescan past the burst: error = %v, want ErrRescanRateLimited", err)
 	}
@@ -314,9 +278,6 @@ func TestRescanUnthrottledNeitherSpendsNorIsRefusedByTheRateLimit(t *testing.T) 
 		t.Fatalf("RescanUnthrottled with the bucket empty: %v", err)
 	}
 
-	// The singleflight still applies to it: it is the rate limit it skips, not
-	// the refusal to run two walks over the same shelf at once. Claimed without
-	// the limit because the bucket is empty by this point.
 	runningID := s.beginRescan(time.Now(), false).scanID
 	if runningID == "" {
 		t.Fatal("beginRescan did not claim a free shelf")

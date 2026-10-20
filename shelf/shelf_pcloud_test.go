@@ -14,13 +14,11 @@ import (
 	"github.com/voilelab/plainshelf/internal/pcloud/pcloudtest"
 )
 
-// openPCloudShelf opens libRoot through pcloud.FS, served by a fake pCloud API.
 func openPCloudShelf(t *testing.T, libRoot string, conf ShelfConf) (*Shelf, *pcloudtest.Server) {
 	t.Helper()
 	return openPCloudShelfOffline(t, libRoot, conf, "")
 }
 
-// openPCloudShelfOffline is openPCloudShelf keeping offline copies in offlineDir.
 func openPCloudShelfOffline(t *testing.T, libRoot string, conf ShelfConf, offlineDir string) (*Shelf, *pcloudtest.Server) {
 	t.Helper()
 
@@ -66,8 +64,6 @@ func TestPCloudShelfRequestsDoNotGrowWithBooks(t *testing.T) {
 	}
 }
 
-// seedBookWithText writes an exported shelf holding one book whose source reads
-// "Dune text", and returns the root and the book ID.
 func seedBookWithText(t *testing.T) (string, string) {
 	t.Helper()
 	libRoot := t.TempDir()
@@ -106,8 +102,6 @@ func TestPCloudShelfReadsADownloadedBookOffline(t *testing.T) {
 	}
 }
 
-// A source no installation exports is walked on the first open only: the
-// offline snapshot answers later ones, and a rescan still walks.
 func TestPCloudShelfWithoutExportOpensFromTheOfflineSnapshot(t *testing.T) {
 	libRoot := seedExportedShelf(t, "Dune", "Solaris", "Hyperion")
 	if err := os.RemoveAll(path.Join(libRoot, appFolder)); err != nil {
@@ -127,7 +121,6 @@ func TestPCloudShelfWithoutExportOpensFromTheOfflineSnapshot(t *testing.T) {
 	if got, want := listedTitles(t, s), []string{"Dune", "Hyperion", "Solaris"}; !slices.Equal(got, want) {
 		t.Errorf("reopened listing = %v, want %v", got, want)
 	}
-	// shelf.json at most; no book is read.
 	if got := count(srv.Take(), "download"); got > 1 {
 		t.Errorf("reopening made %d downloads, want the snapshot to answer", got)
 	}
@@ -150,9 +143,6 @@ func count(requests []string, method string) int {
 	return n
 }
 
-// A shelf opened while its source is down, with no snapshot to list from,
-// answers that the source is unavailable rather than that it is still
-// initializing, and lists itself once the source is back.
 func TestPCloudShelfOpenedOfflineRecovers(t *testing.T) {
 	for _, via := range []string{"request", "rescan"} {
 		t.Run(via, func(t *testing.T) {

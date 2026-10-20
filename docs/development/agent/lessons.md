@@ -47,7 +47,8 @@ Read the relevant section before working in that area. Add entries according to
   of every rule that keys on the `_test.go` suffix. `internal/repocheck`'s CJK
   check then reads a CJK fixture string as shipped text, and staticcheck's
   `unused` stops reporting the now-exported helpers. Allowlist the fixture file
-  with a reason and keep a caller check for the exported helpers.
+  with a reason and keep a caller check for the exported helpers; that check
+  counts functions only, not types, constants or methods.
   (`internal/repocheck/cjk_test.go`, `internal/repocheck/contract_test.go`)
 - **Server tests race the initial shelf scan:** a read issued before it finishes
   is answered 503 `ErrShelfInitializing`. Test envs must wait via
@@ -213,7 +214,7 @@ Read the relevant section before working in that area. Add entries according to
   now reads as absent, and `setMeta` rewrites `book.json` whole, so the next
   save drops it; that is accepted, and a planned unknown-member passthrough is
   what changes it. Proposing a compatibility layer here has already been
-  rejected once. (`internal/jsonopt/jsonopt.go`)
+  rejected once. (`docs/development/json-encoding.md`)
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
   preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
   error propagation. See `docs/concepts/shelf-cache-and-io.md`.

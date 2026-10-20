@@ -54,8 +54,6 @@ func TestTextCounterChars(t *testing.T) {
 	}
 }
 
-// TextCounter must agree with whole-input counting however the input is split,
-// including runes and invalid sequences cut across writes.
 func TestTextCounterMatchesWholeInputAcrossSplits(t *testing.T) {
 	inputs := []string{
 		"",
@@ -63,9 +61,9 @@ func TestTextCounterMatchesWholeInputAcrossSplits(t *testing.T) {
 		"\n",
 		"line1\nline2",
 		"一行文字 line\n第二行",
-		"\xe4\xb8",         // truncated rune at EOF
-		"\xe4\xb8A\xff\n",  // truncated rune, then ASCII and an invalid byte
-		"\xf0\x9f\x98\x80", // 4-byte rune
+		"\xe4\xb8",
+		"\xe4\xb8A\xff\n",
+		"\xf0\x9f\x98\x80",
 		"\x80\x80\x80\xe4\xb8\xad",
 		strings.Repeat("中a\n", 50) + "\xf0\x9f",
 	}
@@ -91,7 +89,6 @@ func TestTextCounterMatchesWholeInputAcrossSplits(t *testing.T) {
 	}
 }
 
-// scanRuneCount is the rune count CharCount reported before it streamed.
 func scanRuneCount(s string) int {
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	scanner.Split(bufio.ScanRunes)

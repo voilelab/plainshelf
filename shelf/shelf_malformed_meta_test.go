@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// breakFile overwrites a file on the shelf with bytes no writer of this build
-// produces, the way a text editor would.
 func breakFile(t *testing.T, filePath, raw string) {
 	t.Helper()
 
@@ -19,10 +17,6 @@ func breakFile(t *testing.T, filePath, raw string) {
 	}
 }
 
-// A book.json broken by hand costs its own book and nothing else. Strict
-// reading is only tolerable because the blast radius is one book: a shelf that
-// refused to list anything until every file parsed would turn one typo into a
-// lost library.
 func TestRescanSkipsABookWithMalformedMetaAndListsTheRest(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -62,9 +56,6 @@ func TestRescanSkipsABookWithMalformedMetaAndListsTheRest(t *testing.T) {
 	}
 }
 
-// Where the read is not part of a scan, the refusal reaches the caller instead
-// of a log line: restoring a trashed book is a write, and this build does not
-// move a package it could not read.
 func TestTrashedBookWithMalformedBookMetaReportsTheFile(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})

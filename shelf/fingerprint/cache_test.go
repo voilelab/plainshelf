@@ -12,11 +12,10 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
-// The point of the whole file: a second run over an unchanged shelf opens no
-// source at all. The first run reads each source once, the second reads none.
 func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -36,8 +35,6 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 		t.Fatalf("the first run built %d fingerprints, want 1", got)
 	}
 
-	// A fresh cache, loaded from disk: the second run shares nothing with the
-	// first but the file.
 	second := openCache(t, ts, counting, testAlgo)
 	secondEntry := resolveFingerprint(t, second, counting, bookPath, builder)
 
@@ -54,8 +51,6 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 		t.Errorf("stat hits %d, want 1", got)
 	}
 
-	// And saving that run rewrites nothing: an unchanged shelf must not cost a
-	// pointless upload on the transports this file will live on.
 	cachePath := path.Join(ts.libRoot, appDir, cacheFileName)
 	before, err := os.ReadFile(cachePath)
 	if err != nil {
@@ -79,7 +74,6 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 	}
 }
 
-// The index is keyed on the book ID, which survives a move; a path would not.
 func TestFingerprintCacheSurvivesMovingABook(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("a.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -91,8 +85,6 @@ func TestFingerprintCacheSurvivesMovingABook(t *testing.T) {
 	before := resolveFingerprint(t, first, counting, book.PackagePath(), builder)
 	saveCache(t, first)
 
-	// A move is a rename of the package directory: the book ID inside book.json
-	// and the source's stat both survive it, the folder name does not.
 	if err := os.Rename(path.Join(ts.libRoot, "a.bookpkg"), path.Join(ts.libRoot, "b.bookpkg")); err != nil {
 		t.Fatalf("moving the book: %v", err)
 	}
@@ -112,9 +104,6 @@ func TestFingerprintCacheSurvivesMovingABook(t *testing.T) {
 	}
 }
 
-// A book copied into the shelf has a new ID and a new stat, so the index cannot
-// answer - but its content is already known, so it costs one read and no
-// fingerprinting.
 func TestFingerprintCacheRecognizesACopiedBookByItsContent(t *testing.T) {
 	ts := newTestShelf(t)
 
@@ -158,9 +147,6 @@ func TestFingerprintCacheRecognizesACopiedBookByItsContent(t *testing.T) {
 	}
 }
 
-// A source edited outside PlainShelf fails the stat check, is fingerprinted
-// again, and has the md5_hash in its meta.json - which nothing else validates -
-// repaired from the content that was just read.
 func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -204,8 +190,6 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 	}
 }
 
-// Discarded whole rather than partly reused: nothing can vouch for an entry
-// whose normalization or sketch parameters are not the ones in use.
 func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -244,7 +228,6 @@ func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
 	}
 }
 
-// Entries are a union, so neither machine loses work it computed.
 func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	ts := newTestShelf(t)
 	mine := ts.addBook("mine.bookpkg", "book-mine", "Mine", "a book only this machine has read", -time.Hour)
@@ -257,8 +240,6 @@ func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	resolveFingerprint(t, cache, counting, mine.PackagePath(), builder)
 	saveCache(t, cache)
 
-	// What the other machine wrote in the meantime: its own book, plus a later
-	// look at the book this one already knows.
 	_, theirSource := reopen(t, counting, theirs.PackagePath())
 	theirStat, err := theirSource.ContentStat()
 	if err != nil {
@@ -284,7 +265,6 @@ func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	stored.Entries[theirMD5] = Entry{NormMD5: theirMD5, NormChars: 7, Shingles: 7, Sketch: "theirs"}
 	writeCacheAt(t, ts.libRoot, stored)
 
-	// Any later save has to fold that in rather than replace it.
 	saveCache(t, cache)
 
 	merged := readCacheAt(t, ts.libRoot)
@@ -302,8 +282,6 @@ func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	}
 }
 
-// The newer-observation rule on its own, including the case a whole-file test
-// cannot stage: the older record arriving second.
 func TestMergeIndexKeepsTheNewerRecord(t *testing.T) {
 	older := time.Date(2026, 3, 15, 8, 30, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
@@ -331,8 +309,6 @@ func TestMergeIndexKeepsTheNewerRecord(t *testing.T) {
 	}
 }
 
-// Collected along with the entries nothing points at any more; an entry a
-// surviving book still hashes to stays.
 func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 	ts := newTestShelf(t)
 
@@ -355,12 +331,8 @@ func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 		t.Fatalf("before the delete the cache holds %d records and %d entries, want 3 and 2", len(before.Index), len(before.Entries))
 	}
 
-	// A delete is a book leaving the live set: the pruning input the caller now
-	// owns, rather than a bookCache the cache used to read.
 	delete(ts.live, doomed.ID())
 
-	// A run that computes nothing new still collects: this is the only moment
-	// the deleted book's records can be noticed.
 	next := openCache(t, ts, counting, testAlgo)
 	for _, book := range []*bookpkg.Book{kept, alsoKept} {
 		resolveFingerprint(t, next, counting, book.PackagePath(), builder)
@@ -381,9 +353,6 @@ func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 	}
 }
 
-// A read-only shelf reads the cache and refuses to write it, with an error a
-// caller can recognize rather than a panic. A stale md5_hash it cannot repair
-// is not allowed to fail the lookup either.
 func TestFingerprintCacheOnAReadOnlyShelf(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -395,8 +364,6 @@ func TestFingerprintCacheOnAReadOnlyShelf(t *testing.T) {
 	stored := resolveFingerprint(t, cache, ts.base, bookPath, builder)
 	saveCache(t, cache)
 
-	// The same shelf reopened without write access: reads still work, every
-	// write is refused with fsutil.ErrReadOnly.
 	readOnly := fsutil.ReadOnly(ts.base)
 	reader := openCache(t, ts, readOnly, testAlgo)
 
@@ -411,8 +378,6 @@ func TestFingerprintCacheOnAReadOnlyShelf(t *testing.T) {
 		t.Errorf("Save on a read-only shelf returned %v, want %v", err, fsutil.ErrReadOnly)
 	}
 
-	// A source edited underneath a read-only shelf: the fingerprint is still
-	// answered, and the repair that cannot happen is not an error.
 	if err := os.WriteFile(sourcePath, []byte("edited from outside"), 0644); err != nil {
 		t.Fatalf("editing source.txt: %v", err)
 	}
@@ -427,9 +392,6 @@ func TestFingerprintCacheOnAReadOnlyShelf(t *testing.T) {
 	}
 }
 
-// A source written moments ago is deliberately not indexed: on a filesystem
-// with a coarse clock its stat cannot yet prove the content behind it. The
-// content level still answers, so the cost is a read and never a rebuild.
 func TestFingerprintCacheWillNotIndexAFreshlyWrittenSource(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("fresh.bookpkg", "book-fresh", "Just Written", "written moments ago", 0)
@@ -452,15 +414,10 @@ func TestFingerprintCacheWillNotIndexAFreshlyWrittenSource(t *testing.T) {
 	}
 }
 
-// A caller that supplies only the required Config fields - Store and Algo, no
-// Logger, LiveBooks or RepairHash - gets a working cache, not a panic on the
-// first log line. This is the standalone / read-only reader's contract.
 func TestOpenDefaultsAMissingLogger(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 
-	// Open logs on the missing-cache-file path; reaching past it already proves
-	// the zero-value logger did not panic.
 	cache, err := Open(Config{Store: appcache.NewFSStore(ts.base, appDir), Algo: testAlgo})
 	if err != nil {
 		t.Fatalf("Open with no logger: %v", err)
@@ -494,8 +451,6 @@ func TestOpenRefusesAnIncompleteAlgorithm(t *testing.T) {
 	}
 }
 
-// A cache file this build cannot read is a miss, never an error: it is derived
-// from the shelf, and the run that finds it rebuilds it.
 func TestFingerprintCacheIgnoresAnUnusableFile(t *testing.T) {
 	for _, testCase := range []struct {
 		name    string
@@ -525,8 +480,6 @@ func TestFingerprintCacheIgnoresAnUnusableFile(t *testing.T) {
 	}
 }
 
-// An entry is keyed by content and never revisited, so a builder that produces
-// nothing must not be allowed to store that nothing.
 func TestFingerprintCacheRefusesAnEmptyFingerprint(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -549,9 +502,6 @@ func TestFingerprintCacheRefusesAnEmptyFingerprint(t *testing.T) {
 	}
 }
 
-// A legacy source with no md5_hash keeps not having one. Filling it in would
-// rewrite every such meta.json on the first fingerprint run, and a missing hash
-// is honest in a way a wrong one is not.
 func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("legacy.bookpkg", "book-legacy", "Legacy", "imported before hashes were stored", -time.Hour)
@@ -599,8 +549,6 @@ func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
 	}
 }
 
-// It was computed by this very run, so collecting it would mean building it
-// again next time for nothing.
 func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("fresh.bookpkg", "book-fresh", "Just Written", "written moments ago", 0)
@@ -631,9 +579,6 @@ func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
 	}
 }
 
-// A source restored from a backup has new content under an older modification
-// time. The record this run observed must win anyway, or the stale one would be
-// reinstated on every save and the source reread and rebuilt forever.
 func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -647,8 +592,6 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	resolveFingerprint(t, first, counting, bookPath, builder)
 	saveCache(t, first)
 
-	// Restored from a backup: other content, and a modification time older than
-	// the one already recorded.
 	if err := os.WriteFile(sourcePath, []byte("the spice as it was two backups ago"), 0644); err != nil {
 		t.Fatalf("restoring source.txt: %v", err)
 	}
@@ -671,8 +614,6 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 		}
 	}
 
-	// And the run after that answers from the index, which is what the merge
-	// getting it wrong would cost.
 	opensBefore := counting.opens.Load()
 	third := openCache(t, ts, counting, testAlgo)
 	resolveFingerprint(t, third, counting, bookPath, builder)
@@ -685,12 +626,6 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	}
 }
 
-// The write is skipped by comparing the freshly encoded file against the bytes
-// on disk, so the skip is only real while the encoder sorts cacheFile's two
-// maps. json/v2 does not unless the option set says so, and dropping that fails
-// nothing loudly - the file round-trips, and one entry has no order to vary.
-// Twelve do, so this is where a missing Deterministic shows up as what it costs:
-// a re-upload of an unchanged cache on every scan.
 func TestFingerprintCacheWithManyEntriesIsByteStable(t *testing.T) {
 	ts := newTestShelf(t)
 
@@ -716,8 +651,6 @@ func TestFingerprintCacheWithManyEntriesIsByteStable(t *testing.T) {
 		t.Fatalf("reading the fingerprint cache: %v", err)
 	}
 
-	// Repeated because a random map order agrees with the first one now and
-	// then; eight rounds of twelve entries do not agree by luck.
 	for round := range 8 {
 		cache := openCache(t, ts, counting, testAlgo)
 		for _, bookPath := range bookPaths {
@@ -742,9 +675,6 @@ func TestFingerprintCacheWithManyEntriesIsByteStable(t *testing.T) {
 	}
 }
 
-// firstDifference returns a short window of a and b around the first byte they
-// disagree on. The cache is one long line, so printing both in full turns a
-// one-key order change into a screenful of identical hashes.
 func firstDifference(a, b string) (string, string) {
 	i := 0
 	for i < min(len(a), len(b)) && a[i] == b[i] {
@@ -753,9 +683,6 @@ func firstDifference(a, b string) (string, string) {
 	return a[i:min(i+60, len(a))], b[i:min(i+60, len(b))]
 }
 
-// The cache is rebuildable, so the strictness the hand-editable files gained is
-// deliberately not applied here: a duplicate member is a cache miss, not a
-// failure a user has to repair.
 func TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported(t *testing.T) {
 	ts := newTestShelf(t)
 
@@ -769,8 +696,6 @@ func TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported(t *testing.T)
 		t.Fatalf("entries = %d before the file is broken, want 1", got)
 	}
 
-	// Not a typo a person makes in this file - a merge by a sync tool, or two
-	// writes interleaved - but it is what the strict decoder now refuses.
 	raw := `{"schema_version": 1, "schema_version": 1}`
 	if err := os.WriteFile(path.Join(ts.libRoot, appDir, cacheFileName), []byte(raw), 0644); err != nil {
 		t.Fatalf("writing a fingerprint cache: %v", err)
@@ -779,5 +704,45 @@ func TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported(t *testing.T)
 	cache := openCache(t, ts, ts.base, testAlgo)
 	if got := len(cache.entries); got != 0 {
 		t.Errorf("entries = %d, want the unreadable cache discarded", got)
+	}
+}
+
+func TestCacheFileMarshalsSchemaVersionAsTheFirstKey(t *testing.T) {
+	data, err := json.Marshal(cacheFile{SchemaVersion: schemaVersion}, jsonopt.DiskCompact())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.HasPrefix(string(data), `{"schema_version":`) {
+		t.Errorf("schema_version is not the first key: %s", data)
+	}
+}
+
+func TestFingerprintCacheNeverPairsANewerStatWithOlderContent(t *testing.T) {
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
+	bookPath := book.PackagePath()
+	sourcePath := ts.sourceFilePath(book)
+	const rewritten = "the spice must flow, and so must the water"
+
+	rewriting := &rewriteAfterReadFS{FS: ts.base, rewrite: func() {
+		if err := os.WriteFile(sourcePath, []byte(rewritten), 0o644); err != nil {
+			t.Errorf("rewriting source.txt: %v", err)
+		}
+		shiftModTime(t, sourcePath, -30*time.Minute)
+	}}
+	builder := &fakeFingerprint{label: "v1"}
+
+	first := openCache(t, ts, rewriting, testAlgo)
+	resolveFingerprint(t, first, rewriting, bookPath, builder)
+	saveCache(t, first)
+
+	second := openCache(t, ts, ts.base, testAlgo)
+	got := resolveFingerprint(t, second, ts.base, bookPath, builder)
+	want, err := builder.build([]byte(rewritten))
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if got != want {
+		t.Errorf("after a write between stat and read, the next run answered %+v, want the rewritten content's %+v", got, want)
 	}
 }

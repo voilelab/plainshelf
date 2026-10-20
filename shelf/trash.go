@@ -22,24 +22,8 @@ const maxBookPathCollisionAttempts = 10000
 
 var ErrTrashedBookNotFound = util.NewError("trashed book not found")
 
-// TrashMetaSchemaVersion is the trash.json schema version this build writes.
-//
-// trash.json is not a cache: it records where each book came from, so rewriting
-// it restores the book to the wrong place. It follows book.json's rules — no
-// schema_version is read as the current one and persisted lazily, a higher one
-// stays listed and readable but refuses any modification.
-//
-// v2 renamed the origin folder key from "original_layer" to "original_folder".
-// It is a hard cut with no dual read: a v1 record's key is not seen, so a book
-// trashed by a pre-v2 build restores to the top level of books/. The bump makes
-// that visible — a pre-v2 build refuses to modify a v2 record rather than
-// rewriting it and dropping the restore path.
 const TrashMetaSchemaVersion = 2
 
-// ErrUnsupportedTrashSchemaVersion is returned when an operation would modify a
-// trashed book whose on-disk trash.json is newer than this build supports. It is
-// separate from ErrUnsupportedBookSchemaVersion so errors.Is can tell which file
-// is too new.
 var ErrUnsupportedTrashSchemaVersion = util.NewError("trash.json schema version is newer than this build supports")
 
 type TrashedBook struct {
@@ -50,11 +34,6 @@ type TrashedBook struct {
 	OriginalFolder FolderPath    `json:"original_folder,omitempty"`
 	DeletedAt      util.JSONTime `json:"deleted_at,omitzero"`
 
-	// NSFW is the shelf's assembled answer for the book while it sits in the
-	// trash — see Shelf.IsBookNSFW. It is computed here rather than left to the
-	// caller because the folder half of the answer needs OriginalFolder, which
-	// only the trash record remembers: trash/ lies outside books/, so the
-	// book's path no longer says where the folder rules reach it.
 	NSFW bool `json:"nsfw,omitempty"`
 }
 
@@ -81,9 +60,6 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	}
 	defer s.shelfLock.Unlock()
 
-	// The folder is the book's position in the tree, owned by its cache entry
-	// rather than the book itself; getUpdatedBookFromBookID hands both back from
-	// one cache snapshot so the trash record remembers where the book came from.
 	book, originalFolder, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -92,11 +68,6 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	activePath := book.PackagePath()
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
 
-	// A book carried out of the trash by hand keeps its old trash.json, so an
-	// active book can still hold one written by a newer build. Refuse before the
-	// rename: a guard at writeTrashMeta would already have moved the book into
-	// trash/ and would then roll it back, and the rollback is not free — it
-	// leaves the user's book somewhere it was not a moment ago if it fails.
 	if err := s.ensureTrashMetaWritable(activePath); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -166,10 +137,6 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 	return items, nil
 }
 
-// newTrashedBook assembles one trash listing entry from the book package and
-// the trash record beside it. meta may be nil — see readTrashMetaTolerant —
-// in which case the book is treated as having come from the top level, which is
-// also where restoring it would put it back.
 func (s *Shelf) newTrashedBook(book *Book, meta *trashMeta) *TrashedBook {
 	item := &TrashedBook{
 		ID:      book.ID(),
@@ -185,12 +152,6 @@ func (s *Shelf) newTrashedBook(book *Book, meta *trashMeta) *TrashedBook {
 	return item
 }
 
-// GetTrashedBook returns the listing entry for one trashed book, so a caller
-// naming a single book can ask the same questions a listing answers — the
-// adult-content mark above among them — without walking the whole trash.
-//
-// It reports ErrTrashedBookNotFound for an ID that is not in the trash, the
-// same as RestoreTrashedBook and DeleteTrashedBook do.
 func (s *Shelf) GetTrashedBook(bookID string) (*TrashedBook, error) {
 	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
@@ -205,12 +166,6 @@ func (s *Shelf) GetTrashedBook(bookID string) (*TrashedBook, error) {
 	return s.newTrashedBook(book, meta), nil
 }
 
-// ListTrashedBookIDs returns the ID of every book directory under the trash.
-//
-// Unlike ListTrashedBooks it neither opens the books nor reads their trash
-// metadata, so it also reports entries that cannot be opened. Emptying the
-// trash must see those, otherwise it would leave behind directories the UI
-// never showed.
 func (s *Shelf) ListTrashedBookIDs() ([]string, error) {
 	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
@@ -253,9 +208,6 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	// Restoring moves the book out of trash/ and deletes trash.json, so it is a
-	// modification of a record this build may not understand. Refuse here, while
-	// nothing on disk has moved yet.
 	if err := trashMetaWritable(meta); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -278,7 +230,6 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	// The original folder may have been deleted while the book sat in trash.
 	s.addFolderToBookCache(targetFolders)
 
 	targetPath, err := s.resolveBookPathCollision(targetFolderPath, targetFolder)
@@ -327,8 +278,6 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	// Deleting the folder deletes trash.json with it, which is as destructive as
-	// rewriting it. Refuse before RemoveAll rather than after.
 	if err := s.ensureTrashMetaWritable(trashPath); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -370,8 +319,6 @@ func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error
 }
 
 func (s *Shelf) writeTrashMeta(root fsutil.FS, bookPath string, meta *trashMeta) error {
-	// Stamp unconditionally: the schema version is shelf-managed, so a caller
-	// cannot write a version this build does not itself produce.
 	meta.SchemaVersion = TrashMetaSchemaVersion
 
 	payload, err := json.Marshal(meta, jsonopt.Disk())
@@ -384,13 +331,6 @@ func (s *Shelf) writeTrashMeta(root fsutil.FS, bookPath string, meta *trashMeta)
 	return nil
 }
 
-// readTrashMetaTolerant reads a trashed book's metadata and reports nil when it
-// is absent or unusable.
-//
-// The shelf is hand-editable, so trash.json can be truncated or edited into
-// something that no longer parses. That must not hide the book from the trash
-// or refuse to restore it: the file only records where the book came from, and
-// a book without it is simply restored to the top level of books/.
 func (s *Shelf) readTrashMetaTolerant(bookPath string) *trashMeta {
 	meta, err := s.readTrashMeta(bookPath)
 	if err != nil {
@@ -407,21 +347,12 @@ func (s *Shelf) readTrashMetaTolerant(bookPath string) *trashMeta {
 			"schema_version", meta.SchemaVersion,
 			"supported", TrashMetaSchemaVersion)
 	default:
-		// Missing (pre-v1), zero, or garbage. Normalize in memory only; nothing
-		// here rewrites the file.
 		meta.SchemaVersion = TrashMetaSchemaVersion
 	}
 
 	return meta
 }
 
-// trashMetaWritable reports an error when a trashed book's on-disk trash.json
-// was written by a newer build, meaning the book must be treated as read-only.
-//
-// A nil meta — no trash.json, or one hand-edited into something that no longer
-// parses — is writable. That file cannot state a version, and refusing on it
-// would strand the book in the trash, which is exactly what
-// readTrashMetaTolerant exists to prevent.
 func trashMetaWritable(meta *trashMeta) error {
 	if meta == nil || meta.SchemaVersion <= TrashMetaSchemaVersion {
 		return nil
@@ -430,8 +361,6 @@ func trashMetaWritable(meta *trashMeta) error {
 		ErrUnsupportedTrashSchemaVersion, meta.SchemaVersion, TrashMetaSchemaVersion)
 }
 
-// ensureTrashMetaWritable is trashMetaWritable for a book whose trash.json has
-// not been read yet. Call it before any filesystem mutation on that book.
 func (s *Shelf) ensureTrashMetaWritable(bookPath string) error {
 	return trashMetaWritable(s.readTrashMetaTolerant(bookPath))
 }
@@ -458,8 +387,6 @@ func (s *Shelf) resolveBookPathCollision(folderPath, folderName string) (string,
 		baseName = folderName
 	}
 
-	// maxBookPathCollisionAttempts is a practical upper bound for collision resolution in a single folder.
-	// If the bound is reached, return an error instead of looping indefinitely.
 	for i := range maxBookPathCollisionAttempts {
 		candidateFolder := folderName
 		if i > 0 {
@@ -478,14 +405,6 @@ func (s *Shelf) resolveBookPathCollision(folderPath, folderName string) (string,
 	return "", util.Errorf("failed to resolve unique book path for %q", folderName)
 }
 
-// migrateLegacyTrash moves an older build's hidden ".trash/" onto the visible
-// "trash/". The presence of ".trash/" is the whole detection: no shelf manifest
-// is added, so the layout gains no file a backup would have to keep alongside the
-// disposable contents of app/. That is the project's policy for every layout
-// change; docs/concepts/data-format-versioning.md ("Shelf layout changes are not
-// versioned") gives the reasoning and the test. Like the rest of makeStructure it
-// runs without the shelf lock, assuming, as the format docs state, that one
-// PlainShelf version opens a shelf at a time.
 func (s *Shelf) migrateLegacyTrash(root fsutil.FS) error {
 	legacyInfo, err := s.dbRoot.Stat(legacyTrashFolder)
 	if err != nil {
@@ -495,7 +414,6 @@ func (s *Shelf) migrateLegacyTrash(root fsutil.FS) error {
 		return util.Errorf("%w", err)
 	}
 	if !legacyInfo.IsDir() {
-		// Not something this migration wrote; leave the user's file alone.
 		return nil
 	}
 
@@ -514,10 +432,6 @@ func (s *Shelf) migrateLegacyTrash(root fsutil.FS) error {
 	return s.mergeLegacyTrashBooks(root)
 }
 
-// mergeLegacyTrashBooks handles the case where both trash directories exist,
-// which happens when a shelf is opened by an older build again after the
-// rename. Every book is carried over; nothing under the legacy path is deleted
-// unless it is an empty directory left behind by the move.
 func (s *Shelf) mergeLegacyTrashBooks(root fsutil.FS) error {
 	entries, err := s.dbRoot.ReadDir(legacyTrashBooksFolder)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -550,8 +464,6 @@ func (s *Shelf) mergeLegacyTrashBooks(root fsutil.FS) error {
 		}
 	}
 
-	// Remove, not RemoveAll: it fails on a non-empty directory, so anything the
-	// user put under the legacy path by hand is left where they can find it.
 	if err := root.Remove(legacyTrashBooksFolder); err != nil && !errors.Is(err, os.ErrNotExist) {
 		s.Warn("legacy trash directory is not empty; leaving it in place", "path", legacyTrashBooksFolder, "error", err)
 		return nil

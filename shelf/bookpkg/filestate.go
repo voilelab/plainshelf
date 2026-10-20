@@ -6,7 +6,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
-// FileStat is what a cache keyed on "has this file changed" compares.
 type FileStat struct {
 	ModTime time.Time
 	Size    int64

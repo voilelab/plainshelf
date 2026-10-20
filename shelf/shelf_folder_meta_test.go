@@ -102,7 +102,6 @@ func TestSetFolderIconRoundTripAndClear(t *testing.T) {
 		t.Fatalf("ReadFolderMeta = %+v", meta)
 	}
 
-	// Clearing the only setting removes the file rather than leaving a stub.
 	if err := s.SetFolderIcon(FolderPath{"Fiction"}, "", meta.Version); err != nil {
 		t.Fatalf("SetFolderIcon(clear): %v", err)
 	}
@@ -110,12 +109,10 @@ func TestSetFolderIconRoundTripAndClear(t *testing.T) {
 		t.Fatal("clearing the last setting left folder.json behind")
 	}
 
-	// Clearing with no file is a no-op, not an error.
 	if err := s.SetFolderIcon(FolderPath{"Fiction"}, "", ""); err != nil {
 		t.Fatalf("SetFolderIcon(clear, no file): %v", err)
 	}
 
-	// The folder listing is not affected by the file.
 	if got := getFolderNames(t, s); !slices.Equal(got, []string{"", "Fiction"}) {
 		t.Fatalf("folders = %v", got)
 	}
@@ -136,7 +133,6 @@ func TestSetFolderIconKeepsUnknownMembers(t *testing.T) {
 		"icon":           `"star"`,
 	})
 
-	// Clearing removes the icon and nothing else, and keeps the file.
 	meta = mustReadFolderMeta(t, s, FolderPath{"Fiction"})
 	if err := s.SetFolderIcon(FolderPath{"Fiction"}, "", meta.Version); err != nil {
 		t.Fatalf("SetFolderIcon(clear): %v", err)
@@ -148,8 +144,6 @@ func TestSetFolderIconKeepsUnknownMembers(t *testing.T) {
 	})
 }
 
-// An icon a newer build offers reads as the default here, and an edit of
-// another member must carry it through rather than drop it as unknown.
 func TestUnknownIconIsKeptByOtherWrites(t *testing.T) {
 	s, libRoot := newFolderMetaShelf(t, FolderPath{"Fiction"})
 	writeFolderMeta(t, libRoot, `{"icon":"icon-from-a-newer-build"}`, "Fiction")
@@ -275,7 +269,6 @@ func TestReadFolderMetaWarnsOncePerProblem(t *testing.T) {
 		t.Fatalf("three reads of one broken file logged %d warnings, want 1", got)
 	}
 
-	// A different problem is news; so is the same one after a fix.
 	writeFolderMeta(t, libRoot, `[]`, "Fiction")
 	mustReadFolderMeta(t, s, FolderPath{"Fiction"})
 	writeFolderMeta(t, libRoot, `{}`, "Fiction")
@@ -287,8 +280,6 @@ func TestReadFolderMetaWarnsOncePerProblem(t *testing.T) {
 	}
 }
 
-// countWarnings replaces the shelf's log handler with one that counts
-// warnings, after the initial scan so its own logging is not counted.
 func countWarnings(s *Shelf) *atomic.Int64 {
 	counter := &warnCounter{}
 	s.Logger.Logger = slog.New(counter)
@@ -338,7 +329,6 @@ func TestSetFolderIconRefusesAStaleVersion(t *testing.T) {
 	}
 	read := mustReadFolderMeta(t, s, FolderPath{"Fiction"})
 
-	// Edited by hand after the caller's read.
 	edited := `{"icon":"moon","schema_version":1}`
 	writeFolderMeta(t, libRoot, edited, "Fiction")
 
@@ -349,7 +339,6 @@ func TestSetFolderIconRefusesAStaleVersion(t *testing.T) {
 		t.Fatalf("a refused write changed folder.json to %q", raw)
 	}
 
-	// A caller that read nothing must not create over a file that appeared.
 	if err := s.SetFolderIcon(FolderPath{"Fiction"}, "star", ""); !errors.Is(err, ErrFolderMetaConflict) {
 		t.Fatalf("write expecting no file: %v, want ErrFolderMetaConflict", err)
 	}
@@ -360,7 +349,6 @@ func TestSetFolderIconRefusesAStaleVersion(t *testing.T) {
 	}
 }
 
-// failingRenameFS makes every atomic write fail at its last step.
 type failingRenameFS struct{ fsutil.FS }
 
 func (f failingRenameFS) Rename(string, string) error { return errors.New("rename refused") }
@@ -420,8 +408,6 @@ func TestFolderMetaFileNameIsReserved(t *testing.T) {
 		}
 	}
 
-	// A folder of that name made outside PlainShelf stays listed, its parent's
-	// metadata reads as none and refuses writes, and it can be renamed away.
 	if err := os.Mkdir(folderMetaFilePath(libRoot, "Fiction"), 0o750); err != nil {
 		t.Fatalf("Mkdir: %v", err)
 	}
@@ -435,7 +421,6 @@ func TestFolderMetaFileNameIsReserved(t *testing.T) {
 	if !meta.ReadOnly || meta.DisplayIcon() != "" {
 		t.Fatalf("parent of a folder.json directory read as %+v", meta)
 	}
-	// The listing says the same, so a client does not offer a write that fails.
 	if listed, ok := mustListFolderMeta(t, s)["Fiction"]; !ok || !listed.ReadOnly {
 		t.Fatalf("ListFolderMeta reported the parent of a folder.json directory as %+v (listed %v)", listed, ok)
 	}
@@ -464,7 +449,6 @@ func TestDeleteFolderHoldingOnlyItsMetadata(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	// PruneFolder is the strict form: metadata is content to it.
 	if err := s.PruneFolder(FolderPath{"Empty"}, ""); err == nil {
 		t.Fatal("PruneFolder deleted a folder holding folder.json")
 	}
@@ -527,7 +511,6 @@ func TestFolderMetaMovesWithItsFolder(t *testing.T) {
 		t.Fatalf("icon after move = %q", got)
 	}
 
-	// A move made outside PlainShelf carries the file the same way.
 	if err := os.Rename(filepath.Join(libRoot, booksFolder, "Archive", "SF"), filepath.Join(libRoot, booksFolder, "Moved")); err != nil {
 		t.Fatalf("Rename: %v", err)
 	}

@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// statusTask reports a status and percentage chosen by the test. It never runs
-// on a worker goroutine in these tests, so it needs no locking.
 type statusTask struct {
 	status     Status
 	percentage float64
@@ -165,7 +163,6 @@ func TestPoolEvictsOldestTerminalChainsOnly(t *testing.T) {
 }
 
 func TestPoolSubmitDoesNotRetainChainWhenWorkerRejectsIt(t *testing.T) {
-	// The worker is never started, so the queue of one fills immediately.
 	p := NewPool(newTestWorker(t, 1), 0)
 	t.Cleanup(func() { _ = p.Close() })
 
@@ -182,8 +179,6 @@ func TestPoolSubmitDoesNotRetainChainWhenWorkerRejectsIt(t *testing.T) {
 	}
 }
 
-// A chain whose first task ended partially completed is still being processed
-// while later tasks remain, so its key must stay reserved.
 func TestPoolSubmitRejectsDuplicateKeyWhileALaterTaskRemains(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 
@@ -205,11 +200,7 @@ func TestPoolSubmitRejectsDuplicateKeyWhileALaterTaskRemains(t *testing.T) {
 	}
 }
 
-// A submission the worker rejects must leave the pool untouched, including the
-// results it was already retaining.
 func TestPoolSubmitRejectionDoesNotEvictRetainedChains(t *testing.T) {
-	// Queue depth of 1 and retention of 1: the second submission is rejected
-	// while the pool is already at its budget.
 	p := NewPool(newTestWorker(t, 1), 1)
 	t.Cleanup(func() { _ = p.Close() })
 

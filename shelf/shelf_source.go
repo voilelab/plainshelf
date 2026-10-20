@@ -10,7 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// Source types; see docs/concepts/shelf-sources.md.
 const (
 	SourceLocal      = "local"
 	SourcePlainShelf = "plainshelf"
@@ -18,8 +17,6 @@ const (
 	SourcePCloud     = "pcloud"
 )
 
-// SourceConf is where a shelf's files are and how they are reached. One flat
-// struct for every type; Validate rejects the fields a type does not use.
 type SourceConf struct {
 	Type       string `yaml:"type" json:"type"`
 	Path       string `yaml:"path" json:"path,omitzero"`
@@ -31,12 +28,8 @@ type SourceConf struct {
 	Credential string `yaml:"credential" json:"credential,omitzero"`
 }
 
-// credentialSchemes are the references a credential may hold; never the
-// secret itself.
 var credentialSchemes = []string{"env:", "file:", "host:"}
 
-// Validate checks the fields the type needs and refuses every field it does
-// not use, so a typo cannot silently open the wrong thing.
 func (c *SourceConf) Validate() error {
 	var allowed, required []string
 	switch c.Type {
@@ -83,8 +76,6 @@ func (c *SourceConf) Validate() error {
 	return nil
 }
 
-// validateCredentialRef refuses anything but a reference, a pasted token
-// included: a configuration file ends up in bug reports and backups.
 func validateCredentialRef(ref string) error {
 	for _, scheme := range credentialSchemes {
 		if value, ok := strings.CutPrefix(ref, scheme); ok {
@@ -97,15 +88,10 @@ func validateCredentialRef(ref string) error {
 	return util.NewError("credential must be a reference (env:NAME, file:/path or host:ID), never the secret itself")
 }
 
-// IsVirtual reports a source read through a remote ReadFS rather than a local
-// path.
 func (c *SourceConf) IsVirtual() bool {
 	return c.Type != SourceLocal
 }
 
-// Scope names a virtual source by where it lives, so renaming the shelf keeps
-// what a device stores for it; see docs/concepts/shelf-sources.md#cache-scope.
-// It is empty for a local source.
 func (c *SourceConf) Scope() string {
 	switch c.Type {
 	case SourcePlainShelf, SourceWebDAV:
@@ -127,8 +113,6 @@ func (c *SourceConf) Scope() string {
 	return ""
 }
 
-// ResolveSource folds lib_root into a local source and validates the result.
-// lib_root and source are mutually exclusive, and one of them is required.
 func (c *ShelfConf) ResolveSource() (SourceConf, error) {
 	switch {
 	case c.Source != nil && c.LibRoot != "":

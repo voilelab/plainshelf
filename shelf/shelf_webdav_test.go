@@ -12,8 +12,6 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-// davRecorder is a general WebDAV server over a shelf directory that records
-// every request it is sent.
 type davRecorder struct {
 	mu       sync.Mutex
 	requests []string
@@ -27,7 +25,6 @@ func (d *davRecorder) take() []string {
 	return out
 }
 
-// openWebDAVShelf opens libRoot through davfs.FS, served by x/net/webdav.
 func openWebDAVShelf(t *testing.T, libRoot string) *Shelf {
 	t.Helper()
 	s, _ := openWebDAVShelfRecorded(t, libRoot)

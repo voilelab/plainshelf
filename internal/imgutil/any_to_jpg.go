@@ -13,8 +13,6 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// AnyToJPG converts image bytes of any supported format to JPEG format.
-// If the input is already in JPEG format, it returns the original bytes.
 func AnyToJPG(bs []byte) ([]byte, error) {
 	img, format, err := image.Decode(bytes.NewReader(bs))
 	if err != nil {

@@ -19,20 +19,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-/*
-Runs the conformance dataset in testdata/conformance — see the README there for
-the contract.
-
-The point is not to cover this package (the tests around it do that already) but
-to pin the observable reading of a shelf to a file written from the format
-documentation, through every way a shelf is opened: walked, from its exported
-cache, over pCloud, and over WebDAV.
-*/
-
-// conformanceDatasetVersion is the expected.json shape this harness understands,
-// matching schema_version in testdata/conformance/manifest.json. Both harnesses
-// check it, so a dataset change that outpaces one of them fails loudly instead
-// of being read as a behavior difference.
 const conformanceDatasetVersion = 4
 
 const conformanceRoot = "testdata/conformance"
@@ -45,7 +31,6 @@ type conformanceManifest struct {
 	} `json:"cases"`
 }
 
-// conformanceReading is what both implementations must report for one case.
 type conformanceReading struct {
 	Folders    []string                         `json:"folders"`
 	FolderMeta map[string]conformanceFolderMeta `json:"folder_meta"`
@@ -53,7 +38,6 @@ type conformanceReading struct {
 	BookCaches []conformanceBookCache           `json:"book_caches"`
 }
 
-// conformanceFolderMeta is one folder's folder.json as the shelf reads it.
 type conformanceFolderMeta struct {
 	SortKey    *float64 `json:"sort_key,omitzero"`
 	Icon       string   `json:"icon"`
@@ -117,9 +101,6 @@ func TestBookPackageConformance(t *testing.T) {
 	}
 }
 
-// TestBookPackageConformanceThroughReadFS reads every case through
-// NewShelfFromFS, the entry a remote shelf takes, which lists a shelf from its
-// exported book cache when one is usable instead of walking it.
 func TestBookPackageConformanceThroughReadFS(t *testing.T) {
 	manifest := loadConformanceManifest(t)
 	for _, entry := range manifest.Cases {
@@ -132,8 +113,6 @@ func TestBookPackageConformanceThroughReadFS(t *testing.T) {
 	}
 }
 
-// TestBookPackageConformanceThroughPCloud reads every case through pcloud.FS
-// against a fake pCloud API, the source the Android app opens.
 func TestBookPackageConformanceThroughPCloud(t *testing.T) {
 	manifest := loadConformanceManifest(t)
 	for _, entry := range manifest.Cases {
@@ -152,9 +131,6 @@ func TestBookPackageConformanceThroughPCloud(t *testing.T) {
 	}
 }
 
-// TestBookPackageConformanceThroughWebDAV reads every case through davfs.FS
-// against a general WebDAV server, the client a plainshelf or webdav source
-// opens.
 func TestBookPackageConformanceThroughWebDAV(t *testing.T) {
 	manifest := loadConformanceManifest(t)
 	for _, entry := range manifest.Cases {
@@ -173,10 +149,6 @@ func TestBookPackageConformanceThroughWebDAV(t *testing.T) {
 	}
 }
 
-// TestBookPackageConformanceDatasetIsComplete keeps the manifest and the case
-// directories in step. Without it a case could be added and never run, which is
-// the one failure mode a conformance suite cannot afford: it would report
-// agreement it never checked.
 func TestBookPackageConformanceDatasetIsComplete(t *testing.T) {
 	manifest := loadConformanceManifest(t)
 
@@ -247,28 +219,20 @@ func loadConformanceExpectation(t *testing.T, filePath string) conformanceReadin
 	return expected
 }
 
-// decodeConformanceJSON refuses unknown fields, so a typo in the dataset is a
-// failure rather than a silently unchecked expectation.
 func decodeConformanceJSON(t *testing.T, filePath string, target any) {
 	t.Helper()
 
-	file, err := os.Open(filePath) //nolint:gosec // fixed test fixture path
+	file, err := os.Open(filePath)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", filePath, err)
 	}
-	defer file.Close() //nolint:errcheck // read-only fixture
+	defer file.Close()
 
 	if err := json.UnmarshalRead(file, target, json.RejectUnknownMembers(true)); err != nil {
 		t.Fatalf("failed to decode %s: %v", filePath, err)
 	}
 }
 
-// readConformanceCase opens one case's shelf and records what this build reads
-// from it.
-//
-// The shelf is copied to a temp directory first: opening one creates a lock
-// file and a scan cache under app/, and a fixture that a test run modifies
-// would stop describing what was committed.
 func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 	t.Helper()
 
@@ -277,8 +241,6 @@ func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 		t.Fatalf("failed to copy the case shelf: %v", err)
 	}
 
-	// No BookCacheWriterID: the export would add a cache file of its own to
-	// app/ and change what the book_caches expectation describes.
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
 
 	return conformanceReading{
@@ -289,8 +251,6 @@ func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 	}
 }
 
-// readConformanceCaseThroughReadFS is readConformanceCase through
-// NewShelfFromFS. Nothing is written, so the case directory is read in place.
 func readConformanceCaseThroughReadFS(t *testing.T, shelfDir string) conformanceReading {
 	t.Helper()
 
@@ -317,9 +277,6 @@ func readConformanceCaseThroughReadFS(t *testing.T, shelfDir string) conformance
 	}
 }
 
-// readOnDiskSchemaVersion reads book.json's raw schema_version. The normalized
-// BookMeta.SchemaVersion cannot report it: a pre-v1 book and a v1 book both read
-// as 1 in memory, and that difference is exactly what the dataset records.
 func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
 	t.Helper()
 
@@ -327,7 +284,7 @@ func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
 	if err != nil {
 		t.Fatalf("open book.json (%s): %v", bookPath, err)
 	}
-	defer file.Close() //nolint:errcheck // read-only probe
+	defer file.Close()
 
 	var meta struct {
 		SchemaVersion int `json:"schema_version"`
@@ -338,9 +295,6 @@ func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
 	return meta.SchemaVersion
 }
 
-// readConformanceFolderMeta records every folder that has a folder.json, keyed
-// the way folders are, as the listing reports it: walked, or taken from the
-// exported cache. The root never has one, even with a file of that name.
 func readConformanceFolderMeta(t *testing.T, s *Shelf) map[string]conformanceFolderMeta {
 	t.Helper()
 
@@ -378,8 +332,6 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 		book := listing.Book
 		meta := book.GetMeta()
 
-		// The normalized SchemaVersion in meta cannot tell a pre-v1 book from a
-		// v1 one, and that difference is exactly what the dataset records.
 		onDiskSchema := readOnDiskSchemaVersion(t, s, book.PackagePath())
 
 		coverPresent := false
@@ -432,7 +384,6 @@ func readConformanceSources(t *testing.T, s *Shelf, book *Book) []conformanceSou
 
 	sources, err := book.ListSource()
 	if err != nil {
-		// A book that never had a source has no sources/ folder at all.
 		if errors.Is(err, os.ErrNotExist) {
 			return []conformanceSource{}
 		}
@@ -444,7 +395,7 @@ func readConformanceSources(t *testing.T, s *Shelf, book *Book) []conformanceSou
 		hasContent := false
 		if content, err := source.Open(); err == nil {
 			hasContent = true
-			content.Close() //nolint:errcheck // read-only probe
+			content.Close()
 		}
 
 		meta := source.GetMeta()
@@ -464,10 +415,6 @@ func readConformanceSources(t *testing.T, s *Shelf, book *Book) []conformanceSou
 	return observed
 }
 
-// readConformanceAssets lists a source's illustrations and checks each one is
-// reachable under the relative path the format documents. Nothing records the
-// contents of assets/ — the filesystem is the list (see asset.go) — so the
-// listing itself is what the pCloud client indexes from its own listing.
 func readConformanceAssets(t *testing.T, s *Shelf, source *Source) []string {
 	t.Helper()
 
@@ -501,12 +448,10 @@ func readConformanceAssets(t *testing.T, s *Shelf, source *Source) []string {
 			t.Errorf("OpenAsset(%s): %v", name, err)
 			continue
 		}
-		asset.File.Close() //nolint:errcheck // read-only probe
+		asset.File.Close()
 	}
 
 	slices.Sort(names)
-	// The same fixture also pins batch reads to the per-file reading, across
-	// local, WebDAV and pCloud roots, without changing the shelf format.
 	var bundle bytes.Buffer
 	zw := zip.NewWriter(&bundle)
 	if err := source.WriteAssetsToZip(zw, names); err != nil {
@@ -562,8 +507,6 @@ func readConformanceBookCaches(t *testing.T, s *Shelf) []conformanceBookCache {
 	return observed
 }
 
-// orEmpty replaces a nil slice with an empty one: expected.json records an
-// absent list as [] (see the dataset README).
 func orEmpty(values []string) []string {
 	if values == nil {
 		return []string{}
@@ -571,7 +514,6 @@ func orEmpty(values []string) []string {
 	return values
 }
 
-// orEmptyMap does for a map what orEmpty does for a slice.
 func orEmptyMap(values map[string]string) map[string]string {
 	if values == nil {
 		return map[string]string{}
@@ -579,11 +521,6 @@ func orEmptyMap(values map[string]string) map[string]string {
 	return values
 }
 
-// formatConformanceTime writes a timestamp the way the dataset records one:
-// RFC 3339, and the empty string for an absent value. Go parses these into a
-// time.Time while the pCloud reader keeps the raw string, so the two agree only
-// on the canonical spelling — which is the one PlainShelf writes, and the one
-// every fixture is written in.
 func formatConformanceTime(value util.JSONTime) string {
 	if value.IsZero() {
 		return ""
@@ -591,10 +528,6 @@ func formatConformanceTime(value util.JSONTime) string {
 	return time.Time(value).Format(time.RFC3339)
 }
 
-// formatConformanceDate is formatConformanceTime for published_at, which is a
-// date rather than an instant. Go canonicalizes an RFC 3339 value down to the
-// date while the pCloud reader would keep it whole, so a fixture writes the
-// date-only form the format documents.
 func formatConformanceDate(value util.JSONDate) string {
 	if value.IsZero() {
 		return ""

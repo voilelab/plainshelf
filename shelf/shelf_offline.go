@@ -22,26 +22,8 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-/*
-A virtual shelf opened with an offline directory keeps books on the device. The
-directory mirrors the shelf: a downloaded book sits at the same books/… path it
-has on the source, so offlineFS answers a read for it from the device by path
-alone and the book code never knows.
-
-	{offline}/
-	  downloads.json  which books are here, and the version each was taken at
-	  snapshot.json   the last listing read from the source
-	  shelf.json      the source's shelf.json, so folder rules hold offline
-	  books/…         downloaded book packages, as on the source
-	  tmp/            downloads in progress, cleared on open
-
-Nothing here is ever written to the source.
-*/
-
 var ErrDownloadUnsupported = util.NewError("this shelf does not keep offline copies")
 
-// ErrBookNotDownloaded wraps fsutil.ErrSourceUnavailable for a read inside a
-// book that has no offline copy.
 var ErrBookNotDownloaded = util.NewError("book is not downloaded and the shelf source is unavailable")
 
 const offlineSchemaVersion = 1
@@ -57,7 +39,6 @@ const (
 	DownloadUpdateAvailable DownloadState = "update_available"
 )
 
-// Download is one book kept offline.
 type Download struct {
 	BookID       string
 	Folder       FolderPath
@@ -72,11 +53,8 @@ type offlineDownload struct {
 	DownloadedAt util.JSONTime `json:"downloaded_at"`
 	SizeBytes    int64         `json:"size_bytes"`
 
-	// Version is bookVersion of the listing entry at download time.
 	Version string `json:"version"`
 
-	// Meta is kept so the downloads list can name a book the source has since
-	// dropped from its listing.
 	Meta *BookMeta `json:"meta"`
 }
 
@@ -95,8 +73,6 @@ type offlineStore struct {
 	root   *os.Root
 	fs     *fsutil.RootFS
 
-	// downloadMu serialises downloads and removals, which rewrite
-	// downloads.json whole.
 	downloadMu sync.Mutex
 
 	mu        sync.RWMutex
@@ -124,7 +100,6 @@ func openOfflineStore(dir string, logger logutil.Logger) (*offlineStore, error) 
 		byPath:    map[string]string{},
 	}
 
-	// Only ever holds unfinished downloads.
 	if err := store.fs.RemoveAll(offlineTmpFolder); err != nil {
 		_ = root.Close()
 		return nil, util.Errorf("%w", err)
@@ -146,8 +121,6 @@ func (o *offlineStore) close() error {
 	return nil
 }
 
-// loadDownloads starts empty on an unreadable file: the copies stay on disk
-// and a new download of the same book replaces them.
 func (o *offlineStore) loadDownloads() {
 	var file offlineDownloadsJSON
 	if !o.readJSON(offlineDownloadsFile, &file) {
@@ -184,7 +157,6 @@ func (o *offlineStore) loadSnapshot() {
 	o.snapshot, o.snapshotDigest = file.Listing, digest
 }
 
-// readJSON reports whether name was read; a missing file is silent.
 func (o *offlineStore) readJSON(name string, v any) bool {
 	data, err := fs.ReadFile(o.root.FS(), name)
 	if err != nil {
@@ -211,8 +183,6 @@ func (o *offlineStore) writeJSON(name string, v any) error {
 	return nil
 }
 
-// writeDownloadsLocked persists o.downloads; o.mu must not be held, downloadMu
-// must be.
 func (o *offlineStore) writeDownloadsLocked() error {
 	o.mu.RLock()
 	file := offlineDownloadsJSON{SchemaVersion: offlineSchemaVersion, Books: maps.Clone(o.downloads)}
@@ -220,8 +190,6 @@ func (o *offlineStore) writeDownloadsLocked() error {
 	return o.writeJSON(offlineDownloadsFile, file)
 }
 
-// pathInUseLocked reports whether a stored download names pkgPath; o.mu must
-// be held.
 func (o *offlineStore) pathInUseLocked(pkgPath string) bool {
 	for _, record := range o.downloads {
 		if record.Path == pkgPath {
@@ -245,7 +213,6 @@ func (o *offlineStore) download(bookID string) (offlineDownload, bool) {
 	return entry, ok
 }
 
-// saveSnapshot writes listing unless its content is what is already stored.
 func (o *offlineStore) saveSnapshot(listing *BookCacheFile) error {
 	digest, err := bookCacheDigest(listing)
 	if err != nil {
@@ -275,8 +242,6 @@ func (o *offlineStore) lastSnapshot() *BookCacheFile {
 	return o.snapshot
 }
 
-// mirror keeps the offline copy of a small file in step with the source.
-// data nil means the source has no such file.
 func (o *offlineStore) mirror(name string, data []byte) {
 	current, err := fs.ReadFile(o.root.FS(), name)
 	switch {
@@ -294,8 +259,6 @@ func (o *offlineStore) mirror(name string, data []byte) {
 	}
 }
 
-// offlineFS answers reads inside a downloaded book from the offline store and
-// everything else from the source.
 type offlineFS struct {
 	remote fsutil.ReadFS
 	store  *offlineStore
@@ -342,8 +305,6 @@ type offlineZipFS struct {
 	offlineFS
 }
 
-// OpenZip uses the remote batch capability only when every path is remote.
-// Downloaded books keep using the local copy even while the source is online.
 func (f offlineZipFS) OpenZip(names ...string) (io.ReadCloser, error) {
 	for _, name := range names {
 		if _, local := f.route(name); local {
@@ -361,8 +322,6 @@ func (f offlineZipFS) OpenZip(names ...string) (io.ReadCloser, error) {
 	return stream, err
 }
 
-// openMirrored reads name from the source and keeps a copy, falling back to
-// the copy while the source is unavailable.
 func (f offlineFS) openMirrored(name string) (fs.File, error) {
 	file, err := f.remote.Open(name)
 	if err != nil {
@@ -390,8 +349,6 @@ func notDownloaded(name string, err error) error {
 	return err
 }
 
-// bookPackageOf returns the book package directory name lies in, or name
-// itself when it is one.
 func bookPackageOf(name string) (string, bool) {
 	segments := strings.Split(name, "/")
 	if len(segments) < 2 || segments[0] != booksFolder {
@@ -405,9 +362,6 @@ func bookPackageOf(name string) (string, bool) {
 	return "", false
 }
 
-// bookVersion identifies what an offline copy was taken of: the book's
-// metadata and its current source's text. Nothing in book.json changes when a
-// source is edited in place, hence the hash beside it.
 func bookVersion(meta *BookMeta, sourceMD5 string) string {
 	data, err := json.Marshal(meta, jsonopt.DiskCompact())
 	if err != nil {
@@ -417,9 +371,6 @@ func bookVersion(meta *BookMeta, sourceMD5 string) string {
 	return hex.EncodeToString(sum[:16])
 }
 
-// walkRoot is what a full walk reads: the source itself on a shelf with an
-// offline store, so a walk sees the source's current state rather than a
-// downloaded copy.
 func (s *Shelf) walkRoot() fsutil.ReadFS {
 	if s.offline != nil {
 		return fsutil.ReadOnly(s.remoteRoot)
@@ -427,7 +378,6 @@ func (s *Shelf) walkRoot() fsutil.ReadFS {
 	return s.dbRoot
 }
 
-// afterRemoteListing runs once a listing has been read from the source.
 func (s *Shelf) afterRemoteListing() {
 	if s.offline == nil {
 		return
@@ -436,10 +386,6 @@ func (s *Shelf) afterRemoteListing() {
 	s.saveOfflineSnapshot()
 }
 
-// reconcileDownloads routes reads to a copy only while the listing still holds
-// that book at that path. A path the source has reused for another book, or a
-// book it has moved, is read from the source; the copy stays until the user
-// downloads or removes it.
 func (s *Shelf) reconcileDownloads() {
 	if s.offline == nil {
 		return
@@ -469,18 +415,14 @@ func (s *Shelf) reconcileDownloads() {
 	}
 }
 
-// CanDownload reports whether books on this shelf can be kept offline.
 func (s *Shelf) CanDownload() bool {
 	return s.offline != nil
 }
 
-// IsVirtual reports a shelf opened by NewShelfFromFS.
 func (s *Shelf) IsVirtual() bool {
 	return s.remote
 }
 
-// SnapshotAt is when the walk behind a virtual shelf's listing began, whether
-// the listing came from the source just now or from the offline snapshot.
 func (s *Shelf) SnapshotAt() (time.Time, bool) {
 	if !s.remote {
 		return time.Time{}, false
@@ -490,9 +432,6 @@ func (s *Shelf) SnapshotAt() (time.Time, bool) {
 	return s.bookCache.lastScanStart, !s.bookCache.lastScanStart.IsZero()
 }
 
-// DownloadBook copies a book package from the source into the offline store,
-// replacing an earlier copy. The copy is built under tmp/ and renamed into
-// place, so a failure leaves the earlier state.
 func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 	if s.offline == nil {
 		return Download{}, util.Errorf("%w", ErrDownloadUnsupported)
@@ -530,8 +469,6 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 		return Download{}, util.Errorf("%w", err)
 	}
 
-	// An earlier copy is moved aside rather than deleted first, so a failed
-	// rename puts it back.
 	previous := ""
 	if _, err := o.fs.Stat(entry.path); err == nil {
 		previous = staging + ".previous"
@@ -556,7 +493,6 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 	if hadOld && o.byPath[old.Path] == bookID {
 		delete(o.byPath, old.Path)
 	}
-	// The copy just replaced whatever another book had kept at this path.
 	for otherID, other := range o.downloads {
 		if otherID != bookID && other.Path == record.Path {
 			delete(o.downloads, otherID)
@@ -573,8 +509,6 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 	if err := o.writeDownloadsLocked(); err != nil {
 		return Download{}, util.Errorf("%w", err)
 	}
-	// A book the source moved leaves its earlier copy behind; nothing names
-	// it once the list is written.
 	if hadOld && old.Path != record.Path && !keepOld {
 		_ = o.fs.RemoveAll(old.Path)
 	}
@@ -582,8 +516,6 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 	return s.downloadFor(bookID, record), nil
 }
 
-// RemoveDownload deletes a book's offline copy. A book that has none is not an
-// error.
 func (s *Shelf) RemoveDownload(bookID string) error {
 	if s.offline == nil {
 		return util.Errorf("%w", ErrDownloadUnsupported)
@@ -607,8 +539,6 @@ func (s *Shelf) RemoveDownload(bookID string) error {
 		return nil
 	}
 
-	// The list first: a copy it no longer names is unreachable, while an entry
-	// naming a deleted copy would be read.
 	if err := o.writeDownloadsLocked(); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -621,8 +551,6 @@ func (s *Shelf) RemoveDownload(bookID string) error {
 	return nil
 }
 
-// DownloadStatus reports a book's offline state and, when it has a copy, when
-// that was taken.
 func (s *Shelf) DownloadStatus(bookID string) (DownloadState, time.Time) {
 	if s.offline == nil {
 		return DownloadNotDownloaded, time.Time{}
@@ -634,7 +562,6 @@ func (s *Shelf) DownloadStatus(bookID string) (DownloadState, time.Time) {
 	return s.downloadFor(bookID, record).State, time.Time(record.DownloadedAt)
 }
 
-// Downloads lists every book kept offline, ordered by book ID.
 func (s *Shelf) Downloads() []Download {
 	if s.offline == nil {
 		return nil
@@ -652,8 +579,6 @@ func (s *Shelf) Downloads() []Download {
 	return downloads
 }
 
-// downloadFor compares a stored copy with the current listing. A book the
-// listing no longer holds keeps its copy and reports it as downloaded.
 func (s *Shelf) downloadFor(bookID string, record offlineDownload) Download {
 	download := Download{
 		BookID:       bookID,
@@ -673,8 +598,6 @@ func (s *Shelf) downloadFor(bookID string, record offlineDownload) Download {
 	return download
 }
 
-// saveOfflineSnapshot stores the current listing for use while the source is
-// unavailable.
 func (s *Shelf) saveOfflineSnapshot() {
 	if s.offline == nil {
 		return
@@ -686,8 +609,6 @@ func (s *Shelf) saveOfflineSnapshot() {
 	}
 }
 
-// copyTree copies the directory src on from to dst on to and returns the bytes
-// copied.
 func copyTree(from fsutil.ReadFS, to fsutil.FS, src, dst string) (int64, error) {
 	if err := to.MkdirAll(dst); err != nil {
 		return 0, util.Errorf("%w", err)

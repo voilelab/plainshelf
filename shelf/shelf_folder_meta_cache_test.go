@@ -44,8 +44,6 @@ func assertIcons(t *testing.T, got, want map[string]string) {
 	}
 }
 
-// A long scan interval keeps every listing on the cache, so whatever a test sees
-// change did not come from a full scan it did not ask for.
 func newCachedFolderMetaShelf(t *testing.T, conf ShelfConf, folders ...FolderPath) (*Shelf, string) {
 	t.Helper()
 
@@ -72,8 +70,6 @@ func TestListFolderMetaFollowsWritesAtOnceAndOutsideEditsAfterARescan(t *testing
 	}
 	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction/Classics": "book"})
 
-	// An edit made outside PlainShelf waits for the next full scan; in place, it
-	// does not move the folder's mtime, so the scan must read the file anyway.
 	dir := filepath.Join(libRoot, booksFolder, "Fiction", "Classics")
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -91,7 +87,6 @@ func TestListFolderMetaFollowsWritesAtOnceAndOutsideEditsAfterARescan(t *testing
 	}
 	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction": "star", "Fiction/Classics": "moon"})
 
-	// Clearing removes the entry with the file.
 	meta := mustListFolderMeta(t, s)["Fiction"]
 	if err := s.SetFolderIcon(FolderPath{"Fiction"}, "", meta.Version); err != nil {
 		t.Fatalf("SetFolderIcon(clear): %v", err)
@@ -99,8 +94,6 @@ func TestListFolderMetaFollowsWritesAtOnceAndOutsideEditsAfterARescan(t *testing
 	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction/Classics": "moon"})
 }
 
-// A write refused because the cache was stale must leave the cache fresh, or the
-// caller's retry would be handed the same stale version until the next scan.
 func TestFolderMetaConflictRefreshesTheCachedVersion(t *testing.T) {
 	s, libRoot := newCachedFolderMetaShelf(t, ShelfConf{}, FolderPath{"Fiction"})
 	if err := s.SetFolderIcon(FolderPath{"Fiction"}, "book", ""); err != nil {
@@ -146,7 +139,6 @@ func TestListFolderMetaFollowsFolderChanges(t *testing.T) {
 	assertIcons(t, listedIcons(t, s), map[string]string{"Archive/SF": "book"})
 }
 
-// folderMetaOpens counts the folder.json files a shelf opens.
 type folderMetaOpens struct {
 	fsutil.FS
 	opens atomic.Int64
@@ -159,9 +151,6 @@ func (f *folderMetaOpens) Open(name string) (fs.File, error) {
 	return f.FS.Open(name)
 }
 
-// The I/O a full scan adds is one read per folder that has a folder.json, warm
-// scan cache or not; a folder without one, and a listing between scans, cost
-// nothing.
 func TestFolderMetaScanReadsOnlyFoldersThatHaveIt(t *testing.T) {
 	s, libRoot := newCachedFolderMetaShelf(t, ShelfConf{})
 	const folders, withMeta = 40, 5
@@ -236,13 +225,10 @@ func TestBookCacheExportCarriesFolderMeta(t *testing.T) {
 	}
 }
 
-// A remote shelf takes folder metadata from the export, so a folder with an icon
-// costs the reader no request of its own.
 func TestRemoteShelfListsFolderMetaFromTheExport(t *testing.T) {
 	libRoot := seedExportedShelf(t, "One", "Two")
 	writeFolderMeta(t, libRoot, `{"icon":"rocket"}`, "Fiction")
 
-	// Re-export from a writer that now sees the file.
 	writer := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
 	if _, err := writer.ExportBookCache(); err != nil {
 		t.Fatalf("ExportBookCache: %v", err)
@@ -258,8 +244,6 @@ func TestRemoteShelfListsFolderMetaFromTheExport(t *testing.T) {
 	}
 }
 
-// An export from a build that predates folder_meta, or one naming folders it
-// does not list, still lists the shelf; only the unusable metadata is dropped.
 func TestRemoteShelfReadsAnExportWithoutUsableFolderMeta(t *testing.T) {
 	libRoot := seedExportedShelf(t, "One", "Two")
 	exportPath := filepath.Join(libRoot, appFolder, bookCacheFilePrefix+testWriterID+bookCacheFileSuffix)
@@ -292,8 +276,6 @@ func TestRemoteShelfReadsAnExportWithoutUsableFolderMeta(t *testing.T) {
 	}
 }
 
-// Legacy exports must not pin the default icon once a metadata-capable writer
-// publishes, including a re-export within the same timestamp second.
 func TestRemoteFolderMetaRefreshesLegacyAndSameSecondExports(t *testing.T) {
 	libRoot := seedExportedShelf(t, "One", "Two")
 	name := bookCacheFilePrefix + testWriterID + bookCacheFileSuffix
@@ -348,8 +330,6 @@ func TestFolderMetaSurvivesOfflineSnapshotAndReconnect(t *testing.T) {
 	}
 	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction": "rocket"})
 
-	// Reconnect to a new export whose timestamp is unchanged. The offline
-	// snapshot's digest must not suppress metadata fetched from the source.
 	cache.FolderMeta["Fiction"] = BookCacheFolderMeta{Icon: "moon"}
 	writeRawBookCache(t, libRoot, name, cache)
 	source.down.Store(false)
@@ -408,9 +388,6 @@ func TestFolderMetaOnlyChangesReexportButUnchangedMetadataDoesNot(t *testing.T) 
 	}
 }
 
-// Each simulated scan publishes a complete generation under the cache lock.
-// An export must take its timestamp, paths, metadata and books from that same
-// generation even while the next scan is being published.
 func TestExportSnapshotKeepsOneScanGeneration(t *testing.T) {
 	s, _ := newCachedFolderMetaShelf(t, ShelfConf{})
 	book, err := s.NewBook(FolderPath{"First"}, "One")

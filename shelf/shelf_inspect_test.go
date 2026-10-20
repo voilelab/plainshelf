@@ -43,7 +43,6 @@ func TestCountBookPackagesSkipsIgnoredDirsAndDoesNotDescendIntoBooks(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	// a and b; not the package nested in a, the ignored ones, or a file.
 	if n != 2 {
 		t.Errorf("count = %d, want 2", n)
 	}

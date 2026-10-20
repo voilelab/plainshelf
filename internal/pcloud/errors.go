@@ -10,10 +10,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
-// Result codes this package acts on.
 const (
-	// resultRecursiveListingUnsupported is returned by API variants that refuse
-	// a recursive listing; it is permanent and is never retried.
 	resultRecursiveListingUnsupported = 1101
 	resultParentNotFound              = 2002
 	resultDirectoryNotFound           = 2005
@@ -22,12 +19,6 @@ const (
 
 var retryableStatus = map[int]bool{429: true, 500: true, 502: true, 503: true, 504: true, 509: true}
 
-// Error is a failed pCloud call: an HTTP status, a non-zero result code, or a
-// transport failure (neither set).
-//
-// It matches fs.ErrNotExist for "no such file or folder" and
-// fsutil.ErrSourceUnavailable for everything else, which is how a shelf tells
-// a missing file from being offline or refused.
 type Error struct {
 	Method  string
 	Result  int
@@ -81,7 +72,6 @@ func isRetryable(err error) bool {
 		return false
 	}
 	if e.transport {
-		// A cancelled caller is not a transient failure.
 		return !errors.Is(e.cause, context.Canceled)
 	}
 	if e.Result == resultRecursiveListingUnsupported {

@@ -681,13 +681,38 @@ loses anything, which is exactly what the migration promises above exist to
 avoid for `books/` and `trash/`. See [the `app/` directory](data-model.md#app)
 for what the file holds.
 
+The file has two levels of key:
+
+- **index**, `{book_id}/{source_id}` to the size, mtime and MD5 of that
+  `source.txt`. One stat decides whether the record still describes the file, so
+  an unchanged source is answered without being opened. It is keyed on the book
+  ID rather than the path, so a retitle or a move between folders keeps the
+  fingerprint. When two machines' records disagree, the one first observed later
+  (`seen_at`) wins, not the newer mtime: restoring a source from a backup gives
+  new content an older mtime.
+- **entries**, the MD5 of `source.txt` to the fingerprint of that content. An
+  entry is never updated, only added, so two copies of a book share one and
+  merging two machines' files is a set union that cannot conflict.
+
+It lives under `app/` rather than in `book.json` or `meta.json` because a
+fingerprint belongs to a source's content, an entry is about 1.4 kB of base64,
+and a change of rules invalidates every fingerprint at once: one file to delete
+here, a full-library rewrite there.
+
+Saving merges what the run learned into the file on disk and writes it
+atomically. It is not a transaction: under `lock_mode: none` two simultaneous
+saves can both replace the same older file, which costs a later recomputation
+and never a wrong answer, because entries are keyed by content. Saving also
+drops records for books that are gone, but not a record for a source deleted
+from a book that still exists (deciding that would need a listing per book);
+such a record is about 1.5 kB and is never served.
+
 !!! note "Building fingerprints can write one source file"
     The Similar Books page reads like pure analysis, but building fingerprints
     has one write side effect on `books/`. When it reads a source whose stored
     `md5_hash` no longer matches the source's actual bytes (content changed
     outside PlainShelf, or an older import that recorded a different hash), it
-    corrects that source's `meta.json` in place (`fingerprint_facade.go:42`
-    calls `source.go:245`, `RepairContentHash`). It deliberately leaves the
+    corrects that source's `meta.json` in place (`Source.RepairContentHash`). It deliberately leaves the
     UI-visible line and character counts at their stale values rather than
     recomputing them, but the write still rebuilds the whole file from the
     fields PlainShelf knows, so, like any `meta.json` write, it drops top-level
@@ -700,7 +725,7 @@ for what the file holds.
 ## The exported book cache
 
 `app/book-cache-{writer-id}.json` carries a `schema_version` too
-(`shelf_cache_export.go:43`, `BookCacheSchemaVersion`), and like the fingerprint
+(`BookCacheSchemaVersion` in `shelf/shelf_cache_export.go`), and like the fingerprint
 cache it is versioned the throw-away way: there is no migration path, and a
 reader that meets a version it does not recognize discards the whole file and
 falls back to walking the shelf.
@@ -880,9 +905,9 @@ versioned files into three kinds:
 | `books/**/sources/{id}/meta.json` | Yes — `schema_version`; schema v1 owns source `format` | User data |
 | `trash/**/trash.json` | Yes — `schema_version`; schema v2 owns the book's restore path | User data |
 | `books/**/folder.json` | Yes — `schema_version`; written member by member, so unknown members survive a write — see [`folder.json` schema v1](#folderjson-schema-v1) | User data |
-| `app/scan-cache.json` | Yes — `schema_version` (`scancache/scancache.go:53`); no migration, discarded and rebuilt on any mismatch, unlike `books/` and `trash/` which are upgraded in place | Local cache |
+| `app/scan-cache.json` | Yes — `schema_version` (`schemaVersion` in `shelf/scancache/scancache.go`); v2 added the kept files such as `folder.json`, so a v1 snapshot is not reused; no migration, discarded and rebuilt on any mismatch, unlike `books/` and `trash/` which are upgraded in place | Local cache |
 | `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) | Local cache |
-| `app/book-cache-{writer-id}.json` | Yes — `schema_version` (`shelf_cache_export.go:43`); no migration, discarded and rebuilt on any mismatch, but read across devices — see [The exported book cache](#the-exported-book-cache) | Cross-device contract |
+| `app/book-cache-{writer-id}.json` | Yes — `schema_version` (`BookCacheSchemaVersion`); v2 renamed `layers` to `folders`; no migration, discarded and rebuilt on any mismatch, but read across devices — see [The exported book cache](#the-exported-book-cache) | Cross-device contract |
 | `shelf.json` | Yes — `schema_version` versions this file's own contents; optional, never written by PlainShelf, and a higher version is still read for the fields this build knows. It carries no statement about the shelf's layout — see [`shelf.json` is not that manifest](#shelfjson-is-not-that-manifest) | User settings |
 | `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version. This is a decision, not an oversight — see [Shelf layout changes are not versioned](#shelf-layout-changes-are-not-versioned) | — |
 | Application store | No | — |

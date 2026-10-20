@@ -5,15 +5,11 @@ import (
 	"unicode/utf8"
 )
 
-// TextCounter counts lines and runes of everything written to it, so the
-// metrics can be taken in one streaming pass. A line is a '\n'-terminated run
-// plus any unterminated tail; an invalid byte counts as one rune.
 type TextCounter struct {
 	lines    int
 	chars    int
 	lineOpen bool
-	// partial holds the bytes of a rune split across writes.
-	partial []byte
+	partial  []byte
 }
 
 func (c *TextCounter) Write(p []byte) (int, error) {
@@ -29,7 +25,6 @@ func (c *TextCounter) Write(p []byte) (int, error) {
 		i := 0
 		for i < len(c.partial) {
 			if !utf8.FullRune(head[i:]) {
-				// p was too short to finish the rune.
 				c.partial = append([]byte(nil), head[i:]...)
 				return n, nil
 			}
@@ -41,7 +36,6 @@ func (c *TextCounter) Write(p []byte) (int, error) {
 		c.partial = nil
 	}
 
-	// Hold back an incomplete trailing rune for the next write.
 	for k := 1; k <= min(len(p), utf8.UTFMax-1); k++ {
 		if tail := p[len(p)-k:]; utf8.RuneStart(tail[0]) {
 			if !utf8.FullRune(tail) {
@@ -55,7 +49,6 @@ func (c *TextCounter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// Lines reports the line count of everything written so far.
 func (c *TextCounter) Lines() int {
 	if c.lineOpen {
 		return c.lines + 1
@@ -63,8 +56,6 @@ func (c *TextCounter) Lines() int {
 	return c.lines
 }
 
-// Chars reports the rune count of everything written so far; bytes of a rune
-// still incomplete count one each, as they would at end of input.
 func (c *TextCounter) Chars() int {
 	return c.chars + utf8.RuneCount(c.partial)
 }

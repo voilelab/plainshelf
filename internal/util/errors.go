@@ -6,7 +6,6 @@ import (
 	"runtime"
 )
 
-// Errorf return Error with the function info.
 func Errorf(format string, args ...any) error {
 	pc, _, _, ok := runtime.Caller(1)
 	prefix := "unknown: "
@@ -16,7 +15,6 @@ func Errorf(format string, args ...any) error {
 	return fmt.Errorf(prefix+format, args...)
 }
 
-// NewError return Error with the function info.
 func NewError(info string) error {
 	pc, _, _, ok := runtime.Caller(1)
 	prefix := "unknown: "

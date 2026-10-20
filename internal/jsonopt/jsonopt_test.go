@@ -16,8 +16,6 @@ import (
 // its keys correctly about 1 time in n!. Repeating collapses that to nothing.
 const marshalRounds = 20
 
-// mapKeys is wide enough that an unordered marshal cannot plausibly agree with
-// the sorted one, and the keys are deliberately not inserted in sorted order.
 var mapKeys = []string{"zeta", "alpha", "mu", "beta", "omega", "delta", "kappa", "gamma"}
 
 func unsortedMap() map[string]int {
@@ -28,15 +26,6 @@ func unsortedMap() map[string]int {
 	return m
 }
 
-/*
-Determinism is the reason this package exists, and the reason it is tested:
-three mechanisms are built on "same content, same bytes" — the fingerprint
-cache compares its encoded file against the one on disk before rewriting it,
-the exported book cache is keyed by a digest of its own payload, and the scan
-cache does the same. Dropping json.Deterministic breaks all three silently,
-with no compile error and, until this file existed, no test failure. The cost
-is a pointless re-upload per scan for a shelf held on pCloud or SMB.
-*/
 func TestEveryOptionSetMarshalsMapsDeterministically(t *testing.T) {
 	sets := map[string]json.Options{
 		"Disk":        jsonopt.Disk(),
@@ -68,10 +57,6 @@ func TestEveryOptionSetMarshalsMapsDeterministically(t *testing.T) {
 	}
 }
 
-// The indentation is the one difference between Disk and DiskCompact, and it is
-// what makes book.json and the exported cache openable in a text editor. Pinned
-// so a merge of the two sets is a test failure rather than a silent reformat of
-// every file on the shelf.
 func TestDiskIndentsAndTheMachineOnlySetsDoNot(t *testing.T) {
 	indented, err := json.Marshal(unsortedMap(), jsonopt.Disk())
 	if err != nil {
@@ -95,7 +80,6 @@ func TestDiskIndentsAndTheMachineOnlySetsDoNot(t *testing.T) {
 	}
 }
 
-// keyOrder returns the object's member names in the order they were written.
 func keyOrder(t *testing.T, encoded string) []string {
 	t.Helper()
 

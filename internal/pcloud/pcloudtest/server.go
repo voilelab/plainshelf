@@ -1,5 +1,3 @@
-// Package pcloudtest is a fake pCloud API serving a local directory, for tests
-// that read a shelf through pcloud.FS.
 package pcloudtest
 
 import (
@@ -20,11 +18,8 @@ import (
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
-// Token is the only access token the server accepts.
 const Token = "pcloudtest-token"
 
-// Server serves dir as the folder at Mount in an otherwise empty account.
-// Folder and file IDs are assigned by path on first sight and stay stable.
 type Server struct {
 	*httptest.Server
 
@@ -43,8 +38,6 @@ type Server struct {
 	tokenLeaked     bool
 }
 
-// New starts a server for dir, mounted at mount (for example "/Books/Shelf"),
-// which must not be the account root.
 func New(t testing.TB, dir, mount string) *Server {
 	t.Helper()
 	s := &Server{
@@ -62,17 +55,12 @@ func New(t testing.TB, dir, mount string) *Server {
 	return s
 }
 
-// Host is the API host to hand pcloud.NewClient along with Client().
 func (s *Server) Host() string { return APIHost }
 
-// APIHost is a real region host: pcloud.NewClient refuses any other.
 const APIHost = "api.pcloud.com"
 
-// downloadHost is what getfilelink and getziplink name, as pCloud's own
-// content hosts differ from the API host.
 const downloadHost = "c1.pcloud.com"
 
-// Client sends every request, whatever its host, to this server.
 func (s *Server) Client() *http.Client {
 	inner := s.Server.Client()
 	return &http.Client{Transport: redirect{to: strings.TrimPrefix(s.URL, "https://"), next: inner.Transport}}
@@ -89,36 +77,30 @@ func (r redirect) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r.next.RoundTrip(req)
 }
 
-// RefuseRecursive makes a recursive listfolder answer result 1101.
 func (s *Server) RefuseRecursive() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.refuseRecursive = true
 }
 
-// SetOffline closes every connection without answering while set.
 func (s *Server) SetOffline(offline bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.offline = offline
 }
 
-// TokenLeaked reports whether the token reached a download or a query string.
 func (s *Server) TokenLeaked() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.tokenLeaked
 }
 
-// FailNext answers the next calls with these HTTP statuses, one per call.
 func (s *Server) FailNext(statuses ...int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failures = append(s.failures, statuses...)
 }
 
-// Take returns the requests served so far, as "method" or "download", and
-// starts a new count.
 func (s *Server) Take() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -260,7 +242,6 @@ func (s *Server) idOf(p string) int64 {
 	return s.next
 }
 
-// local maps an account path at or under the mount to dir; "" otherwise.
 func (s *Server) local(p string) string {
 	if p == s.mount {
 		return s.dir
@@ -272,15 +253,12 @@ func (s *Server) local(p string) string {
 	return filepath.Join(s.dir, filepath.FromSlash(rel))
 }
 
-// item describes the account path p; withContents lists one level, and
-// recursive every level.
 func (s *Server) item(p string, withContents, recursive bool) (map[string]any, bool) {
 	name := path.Base(p)
 	if p == "/" {
 		name = "/"
 	}
 
-	// An ancestor of the mount holds only the next folder towards it.
 	if p == "/" || strings.HasPrefix(s.mount, p+"/") {
 		meta := map[string]any{"name": name, "isfolder": true, "folderid": s.idOf(p)}
 		if withContents {

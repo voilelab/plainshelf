@@ -9,8 +9,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/logutil"
 )
 
-// newTestShelf creates a shelf and waits for the initial cache scan to complete.
-// It registers a cleanup function to close the shelf when the test ends.
 func newTestShelf(t *testing.T, conf *ShelfConf) *Shelf {
 	t.Helper()
 	s, err := NewShelf(conf)
@@ -24,9 +22,6 @@ func newTestShelf(t *testing.T, conf *ShelfConf) *Shelf {
 	return s
 }
 
-// writeRootForTest narrows a test shelf's read handle back to a writable one,
-// for tests that plant files in the shelf directly. Every writable test shelf
-// returns one, so a failure here is a broken fixture rather than a result.
 func writeRootForTest(t *testing.T, s *Shelf) fsutil.FS {
 	t.Helper()
 
@@ -76,15 +71,12 @@ func TestCreateTempDir(t *testing.T) {
 		t.Fatalf("Temp dir name is empty")
 	}
 
-	// Check if the directory was actually created
 	_, err = root.Open(tmpName)
 	if err != nil {
 		t.Fatalf("Failed to open created temp dir: %v", err)
 	}
 }
 
-// testdataFS opens the committed testdata tree read-only, for the shelf tests
-// that open a fixture book package directly.
 func testdataFS(t *testing.T) fsutil.FS {
 	t.Helper()
 
@@ -112,8 +104,6 @@ func newLoggerForTest() logutil.Logger {
 	return *logger
 }
 
-// booksInFolder is what GetBooksByFolder used to return: the books sitting
-// directly in one folder, filtered out of the shelf-wide listing.
 func booksInFolder(t *testing.T, s *Shelf, folder FolderPath) []*Book {
 	t.Helper()
 	listings, err := s.ListBooksWithCharCount()

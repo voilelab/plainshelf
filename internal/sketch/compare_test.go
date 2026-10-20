@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// jaccardTolerance is the accuracy the default k is chosen to deliver. The
-// thresholds this package feeds are graded, so roughly +/-0.05 is enough.
 const jaccardTolerance = 0.06
 
 func TestJaccardIsExactForCompleteSketches(t *testing.T) {
@@ -48,10 +46,6 @@ func TestJaccardRejectsIncomparableSketches(t *testing.T) {
 	}
 }
 
-// TestJaccardAccuracyAtDefaultK checks the accuracy the default k buys. A
-// bottom-k estimate is a sample, so it is stated over a run of fixtures rather
-// than as a bound on one of them: at k=128 a single pair can land about 0.08
-// away from the truth, while the average error stays near 0.03.
 func TestJaccardAccuracyAtDefaultK(t *testing.T) {
 	const trials = 25
 
@@ -104,10 +98,6 @@ func TestContainmentIsAlgebraic(t *testing.T) {
 	}
 }
 
-// TestContainmentAtDefaultK covers the same claim through sampled sketches.
-// ContainmentFrom is algebra, but it is algebra over an estimated Jaccard, so a
-// single pair inherits that estimate's spread; the average stays on the true
-// value because errors above 1 are clamped away.
 func TestContainmentAtDefaultK(t *testing.T) {
 	const trials = 25
 
@@ -153,9 +143,6 @@ func TestContainmentEdgeCases(t *testing.T) {
 	}
 }
 
-// TestContainmentFromEarlyExits covers the two branches that never reach the
-// algebra: a sketch with no distinct shingles, and a caller passing a
-// non-positive similarity for a pair that does have them.
 func TestContainmentFromEarlyExits(t *testing.T) {
 	whole := strings.Join(randomWords(newRNG(2027), 800), " ")
 	part := whole[:len(whole)*3/4]
@@ -216,7 +203,6 @@ func TestMaxJaccardDegenerateInputs(t *testing.T) {
 	}
 }
 
-// bruteForceJaccard compares the two full shingle sets directly.
 func bruteForceJaccard(a, b string, n int) float64 {
 	setA, setB := map[uint64]struct{}{}, map[uint64]struct{}{}
 	eachShingle(a, n, func(hash uint64) { setA[hash] = struct{}{} })

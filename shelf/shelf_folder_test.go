@@ -11,8 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
-// countingDirFS counts directory reads under books/, which is what a full tree
-// walk costs and what listing folders used to pay on every request.
 type countingDirFS struct {
 	fsutil.FS
 	reads atomic.Int64
@@ -25,13 +23,6 @@ func (f *countingDirFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return f.FS.ReadDir(name)
 }
 
-// countBookTreeReads swaps a counting filesystem into a shelf whose initial scan
-// has already finished, so only I/O caused by the test itself is counted.
-//
-// Safe despite the background refresh goroutines: the swap happens before the
-// call that could start one, and starting a goroutine orders the write ahead of
-// anything it reads. The shelf must therefore have no book cache writer ID, or
-// the export started by the initial scan would still be running.
 func countBookTreeReads(t *testing.T, s *Shelf) *countingDirFS {
 	t.Helper()
 
@@ -62,8 +53,6 @@ func getFolderNames(t *testing.T, s *Shelf) []string {
 	return folderNames(folders)
 }
 
-// GET /folders used to walk the whole tree on every call, which is the one read
-// path scan_interval did not cover.
 func TestGetAllFoldersSkipsTreeWalkWithinScanInterval(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
@@ -88,7 +77,6 @@ func TestGetAllFoldersSkipsTreeWalkWithinScanInterval(t *testing.T) {
 		t.Errorf("listing layers 5 times read %d directories under %s, want 0 within the scan interval", reads, booksFolder)
 	}
 
-	// The counter is only meaningful if it does move when a walk is due.
 	shelf.markBookCacheTreeDirty()
 	if got := getFolderNames(t, shelf); !slices.Equal(got, want) {
 		t.Fatalf("layers after a full scan = %v, want %v", got, want)
@@ -98,7 +86,6 @@ func TestGetAllFoldersSkipsTreeWalkWithinScanInterval(t *testing.T) {
 	}
 }
 
-// A folder the user just created must not wait for the next scan window.
 func TestNewFolderIsListedImmediatelyWithinScanInterval(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
@@ -118,7 +105,6 @@ func TestNewFolderIsListedImmediatelyWithinScanInterval(t *testing.T) {
 		t.Errorf("creating and listing a layer read %d directories under %s, want 0", reads, booksFolder)
 	}
 
-	// Creating a book creates its folders on the way, with the same requirement.
 	if _, err := shelf.NewBook(FolderPath{"Poetry"}, "Odes"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -143,8 +129,6 @@ func TestDeleteFolderIsRemovedFromListingImmediately(t *testing.T) {
 	}
 }
 
-// An empty folder holds no book, so a listing rebuilt from cached books would
-// lose it. The scan has to record folders in their own right.
 func TestGetAllFoldersKeepsEmptyFolderAcrossFullScan(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
@@ -153,8 +137,6 @@ func TestGetAllFoldersKeepsEmptyFolderAcrossFullScan(t *testing.T) {
 		t.Fatalf("NewFolder: %v", err)
 	}
 
-	// Force the next listing through a full scan rather than the incremental
-	// record NewFolder left behind.
 	shelf.markBookCacheTreeDirty()
 
 	want := []string{"", "Empty", "Empty/Nested"}
@@ -191,7 +173,6 @@ func TestGetAllFoldersAfterRenameAndMove(t *testing.T) {
 	}
 }
 
-// A book restored from trash may need a folder that was deleted meanwhile.
 func TestRestoredBookFolderIsListedImmediately(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})

@@ -14,7 +14,6 @@ import (
 
 var errInjected = errors.New("injected failure")
 
-// faultFS wraps an FS and lets a test fail or observe individual operations.
 type faultFS struct {
 	FS
 
@@ -68,7 +67,6 @@ func (f *faultFS) written() []string {
 	return slices.Clone(f.writtenPaths)
 }
 
-// errReader fails partway through so streaming writes can be interrupted.
 type errReader struct {
 	prefix string
 	read   bool
@@ -83,7 +81,6 @@ func (e *errReader) Read(p []byte) (int, error) {
 	return 0, errInjected
 }
 
-// leftoverTempFiles lists temp files that survived in root.
 func leftoverTempFiles(t *testing.T, root string) []string {
 	t.Helper()
 
@@ -108,8 +105,6 @@ func TestTempPathKeepsTmpSuffixAndIsUnique(t *testing.T) {
 	second := tempPath(name)
 
 	if !strings.HasSuffix(first, ".tmp") {
-		// Sync tools are configured to ignore *.tmp; losing the suffix would
-		// let them sync half-written files.
 		t.Errorf("tempPath(%q) = %q, want a .tmp suffix", name, first)
 	}
 	if !strings.HasPrefix(first, name+".") {
@@ -247,8 +242,6 @@ func TestWriteAtomicRemovesTempWhenOpenWriterFails(t *testing.T) {
 	}
 }
 
-// Two writers racing on the same destination must not share a temp file.
-// With a fixed "<name>.tmp" they would overwrite each other's staged data.
 func TestWriteFileAtomicConcurrentWritersUseDistinctTempFiles(t *testing.T) {
 	root := t.TempDir()
 	faulty := &faultFS{FS: newTestFS(t, root)}
@@ -302,13 +295,13 @@ func TestIsTempName(t *testing.T) {
 		"notes.tmp",
 		"a.tmp.txt",
 		".tmp",
-		"x.abcdefg.tmp",   // 7 random characters
-		"x.abcdefghi.tmp", // 9
-		".abcdefgh.tmp",   // no name before the random part
+		"x.abcdefg.tmp",
+		"x.abcdefghi.tmp",
+		".abcdefgh.tmp",
 		"x.abcd-fgh.tmp",
 		".x-abcde.tmp",
-		".-abcdef.tmp", // no base
-		"x-abcdef.tmp", // staging directories are hidden
+		".-abcdef.tmp",
+		"x-abcdef.tmp",
 		"book.json.aB3dE6gH.tmp.txt",
 	} {
 		if IsTempName(name) {

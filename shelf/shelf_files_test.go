@@ -11,14 +11,12 @@ func TestIsShelfFile(t *testing.T) {
 		"shelf.json":                       true,
 		"app":                              true,
 		"app/book-cache-abc.json":          true,
-		// Near misses of the in-progress write names stay visible.
-		"books/a.bookpkg/assets/notes.tmp":                   true,
-		"books/a.bookpkg/assets/a.tmp.txt":                   true,
+		"books/a.bookpkg/assets/notes.tmp": true,
+		"books/a.bookpkg/assets/a.tmp.txt": true,
 		"books/a.bookpkg/assets/notes.abcdefg.tmp":           true,
 		"books/a.bookpkg/sources/.20260101-000000-abcde.tmp": true,
 		"books/a.bookpkg/sources/.-abcdef.tmp":               true,
 
-		// Writes still in progress.
 		"books/a.bookpkg/book.json.aB3dE6gH.tmp":                         false,
 		"books/a.bookpkg/sources/.20260101-000000-aB3dE6.tmp":            false,
 		"books/a.bookpkg/sources/.20260101-000000-aB3dE6.tmp/meta.json":  false,

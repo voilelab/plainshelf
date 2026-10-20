@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// Lookup answers from the loaded index and entries alone.
 func TestFingerprintCacheLookup(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
@@ -30,20 +29,16 @@ func TestFingerprintCacheLookup(t *testing.T) {
 	}
 }
 
-// The maintenance page's status bar loads on every visit, so the count must not
-// open a single source.txt.
 func TestCoverageForReadsNoSources(t *testing.T) {
 	ts := newTestShelf(t)
 	dune := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	solaris := ts.addBook("solaris.bookpkg", "book-solaris", "Solaris", "the ocean thinks in shapes", -time.Hour)
 
-	// Fingerprint one of the two books so the count has both a hit and a miss.
 	builder := &fakeFingerprint{label: "v1"}
 	cache := openCache(t, ts, ts.base, testAlgo)
 	resolveFingerprint(t, cache, ts.base, dune.PackagePath(), builder)
 	saveCache(t, cache)
 
-	// From here on, any source.txt open is one this coverage read caused.
 	counting := ts.countSourceReads()
 	fresh := openCache(t, ts, counting, testAlgo)
 
@@ -63,8 +58,6 @@ func TestCoverageForReadsNoSources(t *testing.T) {
 	}
 }
 
-// A cache built under different rules answers for nothing: every book reads as
-// missing, which is what tells the UI to offer a full rebuild.
 func TestCoverageForUnderDifferentRulesCountsNothing(t *testing.T) {
 	ts := newTestShelf(t)
 	dune := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)

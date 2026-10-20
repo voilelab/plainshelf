@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// wrapAt re-flows a paragraph at width runes per line, the way two converters
-// configured with different column counts would.
 func wrapAt(paragraph string, width int, lineBreak string) string {
 	var b strings.Builder
 	for i, r := range []rune(paragraph) {
@@ -19,23 +17,18 @@ func wrapAt(paragraph string, width int, lineBreak string) string {
 	return b.String()
 }
 
-// TestNormalizeIgnoresLayout is the property the whole package exists for: the
-// same text, laid out four different ways, has to reduce to one string.
 func TestNormalizeIgnoresLayout(t *testing.T) {
 	paragraphs := []string{
 		"話說天下大勢，分久必合，合久必分。",
 		"周末七國分爭，并入於秦。",
 	}
 
-	// Wrapped narrow, indented with an ideographic space, blank line between
-	// paragraphs, LF.
 	var narrow strings.Builder
 	for _, p := range paragraphs {
 		narrow.WriteString(wrapAt("　"+p, 8, "\n"))
 		narrow.WriteString("\n\n")
 	}
 
-	// Wrapped wide, no indent, CRLF, no trailing blank line.
 	var wide strings.Builder
 	for i, p := range paragraphs {
 		if i > 0 {
@@ -44,13 +37,11 @@ func TestNormalizeIgnoresLayout(t *testing.T) {
 		wide.WriteString(wrapAt(p, 17, "\r\n"))
 	}
 
-	// One line per paragraph, tab-indented.
 	var flat strings.Builder
 	for _, p := range paragraphs {
 		flat.WriteString("\t" + p + "\n")
 	}
 
-	// Every rune on its own line, the pathological case.
 	var shredded strings.Builder
 	for _, p := range paragraphs {
 		shredded.WriteString(wrapAt(p, 1, "\n"))
@@ -77,8 +68,6 @@ func TestNormalizeIgnoresLayout(t *testing.T) {
 	}
 }
 
-// TestNormalizeIgnoresQuoteAndPunctuationStyle covers the substitutions a
-// converter makes on its own, without the author touching the text.
 func TestNormalizeIgnoresQuoteAndPunctuationStyle(t *testing.T) {
 	variants := []string{
 		"他說：「這是一本書。」",
@@ -99,8 +88,6 @@ func TestNormalizeIgnoresQuoteAndPunctuationStyle(t *testing.T) {
 	}
 }
 
-// TestNormalizeAppliesNFKC pins the compatibility folding, which is what makes
-// fullwidth Latin and its ASCII spelling one string.
 func TestNormalizeAppliesNFKC(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -125,10 +112,6 @@ func TestNormalizeAppliesNFKC(t *testing.T) {
 	}
 }
 
-// TestNormalizeRunsLatinWordsTogether documents the accepted cost of dropping
-// whitespace. Latin word boundaries are gone, so two texts that differ only in
-// spacing compare equal — including CJK prose whose embedded Latin was spaced
-// differently by two translators.
 func TestNormalizeRunsLatinWordsTogether(t *testing.T) {
 	if got := Normalize("the dog"); got != "thedog" {
 		t.Errorf("Normalize(%q) = %q, want %q", "the dog", got, "thedog")
@@ -143,19 +126,11 @@ func TestNormalizeRunsLatinWordsTogether(t *testing.T) {
 		t.Errorf("unexpected mixed-script result: %q", spaced)
 	}
 
-	// The flip side: a collision Normalize cannot see through. This is the
-	// price of the rule above, not a bug to fix in v1.
 	if Normalize("a note book") != Normalize("a notebook") {
 		t.Error("expected the spacing collision this version accepts")
 	}
 }
 
-// TestNormalizeComposesAcrossRemovedLayout covers the case that makes stripping
-// layout and normalizing a single step rather than two: a line break, or a space
-// a converter left behind, can sit between a base character and its combining
-// mark. NFKC cannot compose them while it is there, so the pair has to be
-// normalized again once the layout is gone — otherwise a wrapped text and the
-// same text unwrapped end up as different strings, and hash to different values.
 func TestNormalizeComposesAcrossRemovedLayout(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -184,9 +159,6 @@ func TestNormalizeComposesAcrossRemovedLayout(t *testing.T) {
 	}
 }
 
-// TestNormalizeKeepsChineseVariantsApart pins the deliberate absence of a
-// traditional/simplified conversion. Adding one later invalidates every cached
-// fingerprint, so it has to arrive with a version bump rather than by accident.
 func TestNormalizeKeepsChineseVariantsApart(t *testing.T) {
 	traditional := Normalize("三國演義　羅貫中")
 	simplified := Normalize("三国演义　罗贯中")
@@ -202,11 +174,6 @@ func TestNormalizeKeepsChineseVariantsApart(t *testing.T) {
 	}
 }
 
-// TestNormalizeKeepsFormatRunes states a known limit of this version: Unicode
-// Cf runes are neither whitespace nor punctuation to Unicode, and NFKC leaves
-// them alone, so a byte-order mark or a zero-width space still separates two
-// otherwise identical texts. Removing them is a rule change and needs a bump of
-// NormalizeVersion.
 func TestNormalizeKeepsFormatRunes(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -244,17 +211,12 @@ func TestNormalizeEdgeCases(t *testing.T) {
 	}
 }
 
-// TestNormalizeIsIdempotent guards the property a cache depends on: re-running
-// Normalize over stored normalized text must not move it.
 func TestNormalizeIsIdempotent(t *testing.T) {
 	inputs := []string{
 		"",
 		"話說天下大勢，分久必合。",
 		"　ＰｌａｉｎＳｈｅｌｆ　v1.0 ─ the shelf\r\n",
 		"㌀ﬁ㍿",
-		// A combining mark parted from its base by layout. Removing the break
-		// lets NFKC compose the pair, which it could not do while the break was
-		// between them, so a single pass would leave this decomposed.
 		"e\n\u0301",
 		"\uFF43\u0327 \u0301",
 	}
@@ -280,5 +242,24 @@ func TestNormalizeKeepsSupplementaryRunes(t *testing.T) {
 func TestNormalizeVersionIsSet(t *testing.T) {
 	if NormalizeVersion != "nfkc-strip-space-punct-v2" {
 		t.Errorf("NormalizeVersion = %q; changing it invalidates every cache built on it", NormalizeVersion)
+	}
+}
+
+func TestNormalizeGoldenOutputsBelongToNormalizeVersion(t *testing.T) {
+	const goldenVersion = "nfkc-strip-space-punct-v2"
+	if NormalizeVersion != goldenVersion {
+		t.Fatalf("NormalizeVersion is %q but this table was recorded under %q; regenerate it for the new version", NormalizeVersion, goldenVersion)
+	}
+	for _, tc := range []struct{ input, want string }{
+		{"Hello, World!", "HelloWorld"},
+		{"三國演義　第一回\r\n", "三國演義第一回"},
+		{"ｆｕｌｌ　ｗｉｄｔｈ", "fullwidth"},
+		{"“quoted” — text…", "quotedtext"},
+		{"é", "é"},
+		{"a\tb\nc", "abc"},
+	} {
+		if got := Normalize(tc.input); got != tc.want {
+			t.Errorf("Normalize(%q) = %q, want %q; the output changed, so bump NormalizeVersion and regenerate this table", tc.input, got, tc.want)
+		}
 	}
 }

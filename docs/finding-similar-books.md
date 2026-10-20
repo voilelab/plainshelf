@@ -173,5 +173,5 @@ text at least **95%** contained in the other.
 
 This page describes what the feature does, not the mathematics behind the
 fingerprints (the MinHash sketch, containment estimation, and shingle hashing).
-Those live in the code and its comments, and in the evaluation notes, where they
-can be reasoned about precisely.
+Those are described in
+[Similarity fingerprints](concepts/similarity-fingerprints.md).

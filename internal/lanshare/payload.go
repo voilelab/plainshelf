@@ -1,4 +1,3 @@
-// Package lanshare defines the v:1 QR contract shared by LAN share clients.
 package lanshare
 
 import (
@@ -24,8 +23,6 @@ type Payload struct {
 	Shelves []Shelf `json:"shelves"`
 }
 
-// Parse validates the entire payload before returning anything usable. Errors
-// name fields, never their values: a pasted payload contains a bearer secret.
 func Parse(text string) (Payload, error) {
 	var p Payload
 	if err := json.Unmarshal([]byte(text), &p); err != nil {

@@ -11,7 +11,6 @@ import (
 	"testing"
 )
 
-// writeTree creates files (path -> content; a trailing "/" makes a directory) under root.
 func writeTree(t *testing.T, root string, files map[string]string) {
 	t.Helper()
 	for p, content := range files {
@@ -31,7 +30,6 @@ func writeTree(t *testing.T, root string, files map[string]string) {
 	}
 }
 
-// readTree lists root as path -> content, directories with a trailing "/".
 func readTree(t *testing.T, root string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
@@ -83,8 +81,6 @@ func importBytes(b []byte, root string) error {
 	return Import(bytes.NewReader(b), int64(len(b)), root)
 }
 
-// folder.json travels with books/ as it is: a folder's metadata is part of the
-// shelf, not a cache.
 func TestRoundTripKeepsBooksTrashAndEmptyFolders(t *testing.T) {
 	src := t.TempDir()
 	writeTree(t, src, map[string]string{
@@ -188,7 +184,6 @@ func TestImportRejectsWithoutTouchingTheShelf(t *testing.T) {
 	}
 }
 
-// withLimit lowers maxImportBytes for one test.
 func withLimit(t *testing.T, n int64) {
 	t.Helper()
 	old := maxImportBytes
@@ -239,7 +234,7 @@ func TestExportWithoutShelfConfigOmitsIt(t *testing.T) {
 func TestImportShelfConfig(t *testing.T) {
 	cases := map[string]struct {
 		entries map[string]string
-		want    string // "" for absent
+		want    string
 	}{
 		"replaces":          {map[string]string{"books/a/book.json": "a", "shelf.json": "new"}, "new"},
 		"wrapped":           {map[string]string{"lib/books/a/book.json": "a", "lib/shelf.json": "new"}, "new"},
@@ -265,7 +260,6 @@ func TestImportShelfConfig(t *testing.T) {
 	}
 }
 
-// A rejected zip leaves the existing shelf.json alone too.
 func TestImportRejectedKeepsShelfConfig(t *testing.T) {
 	root := t.TempDir()
 	writeTree(t, root, map[string]string{"books/a/book.json": "a", "shelf.json": "keep"})

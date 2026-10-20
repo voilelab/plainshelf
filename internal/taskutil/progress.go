@@ -2,11 +2,6 @@ package taskutil
 
 import "sync"
 
-// Progress is a thread-safe status and completion counter for Task
-// implementations to embed.
-//
-// A task runs on the worker goroutine while API handlers read its status and
-// percentage from request goroutines, so every field must be guarded.
 type Progress struct {
 	mu     sync.Mutex
 	status Status
@@ -20,14 +15,12 @@ func (p *Progress) SetStatus(status Status) {
 	p.status = status
 }
 
-// SetTotal records how many units of work the task expects to process.
 func (p *Progress) SetTotal(total int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.total = max(total, 0)
 }
 
-// Advance records one processed unit of work, whether it succeeded or not.
 func (p *Progress) Advance() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -42,11 +35,6 @@ func (p *Progress) Status() Status {
 	return p.status
 }
 
-// Percentage returns processed units over total units, in the 0-100 range.
-//
-// Before the total is known the task has demonstrably made no progress, so it
-// reports 0 — except once it has finished without failing, where having nothing
-// left to process means it is complete.
 func (p *Progress) Percentage() float64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()

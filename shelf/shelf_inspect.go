@@ -13,29 +13,17 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// These answer "is this a shelf" from names alone, for a client choosing a
-// shelf root before any shelf is opened, so it need not know the layout.
-
-// ErrNotAShelf is returned for a folder without a books/ directory.
 var ErrNotAShelf = util.NewError("folder is not a shelf: it has no books/ directory")
 
-// IsShelfRoot reports whether a folder whose subdirectories are named dirs is
-// a shelf root.
 func IsShelfRoot(dirs []string) bool {
 	return slices.Contains(dirs, booksFolder)
 }
 
-// IsBookPackage reports whether a directory named name is a book package,
-// which can never be a shelf root.
 func IsBookPackage(name string) bool {
 	return strings.HasSuffix(name, bookExtension)
 }
 
-// CountBookPackages counts the book packages under root's books/, skipping the
-// directories shelf.json ignores. Books are not opened, so on a remote root it
-// costs a listing, not a read per book.
 func CountBookPackages(root fsutil.ReadFS) (int, error) {
-	// The root's own failure (a missing folder, no network) is not "not a shelf".
 	if _, err := root.Stat("."); err != nil {
 		return 0, util.Errorf("%w", err)
 	}

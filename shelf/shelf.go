@@ -17,32 +17,10 @@ import (
 	"github.com/voilelab/plainshelf/shelf/scancache"
 )
 
-/*
-Layout:
-{library}/shelf.json    (optional; this shelf's own settings, see shelf_config.go)
-{library}/books/
-  {book1-folder}.bookpkg/
-  {folder1}/
-	{book2-folder}.bookpkg/
-	{folder2}/
-	  {book2-folder}.bookpkg/
-{library}/trash/
-  books/
-    {book-id}.bookpkg/
-      trash.json
-{library}/app/
-  library.lock
-  book-cache-{writer-id}.json
-  tmp/
-*/
-
 const booksFolder = "books"
 const trashFolder = "trash"
 const trashBooksFolder = trashFolder + "/" + booksFolder
 
-// Trash used to be hidden as ".trash". It holds books the user deleted, which
-// is their data and not disposable runtime state, so it is now a visible
-// top-level directory like books/. See migrateLegacyTrash.
 const legacyTrashFolder = ".trash"
 const legacyTrashBooksFolder = legacyTrashFolder + "/" + booksFolder
 const bookExtension = ".bookpkg"
@@ -60,9 +38,6 @@ const lockRetryDelay = 50 * time.Millisecond
 type Shelf struct {
 	logutil.Logger
 
-	// dbRoot is a ReadFS so that a read path cannot mutate the shelf by
-	// accident, and so a read-only shelf is a handle with no write half at all;
-	// every mutation narrows it back with writeRoot.
 	dbRoot    fsutil.ReadFS
 	readOnly  bool
 	close     func() error
@@ -70,53 +45,31 @@ type Shelf struct {
 	bookCache *bookCache
 	ready     atomic.Bool
 	readyCh   chan struct{}
-	initErr   atomic.Pointer[error] // set if initCache fails; readyCh is still closed
+	initErr   atomic.Pointer[error]
 
-	// awaitingSource marks a remote shelf whose first listing failed because
-	// its source was unavailable or not a shelf. It is not a lasting failure:
-	// see notReady.
 	awaitingSource atomic.Bool
-	initRetryMu    sync.Mutex   // held while the first listing is tried again
-	lastInitTry    atomic.Int64 // unix nanoseconds
+	initRetryMu    sync.Mutex
+	lastInitTry    atomic.Int64
 
-	// scanCache is the directory scan snapshot that makes a full walk cheap; see
-	// scancache_facade.go and shelf/scancache.
 	scanCache *scancache.Cache
 
-	// ignore is which directory names under books/ this shelf skips. Read once
-	// in Open and never written again, so every goroutine reading it sees the
-	// same rules for the life of the shelf. See shelf_config.go.
 	ignore shelfutil.IgnoreRules
 
-	// nsfw is which folder subtrees this shelf marks as adult content, from
-	// shelf.json's content.nsfw_folders. Read once with ignore above, so
-	// IsBookNSFW can be asked per book in a listing without touching disk.
 	nsfw shelfutil.NSFWRules
 
-	// Exported book cache; see shelf_cache_export.go. An empty writer ID
-	// disables the export entirely, which is what a bare ShelfConf gets.
 	bookCacheWriterID string
 	bookCacheInterval time.Duration
 	exportMu          sync.Mutex
 
-	// background counts the goroutines a read leaves running; see goBackground.
 	backgroundMu sync.Mutex
 	background   sync.WaitGroup
 	closing      bool
 
-	// remote is set on a shelf opened by NewShelfFromFS. Every read is then a
-	// request, so the shelf is listed from the exported book cache and kept
-	// current by re-reading it; see shelf_cache_snapshot.go.
 	remote bool
 
-	// remoteRoot is the source itself, beneath the offline overlay dbRoot reads
-	// through; a download must reach it whatever is already stored. offline is
-	// nil on a shelf that keeps no offline copies. See shelf_offline.go.
 	remoteRoot fsutil.ReadFS
 	offline    *offlineStore
 
-	// folderMetaWarnings maps a folder.json path to the last problem logged for
-	// it; see warnFolderMeta.
 	folderMetaWarnings sync.Map
 }
 
@@ -124,54 +77,25 @@ type ShelfConf struct {
 	Logger  logutil.LogConf `yaml:"logger" json:"logger"`
 	LibRoot string          `yaml:"lib_root" json:"lib_root"`
 
-	// Source is where the shelf's files are, instead of lib_root; see
-	// ResolveSource. NewShelf opens a local one only: a virtual source needs
-	// its ReadFS built by the host and goes through NewShelfFromFS.
 	Source *SourceConf `yaml:"source" json:"source,omitzero"`
 
-	// ReadOnly takes the shelf exactly as it is found: no directory is created,
-	// leftover temp data is not cleared, a legacy .trash/ is not migrated,
-	// neither runtime cache under app/ is written, and every mutating operation
-	// is refused with fsutil.ErrReadOnly before it touches anything. It also
-	// forces lock_mode to "none" and disables the exported book cache, because
-	// both of those write to the shelf.
 	ReadOnly bool `yaml:"read_only" json:"read_only"`
 
-	// The tuning keys below are documented for users in
-	// docs/reference/configuration.md, which server/conf_docs_test.go holds to
-	// the struct. What follows is only what a Go caller needs on top of that.
-
-	// Zero value: 1m.
 	ScanInterval string `yaml:"scan_interval" json:"scan_interval"`
 
-	// Zero value: 30s. Only used when lock_mode is "flock".
 	LockTimeout string `yaml:"lock_timeout" json:"lock_timeout"`
 
-	// "flock" (the zero value) or "none", which requires the operator to ensure
-	// only one PlainShelf instance accesses the shelf at a time.
 	LockMode string `yaml:"lock_mode" json:"lock_mode"`
 
-	// Zero value: the same as ScanInterval.
 	BookCheckInterval string `yaml:"book_check_interval" json:"book_check_interval"`
 
-	// nil (the zero value) is enabled; a non-nil pointer takes its bool value.
-	// See shelf/scancache and docs/concepts/shelf-cache-and-io.md.
 	ScanCache *bool `yaml:"scan_cache" json:"scan_cache"`
 
-	// BookCacheWriterID names this installation in app/book-cache-{id}.json, so
-	// several machines can share one shelf without overwriting each other's
-	// file. Empty (the zero value) disables the export; see
-	// shelf_cache_export.go.
 	BookCacheWriterID string `yaml:"book_cache_writer_id" json:"book_cache_writer_id"`
 
-	// Zero value: 1h. The export is skipped entirely when the shelf has not
-	// changed, so this bounds how quickly a change reaches the file, not how
-	// often the file is rewritten.
 	BookCacheInterval string `yaml:"book_cache_interval" json:"book_cache_interval"`
 }
 
-// shelfSettings is a ShelfConf with its strings parsed and its logger built,
-// shared by every way of opening a shelf.
 type shelfSettings struct {
 	logger            *logutil.Logger
 	scanInterval      time.Duration
@@ -224,8 +148,6 @@ func parseShelfSettings(conf *ShelfConf) (*shelfSettings, error) {
 		scanCacheEnabled = *conf.ScanCache
 	}
 
-	// The ID becomes a file name, so anything that could escape app/ or produce
-	// an unreadable name is rejected here rather than at write time.
 	if err := validateBookCacheWriterID(conf.BookCacheWriterID); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -235,9 +157,6 @@ func parseShelfSettings(conf *ShelfConf) (*shelfSettings, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Silently keeping the ID would leave the export enabled on a shelf that
-	// must not be written; failing to start over it would make read_only
-	// unusable on a config that merely carries the server's default ID.
 	bookCacheWriterID := conf.BookCacheWriterID
 	if conf.ReadOnly && bookCacheWriterID != "" {
 		logger.Warn("ignoring book_cache_writer_id on a read-only shelf: exporting the book cache writes to the shelf", "lib_root", conf.LibRoot)
@@ -267,7 +186,6 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	if src.IsVirtual() {
 		return nil, util.Errorf("source type %q is not a local directory and cannot be opened here", src.Type)
 	}
-	// A copy, so code below reads lib_root whichever way it was given.
 	localConf := *conf
 	localConf.LibRoot, localConf.Source = src.Path, nil
 	conf = &localConf
@@ -280,9 +198,6 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	var rt *os.Root
 	rt, err = os.OpenRoot(conf.LibRoot)
 	if err != nil {
-		// A read-only shelf is never created: the path either already holds a
-		// shelf or the caller pointed at the wrong one, and creating it is
-		// itself a write.
 		if conf.ReadOnly {
 			return nil, util.Errorf("%w", err)
 		}
@@ -312,10 +227,6 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		return nil, util.Errorf("unknown lock_mode %q: must be \"flock\" or \"none\"", conf.LockMode)
 	}
 
-	// Whatever the config asked for: the lock file is created on first use,
-	// which a read-only shelf cannot do, and a shelf that writes nothing has
-	// nothing to serialize against another instance. The mode is still
-	// validated above so a typo is not hidden by read_only.
 	if conf.ReadOnly {
 		shelfLock = newNoneLock()
 	}
@@ -328,18 +239,6 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	return startShelf(conf, settings, dbRoot, rt.Close, shelfLock, false, nil)
 }
 
-// NewShelfFromFS opens a shelf whose files are reached through root rather than
-// a local path, such as a remote file tree. The caller owns root; Close does not
-// close it.
-//
-// The shelf is always read-only, whatever conf says, and is listed from the
-// exported book cache when the shelf has one, so neither opening it nor keeping
-// it current costs a request per book. conf.LibRoot is used only in logs.
-//
-// offlineDir, when not empty, is a local directory this shelf keeps downloaded
-// books and its last listing in, so it stays readable while root reports
-// fsutil.ErrSourceUnavailable. It is created if missing, and must belong to this
-// source alone; see shelf_offline.go.
 func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS, offlineDir string) (*Shelf, error) {
 	if conf == nil {
 		return nil, util.NewError("shelf configuration cannot be nil")
@@ -348,11 +247,8 @@ func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS, offlineDir string) (*Sh
 		return nil, util.NewError("shelf root cannot be nil")
 	}
 
-	// A copy, so the caller's configuration is not changed under it.
 	remoteConf := *conf
 	remoteConf.ReadOnly = true
-	// The scan cache trusts directory mtimes, which a remote tree need not
-	// report the way the machine that saved the snapshot saw them.
 	remoteConf.ScanCache = new(false)
 
 	settings, err := parseShelfSettings(&remoteConf)
@@ -386,14 +282,9 @@ func NewShelfFromFS(conf *ShelfConf, root fsutil.ReadFS, offlineDir string) (*Sh
 	return s, nil
 }
 
-// startShelf finishes opening a shelf once its root and lock are settled.
-// closeRoot, when not nil, is called by Close and on failure here. configure,
-// when not nil, sets fields before anything reads the shelf.
 func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, closeRoot func() error, shelfLock ShelfLock, remote bool, configure func(*Shelf)) (*Shelf, error) {
 	logger := settings.logger
 
-	// shelf.json is read once, here, and every rule it carries is derived from
-	// that one read; see shelf_config.go.
 	rules := loadShelfRules(dbRoot, *logger)
 
 	s := &Shelf{
@@ -425,11 +316,6 @@ func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, 
 	}
 
 	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "remote", remote, "scan_interval", settings.scanInterval, "book_check_interval", settings.bookCheckInterval, "lock_timeout", settings.lockTimeout)
-	// Tracked like every other background write: initCache goes on writing both
-	// caches after readyCh is closed, so a Close that did not wait would release
-	// the shelf lock with a walk still running. The cost is that closing
-	// mid-scan waits for that first walk rather than pulling the filesystem out
-	// from under it.
 	s.goBackground(func() {
 		if err := s.initCache(); err != nil {
 			s.Error("failed to initialize shelf cache", "error", err)
@@ -440,10 +326,6 @@ func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, 
 }
 
 func (s *Shelf) makeStructure() error {
-	// Every step below writes, and none of them is needed to read a shelf that
-	// already exists: books/ and trash/books/ are tolerated missing by the walk
-	// and the trash listing, app/tmp/ is only ever used by a mutation, and the
-	// legacy trash migration has nothing to migrate for a reader.
 	if s.readOnly {
 		return nil
 	}
@@ -458,8 +340,6 @@ func (s *Shelf) makeStructure() error {
 		return util.Errorf("%w", err)
 	}
 
-	// app/tmp only ever holds in-progress data, so whatever a crashed run left
-	// there is safe to clear.
 	err = root.RemoveAll(path.Join(appFolder, appTmpFolder))
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -470,8 +350,6 @@ func (s *Shelf) makeStructure() error {
 		return util.Errorf("%w", err)
 	}
 
-	// Runs before the trash directory is created below, so that a shelf holding
-	// only the legacy name can still take the cheap rename path.
 	err = s.migrateLegacyTrash(root)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -485,9 +363,6 @@ func (s *Shelf) makeStructure() error {
 	return nil
 }
 
-// writeRoot is the single door between reading and writing the shelf: every
-// mutation asks here first, which is what makes ShelfConf.ReadOnly a guarantee
-// the compiler enforces rather than a flag each call site has to remember.
 func (s *Shelf) writeRoot() (fsutil.FS, error) {
 	root, err := fsutil.Writable(s.dbRoot)
 	if err != nil {
@@ -496,14 +371,10 @@ func (s *Shelf) writeRoot() (fsutil.FS, error) {
 	return root, nil
 }
 
-// ReadOnly reports whether this shelf was opened read-only, in which case every
-// mutating operation fails with fsutil.ErrReadOnly.
 func (s *Shelf) ReadOnly() bool {
 	return s.readOnly
 }
 
-// LocalFiles returns the shelf directory, read-only, for a file export. A
-// virtual shelf has no local directory and reports false.
 func (s *Shelf) LocalFiles() (fsutil.ReadFS, bool) {
 	if s.remote {
 		return nil, false
@@ -512,9 +383,6 @@ func (s *Shelf) LocalFiles() (fsutil.ReadFS, bool) {
 }
 
 func (s *Shelf) initCache() error {
-	// The scan cache loaded its previous snapshot when the shelf was built
-	// (newScanCache), so this first walk is already cheap. A remote shelf tries
-	// the exported book cache first and walks only without one.
 	var err error
 	if s.remote {
 		err = s.refreshRemoteBookCache(s.openWithoutExport)
@@ -535,18 +403,12 @@ func (s *Shelf) initCache() error {
 	close(s.readyCh)
 	s.Debug("shelf cache initialized")
 
-	// Export once the shelf is known, so a client that shows up before anything
-	// else has read this shelf still finds a usable file.
 	if s.bookCacheWriterID != "" {
 		if err := s.exportBookCache(false); err != nil {
 			s.Warn("failed to export the book cache after the initial scan", "error", err)
 		}
 	}
 
-	// Offered here as well as at Close so that a process which is killed rather
-	// than shut down still leaves a usable snapshot behind. A shelf whose
-	// folders did not change since the last run produces the same snapshot, and
-	// the digest check turns that into no write at all.
 	if err := s.scanCache.Save(); err != nil {
 		s.Warn("failed to write the directory scan cache after the initial scan", "error", err)
 	}
@@ -554,21 +416,12 @@ func (s *Shelf) initCache() error {
 	return nil
 }
 
-// initRetryInterval is how often requests to a shelf awaiting its source try
-// the first listing again.
 var initRetryInterval = 10 * time.Second
 
-// isAwaitingSource reports whether a remote shelf's first listing failed in a
-// way the source can recover from without a restart: a lost connection, or a
-// shared folder that is gone (unshared, moved) and may come back.
 func isAwaitingSource(err error) bool {
 	return errors.Is(err, fsutil.ErrSourceUnavailable) || errors.Is(err, ErrNotAShelf)
 }
 
-// notReady is what a request answers before the shelf is listed. A remote
-// shelf whose source was unavailable or not a shelf when it opened says so,
-// rather than that it is still initializing, and tries the listing again in
-// the background.
 func (s *Shelf) notReady() error {
 	if s.awaitingSource.Load() {
 		s.retryInitSoon()
@@ -594,7 +447,6 @@ func (s *Shelf) retryInitSoon() {
 	})
 }
 
-// retryInit tries a shelf's first listing again; the caller holds initRetryMu.
 func (s *Shelf) retryInit() error {
 	s.lastInitTry.Store(time.Now().UnixNano())
 	err := s.refreshRemoteBookCache(s.openWithoutExport)
@@ -613,12 +465,10 @@ func (s *Shelf) retryInit() error {
 	return nil
 }
 
-// IsReady reports whether the initial cache scan completed successfully.
 func (s *Shelf) IsReady() bool {
 	return s.ready.Load()
 }
 
-// InitErr returns the error from the initial cache scan, or nil if it succeeded or is still running.
 func (s *Shelf) InitErr() error {
 	if errPtr := s.initErr.Load(); errPtr != nil {
 		return *errPtr
@@ -626,8 +476,6 @@ func (s *Shelf) InitErr() error {
 	return nil
 }
 
-// WaitReady blocks until the initial cache scan completes (or fails) or the context is cancelled.
-// Returns the init error if initialization failed.
 func (s *Shelf) WaitReady(ctx context.Context) error {
 	select {
 	case <-s.readyCh:
@@ -637,7 +485,6 @@ func (s *Shelf) WaitReady(ctx context.Context) error {
 	}
 }
 
-// SetScanInterval updates the scan interval on the live shelf without restarting it.
 func (s *Shelf) SetScanInterval(scanInterval string) error {
 	interval := time.Minute
 	if scanInterval != "" {
@@ -653,11 +500,6 @@ func (s *Shelf) SetScanInterval(scanInterval string) error {
 	return nil
 }
 
-// SetBookCheckInterval updates the per-book check interval on the live shelf
-// without restarting it. An empty string means "same as the scan interval" -
-// the default NewShelf applies - so it reads whichever scan interval is in
-// effect now; call it after SetScanInterval when both change together, so the
-// fallback follows the new scan interval rather than the old one.
 func (s *Shelf) SetBookCheckInterval(bookCheckInterval string) error {
 	var interval time.Duration
 	useScanInterval := bookCheckInterval == ""
@@ -677,8 +519,6 @@ func (s *Shelf) SetBookCheckInterval(bookCheckInterval string) error {
 	return nil
 }
 
-// validateBookCacheWriterID rejects anything that would not be safe or legible
-// as part of a file name under app/.
 func validateBookCacheWriterID(writerID string) error {
 	if writerID == "" {
 		return nil
@@ -696,15 +536,6 @@ func validateBookCacheWriterID(writerID string) error {
 	return nil
 }
 
-// goBackground runs fn in a goroutine that Close waits for, and reports whether
-// it started one. Reads schedule work that outlives the call (the per-book
-// staleness check and the exported book cache), and both write under app/; the
-// check takes the shelf lock, creating app/library.lock. Untracked, such a
-// goroutine could write into a closed shelf: back into a directory being deleted,
-// or without the lock that keeps instances on a shared shelf apart. A closing
-// shelf starts nothing new, which also keeps the counter still while Close waits.
-// A panic is logged instead of killing the process, which on Android is shared
-// with the UI.
 func (s *Shelf) goBackground(fn func()) bool {
 	s.backgroundMu.Lock()
 	defer s.backgroundMu.Unlock()
@@ -724,8 +555,6 @@ func (s *Shelf) goBackground(fn func()) bool {
 	return true
 }
 
-// stopBackground refuses further background work and waits for what is already
-// running. It is idempotent, so a second Close is not an error.
 func (s *Shelf) stopBackground() {
 	s.backgroundMu.Lock()
 	s.closing = true
@@ -734,33 +563,17 @@ func (s *Shelf) stopBackground() {
 	s.background.Wait()
 }
 
-// Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
-	// Before anything else, and before the lock is released below: a straggler
-	// would otherwise write to a shelf this process has stopped holding.
 	s.stopBackground()
 
 	errs := []error{}
 
-	// Flush before the lock goes away: this is the one write guaranteed to
-	// happen, and it keeps the exported cache useful for a desktop app opened,
-	// used and closed inside a single interval.
-	//
-	// Offered unconditionally, because the only trustworthy answer to "did
-	// anything change" is to compare the content — a book edited in place
-	// through *Book leaves no other trace here. exportBookCache does that
-	// comparison, writes nothing when the shelf is unchanged, and reads the
-	// in-memory cache rather than disk, so a quiet shutdown costs nothing beyond
-	// hashing what is already in memory.
 	if s.bookCacheWriterID != "" {
 		if err := s.exportBookCache(false); err != nil {
-			// Shutdown must not fail over a rebuildable file.
 			s.Warn("failed to export the book cache while closing", "error", err)
 		}
 	}
 
-	// Same reasoning as the export above, and equally not worth failing a
-	// shutdown over: the snapshot is rebuildable runtime state.
 	if err := s.scanCache.Save(); err != nil {
 		s.Warn("failed to write the directory scan cache while closing", "error", err)
 	}

@@ -10,9 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// The frontend renders folder icons from its own static imports, while the
-// server decides which names a folder may carry. An icon only one side knows
-// is either offered and refused, or accepted and drawn as the default.
 func TestFrontendFolderIconsMatchTheServer(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join(repoRoot(t), "frontend", "src", "components", "icons", "folderIcons.ts"))
 	if err != nil {

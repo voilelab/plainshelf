@@ -1,9 +1,3 @@
-// Package davfs reads a shelf over WebDAV, as an fsutil.ReadFS.
-//
-// It speaks the read subset only — PROPFIND at Depth 0 and 1, and GET — so the
-// same client opens another PlainShelf's export and any general WebDAV server.
-// The credential travels in the Authorization header and never in the URL, and
-// nothing here can send a write.
 package davfs
 
 import (
@@ -26,7 +20,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// Metadata fails fast, a transfer may be slow.
 const (
 	requestTimeout  = 30 * time.Second
 	downloadTimeout = 5 * time.Minute
@@ -34,39 +27,25 @@ const (
 	maxRedirects    = 5
 	retryBaseDelay  = 500 * time.Millisecond
 
-	// maxPropfindBytes bounds a PROPFIND reply; a Depth 1 listing of a large
-	// folder is the biggest one.
 	maxPropfindBytes = 64 << 20
 )
 
-// Secret returns the credential to send. It is asked once at first use and
-// again after a 401, so a rotated token is picked up without reopening.
 type Secret func(ctx context.Context) (string, error)
 
-// Options configures an FS.
 type Options struct {
-	// Username, when set, sends the secret as HTTP Basic; empty sends it as a
-	// bearer token.
 	Username string
 
-	// Secret is nil for a server that needs no credential.
 	Secret Secret
 
-	// HTTPClient is a default client when nil; the time budgets are applied
-	// per request either way.
 	HTTPClient *http.Client
 }
 
-// FS is a WebDAV collection as an fsutil.ReadFS. Every call is a request:
-// caching listings is the shelf's job, which reads a remote shelf from its
-// exported book cache rather than walking it.
 type FS struct {
 	base     *url.URL
 	username string
 	secret   Secret
 	http     *http.Client
 
-	// A variable so tests run without real backoff.
 	retryDelay time.Duration
 
 	mu         sync.Mutex
@@ -76,9 +55,6 @@ type FS struct {
 
 var _ fsutil.ReadFS = (*FS)(nil)
 
-// ParseURL checks that raw can name a shelf directory and returns it
-// normalized: http or https, lower-case host, a path ending in "/", and no
-// credentials, query or fragment — a URL is logged and copied, a secret is not.
 func ParseURL(raw string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
@@ -105,8 +81,6 @@ func ParseURL(raw string) (*url.URL, error) {
 	return u, nil
 }
 
-// New returns an FS reading the collection at rawURL. Nothing is requested
-// until first use.
 func New(rawURL string, opts Options) (*FS, error) {
 	base, err := ParseURL(rawURL)
 	if err != nil {
@@ -129,8 +103,6 @@ func New(rawURL string, opts Options) (*FS, error) {
 	}, nil
 }
 
-// target is the URL of name; dir adds the trailing slash a collection is
-// addressed by, which saves a redirect on servers that insist on it.
 func (f *FS) target(name string, dir bool) *url.URL {
 	escaped := f.base.EscapedPath()
 	if name != "." {
@@ -145,7 +117,7 @@ func (f *FS) target(name string, dir bool) *url.URL {
 	}
 	u := *f.base
 	u.RawPath = escaped
-	u.Path, _ = url.PathUnescape(escaped) // escaped above, cannot fail
+	u.Path, _ = url.PathUnescape(escaped)
 	return &u
 }
 
@@ -170,11 +142,6 @@ func (f *FS) authorization(ctx context.Context, refresh bool) (string, error) {
 	return "Bearer " + f.credential, nil
 }
 
-// do sends one request and returns a 2xx reply; res.Request.URL is where it
-// was answered. Transient failures are retried, a 401 once more after the
-// credential is resolved again, if it changed, and a redirect within the same
-// origin is followed with the method, headers and body intact. Any other reply
-// is an *Error with its body closed.
 func (f *FS) do(ctx context.Context, op, name, method string, target *url.URL, header http.Header, body []byte) (*http.Response, error) {
 	refreshed := false
 	redirects := 0
@@ -217,8 +184,6 @@ func (f *FS) do(ctx context.Context, op, name, method string, target *url.URL, h
 	}
 }
 
-// redirectTarget is where a redirect points, when it stays on the same
-// scheme and host: the credential is not handed to another origin.
 func redirectTarget(res *http.Response, from *url.URL) (*url.URL, bool) {
 	switch res.StatusCode {
 	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther,
@@ -273,8 +238,6 @@ type davPropstat struct {
 	} `xml:"DAV: prop"`
 }
 
-// propfind lists name at depth "0" or "1" and returns name itself and, at
-// depth 1, its children sorted by name.
 func (f *FS) propfind(op, name, depth string) (fileInfo, []fs.DirEntry, error) {
 	if !fs.ValidPath(name) {
 		return fileInfo{}, nil, &fs.PathError{Op: op, Path: name, Err: fs.ErrInvalid}
@@ -290,8 +253,6 @@ func (f *FS) propfind(op, name, depth string) (fileInfo, []fs.DirEntry, error) {
 	}
 	defer res.Body.Close()
 
-	// A 200 here came from something that is not a WebDAV server — a captive
-	// portal, a web page — and must not read as an empty folder.
 	if res.StatusCode != http.StatusMultiStatus {
 		return fileInfo{}, nil, &Error{Op: op, Path: name, Status: res.StatusCode, Message: "reply is not a WebDAV multistatus"}
 	}
@@ -329,8 +290,6 @@ func (f *FS) propfind(op, name, depth string) (fileInfo, []fs.DirEntry, error) {
 	return info, children, nil
 }
 
-// propInfo reads the properties a 200 propstat carries; ok is false when none
-// did, such as an entry the server reports but cannot describe.
 func propInfo(name string, propstats []davPropstat) (fileInfo, bool) {
 	info := fileInfo{name: name}
 	ok := false
@@ -377,8 +336,6 @@ func (f *FS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return children, nil
 }
 
-// Open starts a GET of name. The file is seekable: a seek closes the transfer
-// and the next read asks for the rest with a Range request.
 func (f *FS) Open(name string) (fs.File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
@@ -414,14 +371,11 @@ type file struct {
 	name string
 	info fileInfo
 
-	// body is nil after a seek, until the next read.
 	body   io.ReadCloser
 	cancel context.CancelFunc
 	offset int64
 }
 
-// start requests the file from offset on. The download budget lasts until
-// the transfer is closed.
 func (f *file) start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	header := http.Header{}
@@ -438,7 +392,6 @@ func (f *file) start() error {
 	switch {
 	case res.StatusCode == http.StatusPartialContent:
 	case f.offset > 0:
-		// The server ignored Range and sent the whole file.
 		skip = f.offset
 	}
 	if f.offset == 0 {
@@ -458,8 +411,6 @@ func (f *file) start() error {
 	return nil
 }
 
-// Stat fills in a size the GET did not carry (a chunked or compressed reply)
-// from the file's properties, once.
 func (f *file) Stat() (fs.FileInfo, error) {
 	if f.info.size < 0 {
 		info, err := f.fs.Stat(f.name)

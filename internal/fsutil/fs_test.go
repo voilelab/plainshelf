@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-// newTestFS opens the FS implementation under test on root.
 func newTestFS(t *testing.T, root string) FS {
 	t.Helper()
 
@@ -72,7 +71,6 @@ func TestWriteFileCreateAndTruncate(t *testing.T) {
 		t.Fatalf("expected first content, got %q", string(data))
 	}
 
-	// A shorter second write must not leave a tail of the first behind.
 	if err := ffs.WriteFile(fileName, []byte("x")); err != nil {
 		t.Fatalf("WriteFile second write failed: %v", err)
 	}
@@ -86,10 +84,6 @@ func TestWriteFileCreateAndTruncate(t *testing.T) {
 	}
 }
 
-// Writable hands back a handle that can write when the implementation supports
-// it, and refuses one that only reads. It is the single narrowing point every
-// caller holding a ReadFS goes through, so a wrong answer here would either
-// panic a read-only build or block a writable one.
 func TestWritableNarrowsOnlyWritableImplementations(t *testing.T) {
 	var writable ReadFS = newTestFS(t, t.TempDir())
 
@@ -102,9 +96,6 @@ func TestWritableNarrowsOnlyWritableImplementations(t *testing.T) {
 	}
 }
 
-// ReadOnly is what a caller reaches for when the implementation it holds can
-// write but this handle must not: the wrapper has to keep reading and has to
-// stop Writable from handing the writes straight back.
 func TestReadOnlyKeepsReadsAndRefusesNarrowing(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "book.json"), []byte("{}"), 0644); err != nil {
@@ -131,8 +122,6 @@ func TestReadOnlyKeepsReadsAndRefusesNarrowing(t *testing.T) {
 	}
 }
 
-// readOnlyStub implements ReadFS and nothing more, standing in for a backend
-// that has no write half at all.
 type readOnlyStub struct{}
 
 func (readOnlyStub) Open(string) (fs.File, error)          { return nil, fs.ErrNotExist }

@@ -17,30 +17,10 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-/*
-folder.json is a folder's own metadata, kept in the folder directory so that it
-moves with the directory: a rename, a move, or an `mv` outside PlainShelf all
-carry it along. See docs/concepts/data-format-versioning.md#folderjson-schema-v1.
-
-It is user data, not a cache, and it is the first shelf file written member by
-member (jsonopt.Object): a write changes the members it names and keeps every
-other one, so a field a newer build added survives an older build's edit.
-
-Reading never fails a listing. A missing, unreadable or unsupported file reads
-as "no metadata", and only a write refuses it — rewriting a file this build
-cannot read would lose whatever is in it.
-*/
-
-// FolderMetaFile is the metadata file's name inside a folder directory. It is
-// reserved: no folder may be named this (see validateNewFolderName).
 const FolderMetaFile = "folder.json"
 
-// FolderMetaSchemaVersion is the folder.json version this build reads and
-// writes. A file without schema_version reads as this version.
 const FolderMetaSchemaVersion = 1
 
-// maxFolderMetaBytes bounds how large a folder.json this build reads. The file
-// is a few lines; a larger one is not something PlainShelf wrote.
 const maxFolderMetaBytes = 64 << 10
 
 const (
@@ -49,27 +29,16 @@ const (
 	folderMetaSortKeyKey       = "sort_key"
 )
 
-// ErrReservedFolderName refuses a folder named after FolderMetaFile, which would
-// collide with its parent's metadata.
 var ErrReservedFolderName = util.Errorf("%w: %q is reserved for folder metadata", ErrInvalidFolder, FolderMetaFile)
 
-// ErrInvalidFolderIcon refuses an icon name that is not in FolderIcons.
 var ErrInvalidFolderIcon = util.NewError("folder icon is not one this build offers")
 
-// ErrFolderMetaNotWritable refuses a write to a folder.json this build cannot
-// read safely: malformed, not an object, or from a newer schema version.
 var ErrFolderMetaNotWritable = util.NewError("folder.json cannot be updated by this build")
 
-// ErrFolderNotFound refuses a metadata write to a folder that does not exist.
 var ErrFolderNotFound = util.NewError("folder not found")
 
-// ErrFolderMetaConflict refuses a write whose caller read a different
-// folder.json than the one on disk now.
 var ErrFolderMetaConflict = util.NewError("folder.json changed since it was read")
 
-// folderIcons are the icon names a folder may be given: Tabler icon names, so
-// the frontend can render each one from @iconify-json/tabler. Adding a name is
-// compatible; removing one leaves files that name it reading as no icon.
 var folderIcons = []string{
 	"alien", "atom", "bolt", "book", "bookmark", "books", "briefcase", "camera",
 	"code", "coffee", "compass", "crown", "device-gamepad-2", "diamond", "flame",
@@ -78,41 +47,26 @@ var folderIcons = []string{
 	"robot", "rocket", "school", "shield", "skull", "star", "sun", "sword", "world",
 }
 
-// FolderIcons returns the icon names this build offers, sorted.
 func FolderIcons() []string {
 	return slices.Clone(folderIcons)
 }
 
-// IsFolderIcon reports whether name is one of FolderIcons.
 func IsFolderIcon(name string) bool {
 	_, found := slices.BinarySearch(folderIcons, name)
 	return found
 }
 
-// FolderMeta is one folder's folder.json as this build reads it.
 type FolderMeta struct {
-	// SortKey orders siblings when HasSortKey is true; zero and negatives are valid.
 	SortKey    float64
 	HasSortKey bool
 
-	// Icon is the icon member as written, "" when absent, of the wrong type, or
-	// unreadable. It may name an icon this build does not offer; see
-	// DisplayIcon.
 	Icon string
 
-	// ReadOnly reports that a write would be refused (ErrFolderMetaNotWritable):
-	// the file does not parse, is not an object, or carries a schema_version
-	// this build does not know. Whether the shelf itself is writable is a
-	// separate question.
 	ReadOnly bool
 
-	// Version identifies the file content read, "" when there is no file. A
-	// write passes it back to detect a change made in between.
 	Version string
 }
 
-// DisplayIcon is the icon to show: Icon when this build offers it, "" (the
-// default folder icon) otherwise.
 func (m FolderMeta) DisplayIcon() string {
 	if IsFolderIcon(m.Icon) {
 		return m.Icon
@@ -120,11 +74,6 @@ func (m FolderMeta) DisplayIcon() string {
 	return ""
 }
 
-// ReadFolderMeta reads folder's folder.json from disk now. Every problem with
-// the file reads as no metadata and is logged once per distinct problem, never
-// as an error: a listing must not fail on a hand-edited file. The error is for
-// an invalid path or a shelf that cannot be read at all. A listing reads the
-// cached copy instead; see ListFolderMeta.
 func (s *Shelf) ReadFolderMeta(folder FolderPath) (FolderMeta, error) {
 	if len(folder) == 0 {
 		return FolderMeta{}, nil
@@ -141,8 +90,6 @@ func (s *Shelf) ReadFolderMeta(folder FolderPath) (FolderMeta, error) {
 	return s.loadFolderMeta(s.dbRoot, folder)
 }
 
-// loadFolderMeta is ReadFolderMeta without the checks and the lock, for a
-// caller that already holds it. The only error is an unavailable source.
 func (s *Shelf) loadFolderMeta(root fsutil.ReadFS, folder FolderPath) (FolderMeta, error) {
 	metaPath := folderMetaPath(folder)
 	data, err := readFolderMetaFile(root, metaPath)
@@ -162,9 +109,6 @@ func (s *Shelf) loadFolderMeta(root fsutil.ReadFS, folder FolderPath) (FolderMet
 	return meta, nil
 }
 
-// folderMetaFromData reads a folder.json's bytes, nil for no file. The error
-// says why the file is unusable; the FolderMeta returned with it is the
-// fallback to show.
 func folderMetaFromData(data []byte) (FolderMeta, error) {
 	if data == nil {
 		return FolderMeta{}, nil
@@ -177,8 +121,6 @@ func folderMetaFromData(data []byte) (FolderMeta, error) {
 		return meta, util.Errorf("%w", err)
 	}
 
-	// A wrong-typed icon reads as none, but the file stays writable: setting an
-	// icon replaces exactly that member.
 	var icon string
 	if _, err := obj.Lookup(folderMetaIconKey, &icon); err == nil {
 		meta.Icon = icon
@@ -193,7 +135,6 @@ func folderMetaFromData(data []byte) (FolderMeta, error) {
 	return meta, nil
 }
 
-// SetFolderSortKey changes only sort_key, preserving icons and unknown members.
 func (s *Shelf) SetFolderSortKey(folder FolderPath, key float64, version string) error {
 	if math.IsNaN(key) || math.IsInf(key, 0) {
 		return util.NewError("sort_key must be finite")
@@ -201,9 +142,6 @@ func (s *Shelf) SetFolderSortKey(folder FolderPath, key float64, version string)
 	return s.updateFolderMeta(folder, version, func(obj jsonopt.Object) error { return obj.Set(folderMetaSortKeyKey, key) })
 }
 
-// SetFolderIcon sets folder's icon, or clears it when icon is "". version is the
-// FolderMeta.Version the caller read; a different file on disk now fails with
-// ErrFolderMetaConflict. Every other member of folder.json is kept.
 func (s *Shelf) SetFolderIcon(folder FolderPath, icon string, version string) error {
 	if icon != "" && !IsFolderIcon(icon) {
 		return util.Errorf("%w: %q", ErrInvalidFolderIcon, icon)
@@ -217,16 +155,6 @@ func (s *Shelf) SetFolderIcon(folder FolderPath, icon string, version string) er
 	})
 }
 
-// updateFolderMeta applies mutate to folder's folder.json under the shelf lock.
-//
-// The file is re-read under the lock and compared against version, so a change
-// made since the caller's read — by another PlainShelf process sharing the
-// lock, or by hand — is refused rather than overwritten. A write by a process
-// that does not take the lock can still land between this read and the rename;
-// nothing short of a lock it honours closes that.
-//
-// A file left with nothing but schema_version is removed rather than kept, so
-// clearing the last setting leaves the folder as it was before it had any.
 func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(jsonopt.Object) error) error {
 	if len(folder) == 0 {
 		return util.Errorf("%w: the shelf root has no folder metadata", ErrInvalidFolder)
@@ -263,8 +191,6 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 		return util.Errorf("%w: %w", ErrFolderMetaNotWritable, err)
 	}
 	if folderMetaVersion(data) != version {
-		// The cache missed this edit (made by hand, or by another process), so
-		// the caller's next listing would hand back the same stale version.
 		current, _ := folderMetaFromData(data)
 		s.cacheFolderMeta(folder, current)
 		return util.Errorf("%w", ErrFolderMetaConflict)
@@ -303,18 +229,11 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 		return util.Errorf("%w", err)
 	}
 
-	// Recorded rather than left to the next scan, like a new folder: the change
-	// was just made here and has to show in the very next listing.
 	written, _ := folderMetaFromData(payload)
 	s.cacheFolderMeta(folder, written)
 	return nil
 }
 
-// CopyFolderMetaFrom copies the folder.json of from in source, byte for byte,
-// to the existing folder to on this (the target) shelf, and returns the version
-// it carried, "" when from has none and nothing was written. The content is not
-// parsed: a file this build cannot read is still someone's data. A folder.json
-// already at to is refused with ErrFolderMetaConflict, never overwritten.
 func (target *Shelf) CopyFolderMetaFrom(source *Shelf, from, to FolderPath) (string, error) {
 	if len(from) == 0 || len(to) == 0 {
 		return "", util.Errorf("%w: the shelf root has no folder metadata", ErrInvalidFolder)
@@ -373,8 +292,6 @@ func (target *Shelf) CopyFolderMetaFrom(source *Shelf, from, to FolderPath) (str
 	return meta.Version, nil
 }
 
-// readFolderMetaLocked reads folder's folder.json bytes under the shelf's read
-// lock, nil when there is none.
 func (s *Shelf) readFolderMetaLocked(folder FolderPath) ([]byte, error) {
 	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
@@ -388,10 +305,6 @@ func (s *Shelf) readFolderMetaLocked(folder FolderPath) ([]byte, error) {
 	return data, nil
 }
 
-// ListFolderMeta returns the cached metadata of every folder that has a
-// folder.json, keyed like the folder list ("Fiction/Classics"). It is as fresh
-// as GetAllFolders: a change made here shows at once, one made outside
-// PlainShelf after the next full scan.
 func (s *Shelf) ListFolderMeta() (map[string]FolderMeta, error) {
 	if !s.IsReady() {
 		return nil, s.notReady()
@@ -409,8 +322,6 @@ func (s *Shelf) ListFolderMeta() (map[string]FolderMeta, error) {
 	return maps.Clone(s.bookCache.folderMeta), nil
 }
 
-// cacheFolderMeta records folder's metadata in the book cache; the zero value
-// removes the entry.
 func (s *Shelf) cacheFolderMeta(folder FolderPath, meta FolderMeta) {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
@@ -425,10 +336,6 @@ func (s *Shelf) cacheFolderMeta(folder FolderPath, meta FolderMeta) {
 	s.bookCache.folderMeta[folder.String()] = meta
 }
 
-// readFolderMetaForScan reads the folder.json of every folder a walk found one
-// in. Only those are read: the walk saw the file in its parent's listing, so a
-// folder without one costs nothing, and a file's content is re-read on every
-// full scan because an edit in place does not move its parent's mtime.
 func (s *Shelf) readFolderMetaForScan(root fsutil.ReadFS, folders []FolderPath) (map[string]FolderMeta, error) {
 	metas := make(map[string]FolderMeta, len(folders))
 	for _, folder := range folders {
@@ -447,8 +354,6 @@ func folderMetaPath(folder FolderPath) string {
 	return path.Join(booksFolder, path.Join(folder...), FolderMetaFile)
 }
 
-// readFolderMetaFile returns the file's bytes, nil when there is no file. A
-// directory of that name, or a file over maxFolderMetaBytes, is an error.
 func readFolderMetaFile(root fsutil.ReadFS, metaPath string) ([]byte, error) {
 	file, err := root.Open(metaPath)
 	if err != nil {
@@ -457,7 +362,7 @@ func readFolderMetaFile(root fsutil.ReadFS, metaPath string) ([]byte, error) {
 		}
 		return nil, util.Errorf("%w", err)
 	}
-	defer file.Close() //nolint:errcheck // read-only
+	defer file.Close()
 
 	if info, err := file.Stat(); err == nil && info.IsDir() {
 		return nil, util.Errorf("%s is a directory", FolderMetaFile)
@@ -473,8 +378,6 @@ func readFolderMetaFile(root fsutil.ReadFS, metaPath string) ([]byte, error) {
 	return data, nil
 }
 
-// parseFolderMeta decodes a folder.json this build may write back: an object
-// whose schema_version, when present, is FolderMetaSchemaVersion.
 func parseFolderMeta(data []byte) (jsonopt.Object, error) {
 	obj, err := jsonopt.ParseObject(data)
 	if err != nil {
@@ -500,9 +403,6 @@ func folderMetaVersion(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// warnFolderMeta logs a problem with one folder.json, once per distinct
-// problem: folder metadata is read on every listing, and the same broken file
-// would otherwise repeat its warning each time.
 func (s *Shelf) warnFolderMeta(metaPath, msg string, err error) {
 	text := err.Error()
 	if previous, loaded := s.folderMetaWarnings.Swap(metaPath, text); loaded && previous == text {
@@ -511,10 +411,6 @@ func (s *Shelf) warnFolderMeta(metaPath, msg string, err error) {
 	s.Warn(msg, "path", metaPath, "error", err)
 }
 
-// validateNewFolderName refuses a name a new or moved folder may not take, on
-// top of ValidateFolderPath. It is checked only where a name is placed, so a
-// folder of that name made outside PlainShelf stays listed and can still be
-// renamed away or deleted.
 func validateNewFolderName(name string) error {
 	if strings.EqualFold(name, FolderMetaFile) {
 		return util.Errorf("%w", ErrReservedFolderName)

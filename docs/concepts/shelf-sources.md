@@ -83,6 +83,19 @@ the offline directory, so a read-only server allows it, but it still needs the
 
 The server keeps offline directories under `<store_path>/offline/`, one per
 cache scope (see [Compatibility](#compatibility)), so renaming a shelf keeps its downloads.
+Each one mirrors the shelf, so a read for a downloaded book is answered from the
+device by path alone:
+
+```text
+{offline}/
+  downloads.json  which books are here, and the version each was taken at
+  snapshot.json   the last listing read from the source
+  shelf.json      the source's shelf.json, so folder rules hold offline
+  books/…         downloaded book packages, at their source paths
+  tmp/            downloads in progress, cleared on open
+```
+
+Nothing in it is ever written to the source.
 
 ---
 

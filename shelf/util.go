@@ -16,10 +16,6 @@ import (
 
 const MaxTempDirCreationAttempts = 10
 
-// MaxBookIDCreationAttempts bounds the retry loop that draws a fresh random
-// book ID when the drawn one is already taken. A v4 UUID's 122 random bits make
-// a single retry already unreachable in practice; the bound only keeps a
-// filesystem that answers every probe with "taken" from spinning forever.
 const MaxBookIDCreationAttempts = 10
 
 func createTempDir(root fsutil.FS, prefix string) (string, error) {
@@ -34,16 +30,6 @@ func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	return "", util.NewError("failed to create temp directory after multiple attempts")
 }
 
-// copyTreeAcross copies the tree rooted at src onto dst, creating dst if needed.
-// The two roots may be one filesystem or two: a book copied whole stays
-// self-contained, so the relative asset paths a source records need no
-// rewriting, which is what lets a book cross a boundary os.Rename cannot.
-//
-// Whether a child is a directory is decided by Stat rather than by the entry's
-// own type, so a symlinked directory is descended into and copied as a real one
-// — the same way scancache.ChildIsDir treats it. A listing reports a symlink as
-// a non-directory but opening it as a file fails, so keying on the entry type
-// would break a package that holds one.
 func copyTreeAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst string) error {
 	info, err := srcRoot.Stat(src)
 	if err != nil {
@@ -72,8 +58,6 @@ func copyTreeAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst st
 	return nil
 }
 
-// copyFileAcross copies a single regular file from src in srcRoot to dst in
-// dstRoot, creating or truncating dst.
 func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst string) error {
 	in, err := srcRoot.Open(src)
 	if err != nil {
@@ -98,22 +82,10 @@ func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst st
 	return nil
 }
 
-// ErrInvalidFolder is returned when a folder name is not a usable path segment.
-// Every operation that accepts caller-supplied folders checks them before
-// touching the filesystem, so callers can treat it as a request error.
 var ErrInvalidFolder = util.NewError("invalid folder name")
 
-// ErrIgnoredFolderName is the ErrInvalidFolder case where the name is well formed
-// but names a directory this shelf's scanners skip. It wraps ErrInvalidFolder so
-// callers that only classify folder errors keep matching it, while the API can
-// tell this reason apart: a user filing an existing "@eaDir" under PlainShelf is
-// not making a typo, they are hitting a rule this shelf may have chosen.
 var ErrIgnoredFolderName = util.Errorf("%w: directory name the shelf scanners skip", ErrInvalidFolder)
 
-// IgnoredFolderNameError carries the two things the user needs: which segment
-// was refused, and why that name is skipped. The reason comes from the shelf's
-// own rules, so the API turns this into its message rather than listing names
-// that may not be the ones this shelf uses.
 type IgnoredFolderNameError struct {
 	Folder string
 	Reason string
@@ -140,29 +112,10 @@ func validateFolderPath(folders FolderPath) error {
 	return nil
 }
 
-// newBookID draws a random book ID as a version 4 UUID.
-//
-// The ID is opaque: generated once, persisted in book.json, and never
-// recomputed, so a retitle, a move or a restore from trash all leave it alone.
-// Older builds derived it from folders and title, which gave two books one ID
-// whenever they shared a folder path and title — routine on a shared shelf.
-//
-// A v4 UUID's 122 random bits make it unique on its own rather than by
-// agreement: the creation-time probe cannot see a book another machine just
-// wrote into a shared shelf. Lowercase hex with hyphens survives a
-// case-insensitive filesystem (the trash names a folder after the ID) and sits
-// in a URL path without escaping.
 func newBookID() string {
 	return uuid.NewV4().String()
 }
 
-// validateBookID reports whether a caller-supplied ID is usable as one.
-//
-// It deliberately says nothing about the shape of the ID beyond path safety.
-// This build writes v4 UUIDs, but shelves written by older builds carry
-// 8-character hex IDs (some with a "-1" de-duplication suffix) and 16-character
-// base32 IDs, and those stay valid forever alongside the UUIDs; a shelf holds
-// them all at once and none is migrated.
 func validateBookID(bookID string) error {
 	if err := shelfutil.ValidatePathSegment(bookID); err != nil {
 		return util.Errorf("invalid book id %q: %w", bookID, err)

@@ -8,7 +8,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// ShelfLock abstracts file locking for the shelf library directory.
 type ShelfLock interface {
 	Lock() error
 	RLock() error
@@ -16,7 +15,6 @@ type ShelfLock interface {
 	Close() error
 }
 
-// flockLock implements ShelfLock using gofrs/flock.
 type flockLock struct {
 	fl      *flock.Flock
 	timeout time.Duration
@@ -69,8 +67,6 @@ func (l *flockLock) Close() error {
 	return l.fl.Close()
 }
 
-// noneLock implements ShelfLock as a no-op for environments where file locking
-// is unsupported or unnecessary (e.g. cloud storage mounted via rclone).
 type noneLock struct{}
 
 func newNoneLock() ShelfLock { return noneLock{} }

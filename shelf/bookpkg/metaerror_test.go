@@ -11,8 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
-// newBookWithRawMeta bypasses the encoder: every case below is a file no writer
-// of this build would produce, only a text editor.
 func newBookWithRawMeta(t *testing.T, raw string) (fsutil.FS, string) {
 	t.Helper()
 
@@ -82,8 +80,6 @@ func TestOpenBookRejectsInvalidUTF8AndNamesTheFile(t *testing.T) {
 	}
 }
 
-// A half-finished edit that leaves a second object behind is not a book this
-// build guesses at.
 func TestOpenBookRejectsTrailingData(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t,
 		`{"schema_version": 1, "id": "hand-edited", "title": "First"} {"title": "Second"}`)
@@ -93,9 +89,6 @@ func TestOpenBookRejectsTrailingData(t *testing.T) {
 	}
 }
 
-// "Title" is an unknown member, which is read without complaint and, until the
-// passthrough PSW-93 adds, dropped by the next write. Only the read half is
-// pinned here.
 func TestOpenBookDoesNotApplyACaseVariantMemberName(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t,
 		`{"schema_version": 1, "id": "hand-edited", "Title": "Capitalised"}`)
@@ -109,7 +102,6 @@ func TestOpenBookDoesNotApplyACaseVariantMemberName(t *testing.T) {
 	}
 }
 
-// The error names the source's own meta.json, not the book that holds it.
 func TestOpenSourceRejectsDuplicateMemberAndNamesTheFile(t *testing.T) {
 	tmpLib := t.TempDir()
 	const sourceFolder = "20260315-a1"
@@ -143,8 +135,6 @@ func TestOpenSourceRejectsDuplicateMemberAndNamesTheFile(t *testing.T) {
 	}
 }
 
-// failingReadFS opens book.json and then fails the read, as a disconnected
-// network mount does.
 type failingReadFS struct {
 	fsutil.FS
 	failing string
@@ -166,8 +156,6 @@ type failingFile struct {
 
 func (f failingFile) Read([]byte) (int, error) { return 0, f.err }
 
-// Reporting an interrupted read as malformed would send a user editing a
-// perfectly good book.json, and the API would answer 409 for a dropped mount.
 func TestOpenBookKeepsAnIOFailureOutOfTheMalformedReport(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t, `{"schema_version": 1, "id": "hand-edited"}`)
 
