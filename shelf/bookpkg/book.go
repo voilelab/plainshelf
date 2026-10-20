@@ -181,12 +181,6 @@ func (b *Book) writeRoot() (fsutil.FS, error) {
 	return root, nil
 }
 
-// EnsureWritable refuses a book.json newer than this build supports.
-//
-// Call it before any filesystem mutation, not only before writing book.json: a
-// guard that runs last still lets a refused request truncate a cover, delete a
-// file, or rename a folder first. It is checked against b.meta — what is
-// actually on disk — so a caller-supplied BookMeta cannot bypass it.
 func (b *Book) EnsureWritable() error {
 	b.metaMu.RLock()
 	defer b.metaMu.RUnlock()

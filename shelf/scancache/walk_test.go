@@ -229,3 +229,35 @@ func TestDirChildrenListsOnlyKeptFiles(t *testing.T) {
 		t.Fatalf("a directory named folder.json = %+v, want it listed as a directory", got)
 	}
 }
+
+type addChildAfterListingFS struct {
+	*fakeFS
+	dir   string
+	added bool
+}
+
+func (f *addChildAfterListingFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	entries, err := f.fakeFS.ReadDir(name)
+	if name == f.dir && !f.added {
+		f.added = true
+		f.mkdir(path.Join(name, "Poetry"), time.Now().Add(-time.Minute))
+		f.touch(name, time.Now().Add(-30*time.Second))
+	}
+	return entries, err
+}
+
+func TestScanCacheNeverPairsANewerMtimeWithAnOlderListing(t *testing.T) {
+	aged := time.Now().Add(-time.Minute)
+
+	f := &addChildAfterListingFS{fakeFS: newFakeFS(), dir: "books/Fiction"}
+	f.mkdir("books", aged)
+	f.mkdir("books/Fiction", aged)
+
+	cache := openCache(true)
+
+	walkTree(t, cache, f, "books")
+	found, _ := walkTree(t, cache, f, "books")
+	if !found["books/Fiction/Poetry"] {
+		t.Errorf("a child added between Stat and ReadDir was not found by the next walk")
+	}
+}

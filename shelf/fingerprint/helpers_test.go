@@ -264,3 +264,32 @@ func metaMatchesContent(t *testing.T, source *bookpkg.Source) bool {
 	}
 	return sum == source.GetMeta().MD5Hash
 }
+
+type rewriteAfterReadFS struct {
+	fsutil.FS
+	rewrite func()
+	done    atomic.Bool
+}
+
+func (f *rewriteAfterReadFS) Open(name string) (fs.File, error) {
+	file, err := f.FS.Open(name)
+	if err != nil || path.Base(name) != bookpkg.SourceFile {
+		return file, err
+	}
+	return closeHookFile{File: file, onClose: func() {
+		if f.done.CompareAndSwap(false, true) {
+			f.rewrite()
+		}
+	}}, nil
+}
+
+type closeHookFile struct {
+	fs.File
+	onClose func()
+}
+
+func (c closeHookFile) Close() error {
+	err := c.File.Close()
+	c.onClose()
+	return err
+}

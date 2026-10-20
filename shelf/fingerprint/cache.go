@@ -52,8 +52,6 @@ func (e indexEntry) supersedes(other indexEntry) bool {
 
 // cacheFile is the on-disk shape of app/fingerprint-cache.json.
 type cacheFile struct {
-	// SchemaVersion is declared first so it marshals as the first key, keeping
-	// the file self-describing (same reasoning as BookMeta.SchemaVersion).
 	SchemaVersion int `json:"schema_version"`
 
 	// Generator is for diagnostics only.
@@ -171,9 +169,6 @@ func (c *Cache) resolve(book *bookpkg.Book, source *bookpkg.Source, build Builde
 
 	key := indexKey(book.ID(), source.ID())
 
-	// Stat before the read, never after: the other way round would pair a newer
-	// stat with older content and have every later run trust it. This order can
-	// only cost the next run a re-read.
 	stat, statErr := source.ContentStat()
 	if statErr != nil {
 		c.logger.Debug("could not stat a source before fingerprinting it", "book_id", book.ID(), "source_id", source.ID(), "error", statErr)

@@ -21,8 +21,6 @@ const (
 	StatusFailed
 )
 
-// String returns the stable wire name of the status. Callers that serialize a
-// status must use this instead of the underlying integer.
 func (s Status) String() string {
 	switch s {
 	case StatusPending:

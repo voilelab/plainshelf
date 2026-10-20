@@ -77,11 +77,6 @@ type bookCache struct {
 
 	lastScanStart time.Time
 
-	// Exported cache state; see shelf_cache_export.go. There is deliberately no
-	// "export is dirty" flag: books are edited in place through the *Book this
-	// cache points at, so any mutating method that forgot to set one would
-	// silently stop exporting. lastExportDigest is computed from the content
-	// instead, which cannot be forgotten.
 	lastExport       time.Time
 	lastExportDigest string
 	exporting        bool

@@ -11,16 +11,8 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// DocumentVersion matches READING_PROGRESS_DOCUMENT_VERSION in the frontend. Any
-// other version is treated as absent rather than upgraded: the timestamped v2
-// format deliberately does not read the untimestamped v1 one. This file is
-// device-local state, outside the on-disk format commitments — not a pattern to
-// follow for shelf data.
 const DocumentVersion = 2
 
-// ReaderShelfID is the synthetic shelf key the standalone reader writes progress
-// under. It is the canonical value; reader/readerapi.ShelfID must equal it (a
-// guard test in the reader package enforces this).
 const ReaderShelfID = "book"
 
 // maxSafeInteger mirrors JavaScript's Number.MAX_SAFE_INTEGER: the frontend

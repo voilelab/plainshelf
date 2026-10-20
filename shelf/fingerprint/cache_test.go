@@ -12,6 +12,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
@@ -703,5 +704,45 @@ func TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported(t *testing.T)
 	cache := openCache(t, ts, ts.base, testAlgo)
 	if got := len(cache.entries); got != 0 {
 		t.Errorf("entries = %d, want the unreadable cache discarded", got)
+	}
+}
+
+func TestCacheFileMarshalsSchemaVersionAsTheFirstKey(t *testing.T) {
+	data, err := json.Marshal(cacheFile{SchemaVersion: schemaVersion}, jsonopt.DiskCompact())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.HasPrefix(string(data), `{"schema_version":`) {
+		t.Errorf("schema_version is not the first key: %s", data)
+	}
+}
+
+func TestFingerprintCacheNeverPairsANewerStatWithOlderContent(t *testing.T) {
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
+	bookPath := book.PackagePath()
+	sourcePath := ts.sourceFilePath(book)
+	const rewritten = "the spice must flow, and so must the water"
+
+	rewriting := &rewriteAfterReadFS{FS: ts.base, rewrite: func() {
+		if err := os.WriteFile(sourcePath, []byte(rewritten), 0o644); err != nil {
+			t.Errorf("rewriting source.txt: %v", err)
+		}
+		shiftModTime(t, sourcePath, -30*time.Minute)
+	}}
+	builder := &fakeFingerprint{label: "v1"}
+
+	first := openCache(t, ts, rewriting, testAlgo)
+	resolveFingerprint(t, first, rewriting, bookPath, builder)
+	saveCache(t, first)
+
+	second := openCache(t, ts, ts.base, testAlgo)
+	got := resolveFingerprint(t, second, ts.base, bookPath, builder)
+	want, err := builder.build([]byte(rewritten))
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if got != want {
+		t.Errorf("after a write between stat and read, the next run answered %+v, want the rewritten content's %+v", got, want)
 	}
 }

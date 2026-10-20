@@ -18,13 +18,8 @@ type readOnlyFS struct {
 	fsutil.ReadFS
 }
 
-// A book opened on a read-only filesystem still reads. Every mutation is
-// refused with fsutil.ErrReadOnly — before touching anything — instead of
-// panicking or writing.
-//
-// The fixture is the committed testdata tree on purpose: a guard that let a
-// write through would show up as a dirty working tree, not just a red test.
-func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
+func TestBookOnReadOnlyFSRefusesWritesAndLeavesTheFixtureUntouched(t *testing.T) {
+	before := testutil.TreeSnapshot(t, "testdata")
 	root := readOnlyFS{testdataFS(t)}
 
 	book, err := bookpkg.Open(root, newLoggerForTest(), "book-a82m")
@@ -62,6 +57,10 @@ func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
 				t.Errorf("%s error = %v, want %v", name, err, fsutil.ErrReadOnly)
 			}
 		})
+	}
+
+	if diff := testutil.SnapshotDiff(before, testutil.TreeSnapshot(t, "testdata")); diff != "" {
+		t.Errorf("refused writes changed the committed fixture:\n%s", diff)
 	}
 }
 
@@ -158,14 +157,7 @@ func chmodTree(t *testing.T, root string, dirMode, fileMode fs.FileMode) {
 	}
 }
 
-// A read-only shelf opens, serves every read the reader needs, and leaves the
-// shelf byte for byte as it found it - including the runtime files under app/,
-// which a writable shelf refreshes on the way in and out.
-//
-// The write-enabling options are set on purpose: read_only has to override
-// them, and if it did not, the lock file and the exported book cache would both
-// show up in the snapshot comparison below.
-func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
+func TestReadOnlyShelfOverridesFlockAndExportAndWritesNothing(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
 
@@ -311,8 +303,8 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 		})
 	}
 
-	if _, err := s.ExportBookCache(); err == nil {
-		t.Error("ExportBookCache() succeeded on a read-only shelf")
+	if _, err := s.ExportBookCache(); !errors.Is(err, fsutil.ErrReadOnly) {
+		t.Errorf("ExportBookCache() error = %v, want %v rather than \"not configured\"", err, fsutil.ErrReadOnly)
 	}
 
 	if diff := testutil.SnapshotDiff(before, testutil.TreeSnapshot(t, libRoot)); diff != "" {

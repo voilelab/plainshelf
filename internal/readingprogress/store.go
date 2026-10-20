@@ -95,11 +95,7 @@ func (s *Store) lock() (func(), error) {
 	if !locked {
 		return nil, util.NewError("timed out locking reading progress")
 	}
-	return func() {
-		if unlockErr := lk.Unlock(); unlockErr != nil {
-			_ = unlockErr
-		}
-	}, nil
+	return func() { _ = lk.Unlock() }, nil
 }
 
 func readFile(path string) (string, error) {

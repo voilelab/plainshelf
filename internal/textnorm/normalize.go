@@ -7,10 +7,6 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// NormalizeVersion names the rules Normalize applies. Write it into the algo
-// block of every cache derived from normalized text, and bump it whenever
-// Normalize's output can change for any input — a mixed cache is worse than no
-// cache, because nothing about it looks wrong.
 const NormalizeVersion = "nfkc-strip-space-punct-v2"
 
 func Normalize(s string) string {

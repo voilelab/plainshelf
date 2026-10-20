@@ -5,10 +5,6 @@ import (
 	"encoding/json/v2"
 )
 
-// diskIndent is the indentation every hand-editable file on the shelf is
-// written with. It is two spaces because that is what the shelf already
-// contains, and rewriting every book.json to change it would be a data-format
-// change for no benefit.
 const diskIndent = "  "
 
 var (

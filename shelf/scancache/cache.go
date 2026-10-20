@@ -136,9 +136,6 @@ func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild
 		return dirChildren(entries, w.cache.keepFiles), false, nil
 	}
 
-	// Stat before the listing, never after: reading the other way could pair a
-	// newer mtime with older content and have the next walk trust it. This order
-	// only ever costs a needless re-read.
 	var modTime time.Time
 	if info, err := root.Stat(pth); err == nil {
 		modTime = info.ModTime()

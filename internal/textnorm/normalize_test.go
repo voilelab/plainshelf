@@ -244,3 +244,22 @@ func TestNormalizeVersionIsSet(t *testing.T) {
 		t.Errorf("NormalizeVersion = %q; changing it invalidates every cache built on it", NormalizeVersion)
 	}
 }
+
+func TestNormalizeGoldenOutputsBelongToNormalizeVersion(t *testing.T) {
+	const goldenVersion = "nfkc-strip-space-punct-v2"
+	if NormalizeVersion != goldenVersion {
+		t.Fatalf("NormalizeVersion is %q but this table was recorded under %q; regenerate it for the new version", NormalizeVersion, goldenVersion)
+	}
+	for _, tc := range []struct{ input, want string }{
+		{"Hello, World!", "HelloWorld"},
+		{"三國演義　第一回\r\n", "三國演義第一回"},
+		{"ｆｕｌｌ　ｗｉｄｔｈ", "fullwidth"},
+		{"“quoted” — text…", "quotedtext"},
+		{"é", "é"},
+		{"a\tb\nc", "abc"},
+	} {
+		if got := Normalize(tc.input); got != tc.want {
+			t.Errorf("Normalize(%q) = %q, want %q; the output changed, so bump NormalizeVersion and regenerate this table", tc.input, got, tc.want)
+		}
+	}
+}

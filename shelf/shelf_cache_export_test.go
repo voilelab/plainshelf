@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
 const testWriterID = "testwriter01"
@@ -621,5 +623,15 @@ func TestBookCacheExportCarriesCurrentSourceMD5(t *testing.T) {
 	s.RefreshBookCharCount(book.ID())
 	if got := s.collectExportSnapshot(testWriterID).Books[book.ID()].CurrentSourceMD5; got == want || got == "" {
 		t.Errorf("current_source_md5 after an edit = %q, want a new hash", got)
+	}
+}
+
+func TestBookCacheFileMarshalsSchemaVersionAsTheFirstKey(t *testing.T) {
+	data, err := json.Marshal(BookCacheFile{SchemaVersion: BookCacheSchemaVersion}, jsonopt.Disk())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.HasPrefix(string(data), "{\n  \"schema_version\":") {
+		t.Errorf("schema_version is not the first key: %s", data)
 	}
 }

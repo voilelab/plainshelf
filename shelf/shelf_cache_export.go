@@ -26,9 +26,6 @@ const bookCacheRetention = 30 * 24 * time.Hour
 
 // BookCacheFile is the on-disk shape of app/book-cache-{writer_id}.json.
 type BookCacheFile struct {
-	// SchemaVersion is declared first so it marshals as the first key, keeping
-	// the file self-describing when opened in a text editor (same reasoning as
-	// BookMeta.SchemaVersion).
 	SchemaVersion int `json:"schema_version"`
 
 	// WriterID identifies the installation that produced this file, so several
@@ -156,9 +153,6 @@ func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 }
 
 func (s *Shelf) ExportBookCache() (time.Time, error) {
-	// Before the writer ID, which read_only clears: "not configured" would be
-	// true and would send the caller looking for a setting to change, when what
-	// they need to know is that this shelf is never written to.
 	if s.readOnly {
 		return time.Time{}, util.Errorf("%w", fsutil.ErrReadOnly)
 	}

@@ -10,14 +10,6 @@ func hash64(b []byte) uint64 { return xxhash.Sum64(b) }
 
 func hash64String(s string) uint64 { return xxhash.Sum64String(s) }
 
-// goldenHashes pins known inputs to known outputs. This is the test that fails
-// when someone swaps the algorithm underneath — for a randomly seeded one such
-// as hash/maphash above all, whose damage is otherwise silent: every machine
-// keeps hashing happily, and books simply stop matching across a shared shelf.
-//
-// Regenerating these values to make the test pass defeats it. A deliberate
-// change of algorithm is a change of Hash64Version, and it invalidates every
-// stored fingerprint.
 var goldenHashes = []struct {
 	name  string
 	input string
@@ -35,7 +27,7 @@ func TestHash64Golden(t *testing.T) {
 	for _, tc := range goldenHashes {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := hash64([]byte(tc.input)); got != tc.want {
-				t.Errorf("hash64(%q) = %#016x, want %#016x", tc.input, got, tc.want)
+				t.Errorf("hash64(%q) = %#016x, want %#016x; do not regenerate the golden values: a new hash needs a new Hash64Version, which invalidates every stored fingerprint", tc.input, got, tc.want)
 			}
 		})
 	}

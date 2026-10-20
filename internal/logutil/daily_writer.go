@@ -88,9 +88,6 @@ func (w *DailyFileWriter) removeExpired(date string) {
 	}
 	cutoff := today.AddDate(0, 0, -retentionDays)
 
-	// Listing through listRotatedLogFiles is deliberate: deletion has to agree
-	// with what the log API calls a log file, or a hand-rolled match here could
-	// delete something the server never listed.
 	entries, err := listRotatedLogFiles("", LogFileConf{
 		Type:   LogFileTypeNameRotate,
 		Dir:    w.dir,
