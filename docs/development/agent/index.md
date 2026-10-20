@@ -5,8 +5,8 @@ with the root `AGENTS.md`, then follow its required guidance and task routing.
 These files are specific to PlainShelf; copying them to another project requires
 adapting product constraints, commands, branches, and documentation paths.
 
-This directory is excluded from the MkDocs site, including this index and both
-workflows. Open it in the repository; it is not part of the published user docs.
+This directory is excluded from the MkDocs site, including this index and every
+workflow. Open it in the repository; it is not part of the published user docs.
 
 ## Loading map
 
@@ -19,6 +19,7 @@ workflows. Open it in the repository; it is not part of the published user docs.
 | `.claude/rules/50-lessons.md` | [Lessons](lessons.md) | Claude Code startup; other agents read relevant sections |
 | `.claude/skills/work-ticket/SKILL.md` | [Ticket workflow](workflows/work-ticket.md) | A tracked-ticket task |
 | `.claude/skills/update-docs/SKILL.md` | [Documentation workflow](workflows/update-docs.md) | Documentation synchronization |
+| `.claude/skills/unslop/SKILL.md` | [Unslop workflow](workflows/unslop.md) | Prose cleanup; manual `/unslop` only |
 
 Claude rule adapters use imports relative to the adapter file. Skill adapters
 retain their discovery metadata and explicitly require opening the workflow;
@@ -31,7 +32,7 @@ A Markdown link alone does not guarantee automatic loading in every tool.
 Check both the content and the loading path. Product boundaries, test gates,
 escalation, PR review, and merge/issue-transition restrictions must remain in
 force when instructions move. Read through a fresh Claude Code session and a
-session using `AGENTS.md`, including both skill workflows. A docs build verifies
+session using `AGENTS.md`, including every skill workflow. A docs build verifies
 links and rendering; it does not establish that an agent loaded or followed the
 instructions.
 

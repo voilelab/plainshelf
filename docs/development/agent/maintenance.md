@@ -28,7 +28,7 @@ Add a lesson only when all are true:
 Use this format:
 
 ```text
-- **Topic:** symptom or trigger → verified cause → next action. (`relevant/path`)
+- **Topic:** The symptom or trigger. The verified cause. The next action. (`relevant/path`)
 ```
 
 Keep details in code comments, tests, issue/PR history, or durable technical docs.
