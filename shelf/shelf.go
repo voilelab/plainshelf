@@ -697,21 +697,14 @@ func validateBookCacheWriterID(writerID string) error {
 }
 
 // goBackground runs fn in a goroutine that Close waits for, and reports whether
-// it started one.
-//
-// A read schedules work that outlives its call - the per-book staleness check
-// and the exported book cache - and both write under app/, the check by taking
-// the shelf lock, which creates app/library.lock when missing. Left untracked,
-// such a goroutine writes into a shelf whose owner has already closed it and
-// released that lock: it can put a file back into a directory the caller is
-// deleting, and on a shared shelf it writes without the lock that keeps
-// concurrent instances apart.
-//
-// A closing shelf starts nothing new, which also keeps the counter from being
-// raised while Close waits on it.
-//
-// A panic is logged rather than left to kill the process: in the Android app
-// the server shares its process with the UI.
+// it started one. Reads schedule work that outlives the call (the per-book
+// staleness check and the exported book cache), and both write under app/; the
+// check takes the shelf lock, creating app/library.lock. Untracked, such a
+// goroutine could write into a closed shelf: back into a directory being deleted,
+// or without the lock that keeps instances on a shared shelf apart. A closing
+// shelf starts nothing new, which also keeps the counter still while Close waits.
+// A panic is logged instead of killing the process, which on Android is shared
+// with the UI.
 func (s *Shelf) goBackground(fn func()) bool {
 	s.backgroundMu.Lock()
 	defer s.backgroundMu.Unlock()

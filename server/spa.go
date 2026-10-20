@@ -58,27 +58,17 @@ func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 	h.files.ServeHTTP(w, r)
 }
 
-// contentSecurityPolicy is the browser-side backstop: if the sanitizer is ever
-// bypassed, the policy still refuses to run injected script (no 'unsafe-inline'
-// in script-src — the bootstrap below carries the nonce) and refuses to be
-// framed, so an XSS or clickjack cannot carry off the local token in this page.
-//
-// Each relaxation is forced by something the app really loads:
-//   - img-src data: — the default cover (bookcover.svg) is small enough that the
-//     build inlines it as a data: URI.
-//   - img-src blob: — reader illustration assets are fetched with the token and
-//     shown from object URLs (frontend/src/composables/useAssetSrc.ts).
-//   - style-src 'unsafe-inline' — sanitized book text keeps an inline
-//     `style="color: …"` attribute (frontend/src/utils/safeHtml.ts), rendered
-//     through v-html; without it the reader loses author text colour. Vite emits
-//     no inline <style> and no inline <script>, so nothing else needs it.
-//   - font-src data: — the build inlines the Noto font subsets small enough
-//     to fall under Vite's asset-inline limit as data: URIs; the rest load from
-//     'self'. Verified against a real page load, not assumed.
-//
-// Everything the app never uses is denied outright (object-, media-, worker-src)
-// or held to same-origin. HSTS and violation reporting are out of scope: the
-// default deployment is http://127.0.0.1 and local-first.
+// contentSecurityPolicy is the browser-side backstop if the sanitizer is ever
+// bypassed: script-src has no 'unsafe-inline' (the bootstrap carries the nonce)
+// and framing is refused, so an XSS or clickjack cannot take the local token.
+// Each relaxation serves something the app loads: img-src data: for the inlined
+// bookcover.svg; img-src blob: for token-fetched illustrations
+// (frontend/src/composables/useAssetSrc.ts); style-src 'unsafe-inline' for the
+// author text colour frontend/src/utils/safeHtml.ts keeps through v-html (Vite
+// emits no inline style or script); font-src data: for the Noto subsets Vite
+// inlines, the rest loading from 'self' (verified on a real page load). The rest
+// is denied (object-, media-, worker-src) or same-origin. HSTS and violation
+// reporting are out of scope: the default deployment is http://127.0.0.1.
 func contentSecurityPolicy(nonce string) string {
 	return strings.Join([]string{
 		"default-src 'self'",

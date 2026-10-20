@@ -1,21 +1,13 @@
 // Package readingclose persists the reader's last position when the desktop app
-// or the standalone reader window is closed.
+// or the standalone reader window closes.
 //
-// The frontend autosaves reading progress to the shared file on a 10s interval,
-// so closing the window between ticks would drop up to the last ten seconds of
-// reading. Asking the frontend to flush over an async event at close time proved
-// unreliable during window teardown, so instead the frontend continuously
-// *stages* its latest position here (a cheap in-memory report), and the window's
-// OnBeforeClose writes that staged position to disk synchronously — a direct Go
-// write it can guarantee completes before the window goes down.
-//
-// The frontend still owns the reading-progress document and its autosave; the
-// Stager only captures the few seconds a close would otherwise drop, and folds
-// them in newest-wins (readingprogress.MergeNewest) so it never clobbers a newer
-// entry another process wrote.
-//
-// Both the desktop app and the reader are independent Wails modules; this is the
-// close-time persistence they share.
+// The frontend autosaves progress every 10s, so a close between ticks would drop
+// up to ten seconds. A flush request over an async event proved unreliable during
+// window teardown, so the frontend stages its latest position here in memory and
+// OnBeforeClose writes it synchronously, a Go write that completes before the
+// window goes down. The frontend still owns the document and its autosave; the
+// Stager merges newest-wins (readingprogress.MergeNewest) so it never clobbers a
+// newer entry from another process. The desktop and reader Wails modules share it.
 package readingclose
 
 import (

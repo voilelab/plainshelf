@@ -52,18 +52,13 @@ type ScanRateLimitResponse struct {
 
 // POST /api/shelves/{shelf_id}/scans
 //
-// Walks the shelf now and rebuilds its book cache, for a user who has just put
-// a book into books/ from outside PlainShelf and does not want to wait out
-// scan_interval. It is the answer for every shelf, including the SMB and cloud
-// mounts where no filesystem change notification would arrive.
-//
-// A read, despite the method: nothing is written to the shelf, which is why the
-// read-only gate lets it through (see App.rejectReadOnlyWrite). POST rather
-// than GET because it does real work and must not be cached or prefetched.
-//
-// Synchronous rather than a task chain, like the export beside it: the counts
-// it reports are the whole point of the call, and a chain would make the
-// client poll for them.
+// Walks the shelf now and rebuilds its book cache, for a user who just put a book
+// into books/ from outside PlainShelf and does not want to wait out
+// scan_interval; SMB and cloud mounts send no change notification. It writes
+// nothing to the shelf, so the read-only gate lets it through
+// (App.rejectReadOnlyWrite); it is POST because it does real work that must not
+// be cached or prefetched. Like the export beside it, it is synchronous rather
+// than a task chain because the counts it reports are the point of the call.
 func (h *shelfHandlers) rescanShelf(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {

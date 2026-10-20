@@ -478,20 +478,13 @@ func (s *Shelf) resolveBookPathCollision(folderPath, folderName string) (string,
 	return "", util.Errorf("failed to resolve unique book path for %q", folderName)
 }
 
-// migrateLegacyTrash moves a shelf written by an older build, which kept the
-// trash hidden in ".trash/", onto the visible "trash/" name.
-//
-// The presence of ".trash/" is the whole detection mechanism: no shelf-level
-// manifest is introduced, so the layout gains no file that would have to be
-// preserved on backup alongside the disposable contents of app/. That is the
-// project-wide policy for shelf-layout changes, not a one-off; the reasoning and
-// the test for what counts as a layout change live in
-// docs/concepts/data-format-versioning.md, "Shelf layout changes are not
-// versioned".
-//
-// Like the rest of makeStructure this runs without the shelf lock, on the same
-// assumption the format documentation states: one PlainShelf version opens a
-// shelf at a time.
+// migrateLegacyTrash moves an older build's hidden ".trash/" onto the visible
+// "trash/". The presence of ".trash/" is the whole detection: no shelf manifest
+// is added, so backups need no file beyond the disposable app/. That is the
+// project's policy for every layout change; docs/concepts/data-format-versioning.md
+// ("Shelf layout changes are not versioned") gives the reasoning and the test.
+// Like the rest of makeStructure it runs without the shelf lock, assuming, as the
+// format docs state, that one PlainShelf version opens a shelf at a time.
 func (s *Shelf) migrateLegacyTrash(root fsutil.FS) error {
 	legacyInfo, err := s.dbRoot.Stat(legacyTrashFolder)
 	if err != nil {

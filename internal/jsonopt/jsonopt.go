@@ -1,20 +1,13 @@
 // Package jsonopt holds the encoding/json/v2 option sets PlainShelf marshals
-// with, so one decision covers every writer instead of each call site
-// remembering the same three options.
+// with, so one decision covers every writer.
 //
-// The option that motivated the package is [json.Deterministic]. v2 marshals
-// map entries in unspecified order, while v1 always sorted them, and two
-// PlainShelf mechanisms are built on "same content, same bytes": the fingerprint
-// cache compares the encoded file against the one on disk before rewriting it,
-// and the exported book cache is keyed by a digest of its own payload. Dropping
-// the option costs no compile error and no test failure — only a pointless
-// upload on every scan for a shelf held on pCloud or SMB.
-//
-// Everything else is a deliberate non-decision: the sets add nothing but
-// determinism and indentation, so the remaining v2 defaults (empty slices and
-// maps as [] and {}, no HTML escaping, duplicate object names and invalid UTF-8
-// rejected, member names matched case-sensitively) apply as they are.
-// docs/development/json-encoding.md records why each one is accepted.
+// The reason is [json.Deterministic]: v2 marshals maps in unspecified order (v1
+// sorted them), and two mechanisms rely on same content giving same bytes. The
+// fingerprint cache compares the encoded file with the one on disk before
+// rewriting it, and the exported book cache is keyed by a digest of its payload.
+// Dropping the option breaks no build or test; it costs an upload per scan on
+// pCloud or SMB. Otherwise the sets add only indentation and keep the v2 defaults;
+// docs/development/json-encoding.md says why each one is accepted.
 package jsonopt
 
 import (

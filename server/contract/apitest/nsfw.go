@@ -11,10 +11,9 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// The fixture for show_nsfw, the setting that decides whether this server serves
-// the books its shelves mark as adult content. It is here rather than in one
-// contract package because the filter is not one area's rule: books, folders,
-// sources and the book cache are each asserted against the same shelf.
+// The fixture for show_nsfw, which decides whether this server serves books its
+// shelves mark as adult. It lives here because books, folders, sources and the
+// book cache are all asserted against the same shelf:
 //
 //	books/
 //	├─ Visible                 plainly visible
@@ -24,8 +23,8 @@ import (
 //	   ├─ Flagged/BookHidden   hidden by its own book.json nsfw
 //	   └─ Empty/               never held a book, and must stay listed
 //
-// Fiction/Flagged is the case a folder rule cannot reach: it is not marked, so
-// it is only empty once its one book is filtered out.
+// Fiction/Flagged is the case a folder rule cannot reach: it is unmarked, so
+// only filtering its one book empties it.
 const (
 	NSFWMarkedFolder  = "Fiction/Adult"
 	NSFWFlaggedFolder = "Fiction/Flagged"
