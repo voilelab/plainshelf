@@ -2,9 +2,6 @@ package main
 
 import "testing"
 
-// The book path is a named flag rather than a positional argument because
-// `wails dev` hands the app whatever -appargs carried, and a bare value there
-// is as likely to belong to another flag as to be a path.
 func TestBookPathFromArgs(t *testing.T) {
 	tests := map[string]struct {
 		args []string
@@ -17,10 +14,7 @@ func TestBookPathFromArgs(t *testing.T) {
 		"double dash joined":      {args: []string{"--book=dune.bookpkg"}, want: "dune.bookpkg"},
 		"a bare path is not used": {args: []string{"/books/dune.bookpkg"}, want: ""},
 		"no value after -book":    {args: []string{"-book"}, want: ""},
-		// An argument this app does not define ends the parse rather than
-		// failing the launch. In practice it does not arrive: `wails dev` passes
-		// its own settings to the binary through the environment, and only
-		// -appargs reaches os.Args.
+
 		"an undefined flag": {args: []string{"-loglevel", "debug"}, want: ""},
 		"after an undefined flag": {
 			args: []string{"-loglevel", "debug", "-book", "/books/dune.bookpkg"},
@@ -37,11 +31,6 @@ func TestBookPathFromArgs(t *testing.T) {
 	}
 }
 
-// -shelf carries the real desktop shelf id and -section the chapter to open at.
-// Both are parsed on the same FlagSet as -book so that any flag order the desktop
-// app might emit is read whole — a FlagSet that knew only one of them would stop
-// at the others. -section defaults to noLaunchSection (a negative sentinel) so
-// section 0, the first chapter, stays distinguishable from "no chapter requested".
 func TestParseLaunchArgs(t *testing.T) {
 	tests := map[string]struct {
 		args        []string

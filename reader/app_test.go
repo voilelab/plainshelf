@@ -16,9 +16,42 @@ const (
 	testSourceID = "20260315-a1"
 )
 
-// writeBookPackage builds a minimal .bookpkg the reader can open, using the same
-// shelf structs the server writes so a renamed field breaks the build here rather
-// than at runtime.
+func TestManualBookOpenDropsTheLaunchNamespaceAndChapter(t *testing.T) {
+	app := newReaderAppWithBook(t, "launch-shelf")
+	app.launchSection = 3
+	const nextBook = "nextbook"
+	id, err := app.openStandaloneBook(writeBookPackage(t, nextBook))
+	if err != nil || id != nextBook {
+		t.Fatalf("openStandaloneBook = %q, %v", id, err)
+	}
+	boot := app.BootConfig()
+	if boot.BookID != nextBook || boot.ShelfID != readerapi.ShelfID || boot.Section != nil {
+		t.Fatalf("manual-open boot config = %+v, want standalone book without launch chapter", boot)
+	}
+	if err := app.WriteReadingProgress(progressDoc(t, readerapi.ShelfID, nextBook, 42, 100)); err != nil {
+		t.Fatal(err)
+	}
+	doc := diskDoc(t, app)
+	if doc.Shelves[readerapi.ShelfID][nextBook].Offset != 42 {
+		t.Fatal("manually opened book did not persist progress in the standalone namespace")
+	}
+	if _, ok := doc.Shelves["launch-shelf"]; ok {
+		t.Fatal("manual-open progress leaked into the desktop launch namespace")
+	}
+}
+
+func TestFailedManualBookOpenKeepsTheLaunchState(t *testing.T) {
+	app := newReaderAppWithBook(t, "launch-shelf")
+	app.launchSection = 3
+	if _, err := app.openStandaloneBook(t.TempDir()); err == nil {
+		t.Fatal("opened a directory without book metadata")
+	}
+	boot := app.BootConfig()
+	if boot.BookID != testBookID || boot.ShelfID != "launch-shelf" || boot.Section == nil || *boot.Section != 3 {
+		t.Fatalf("failed-open boot config = %+v, want original book and launch state", boot)
+	}
+}
+
 func writeBookPackage(t *testing.T, bookID string) string {
 	t.Helper()
 
@@ -59,13 +92,11 @@ func writeJSON(t *testing.T, path string, value any) {
 	}
 }
 
-// newReaderAppWithBook builds a reader app with the given active shelf id, an
-// open book, and progress persisted to an isolated temp file.
 func newReaderAppWithBook(t *testing.T, shelfID string) *ReaderApp {
 	t.Helper()
 
 	library := readerapi.NewLibrary(nil)
-	t.Cleanup(func() { library.Close() }) //nolint:errcheck // test cleanup
+	t.Cleanup(func() { library.Close() })
 	if _, err := library.Open(writeBookPackage(t, testBookID)); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -91,8 +122,6 @@ func progressDoc(t *testing.T, shelfID, bookID string, offset, at int64) string 
 	return text
 }
 
-// diskDoc reads the persisted document straight off the store's path so a test
-// can assert which shelf namespace the write actually landed under.
 func diskDoc(t *testing.T, app *ReaderApp) readingprogress.Document {
 	t.Helper()
 	doc, _, err := app.progressStore.Read()
@@ -102,9 +131,6 @@ func diskDoc(t *testing.T, app *ReaderApp) readingprogress.Document {
 	return doc
 }
 
-// When launched with -shelf, the reader keys progress under the real shelf id, so
-// the desktop library sees it at shelves.<realShelfID>.<bookID> with no
-// projection, and a read returns exactly that namespace.
 func TestReaderProgressUsesRealShelfID(t *testing.T) {
 	const realShelf = "shelf-real"
 	app := newReaderAppWithBook(t, realShelf)
@@ -130,9 +156,6 @@ func TestReaderProgressUsesRealShelfID(t *testing.T) {
 	}
 }
 
-// A desktop write under another real shelf, and standalone reader progress under
-// the synthetic shelf, must both survive a real-shelf reader write: it touches
-// only its own book's entry.
 func TestReaderRealShelfWritePreservesOtherNamespaces(t *testing.T) {
 	const realShelf = "shelf-real"
 	app := newReaderAppWithBook(t, realShelf)
@@ -160,8 +183,6 @@ func TestReaderRealShelfWritePreservesOtherNamespaces(t *testing.T) {
 	}
 }
 
-// Standalone (no -shelf) is unchanged: progress stays under the synthetic shelf
-// the desktop side projects, so #451's reader -> desktop sync keeps working.
 func TestReaderProgressDefaultsToSyntheticShelf(t *testing.T) {
 	app := newReaderAppWithBook(t, "")
 	if app.shelfID != readerapi.ShelfID {
@@ -178,8 +199,6 @@ func TestReaderProgressDefaultsToSyntheticShelf(t *testing.T) {
 	}
 }
 
-// NewReaderApp falls back to the synthetic shelf id for an empty or whitespace
-// -shelf, so a stray flag can never make the reader report an empty active shelf.
 func TestNewReaderAppShelfIDFallback(t *testing.T) {
 	for _, shelfID := range []string{"", "   "} {
 		if got := NewReaderApp(nil, shelfID, noLaunchSection).shelfID; got != readerapi.ShelfID {
@@ -191,10 +210,6 @@ func TestNewReaderAppShelfIDFallback(t *testing.T) {
 	}
 }
 
-// BootConfig carries the launch chapter only when one was requested: a requested
-// section (including 0, the first chapter) reaches the frontend as the `?section=`
-// deep link, and a negative sentinel leaves Section nil so the reader opens at the
-// restored progress instead.
 func TestBootConfigSection(t *testing.T) {
 	if boot := NewReaderApp(nil, "shelf-real", noLaunchSection).BootConfig(); boot.Section != nil {
 		t.Errorf("BootConfig().Section for no launch section = %v, want nil", *boot.Section)
