@@ -75,11 +75,11 @@ equivalent is worth nothing.
 
 ### Known limitation: static mutants
 
-A mutant in module-level code — a top-level `const` regex, an option object, a
-call made at import time — runs once when the module is first imported. Under
-the Vitest runner these are reported unreliably: the module can stay cached
-across mutant activations, so the mutated line never re-executes and the mutant
-is reported as *Survived* even though the suite would fail on it.
+A mutant in module-level code (a top-level `const` regex, an option object, a
+call made at import time) runs once when the module is first imported. Under the
+Vitest runner these are reported unreliably: the module can stay cached across
+mutant activations, so the mutated line never re-executes and the mutant is
+reported as *Survived* even though the suite would fail on it.
 
 Two of the survivors in this pilot are exactly that (`markdown.disable([...])`
 in `renderMarkdownBlocks.ts`; applying either mutation by hand makes the test
@@ -119,9 +119,9 @@ there.
 pilot's `parseMarkdownBlocks.ts` after the dead block model it also held was
 deleted (see its disposition below). Nothing about the surviving code is better
 verified than it was: the same three mutants survive it now as then. Its score
-rose, and carried the totals and the whole-suite mutant count (985 → 753) with
-it, because code no consumer reached left the denominator. Read that row as a
-smaller module, not a stronger one — the 140 undisposed-of mutants it used to
+rose, and carried the totals and the whole-suite mutant count (from 985 to 753)
+with it, because code no consumer reached left the denominator. Read that row as
+a smaller module, not a stronger one. The 140 undisposed-of mutants it used to
 contribute are gone along with the module, leaving 76 dispositioned below.
 
 ## Standing dispositions
@@ -198,13 +198,13 @@ its callers need:
 |---|---:|---|---|
 | 14, 15 | 3 | E | Dropping `$` from a regex applied to a single line changes nothing (`.` never matches a newline), and narrowing `[ \t]+` to `[ \t]` is neutralized by the `.trim()` applied to the captured title. |
 
-The file used to be `parseMarkdownBlocks.ts` and also held a **block model** —
-`parseMarkdownBlocks()`, `parseTextSegmentToBlocks`, `parseInlineSegments`,
-`isMarkdownFenceLine`, and the constants serving them — with no production
-caller: the reader renders Markdown through `renderMarkdownBlocks` and plain text
-through `parseReaderBlocks`, and every importer took only the line helpers and
-the re-exported asset helpers. It contributed 140 undisposed-of mutants, 79 of
-them with no covering test at all. Adding tests would have pinned behavior
+The file used to be `parseMarkdownBlocks.ts` and also held a **block model**
+(`parseMarkdownBlocks()`, `parseTextSegmentToBlocks`, `parseInlineSegments`,
+`isMarkdownFenceLine`, and the constants serving them) with no production
+caller: the reader renders Markdown through `renderMarkdownBlocks` and plain
+text through `parseReaderBlocks`, and every importer took only the line helpers
+and the re-exported asset helpers. It contributed 140 undisposed-of mutants, 79
+of them with no covering test at all. Adding tests would have pinned behavior
 nothing consumes, so it was deleted instead and the file renamed to what remains
 of it.
 

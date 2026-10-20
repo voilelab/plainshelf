@@ -149,12 +149,12 @@ of `127.0.0.1`. From the phone, verify that `http://<server-ip>:20000/health`
 returns `1`, then add a shelf with that server URL under
 **Settings → Shelves**.
 
-Browsing, reading, and refreshing the book list require no access token — the
-refresh walks the shelf and writes nothing, so the server treats it as a read.
-A token is needed only when the server sets `protect_read: true`, which requires
-one for reads as well. The token does not enable editing — the client rejects
-write requests regardless. The app uses Capacitor's native HTTP bridge, so
-plain-HTTP API requests do not require adding the app origin to
+Browsing, reading, and refreshing the book list require no access token. The
+refresh walks the shelf and writes nothing, so the server treats it as a read. A
+token is needed only when the server sets `protect_read: true`, which requires
+one for reads as well. The token does not enable editing, because the client
+rejects write requests regardless. The app uses Capacitor's native HTTP bridge,
+so plain-HTTP API requests do not require adding the app origin to
 `allowed_origins`. See
 [what `local_token` protects](../deployment-and-threat-model.md#exactly-which-requests-need-the-token)
 for the full list of what the token gates.
@@ -168,7 +168,7 @@ for the full list of what the token gates.
 For a pCloud shelf the app talks to pCloud directly; no PlainShelf server on
 another machine is involved. It reads the folder through the same shelf engine
 the server uses, built into the app, so it reads the on-disk shelf layout the
-server writes — see the [data model](../concepts/data-model.md) — and the folder
+server writes (see the [data model](../concepts/data-model.md)), and the folder
 you point it at must be a shelf directory, the one containing `books/`. The
 pCloud token stays in the Keystore: the app's native code hands it to the
 engine, and it never passes through the web view. Which books count as adult
@@ -212,9 +212,9 @@ configured. Nothing needs to be chosen for a US or EU account.
 ### 3. Point it at the shelf
 
 Tap **Browse pCloud…** and walk to the shelf folder. The picker lists one level
-at a time — a tap opens a folder, the breadcrumb at the top jumps back to any
-level above — and reads only the level on screen, so browsing costs one folder
-listing per tap. **Use this folder** is offered on the folder that holds
+at a time, where a tap opens a folder and the breadcrumb at the top jumps back
+to any level above. It reads only the level on screen, so browsing costs one
+folder listing per tap. **Use this folder** is offered on the folder that holds
 `books/`, which is the shelf directory itself, not `books/` and not the folder
 above it. Picking one fills the path in and runs the shelf check for you.
 
@@ -339,11 +339,11 @@ app guards against that in these ways, and syncs nothing automatically:
 - While the device has a local shelf, the shelf list says local shelves are
   deleted with the app and shows each one's last export time, or "Not backed up
   yet".
-- With no shelf at all — a fresh install, or a reinstall without kept data —
-  and no local shelf on disk, the shelf list first offers **Restore from a
-  backup zip**, the same import as above, which then opens the restored shelf.
-  **Skip** stores a flag in Capacitor Preferences and the offer does not come
-  back. Preferences are excluded from Android backup, so the flag goes with an
+- With no shelf at all (a fresh install, or a reinstall without kept data) and
+  no local shelf on disk, the shelf list first offers **Restore from a backup
+  zip**, the same import as above, which then opens the restored shelf. **Skip**
+  stores a flag in Capacitor Preferences and the offer does not come back.
+  Preferences are excluded from Android backup, so the flag goes with an
   uninstall unless the data is kept.
 - Google cloud backup leaves local shelves out (`local-shelves/` is excluded
   in `backup_rules.xml` and the `cloud-backup` section of

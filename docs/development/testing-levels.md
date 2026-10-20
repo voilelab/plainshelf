@@ -5,13 +5,11 @@ that test goes, and the level is the expensive half of the decision: the
 cheapest place to *write* a test is rarely the cheapest place to *keep* one.
 Writing a UI assertion as an end-to-end case takes ten minutes and costs the
 project a browser, a server binary and a real shelf on every pull request,
-forever. Nobody makes that trade deliberately; it is what happens when there is
-no page like this one.
+forever.
 
-This page is that page. It defines five levels, says what each one may touch,
-and gives seven rules and four budgets that decide between them. It should
-answer "which level?" in about thirty seconds. Where it does not, the honest
-answer is usually [R2](#rules).
+This page defines five levels, says what each one may touch, and gives seven
+rules and four budgets that decide between them. It should answer "which level?"
+in about thirty seconds. Where it does not, the answer is usually [R2](#rules).
 
 ## Why this page exists
 
@@ -37,9 +35,9 @@ this page is for. L4's line count went down without its case count moving:
 browser.
 
 The L4 row is the only one in this repository's history to go down. It was 30
-files / 101 cases / 4,247 lines when this page was written; a later change moved the
-assertions that never needed a browser down to L3 — which is why the L3 row grew
-by 75 cases in the same change — and it went down twice more when the two
+files / 101 cases / 4,247 lines when this page was written; a later change moved
+the assertions that never needed a browser down to L3, which is why the L3 row
+grew by 75 cases in the same change. It went down twice more when the two
 `security-headers` cases that only issued `fetch` calls were deleted as
 duplicates of `server/contract/crosscut/security_headers_test.go`, which pins
 the same headers, directives and nonce at L2 over more response shapes. The
@@ -125,9 +123,9 @@ API client. No real server and no real browser: a test that needs either is not
 an L3 test, it is an L4 test that has not admitted it yet.
 
 Mount through `frontend/testing/mount.ts`, which owns the teardown so no file
-has to. Its header lists the handful of shapes that keep their own mount — the
-ones where mounting is part of what the test is about — and a new file is
-almost certainly not one of them.
+has to. Its header lists the handful of shapes that keep their own mount, the
+ones where mounting is part of what the test is about, and a new file is almost
+certainly not one of them.
 
 `npm --prefix frontend run build` is `vue-tsc` plus Vite, not this suite. Type
 checking clean says nothing about whether these tests ran.
@@ -141,10 +139,10 @@ and mobile shell previews, and browser-only APIs such as IndexedDB whose real
 behavior jsdom does not reproduce.
 
 It is also the only level whose failures are routinely ambiguous. Its known
-traps — preview routing, offline simulation, teardown `ENOTEMPTY`, the pinned
-browser revision — are listed under "Mobile and end-to-end tests" in
-`docs/development/agent/lessons.md`. Read them before charging a red spec to your
-diff.
+traps (preview routing, offline simulation, teardown `ENOTEMPTY`, the pinned
+browser revision) are listed under "Mobile and end-to-end tests" in
+`docs/development/agent/lessons.md`. Read them before charging a red spec to
+your diff.
 
 #### L4 runs in two tiers
 
@@ -185,9 +183,9 @@ Two limits, easily conflated:
   time on a target with no users. Run it by hand if a rendering question makes
   it worth an answer.
 
-The smoke tier is a budget of its own — ≤ 20 cases, 13 today — and its job is
-to notice that the product is broken, not to cover behavior. It holds one case
-per critical journey:
+The smoke tier is a budget of its own, at most 20 cases with 13 today, and its
+job is to notice that the product is broken, not to cover behavior. It holds one
+case per critical journey:
 
 | Journey | Cases |
 |---|---|
@@ -198,10 +196,10 @@ per critical journey:
 | Security | `security-headers` (the app boots with no CSP violation) |
 | Mobile read-only | `mobile-read-only` (routing, reachability, hidden writes, rejected write) |
 
-Tag with Playwright's own option — `test('…', { tag: '@smoke' }, async …)` —
-so `--grep @smoke` finds it. Adding a case to the smoke tier is not free: it is
-on the critical path of every merge, so it needs the same net-zero argument R4
-asks for, against the 20-case limit rather than the 40-case one.
+Tag with Playwright's own option, `test('…', { tag: '@smoke' }, async …)`, so
+`--grep @smoke` finds it. Adding a case to the smoke tier is not free: it is on
+the critical path of every merge, so it needs the same net-zero argument R4 asks
+for, against the 20-case limit rather than the 40-case one.
 
 The suite runs `fullyParallel`, at two workers on CI and half the local cores
 otherwise. That is safe because a server is per spec file rather than per
@@ -250,7 +248,7 @@ one recurs, the answer is an E2E case *and* a deletion to pay for it (R4) —
 not a quiet raise of the 40.
 
 The last two rows keep less than they look like. Each had a *declaration* under
-it as well as a geometry — `min-height: 44px`, `touch-action: pan-x` — and a
+it as well as a geometry (`min-height: 44px`, `touch-action: pan-x`), and a
 declaration does not need a layout engine, only the file it is written in. Those
 halves went to `frontend/scripts/check-style-contracts.mjs`, which fails the
 build when the rule is dropped. What is left by eye is the part a declaration
@@ -301,8 +299,8 @@ that is acceptable). No ceremony, no approval round. Deletion has to be
 cheaper than accumulation or accumulation always wins.
 
 **R6 — A flaky test is fixed within two weeks or deleted.** Not skipped, not
-retried, not quarantined indefinitely — a test nobody believes is worse than
-no test, because it teaches people to ignore red. Tracking is manual today.
+retried, not quarantined indefinitely. A test nobody believes is worse than no
+test, because it teaches people to ignore red. Tracking is manual today.
 
 **R7 — Automate a manual step after it appears in three consecutive pull
 requests.** Before that, repeating it by hand is cheaper than owning an
@@ -356,16 +354,17 @@ parallel behind it.
 | Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
 | **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
 
-† The E2E row measures the job as it was: 101 cases, one worker. The smoke/nightly
-split made it 15 cases at two workers, which ran in 20s on a 4-core container against
-2:47–2:55 for the whole suite on CI, so both the measurement and the cap above
-it are stale in the same direction. The cap is provisionally 10 — enough for a
-3:05 browser-cache miss plus setup — and has to be re-measured over three `dev`
-runs and tightened, along with this row. `nightly.yml` now carries the other 24
-cases rather than 86; it has no measured baseline either and starts at 25.
+† The E2E row measures the job as it was: 101 cases, one worker. The
+smoke/nightly split made it 15 cases at two workers, which ran in 20s on a
+4-core container against 2:47–2:55 for the whole suite on CI, so both the
+measurement and the cap above it are stale in the same direction. The cap is
+provisionally 10, enough for a 3:05 browser-cache miss plus setup, and has to be
+re-measured over three `dev` runs and tightened, along with this row.
+`nightly.yml` now carries the other 24 cases rather than 86; it has no measured
+baseline either and starts at 25.
 
 ‡ Added after this measurement, so it has no baseline. It shares the E2E job's
-setup — `npm ci` in `e2e/` and the Playwright browser install — then builds the
+setup (`npm ci` in `e2e/` and the Playwright browser install), then builds the
 server for `js/wasm` and runs `cmd/plainshelf-wasm/web/smoke.mjs`, whose 17
 checks took about 10s in the cloud container. It then installs the frontend's
 dependencies, rebuilds the demo under `/demo/` as `docs.yml` deploys it, and
@@ -377,10 +376,10 @@ terms as E2E's.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a
-runner. The pull request that added these caps ran for 10:00 — the budget's
-whole limit — with its `frontend` job executing for 1:23, five minutes of the
-rest being queue. A run near the budget therefore says nothing about how close
-a job is to its cap.
+runner. The pull request that added these caps ran for 10:00, the budget's whole
+limit, with its `frontend` job executing for 1:23, five minutes of the rest
+being queue. A run near the budget therefore says nothing about how close a job
+is to its cap.
 
 `frontend` is the `needs` of every other job, so its time is on the critical
 path twice over — once as itself, once as the delay before anything else starts.
@@ -426,9 +425,9 @@ GitHub job summary — no artifact to download:
   alongside the `list` reporter that already times each case.
 
 The E2E job retries a failed case **once** on CI, not twice. A retry buys one
-thing — telling a genuinely flaky test from a broken one — and one is enough
-for that; the second attempt only lets a test that fails half the time pass
-anyway, which is the outcome R6 exists to prevent.
+thing, telling a genuinely flaky test from a broken one, and one is enough for
+that; the second attempt only lets a test that fails half the time pass anyway,
+which is the outcome R6 exists to prevent.
 
 `go test` has no equivalent here on purpose: getting per-test durations out of
 it means `-json`, and that trades readable failure output for a report on a job

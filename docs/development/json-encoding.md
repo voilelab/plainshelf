@@ -15,13 +15,12 @@ already v2.
 Go 1.27's `encoding/json` already runs on the v2 implementation, so switching
 imports buys no performance. It buys a deadline instead.
 
-The behaviors worth having — empty arrays instead of `null`, `&` and `<`
-written as themselves, duplicate object members rejected — are v2 *defaults*,
-and they change bytes. Changing bytes is cheap now and expensive after the
-`1.0.0-rc1` freeze, when every writer would have to carry v1-compatibility
-options forever to avoid a format change. That end state is the worst one
-available: the v2 API with v1 semantics, paying for the migration without
-collecting anything for it.
+The behaviors worth having (empty arrays instead of `null`, `&` and `<` written
+as themselves, duplicate object members rejected) are v2 *defaults*, and they
+change bytes. Changing bytes is cheap now and expensive after the `1.0.0-rc1`
+freeze, when every writer would have to carry v1-compatibility options forever
+to avoid a format change. That end state is the worst one available: the v2 API
+with v1 semantics, paying for the migration without collecting anything for it.
 
 So the conversion happens before the freeze, in one series, and each batch
 takes the new defaults as it goes.
@@ -39,9 +38,9 @@ carrying `json.Deterministic(true)`:
 | `jsonopt.DiskCompact()` | one line | the machine-only files under `app/`: the fingerprint cache, the scan cache, stored reading progress, the values in the settings table |
 | `jsonopt.API()` | one line | HTTP response bodies |
 
-All three modules — the root module, `desktop`, and `reader` — import it
-directly; `internal/` under the root module path is visible to both nested
-modules through their `replace` directives.
+All three modules (the root module, `desktop`, and `reader`) import it directly;
+`internal/` under the root module path is visible to both nested modules through
+their `replace` directives.
 
 ### Why determinism is not optional
 
@@ -66,7 +65,7 @@ That is why the option lives in one package and why the assertions below exist.
 
 ---
 
-## v1 → v2 API mapping
+## Mapping the v1 API to v2
 
 The v2 package is itself named `json`, so it needs no import alias — a call
 site keeps reading as `json.Marshal`:
@@ -131,8 +130,8 @@ Not done, deliberately:
 
 ## The API's array contract
 
-Every HTTP response body is marshalled by one of two writers — `writeJSON` in
-`server/apicore.go` and `writeJSON` in `reader/readerapi/api.go` — and both go
+Every HTTP response body is marshalled by one of two writers (`writeJSON` in
+`server/apicore.go` and `writeJSON` in `reader/readerapi/api.go`), and both go
 through `jsonopt.API()`. An array-valued field therefore reaches the client as
 `[]` when it is empty, and never as `null`. A client can index it without a
 `?? []` guard of its own.
@@ -150,8 +149,8 @@ it is the whole of the difference:
 | `authors`, `folder`, `succeeded_ids`, `failures`, `tasks`, `conflicting_book_ids` | `[]` |
 | `tags`, `identifiers`, and the trash listing's `authors` and `original_folder` | absent |
 
-`server/contract` pins both halves — `assertJSONArray` for the first row and
-`TestAPIOmitEmptyMetaFieldsStayOmittedContract` for the second — because the
+`server/contract` pins both halves, `assertJSONArray` for the first row and
+`TestAPIOmitEmptyMetaFieldsStayOmittedContract` for the second, because the
 difference is invisible in Go, where a nil and an empty slice decode alike.
 
 Request decoding is unaffected: a `*[]string` field left nil by an absent member
@@ -188,16 +187,17 @@ map entries, because a map with one entry has no order to vary and passes with
 or without the option; removing `jsonopt.DiskCompact()` from one write path
 fails that path's case and no other.
 
-**Strict reading, per file.** The three shelf files a person edits by hand —
-`book.json`, a source's `meta.json`, `trash.json` — refuse a duplicate member,
+**Strict reading, per file.** The three shelf files a person edits by hand
+(`book.json`, a source's `meta.json`, `trash.json`) refuse a duplicate member,
 invalid UTF-8, and trailing data, and name the file that failed:
 `TestOpenBookRejectsDuplicateMemberAndNamesTheFileAndMember` and its neighbours
-in `shelf/bookpkg/metaerror_test.go`. `shelf.json` is read as strictly and
-falls back to the built-in defaults instead
+in `shelf/bookpkg/metaerror_test.go`. `shelf.json` is read as strictly and falls
+back to the built-in defaults instead
 (`TestShelfConfigMalformedFallsBackToDefaults`). The caches under `app/` are
-deliberately outside that: `TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported`
-and `TestScanCacheIgnoresUnreadableSnapshot` pin that an unreadable one is a
-cache miss rather than a failure.
+deliberately outside that:
+`TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported` and
+`TestScanCacheIgnoresUnreadableSnapshot` pin that an unreadable one is a cache
+miss rather than a failure.
 
 ---
 
@@ -205,7 +205,7 @@ cache miss rather than a failure.
 
 - The `json:"…"` struct tags need no edits. v2 reads the same tag syntax,
   including `omitempty` and `omitzero`.
-- The unknown-member passthrough is not built. Until it is, a key outside
-  the schema — including a `"Title"` that case-sensitive matching turned into
-  one — is dropped by the next write to that book. `docs/concepts/data-format-versioning.md`
-  is what tells a user so.
+- The unknown-member passthrough is not built. Until it is, a key outside the
+  schema, including a `"Title"` that case-sensitive matching turned into one, is
+  dropped by the next write to that book.
+  `docs/concepts/data-format-versioning.md` is what tells a user so.
