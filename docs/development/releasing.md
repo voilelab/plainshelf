@@ -52,10 +52,10 @@ a failed one. The same deploy puts the browser-only demo at `/demo/`
 (`cmd/plainshelf-wasm/README.md`), so the demo is the released build too.
 
 For a stable tag it then runs `scripts/update-cask.sh` against the assets it
-just published and opens `cask-bump/<tag>` → `dev`, labelled `internal`: `brew`
-reads the tap from `dev`, so users get the release once that PR merges. A
-prerelease leaves the casks alone. A bot opens this PR too, so no CI runs on it;
-close and reopen it if `dev` requires checks.
+just published and opens a PR from `cask-bump/<tag>` into `dev`, labelled
+`internal`: `brew` reads the tap from `dev`, so users get the release once that
+PR merges. A prerelease leaves the casks alone. A bot opens this PR too, so no
+CI runs on it; close and reopen it if `dev` requires checks.
 
 Apart from the casks, nothing needs to go back to `dev`: `release/<major>.x` only ever gains merge
 commits, so the next release PR merges cleanly as long as each one is merged
