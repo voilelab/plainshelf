@@ -347,18 +347,16 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 }
 
 // isReadOnlySafeRequest reports a write-shaped request that writes nothing to
-// the shelf. Named exceptions rather than a general rule, so adding one has to
-// be written here:
+// the shelf. Exceptions are named here rather than derived from a rule:
 //
-//   - The rescan walks the shelf and rebuilds the in-memory cache, which is what
-//     a read does.
-//   - A download, and removing one, write only this installation's offline
-//     store (shelf_offline.go). Keeping a copy of a shelf one may read is still
-//     reading it, and a read-only server is exactly where it is wanted.
+//   - The rescan walks the shelf and rebuilds the in-memory cache, like a read.
+//   - Downloading or removing a download writes only this installation's offline
+//     store (shelf_offline.go); keeping a copy of a readable shelf is reading it,
+//     and a read-only server is exactly where it is wanted.
 //
-// The token gate draws a narrower line: see Security.isTokenExemptScan. This
-// one answers "may the shelf change", that one "who is asking", and a download
-// writes to this machine's disk, so only the rescan is exempt from both.
+// Security.isTokenExemptScan draws a narrower line: this asks "may the shelf
+// change", that asks "who is asking", and a download writes to this machine's
+// disk, so only the rescan is exempt from both.
 func isReadOnlySafeRequest(r *http.Request) bool {
 	return isShelfScanRequest(r) || isDownloadRequest(r)
 }

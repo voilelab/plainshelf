@@ -205,23 +205,17 @@ func (c *Cache) Stats() Stats {
 	return c.stats
 }
 
-// Resolve returns the fingerprint of a source, computing it with build only
-// when the cache cannot answer.
+// Resolve returns the fingerprint of a source, calling build only when the cache
+// cannot answer. Cheapest first:
 //
-// The three paths, cheapest first:
+//  1. The stat matches the index and its entry exists: no file read.
+//  2. The stat differs but the content hash names a stored entry (a copy, move,
+//     or restore): one read, no fingerprinting.
+//  3. Neither: build runs and both levels are updated.
 //
-//  1. The source's stat still matches what the index recorded, and the entry it
-//     names is present: answered without opening the file.
-//  2. The stat does not match, but the content hashes to an entry that is
-//     already stored: the book was copied, moved between shelves, or restored
-//     from a backup. One read, no fingerprinting.
-//  3. Neither: build is called with the content, and both levels are updated.
-//
-// Paths 2 and 3 learn the source's true MD5, so they offer it to the RepairHash
-// hook: md5_hash is written at import and never validated afterwards, so a
-// source edited by hand carries a confidently wrong hash until something reads
-// the content again. This is that something; the write itself belongs to the
-// shelf, see RepairHashFunc.
+// Paths 2 and 3 offer the true MD5 to the RepairHash hook: md5_hash is set at
+// import and never validated, so a hand-edited source keeps a wrong hash until
+// something reads it. The shelf does the write (RepairHashFunc).
 func (c *Cache) Resolve(book *bookpkg.Book, source *bookpkg.Source, build Builder) (Entry, error) {
 	return c.resolve(book, source, build, false)
 }
@@ -409,19 +403,14 @@ func (c *Cache) repair(source *bookpkg.Source, md5Hash string) {
 }
 
 // Save merges what this run learned into the file on disk, drops what the shelf
-// no longer holds, and writes the result atomically.
-//
-// The merge is at write time rather than load time because the file is shared:
-// another machine may have fingerprinted a book of its own since this run
-// started. It is a merge, not a transaction - two machines saving at the same
-// instant can both replace the same older file in turn, and serializing that
-// would mean holding the shelf lock across a read and a write, which
-// lock_mode: none cannot offer at all. Such a race costs a fingerprint computed
-// again later, never a wrong answer, because an entry is keyed by its content.
-//
-// Whether to write is decided by comparing against the bytes on disk rather than
-// by a "something was computed" flag: a run that only hit the cache still has
-// something to say when a book has since been deleted.
+// no longer holds, and writes the result atomically. It merges at write time
+// because the file is shared and another machine may have added fingerprints
+// since this run started. It is not a transaction: two simultaneous saves can
+// both replace the same older file, and serializing them would need the shelf
+// lock across a read and a write, which lock_mode: none cannot give. The race
+// costs a later recomputation, never a wrong answer, since entries are keyed by
+// content. It writes when the bytes differ from disk rather than on a "computed
+// something" flag, because a cache-only run still drops deleted books.
 func (c *Cache) Save() error {
 	// Before anything is compared, so that a read-only shelf reports what it is
 	// rather than appearing to have saved.

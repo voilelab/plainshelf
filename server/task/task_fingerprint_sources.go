@@ -91,21 +91,14 @@ type FingerprintSourcesResult struct {
 	Failures []fingerprintSourcesFailure `json:"failures"`
 }
 
-// fingerprintSourcesTask fingerprints every source of every book, skipping the
-// ones the fingerprint cache can already answer for - or, when force is set,
-// rebuilding all of them regardless of what the cache holds.
-//
-// It walks all sources rather than only each book's current source: a reader
-// who keeps an earlier import around wants it compared too, and the cache is
-// keyed per source, so covering them costs nothing on later runs.
-//
-// The shape follows refreshContentStatsTask. Books are processed one at a time
-// through the regular per-book primitives instead of under one long-held shelf
-// lock: the lock is a flock with a finite timeout, and holding it for the whole
-// sweep would block every read for as long as the sweep takes. Unlike that
-// task, nothing here is skipped on the strength of a stored value - the cache
-// decides by comparing a stat against the file itself, so a source edited
-// outside PlainShelf cannot hide behind a stale number.
+// fingerprintSourcesTask fingerprints every source of every book, skipping those
+// the cache can answer for unless force rebuilds them all. It covers earlier
+// imports too, which readers want compared and which cost nothing later because
+// the cache is keyed per source. Like refreshContentStatsTask it takes one book
+// at a time through the per-book primitives, because the shelf lock is a flock
+// with a finite timeout and holding it for the sweep would block every read.
+// Unlike that task it skips nothing on a stored value: the cache compares a stat
+// with the file, so a source edited outside PlainShelf cannot hide.
 type fingerprintSourcesTask struct {
 	shelfID string
 	shelf   *shelf.Shelf
@@ -205,21 +198,14 @@ func (t *fingerprintSourcesTask) recordFailure(bookID, sourceID string, err erro
 		"shelf_id", t.shelfID, "book_id", bookID, "source_id", sourceID, "error", err)
 }
 
-// sourceIDs is every source ID of one book, taken from a listing that is then
-// dropped.
-//
-// The listing is not kept because it opens every source at once, and a Source
-// carries its whole meta.json in memory and writes all of it back when the
-// cache repairs a stale md5_hash. Held while the earlier sources of the book
-// are read, the last one's snapshot would be old enough to revert a comment or
-// a split config another request stored in the meantime. IDs cannot go stale
-// that way, so each source is opened again at the moment it is used.
-//
-// A source this build cannot open at all - a missing or malformed meta.json -
-// is not listed here: ListSource logs it and leaves it out, which is what the
-// source list UI shows too. Surfacing it would mean enumerating the directory
-// rather than the model, and a source PlainShelf cannot open is invisible
-// everywhere in the app, not only in this sweep.
+// sourceIDs is every source ID of one book, from a listing that is then dropped.
+// The listing holds every Source with its whole meta.json, which the cache writes
+// back when it repairs a stale md5_hash; kept while earlier sources are read, the
+// last snapshot could revert a comment or split config stored meanwhile. IDs do
+// not go stale, so each source is reopened when used. A source this build cannot
+// open (missing or malformed meta.json) is left out by ListSource, as in the
+// source list UI; it is invisible everywhere in the app, so this sweep does not
+// enumerate the directory to surface it.
 func (t *fingerprintSourcesTask) sourceIDs(book *shelf.Book) ([]string, error) {
 	sources, err := book.ListSource()
 	if err != nil {

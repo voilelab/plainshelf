@@ -24,26 +24,16 @@ var ErrBookIDConflict = util.NewError("target shelf already holds a book with th
 var ErrSameShelfTransfer = util.NewError("source and target are the same shelf")
 
 // publishBookCopy stages sourceBook's package into this (the target) shelf under
-// targetFolder and publishes it, returning the published book.
+// targetFolder and publishes it. It backs both CopyBook and the cross-shelf
+// transfer; sourceRoot is this shelf's root or the other shelf's. The package is
+// reproduced into the target's app temp folder and published with one Rename, so
+// a failure leaves only temp data (wiped on startup) and sourceRoot is only read.
 //
-// It is the shared core behind both the same-shelf copy (CopyBook) and the
-// cross-shelf transfer: sourceRoot is the filesystem sourceBook lives on, which
-// is this shelf's own root for a same-shelf copy and the other shelf's root for a
-// transfer. The whole package is reproduced verbatim into the target's app temp
-// folder and published with a single Rename, so a failure part way leaves the
-// target holding only temp data (wiped on next startup) and never touches
-// sourceRoot beyond reading it.
-//
-// preserveID selects the ID the published book carries:
-//   - false: a fresh ID is drawn from this shelf, so an original and its copy
-//     coexist. book.json is rewritten to stamp it, so the caller must have
-//     ensured the source book is writable by this build.
-//   - true: the source book's ID is kept verbatim, so a moved book keeps its
-//     reading progress and external references. book.json is not rewritten, so a
-//     book this build cannot rewrite still transfers faithfully.
-//
-// The caller must hold this shelf's exclusive lock (and, for a cross-shelf
-// transfer, a read lock on the source shelf), exactly as CopyBook does.
+// preserveID false draws a fresh ID so original and copy coexist, rewriting
+// book.json, so the caller must have ensured this build can write it. true keeps
+// the ID (a move keeps progress and references) and does not rewrite book.json,
+// so a book this build cannot write still transfers. The caller holds this shelf's
+// exclusive lock and, cross-shelf, a read lock on the source, as CopyBook does.
 func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book, targetFolder FolderPath, preserveID bool) (*Book, error) {
 	root, err := target.writeRoot()
 	if err != nil {
@@ -111,21 +101,15 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 	return newBook, nil
 }
 
-// CopyBookFrom copies the book identified by bookID in source into this (the
-// target) shelf under targetFolder, returning the copy. It never modifies source:
-// the copy is fully staged and published on the target before this returns, so an
-// interruption leaves the source completely intact and the target holding nothing
-// but temp data.
+// CopyBookFrom copies bookID from source into this (the target) shelf under
+// targetFolder. It never modifies source: the copy is staged and published on the
+// target first, so an interruption leaves the target holding only temp data.
 //
-// preserveID is false for a plain copy - the copy is minted a fresh ID drawn from
-// the target so the original and the copy coexist - and true for the target half
-// of a move, where the copy keeps the source book's ID. A move that would collide
-// with a book the target already holds under that ID is refused with
-// ErrBookIDConflict rather than overwriting it. Use MoveBookFrom to also remove
-// the source once the copy is published.
-//
-// The two shelves must be distinct: a transfer within one shelf is CopyBook or
-// MoveBook, and locking the same shelf as both source and target would deadlock.
+// preserveID is false for a plain copy (a fresh ID, so both coexist) and true for
+// the target half of a move, which keeps the source ID and is refused with
+// ErrBookIDConflict rather than overwriting a book holding it. MoveBookFrom also
+// removes the source. The shelves must differ: within one shelf use CopyBook or
+// MoveBook, since locking one shelf as both source and target would deadlock.
 func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetFolder FolderPath, preserveID bool) (*Book, error) {
 	if err := target.ValidateFolderPath(targetFolder); err != nil {
 		return nil, util.Errorf("%w", err)

@@ -1,20 +1,15 @@
 // Package readingprogress models the cross-process reading-progress document and
-// the reader -> desktop projection.
+// its projection from the reader onto the desktop.
 //
-// Two independent processes share one reading_progress.json. The desktop app
-// keys progress by a book's real shelf id, and so does a reader it launched; a
-// reader run on its own has no real shelf and keys everything under the
-// synthetic shelf id "book", which the projection folds onto real shelves.
-//
-// Every entry carries the time it was written, and all reconciliation is
-// newest-wins per book — arbitrated by recency rather than namespace ownership,
-// so both processes can write the same shelf without losing each other's
-// updates. A reset is a timestamped tombstone (offset 0) rather than a deletion,
-// so it too wins by recency instead of being resurrected by an older advance.
-// The file-backed, cross-process-locked store lives in store.go.
-//
-// The shape mirrors frontend/src/storage/readingProgress/document.ts, which owns
-// the single client-side implementation.
+// The desktop app and a reader share one reading_progress.json. The desktop, and
+// a reader it launched, key progress by the real shelf id; a reader run alone
+// keys everything under the synthetic shelf "book", which the projection folds
+// onto real shelves. Each entry carries its write time and reconciliation is
+// newest-wins per book, by recency rather than namespace ownership, so both
+// processes can write one shelf without losing updates; a reset is a timestamped
+// tombstone (offset 0) so an older advance cannot resurrect it. The locked file
+// store is in store.go. The shape mirrors
+// frontend/src/storage/readingProgress/document.ts, the one client implementation.
 package readingprogress
 
 import (

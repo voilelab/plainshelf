@@ -78,22 +78,16 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 	return s.rescan(true)
 }
 
-// RescanUnthrottled is Rescan without the rate limit.
+// RescanUnthrottled is Rescan without the rate limit, for a forced walk inside a
+// larger operation: today the folder-transfer preflight, which needs an
+// authoritative listing of both shelves for its plan and conflict checks. The
+// tokens belong to the button, so a transfer must not leave "update book list"
+// answering 429, and the preflight has no way to take a refusal other than
+// planning from the stale cache it exists to avoid.
 //
-// It is for a forced walk *inside* a larger operation — today the
-// folder-transfer preflight, which walks both shelves so the plan and the
-// conflict checks read an authoritative listing. The tokens belong to the
-// button: spending them on a transfer would let a user who moved five folders
-// find "update book list" answering 429 for something they never pressed. And
-// the caller has nowhere to put the refusal — it would silently
-// plan from a stale cache, which is the one thing that preflight exists to
-// prevent.
-//
-// This is not a judgement that the transfer route needs no bound on forced
-// walks. It has none today and had none before the rate limit existed; bounding
-// every path that forces a walk — this one and ExportBookCache — is its own
-// piece of work, and one that has to answer for the whole operation's cost
-// rather than for the walk alone.
+// This does not judge that transfers need no bound on forced walks. None exists
+// today, as before the rate limit; bounding every forcing path (this and
+// ExportBookCache) is separate work that must cost the whole operation.
 func (s *Shelf) RescanUnthrottled() (RescanResult, error) {
 	return s.rescan(false)
 }

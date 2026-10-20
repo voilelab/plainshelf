@@ -321,20 +321,16 @@ func (a *DesktopApp) RetryShelf(shelfID string) error {
 	return nil
 }
 
-// ModifyShelf applies edited settings to an existing shelf.
+// ModifyShelf applies edited settings to an existing shelf. readOnly can be
+// turned off as well as on, because this edits shelves.json in the desktop data
+// directory, outside every shelf, so a shelf's read_only cannot block it.
 //
-// Turning readOnly on stops the shelf being written to; turning it off restores
-// writes. Neither direction may become one-way: what this method edits is
-// shelves.json in the desktop data directory, which is outside every shelf, so
-// a shelf's own read_only has no say over whether its settings can be changed.
-//
-// That is worth keeping deliberately, because it currently holds by accident:
-// the desktop reaches this method through a Wails binding rather than the HTTP
-// handler, so server.App.rejectReadOnlyWrite never sees the request. Were shelf
-// management ever moved onto the HTTP API, a server started with
-// app_conf.read_only would refuse the very request that turns read-only off,
-// and the only way back would be to edit a config file by hand. Whatever serves
-// this edit has to stay reachable while the shelf it edits is read-only.
+// Keep that deliberately: today it holds only because the desktop calls this
+// through a Wails binding, which server.App.rejectReadOnlyWrite never sees. Moved
+// onto the HTTP API, a server with app_conf.read_only would refuse the request
+// that turns read-only off, leaving a hand edit of the config as the only way
+// back. Whatever serves this edit must stay reachable while its shelf is
+// read-only.
 func (a *DesktopApp) ModifyShelf(params ModifyShelfParams) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")

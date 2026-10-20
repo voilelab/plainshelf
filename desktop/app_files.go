@@ -315,19 +315,12 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 // in sync with READER_UNSUPPORTED_PLATFORM_CODE in frontend/src/api/desktop.ts.
 const readerUnsupportedPlatformCode = "reader_unsupported_platform"
 
-// OpenReader launches the standalone PlainShelfReader in its own window, showing
-// the given book. It is the desktop's reading path: the frontend routes the read
-// action here on desktop instead of opening the in-app reader.
-//
-// The reader is a separate macOS app (installed via the Homebrew cask, bundle id
-// com.voilelab.plainshelf-reader); it reads the .bookpkg directory directly and
-// persists progress into the shared reading_progress.json this app also uses, so
-// the position shows up in this library. macOS-only for now — there is no reader
-// binary on other platforms.
-//
-// section is the reader section index to open at, or negative to open at the
-// book's restored progress. The frontend passes the chapter it was launched from
-// (a chapter "read" action) so the standalone reader lands on that chapter.
+// OpenReader opens the book in the standalone PlainShelfReader, the desktop's
+// reading path instead of the in-app reader. The reader is a separate macOS-only
+// app (Homebrew cask, bundle id com.voilelab.plainshelf-reader) that reads the
+// .bookpkg directly and writes the shared reading_progress.json, so the position
+// shows up in this library. section is the reader section to open at, from a
+// chapter "read" action, or negative for the restored progress.
 func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
 	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
 	if err != nil {
@@ -345,26 +338,16 @@ func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
 	return nil
 }
 
-// readerLaunchCommand builds the macOS command that opens the standalone reader
-// at bookPath. It launches the app by name so LaunchServices finds the installed
-// PlainShelfReader.app and gives it its own window; PLAINSHELF_READER_APP
-// overrides the app (a path or name) for development against a local build.
+// readerLaunchCommand builds the macOS command that opens the standalone reader at
+// bookPath, launching the app by name so LaunchServices finds PlainShelfReader.app
+// and gives it its own window. PLAINSHELF_READER_APP overrides it for development.
 //
-// -shelf passes the book's real shelf id so the reader reports it as the active
-// shelf and reads/writes progress under shelves.<shelfID>.<bookID> — the same key
-// the desktop library uses — instead of the reader's synthetic shelf. It is
-// omitted when shelfID is empty so a launch with no real shelf still falls back
-// to the synthetic one.
-//
-// -section passes the reader section index to open at, so a chapter "read" action
-// lands the standalone reader on that chapter rather than the restored progress.
-// It is omitted when section is negative (no chapter requested), which opens the
-// book at its restored progress like a default read.
-//
-// -n forces a new instance: the reader takes its book only from its startup
-// arguments and shows a single book, so without it a second launch while a
-// reader is already open would merely reactivate the first window (still showing
-// the first book) and report success, so the frontend would not fall back.
+// -shelf passes the real shelf id so the reader uses the desktop's progress key
+// shelves.<shelfID>.<bookID>; without one it falls back to its synthetic shelf.
+// -section opens a requested chapter instead of the restored progress, and is
+// omitted when negative. -n forces a new instance: the reader takes its single
+// book from startup arguments, so a second launch would otherwise just reactivate
+// the first window, report success, and stop the frontend from falling back.
 func readerLaunchCommand(bookPath, shelfID string, section int) (string, []string) {
 	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
 	if app == "" {

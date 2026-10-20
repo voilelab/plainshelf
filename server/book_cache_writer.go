@@ -18,18 +18,13 @@ const settingKeyBookCacheWriterID = "book_cache_writer_id"
 const bookCacheWriterIDBytes = 8
 
 // resolveBookCacheWriterID returns this installation's book cache writer ID,
-// generating and persisting one the first time it is asked.
-//
-// It is deliberately random rather than derived from the hardware. A MAC-based
-// ID would survive a reinstall, but it is unstable in exactly the environments
-// PlainShelf runs in — several interfaces, virtual adapters, containers — and it
-// would write a hardware identifier into a file that users sync to cloud
-// storage. A stale entry after a reinstall is the cheaper problem, and the
-// export prunes ones that stop being written.
-//
-// The store lives outside the shelf (the server's store_path, the desktop app's
-// data directory), so the ID identifies the installation rather than the shelf,
-// and every shelf that installation opens shares it.
+// generating and persisting one on first use. It is random rather than
+// hardware-derived: a MAC-based ID survives a reinstall but is unstable with
+// several interfaces, virtual adapters or containers, and would put a hardware
+// identifier into files users sync to the cloud. A stale entry after a reinstall
+// is cheaper, and the export prunes entries no longer written. The store lives
+// outside the shelf (store_path, or the desktop data directory), so the ID names
+// the installation and every shelf it opens shares it.
 func resolveBookCacheWriterID(storeDB *store.DB) (string, error) {
 	value, found, err := storeDB.GetSetting(settingKeyBookCacheWriterID)
 	if err != nil {

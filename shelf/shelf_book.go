@@ -281,19 +281,13 @@ func (s *Shelf) MoveBook(bookID string, newFolders FolderPath) (*Book, error) {
 	return movedBook, nil
 }
 
-// CopyBook copies an existing book into targetFolder and returns the copy, which
-// carries a fresh book ID so that the original and the copy can coexist in the
-// same shelf.
-//
-// A book cannot be copied by hand with a file manager: the book cache keys on
-// book.json's id, and two books that share an ID silently collapse to one in
-// every listing. So the copy is staged in the app temp folder, given a new ID
-// there, and only then published under books/ - the same transactional shape as
-// NewBookWith, so a failure partway through leaves nothing behind but temp data
-// that the next startup wipes. The whole package is reproduced verbatim, so the
-// copy is self-contained: its sources, assets, cover and current-source pointer
-// all come along, and the relative asset paths inside a source resolve without
-// rewriting.
+// CopyBook copies an existing book into targetFolder with a fresh book ID, so
+// original and copy coexist. A file-manager copy would not work: the book cache
+// keys on book.json's id, and two books sharing one collapse into one listing.
+// So the copy is staged in the app temp folder, given a new ID, and only then
+// published under books/, like NewBookWith, so a failure leaves only temp data
+// that startup wipes. The whole package is reproduced verbatim (sources, assets,
+// cover, current-source pointer), so relative asset paths resolve unchanged.
 func (s *Shelf) CopyBook(bookID string, targetFolder FolderPath) (*Book, error) {
 	if err := s.ValidateFolderPath(targetFolder); err != nil {
 		return nil, util.Errorf("%w", err)
