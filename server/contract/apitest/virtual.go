@@ -107,7 +107,7 @@ func (env *Env) AddVirtualShelf(t *testing.T, libRoot string) *VirtualSource {
 	t.Cleanup(func() { rt.Close() })
 
 	source := &VirtualSource{inner: fsutil.NewRootFS(rt)}
-	conf := shelf.ShelfConfWithID{ID: VirtualShelfID, ShelfConf: shelf.ShelfConf{LibRoot: libRoot, ScanInterval: "1h"}}
+	conf := shelf.ShelfConfWithID{ID: VirtualShelfID, LibRoot: libRoot, ScanInterval: "1h"}
 	if err := env.App.AddVirtualShelf(conf, source, "test://"+libRoot); err != nil {
 		t.Fatalf("AddVirtualShelf: %v", err)
 	}

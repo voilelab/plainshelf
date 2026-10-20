@@ -6,7 +6,6 @@ require (
 	github.com/voilelab/plainshelf v0.0.0
 	github.com/wailsapp/wails/v2 v2.16.0
 	github.com/zalando/go-keyring v0.2.6
-	rsc.io/qr v0.2.0
 )
 
 tool github.com/wailsapp/wails/v2/cmd/wails
@@ -127,6 +126,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	howett.net/plist v1.0.2-0.20250314012144-ee69052608d9 // indirect
+	rsc.io/qr v0.2.0 // indirect
 )
 
 replace github.com/voilelab/plainshelf => ..

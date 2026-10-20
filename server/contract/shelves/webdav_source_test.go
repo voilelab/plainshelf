@@ -79,8 +79,8 @@ func (d *davExporter) source(credential string) *shelf.SourceConf {
 func withRemoteShelf(src *shelf.SourceConf) apitest.Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves = append(conf.Shelves, &shelf.ShelfConfWithID{
-			ID:        remoteShelfID,
-			ShelfConf: shelf.ShelfConf{Source: src, ScanInterval: "1h"},
+			ID:     remoteShelfID,
+			Source: src, ScanInterval: "1h",
 		})
 	}
 }

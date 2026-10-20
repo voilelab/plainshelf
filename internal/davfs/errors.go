@@ -37,8 +37,7 @@ type Error struct {
 }
 
 func newTransportError(op, name string, err error) *Error {
-	var uerr *url.Error
-	if errors.As(err, &uerr) {
+	if uerr, ok := errors.AsType[*url.Error](err); ok {
 		err = uerr.Err
 	}
 	return &Error{Op: op, Path: name, Message: err.Error(), transport: true, cause: err}

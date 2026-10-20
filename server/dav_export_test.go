@@ -34,7 +34,7 @@ func newDAVTestEnv(t *testing.T) *davTestEnv {
 	t.Helper()
 	libRoot := t.TempDir()
 	app, err := NewApp(&AppConf{
-		Shelves:   []*shelf.ShelfConfWithID{{ID: "default_shelf", ShelfConf: shelf.ShelfConf{LibRoot: libRoot}}},
+		Shelves:   []*shelf.ShelfConfWithID{{ID: "default_shelf", LibRoot: libRoot}},
 		StorePath: t.TempDir(),
 	})
 	if err != nil {
@@ -369,10 +369,10 @@ func TestDAVExportSkipsVirtualShelves(t *testing.T) {
 func TestDAVExportShelvesHandler(t *testing.T) {
 	env := newDAVTestEnv(t)
 	app := newTestApp(t)
-	if err := app.AddShelf(shelf.ShelfConfWithID{ID: "a", ShelfConf: shelf.ShelfConf{LibRoot: env.libRoot, ReadOnly: true}}); err != nil {
+	if err := app.AddShelf(shelf.ShelfConfWithID{ID: "a", LibRoot: env.libRoot, ReadOnly: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AddShelf(shelf.ShelfConfWithID{ID: "b", ShelfConf: shelf.ShelfConf{LibRoot: t.TempDir()}}); err != nil {
+	if err := app.AddShelf(shelf.ShelfConfWithID{ID: "b", LibRoot: t.TempDir()}); err != nil {
 		t.Fatal(err)
 	}
 	waitForShelves(t, app)
@@ -420,8 +420,8 @@ func TestDAVExportConformanceBytes(t *testing.T) {
 	for _, e := range entries {
 		// Read-only, so the fixture tree is never written.
 		shelves = append(shelves, &shelf.ShelfConfWithID{
-			ID:        e.Name(),
-			ShelfConf: shelf.ShelfConf{LibRoot: filepath.Join(casesDir, e.Name(), "shelf"), ReadOnly: true},
+			ID:      e.Name(),
+			LibRoot: filepath.Join(casesDir, e.Name(), "shelf"), ReadOnly: true,
 		})
 	}
 	app, err := NewApp(&AppConf{Shelves: shelves, StorePath: t.TempDir()})

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -21,12 +22,7 @@ var ErrNotAShelf = util.NewError("folder is not a shelf: it has no books/ direct
 // IsShelfRoot reports whether a folder whose subdirectories are named dirs is
 // a shelf root.
 func IsShelfRoot(dirs []string) bool {
-	for _, name := range dirs {
-		if name == booksFolder {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(dirs, booksFolder)
 }
 
 // IsBookPackage reports whether a directory named name is a book package,

@@ -31,7 +31,9 @@ func newLANShareEnv(t *testing.T) *lanShareEnv {
 	oldPort, oldAddrs, oldListen, oldSave := lanShareDefaultPort, lanAddresses, lanListen, saveLANShare
 	lanShareDefaultPort = 0
 	lanAddresses = func() ([]string, error) { return []string{"127.0.0.1"}, nil }
-	t.Cleanup(func() { lanShareDefaultPort, lanAddresses, lanListen, saveLANShare = oldPort, oldAddrs, oldListen, oldSave })
+	t.Cleanup(func() {
+		lanShareDefaultPort, lanAddresses, lanListen, saveLANShare = oldPort, oldAddrs, oldListen, oldSave
+	})
 
 	dataRoot := t.TempDir()
 	env := &lanShareEnv{
@@ -43,7 +45,7 @@ func newLANShareEnv(t *testing.T) *lanShareEnv {
 	var shelves []*shelf.ShelfConfWithID
 	for _, id := range []string{"a", "b"} {
 		conf.Shelves = append(conf.Shelves, desktopShelfEntry{ID: id, Name: "Shelf " + id, LibRoot: env.shelfRootsBy[id]})
-		shelves = append(shelves, &shelf.ShelfConfWithID{ID: id, ShelfConf: shelf.ShelfConf{LibRoot: env.shelfRootsBy[id]}})
+		shelves = append(shelves, &shelf.ShelfConfWithID{ID: id, LibRoot: env.shelfRootsBy[id]})
 	}
 	if err := saveDesktopShelves(env.shelvesConf, conf); err != nil {
 		t.Fatal(err)
