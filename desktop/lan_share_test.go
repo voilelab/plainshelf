@@ -24,8 +24,6 @@ type lanShareEnv struct {
 	shelfRootsBy map[string]string
 }
 
-// newLANShareEnv starts two shelves, "a" and "b", and binds the export to
-// loopback on a free port.
 func newLANShareEnv(t *testing.T) *lanShareEnv {
 	t.Helper()
 	oldPort, oldAddrs, oldListen, oldSave := lanShareDefaultPort, lanAddresses, lanListen, saveLANShare
@@ -73,7 +71,6 @@ func newLANShareEnv(t *testing.T) *lanShareEnv {
 	return env
 }
 
-// reopen builds the share as the next app start would.
 func (e *lanShareEnv) reopen(t *testing.T) *lanShare {
 	t.Helper()
 	s := newLANShare(e.serverApp, e.dataRoot, e.shelvesConf)
@@ -144,7 +141,6 @@ func TestLANShareStartStop(t *testing.T) {
 		}
 	}
 
-	// Changing the selection applies without a restart, on the same port.
 	st2, err := env.share.apply(LANShareParams{Enabled: true, ShelfIDs: []string{"b"}})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +163,7 @@ func TestLANShareStartStop(t *testing.T) {
 	if st3.Running || st3.URL != "" || st3.Token != "" {
 		t.Fatalf("status after disabling = %+v", st3)
 	}
-	// The port is released at once.
+
 	conn, err := net.DialTimeout("tcp", addr, time.Second)
 	if err == nil {
 		conn.Close()
@@ -206,7 +202,7 @@ func TestLANShareQRPayload(t *testing.T) {
 	if got.V != 1 || got.URL != st.URL || got.Token != st.Token {
 		t.Fatalf("payload = %s", text)
 	}
-	// Only the ticked shelf, opened by its own URL.
+
 	if len(got.Shelves) != 1 || got.Shelves[0].ID != "a" || got.Shelves[0].Name != "Shelf a" || got.Shelves[0].URL != st.URL+"a/" {
 		t.Fatalf("shelves = %s", text)
 	}
@@ -243,7 +239,6 @@ func TestLANShareSurvivesRestart(t *testing.T) {
 	}
 	env.share.stop()
 
-	// Written to the data root, not into a shelf.
 	data, err := os.ReadFile(filepath.Join(env.dataRoot, lanShareConfigName))
 	if err != nil {
 		t.Fatal(err)
@@ -294,7 +289,6 @@ func TestLANShareStartSavedReportsMissingAddress(t *testing.T) {
 	}
 	env.share.stop()
 
-	// The network changed while the app was closed.
 	lanAddresses = func() ([]string, error) { return []string{"192.0.2.7"}, nil }
 	again := env.reopen(t)
 	again.startSaved()
@@ -313,7 +307,7 @@ func TestLANShareRecoversFromGoneAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.share.stop()
-	// A new address, bound on loopback: 127.0.0.2 is not on every machine.
+
 	lanAddresses = func() ([]string, error) { return []string{"192.0.2.7"}, nil }
 	lanListen = func(network, addr string) (net.Listener, error) {
 		_, port, err := net.SplitHostPort(addr)
@@ -325,8 +319,6 @@ func TestLANShareRecoversFromGoneAddress(t *testing.T) {
 	again := env.reopen(t)
 	again.startSaved()
 
-	// The page offers the address that exists now, and switching back on
-	// binds it, whether the page sends the saved host back or not.
 	st, err := again.status()
 	if err != nil {
 		t.Fatal(err)
@@ -348,7 +340,6 @@ func TestLANShareRecoversFromGoneAddress(t *testing.T) {
 	}
 }
 
-// failSave makes every lan_share.json write fail until the returned func runs.
 func failSave(t *testing.T) (restore func()) {
 	t.Helper()
 	real := saveLANShare
@@ -407,11 +398,11 @@ func TestLANShareUnsavedDisableStopsAndSaysSo(t *testing.T) {
 	if _, err := env.share.apply(LANShareParams{Enabled: false, ShelfIDs: []string{"a"}}); err == nil {
 		t.Fatal("apply hid the failed save")
 	}
-	// Stopped at once regardless.
+
 	if lanDialable(addr) {
 		t.Fatal("export still listening after switching off")
 	}
-	// Still said on a later read, as the page would after a reload.
+
 	st2, err := env.share.status()
 	if err != nil {
 		t.Fatal(err)

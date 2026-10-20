@@ -14,12 +14,12 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// fakeSecrets stands in for the OS keychain.
 type fakeSecrets struct {
 	mu sync.Mutex
 	m  map[string]string
-	// failDelete makes Delete refuse, as a locked keychain does.
+
 	failDelete bool
+	setErr     error
 }
 
 func newFakeSecrets() *fakeSecrets { return &fakeSecrets{m: map[string]string{}} }
@@ -37,6 +37,9 @@ func (f *fakeSecrets) Get(id string) (string, error) {
 func (f *fakeSecrets) Set(id, secret string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.setErr != nil {
+		return f.setErr
+	}
 	f.m[id] = secret
 	return nil
 }
@@ -51,8 +54,6 @@ func (f *fakeSecrets) Delete(id string) error {
 	return nil
 }
 
-// davExport serves a fresh local shelf over the read-only WebDAV export and
-// returns the shelf's URL and token.
 func davExport(t *testing.T) (url, token string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -78,8 +79,6 @@ func davExport(t *testing.T) (url, token string) {
 	return srv.URL + "/dav/default_shelf/", strings.TrimSpace(string(bs))
 }
 
-// desktopAppWithSecrets is a DesktopApp whose host: credentials resolve
-// from secrets, with one local shelf already in shelves.json.
 func desktopAppWithSecrets(t *testing.T, secrets *fakeSecrets) *DesktopApp {
 	t.Helper()
 	dir := t.TempDir()
@@ -121,8 +120,6 @@ func TestCheckShelfSourceTellsWrongTokenFromNoConnection(t *testing.T) {
 	}
 }
 
-// A virtual shelf's secret goes to the keychain and its entry to
-// virtual_shelves, under a host: reference; removing it forgets the secret.
 func TestAddVirtualShelfStoresSecretInKeychainOnly(t *testing.T) {
 	url, token := davExport(t)
 	secrets := newFakeSecrets()
@@ -176,7 +173,6 @@ func TestAddVirtualShelfStoresSecretInKeychainOnly(t *testing.T) {
 		t.Fatalf("details carry the secret: %s", bs)
 	}
 
-	// Editing keeps the source.
 	if err := a.ModifyShelf(ModifyShelfParams{ShelfID: id, Name: "Lounge"}); err != nil {
 		t.Fatalf("ModifyShelf: %v", err)
 	}
@@ -205,7 +201,7 @@ func TestAddVirtualShelfRefusesWhatTheDesktopCannotOpen(t *testing.T) {
 	a := desktopAppWithSecrets(t, secrets)
 	for _, remote := range []ShelfSourceParams{
 		{Source: shelf.SourcePCloud, URL: "https://example.com/"},
-		{Source: shelf.SourcePlainShelf, URL: "https://example.com/"}, // plainshelf needs a token
+		{Source: shelf.SourcePlainShelf, URL: "https://example.com/"},
 		{Source: shelf.SourceWebDAV, URL: "ftp://example.com/"},
 	} {
 		if err := a.AddShelf(AddShelfParams{Name: "Remote", Remote: remote}); err == nil {
@@ -221,8 +217,6 @@ func TestAddVirtualShelfRefusesWhatTheDesktopCannotOpen(t *testing.T) {
 	}
 }
 
-// legacyDesktopShelvesConfig is shelves.json as builds before virtual shelves
-// read it.
 type legacyDesktopShelvesConfig struct {
 	Shelves []struct {
 		ID      string `json:"id"`
@@ -231,8 +225,6 @@ type legacyDesktopShelvesConfig struct {
 	} `json:"shelves"`
 }
 
-// A downgraded desktop still opens every local shelf: the virtual entries are
-// under a key it does not know, so it never meets an entry without lib_root.
 func TestShelvesWithVirtualEntryStillOpenInAnOlderBuild(t *testing.T) {
 	url, token := davExport(t)
 	a := desktopAppWithSecrets(t, newFakeSecrets())
@@ -287,7 +279,6 @@ func TestDesktopCredentialResolver(t *testing.T) {
 	}
 }
 
-// A virtual shelf whose secret is gone is skipped at startup, not fatal.
 func TestOpenVirtualShelvesSkipsOneThatFails(t *testing.T) {
 	url, _ := davExport(t)
 	a := desktopAppWithSecrets(t, newFakeSecrets())
@@ -304,8 +295,6 @@ func TestOpenVirtualShelvesSkipsOneThatFails(t *testing.T) {
 	}
 }
 
-// A keychain that refuses the delete leaves the shelf in place, so removing
-// it again retries rather than orphaning the secret.
 func TestRemoveVirtualShelfKeepsEntryWhenKeychainRefuses(t *testing.T) {
 	url, token := davExport(t)
 	secrets := newFakeSecrets()
@@ -339,8 +328,6 @@ func TestRemoveVirtualShelfKeepsEntryWhenKeychainRefuses(t *testing.T) {
 	}
 }
 
-// A startup failure stays manageable even though it is absent from the runtime
-// shelf picker. Retry resolves the secret anew after the keychain is unlocked.
 func TestFailedVirtualShelfManagement(t *testing.T) {
 	secrets := newFakeSecrets()
 	a := desktopAppWithSecrets(t, secrets)
@@ -384,7 +371,7 @@ func TestFailedVirtualShelfManagement(t *testing.T) {
 	if err != nil || detail.OpenError != "" {
 		t.Fatalf("opened details = %+v, %v", detail, err)
 	}
-	// Removing after a later startup failure also deletes the keychain secret.
+
 	if err := a.app.RemoveShelf("failed"); err != nil {
 		t.Fatal(err)
 	}

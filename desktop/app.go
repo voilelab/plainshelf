@@ -32,9 +32,9 @@ type DesktopApp struct {
 	startupErr          error
 	progressStager      *readingclose.Stager
 	lanShare            *lanShare
-	// secrets is the OS keychain when nil; see secretStore.
+
 	secrets secretStore
-	// shelfOpenErrs are the virtual shelves that failed to open at startup.
+
 	shelfOpenErrs []error
 }
 
@@ -66,9 +66,6 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 	a.apiHandler = a.app.Handler()
 }
 
-// DomReady runs once the window and DOM are ready, which is the safe point to
-// use runtime methods. If the backend failed to start, surface the cause and
-// quit gracefully instead of leaving the user staring at a dead UI.
 func (a *DesktopApp) DomReady(ctx context.Context) {
 	if a.startupErr == nil {
 		a.warnShelfOpenErrs(ctx)
@@ -87,8 +84,6 @@ func (a *DesktopApp) DomReady(ctx context.Context) {
 	wailsruntime.Quit(ctx)
 }
 
-// warnShelfOpenErrs reports the virtual shelves startup skipped; the local
-// ones are open regardless.
 func (a *DesktopApp) warnShelfOpenErrs(ctx context.Context) {
 	if len(a.shelfOpenErrs) == 0 {
 		return
@@ -115,10 +110,6 @@ func (a *DesktopApp) Shutdown() {
 	}
 }
 
-// beforeClose is the OnBeforeClose hook. It writes the reading position the
-// frontend last staged to disk before allowing the window to close; see
-// readingclose.Stager. It is unexported so Wails does not bind it as a frontend
-// method.
 func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
 	a.progressStager.PersistOnClose()
 	return false
@@ -193,8 +184,11 @@ func (a *DesktopApp) runZoomScript(action string) {
 func (a *DesktopApp) startServer() error {
 	log.Println("PlainShelf version:", version.Version)
 
-	// Shared with the standalone reader, which writes progress here.
 	dataRoot, err := readingprogress.SharedDataDir()
+	if err != nil {
+		return err
+	}
+	progressPath, err := readingprogress.DefaultProgressPath()
 	if err != nil {
 		return err
 	}
@@ -213,8 +207,7 @@ func (a *DesktopApp) startServer() error {
 		conf := toShelfConfWithID(entry)
 		shelves = append(shelves, &conf)
 	}
-	// Virtual shelves open after the app does, so one whose secret cannot be
-	// read (a locked keychain) is skipped instead of failing every shelf.
+
 	virtual := storedConf.VirtualShelves
 
 	appConf := &server.AppConf{
@@ -249,7 +242,7 @@ func (a *DesktopApp) startServer() error {
 
 	a.shelvesConfigPath = shelvesConfigPath
 	a.readHistoryPath = filepath.Join(dataRoot, "read_history.json")
-	a.readingProgressPath = filepath.Join(dataRoot, "reading_progress.json")
+	a.readingProgressPath = progressPath
 	a.readingStatsPath = filepath.Join(dataRoot, "reading_stats.json")
 	a.readingProgressSync = readingprogress.NewStore(a.readingProgressPath)
 	a.progressStager = readingclose.NewStager(a.readingProgressSync, readingclose.DefaultTimeout)
@@ -259,8 +252,6 @@ func (a *DesktopApp) startServer() error {
 	return nil
 }
 
-// openVirtualShelves opens each entry and returns the failures, which are
-// logged; the entries stay in shelves.json.
 func openVirtualShelves(app *server.App, entries []desktopShelfEntry) []error {
 	var errs []error
 	for _, entry := range entries {

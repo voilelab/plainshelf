@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,28 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/lanshare"
 )
+
+func TestLANImportDoesNotReturnTokenBearingKeychainErrors(t *testing.T) {
+	url, token := davExport(t)
+	secrets := newFakeSecrets()
+	secrets.setErr = errors.New("keychain refused secret " + token)
+	a := desktopAppWithSecrets(t, secrets)
+	text := importText(t, url, token, []lanshare.Shelf{{ID: "one", Name: "One", URL: url}})
+	results, err := a.ImportLANShareQR(text)
+	if err != nil || len(results) != 1 || results[0].Status != "failed" {
+		t.Fatalf("import results: %+v, %v", results, err)
+	}
+	body, err := json.Marshal(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), token) {
+		t.Fatal("keychain error exposed the LAN share token")
+	}
+	if len(secrets.m) != 0 {
+		t.Fatal("failed keychain write saved the secret")
+	}
+}
 
 func importText(t *testing.T, root, token string, shelves []lanshare.Shelf) string {
 	t.Helper()
@@ -63,7 +86,7 @@ func TestLANImportPartialFailureRetryAndSecretSeparation(t *testing.T) {
 	if strings.Contains(string(raw), token) || strings.Contains(string(resultJSON), token) {
 		t.Fatal("token leaked")
 	}
-	// A re-import carrying a different token must not replace the working one.
+
 	retry := importText(t, root, "new-token", []lanshare.Shelf{{ID: "default_shelf", Name: "New name", URL: url}})
 	results, err = a.ImportLANShareQR(retry)
 	if err != nil || results[0].Status != "exists" || secrets.m["living-room"] != token {
