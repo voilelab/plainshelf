@@ -20,8 +20,8 @@ Three things in that picture are load-bearing.
 **The shelf filesystem is the source of truth.** `ShelfManager` holds an
 in-memory book cache, but the cache is only an accelerator — it is rebuilt from
 `books/` and never becomes the authority. See
-[Data Model](data-model.md) for the on-disk layout and
-[Shelf Cache and Disk I/O](shelf-cache-and-io.md) for how the cache stays fresh.
+[Data model](data-model.md) for the on-disk layout and
+[Shelf cache and disk I/O](shelf-cache-and-io.md) for how the cache stays fresh.
 
 **The desktop client does not speak HTTP.** Wails serves the embedded frontend
 and routes any request whose path starts with `/api/` straight into the server's

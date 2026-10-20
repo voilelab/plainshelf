@@ -138,7 +138,7 @@ The shelf is plain files, so backing it up is a directory copy:
 Do not back up only individual `.bookpkg` folders unless you intentionally want
 a partial library backup.
 
-[Backup and Restore](backup-and-restore.md) has the full procedure for each
+[Backup and restore](backup-and-restore.md) has the full procedure for each
 installation, what a shelf-only copy leaves behind, and how to restore.
 
 ## Open a shelf read-only

@@ -8,7 +8,7 @@ adds a web interface, desktop integration, and an experimental Android client.
     The on-disk format freezes at `1.0.0-rc1`; until that release it can still
     change, and APIs and UI behavior stay changeable after it. Keep a current
     backup of the shelf and application store, especially before upgrades. See
-    [Data Format Versioning](concepts/data-format-versioning.md) for what the
+    [Data format versioning](concepts/data-format-versioning.md) for what the
     on-disk format does and does not guarantee.
 
 ## Choose a path
@@ -24,7 +24,7 @@ app, with nothing to install and nothing uploaded.
    best-effort [SMB setup](configuring-smb-shelf.md). Every key the config file
    accepts is listed in the
    [Configuration reference](reference/configuration.md).
-4. Review [EPUB Import](epub-import.md) for how EPUB files are converted.
+4. Review [EPUB import](epub-import.md) for how EPUB files are converted.
 5. Review [Logs](logs.md) for reading the application log and for how long it
    is kept.
 
@@ -32,17 +32,17 @@ app, with nothing to install and nothing uploaded.
 
 - [Architecture](concepts/architecture.md) shows how the clients, the server
   and the shelf fit together, and what reading state is kept off the shelf.
-- [Data Model](concepts/data-model.md) explains what is stored under a shelf.
-- [Data Format Versioning](concepts/data-format-versioning.md) explains the
+- [Data model](concepts/data-model.md) explains what is stored under a shelf.
+- [Data format versioning](concepts/data-format-versioning.md) explains the
   on-disk schema version and the compatibility policy.
-- [Backup and Restore](backup-and-restore.md) covers what to copy, what a
+- [Backup and restore](backup-and-restore.md) covers what to copy, what a
   shelf-only copy leaves behind, and how to put a backup back.
 - [Folders](concepts/folders.md) explains the nested folder hierarchy.
-- [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
+- [Shelf cache and disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.
-- [Shelf Sources and Credentials](concepts/shelf-sources.md) is the design for
+- [Shelf sources and credentials](concepts/shelf-sources.md) is the design for
   local and virtual shelves and how a source gets its credential.
-- [Shelf and Platform Capabilities](concepts/platform-capabilities.md) is the
+- [Shelf and platform capabilities](concepts/platform-capabilities.md) is the
   design for what the server reports about each shelf and what each client
   platform provides.
 
@@ -52,7 +52,7 @@ app, with nothing to install and nothing uploaded.
 - [Android Development](development/android.md)
 - [Docker](development/docker.md)
 - [JSON Encoding](development/json-encoding.md)
-- [Known Issues](known-issue.md)
+- [Known issues](known-issue.md)
 
 ## Project boundaries
 

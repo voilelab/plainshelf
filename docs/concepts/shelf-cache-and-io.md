@@ -1,4 +1,4 @@
-# Shelf Cache and Disk I/O
+# Shelf cache and disk I/O
 
 PlainShelf is filesystem-first: the shelf directory on disk is the source of
 truth, and the server keeps an in-memory cache so common browsing operations do

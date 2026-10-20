@@ -1,11 +1,11 @@
-# Backup and Restore
+# Backup and restore
 
 PlainShelf tells you to back up before upgrading. This page is the part that
 makes that instruction usable: **what to copy, and how to put it back.**
 
-For what those files actually are, see [Data Model](concepts/data-model.md); for
+For what those files actually are, see [Data model](concepts/data-model.md); for
 what an upgrade does to their format, see
-[Data Format Versioning](concepts/data-format-versioning.md). This page does not
+[Data format versioning](concepts/data-format-versioning.md). This page does not
 repeat either — it assumes you want a working library back, not an explanation
 of the layout.
 
@@ -458,7 +458,7 @@ staying on the newer release and recovering one book it will not touch.
 See [When PlainShelf refuses to
 write](concepts/data-format-versioning.md#when-plainshelf-refuses-to-write) for
 what the refusal looks like, and
-[Data Format Versioning](concepts/data-format-versioning.md) for which formats
+[Data format versioning](concepts/data-format-versioning.md) for which formats
 have changed.
 
 ---

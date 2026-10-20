@@ -1,4 +1,4 @@
-# Data Model
+# Data model
 
 PlainShelf is **filesystem-first**: the shelf directory on disk is the source of
 truth, and the server reads and writes it directly. There is no separate
@@ -89,7 +89,7 @@ was deleted and where it came from:
 
 | Field | Description |
 |---|---|
-| `schema_version` | On-disk format version of this file. Managed by PlainShelf; see [Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v2) |
+| `schema_version` | On-disk format version of this file. Managed by PlainShelf; see [Data format versioning](data-format-versioning.md#trash-metadata-schema-v2) |
 | `deleted_at` | When the book was moved to the trash |
 | `original_path` | The path it was moved from, used to restore its folder name |
 | `original_folder` | The [folder](folders.md) it lived in, recreated on restore |
@@ -102,7 +102,7 @@ it has in the trash.
 A `trash.json` written by a *newer* PlainShelf is the opposite case: the book is
 still listed with everything the file says, but this build will not rewrite that
 record, so restoring or permanently deleting it is refused. See
-[Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v2).
+[Data format versioning](data-format-versioning.md#trash-metadata-schema-v2).
 
 Restoring never overwrites: if something already occupies the original path, the
 restored folder gets a `-1`, `-2`, … suffix. The book ID inside `book.json` is
@@ -265,7 +265,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 
 | Path | Description |
 |---|---|
-| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data Format Versioning](data-format-versioning.md). |
+| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data format versioning](data-format-versioning.md). |
 | `CURRENT_SOURCE.txt` | Human-readable hint, in English, that points to the active source. The server writes it whenever the current source changes and never parses it back — `current_source` in `book.json` is the source of truth — so deleting it is safe. Shelves written by older builds carry the same hint as `CURRENT_VERSION_LOCATION.txt`; the next write replaces it with `CURRENT_SOURCE.txt` rather than leaving both. |
 | `cover.(jpg\|png\|webp)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure |
@@ -448,5 +448,5 @@ an equivalent option: Git does not track empty directories, so a folder holding
 no book is not in the commit and is not there after a checkout. See [Git does
 not back up empty
 folders](../backup-and-restore.md#git-does-not-back-up-empty-folders), and
-[Backup and Restore](../backup-and-restore.md) for what a complete backup
+[Backup and restore](../backup-and-restore.md) for what a complete backup
 covers.

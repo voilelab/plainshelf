@@ -325,7 +325,7 @@ every other shelf.
 A local shelf is deleted with the app, and removing it from the shelf list
 deletes its books. **Export** on the shelf saves it as a zip through the system
 file picker, and **Import from zip** makes a new local shelf from one; see
-[Backup and Restore](../backup-and-restore.md#android-local-shelf).
+[Backup and restore](../backup-and-restore.md#android-local-shelf).
 
 ### Uninstalling
 

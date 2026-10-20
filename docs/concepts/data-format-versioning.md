@@ -1,11 +1,11 @@
-# Data Format Versioning
+# Data format versioning
 
 This page explains how PlainShelf marks the on-disk format of your library, what
 happens to your files when you upgrade, and what PlainShelf does when it meets
 data it cannot safely write.
 
-For what is stored where, see [Data Model](data-model.md); for how to copy your
-library and put it back, see [Backup and Restore](../backup-and-restore.md).
+For what is stored where, see [Data model](data-model.md); for how to copy your
+library and put it back, see [Backup and restore](../backup-and-restore.md).
 
 ---
 
@@ -346,7 +346,7 @@ exclusions are deliberate:
 - **Per-device reading state**, which is not shelf data at all: the desktop and
   standalone reader's `reading_progress.json` in the application store, the
   browser's `localStorage`, and the Android client's per-book `progress.json`.
-  [Backup and Restore](../backup-and-restore.md) says where each one lives.
+  [Backup and restore](../backup-and-restore.md) says where each one lives.
 
 Releases before the freeze are not covered either: v0.8's server-side reading
 history and reading time, in particular, are a documented breaking change, not
@@ -588,7 +588,7 @@ Until that changes, assume any key outside the table is temporary.
 Take a backup before every upgrade: until 1.0, an upgrade can write a format the
 release you are on will not touch, and the backup is the only way back.
 
-[Backup and Restore](../backup-and-restore.md) is the full procedure — what to
+[Backup and restore](../backup-and-restore.md) is the full procedure — what to
 copy for each installation, what a shelf-only copy silently leaves behind, and
 how to put it back. Two points matter specifically for an upgrade:
 
@@ -616,7 +616,7 @@ Upgrade from v0.8 only if you accept that they will no longer be accessible.
 
 ## Restoring from a backup
 
-[Backup and Restore](../backup-and-restore.md#restoring) has the steps for the
+[Backup and restore](../backup-and-restore.md#restoring) has the steps for the
 server, Docker, and the macOS desktop app, along with what can be skipped and
 what a restore cannot bring back. For going back to an older release
 specifically, see [Rolling back to an older
@@ -748,7 +748,7 @@ app declines, until that app is updated too.
 
 This is the one sense in which "deleting the book cache is safe" needs a
 qualifier. From the server's side it is exactly as safe as the caches above: the
-next export rebuilds it, and [Data Model](data-model.md#app) says as much. From
+next export rebuilds it, and [Data model](data-model.md#app) says as much. From
 a remote reader's side, deleting or invalidating it is the difference between
 one download and a full per-book walk — still safe, still never an error, but no
 longer free.

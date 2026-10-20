@@ -1,4 +1,4 @@
-# Try the Demo
+# Try the demo
 
 The demo at <https://plainshelf.org/demo/> is the full PlainShelf web app,
 running entirely in your browser. You can try it without installing anything.
@@ -13,7 +13,7 @@ The demo is rebuilt with every release, so it matches the latest
 ## What you can do
 
 The demo starts with an empty shelf named **Demo Shelf**. You can import TXT,
-Markdown and EPUB files ([EPUB Import](epub-import.md)), read them, sort them
+Markdown and EPUB files ([EPUB import](epub-import.md)), read them, sort them
 into folders, and use the trash, just as with the server.
 
 A **Demo** bar in the corner adds two buttons that the regular app does not
@@ -74,7 +74,7 @@ site data still deletes the library, so keep exporting it.
 
 An export is an ordinary shelf. The zip holds `books/`, `trash/` and, when the
 shelf has one, `shelf.json`, the same layout as a shelf directory's `lib_root`
-([Data Model](concepts/data-model.md)).
+([Data model](concepts/data-model.md)).
 
 **From the demo to PlainShelf:**
 

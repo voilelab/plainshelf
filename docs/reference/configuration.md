@@ -199,7 +199,7 @@ can.
 `store_path` holds server settings only — the cover-to-JPEG flag, the EPUB
 import default, the log retention window, and whether books marked as adult
 content are shown. It is not the book store: the shelf on disk is. See
-[Backup and Restore](../backup-and-restore.md).
+[Backup and restore](../backup-and-restore.md).
 
 `cover_to_jpg` is one of the three settings that have both a key here and a
 runtime value. A value saved from the settings page wins over the config file;
@@ -303,11 +303,11 @@ for this installation. Explicitly setting it to `""` on a writable shelf is
 therefore not the way to disable the export — the server fills it back in.
 
 For what these tuning keys cost and buy on each kind of filesystem, see
-[Shelf Cache and Disk I/O](../concepts/shelf-cache-and-io.md#tuning-options)
+[Shelf cache and disk I/O](../concepts/shelf-cache-and-io.md#tuning-options)
 and [Configure an SMB shelf file source](../configuring-smb-shelf.md).
 
 Scan settings held in the shelf's own `shelf.json` are a separate mechanism and
-are not listed here; see [Data Model](../concepts/data-model.md).
+are not listed here; see [Data model](../concepts/data-model.md).
 
 ### `shelves[].source`
 
@@ -315,7 +315,7 @@ Opens a shelf from somewhere other than a local path. A `plainshelf` or
 `webdav` source is a **virtual shelf**: always read-only whatever `read_only`
 says, never locked or exported, listed from the exported book cache when the
 remote has one, and kept readable offline from copies under `store_path`. See
-[Shelf Sources and Credentials](../concepts/shelf-sources.md).
+[Shelf sources and credentials](../concepts/shelf-sources.md).
 
 | Key | Type | Used by | What it does |
 |---|---|---|---|
@@ -436,7 +436,7 @@ loopback HTTP; use HTTPS when credentials cross the network.
 ### `app_conf.epub_import_strategy`
 
 The default conversion options for an EPUB import that does not carry its own.
-See [EPUB Import](../epub-import.md) for what each one produces.
+See [EPUB import](../epub-import.md) for what each one produces.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|

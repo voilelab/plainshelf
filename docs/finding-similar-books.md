@@ -1,4 +1,4 @@
-# Finding Similar Books
+# Finding similar books
 
 The **Similar Content** page finds books that are *alike* but not byte-for-byte
 identical: another edition, a format conversion, a trimmed-down copy, or two
@@ -146,7 +146,7 @@ shelf on another.
 You do not need this section to use the page. It records the settings the
 comparison uses, in one place, so that **if any of them ever change, this is the
 paragraph to update** (along with the cache-invalidation note in
-[Data Format Versioning](concepts/data-format-versioning.md#fingerprint-cache),
+[Data format versioning](concepts/data-format-versioning.md#fingerprint-cache),
 since changing any of these discards and rebuilds the fingerprint cache).
 
 Before two texts are compared they are **normalized** to the characters that

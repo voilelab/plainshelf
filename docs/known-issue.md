@@ -1,4 +1,4 @@
-# Known Issues
+# Known issues
 
 ## Shelf cache limitations
 
@@ -10,7 +10,7 @@ shelf. Every delay below that comes from an interval is bounded by it. See
 [Rescanning on demand](concepts/shelf-cache-and-io.md#rescanning-on-demand).
 
 For the operational model, the initial metadata scan, and tuning guidance, see
-[Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md).
+[Shelf cache and disk I/O](concepts/shelf-cache-and-io.md).
 
 Two limits run through every setup, so they are stated once here rather than
 repeated below.

@@ -209,5 +209,5 @@ For custom configuration and the bundled defaults, see the
 
 Because PlainShelf keeps data in human-readable files, back up your shelf and
 application store directories before upgrading across breaking changes. See
-[Backup and Restore](backup-and-restore.md) for what to copy, what a shelf-only
+[Backup and restore](backup-and-restore.md) for what to copy, what a shelf-only
 copy leaves behind, and how to roll back to an older release.
