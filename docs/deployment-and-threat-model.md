@@ -1,10 +1,10 @@
 # Deployment and threat model
 
 PlainShelf is local-first and single-user. Where you bind the server and which
-security mode you choose decide what it defends against — and, just as
-important, what it does not. This page names three deployment tiers, gives the
-configuration each one wants, and states plainly what protects access in each —
-then does the same for the desktop and reader apps, which are neither.
+security mode you choose decide what it defends against and what it does not.
+This page names three deployment tiers, gives the configuration each one wants,
+and states what protects access in each. It then does the same for the desktop
+and reader apps, which are neither.
 
 For the type and default of each `security` key on its own, see the
 [Configuration reference](reference/configuration.md#app_confsecurity); this
@@ -13,10 +13,10 @@ page is about which combinations to choose.
 It also records two standing non-goals that hold at every tier:
 
 - **No PlainShelf server holds your credentials, and none are baked into its
-  binaries.** The credentials that are persisted — a pCloud token you grant, and
-  the access token for a PlainShelf server you add on Android — are stored on
-  your own device by the Android app, never by a server. See
-  [Where credentials live](#where-credentials-live).
+  binaries.** The credentials that are persisted (a pCloud token you grant, and
+  the access token for a PlainShelf server you add on Android) are stored on
+  your own device by the Android app, never by a server. See [Where credentials
+  live](#where-credentials-live).
 - **`local_token` is a CSRF boundary, not access control.** See
   [What `local_token` actually protects](#what-local_token-actually-protects).
 
@@ -78,13 +78,14 @@ app_conf:
 Two things to get right on this tier:
 
 - **`allowed_origins` replaces the defaults, it does not extend them.**
-  PlainShelf applies its four loopback defaults — `http://127.0.0.1:20000`,
-  `http://localhost:20000`, and the same two on the Vite dev port `5173` — *only
-  while the list is empty* (`server/security.go`). Set it, and those defaults are
-  gone: a browser opened on the NAS itself at `http://127.0.0.1:20000` then gets
-  `403 forbidden origin` on every write. So the list has to name every origin you
-  use, loopback included, with the exact scheme and port — each LAN hostname,
-  each LAN IP, each VPN address, and the local ones you would otherwise lose.
+  PlainShelf applies its four loopback defaults (`http://127.0.0.1:20000`,
+  `http://localhost:20000`, and the same two on the Vite dev port `5173`) *only
+  while the list is empty* (`server/security.go`). Set it, and those defaults
+  are gone: a browser opened on the NAS itself at `http://127.0.0.1:20000` then
+  gets `403 forbidden origin` on every write. So the list has to name every
+  origin you use, loopback included, with the exact scheme and port: each LAN
+  hostname, each LAN IP, each VPN address, and the local ones you would
+  otherwise lose.
 - **`protect_read: true` is defence in depth, not a login.** It makes even read
   requests carry the token, so a bare API scrape that never loads a page gets
   `401`. It does *not* keep anyone out who opens the Web UI: the token is handed
@@ -107,11 +108,11 @@ proxy in front does not change this: `local_token` hands its token to every
 page load, so the first visitor to reach the proxy can read and write your
 shelf.
 
-A real answer is planned. `security.mode` reserves two values —
-`password` and `external` — for authenticated deployments; setting either today
-fails at startup with "reserved but not implemented yet". A public tier waits on
-that work landing. Until then, keep an internet-facing deployment behind a VPN
-and treat it as Tier B.
+A real answer is planned. `security.mode` reserves two values, `password` and
+`external`, for authenticated deployments; setting either today fails at startup
+with "reserved but not implemented yet". A public tier waits on that work
+landing. Until then, keep an internet-facing deployment behind a VPN and treat
+it as Tier B.
 
 ### The desktop and standalone reader apps
 
