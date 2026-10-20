@@ -53,8 +53,8 @@ records it:
 | Windows | `%AppData%\PlainShelf\shelves\<shelf id>` |
 
 The dialog shows the exact path before you create the shelf, and that path is
-what is recorded. To put the shelf somewhere else — an external drive, a
-directory you back up separately — choose **Use a folder I already have** and
+what is recorded. To put the shelf somewhere else, such as an external drive or
+a directory you back up separately, choose **Use a folder I already have** and
 type the **Folder path** in or pick it with **Browse**; a directory you chose is
 kept even if you then change the name.
 
@@ -143,8 +143,8 @@ installation, what a shelf-only copy leaves behind, and how to restore.
 
 ## Open a shelf read-only
 
-To browse a shelf without writing anything to it — a restored backup, a
-read-only mount, an archived snapshot — set `read_only` on that shelf:
+To browse a shelf without writing anything to it (a restored backup, a read-only
+mount, an archived snapshot), set `read_only` on that shelf:
 
 ```yaml
 app_conf:
@@ -157,13 +157,13 @@ app_conf:
 
 PlainShelf then creates no folders, writes no lock or cache files under `app/`,
 and refuses every edit with an error instead of touching the shelf. `lib_root`
-must already exist. See [Shelf Cache and Disk
+must already exist. See [Shelf cache and disk
 I/O](concepts/shelf-cache-and-io.md#opening-a-shelf-read-only) for exactly what
 is skipped.
 
 While you are browsing a read-only shelf, the app hides the controls that would
-write to it — importing, editing metadata, sources and covers, creating and
-moving folders, deleting, and restoring from the trash — and shows a banner
+write to it (importing, editing metadata, sources and covers, creating and
+moving folders, deleting, and restoring from the trash) and shows a banner
 saying the shelf is read-only. Browsing, reading, searching and rescanning stay
 available. Switching to a writable shelf brings those controls back without a
 reload; the shelves you can write to are unaffected by the ones you cannot.
@@ -179,8 +179,8 @@ app_conf:
       lib_root: /mnt/backup/plainshelf-shelf
 ```
 
-PlainShelf then answers every write request with HTTP 403 and opens each shelf —
-including one added after startup — as if it carried `read_only: true`.
+PlainShelf then answers every write request with HTTP 403 and opens each shelf,
+including one added after startup, as if it carried `read_only: true`.
 Rescanning a shelf is still allowed, because it only walks the shelf and
 rebuilds the in-memory cache.
 

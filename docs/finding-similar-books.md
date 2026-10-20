@@ -34,13 +34,14 @@ want to set the floor by hand.
 Below the levels is a separate checkbox, **Only trimmed copies (one edited down
 from the other)**. This is not a fourth level — it is a different question.
 
-A book edited down from another — an abridgement, or a draft with a chapter or
-two cut — can score low overall similarity just because it is so much shorter, so
-it would hide under the wider levels even though one copy sits almost entirely
-inside the other. The checkbox looks for exactly that shape: pairs where nearly
-all of the shorter text is contained in the longer one. When it is on, your level
-selection is ignored and only trimmed copies are shown, with the fuller copy
-listed first and a note of how much content the shorter one is missing.
+A book edited down from another, such as an abridgement or a draft with a
+chapter or two cut, can score low overall similarity just because it is so much
+shorter, so it would hide under the wider levels even though one copy sits
+almost entirely inside the other. The checkbox looks for exactly that shape:
+pairs where nearly all of the shorter text is contained in the longer one. When
+it is on, your level selection is ignored and only trimmed copies are shown,
+with the fuller copy listed first and a note of how much content the shorter one
+is missing.
 
 One limit, though: the page only ever compares pairs that clear the widest
 level's floor (15% similar), and the checkbox narrows that same set rather than
@@ -95,9 +96,9 @@ When some books have not been fingerprinted yet, a bar appears saying how many
 are missing, with a **Build fingerprints** button. Pressing it reads every
 source that has changed since the last run and computes what is missing; you can
 watch the progress and the page refreshes when it finishes. You do this yourself
-rather than having it happen automatically because it reads every `source.txt` on
-the shelf — real work on a large or network-mounted library — and PlainShelf does
-not spend that on its own.
+rather than having it happen automatically because it reads every `source.txt`
+on the shelf, which is real work on a large or network-mounted library, and
+PlainShelf does not spend that on its own.
 
 The fingerprints are stored in `app/fingerprint-cache.json`. It is rebuildable
 runtime state, safe to delete, and shared cleanly between machines — see
@@ -107,8 +108,8 @@ already has.
 
 ### Books you edited by hand
 
-A fingerprint is tied to the exact bytes of a source. If you edit a book's text —
-in PlainShelf or with an outside editor — the next **Build fingerprints** run
+A fingerprint is tied to the exact bytes of a source. If you edit a book's text,
+in PlainShelf or with an outside editor, the next **Build fingerprints** run
 notices the file changed and recomputes it, so the comparison keeps up with your
 edits.
 

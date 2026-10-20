@@ -11,13 +11,12 @@ library and put it back, see [Backup and restore](../backup-and-restore.md).
 
 ## Why the shelf has a schema version
 
-Your files outlive the program that wrote them. A shelf created today may be
-opened years from now by a much later PlainShelf release — or, on a machine you
-forgot to update, by a much older one.
+A shelf created today may be opened years from now by a much later PlainShelf
+release, or by a much older one on a machine you forgot to update.
 
-A version marker in the file is what makes that safe. It lets a build recognize
-data it does not fully understand and refuse to overwrite it, instead of
-silently rewriting the file into a shape that loses information.
+The version marker in each file lets a build recognize data it does not fully
+understand and refuse to overwrite it, instead of silently rewriting the file
+into a shape that loses information.
 
 ---
 
@@ -843,12 +842,12 @@ two in the project's history (`.novl` to `.bookpkg`, then `.trash/` to
 `trash/`), and each is a one-way startup migration that must be idempotent and
 destroy nothing. Going forward this policy requires every layout change to be a
 pull request labelled `breaking` whose title states its cross-version effect, as
-the `.trash/` rename's `Breaking (pre-1.0)` entry did. If that frequency ever
-rises enough that the bespoke conditions become a burden, revisit this decision
-(an `app/`-external manifest is the escape hatch), but that is a future call
-made on evidence, and taking it would not retrofit any existing shelf. A shelf
-carrying no layout marker is not one waiting to be upgraded; it is the only kind
-there is.
+the `Breaking (pre-1.0)` entry for renaming `.trash/` to `trash/` did. If that
+frequency ever rises enough that the bespoke conditions become a burden, revisit
+this decision (an `app/`-external manifest is the escape hatch), but that is a
+future call made on evidence, and taking it would not retrofit any existing
+shelf. A shelf carrying no layout marker is not one waiting to be upgraded; it
+is the only kind there is.
 
 ---
 
