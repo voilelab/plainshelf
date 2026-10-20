@@ -1,15 +1,3 @@
-// Package readingprogress models the cross-process reading-progress document and
-// its projection from the reader onto the desktop.
-//
-// The desktop app and a reader share one reading_progress.json. The desktop, and
-// a reader it launched, key progress by the real shelf id; a reader run alone
-// keys everything under the synthetic shelf "book", which the projection folds
-// onto real shelves. Each entry carries its write time and reconciliation is
-// newest-wins per book, by recency rather than namespace ownership, so both
-// processes can write one shelf without losing updates; a reset is a timestamped
-// tombstone (offset 0) so an older advance cannot resurrect it. The locked file
-// store is in store.go. The shape mirrors
-// frontend/src/storage/readingProgress/document.ts, the one client implementation.
 package readingprogress
 
 import (
@@ -40,30 +28,20 @@ const ReaderShelfID = "book"
 // round-trip.
 const maxSafeInteger = 1<<53 - 1
 
-// Entry is one book's stored progress: a UTF-16 character offset and the epoch
-// milliseconds it was written. At arbitrates concurrent writes (newest wins); a
-// zero Offset with a non-zero At is a reset tombstone.
 type Entry struct {
 	Offset int64 `json:"offset"`
 	At     int64 `json:"at"`
 }
 
-// Document is the on-device reading-progress document: a shelf key maps to a set
-// of book ids, each carrying an Entry. It never reaches the server and is not
-// authoritative shelf data.
 type Document struct {
 	Version int                         `json:"version"`
 	Shelves map[string]map[string]Entry `json:"shelves"`
 }
 
-// New returns an empty, current-version document.
 func New() Document {
 	return Document{Version: DocumentVersion, Shelves: map[string]map[string]Entry{}}
 }
 
-// Parse yields an empty document rather than an error for anything unusable, so
-// a bad file can never keep a reader from opening. Mirrors the frontend
-// parser's leniency.
 func Parse(text string) Document {
 	doc := New()
 
@@ -106,10 +84,6 @@ func Parse(text string) Document {
 	return doc
 }
 
-// ParseStrict is Parse but rejects text that is not valid JSON. Write paths use
-// it: lenient-parsing corrupt input into an empty document, then merging, would
-// silently wipe the writer's stored namespace. An empty string is allowed and
-// yields an empty document.
 func ParseStrict(text string) (Document, error) {
 	if strings.TrimSpace(text) != "" && !jsontext.Value(text).IsValid() {
 		return New(), util.NewError("reading progress document is not valid JSON")
@@ -117,7 +91,6 @@ func ParseStrict(text string) (Document, error) {
 	return Parse(text), nil
 }
 
-// Serialize renders the document as the compact JSON the frontend also produces.
 func Serialize(doc Document) (string, error) {
 	if doc.Version == 0 {
 		doc.Version = DocumentVersion
@@ -132,9 +105,6 @@ func Serialize(doc Document) (string, error) {
 	return string(bs), nil
 }
 
-// Clone returns a deep copy so callers can mutate freely without touching the
-// input — the projection and merge both build their result this way, which is
-// what makes them safe to call repeatedly on the same document.
 func (d Document) Clone() Document {
 	out := Document{Version: d.Version, Shelves: make(map[string]map[string]Entry, len(d.Shelves))}
 	if out.Version == 0 {
@@ -146,19 +116,8 @@ func (d Document) Clone() Document {
 	return out
 }
 
-// ResolveShelf maps a stable book id to the real shelf id that owns it, or
-// reports ok=false when no real shelf in the desktop library holds that book.
 type ResolveShelf func(bookID string) (realShelfID string, ok bool)
 
-// Project folds the reader's synthetic-shelf progress onto real shelves.
-//
-// For every book the reader recorded under readerShelfID, it asks resolve which
-// real shelf holds that stable book id and, when one does, copies the entry to
-// shelves[realShelfID][bookID] when the entry is newer (by At) than whatever is
-// there. Entries under readerShelfID are always kept: an unresolved book (removed,
-// or a loose book outside every shelf) stays there untouched, so a later import
-// can pick it up on the next projection. The projection is therefore idempotent:
-// running it again changes nothing once every resolvable book has been folded in.
 func Project(doc Document, readerShelfID string, resolve ResolveShelf) Document {
 	out := doc.Clone()
 	readerShelfID = strings.TrimSpace(readerShelfID)
@@ -189,14 +148,6 @@ func Project(doc Document, readerShelfID string, resolve ResolveShelf) Document 
 	return out
 }
 
-// MergeNewest overlays one process's write onto the on-disk document, keeping the
-// newer entry (by At) for every book present in both. Books only on disk are
-// preserved; books only in the write are added. This is the single reconciliation
-// both the desktop and the reader use: because every entry is timestamped and a
-// reset is a tombstone rather than a deletion, neither process can clobber the
-// other's concurrent update, whichever shelf namespace it wrote — so both may
-// write the same real shelf safely. On an equal timestamp the incoming write
-// wins, which only ever happens when it carries the same value it just read.
 func MergeNewest(disk, write Document) Document {
 	out := disk.Clone()
 	for shelfKey, books := range write.Shelves {
@@ -222,11 +173,6 @@ func MergeNewest(disk, write Document) Document {
 	return out
 }
 
-// normalizeEntry keeps only the entries the frontend would keep. The offset must
-// be a non-negative integer within the JSON-safe range; a non-integer or
-// out-of-range timestamp is treated as unknown (0, the oldest) rather than
-// dropping the entry. An entry with a zero offset survives only when it carries a
-// timestamp — that is a reset tombstone; a bare {0,0} is nothing and is dropped.
 func normalizeEntry(offset, at float64) (Entry, bool) {
 	normalizedOffset, ok := normalizeNumber(offset)
 	if !ok {
@@ -242,7 +188,6 @@ func normalizeEntry(offset, at float64) (Entry, bool) {
 	return Entry{Offset: normalizedOffset, At: normalizedAt}, true
 }
 
-// normalizeNumber accepts a non-negative, integral, JSON-safe value.
 func normalizeNumber(value float64) (int64, bool) {
 	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return 0, false

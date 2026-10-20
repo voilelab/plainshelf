@@ -9,13 +9,8 @@ import (
 	"sync"
 )
 
-// URL is where Handler serves the shelf zip: GET exports, PUT imports.
 const URL = "/_demo/shelf.zip"
 
-// Handler serves the shelf zip in front of app. An import waits for every
-// request in flight and holds new ones off while it swaps the directories;
-// afterwards every request answers 503, since the running server's view of the
-// shelf is stale until the page reloads and the server starts again.
 func Handler(libRoot string, app http.Handler) http.Handler {
 	var (
 		mu       sync.RWMutex

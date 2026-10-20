@@ -13,28 +13,10 @@ import (
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
-// shelfConfigFile is the shelf's own settings, at the shelf root beside books/,
-// trash/ and app/.
-//
-// Not under app/, which is documented as rebuildable state a user may delete at
-// will; and travelling with the shelf rather than with the server config, so
-// every reader of it — this server, the desktop app, the Android client on
-// pCloud — applies the same rules.
-//
-// PlainShelf only ever reads it, so a hand-edited file keeps its formatting, its
-// key order, and any key a later build adds.
 const shelfConfigFile = "shelf.json"
 
-// shelfConfigSchemaVersion is the shelf.json shape this build documents and
-// reads. A file that declares a higher one is still read: every field this build
-// understands is applied and the rest is left alone, which is safe precisely
-// because reading is all that happens here.
 const shelfConfigSchemaVersion = 1
 
-// maxShelfConfigBytes bounds how large a shelf.json this build reads. A settings
-// file is a handful of lines; the limit is there so a mis-named large file in
-// the shelf root is skipped rather than read into memory. The pCloud client
-// applies the same limit to the same file, from the size in its listing.
 const maxShelfConfigBytes = 1 << 20
 
 // shelfConfigJSON mirrors shelf.json. Unknown fields are accepted on purpose, so
@@ -77,9 +59,6 @@ type ignoredDirJSON struct {
 	Reason string `json:"reason"`
 }
 
-// parseIgnoredDir reads one entry. A bare name is not accepted: "@eaDir" and
-// {"name": "@eaDir"} would mean the same thing and the file would have two
-// shapes for one entry, which every reader of it then has to handle.
 func parseIgnoredDir(raw jsontext.Value) (shelfutil.IgnoredDir, error) {
 	var object ignoredDirJSON
 	if err := json.Unmarshal(raw, &object); err != nil {
@@ -94,8 +73,6 @@ type nsfwFolderJSON struct {
 	Reason string `json:"reason"`
 }
 
-// parseNSFWFolder reads one entry. As with parseIgnoredDir, a bare path is not
-// accepted: one entry, one shape.
 func parseNSFWFolder(raw jsontext.Value) (shelfutil.NSFWFolder, error) {
 	var object nsfwFolderJSON
 	if err := json.Unmarshal(raw, &object); err != nil {
@@ -104,21 +81,11 @@ func parseNSFWFolder(raw jsontext.Value) (shelfutil.NSFWFolder, error) {
 	return shelfutil.NSFWFolder{Path: object.Path, Reason: object.Reason}, nil
 }
 
-// shelfRules is everything this build reads out of shelf.json. It is read once,
-// when the shelf is opened, and never written again, so every listing, scan and
-// folder check within one run answers the same way. Editing shelf.json takes
-// effect the next time the shelf is opened.
 type shelfRules struct {
 	ignore shelfutil.IgnoreRules
 	nsfw   shelfutil.NSFWRules
 }
 
-// loadShelfRules reads shelf.json once and derives every rule set from it.
-//
-// No failure here stops a shelf from opening. A missing file is the normal case;
-// an unreadable or malformed one is reported and then means the same thing,
-// because locking a user out of their library over a typo in an optional file
-// would be a far worse outcome than listing a directory they wanted hidden.
 func loadShelfRules(root fsutil.ReadFS, logger logutil.Logger) shelfRules {
 	conf, hasConfig := readShelfConfig(root, logger)
 	return shelfRules{
@@ -127,10 +94,6 @@ func loadShelfRules(root fsutil.ReadFS, logger logutil.Logger) shelfRules {
 	}
 }
 
-// nsfwRulesFrom builds the content rules from a shelf.json this build has
-// already read. An entry that cannot name a folder is dropped one by one, like
-// an unusable ignored_dirs entry: the rest of the list is still what the shelf
-// said.
 func nsfwRulesFrom(conf shelfConfigJSON, hasConfig bool, logger logutil.Logger) shelfutil.NSFWRules {
 	if !hasConfig || len(conf.Content.NSFWFolders) == 0 {
 		return shelfutil.NSFWRules{}
@@ -151,8 +114,6 @@ func nsfwRulesFrom(conf shelfConfigJSON, hasConfig bool, logger logutil.Logger) 
 	}
 
 	if len(folders) == 0 {
-		// Every entry was dropped, so this shelf marks nothing and there is no
-		// list worth logging.
 		return shelfutil.NSFWRules{}
 	}
 
@@ -162,8 +123,6 @@ func nsfwRulesFrom(conf shelfConfigJSON, hasConfig bool, logger logutil.Logger) 
 	return rules
 }
 
-// ignoreRulesFrom builds the directory-ignore rules from a shelf.json this build
-// has already read.
 func ignoreRulesFrom(conf shelfConfigJSON, hasConfig bool, logger logutil.Logger) shelfutil.IgnoreRules {
 	if !hasConfig || conf.Scan.IgnoredDirs == nil {
 		return shelfutil.NewIgnoreRules(shelfutil.DefaultIgnoredDirs())
@@ -190,15 +149,6 @@ func ignoreRulesFrom(conf shelfConfigJSON, hasConfig bool, logger logutil.Logger
 	return rules
 }
 
-// warnAboutDroppedDefaults reports the built-in names a configured shelf no
-// longer skips.
-//
-// The configuration wins - a user who lists their own directories has said what
-// this shelf holds, and this build does not second-guess them. But dropping
-// "@eaDir" on a Synology share is how a library quietly grows a duplicate folder
-// tree, and dropping "#recycle" is how deleted books come back, so the one place
-// that can connect the two says it out loud rather than leaving the user to
-// wonder where the folders came from.
 func warnAboutDroppedDefaults(rules shelfutil.IgnoreRules, logger logutil.Logger) {
 	var dropped []string
 	for _, dir := range shelfutil.DefaultIgnoredDirs() {
@@ -214,10 +164,6 @@ func warnAboutDroppedDefaults(rules shelfutil.IgnoreRules, logger logutil.Logger
 		"file", shelfConfigFile, "dropped", dropped)
 }
 
-// readShelfConfig reads and decodes shelf.json. The second result is false when
-// the shelf has no usable configuration, whatever the reason - absent,
-// oversized, unreadable - because every one of those means the same thing to the
-// caller.
 func readShelfConfig(root fsutil.ReadFS, logger logutil.Logger) (shelfConfigJSON, bool) {
 	file, err := root.Open(shelfConfigFile)
 	if err != nil {
@@ -226,7 +172,7 @@ func readShelfConfig(root fsutil.ReadFS, logger logutil.Logger) (shelfConfigJSON
 		}
 		return shelfConfigJSON{}, false
 	}
-	defer file.Close() //nolint:errcheck // read-only
+	defer file.Close()
 
 	if info, statErr := file.Stat(); statErr == nil && info.Size() > maxShelfConfigBytes {
 		logger.Warn("ignoring a shelf configuration larger than this build reads",
@@ -235,13 +181,6 @@ func readShelfConfig(root fsutil.ReadFS, logger logutil.Logger) (shelfConfigJSON
 	}
 
 	var conf shelfConfigJSON
-	// The limit is applied again here for a file that grew since the stat above.
-	//
-	// UnmarshalRead consumes the whole reader and rejects anything after the
-	// first value - a second object, or the debris of a half-finished edit -
-	// which the pCloud reader also does by parsing the file in one go. Member
-	// names are matched case-sensitively and a duplicate member is an error,
-	// the same strictness book.json is read with.
 	if err := json.UnmarshalRead(io.LimitReader(file, maxShelfConfigBytes), &conf); err != nil {
 		logger.Warn("ignoring a shelf configuration that could not be read as JSON", "file", shelfConfigFile, "error", err)
 		return shelfConfigJSON{}, false
@@ -255,14 +194,6 @@ func readShelfConfig(root fsutil.ReadFS, logger logutil.Logger) (shelfConfigJSON
 	return conf, true
 }
 
-// ValidateFolderPath reports whether every segment of a folder path is safe to
-// use on this shelf.
-//
-// A name this shelf's scanners skip is refused here rather than by the
-// package-level rules, which describe a path segment and cannot know what this
-// shelf skips. Creating such a folder would appear to work and then vanish from
-// the very next listing, so it is refused with the reason the name is skipped -
-// which, on a shelf that lists its own directories, is a reason the user wrote.
 func (s *Shelf) ValidateFolderPath(folders FolderPath) error {
 	if err := validateFolderPath(folders); err != nil {
 		return util.Errorf("%w", err)

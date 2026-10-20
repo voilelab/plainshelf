@@ -21,7 +21,6 @@ import (
 
 const mount = "/Books/Shelf"
 
-// seedTree writes files (path → content) under a new directory.
 func seedTree(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -93,7 +92,6 @@ func TestFSWalkCostsOneListingForAnyTreeSize(t *testing.T) {
 	if len(files) != len(sampleTree) {
 		t.Errorf("walked %v, want %d files", files, len(sampleTree))
 	}
-	// Account root and /Books to resolve the mount, then one recursive listing.
 	if got := count(srv.Take(), "listfolder"); got != 3 {
 		t.Errorf("listfolder calls = %d, want 3", got)
 	}
@@ -183,7 +181,6 @@ func TestFSRelistsAStaleFolder(t *testing.T) {
 	if got := srv.Take(); !slices.Equal(got, []string{"listfolder"}) {
 		t.Errorf("stale ReadDir requests = %v, want one non-recursive listing", got)
 	}
-	// What was known below app/ survives the relisting of its parent.
 	if _, err := f.Stat("books/F/Two.bookpkg/book.json"); err != nil || len(srv.Take()) != 0 {
 		t.Errorf("Stat after relisting = %v, want it answered from the tree", err)
 	}

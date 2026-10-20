@@ -1,8 +1,3 @@
-// Package pcloud reads a shelf held in a pCloud account, as an fsutil.ReadFS.
-//
-// The token travels as a Bearer header and never in a URL, a recursive
-// listing that pCloud refuses is expanded by hand, and only transient failures
-// are retried. Nothing here writes to the account.
 package pcloud
 
 import (
@@ -28,8 +23,6 @@ const (
 	HostEU = "eapi.pcloud.com"
 )
 
-// HostForLocation maps the locationid that pCloud's token reply carries to the
-// API host of that region.
 func HostForLocation(locationID int) (string, error) {
 	switch locationID {
 	case 1:
@@ -40,35 +33,25 @@ func HostForLocation(locationID int) (string, error) {
 	return "", util.Errorf("unknown pCloud location %d", locationID)
 }
 
-// Metadata fails fast, a transfer may be slow.
 const (
 	requestTimeout  = 30 * time.Second
 	downloadTimeout = 5 * time.Minute
 	maxAttempts     = 3
 	retryBaseDelay  = 500 * time.Millisecond
 
-	// maxReplyBytes bounds an API reply; a recursive listing of a large shelf
-	// is the biggest one.
 	maxReplyBytes = 256 << 20
 )
 
-// rootFolderID is the account's top-level folder.
 const rootFolderID int64 = 0
 
-// Client is a read-only pCloud API client for one account.
 type Client struct {
 	host  string
 	token string
 	http  *http.Client
 
-	// Variables so tests run without real backoff.
 	retryDelay time.Duration
 }
 
-// NewClient returns a client for host, one of HostUS and HostEU (a scheme and
-// trailing slash are tolerated). Any other host is refused, since it would be
-// handed the token. A nil httpClient uses a default one; the time budgets are
-// applied per request either way.
 func NewClient(host, token string, httpClient *http.Client) (*Client, error) {
 	host = strings.TrimRight(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(host), "https://"), "http://"), "/")
 	token = strings.TrimSpace(token)
@@ -84,14 +67,12 @@ func NewClient(host, token string, httpClient *http.Client) (*Client, error) {
 	return &Client{host: host, token: token, http: httpClient, retryDelay: retryBaseDelay}, nil
 }
 
-// item is a file or folder as listfolder returns it.
 type item struct {
 	Name     string `json:"name"`
 	IsFolder bool   `json:"isfolder"`
 	FolderID *int64 `json:"folderid"`
 	FileID   *int64 `json:"fileid"`
 	Size     int64  `json:"size"`
-	// Modified is RFC 1123Z.
 	Modified string `json:"modified"`
 	Contents []item `json:"contents"`
 }
@@ -110,8 +91,6 @@ type linkReply struct {
 	Path  string   `json:"path"`
 }
 
-// call issues one API method and decodes its reply into out, retrying only
-// failures classified as transient.
 func (c *Client) call(ctx context.Context, method string, params url.Values, out any) error {
 	var err error
 	for attempt := 1; ; attempt++ {
@@ -149,9 +128,6 @@ func (c *Client) callOnce(ctx context.Context, method string, params url.Values,
 		return newTransportError(method, err)
 	}
 
-	// Every pCloud reply carries result. A reply without one came from
-	// somewhere else — a captive portal, a proxy — and must not read as an
-	// empty listing.
 	var env envelope
 	if err := json.Unmarshal(body, &env); err != nil || env.Result == nil {
 		return &Error{Method: method, Message: "reply did not come from the pCloud API: " + excerpt(body)}
@@ -169,7 +145,6 @@ func (c *Client) callOnce(ctx context.Context, method string, params url.Values,
 	return nil
 }
 
-// listFolder lists one folder by id; recursive fills every nested contents.
 func (c *Client) listFolder(ctx context.Context, folderID int64, recursive bool) (*item, error) {
 	params := url.Values{"folderid": {strconv.FormatInt(folderID, 10)}}
 	if recursive {
@@ -185,8 +160,6 @@ func (c *Client) listFolder(ctx context.Context, folderID int64, recursive bool)
 	return reply.Metadata, nil
 }
 
-// listFolderRecursive lists a folder and everything beneath it, in one request
-// unless pCloud refuses recursion, in which case the tree is walked by hand.
 func (c *Client) listFolderRecursive(ctx context.Context, folderID int64) (*item, error) {
 	tree, err := c.listFolder(ctx, folderID, true)
 	if err == nil {
@@ -246,8 +219,6 @@ func (c *Client) resolveFolderID(ctx context.Context, folderPath string) (int64,
 			if walked != "" {
 				where = strconv.Quote(walked)
 			}
-			// Naming what is there turns "we disagree about your account" into
-			// a typo or the wrong account, which the user can act on.
 			return 0, &Error{
 				Method: "listfolder",
 				Result: resultDirectoryNotFound,
@@ -276,8 +247,6 @@ func (c *Client) zipLink(ctx context.Context, fileIDs []int64) (string, error) {
 	return c.link(ctx, "getziplink", url.Values{"fileids": {strings.Join(ids, ",")}})
 }
 
-// link is not retried on its own: download retries the link and the transfer
-// as one unit.
 func (c *Client) link(ctx context.Context, method string, params url.Values) (string, error) {
 	var reply linkReply
 	if err := c.callOnce(ctx, method, params, &reply); err != nil {
@@ -289,9 +258,6 @@ func (c *Client) link(ctx context.Context, method string, params url.Values) (st
 	return (&url.URL{Scheme: "https", Host: reply.Hosts[0], Path: reply.Path}).String(), nil
 }
 
-// download fetches a link resolved by resolve, retrying transient failures up
-// to the point the body starts. The returned body stays bounded by the
-// download budget until it is closed.
 func (c *Client) download(label string, resolve func(ctx context.Context) (string, error)) (io.ReadCloser, error) {
 	for attempt := 1; ; attempt++ {
 		body, err := c.downloadOnce(label, resolve)
@@ -316,8 +282,6 @@ func (c *Client) downloadOnce(label string, resolve func(ctx context.Context) (s
 		cancel()
 		return nil, util.Errorf("%w", err)
 	}
-	// No Authorization: the content host honours the link's own credentials
-	// and the API token has no business there.
 	res, err := c.http.Do(req)
 	if err != nil {
 		cancel()
@@ -331,8 +295,6 @@ func (c *Client) downloadOnce(label string, resolve func(ctx context.Context) (s
 	return &body{ReadCloser: res.Body, label: label, cancel: cancel}, nil
 }
 
-// body reports a transfer cut short as the source being unavailable, and ends
-// the download budget on Close.
 type body struct {
 	io.ReadCloser
 	label  string
@@ -399,13 +361,11 @@ func describeFolders(names []string) string {
 	return "It contains " + strings.Join(quoted, ", ") + "."
 }
 
-// Folder is a subfolder in a listing.
 type Folder struct {
 	Name string
 	ID   int64
 }
 
-// ListFolders lists the subfolders of one folder by id; 0 is the account root.
 func (c *Client) ListFolders(ctx context.Context, folderID int64) ([]Folder, error) {
 	listing, err := c.listFolder(ctx, folderID, false)
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 )
 
 func TestJSONTime(t *testing.T) {
-	now := time.Now().Truncate(time.Second) // truncate to second for comparison
+	now := time.Now().Truncate(time.Second)
 
 	jsonTime := JSONTime(now)
 

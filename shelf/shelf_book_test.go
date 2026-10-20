@@ -15,8 +15,6 @@ import (
 
 var errInitFailed = errors.New("init failed")
 
-// bookPkgEntries lists the book packages directly under dir, tolerating a dir
-// that was never created.
 func bookPkgEntries(t *testing.T, dir string) []string {
 	t.Helper()
 
@@ -37,9 +35,6 @@ func bookPkgEntries(t *testing.T, dir string) []string {
 	return found
 }
 
-// A book whose initialization fails must leave nothing behind. Previously the
-// book folder was renamed into place first and the source was created after, so
-// a failure stranded a sourceless book in the library forever.
 func TestShelfNewBookWithRollsBackOnInitFailure(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -81,7 +76,6 @@ func TestShelfNewBookWithRollsBackOnInitFailure(t *testing.T) {
 	}
 }
 
-// Everything the initializer writes must survive the move out of staging.
 func TestShelfNewBookWithPersistsInitWrites(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -106,8 +100,6 @@ func TestShelfNewBookWithPersistsInitWrites(t *testing.T) {
 		t.Fatalf("NewBookWith: %v", err)
 	}
 
-	// Re-read through the shelf so the assertions run against what is on disk,
-	// not the instance the initializer mutated.
 	reopened, err := shelf.GetBook(book.ID())
 	if err != nil {
 		t.Fatalf("GetBook: %v", err)
@@ -143,9 +135,6 @@ func TestShelfNewBookWithPersistsInitWrites(t *testing.T) {
 	}
 }
 
-// While the initializer runs, the book must not yet exist at its final path.
-// The final path is checked directly rather than through ListBooks, because the
-// exclusive shelf lock is still held here.
 func TestShelfNewBookWithBookNotVisibleDuringInit(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -168,13 +157,6 @@ func TestShelfNewBookWithBookNotVisibleDuringInit(t *testing.T) {
 	}
 }
 
-// Concurrent metadata writes to one book used to race on a shared
-// "book.json.tmp": one writer's rename would consume the file the other was
-// still staging. Each write now goes through its own temp file.
-//
-// Each goroutine gets its own Book handle: sharing one instance would exercise
-// the unsynchronized in-memory meta rather than the on-disk temp file, which is
-// what this test is about.
 func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -214,7 +196,6 @@ func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 		}
 	}
 
-	// The surviving book.json must be one complete write, not a mix of several.
 	reopened, err := bookpkg.Open(shelf.dbRoot, newLoggerForTest(), bookPath)
 	if err != nil {
 		t.Fatalf("Open after writes: %v", err)
@@ -226,10 +207,6 @@ func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 	testutil.AssertNoTempFiles(t, path.Join(tmpLib, bookPath))
 }
 
-// Two books that agree on everything the old MD5 seed derived an ID from - the
-// folders and the title - must still get different IDs. The collision probe that
-// used to make that true only sees what this process already has in its cache,
-// so a shared shelf or a book copied in with a file manager slipped past it.
 func TestShelfNewBookIDsAreRandomNotDerived(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -251,8 +228,6 @@ func TestShelfNewBookIDsAreRandomNotDerived(t *testing.T) {
 		if err := validateBookID(id); err != nil {
 			t.Errorf("generated ID %q is not usable as one: %v", id, err)
 		}
-		// This build writes a canonical, lowercase v4 UUID: 36 characters in the
-		// 8-4-4-4-12 hex layout, version nibble 4, variant 10xx (8, 9, a, or b).
 		if len(id) != 36 {
 			t.Errorf("generated ID %q has length %d, want 36", id, len(id))
 		}
@@ -268,9 +243,6 @@ func TestShelfNewBookIDsAreRandomNotDerived(t *testing.T) {
 	}
 }
 
-// The ID is opaque: nothing it was once derived from may move it. Reading
-// progress, bookmarks, and every device-local document are keyed on it, so a
-// recomputation would silently orphan all of them.
 func TestShelfBookIDSurvivesTitleFolderAndTrashRoundTrip(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -314,9 +286,6 @@ func TestShelfBookIDSurvivesTitleFolderAndTrashRoundTrip(t *testing.T) {
 	}
 }
 
-// A shelf written by an older build keeps its 8-character hex IDs untouched, and
-// a book created next to them gets a random one. Both forms have to work at once
-// - nothing migrates the old ones.
 func TestShelfLegacyAndRandomBookIDsCoexist(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	legacyID := "a1b2c3d4"
@@ -348,7 +317,6 @@ func TestShelfLegacyAndRandomBookIDsCoexist(t *testing.T) {
 		t.Fatalf("a new book reused the legacy ID %q", legacyID)
 	}
 
-	// Both are addressable, and writing through one leaves the other alone.
 	freshMeta := fresh.GetMeta()
 	freshMeta.Title = "Fresh Book"
 	if err := fresh.SetMeta(freshMeta); err != nil {

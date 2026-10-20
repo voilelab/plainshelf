@@ -15,28 +15,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
-/*
-A remote shelf (NewShelfFromFS) is listed from the exported book cache instead
-of being walked. Over pCloud or WebDAV every Stat and Open is a request, and a
-walk costs several per book; the export is the whole listing in one file.
-
-That makes the export the shelf's freshness, too: a remote shelf re-reads it
-every scan interval and never checks books one by one, so a change shows up
-once the writing installation exports again (book_cache_interval). A manual
-rescan still walks the shelf for an answer that cannot wait.
-
-Without a usable export the shelf is walked once when it opens, as a local one
-would be, and afterwards only looks for an export to appear. A shelf with an
-offline store that already holds a snapshot opens from it instead: a source no
-installation exports is otherwise walked again at every start.
-*/
-
-// refreshRemoteBookCache brings a remote shelf's listing up to date from the
-// newest usable exported book cache. With none, it runs withoutExport, or
-// keeps what it has when that is nil.
-//
-// While the source is unavailable, a shelf with an offline store keeps its
-// listing, or takes the stored snapshot when it has none yet.
 func (s *Shelf) refreshRemoteBookCache(withoutExport func() error) error {
 	err := s.refreshRemoteFromSource(withoutExport)
 	if err == nil {
@@ -50,8 +28,6 @@ func (s *Shelf) refreshRemoteBookCache(withoutExport func() error) error {
 	return err
 }
 
-// listFromOfflineSnapshot reports whether the shelf has a listing to answer
-// with, taking the stored snapshot when it has none yet.
 func (s *Shelf) listFromOfflineSnapshot() bool {
 	if s.offline == nil {
 		return false
@@ -81,8 +57,6 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	s.bookCache.folderMeta = folderMeta
 	s.bookCache.treeDirty = false
 	s.bookCache.lastScanStart = time.Unix(snapshot.Timestamp, 0)
-	// Not the source's digest: the next export it offers is applied even when
-	// its walk began in the same second.
 	s.bookCache.remoteDigest = ""
 	s.bookCache.Unlock()
 
@@ -90,8 +64,6 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	return true
 }
 
-// openWithoutExport is what an opening remote shelf does without a usable
-// export: list from the offline snapshot when there is one, walk otherwise.
 func (s *Shelf) openWithoutExport() error {
 	if s.listFromOfflineSnapshot() {
 		s.Debug("listed the shelf from the offline snapshot; a rescan walks the source")
@@ -125,9 +97,6 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 	applied := s.bookCache.remoteDigest
 	s.bookCache.RUnlock()
 
-	// Already as new: older than the current listing, or the same content. The
-	// timestamp has whole-second precision, so a re-export within the same
-	// second is told apart by its content.
 	if !current.IsZero() && (takenAt.Before(current) || (takenAt.Equal(current) && digest == applied)) {
 		s.markRemoteRefreshAttempt()
 		return nil
@@ -135,8 +104,6 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 
 	entries, folders, folderMeta, err := s.bookCacheSnapshot(cache)
 	if err != nil {
-		// Strict on purpose: building the listing from a half-valid file would
-		// show a silently truncated library instead of the cache miss it is.
 		s.Warn("ignoring an unusable exported book cache", "file", name, "error", err)
 		s.markRemoteRefreshAttempt()
 		if withoutExport != nil {
@@ -159,23 +126,12 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 	return nil
 }
 
-// markRemoteRefreshAttempt restarts the scan interval, so a shelf with no new
-// export asks again one interval later rather than on every read.
 func (s *Shelf) markRemoteRefreshAttempt() {
 	s.bookCache.Lock()
 	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.Unlock()
 }
 
-// newestExportedBookCache reads every book-cache-*.json in app/ and returns the
-// usable one whose walk began last, ties broken by name so the choice does not
-// depend on listing order.
-//
-// The cache supplies the whole listing, so the pick must use the walk timestamp
-// recorded in its content rather than the file modification time. The
-// candidates number the installations writing the shelf, not its books.
-//
-// The error is set only when the source is unavailable.
 func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {
 	entries, err := s.dbRoot.ReadDir(appFolder)
 	if err != nil {
@@ -209,13 +165,6 @@ func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {
 	return best, bestName, nil
 }
 
-// bookCacheSnapshot turns an exported cache into book cache entries without
-// reading any book package. The file comes from another installation and maybe
-// another machine, so every path is checked to name a book package under books/
-// before a read is ever addressed to it.
-//
-// folder_meta is the exception to that strictness: an entry naming no listed
-// folder is dropped on its own, since an icon is not worth a full walk.
 func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCacheEntry, []FolderPath, map[string]FolderMeta, error) {
 	entries := make(map[string]*bookIDCacheEntry, len(cache.Books))
 	for bookID, entry := range cache.Books {
@@ -226,8 +175,6 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 			return nil, nil, nil, util.Errorf("entry %q has an invalid path %q", bookID, entry.Path)
 		}
 
-		// Not built with newBookIDCacheEntry: that reads the current source's
-		// character count, a request per book. A remote listing has none to show.
 		entries[bookID] = &bookIDCacheEntry{
 			folders:   bookFolderPath(entry.Path),
 			path:      entry.Path,
@@ -254,8 +201,6 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 		if name == "/" || meta == (BookCacheFolderMeta{}) || !slices.Contains(cache.Folders, name) {
 			continue
 		}
-		// No Version: a remote shelf is never written, so there is nothing to
-		// compare a write against.
 		entry := FolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
 		if meta.SortKey != nil && !math.IsNaN(*meta.SortKey) && !math.IsInf(*meta.SortKey, 0) {
 			entry.SortKey, entry.HasSortKey = *meta.SortKey, true
@@ -266,15 +211,11 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 	return entries, folders, folderMeta, nil
 }
 
-// isBookPackagePath reports whether p is a clean path to a book package under
-// books/, as the exporter writes it.
 func isBookPackagePath(p string) bool {
 	rest, ok := strings.CutPrefix(p, booksFolder+"/")
 	return ok && isRelativeShelfPath(rest) && strings.HasSuffix(p, bookExtension)
 }
 
-// isRelativeShelfPath reports whether p is a clean, relative, slash-separated
-// path with no "." or ".." segment.
 func isRelativeShelfPath(p string) bool {
 	if p == "" || path.Clean(p) != p || path.IsAbs(p) {
 		return false

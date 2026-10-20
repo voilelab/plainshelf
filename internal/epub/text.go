@@ -8,13 +8,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-// XHTML inside an EPUB is supposed to be well-formed XML, but real files
-// routinely contain undeclared HTML entities and unclosed tags that make a
-// strict XML decoder fail on an otherwise readable book. Everything here goes
-// through the tolerant HTML parser instead.
-
-// blockTags are elements whose boundaries become line breaks in the flattened
-// text. Anything not listed is treated as inline.
 var blockTags = map[string]struct{}{
 	"address": {}, "article": {}, "aside": {}, "blockquote": {}, "dd": {},
 	"div": {}, "dl": {}, "dt": {}, "figcaption": {}, "figure": {}, "footer": {},
@@ -23,8 +16,6 @@ var blockTags = map[string]struct{}{
 	"section": {}, "table": {}, "tr": {}, "ul": {},
 }
 
-// skipTags carry no readable prose. rt and rp are ruby annotations: keeping
-// them would interleave furigana into the middle of Japanese sentences.
 var skipTags = map[string]struct{}{
 	"head": {}, "script": {}, "style": {}, "title": {}, "rt": {}, "rp": {},
 }
@@ -33,18 +24,6 @@ var headingTags = map[string]struct{}{
 	"h1": {}, "h2": {}, "h3": {}, "h4": {}, "h5": {}, "h6": {},
 }
 
-// documentToChapter flattens one spine document into a title and body text, and
-// reports the illustrations it discarded along the way.
-//
-// The document's own first heading is consumed as the title and removed from
-// the body: every template prints the chapter title itself, so leaving the
-// heading in place would print it twice. The caller may still prefer a table of
-// contents title over the returned one.
-//
-// imageHrefs holds the raw references of every illustration in the document, in
-// document order and unresolved: only the caller knows the document's own
-// directory. They are collected before the heading is removed, so an
-// illustration inside the heading still counts as dropped.
 func documentToChapter(data []byte, opts Options) (title, text string, imageHrefs []string) {
 	doc, err := html.Parse(bytes.NewReader(data))
 	if err != nil {
@@ -68,12 +47,6 @@ func documentToChapter(data []byte, opts Options) (title, text string, imageHref
 	return title, extractText(root, opts), imageHrefs
 }
 
-// collectImageHrefs walks the document for illustration references.
-//
-// This is a pass of its own rather than a hook inside writeNode: the flattener
-// skips <svg> as a whole subtree, and threading a collector through every write
-// helper would touch far more code than reading the tree twice costs.
-//
 // <img> carries src; SVG's <image> carries href, or xlink:href in older files.
 // The tolerant HTML parser stores the latter with the namespace split off, so
 // looking up "href" finds both.
@@ -103,9 +76,6 @@ func collectImageHrefs(root *html.Node) []string {
 	return hrefs
 }
 
-// parseNavDocument reads an EPUB 3 navigation document into href -> title. The
-// hrefs are returned exactly as written; the caller resolves them against the
-// navigation document's own directory.
 func parseNavDocument(data []byte) map[string]string {
 	out := make(map[string]string)
 
@@ -142,11 +112,6 @@ func parseNavDocument(data []byte) map[string]string {
 	return out
 }
 
-// sanitizeImageAlt makes an EPUB's alt text safe to place inside `![...]`.
-//
-// The reader matches the alt run with `[^\]]*`, so a bracket would leave the
-// line unparsed and the raw Markdown visible; a newline would break the
-// one-image-per-line shape the reader requires.
 func sanitizeImageAlt(alt string) string {
 	return collapseSpaces(strings.NewReplacer("[", "", "]", "", "\n", " ", "\r", " ").Replace(alt))
 }
@@ -172,9 +137,6 @@ func writeNode(n *html.Node, b *strings.Builder, opts Options) {
 			b.WriteByte('\n')
 			return
 		case "img":
-			// A kept illustration is written as its own block, the same shape
-			// blockTags get, because the reader only turns a line that is
-			// nothing but an image into a figure.
 			if opts.imageTarget != nil {
 				if target := opts.imageTarget(attr(n, "src")); target != "" {
 					b.WriteByte('\n')
@@ -184,10 +146,6 @@ func writeNode(n *html.Node, b *strings.Builder, opts Options) {
 			}
 			return
 		case "image", "svg":
-			// An <image> lives inside an <svg> canvas, which this flattener
-			// skips as a whole subtree: there is no position in flat text that
-			// corresponds to a spot on a canvas. Such illustrations stay
-			// dropped, and are counted as such.
 			return
 		}
 
@@ -256,15 +214,6 @@ func writeEmphasis(n *html.Node, b *strings.Builder, opts Options, marker string
 	}
 }
 
-// collapseInlineSpaces folds runs of HTML whitespace into a single space while
-// preserving whether the run touched the start or end of the text node, so that
-// "a <em>b</em>" does not become "ab".
-//
-// Two space-like characters are deliberately excluded and handled later:
-// U+3000 IDEOGRAPHIC SPACE, because Chinese novels use it for paragraph
-// indentation, and U+00A0 NO-BREAK SPACE, because an author who wrote &nbsp;
-// meant a space to be there and dropCJKJoinSpaces must not mistake it for a
-// source line wrap.
 func collapseInlineSpaces(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -289,13 +238,6 @@ func collapseInlineSpaces(s string) string {
 	return b.String()
 }
 
-// normalizeText trims each line and reduces any run of blank lines to exactly
-// one, so paragraphs are separated by a single blank line regardless of how the
-// source markup was nested.
-//
-// Runs of spaces inside a line are also collapsed. Adjacent inline elements each
-// contribute their own boundary space ("said " + " softly "), and a reader has
-// no way to tell an intentional double space from that artifact.
 func normalizeText(s string) string {
 	lines := strings.Split(s, "\n")
 	out := make([]string, 0, len(lines))
@@ -317,10 +259,6 @@ func normalizeText(s string) string {
 	return strings.Join(out, "\n")
 }
 
-// normalizeLine cleans one line of flattened text. The order matters: no-break
-// spaces only become ordinary spaces after the CJK line-wrap pass has run, so an
-// explicit &nbsp; between two CJK characters survives while a source line wrap
-// between the same two characters does not.
 func normalizeLine(line string) string {
 	line = strings.Trim(line, " \t\r\u00a0")
 	line = collapseSpaceRuns(line)
@@ -357,13 +295,6 @@ func collapseSpaceRuns(s string) string {
 	return b.String()
 }
 
-// dropCJKJoinSpaces removes a space that only exists because the source markup
-// wrapped a line mid-sentence.
-//
-// HTML turns a newline inside a paragraph into a space, which is right for
-// space-separated scripts and wrong for CJK: "他走出了車站，\n天色早" must join
-// as "他走出了車站，天色早", not "…， 天色早". The space is kept whenever either
-// side is non-CJK, so "中文 English" and "said softly" are untouched.
 func dropCJKJoinSpaces(s string) string {
 	if !strings.Contains(s, " ") {
 		return s
@@ -382,14 +313,11 @@ func dropCJKJoinSpaces(s string) string {
 	return string(out)
 }
 
-// isCJK reports whether r belongs to a script that does not separate words with
-// spaces, including the CJK punctuation and fullwidth blocks so that a break
-// after "，" or "）" is handled too.
 func isCJK(r rune) bool {
 	switch {
-	case r >= 0x3000 && r <= 0x303F: // CJK symbols and punctuation
+	case r >= 0x3000 && r <= 0x303F:
 		return true
-	case r >= 0xFF00 && r <= 0xFFEF: // halfwidth and fullwidth forms
+	case r >= 0xFF00 && r <= 0xFFEF:
 		return true
 	case unicode.Is(unicode.Han, r),
 		unicode.Is(unicode.Hiragana, r),

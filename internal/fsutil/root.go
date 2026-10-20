@@ -29,7 +29,6 @@ func (l *RootFS) Open(name string) (fs.File, error) {
 }
 
 func (l *RootFS) ReadDir(name string) ([]fs.DirEntry, error) {
-	// list directory entries
 	f, err := l.root.Open(name)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -52,12 +51,6 @@ func (l *RootFS) Stat(name string) (fs.FileInfo, error) {
 	return info, nil
 }
 
-// OpenNoFollow opens name, a clean slash-separated path, like Open, but fails
-// with fs.ErrNotExist when any component is a symlink, one swapped in while
-// the path is walked included. os.Root follows a link that stays inside the
-// root; this does not. Each component is checked against a directory handle
-// already held, and what is opened must be the entry that was checked. A hard
-// link is an ordinary entry and is not detected.
 func (l *RootFS) OpenNoFollow(name string) (fs.File, error) {
 	if name == "." {
 		return l.Open(name)
@@ -109,7 +102,7 @@ func (l *RootFS) OpenNoFollow(name string) (fs.File, error) {
 			return nil, notExist
 		}
 	}
-	return nil, notExist // unreachable: parts is never empty
+	return nil, notExist
 }
 
 func (l *RootFS) OpenWriter(name string) (io.WriteCloser, error) {
@@ -130,11 +123,11 @@ func (l *RootFS) WriteFile(name string, data []byte) error {
 	for written < len(data) {
 		n, err := fp.Write(data[written:])
 		if err != nil {
-			fp.Close() //nolint:errcheck // best-effort cleanup; write error is returned
+			fp.Close()
 			return util.Errorf("%w", err)
 		}
 		if n == 0 {
-			fp.Close() //nolint:errcheck // best-effort cleanup; write error is returned
+			fp.Close()
 			return util.Errorf("%w", io.ErrShortWrite)
 		}
 		written += n

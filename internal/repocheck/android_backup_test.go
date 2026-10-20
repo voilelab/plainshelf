@@ -11,15 +11,11 @@ import (
 
 const androidResXML = "frontend/android/app/src/main/res/xml"
 
-// tokenPrefExcludes hold the API token (or its legacy plaintext copy) and must
-// stay out of every backup.
 var tokenPrefExcludes = []backupRule{
 	{Domain: "sharedpref", Path: "CapacitorStorage.xml"},
 	{Domain: "sharedpref", Path: "plainshelf_secure_storage.xml"},
 }
 
-// localShelvesExclude keeps local shelves out of Google's cloud (PSW-155);
-// device-to-device transfer still carries them.
 var localShelvesExclude = backupRule{Domain: "file", Path: "local-shelves/"}
 
 type backupRule struct {
@@ -78,7 +74,6 @@ func TestAndroidBackupRules(t *testing.T) {
 	}
 }
 
-// The exclude path names the directory LocalShelf.java hands the embedded server.
 func TestAndroidLocalShelvesDirMatchesBackupRule(t *testing.T) {
 	src, err := os.ReadFile(filepath.Join(repoRoot(t),
 		"frontend/android/app/src/main/java/lab/voile/plainshelf/LocalShelf.java"))

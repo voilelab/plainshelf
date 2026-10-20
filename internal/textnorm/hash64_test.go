@@ -6,12 +6,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-// hash64 and hash64String are the golden table's subject. Production hashes
-// shingles in internal/sketch, which calls xxhash.Sum64String directly; these
-// call the same dependency function so that the table below pins what a
-// fingerprint's Hash64Version actually stands for. They live here rather than
-// in the package because nothing outside a test ever needed a second spelling
-// of them.
 func hash64(b []byte) uint64 { return xxhash.Sum64(b) }
 
 func hash64String(s string) uint64 { return xxhash.Sum64String(s) }
@@ -29,8 +23,6 @@ var goldenHashes = []struct {
 	input string
 	want  uint64
 }{
-	// The published xxHash64 vector for the empty input under seed 0. It is
-	// here to pin the seed itself, which no other case can distinguish.
 	{"empty", "", 0xef46db3751d8e999},
 	{"single ascii letter", "a", 0xd24ec4f1a98c6e5b},
 	{"ascii sentence", "Hello, World!", 0xc49aacf8080fe47f},
@@ -59,16 +51,12 @@ func TestHash64StringMatchesHash64(t *testing.T) {
 	}
 }
 
-// TestHash64TreatsNilAndEmptyAlike keeps the boundary case from depending on how
-// a caller happened to build its slice.
 func TestHash64TreatsNilAndEmptyAlike(t *testing.T) {
 	if hash64(nil) != hash64([]byte{}) {
 		t.Error("hash64(nil) and hash64([]byte{}) disagree")
 	}
 }
 
-// TestHash64SeparatesNearbyInputs is a smoke test, not a quality measure: a
-// sketch built on a hash that collides on one-character edits would be useless.
 func TestHash64SeparatesNearbyInputs(t *testing.T) {
 	seen := map[uint64]string{}
 	for _, s := range []string{

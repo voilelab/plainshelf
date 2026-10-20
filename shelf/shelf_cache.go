@@ -16,29 +16,13 @@ type bookIDCacheEntry struct {
 	path    string
 	book    *Book
 
-	// charCount is kept here because a listing that reports it would otherwise
-	// open and decode one source meta.json per book on the request path.
-	//
-	// A published entry is never modified: every path that changes a stored value
-	// replaces the whole entry, so a reader cannot observe a half-updated one.
 	charCount int
 
-	// sourceMD5 is the current source's content hash, read with charCount from
-	// the same meta.json and kept with it. It is what tells an offline copy that
-	// the text changed; see shelf_offline.go.
 	sourceMD5 string
 
-	// charCountAt orders two observations of the same book. A count is written
-	// without touching book.json, so a walk that read a source before it was
-	// rewritten and the refresh that followed the write are publishable in either
-	// order, and publishing the older would stick — the book.json stat check
-	// cannot see a count change. See keepNewerCharCount.
 	charCountAt time.Time
 }
 
-// newBookIDCacheEntry builds the cache entry for one book. It reads the book's
-// current source meta.json, so call it before taking the cache lock wherever
-// that is possible.
 func newBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCacheEntry {
 	charCount, sourceMD5, charCountAt := readSourceStat(book)
 
@@ -52,22 +36,12 @@ func newBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCac
 	}
 }
 
-// readSourceStat reports the moment the read began, not the end: a read that
-// overlaps a write may see either state, and the caller that started later is
-// the one whose write it followed.
 func readSourceStat(book *Book) (int, string, time.Time) {
 	readAt := time.Now()
 	charCount, md5 := book.CurrentSourceStat()
 	return charCount, md5, readAt
 }
 
-// keepNewerCharCount returns entry with the character count of the entry it
-// replaces, when that one was observed later. Call it under the cache write
-// lock, with the entry currently published for the same book.
-//
-// This is what stops a full scan from undoing a refresh: the scan reads a book
-// early in its walk and publishes the whole map at the end, so a source
-// rewritten in between is already refreshed by the time the scan lands.
 func keepNewerCharCount(entry, published *bookIDCacheEntry) *bookIDCacheEntry {
 	if published == nil || !published.charCountAt.After(entry.charCountAt) {
 		return entry
@@ -84,14 +58,8 @@ type bookCache struct {
 	sync.RWMutex
 	cache map[string]*bookIDCacheEntry
 
-	// folders is every folder directory, sorted, with the root as an empty
-	// Folders. Its own list because an empty folder holds no book and could not
-	// be rebuilt from cache above — the same reason BookCacheFile.Folders does.
 	folders []FolderPath
 
-	// folderMeta is each folder's folder.json, keyed by FolderPath.String(),
-	// for the folders that have one. Read by the same walk as folders; see
-	// readFolderMetaForScan.
 	folderMeta map[string]FolderMeta
 
 	treeDirty    bool
@@ -102,19 +70,11 @@ type bookCache struct {
 	bookCheckInterval time.Duration
 	refreshing        bool
 
-	// rescanID names the manual rescan currently walking the shelf, empty when
-	// none is. See shelf_rescan.go for why a second one is refused rather than
-	// queued.
 	rescanID string
 
-	// rescanTokens and rescanTokensAt are the manual rescan's rate limit; see
-	// shelf_rescan.go. Here rather than beside the shelf because beginRescan
-	// already holds this lock, so the claim and its token cost are one section.
 	rescanTokens   float64
 	rescanTokensAt time.Time
 
-	// lastScanStart is when the walk behind the current cache began. See
-	// scanToBookCache for why the start and not the end.
 	lastScanStart time.Time
 
 	// Exported cache state; see shelf_cache_export.go. There is deliberately no
@@ -126,8 +86,6 @@ type bookCache struct {
 	lastExportDigest string
 	exporting        bool
 
-	// remoteDigest is the content digest of the export a remote shelf last
-	// listed from; see shelf_cache_snapshot.go.
 	remoteDigest string
 }
 
@@ -135,8 +93,6 @@ func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
 	return &bookCache{
 		cache: make(map[string]*bookIDCacheEntry),
 
-		// A fresh shelf starts with a full bucket: the first thing a user does
-		// after opening one is often to press the button.
 		rescanTokens: rescanBurst,
 
 		scanInterval:      scanInterval,
@@ -157,8 +113,6 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 	scanInterval := s.bookCache.scanInterval
 	s.bookCache.RUnlock()
 
-	// No per-book check on a remote shelf: that is a request per book. See
-	// shelf_cache_snapshot.go.
 	if s.remote {
 		if !force && time.Since(lastFullScan) < scanInterval {
 			return nil
@@ -185,9 +139,6 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 func (s *Shelf) scanToBookCache() error {
 	cache := make(map[string]*bookIDCacheEntry)
 
-	// Recorded before the walk, not after: a book read early can be edited before
-	// the walk ends, so only the start is a moment the whole result is current as
-	// of. The exported cache publishes it as its Timestamp.
 	scanStart := time.Now()
 
 	var folders, metaFolders []FolderPath
@@ -199,8 +150,6 @@ func (s *Shelf) scanToBookCache() error {
 		metaFolders = append(metaFolders, folder)
 	}, func(b *Book) bool {
 		entry := newBookIDCacheEntry(bookFolderPath(b.PackagePath()), b.PackagePath(), b)
-		// Read from the source; listed through the offline overlay, so a
-		// downloaded book is still read from its copy. See walkRoot.
 		if s.offline != nil {
 			entry.book = bookpkg.FromSnapshot(s.dbRoot, s.Logger, b.PackagePath(), b.GetMeta())
 		}
@@ -242,17 +191,10 @@ func (s *Shelf) scanToBookCache() error {
 }
 
 func (s *Shelf) onlyRefreshBooksInCache() {
-	// Snapshot the current entries under a brief read lock so that concurrent
-	// list operations are not blocked during the filesystem I/O below.
 	s.bookCache.RLock()
 	snapshot := maps.Clone(s.bookCache.cache)
 	s.bookCache.RUnlock()
 
-	// Perform all stat and open calls outside any cache lock. The caller holds
-	// s.shelfLock.RLock() (shared flock), which prevents mutations from modifying the
-	// cache concurrently, so the snapshot remains consistent with the filesystem.
-	//
-	// updated: bookID → refreshed entry (nil = delete from cache)
 	updated := make(map[string]*bookIDCacheEntry)
 
 	for bookID, cacheEntry := range snapshot {
@@ -276,7 +218,6 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 		updated[bookID] = newBookIDCacheEntry(cacheEntry.folders, cacheEntry.path, book)
 	}
 
-	// Apply only the changed entries under a brief write lock.
 	s.bookCache.Lock()
 	for bookID, entry := range updated {
 		if entry != nil {
@@ -289,17 +230,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 	s.bookCache.Unlock()
 }
 
-// scheduleBookCacheRefreshIfNeeded triggers a refresh based on the current cache state.
-//
-// Full scans (tree dirty or scan interval elapsed) run synchronously so callers
-// immediately see structural changes such as moved or renamed folders.
-//
-// Per-book staleness checks (within the scan interval) run in a background
-// goroutine so list operations are never blocked by N filesystem stat calls —
-// the main performance concern on SMB mounts, rate-limited by bookCheckInterval.
 func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
-	// Deferred so it runs on every return path below: whichever tier of refresh
-	// this call decides on, the exported cache is offered the result.
 	defer s.scheduleBookCacheExportIfNeeded()
 
 	s.bookCache.RLock()
@@ -310,8 +241,6 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 	scanInterval := s.bookCache.scanInterval
 	s.bookCache.RUnlock()
 
-	// A remote shelf only re-reads the exported cache, which costs the same
-	// whatever the shelf holds; it has no per-book tier below.
 	if s.remote {
 		if time.Since(lastFullScan) >= scanInterval {
 			_ = s.refreshBookCacheIfNeeded(false)
@@ -319,14 +248,11 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 		return
 	}
 
-	// Full scan: tree is structurally dirty or scan interval elapsed. Keep synchronous so
-	// mutations are immediately visible to callers.
 	if treeDirty || time.Since(lastFullScan) >= scanInterval {
 		_ = s.refreshBookCacheIfNeeded(false)
 		return
 	}
 
-	// Per-book check: async so callers are not blocked on N stat calls.
 	if refreshing || time.Since(lastBookCheck) < s.bookCache.bookCheckInterval {
 		return
 	}
@@ -357,17 +283,11 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 		s.onlyRefreshBooksInCache()
 	})
 
-	// A closing shelf runs no check, so the flag it was claimed with has to be
-	// given back here instead: leaving it set would make a shelf that is opened
-	// and closed in a loop look permanently busy to the next read.
 	if !started {
 		done()
 	}
 }
 
-// listBookListingsFromCache returns every cached book together with the values
-// the cache keeps beside it. The values are copied out under the lock so that
-// no caller reads a cache entry after releasing it.
 func (s *Shelf) listBookListingsFromCache() []BookListing {
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
@@ -388,9 +308,6 @@ func (s *Shelf) listBookListingsFromCache() []BookListing {
 	return listings
 }
 
-// listFoldersFromCache returns the cached folder list. The copy is deliberate:
-// the caller marshals it into a response while the next scan may already be
-// replacing the cached slice.
 func (s *Shelf) listFoldersFromCache() []FolderPath {
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
@@ -403,8 +320,6 @@ func (s *Shelf) listFoldersFromCache() []FolderPath {
 	return folders
 }
 
-// sortFolderSiblings emits a pre-order traversal when keys apply, moving each
-// folder with its descendants. With no keys, the exact legacy flat order stays.
 func sortFolderSiblings(folders []FolderPath, metas map[string]FolderMeta) {
 	if !slices.ContainsFunc(folders, func(f FolderPath) bool { return metas[f.String()].HasSortKey }) {
 		return
@@ -457,10 +372,6 @@ func sortFolderSiblings(folders []FolderPath, metas map[string]FolderMeta) {
 	copy(folders, result)
 }
 
-// addFolderToBookCache records a folder and every ancestor it needed, so that a
-// directory this process just created shows up in the next listing instead of
-// waiting for the scan interval. Every place that MkdirAll's a folder path calls
-// it; a folder created outside PlainShelf is still found by the next scan.
 func (s *Shelf) addFolderToBookCache(folder FolderPath) {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
@@ -480,8 +391,6 @@ func (s *Shelf) addFolderToBookCache(folder FolderPath) {
 	}
 }
 
-// removeFolderFromBookCache drops one folder entry. Only for a folder known to
-// have no children; a subtree change marks the tree dirty instead.
 func (s *Shelf) removeFolderFromBookCache(folder FolderPath) {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
@@ -496,10 +405,6 @@ func sortFolders(folders []FolderPath) {
 	})
 }
 
-// getUpdatedBookFromBookID resolves a book and the folder it sits in from the
-// cache, refreshing a stale entry first. The book and the folder come from the
-// same cache entry read under one lock, so a concurrent refresh cannot pair a
-// book with a different entry's folder, or report a nested book as having none.
 func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, FolderPath, error) {
 	s.bookCache.Lock()
 
@@ -511,7 +416,6 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, FolderPath, erro
 			return book, folders, nil
 		}
 
-		// If the cache entry is stale or doesn't exist, we need to refresh it.
 		delete(s.bookCache.cache, bookID)
 
 		book, err := bookpkg.Open(s.dbRoot, s.Logger, cacheEntry.path)
@@ -530,9 +434,6 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, FolderPath, erro
 
 	s.bookCache.Unlock()
 
-	// If we reach here, it means the cache entry is either missing or stale and we failed to refresh it.
-	// We should refresh the entire book cache to ensure we have the most up-to-date information.
-
 	if err := s.refreshBookCacheIfNeeded(false); err != nil {
 		return nil, nil, util.Errorf("%w", err)
 	}
@@ -548,8 +449,6 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, FolderPath, erro
 }
 
 func (s *Shelf) updateBookCacheEntry(folders FolderPath, path string, book *Book) {
-	// Built before the lock: the entry reads the book's current source from
-	// disk, and no listing should wait on that.
 	entry := newBookIDCacheEntry(folders, path, book)
 
 	s.bookCache.Lock()
@@ -558,18 +457,6 @@ func (s *Shelf) updateBookCacheEntry(folders FolderPath, path string, book *Book
 	s.bookCache.cache[book.ID()] = keepNewerCharCount(entry, s.bookCache.cache[book.ID()])
 }
 
-// RefreshBookCharCount re-reads one book's current-source character count into
-// its cache entry.
-//
-// Everything else in an entry is kept current by the book.json stat check in
-// Book.IsStale, but a character count lives in the source's own meta.json and
-// writing it leaves book.json untouched. That change is invisible to the check,
-// so the entry would answer with the previous count until the next full scan.
-// Every request path that rewrites a source's content or moves the
-// current-source pointer calls this instead.
-//
-// A book not in the cache is a no-op: the entry built for it later reads the
-// count from disk anyway.
 func (s *Shelf) RefreshBookCharCount(bookID string) {
 	s.bookCache.RLock()
 	cacheEntry := s.bookCache.cache[bookID]
@@ -584,10 +471,6 @@ func (s *Shelf) RefreshBookCharCount(bookID string) {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
-	// A scan or a per-book refresh may have replaced the entry while the count
-	// was being read, so the count lands on whatever is published now rather
-	// than on the entry it was read from - discarding it would leave a count
-	// read before this book's source was rewritten in place.
 	published := s.bookCache.cache[bookID]
 	if published == nil || published.charCountAt.After(charCountAt) {
 		return

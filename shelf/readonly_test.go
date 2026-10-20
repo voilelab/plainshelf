@@ -14,9 +14,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
-// readOnlyFS exposes only the read half of a filesystem, standing in for a
-// shelf this build cannot write: a read-only mount, or a reader that was handed
-// nothing else.
 type readOnlyFS struct {
 	fsutil.ReadFS
 }
@@ -68,10 +65,6 @@ func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
 	}
 }
 
-// A refused write must not leave the in-memory source ahead of meta.json. Each
-// of these mutates r.meta on its way to writebackMeta, so narrowing the
-// filesystem at the write itself would report ErrReadOnly while GetMeta already
-// reported the value that never reached disk.
 func TestRefusedSourceWriteLeavesMetaUntouched(t *testing.T) {
 	root := readOnlyFS{testdataFS(t)}
 
@@ -112,9 +105,6 @@ func TestRefusedSourceWriteLeavesMetaUntouched(t *testing.T) {
 	}
 }
 
-// seedReadOnlyShelf builds a complete shelf - a book with metadata, a cover, a
-// source and an asset - and closes it, so what follows opens a shelf that a
-// user could plausibly have copied onto a read-only medium.
 func seedReadOnlyShelf(t *testing.T, libRoot string) string {
 	t.Helper()
 
@@ -143,26 +133,16 @@ func seedReadOnlyShelf(t *testing.T, libRoot string) string {
 
 const readOnlyContent = "# Chapter 1\n\nText that must still be readable.\n"
 
-// denyWrites takes the write bit off the whole tree, which is what a read-only
-// mount or a restored backup looks like from the process's side.
-//
-// It is a second line of defense rather than the assertion: a test running as
-// root is not stopped by a mode bit, so what actually proves the shelf was left
-// alone is the tree snapshot around it.
 func denyWrites(t *testing.T, root string) {
 	t.Helper()
 
 	chmodTree(t, root, 0o555, 0o444)
-	// Restored before the temp directory is removed, which is registered
-	// earlier and therefore runs after this.
 	t.Cleanup(func() { chmodTree(t, root, 0o755, 0o644) })
 }
 
 func chmodTree(t *testing.T, root string, dirMode, fileMode fs.FileMode) {
 	t.Helper()
 
-	// Top-down is safe in both directions: 0555 still lets the walk descend,
-	// and restoring 0755 only ever widens what it can reach.
 	err := filepath.WalkDir(root, func(pth string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -283,8 +263,6 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 		t.Errorf("Rescan: %v", err)
 	}
 
-	// Close is where a writable shelf flushes the exported book cache and the
-	// directory scan snapshot, so the comparison has to happen after it.
 	if err := s.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
@@ -296,9 +274,6 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 	}
 }
 
-// Every shelf-level mutation is refused with fsutil.ErrReadOnly, and refused
-// before it moves anything: the ones that operate on an existing book would
-// otherwise leave the book somewhere else on a shelf that cannot be repaired.
 func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
@@ -336,8 +311,6 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 		})
 	}
 
-	// The export is the one write that is not reached through writeRoot: it is
-	// disabled by the writer ID read_only clears.
 	if _, err := s.ExportBookCache(); err == nil {
 		t.Error("ExportBookCache() succeeded on a read-only shelf")
 	}
@@ -347,8 +320,6 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 	}
 }
 
-// A shelf copied out of a backup, or exported by a reader that never wrote to
-// it, has no app/ and no trash/. Opening it read-only must not need either.
 func TestReadOnlyShelfWithoutRuntimeFoldersOpens(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
@@ -384,9 +355,6 @@ func TestReadOnlyShelfWithoutRuntimeFoldersOpens(t *testing.T) {
 	}
 }
 
-// lib_root is created for a writable shelf and never for a read-only one: the
-// creation is itself a write, and a mount that is not there yet is far more
-// likely to be a wrong path than a shelf to be conjured up.
 func TestReadOnlyShelfDoesNotCreateLibRoot(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "not-mounted")
 

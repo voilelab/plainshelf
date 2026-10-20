@@ -11,10 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// maxDocumentBytes caps the stored document. It is the same 1 MiB ceiling the
-// desktop app has always enforced on its device documents; here it also backstops
-// the projection, which never deletes reader entries and so could otherwise grow
-// without bound.
 const maxDocumentBytes = 1 << 20
 
 const (
@@ -22,12 +18,6 @@ const (
 	lockRetryDelay = 50 * time.Millisecond
 )
 
-// Store is a file-backed reading-progress document guarded by a cross-process
-// advisory lock. The desktop app and the standalone reader each open a Store on
-// the same path in their own process; the lock (held only for the duration of a
-// read-modify-write) serializes their mutations so neither loses the other's
-// update. Reads outside a mutation need no lock because every write replaces the
-// file atomically.
 type Store struct {
 	path     string
 	lockPath string
@@ -41,9 +31,6 @@ func NewStore(path string) *Store {
 	return &Store{path: path, lockPath: path + ".lock"}
 }
 
-// Read returns the current on-disk document (an empty document when the file
-// does not exist yet) together with its raw text. It takes no lock: writes are
-// atomic, so a read always sees one whole version or another.
 func (s *Store) Read() (Document, string, error) {
 	raw, err := readFile(s.path)
 	if err != nil {
@@ -52,10 +39,6 @@ func (s *Store) Read() (Document, string, error) {
 	return Parse(raw), raw, nil
 }
 
-// Mutate applies fn to the current on-disk document under an exclusive
-// cross-process lock and atomically persists the result, returning it. When fn
-// leaves the document unchanged, nothing is written. fn may be called with an
-// empty document (missing file) and must not retain the maps it is handed.
 func (s *Store) Mutate(fn func(Document) Document) (Document, error) {
 	if s.path == "" {
 		return New(), util.NewError("reading progress storage is not ready")
@@ -97,9 +80,6 @@ func (s *Store) Mutate(fn func(Document) Document) (Document, error) {
 }
 
 func (s *Store) lock() (func(), error) {
-	// The lock file and the document share a directory; create it up front so the
-	// first writer (reader or desktop) can take the lock before either has
-	// written the document.
 	if err := os.MkdirAll(filepath.Dir(s.lockPath), 0o755); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -117,8 +97,6 @@ func (s *Store) lock() (func(), error) {
 	}
 	return func() {
 		if unlockErr := lk.Unlock(); unlockErr != nil {
-			// The lock is advisory and released when the process exits, so a
-			// failed unlock is not worth failing the write over.
 			_ = unlockErr
 		}
 	}, nil

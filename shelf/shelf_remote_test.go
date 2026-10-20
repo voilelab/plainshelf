@@ -15,8 +15,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
-// countingFS records every call a shelf makes through it, standing in for a
-// remote file tree where each call is a request.
 type countingFS struct {
 	inner fsutil.ReadFS
 
@@ -45,7 +43,6 @@ func (c *countingFS) Stat(name string) (fs.FileInfo, error) {
 	return c.inner.Stat(name)
 }
 
-// take returns the calls recorded so far and starts a new count.
 func (c *countingFS) take() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -54,8 +51,6 @@ func (c *countingFS) take() []string {
 	return calls
 }
 
-// booksCalls is the part of calls that reached into books/: what costs a
-// request per book on a remote shelf.
 func booksCalls(calls []string) []string {
 	var out []string
 	for _, call := range calls {
@@ -66,8 +61,6 @@ func booksCalls(calls []string) []string {
 	return out
 }
 
-// seedExportedShelf creates a local shelf holding the given titles, one of them
-// in a folder, and exports its book cache the way a server sharing it would.
 func seedExportedShelf(t *testing.T, titles ...string) string {
 	t.Helper()
 
@@ -96,7 +89,6 @@ func seedExportedShelf(t *testing.T, titles ...string) string {
 	return libRoot
 }
 
-// openRemoteShelf opens libRoot through NewShelfFromFS behind a countingFS.
 func openRemoteShelf(t *testing.T, libRoot string, conf ShelfConf) (*Shelf, *countingFS) {
 	t.Helper()
 
@@ -181,8 +173,6 @@ func TestRemoteShelfRefreshRereadsOnlyTheExport(t *testing.T) {
 		t.Errorf("refresh calls = %v, want a listing of %s/", calls, appFolder)
 	}
 
-	// The exporter adds a book and exports again. Its walk starts in the same
-	// second as the first one in a test, so the timestamp is moved forward.
 	local := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
 	if _, err := local.NewBook(FolderPath{}, "Hyperion"); err != nil {
 		t.Fatalf("NewBook: %v", err)
@@ -279,8 +269,6 @@ func TestRemoteShelfPicksTheMostRecentWalk(t *testing.T) {
 		t.Fatalf("read export: %v", err)
 	}
 
-	// An older walk under a name that sorts after the current one and a newer
-	// modification time: neither may win over the newer walk.
 	older := *current
 	older.WriterID = "zzolder"
 	older.Timestamp = current.Timestamp - 100
@@ -346,8 +334,6 @@ func TestRemoteShelfPicksUpAReexportInTheSameSecond(t *testing.T) {
 	}
 }
 
-// goneFS stands in for a source whose folder is gone, as davfs reports a 404:
-// every call fails with fs.ErrNotExist while gone is set.
 type goneFS struct {
 	inner fsutil.ReadFS
 	gone  atomic.Bool
@@ -381,8 +367,6 @@ func (f *goneFS) Stat(name string) (fs.FileInfo, error) {
 	return f.inner.Stat(name)
 }
 
-// openGoneShelf opens libRoot through a goneFS, gone from the start when gone
-// is set, and waits for the first listing whatever its outcome.
 func openGoneShelf(t *testing.T, libRoot string, gone bool) (*Shelf, *goneFS, error) {
 	t.Helper()
 
@@ -423,7 +407,6 @@ func TestRemoteShelfWithMissingRootIsNotAShelf(t *testing.T) {
 				t.Errorf("ListBooks error = %v, want %v", err, ErrNotAShelf)
 			}
 
-			// The share coming back is picked up without a restart.
 			if !tc.gone {
 				return
 			}

@@ -13,28 +13,12 @@ import (
 	"unicode"
 )
 
-// cjkStringAllowlist names the non-test Go files whose string literals may
-// contain CJK characters, with the reason each one needs them. A file not
-// listed here is a bug: PlainShelf's UI is translated in the frontend, and the
-// server has no locale to translate against, so a CJK literal reaching a user —
-// in a file the shelf writes, an API response, or a log line — is text an
-// English reader cannot act on. See shelf.CurrentSourceHintTemplate for the
-// case that motivated this check.
-//
-// Paths are slash-separated and relative to the repository root.
 var cjkStringAllowlist = map[string]string{
-	// Language detection compares against sets of Han characters; the data is
-	// the point and is never shown to a user.
-	"internal/util/detect_lang.go": "Han character sets used to tell zh-Hant from zh-Hans",
-	// Test fixtures that happen to live outside a _test.go file so several
-	// packages can share them.
-	"internal/testutil/epub.go": "CJK EPUB fixture content for tests",
-	// The API contract harness is a package rather than a _test.go file so the
-	// contract packages under server/contract can share it.
+	"internal/util/detect_lang.go":    "Han character sets used to tell zh-Hant from zh-Hans",
+	"internal/testutil/epub.go":       "CJK EPUB fixture content for tests",
 	"server/contract/apitest/book.go": "non-ASCII tail every imported fixture carries, so the decoding path is exercised",
 }
 
-// skippedDirs are directories with no first-party Go source worth parsing.
 var skippedDirs = map[string]bool{
 	".git":         true,
 	"node_modules": true,
@@ -42,9 +26,6 @@ var skippedDirs = map[string]bool{
 	"testdata":     true,
 }
 
-// TestNoCJKStringLiteralsInNonTestGo keeps hardcoded CJK out of shipped Go
-// strings. Comments are exempt on purpose: they address contributors, who work
-// in Chinese, while strings can reach users, who may not.
 func TestNoCJKStringLiteralsInNonTestGo(t *testing.T) {
 	root := repoRoot(t)
 
@@ -100,8 +81,6 @@ func TestNoCJKStringLiteralsInNonTestGo(t *testing.T) {
 	}
 }
 
-// TestCJKStringAllowlistIsCurrent stops the allowlist from outliving the files
-// it excuses, which would quietly re-open the hole for a new file at that path.
 func TestCJKStringAllowlistIsCurrent(t *testing.T) {
 	root := repoRoot(t)
 	for rel := range cjkStringAllowlist {
@@ -123,8 +102,6 @@ func firstCJK(s string) (rune, bool) {
 	return 0, false
 }
 
-// repoRoot returns the repository root, found by walking up from the test's
-// working directory until a go.mod appears next to the .claude rules directory.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

@@ -6,12 +6,8 @@ import (
 	"testing"
 )
 
-// TestEPUBTitle is the dc:title inside the archive buildTestEPUB produces.
 const TestEPUBTitle = "星塵集"
 
-// buildTestEPUB returns a small but complete EPUB 3 archive: two chapters, a
-// navigation document, a cover, and enough metadata to exercise every field the
-// importer copies onto the book.
 func BuildTestEPUB(t *testing.T) []byte {
 	t.Helper()
 
@@ -52,8 +48,6 @@ func BuildTestEPUB(t *testing.T) []byte {
 	return ZipEPUBEntries(t, entries)
 }
 
-// BuildIllustratedTestEPUB is BuildTestEPUB with two illustrations in the
-// chapters, for the paths that report what conversion discarded.
 func BuildIllustratedTestEPUB(t *testing.T) []byte {
 	t.Helper()
 
@@ -89,9 +83,6 @@ func BuildIllustratedTestEPUB(t *testing.T) []byte {
 	return ZipEPUBEntries(t, entries)
 }
 
-// BuildUnstorableImageTestEPUB carries one illustration in a format the shelf
-// does not serve, which is what keeps the dropped-images note meaningful now
-// that ordinary artwork survives the import.
 func BuildUnstorableImageTestEPUB(t *testing.T) []byte {
 	t.Helper()
 
@@ -142,8 +133,6 @@ func ZipEPUBEntries(t *testing.T, entries []struct{ name, body string }) []byte 
 	return buf.Bytes()
 }
 
-// OnePixelPNG is a real 1x1 PNG so the cover survives the JPEG conversion the
-// import performs when cover_to_jpg is enabled.
 func OnePixelPNG() []byte {
 	return []byte{
 		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,

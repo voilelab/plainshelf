@@ -15,25 +15,14 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// DefaultListingMaxAge is how long a folder listing answers ReadDir before the
-// folder is listed again.
 const DefaultListingMaxAge = 10 * time.Second
 
-// FS is a pCloud folder as an fsutil.ReadFS.
-//
-// The first call lists the whole tree in one recursive request, so a walk
-// costs one request however many books it reaches. After that, ReadDir lists
-// a folder again once its listing is older than ListingMaxAge, and Stat or
-// Open relists a stale folder only when the name is missing from it. Reading a
-// file costs a getfilelink and a download.
 type FS struct {
 	client *Client
 	root   string
 
-	// ListingMaxAge is DefaultListingMaxAge unless set before first use.
 	ListingMaxAge time.Duration
 
-	// mu serialises listings; downloads run outside it.
 	mu   sync.Mutex
 	tree *node
 	now  func() time.Time
@@ -42,8 +31,6 @@ type FS struct {
 var _ fsutil.ReadFS = (*FS)(nil)
 var _ fsutil.ZipOpener = (*FS)(nil)
 
-// NewFS reads the folder at root, a slash-separated path from the account's
-// top level. Nothing is requested until first use.
 func NewFS(client *Client, root string) *FS {
 	return &FS{client: client, root: root, ListingMaxAge: DefaultListingMaxAge, now: time.Now}
 }
@@ -55,7 +42,6 @@ type node struct {
 	size     int64
 	modified time.Time
 
-	// children is nil until the folder has been listed.
 	children map[string]*node
 	listedAt time.Time
 }
@@ -77,8 +63,6 @@ func newNode(it *item, listedAt time.Time, recursive bool) *node {
 	return n
 }
 
-// setChildren replaces a folder's listing. A subfolder that is still the same
-// folder keeps what is known beneath it; recursive marks every level listed.
 func (n *node) setChildren(items []item, listedAt time.Time, recursive bool, previous map[string]*node) {
 	n.children = make(map[string]*node, len(items))
 	n.listedAt = listedAt
@@ -95,7 +79,6 @@ func (f *FS) stale(n *node) bool {
 	return n.children == nil || f.now().Sub(n.listedAt) > f.ListingMaxAge
 }
 
-// loadLocked lists the whole tree the first time it is needed.
 func (f *FS) loadLocked(ctx context.Context) error {
 	if f.tree != nil {
 		return nil
@@ -122,8 +105,6 @@ func (f *FS) relistLocked(ctx context.Context, n *node) error {
 	return nil
 }
 
-// lookup finds name, listing a folder on the way when it was never listed, or
-// when it is stale and lacks the next segment.
 func (f *FS) lookup(op, name string) (*node, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: op, Path: name, Err: fs.ErrInvalid}
@@ -219,8 +200,6 @@ func (f *FS) Open(name string) (fs.File, error) {
 	return &file{ReadCloser: body, info: fileInfo{n: n}}, nil
 }
 
-// OpenZip downloads the named files as one zip that pCloud builds, each under
-// its base name. It costs two requests however many files there are.
 func (f *FS) OpenZip(names ...string) (io.ReadCloser, error) {
 	if len(names) == 0 {
 		return nil, util.NewError("no files to zip")

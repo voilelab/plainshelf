@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-// openTailFixture writes content to a temp file and opens it for reading.
 func openTailFixture(t *testing.T, content string) *os.File {
 	t.Helper()
 
@@ -25,7 +24,6 @@ func openTailFixture(t *testing.T, content string) *os.File {
 	return fp
 }
 
-// readAll returns what a caller would receive after SeekTail.
 func readAll(t *testing.T, fp *os.File) string {
 	t.Helper()
 
@@ -65,13 +63,9 @@ func TestSeekTailReturnsWholeFileWhenItFits(t *testing.T) {
 	}
 }
 
-// TestSeekTailAlignsToALineStart pins the property the log viewer depends on:
-// the response never opens on the middle of a line.
 func TestSeekTailAlignsToALineStart(t *testing.T) {
 	fp := openTailFixture(t, "aaaa\nbbbb\ncccc\n")
 
-	// 12 bytes back from the end lands inside "bbbb", so the tail starts at
-	// "bbbb" rather than at "bb".
 	start, err := SeekTail(fp, 12)
 	if err != nil {
 		t.Fatalf("SeekTail: %v", err)
@@ -84,9 +78,6 @@ func TestSeekTailAlignsToALineStart(t *testing.T) {
 	}
 }
 
-// TestSeekTailKeepsAnOverlongLine covers a line longer than the requested
-// tail: aligning past its break would answer with an empty body, so the
-// unaligned tail is returned instead.
 func TestSeekTailKeepsAnOverlongLine(t *testing.T) {
 	line := strings.Repeat("x", int(maxLineScanBytes)*2)
 	fp := openTailFixture(t, line+"\n")

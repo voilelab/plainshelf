@@ -13,9 +13,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/testutil"
 )
 
-// newBookPackageFixture copies the committed book fixture into a temp directory
-// named like a package a user would pick, so a test may add to it and any
-// accidental write lands outside the repository.
 func newBookPackageFixture(t *testing.T) string {
 	t.Helper()
 
@@ -33,7 +30,7 @@ func openFixturePackage(t *testing.T, dir string) *BookPackage {
 	if err != nil {
 		t.Fatalf("OpenBookPackage: %v", err)
 	}
-	t.Cleanup(func() { pkg.Close() }) //nolint:errcheck // test cleanup
+	t.Cleanup(func() { pkg.Close() })
 
 	return pkg
 }
@@ -63,7 +60,7 @@ func TestOpenBookPackageReadsWithoutAShelf(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Source.Open: %v", err)
 	}
-	defer content.Close() //nolint:errcheck // read-only handle in a test
+	defer content.Close()
 
 	text, err := io.ReadAll(content)
 	if err != nil {
@@ -109,7 +106,7 @@ func TestOpenBookPackageReadsSourceAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenAsset: %v", err)
 	}
-	defer asset.File.Close() //nolint:errcheck // read-only handle in a test
+	defer asset.File.Close()
 
 	got, err := io.ReadAll(asset.File)
 	if err != nil {
@@ -120,8 +117,6 @@ func TestOpenBookPackageReadsSourceAssets(t *testing.T) {
 	}
 }
 
-// A reader may be pointed at someone else's folder: no app/, no lock file, no
-// lazily upgraded book.json.
 func TestOpenBookPackageWritesNothing(t *testing.T) {
 	dir := newBookPackageFixture(t)
 	before := testutil.TreeSnapshot(t, dir)
@@ -163,8 +158,6 @@ func TestOpenBookPackageRefusesWrites(t *testing.T) {
 	}
 }
 
-// A reader says "no such folder", "that is not a book" and "this book is
-// damaged" in three different places in its UI.
 func TestOpenBookPackageRejectsNonPackages(t *testing.T) {
 	t.Run("missing directory", func(t *testing.T) {
 		_, err := OpenBookPackage(filepath.Join(t.TempDir(), "absent.bookpkg"), nil)
@@ -201,8 +194,6 @@ func TestOpenBookPackageRejectsNonPackages(t *testing.T) {
 	})
 }
 
-// Refusing a newer build's book would leave the reader with nothing to show,
-// and the package is never written back anyway.
 func TestOpenBookPackageOpensFutureSchema(t *testing.T) {
 	dir := newBookPackageFixture(t)
 	future, err := os.ReadFile("testdata/schema/v2-future/book.json")
@@ -233,10 +224,6 @@ func TestBookPackageCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-// Such a book is refused twice over, and the schema guard answers first: it
-// runs before the write handle is narrowed, so a refused write cannot truncate
-// a cover on its way to failing. The guarantee is "every mutation is refused",
-// not any one sentinel.
 func TestOpenBookPackageRefusesWritesToAFutureSchemaBook(t *testing.T) {
 	dir := newBookPackageFixture(t)
 	future, err := os.ReadFile("testdata/schema/v2-future/book.json")
@@ -250,8 +237,6 @@ func TestOpenBookPackageRefusesWritesToAFutureSchemaBook(t *testing.T) {
 	before := testutil.TreeSnapshot(t, dir)
 	book := openFixturePackage(t, dir).Book()
 
-	// DeleteCover is absent: this fixture records no cover, so it returns nil
-	// without reaching a guard.
 	writes := map[string]func() error{
 		"SetMeta":  func() error { return book.SetMeta(book.GetMeta()) },
 		"SetCover": func() error { return book.SetCover([]byte("data"), ".png") },

@@ -17,7 +17,6 @@ func offsetOf(t *testing.T, store *readingprogress.Store, shelfID, bookID string
 	return doc.Shelves[shelfID][bookID].Offset
 }
 
-// The staged position is written to the shared file on close.
 func TestPersistOnClose_WritesStagedPosition(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	s := NewStager(store, time.Second)
@@ -30,8 +29,6 @@ func TestPersistOnClose_WritesStagedPosition(t *testing.T) {
 	}
 }
 
-// Close never clobbers a newer entry another process wrote: the merge is
-// newest-wins by timestamp.
 func TestPersistOnClose_DoesNotClobberNewerEntry(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	if _, err := store.Mutate(func(doc readingprogress.Document) readingprogress.Document {
@@ -43,7 +40,6 @@ func TestPersistOnClose_DoesNotClobberNewerEntry(t *testing.T) {
 	}
 
 	s := NewStager(store, time.Second)
-	// A stale staged position (older timestamp) must lose to the newer on-disk one.
 	s.Stage("real-shelf", "book-a", 100, 1000)
 	s.PersistOnClose()
 
@@ -52,8 +48,6 @@ func TestPersistOnClose_DoesNotClobberNewerEntry(t *testing.T) {
 	}
 }
 
-// Nothing staged means nothing is written — closing away from the reader must
-// not touch the file.
 func TestPersistOnClose_EmptyIsNoop(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	s := NewStager(store, time.Second)

@@ -212,9 +212,6 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
-	// Opening a pre-schema-version source decodes only the fields this build
-	// models, so a rewrite neither resurrects the unknown ones nor upgrades the
-	// source by adding format/schema_version.
 	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","legacy_extra":"ignored"}`
 	if err := rootFS.WriteFile(metaPath, []byte(legacy)); err != nil {
 		t.Fatalf("write legacy meta: %v", err)
@@ -300,7 +297,6 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 		t.Fatal("a new source was written without an md5_hash")
 	}
 
-	// Edited outside PlainShelf: the content moves, meta.json does not.
 	if err := rootFS.WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("changed\n")); err != nil {
 		t.Fatalf("replace source content: %v", err)
 	}
@@ -323,7 +319,6 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 		t.Fatalf("md5_hash = %q after repair, want %q", got, edited)
 	}
 
-	// The write reached meta.json, not just the in-memory source.
 	reopened, err := book.GetSource(source.GetMeta().ID)
 	if err != nil {
 		t.Fatalf("GetSource: %v", err)
@@ -332,7 +327,6 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 		t.Fatalf("md5_hash = %q after reopening, want the persisted %q", got, edited)
 	}
 
-	// Agreeing hashes are a no-op rather than a second write.
 	again, err := reopened.RepairContentHash(edited)
 	if err != nil {
 		t.Fatalf("RepairContentHash (agreeing): %v", err)
@@ -342,7 +336,6 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 	}
 }
 
-// contentMD5 is the hash meta.json should be carrying for a source.
 func contentMD5(t *testing.T, source *Source) string {
 	t.Helper()
 	f, err := source.Open()
@@ -357,8 +350,6 @@ func contentMD5(t *testing.T, source *Source) string {
 	return sum
 }
 
-// json/v2 leaves &, < and > alone where v1 escaped them, in a file whose point
-// is that a text editor shows what you typed.
 func TestCreateSourceWritesCommentLiterally(t *testing.T) {
 	const comment = `imported from "A & B" <draft>`
 

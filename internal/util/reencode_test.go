@@ -85,9 +85,6 @@ func TestReEncodeToUTF8Big5(t *testing.T) {
 }
 
 func TestReEncodeToUTF8UTF16(t *testing.T) {
-	// A byte-order mark makes chardet's detection deterministic and reproduces
-	// what Windows Notepad writes for its "Unicode" (UTF-16 LE) format. The BOM
-	// must be consumed, not decoded into a leading U+FEFF.
 	const src = "遮天 Big5 舊繁中 test"
 
 	for _, tc := range []struct {
@@ -151,9 +148,6 @@ func TestReEncodeToUTF8StripsUTF8BOM(t *testing.T) {
 }
 
 func TestReEncodeToUTF8UnsupportedEncoding(t *testing.T) {
-	// Shift-JIS is deliberately outside the supported set; it must surface as a
-	// typed, user-actionable error carrying the detected encoding name rather
-	// than a generic read failure.
 	const src = "これは日本語のテキストです。文字化けのテスト。"
 
 	encoded, err := japanese.ShiftJIS.NewEncoder().String(src)
@@ -178,7 +172,6 @@ func TestReEncodeToUTF8UnsupportedEncoding(t *testing.T) {
 	}
 }
 
-// countingReader reports how much of its input has been consumed.
 type countingReader struct {
 	r    io.Reader
 	read int
@@ -190,15 +183,12 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// Detection reads a bounded prefix; the rest streams only as the result is read.
 func TestReEncodeToUTF8ReadsOnlyThePrefixUpFront(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		line string
 	}{
-		// ASCII never settles chardet, so it reads up to the limit.
 		{"ascii", "plain ascii line\n"},
-		// UTF-8 settles within the first chunk.
 		{"utf-8", "一行文字 line of text\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -224,8 +214,6 @@ func TestReEncodeToUTF8ReadsOnlyThePrefixUpFront(t *testing.T) {
 	}
 }
 
-// A Big5 body longer than one detection chunk decodes whole across the seam
-// between the buffered prefix and the rest of the stream.
 func TestReEncodeToUTF8Big5BeyondThePrefix(t *testing.T) {
 	src := strings.Repeat("第一章 這是一個關於修煉的故事，主角踏上了漫長的旅途。\n", 2*encodingSniffLimit/64)
 
@@ -251,10 +239,6 @@ func TestReEncodeToUTF8Big5BeyondThePrefix(t *testing.T) {
 	}
 }
 
-// Accepted trade-off: an encoding whose first non-ASCII byte lies past the
-// detection prefix is not seen. The input is detected as ASCII and passed
-// through unchanged, so the late Big5 bytes are stored as they came, not
-// decoded. Pinned so a change to that behavior is deliberate.
 func TestReEncodeToUTF8EncodingPastThePrefixPassesThrough(t *testing.T) {
 	lateBig5, err := traditionalchinese.Big5.NewEncoder().String("第一章 這是一個關於修煉的故事，主角踏上了漫長的旅途。")
 	if err != nil {
@@ -278,7 +262,6 @@ func TestReEncodeToUTF8EncodingPastThePrefixPassesThrough(t *testing.T) {
 		t.Fatal("expected the input passed through byte for byte")
 	}
 
-	// Within the prefix, the same text is detected and decoded.
 	reader, encoding, err = ReEncodeToUTF8(strings.NewReader("aaaa" + lateBig5))
 	if err != nil || encoding != "Big5" {
 		t.Fatalf("expected Big5 inside the prefix, got %q, %v", encoding, err)

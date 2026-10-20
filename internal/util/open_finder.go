@@ -16,7 +16,7 @@ func OpenFinder(path string) error {
 	case "windows":
 		cmd = "explorer"
 		args = []string{path}
-	default: // linux and others
+	default:
 		cmd = "xdg-open"
 		args = []string{path}
 	}

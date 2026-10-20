@@ -20,8 +20,6 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-// fakeDAV is a WebDAV server over a temp directory that requires a bearer
-// token and records every request it is sent.
 type fakeDAV struct {
 	*httptest.Server
 	dir string
@@ -345,8 +343,6 @@ func TestParseURL(t *testing.T) {
 	}
 }
 
-// A server that redirects a collection to its trailing-slash URL still gets a
-// PROPFIND, not the GET a default client would turn it into.
 func TestCollectionRedirectKeepsPropfind(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "books", "a"), 0o755); err != nil {
@@ -391,7 +387,6 @@ func TestRedirectToAnotherOriginIsRefused(t *testing.T) {
 	}
 }
 
-// A chunked GET carries no length; Stat and SeekEnd take it from PROPFIND.
 func TestChunkedGetStillReportsSize(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("0123456789"), 0o644); err != nil {

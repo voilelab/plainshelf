@@ -39,9 +39,6 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
-// TestEncodeIsStable pins the encoded form. The hash and the layout are part of
-// the stored fingerprint, so changing either invalidates every sketch already
-// written to disk; this test is here to make that a deliberate decision.
 func TestEncodeIsStable(t *testing.T) {
 	const want = "AQUAAAAbAAAAAAAAAAUAAACKCECE7YyXB7ULKZ8cf0kMMviiXlG5Aw/wioinKWDSHkMHjDt7dzwi"
 

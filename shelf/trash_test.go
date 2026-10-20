@@ -14,7 +14,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
-// trashBook creates a book and moves it to the trash, returning its ID.
 func trashBook(t *testing.T, s *Shelf, title string) string {
 	t.Helper()
 
@@ -55,9 +54,6 @@ func TestListTrashedBookIDsReturnsEveryTrashedBook(t *testing.T) {
 	}
 }
 
-// A book whose metadata cannot be read is skipped by ListTrashedBooks, so it
-// never reaches the UI. Emptying the trash must still delete it instead of
-// leaving an invisible directory behind.
 func TestListTrashedBookIDsIncludesUnreadableBooks(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -90,8 +86,6 @@ func TestListTrashedBookIDsIncludesUnreadableBooks(t *testing.T) {
 	}
 }
 
-// seedLegacyTrashedBook writes a book directory under the pre-rename hidden
-// trash path, the way an older build would have left it.
 func seedLegacyTrashedBook(t *testing.T, libRoot, bookID, title string) {
 	t.Helper()
 
@@ -127,8 +121,6 @@ func TestOpenShelfRenamesLegacyTrash(t *testing.T) {
 	}
 }
 
-// A shelf opened by an older build again after the rename ends up with both
-// directories. Every book must survive the merge.
 func TestOpenShelfMergesLegacyTrashIntoRenamedTrash(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 
@@ -156,8 +148,6 @@ func TestOpenShelfMergesLegacyTrashIntoRenamedTrash(t *testing.T) {
 	}
 }
 
-// Two entries for the same book ID cannot share a folder name. Neither may be
-// dropped, so the legacy one is kept beside the current one.
 func TestOpenShelfKeepsBothWhenLegacyTrashCollides(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 
@@ -181,8 +171,6 @@ func TestOpenShelfKeepsBothWhenLegacyTrashCollides(t *testing.T) {
 	}
 }
 
-// A whole-directory rename carries anything else the user kept there along
-// with the books, so nothing under the legacy path is left behind.
 func TestOpenShelfRenameCarriesUnknownLegacyTrashContent(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	seedLegacyTrashedBook(t, tmpLib, "legacy-book", "Legacy")
@@ -198,9 +186,6 @@ func TestOpenShelfRenameCarriesUnknownLegacyTrashContent(t *testing.T) {
 	}
 }
 
-// When the two directories are merged the books move one by one, and a file
-// the user put there by hand is not one of them. It is never deleted, so the
-// directory holding it stays as well.
 func TestOpenShelfKeepsUnknownLegacyTrashContentOnMerge(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 
@@ -231,9 +216,6 @@ func TestOpenShelfKeepsUnknownLegacyTrashContentOnMerge(t *testing.T) {
 	}
 }
 
-// A trash.json edited by hand into something unparseable must not hide the book
-// from the trash, nor block restoring it. Without the metadata the book cannot
-// go back to its original folder, so it lands at the top level of books/.
 func TestTrashToleratesUnreadableTrashMeta(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -268,14 +250,10 @@ func TestTrashToleratesUnreadableTrashMeta(t *testing.T) {
 	}
 }
 
-// trashMetaPath returns the on-disk path of a trashed book's trash.json.
 func trashMetaPath(libRoot, bookID string) string {
 	return path.Join(libRoot, trashBooksFolder, bookID+bookExtension, trashMetaFile)
 }
 
-// rewriteTrashMeta replaces a trash.json with the given JSON object, returning
-// the bytes now on disk so a caller can prove a refused operation left them
-// alone.
 func rewriteTrashMeta(t *testing.T, metaPath string, meta map[string]any) []byte {
 	t.Helper()
 
@@ -289,8 +267,6 @@ func rewriteTrashMeta(t *testing.T, metaPath string, meta map[string]any) []byte
 	return payload
 }
 
-// readTrashMetaJSON decodes a trash.json straight from disk, so assertions see
-// the file rather than the struct the shelf holds in memory.
 func readTrashMetaJSON(t *testing.T, metaPath string) map[string]any {
 	t.Helper()
 
@@ -321,11 +297,6 @@ func TestMoveBookToTrashStampsSchemaVersion(t *testing.T) {
 	}
 }
 
-// trash.json is hand-editable like book.json, so it gets the same encoder
-// decision: a folder name carrying & or < is recorded as itself, not as the
-// \u0026 and \u003c escapes v1 wrote. Its own fields have no nil slice to turn
-// into [] — original_folder is omitempty and the authors list belongs to the
-// TrashedBook listing, not to the file.
 func TestMoveBookToTrashWritesFolderNamesLiterally(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -360,8 +331,6 @@ func TestMoveBookToTrashWritesFolderNamesLiterally(t *testing.T) {
 	}
 }
 
-// A trash.json written before versioning existed is read as v1, and reading it
-// never rewrites the file: the version reaches disk only on the next write.
 func TestTrashMetaWithoutSchemaVersionIsReadAsV1AndNotRewritten(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -391,8 +360,6 @@ func TestTrashMetaWithoutSchemaVersionIsReadAsV1AndNotRewritten(t *testing.T) {
 		t.Fatalf("listing the trash rewrote trash.json, got:\n%s", after)
 	}
 
-	// The unversioned record is still honored, so the book goes back to the
-	// folder it came from rather than to the top level.
 	if err := s.RestoreTrashedBook(bookID); err != nil {
 		t.Fatalf("RestoreTrashedBook: %v", err)
 	}
@@ -401,8 +368,6 @@ func TestTrashMetaWithoutSchemaVersionIsReadAsV1AndNotRewritten(t *testing.T) {
 	}
 }
 
-// A trash.json written by a newer build stays listed but must not be modified,
-// and each refusal must happen before anything on disk moves.
 func TestTrashOperationsRefuseNewerSchemaVersion(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -415,7 +380,6 @@ func TestTrashOperationsRefuseNewerSchemaVersion(t *testing.T) {
 	future["restore_note"] = "written by a newer build"
 	bumped := rewriteTrashMeta(t, metaPath, future)
 
-	// Reading still works.
 	items, err := s.ListTrashedBooks()
 	if err != nil {
 		t.Fatalf("ListTrashedBooks: %v", err)
@@ -431,7 +395,6 @@ func TestTrashOperationsRefuseNewerSchemaVersion(t *testing.T) {
 		t.Fatalf("DeleteTrashedBook error = %v, want ErrUnsupportedTrashSchemaVersion", err)
 	}
 
-	// Nothing moved, nothing was rewritten.
 	if _, err := os.Stat(path.Join(tmpLib, trashBooksFolder, bookID+bookExtension)); err != nil {
 		t.Fatalf("refused operations must leave the book in the trash: %v", err)
 	}
@@ -444,9 +407,6 @@ func TestTrashOperationsRefuseNewerSchemaVersion(t *testing.T) {
 	}
 }
 
-// A book carried out of the trash by hand keeps the trash.json it was deleted
-// with. Trashing it again must be refused before the move, so the book is not
-// left sitting in trash/ under a record this build cannot write.
 func TestMoveBookToTrashRefusesNewerTrashMetaOnActiveBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})

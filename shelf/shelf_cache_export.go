@@ -15,39 +15,13 @@ import (
 	"github.com/voilelab/plainshelf/internal/version"
 )
 
-/*
-The exported book cache is a read-optimized copy of the shelf listing, written
-to app/book-cache-{writer_id}.json so that a client which reaches the shelf over
-a slow, request-metered transport does not have to walk it.
-
-The Android client reading a shelf from pCloud is the case this exists for: a
-cold scan there costs two HTTP requests per book (get a link, then download
-book.json), which is slow and can hit pCloud's rate limit. With this file it
-costs one download regardless of how many books the shelf holds.
-
-The file is disposable by design. It lives under app/, which the data model
-already documents as rebuildable and skippable in backups, and every reader
-treats a missing, unparseable or too-new file as a plain cache miss and falls
-back to walking the shelf.
-*/
-
-// BookCacheSchemaVersion has no migration path and needs none: the file can
-// always be regenerated, so a reader that sees an unknown version discards it.
-//
-// v2 renamed the folder-list key from "layers" to "folders"; an existing v1
-// export is discarded and rebuilt on the next one, with no error to the caller.
 const BookCacheSchemaVersion = 2
 
 const bookCacheFilePrefix = "book-cache-"
 const bookCacheFileSuffix = ".json"
 
-// defaultBookCacheInterval is how often an exported cache is refreshed at most.
 const defaultBookCacheInterval = time.Hour
 
-// bookCacheRetention is how old another writer's cache must be before this one
-// deletes it. Long enough that a machine which is simply switched off for a
-// holiday keeps its entry, short enough that a decommissioned device does not
-// litter app/ forever.
 const bookCacheRetention = 30 * 24 * time.Hour
 
 // BookCacheFile is the on-disk shape of app/book-cache-{writer_id}.json.
@@ -136,23 +110,10 @@ type BookCacheEntry struct {
 	CurrentSourceMD5 string `json:"current_source_md5,omitempty"`
 }
 
-// bookCacheFileName is the file this installation owns. Every other
-// book-cache-*.json in app/ belongs to a different machine.
 func (s *Shelf) bookCacheFileName() string {
 	return bookCacheFilePrefix + s.bookCacheWriterID + bookCacheFileSuffix
 }
 
-// scheduleBookCacheExportIfNeeded considers an export in the background once the
-// interval has elapsed; exportBookCache decides by comparing content.
-//
-// Content rather than a "something changed" flag is the point: the cache holds
-// pointers to live *Book values, and every metadata edit mutates one in place
-// without going near this file, so the one flag nobody set would silently stop
-// exporting.
-//
-// There is no ticker either: an export only has something to say after the shelf
-// is read or written, and every such path passes through here. A shelf closed
-// with unexported changes is handled by Close.
 func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 	if s.bookCacheWriterID == "" {
 		return
@@ -185,24 +146,15 @@ func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 		defer done()
 
 		if err := s.exportBookCache(false); err != nil {
-			// A cache the mobile client can fall back from is not worth failing
-			// the read that happened to trigger it.
 			s.Warn("failed to export the book cache", "error", err)
 		}
 	})
 
-	// Same as the book check: the claim has to be released when nothing took it.
-	// Close exports once more itself, so nothing is lost by skipping this one.
 	if !started {
 		done()
 	}
 }
 
-// ExportBookCache rescans the shelf and writes the exported cache immediately,
-// ignoring the interval. This is the manual trigger behind the API endpoint.
-//
-// The rescan is not optional: Timestamp promises a walk began at that moment,
-// so writing without one would advertise freshness that was never checked.
 func (s *Shelf) ExportBookCache() (time.Time, error) {
 	// Before the writer ID, which read_only clears: "not configured" would be
 	// true and would send the caller looking for a setting to change, when what
@@ -237,22 +189,11 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 	return s.bookCache.lastScanStart, nil
 }
 
-// exportBookCache writes when the payload differs from what was written last,
-// or unconditionally under force.
-//
-// It intentionally does not take the shelf lock: the only file it writes is
-// named after this installation, and the write is atomic. Reading a tree while
-// another process mutates it can miss a book being added — exactly the staleness
-// this file already tolerates. Taking the lock would instead mean acquiring it
-// from Close and from goroutines whose caller already holds it.
 func (s *Shelf) exportBookCache(force bool) error {
 	if s.bookCacheWriterID == "" {
 		return nil
 	}
 
-	// A read-only shelf never reaches this point, because read_only clears the
-	// writer ID the guard above checks. Narrowing here anyway keeps that true
-	// if the two ever stop being wired together.
 	root, err := s.writeRoot()
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -263,9 +204,6 @@ func (s *Shelf) exportBookCache(force bool) error {
 
 	payload := s.collectExportSnapshot(s.bookCacheWriterID)
 
-	// Hash only the content, never the timestamp, so an unchanged shelf does not
-	// rewrite the file every interval: on pCloud or SMB that is a pointless
-	// upload, and on a sync client a pointless conflict opportunity.
 	digest, err := bookCacheDigest(&payload)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -276,7 +214,6 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.bookCache.RUnlock()
 
 	if !force && unchanged {
-		// Nothing to say, but the question has now been asked and answered.
 		s.bookCache.Lock()
 		s.bookCache.lastExport = time.Now()
 		s.bookCache.Unlock()
@@ -288,9 +225,6 @@ func (s *Shelf) exportBookCache(force bool) error {
 		return util.Errorf("%w", err)
 	}
 
-	// WriteFileAtomic, not WriteFile: a reader may be a sync client copying the
-	// shelf away, and it must never see a half-written listing. Its temp naming
-	// is also the one scans deliberately ignore (see book.go).
 	target := path.Join(appFolder, s.bookCacheFileName())
 	if err := fsutil.WriteFileAtomic(root, target, data); err != nil {
 		return util.Errorf("%w", err)
@@ -307,10 +241,6 @@ func (s *Shelf) exportBookCache(force bool) error {
 	return nil
 }
 
-// collectExportSnapshot copies the listing and its scan timestamp under one
-// cache lock. A scan publishes all four together: sampling them separately can
-// pair old folders with new metadata, then advertise the newer scan's freshness.
-// The same snapshot feeds both the shared export and the local offline store.
 func (s *Shelf) collectExportSnapshot(writerID string) BookCacheFile {
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
@@ -325,11 +255,6 @@ func (s *Shelf) collectExportSnapshot(writerID string) BookCacheFile {
 	}
 }
 
-// collectExportFolders lists every folder directory, in the shape the API and the
-// pCloud client both use ("/" for the top level).
-//
-// This standalone view is also used by conformance tests. Exports use
-// collectExportSnapshot to copy every part of the listing together.
 func (s *Shelf) collectExportFolders() []string {
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
@@ -350,8 +275,6 @@ func (s *Shelf) collectExportFoldersLocked() []string {
 	return folders
 }
 
-// collectExportFolderMetaLocked snapshots the cached folder metadata, nil when no
-// folder has any.
 func (s *Shelf) collectExportFolderMetaLocked() map[string]BookCacheFolderMeta {
 	if len(s.bookCache.folderMeta) == 0 {
 		return nil
@@ -368,17 +291,13 @@ func (s *Shelf) collectExportFolderMetaLocked() map[string]BookCacheFolderMeta {
 	return metas
 }
 
-// collectExportBooksLocked snapshots the in-memory cache. No filesystem access: the
-// cache already holds every book.json this process has read.
 func (s *Shelf) collectExportBooksLocked() map[string]BookCacheEntry {
 	books := make(map[string]BookCacheEntry, len(s.bookCache.cache))
 	for bookID, entry := range s.bookCache.cache {
 		meta := entry.book.GetMeta()
 		books[bookID] = BookCacheEntry{
-			Path: entry.path,
-			Meta: meta,
-			// The rules are immutable for the life of the shelf, so asking here
-			// costs no lock of its own and no filesystem access.
+			Path:             entry.path,
+			Meta:             meta,
 			NSFW:             s.IsBookNSFW(entry.folders, meta),
 			CurrentSourceMD5: entry.sourceMD5,
 		}
@@ -405,13 +324,6 @@ func bookCacheDigest(cache *BookCacheFile) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// pruneStaleBookCaches removes cache files left behind by installations that
-// have not written for bookCacheRetention.
-//
-// Only files this code can fully parse and that name a different writer are
-// removed. Anything unreadable is left alone: app/ is shared with whatever else
-// a user or a future build puts there, and silently deleting a file we do not
-// understand is a worse failure than leaving a stale one.
 func (s *Shelf) pruneStaleBookCaches(root fsutil.FS) {
 	entries, err := s.dbRoot.ReadDir(appFolder)
 	if err != nil {

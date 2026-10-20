@@ -20,8 +20,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// testdataFS opens the committed testdata tree read-only. Write-path tests must
-// use newBookFromFixture instead, which copies the fixture into a temp dir.
 func testdataFS(t *testing.T) fsutil.FS {
 	t.Helper()
 
@@ -61,7 +59,7 @@ func TestOpenBookReadsTheFixture(t *testing.T) {
 			t.Fatalf("Failed to get book cover: %v", err)
 		}
 
-		expectedCoverData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG file signature
+		expectedCoverData := []byte{0x89, 0x50, 0x4E, 0x47}
 		if len(coverData) < 4 || !bytes.Equal(coverData[:4], expectedCoverData) {
 			t.Errorf("Expected cover data to start with PNG signature, got %v", coverData[:4])
 		}
@@ -102,8 +100,6 @@ func TestOpenBookReadsTheFixture(t *testing.T) {
 	})
 }
 
-// newTestBook creates a book in a fresh temporary library, whose path it
-// returns alongside the FS rooted at it.
 func newTestBook(t *testing.T, bookID, title string) (*Book, fsutil.FS, string) {
 	t.Helper()
 
@@ -143,8 +139,6 @@ func TestNewBook(t *testing.T) {
 	}
 }
 
-// writableRoot narrows a book's read handle back to a writable one so a test
-// can wrap it in a fault-injecting filesystem.
 func writableRoot(t *testing.T, root fsutil.ReadFS) fsutil.FS {
 	t.Helper()
 
@@ -155,8 +149,6 @@ func writableRoot(t *testing.T, root fsutil.ReadFS) fsutil.FS {
 	return writable
 }
 
-// failWriteFS fails WriteFile for paths matching a predicate, standing in for a
-// write that is interrupted partway through.
 type failWriteFS struct {
 	fsutil.FS
 	failOn func(name string) bool
@@ -180,8 +172,6 @@ func newBookForCoverTest(t *testing.T) (*Book, string, string) {
 	return book, tmpLib, path.Join(tmpLib, bookID)
 }
 
-// Before the atomic write the destination was opened with O_TRUNC, so an
-// interrupted write left a truncated image behind.
 func TestSetCoverLeavesPreviousCoverIntactOnFailure(t *testing.T) {
 	book, _, bookDir := newBookForCoverTest(t)
 
@@ -213,8 +203,6 @@ func TestSetCoverLeavesPreviousCoverIntactOnFailure(t *testing.T) {
 	testutil.AssertNoTempFiles(t, bookDir)
 }
 
-// The API converts uploads to JPEG, so replacing a PNG cover changes the file
-// name and leaves an orphan in a shelf users browse by hand.
 func TestSetCoverRemovesReplacedCoverWithDifferentExtension(t *testing.T) {
 	book, _, bookDir := newBookForCoverTest(t)
 
@@ -244,8 +232,6 @@ func TestSetCoverRemovesReplacedCoverWithDifferentExtension(t *testing.T) {
 	testutil.AssertNoTempFiles(t, bookDir)
 }
 
-// afterRenameFS runs a hook once, immediately after a rename to a matching
-// path, so a test can interleave a concurrent writer at an exact point.
 type afterRenameFS struct {
 	fsutil.FS
 	match func(newPath string) bool
@@ -261,8 +247,6 @@ func (f *afterRenameFS) Rename(oldPath, newPath string) error {
 	return err
 }
 
-// Two overlapping uploads can interleave so that the second re-claims the
-// first's old file name; the cleanup must not delete the live cover.
 func TestSetCoverKeepsReplacedCoverReclaimedByAnotherWriter(t *testing.T) {
 	book, _, bookDir := newBookForCoverTest(t)
 
@@ -277,8 +261,6 @@ func TestSetCoverKeepsReplacedCoverReclaimedByAnotherWriter(t *testing.T) {
 
 	const reclaimed = "reclaimed png"
 
-	// Fire the competing PNG upload right after this call's book.json rename,
-	// which lands it between our metadata write and our cleanup.
 	book.root = &afterRenameFS{
 		FS:    writableRoot(t, book.root),
 		match: func(newPath string) bool { return path.Base(newPath) == BookMetaFile },
@@ -408,8 +390,6 @@ func TestNewSource(t *testing.T) {
 	}
 }
 
-// The source ID is a second-granularity timestamp, so without collision
-// handling these would all resolve to the same folder.
 func TestNewSourceSameSecond(t *testing.T) {
 	book, _, _ := newTestBook(t, "test-book-a38j", "Test Book")
 
@@ -570,7 +550,6 @@ func TestSetCurrentSource(t *testing.T) {
 	}
 }
 
-// A shelf written by an older build must end up with one hint file, not two.
 func TestCurrentSourceHintFile(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "hint-book", "Hint Book")
 
@@ -579,7 +558,6 @@ func TestCurrentSourceHintFile(t *testing.T) {
 		t.Fatalf("NewSource: %v", err)
 	}
 
-	// Pretend an older build already wrote its hint under the previous name.
 	legacyPath := path.Join(book.PackagePath(), LegacyCurrentSourceHintFile)
 	if err := rootFS.WriteFile(legacyPath, []byte("stale pointer")); err != nil {
 		t.Fatalf("Failed to seed the legacy hint file: %v", err)
@@ -659,9 +637,6 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 
 	_, rootFS, tmpLib := newTestBook(t, bookID, title)
 
-	// SetMeta writes through the API, so its timestamp cannot be forced after
-	// the fact. Backdate the file instead and open both instances against that,
-	// which leaves the write below unambiguously newer than what they cached.
 	shiftModTime(t, path.Join(tmpLib, bookID, BookMetaFile), -2*time.Second)
 
 	book1, err := Open(rootFS, newLoggerForTest(), bookID)
@@ -696,8 +671,6 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	}
 }
 
-// A book.json still holding a full RFC3339 published_at loads as a date, and
-// the next SetMeta persists it back in date-only form.
 func TestSetMetaMigratesLegacyPublishedAt(t *testing.T) {
 	tmpLib := t.TempDir()
 	bookID := "legacy-book-a38j"
@@ -783,8 +756,6 @@ func TestIdentifiersRoundTrip(t *testing.T) {
 	}
 }
 
-// A book.json written before the identifiers field must not gain an
-// "identifiers" key from an unrelated SetMeta.
 func TestIdentifiersLegacyCompat(t *testing.T) {
 	tmpLib := t.TempDir()
 	bookID := "legacy-book-b91k"
@@ -850,8 +821,6 @@ func TestSetMetaRejectsEmptyIdentifierKey(t *testing.T) {
 	}
 }
 
-// newBookFromFixture copies a committed book.json fixture into a fresh temp
-// directory so write-path tests never mutate the repository's testdata.
 func newBookFromFixture(t *testing.T, fixture string) (fsutil.FS, string, string) {
 	t.Helper()
 
@@ -881,9 +850,6 @@ func newBookFromFixture(t *testing.T, fixture string) (fsutil.FS, string, string
 	return fsutil.NewRootFS(tmpRoot), bookFolder, metaPath
 }
 
-// A pre-v1 book.json reads as v1 in memory, and opening it writes nothing: that
-// is what keeps a large legacy shelf from being rewritten wholesale on the
-// first launch after an upgrade.
 func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
 	fixturePath := path.Join("testdata", "schema", "v0-full", BookMetaFile)
 	before, err := os.ReadFile(fixturePath)
@@ -912,7 +878,6 @@ func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
 	}
 }
 
-// The same normalization, on the minimal legacy shape that omits most fields.
 func TestOpenBookSparseLegacyBookHasSchemaVersion(t *testing.T) {
 	book, err := Open(testdataFS(t), newLoggerForTest(), "book-a82m")
 	if err != nil {
@@ -931,8 +896,6 @@ func TestOpenBookSparseLegacyBookHasSchemaVersion(t *testing.T) {
 	}
 }
 
-// The lazy v0 → v1 upgrade: the version lands as the first JSON key on the next
-// SetMeta, and no user-visible field is lost on the way.
 func TestSetMetaStampsSchemaVersionOnLegacyBook(t *testing.T) {
 	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v0-full"))
 
@@ -954,7 +917,6 @@ func TestSetMetaStampsSchemaVersionOnLegacyBook(t *testing.T) {
 		t.Errorf("Expected schema_version as the first key, got:\n%s", written)
 	}
 
-	// Every user-visible field from the fixture must survive the upgrade.
 	for _, want := range []string{
 		`"id": "schema-v0-full-a1"`,
 		`"title": "Full Legacy Book"`,
@@ -1004,8 +966,6 @@ func TestCreateBookWritesSchemaVersion(t *testing.T) {
 	}
 }
 
-// Failing the open would make the book vanish from listings and, worse, become
-// impossible to restore from trash.
 func TestOpenBookAcceptsFutureSchemaVersionAsReadOnly(t *testing.T) {
 	book, err := Open(testdataFS(t), newLoggerForTest(), path.Join("schema", "v2-future"))
 	if err != nil {
@@ -1018,15 +978,11 @@ func TestOpenBookAcceptsFutureSchemaVersionAsReadOnly(t *testing.T) {
 	if book.Title() != "Book From The Future" {
 		t.Errorf("Expected title 'Book From The Future', got '%s'", book.Title())
 	}
-	// The reported version must not be clamped down to what this build writes,
-	// otherwise the write guard and any client-side "needs upgrade" hint break.
 	if got := book.GetMeta().SchemaVersion; got != 2 {
 		t.Errorf("Expected SchemaVersion 2 to be preserved, got %d", got)
 	}
 }
 
-// writeFutureBookSource plants a source this build can write next to a book.json
-// it cannot, so a refused DeleteSource can be shown to leave the text alone.
 func writeFutureBookSource(t *testing.T, metaPath, sourceID string) {
 	t.Helper()
 
@@ -1052,9 +1008,6 @@ func writeFutureBookSource(t *testing.T, metaPath, sourceID string) {
 	}
 }
 
-// Every write path must refuse a newer build's book.json and leave it
-// byte-for-byte intact. What differs per path is only what else must stay
-// untouched, which each case brings as its own setup and check.
 func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 	const coverName = "cover.png"
 	const futureSourceID = "20260315-a1"
@@ -1078,12 +1031,10 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 	}
 
 	tests := []struct {
-		name string
-		// setup prepares state the refused write must not damage.
+		name   string
 		setup  func(t *testing.T, metaPath string)
 		mutate func(*Book) error
-		// check asserts the path-specific side effect never happened.
-		check func(t *testing.T, metaPath string)
+		check  func(t *testing.T, metaPath string)
 	}{
 		{
 			name: "SetMeta",
@@ -1098,7 +1049,6 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Failed to re-read book.json: %v", err)
 				}
-				// A key this build does not understand must survive untouched.
 				if !strings.Contains(string(after), "reading_direction") {
 					t.Errorf("Unknown key must survive a rejected write, got:\n%s", after)
 				}
@@ -1108,8 +1058,6 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 			},
 		},
 		{
-			// setMeta is the single chokepoint, so the CURRENT_SOURCE.txt
-			// hint must not be written either.
 			name:   "SetCurrentSource",
 			mutate: func(b *Book) error { return b.SetCurrentSource("20260315-a1") },
 			check: func(t *testing.T, metaPath string) {
@@ -1121,8 +1069,6 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 			},
 		},
 		{
-			// Deleting the current source writes book.json first, so the whole
-			// operation has to be refused with the text left where it was.
 			name: "DeleteSource",
 			setup: func(t *testing.T, metaPath string) {
 				t.Helper()
@@ -1151,16 +1097,12 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 			},
 		},
 		{
-			// SetCover truncates the target on open, so a guard that only ran
-			// at SetMeta would destroy an existing cover and then report failure.
 			name:   "SetCover",
 			setup:  writeCover,
 			mutate: func(b *Book) error { return b.SetCover([]byte("replacement-bytes"), ".png") },
 			check:  assertCoverIntact,
 		},
 		{
-			// DeleteCover deletes first, so a late guard would lose the image
-			// and leave book.json pointing at a missing file.
 			name: "DeleteCover",
 			setup: func(t *testing.T, metaPath string) {
 				t.Helper()
@@ -1191,8 +1133,6 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 				tt.setup(t, metaPath)
 			}
 
-			// Read after setup so a case that patches book.json still compares
-			// against what was actually on disk when the book was opened.
 			before, err := os.ReadFile(metaPath)
 			if err != nil {
 				t.Fatalf("Failed to read copied book.json: %v", err)
@@ -1224,8 +1164,6 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 	}
 }
 
-// The bounds are enforced here rather than by callers, and reported as a
-// sentinel an API layer can map to a status without matching on the message.
 func TestSetMetaRejectsStarOutOfRange(t *testing.T) {
 	tmpLib := path.Join(t.TempDir())
 	tmpRoot, err := os.OpenRoot(tmpLib)
@@ -1249,7 +1187,6 @@ func TestSetMetaRejectsStarOutOfRange(t *testing.T) {
 			t.Fatalf("star %d: err = %v, want ErrInvalidStar", star, err)
 		}
 
-		// The rejection happens before anything is written.
 		if got := book.GetMeta().Star; got == star {
 			t.Fatalf("star %d was persisted despite being rejected", star)
 		}
@@ -1268,7 +1205,6 @@ func TestSetMetaRejectsStarOutOfRange(t *testing.T) {
 	}
 }
 
-// Refused as a sentinel, so an API layer can answer it as a client error.
 func TestSetMetaRejectsInvalidLanguageTag(t *testing.T) {
 	tmpLib := path.Join(t.TempDir())
 	tmpRoot, err := os.OpenRoot(tmpLib)
@@ -1293,7 +1229,6 @@ func TestSetMetaRejectsInvalidLanguageTag(t *testing.T) {
 		t.Fatal("the rejected language tag was persisted")
 	}
 
-	// An empty tag means "unknown" and stays allowed.
 	for _, lang := range []string{"", "zh-Hant"} {
 		meta := book.GetMeta()
 		meta.Language = lang
@@ -1306,9 +1241,6 @@ func TestSetMetaRejectsInvalidLanguageTag(t *testing.T) {
 	}
 }
 
-// Switching format is what makes an import's guess correctable. The empty value
-// has to stay writable: books created through the API never had a format, and
-// refusing it would fail every unrelated edit to such a book.
 func TestSetMetaFormat(t *testing.T) {
 	tmpLib := path.Join(t.TempDir())
 	tmpRoot, err := os.OpenRoot(tmpLib)
@@ -1346,8 +1278,6 @@ func TestSetMetaFormat(t *testing.T) {
 	}
 }
 
-// breakCurrentSource removes the current source behind DeleteSource's back,
-// reproducing the dangling current_source a sync tool can leave.
 func breakCurrentSource(t *testing.T, book *Book, rootFS fsutil.FS) string {
 	t.Helper()
 
@@ -1375,8 +1305,6 @@ func TestDeleteCurrentSourcePromotesLatestSurvivor(t *testing.T) {
 		}
 		ids = append(ids, source.ID())
 	}
-	// Delete the middle one so "promote the newest" is distinguishable from
-	// both "promote the first" and "promote whatever ReadDir returned first".
 	if err := book.SetCurrentSource(ids[1]); err != nil {
 		t.Fatalf("SetCurrentSource: %v", err)
 	}
@@ -1440,8 +1368,6 @@ func TestDeleteLastSourceCreatesEmptyReplacement(t *testing.T) {
 	if len(body) != 0 {
 		t.Errorf("Replacement content = %q, want it empty", body)
 	}
-	// The replacement really is an empty plain-text source, so the book.json
-	// compatibility mirror has to follow it away from Markdown.
 	if got := book.GetMeta().Format; got != BookFormatText {
 		t.Errorf("book format mirror = %q, want %q", got, BookFormatText)
 	}
@@ -1535,7 +1461,6 @@ func TestResolveCurrentSourceFallsBackToLatest(t *testing.T) {
 		t.Errorf("Resolved source = %q, want the surviving source %q", resolved.ID(), survivor.ID())
 	}
 
-	// A read must never repair the shelf; only an explicit write may.
 	after, err := os.ReadFile(metaPath)
 	if err != nil {
 		t.Fatalf("Re-read book.json: %v", err)
@@ -1563,8 +1488,6 @@ func TestResolveCurrentSourceFallsBackOnUnreadableSource(t *testing.T) {
 		t.Fatalf("SetCurrentSource: %v", err)
 	}
 
-	// A half-removed folder fails in openSource, which does not report
-	// ErrSourceNotFound; the fallback must not depend on that sentinel.
 	if err := rootFS.Remove(path.Join(broken.FolderPath(), SourceMetaFile)); err != nil {
 		t.Fatalf("Remove source meta: %v", err)
 	}
@@ -1579,8 +1502,6 @@ func TestResolveCurrentSourceFallsBackOnUnreadableSource(t *testing.T) {
 }
 
 func TestResolveCurrentSourceWithoutAnySource(t *testing.T) {
-	// A freshly created book has no sources/ folder at all, so listing reports
-	// fs.ErrNotExist rather than an empty list.
 	book, _, _ := newTestBook(t, "empty-book", "No Sources")
 
 	if _, err := book.ResolveCurrentSource(); !errors.Is(err, ErrSourceNotFound) {
@@ -1599,8 +1520,6 @@ func TestResolveCurrentSourceWithUnsetPointer(t *testing.T) {
 		t.Fatalf("Expected an unset current_source, got %q", book.CurrentSource())
 	}
 
-	// An empty pointer fails path validation rather than reporting a missing
-	// source, so it has to be answered before GetSource is asked.
 	resolved, err := book.ResolveCurrentSource()
 	if err != nil {
 		t.Fatalf("ResolveCurrentSource: %v", err)
@@ -1610,9 +1529,6 @@ func TestResolveCurrentSourceWithUnsetPointer(t *testing.T) {
 	}
 }
 
-// A book with no authors carries "authors": [] on disk, not null: the field is
-// not omitempty, so before json/v2 every reader had to accept two spellings of
-// "nobody".
 func TestCreateWritesEmptyAuthorsArray(t *testing.T) {
 	bookID := "empty-authors-a38j"
 	_, _, tmpLib := newTestBook(t, bookID, "No Authors")
@@ -1629,8 +1545,6 @@ func TestCreateWritesEmptyAuthorsArray(t *testing.T) {
 	}
 }
 
-// The same claim for the update path, which marshals a BookMeta that has been
-// through GetMeta rather than a fresh one.
 func TestSetMetaWritesEmptyAuthorsArray(t *testing.T) {
 	bookID := "empty-authors-b91k"
 	book, _, tmpLib := newTestBook(t, bookID, "No Authors")
@@ -1650,8 +1564,6 @@ func TestSetMetaWritesEmptyAuthorsArray(t *testing.T) {
 	}
 }
 
-// book.json's whole selling point is that a text editor shows what you typed,
-// and v1 wrote &, < and > as \u0026, \u003c and \u003e.
 func TestSetMetaWritesHTMLCharactersLiterally(t *testing.T) {
 	const title = `Sense & Sensibility <annotated> "quoted"`
 
@@ -1680,8 +1592,6 @@ func TestSetMetaWritesHTMLCharactersLiterally(t *testing.T) {
 		}
 	}
 
-	// The characters are only written literally if they also read back, which is
-	// the half a byte assertion cannot see.
 	reopened, err := Open(rootFS, newLoggerForTest(), bookID)
 	if err != nil {
 		t.Fatalf("Failed to reopen book: %v", err)

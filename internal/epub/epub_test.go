@@ -46,8 +46,6 @@ const containerXML = `<?xml version="1.0"?>
   </rootfiles>
 </container>`
 
-// epub3Entries is a minimal but realistic EPUB 3: a navigation document, two
-// chapters, a cover image, and metadata carrying a scheme-less urn identifier.
 func epub3Entries() []zipEntry {
 	return []zipEntry{
 		{"mimetype", "application/epub+zip"},
@@ -124,13 +122,10 @@ func TestParseEPUB3(t *testing.T) {
 		t.Errorf("CoverExt = %q, want .png", book.CoverExt)
 	}
 
-	// The navigation document is in the spine but is not a chapter.
 	if len(book.Chapters) != 2 {
 		t.Fatalf("len(Chapters) = %d, want 2; chapters = %+v", len(book.Chapters), book.Chapters)
 	}
 
-	// Titles come from the navigation document, which wins over the in-document
-	// heading.
 	if book.Chapters[0].Title != "啟程" {
 		t.Errorf("Chapters[0].Title = %q, want 啟程", book.Chapters[0].Title)
 	}
@@ -138,23 +133,17 @@ func TestParseEPUB3(t *testing.T) {
 		t.Errorf("Chapters[1].Title = %q, want 歸途", book.Chapters[1].Title)
 	}
 
-	// The heading consumed as the fallback title must not also appear in the
-	// body, the source line wrap inside the paragraph must not leave a space
-	// between the CJK characters, and paragraphs are separated by a blank line.
 	wantText := "他走出了車站，天色still早。\n\n風很大。"
 	if got := book.Chapters[0].Text; got != wantText {
 		t.Errorf("Chapters[0].Text = %q, want %q", got, wantText)
 	}
 
-	// The cover is kept, and no chapter references an illustration.
 	if book.DroppedImages != 0 {
 		t.Errorf("DroppedImages = %d, want 0", book.DroppedImages)
 	}
 }
 
 func TestParseDroppedImages(t *testing.T) {
-	// coverOPF declares a cover image plus the documents each case needs, so the
-	// interesting difference between cases stays in the chapter markup.
 	const coverOPF = `<package xmlns="http://www.idpf.org/2007/opf">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>插圖</dc:title></metadata>
   <manifest>
@@ -186,8 +175,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 2,
 		},
 		{
-			// Without this exclusion nearly every EPUB would report a loss: the
-			// cover page normally sits in the spine and points at the cover.
 			name: "cover page image is not counted",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -200,10 +187,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 0,
 		},
 		{
-			// The flattener skips <svg> as a whole subtree, so the counter has to
-			// descend into it separately. Expecting a non-zero count here is what
-			// makes the cover case below meaningful: a counter that never entered
-			// an <svg> at all would satisfy that one by accident.
 			name: "svg wrapped illustration is counted",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -217,7 +200,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 1,
 		},
 		{
-			// The other common cover-page shape.
 			name: "svg wrapped cover image is not counted",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -245,8 +227,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 1,
 		},
 		{
-			// No cover is stored here, so the frontispiece really is lost — even
-			// though its document flattens to nothing and is skipped as a chapter.
 			name: "image on a skipped page counts when no cover is stored",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -265,9 +245,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 1,
 		},
 		{
-			// The archive stores the cover one way and the cover page spells it
-			// another. lookupZipEntry reads both, so the exclusion has to hold too
-			// or the book reports a loss it did not suffer.
 			name: "cover referenced with different casing is still excluded",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -287,8 +264,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 0,
 		},
 		{
-			// Nothing was lost: the archive never carried these. Counting a href
-			// the file cannot satisfy would report artwork that never existed.
 			name: "references the archive cannot satisfy are not counted",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -446,8 +421,6 @@ func TestParseFallbacks(t *testing.T) {
   <manifest><item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest>
   <spine><itemref idref="c1"/></spine>
 </package>`},
-				// &nbsp; is undeclared in XHTML 1.1 without a DTD and would break a
-				// strict XML decoder. An unclosed <p> would too.
 				{"OEBPS/ch1.xhtml", `<html><body><p>前面&nbsp;後面<p>第二段</body></html>`},
 			},
 			check: func(t *testing.T, book *Book) {

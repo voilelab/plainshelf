@@ -11,8 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// WriteAssetsToZip writes requested illustrations under their flat names,
-// skipping absent and non-regular files. The caller owns the zip writer.
 func (r *Source) WriteAssetsToZip(zw *zip.Writer, names []string) error {
 	if len(names) == 0 {
 		return nil

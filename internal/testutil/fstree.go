@@ -10,8 +10,6 @@ import (
 	"testing"
 )
 
-// TreeSnapshot fingerprints every path under root, so a test can assert that
-// a refused mutation left the tree exactly as it was.
 func TreeSnapshot(t *testing.T, root string) map[string]string {
 	t.Helper()
 
@@ -37,8 +35,6 @@ func TreeSnapshot(t *testing.T, root string) map[string]string {
 	return snapshot
 }
 
-// SnapshotDiff reports what changed between two TreeSnapshot results, or ""
-// when nothing did.
 func SnapshotDiff(before, after map[string]string) string {
 	var lines []string
 	for pth, state := range after {
@@ -59,7 +55,6 @@ func SnapshotDiff(before, after map[string]string) string {
 	return strings.Join(lines, "\n")
 }
 
-// AssertNoTempFiles fails the test if any *.tmp file survived in dir.
 func AssertNoTempFiles(t *testing.T, dir string) {
 	t.Helper()
 

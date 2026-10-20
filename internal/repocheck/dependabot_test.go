@@ -26,9 +26,6 @@ var ciJobNames = map[string]string{
 	"vulncheck":   "Go vulnerability scan",
 }
 
-// blockingCIJobs records, per job, whether a failure blocks the merge — the
-// gate-or-informational decision SECURITY.md describes. A job flipped from one
-// to the other without touching this map is a change nobody reviewed.
 var blockingCIJobs = map[string]bool{
 	"frontend":    true,
 	"lint":        true,
@@ -67,10 +64,6 @@ type ciWorkflow struct {
 	} `yaml:"jobs"`
 }
 
-// TestDependabotCoversEveryManifest is the check that keeps SECURITY.md honest
-// as the repository grows: a fourth Go module or a third lockfile added without
-// a Dependabot entry would go unwatched, and nothing else would notice. It also
-// pins version updates off outside versionUpdatedEcosystem.
 func TestDependabotCoversEveryManifest(t *testing.T) {
 	root := repoRoot(t)
 
@@ -101,8 +94,6 @@ func TestDependabotCoversEveryManifest(t *testing.T) {
 	}
 }
 
-// TestCIJobNamesAreStable guards the required-check names, and with them the
-// gate-or-informational decision each job carries.
 func TestCIJobNamesAreStable(t *testing.T) {
 	jobs := readCIWorkflow(t, repoRoot(t)).Jobs
 
@@ -134,9 +125,6 @@ func TestCIJobNamesAreStable(t *testing.T) {
 // as, so scanning only one of them leaves the other's shipped binaries unread.
 var releasedGOOS = []string{"linux", "darwin"}
 
-// TestVulnerabilityScanCoversEveryGoModule keeps the scan job in step with the
-// module layout, which the lint and test jobs already have to track by hand,
-// and with the platforms the release actually ships.
 func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 	root := repoRoot(t)
 
@@ -198,13 +186,11 @@ func TestScanStepsSurviveAnEarlierFailure(t *testing.T) {
 }
 
 type manifest struct {
-	source    string // repo-relative path, for the failure message
-	ecosystem string // Dependabot package-ecosystem
-	directory string // Dependabot directory, slash-prefixed
+	source    string
+	ecosystem string
+	directory string
 }
 
-// discoverManifests finds every dependency manifest a Dependabot entry should
-// exist for, so the checks describe the repository rather than a fixed list.
 func discoverManifests(t *testing.T, root string) []manifest {
 	t.Helper()
 

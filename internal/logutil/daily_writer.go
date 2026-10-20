@@ -13,9 +13,6 @@ type DailyFileWriter struct {
 	dir    string
 	prefix string
 
-	// retentionDays is the age past which a rotated file is removed, and
-	// retention is the runtime value that overrides it when one is shared with
-	// this writer. Zero keeps every file.
 	retentionDays int
 	retention     *Retention
 
@@ -74,22 +71,12 @@ func (w *DailyFileWriter) rotate(date string) error {
 		_ = oldFile.Close()
 	}
 
-	// Expiring on rotation rather than on a timer keeps disk activity at zero
-	// while nobody is using the server, and the first Write after a restart
-	// rotates, so a long-idle instance still cleans up when it wakes.
 	w.removeExpired(date)
 
 	return nil
 }
 
-// removeExpired deletes rotated files older than the retention window.
-//
-// It is best-effort and reports nothing: this writer is the sink the logger
-// itself writes to, so a failure here has nowhere to be logged. A file that
-// cannot be removed is simply retried on the next rotation.
 func (w *DailyFileWriter) removeExpired(date string) {
-	// Read while holding the writer lock, which is why Retention holds a value
-	// rather than calling back: anything that logged here would re-enter Write.
 	retentionDays := w.retention.Days(w.retentionDays)
 	if retentionDays <= 0 {
 		return

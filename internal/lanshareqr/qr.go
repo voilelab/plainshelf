@@ -1,4 +1,3 @@
-// Package lanshareqr encodes the v1 sharing QR used by desktop and Android.
 package lanshareqr
 
 import (
@@ -12,8 +11,6 @@ import (
 	"rsc.io/qr"
 )
 
-// Encode returns a PNG data URL at the desktop's medium error correction level.
-// Oversized payloads return the encoder's capacity error without a partial QR.
 func Encode(payload lanshare.Payload) (string, error) {
 	text, err := json.Marshal(payload, jsonopt.API())
 	if err != nil {

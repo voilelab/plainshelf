@@ -13,10 +13,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
-// twoShelves builds a source and a target shelf on separate roots, the shape a
-// cross-shelf transfer runs against. Each gets its own temp library so the
-// transfer genuinely crosses a filesystem boundary rather than staying in one
-// tree.
 func twoShelves(t *testing.T) (source, target *Shelf, targetLib string) {
 	t.Helper()
 	sourceLib := path.Join(t.TempDir(), "source")
@@ -26,9 +22,6 @@ func twoShelves(t *testing.T) (source, target *Shelf, targetLib string) {
 	return source, target, targetLib
 }
 
-// seedBook writes a self-contained book - cover, a source with an inline asset,
-// and a current-source pointer - so a transfer can be checked for carrying the
-// whole package across.
 func seedBook(t *testing.T, s *Shelf, folder FolderPath, title string) *Book {
 	t.Helper()
 
@@ -60,8 +53,6 @@ func assertStagingClean(t *testing.T, lib string) {
 	}
 }
 
-// A cross-shelf copy hands the copy a fresh ID drawn from the target, leaves the
-// source untouched, and reproduces the whole package on the far shelf.
 func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 	original := seedBook(t, source, FolderPath{"fiction"}, "Cross Copy")
@@ -83,7 +74,6 @@ func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 		t.Errorf("copy layers = %v, want [imported]", copiedListing.Folders)
 	}
 
-	// The source shelf still holds the original, alone.
 	if _, err := source.GetBook(original.ID()); err != nil {
 		t.Fatalf("source lost the original: %v", err)
 	}
@@ -95,7 +85,6 @@ func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 		t.Errorf("source holds %d books, want just the original", len(sourceBooks))
 	}
 
-	// The target shelf holds the copy, self-contained: content, asset and cover.
 	reopened, err := target.GetBook(copied.ID())
 	if err != nil {
 		t.Fatalf("target GetBook: %v", err)
@@ -145,9 +134,6 @@ func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 	assertStagingClean(t, targetLib)
 }
 
-// A cross-shelf move keeps the book's ID so reading progress and external
-// references survive, publishes it on the target, and removes it from the source
-// only afterwards - the source keeps it recoverable in its own trash.
 func TestShelfMoveBookFromPreservesIDAndRemovesSource(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 	original := seedBook(t, source, FolderPath{"fiction"}, "Cross Move")
@@ -169,13 +155,10 @@ func TestShelfMoveBookFromPreservesIDAndRemovesSource(t *testing.T) {
 		t.Errorf("moved layers = %v, want [archive]", movedListing.Folders)
 	}
 
-	// The target now lists the book under its original ID.
 	if _, err := target.GetBook(originalID); err != nil {
 		t.Fatalf("target GetBook after move: %v", err)
 	}
 
-	// The source no longer lists it, but keeps it in the trash - a move is still
-	// recoverable on the source side.
 	if _, err := source.GetBook(originalID); !errors.Is(err, ErrBookNotFound) {
 		t.Fatalf("source still lists the moved book, err = %v", err)
 	}
@@ -190,19 +173,14 @@ func TestShelfMoveBookFromPreservesIDAndRemovesSource(t *testing.T) {
 	assertStagingClean(t, targetLib)
 }
 
-// A move that would land on an ID the target already holds is refused, and the
-// source is left exactly as it was.
 func TestShelfMoveBookFromRefusesIDConflict(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 	original := seedBook(t, source, FolderPath{"fiction"}, "Conflicting")
 	id := original.ID()
 
-	// Move it across so the target holds this ID under a genuine cache entry...
 	if _, err := target.MoveBookFrom(source, id, FolderPath{"archive"}); err != nil {
 		t.Fatalf("initial MoveBookFrom: %v", err)
 	}
-	// ...then bring the source's copy back out of its trash, so both shelves hold
-	// the same ID and a second move would collide.
 	if err := source.RestoreTrashedBook(id); err != nil {
 		t.Fatalf("RestoreTrashedBook: %v", err)
 	}
@@ -212,7 +190,6 @@ func TestShelfMoveBookFromRefusesIDConflict(t *testing.T) {
 		t.Fatalf("MoveBookFrom into a conflict = %v, want ErrBookIDConflict", err)
 	}
 
-	// The source book is untouched: still listed, not trashed.
 	if _, err := source.GetBook(id); err != nil {
 		t.Fatalf("source lost the book after a refused move: %v", err)
 	}
@@ -227,16 +204,12 @@ func TestShelfMoveBookFromRefusesIDConflict(t *testing.T) {
 	assertStagingClean(t, targetLib)
 }
 
-// A read-only target refuses the transfer before it stages anything, and the
-// source is not modified.
 func TestShelfCopyBookFromRefusesReadOnlyTarget(t *testing.T) {
 	sourceLib := path.Join(t.TempDir(), "source")
 	targetLib := path.Join(t.TempDir(), "target")
 	source := newTestShelf(t, &ShelfConf{LibRoot: sourceLib})
 	original := seedBook(t, source, FolderPath{"fiction"}, "No Room")
 
-	// A read-only shelf is taken as found, so lay down its directory structure
-	// with a writable open first, then reopen the same path read-only.
 	seed, err := NewShelf(&ShelfConf{LibRoot: targetLib})
 	if err != nil {
 		t.Fatalf("seed target shelf: %v", err)
@@ -265,8 +238,6 @@ func TestShelfCopyBookFromRefusesReadOnlyTarget(t *testing.T) {
 	}
 }
 
-// Naming one shelf as both source and target is refused rather than deadlocking
-// on its own lock.
 func TestShelfTransferSameShelfRefused(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: path.Join(t.TempDir(), "shelf")})
 	book := seedBook(t, s, FolderPath{"fiction"}, "Here")
@@ -276,9 +247,6 @@ func TestShelfTransferSameShelfRefused(t *testing.T) {
 	}
 }
 
-// plantBookOnDisk writes a minimal book package straight onto a shelf's disk,
-// bypassing its book cache, the way another instance or a file manager would add
-// one between scans.
 func plantBookOnDisk(t *testing.T, lib string, folder FolderPath, bookID, title string) {
 	t.Helper()
 
@@ -294,9 +262,6 @@ func plantBookOnDisk(t *testing.T, lib string, folder FolderPath, bookID, title 
 	}
 }
 
-// A move from a read-only source is refused before anything is copied, so the
-// target gains nothing and the source keeps the book. Without the guard the copy
-// would publish on the target and only the trailing source delete would fail.
 func TestShelfMoveBookFromRefusesReadOnlySource(t *testing.T) {
 	sourceLib := path.Join(t.TempDir(), "source")
 
@@ -332,8 +297,6 @@ func TestShelfMoveBookFromRefusesReadOnlySource(t *testing.T) {
 	}
 }
 
-// The move ID-conflict check forces a fresh scan, so it catches a book added to
-// the target's disk since the last scan - not just one already in the cache.
 func TestShelfMoveBookFromDetectsUnscannedTargetConflict(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 	original := seedBook(t, source, FolderPath{"fiction"}, "Racer")
@@ -357,8 +320,6 @@ func TestShelfMoveBookFromDetectsUnscannedTargetConflict(t *testing.T) {
 	}
 }
 
-// Copying an unknown book across shelves reports ErrBookNotFound and stages
-// nothing on the target.
 func TestShelfCopyBookFromNotFound(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 

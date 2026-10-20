@@ -10,9 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/logutil"
 )
 
-// fakeTask appends its name to a shared record when it runs, and optionally fails.
-// Tasks only run on the single worker goroutine, and Close synchronizes with it,
-// so the record needs no extra locking.
 type fakeTask struct {
 	name   string
 	err    error
@@ -30,8 +27,6 @@ func (t *fakeTask) Description() string { return t.name }
 func (t *fakeTask) Percentage() float64 { return 0 }
 func (t *fakeTask) Status() Status      { return StatusPending }
 
-// blockingTask reports when it starts, then waits for the worker context to be
-// cancelled and publishes the error it observed.
 type blockingTask struct {
 	started  chan struct{}
 	observed chan error
@@ -78,7 +73,6 @@ func TestWorkerRunsChainInOrder(t *testing.T) {
 		t.Fatalf("Run returned an error: %v", err)
 	}
 
-	// Close waits for the worker goroutine to drain the queue.
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close returned an error: %v", err)
 	}
@@ -148,13 +142,11 @@ func TestWorkerCancelStopsOnlyThatChain(t *testing.T) {
 	}
 
 	<-started
-	// Cancelling one chain must stop its task without taking the worker down.
 	cancelled.Cancel()
 	if err := <-observed; !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled task observed %v, want context.Canceled", err)
 	}
 
-	// The worker is still alive: a chain submitted after the cancel runs to the end.
 	ran := []string{}
 	next := &TaskChain{Tasks: []Task{&fakeTask{name: "after", record: &ran}}}
 	if err := w.Run(next); err != nil {
@@ -197,7 +189,6 @@ func TestWorkerCloseIsIdempotent(t *testing.T) {
 }
 
 func TestWorkerRunReturnsErrWorkerBusyWhenQueueIsFull(t *testing.T) {
-	// The worker is not started, so nothing drains the queue.
 	w := newTestWorker(t, 1)
 
 	ran := []string{}
@@ -218,7 +209,6 @@ func TestWorkerRunReturnsErrWorkerBusyWhenQueueIsFull(t *testing.T) {
 	}
 }
 
-// panickingTask panics instead of returning.
 type panickingTask struct{ fakeTask }
 
 func (t *panickingTask) Run(ctx context.Context) error {
@@ -250,8 +240,6 @@ func TestWorkerSurvivesPanickingTask(t *testing.T) {
 	}
 }
 
-// A panicking task reports no status of its own; the chain must still settle
-// so the pool releases its key.
 func TestPanickedChainFailsAndReleasesItsKey(t *testing.T) {
 	pool := NewPool(newTestWorker(t, 2), 0)
 	pool.Start()
