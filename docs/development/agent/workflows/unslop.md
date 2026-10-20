@@ -121,10 +121,9 @@ upstream or are added here.
 34. **Pull request titles are release notes.** Write the user-visible effect,
     not the implementation ([releasing](../../releasing.md)). "Keep reading
     progress when a book moves between folders", not "Refactor transfer path".
-35. **Comments explain why, briefly.** A comment states what the code cannot:
-    the reason, the constraint, the trap. Drop narration of what the next lines
-    do, and keep a block to the shortest form that keeps every reason. Match
-    the comment density of the surrounding file.
+35. **Comments follow the comment policy.** Before polishing a comment, check
+    that [the comment policy](../comments.md) keeps it at all; one it does not
+    keep is deleted, not shortened.
 
 ## Check before finishing
 
