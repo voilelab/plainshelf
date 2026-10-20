@@ -77,8 +77,8 @@ Reading progress, read history and reading statistics are **device-local**. They
 are not stored in the shelf, so they are not carried by a backup of `books/`,
 and two devices pointed at the same shelf keep their own.
 
-![Architecture diagram: three feature documents — reading progress, read history
-and reading stats — all mutate through one queued device document store, which
+![Architecture diagram: three feature documents (reading progress, read history
+and reading stats) all mutate through one queued device document store, which
 narrows to a single format-blind interface that only loads and saves a plain
 string. Four platform backends implement it: browser localStorage, Capacitor
 Filesystem in app-private storage on Android, a JSON file beside shelves.json on
@@ -132,13 +132,13 @@ book's progress depends on how it was launched:
 - **Launched from the desktop app** (macOS), reading a book shells out to the
   installed `PlainShelfReader` with the book's `.bookpkg` path (`-book`) and its
   real shelf id (`-shelf <realShelfID>`). The reader reports that real shelf as
-  its active shelf, so it opens at — and writes back to — the same
+  its active shelf, so it opens at, and writes back to, the same
   `shelves.<realShelfID>.<bookID>` position the desktop library already holds,
-  whichever source last recorded it (the reader, the in-app reader, or an import).
-  Both sides read and write the same key, so no projection is involved. A chapter
-  "read" action adds `-section <index>` (the reader's own section index, matching
-  the `?section=` deep link), so the reader opens on that chapter instead of the
-  restored progress; a default read omits it.
+  whichever source last recorded it (the reader, the in-app reader, or an
+  import). Both sides read and write the same key, so no projection is involved.
+  A chapter "read" action adds `-section <index>` (the reader's own section
+  index, matching the `?section=` deep link), so the reader opens on that
+  chapter instead of the restored progress; a default read omits it.
 - **Run standalone** (opened directly, no `-shelf`), the reader has no real shelf,
   so it keys every book's progress under one synthetic shelf id, `book`, which the
   desktop app projects onto the real shelves later (below).
@@ -168,20 +168,20 @@ was written and all reconciliation is **newest-wins per book**:
   identifies exactly one book), taking the newer entry. The projection runs
   whenever the desktop reads progress, so a book read in the reader shows its new
   position the next time the library or that book is opened.
-- An entry the desktop cannot place — a book that has been removed, or a loose
-  book opened in the reader from outside every shelf — is left under `book`
-  untouched, never guessed onto the wrong shelf, and folded in later if that book
-  is imported.
+- An entry the desktop cannot place (a book that has been removed, or a loose
+  book opened in the reader from outside every shelf) is left under `book`
+  untouched, never guessed onto the wrong shelf, and folded in later if that
+  book is imported.
 - Writers coordinate through a lock on the file, and each read-modify-write
   re-reads under it, so a write only ever replaces entries older than itself.
 
 A book opened **through the desktop app** is therefore fully two-way: the reader
 starts at the desktop library's stored position and writes back to the same
-real-shelf key, and a later position from either side — forward or a reset — wins
-by recency. Only a reader opened **directly** stays one-way, its `book` namespace
-folded in by projection; progress recorded in the desktop app does not appear
-there because it never carried that book's real shelf id. Nothing here is written
-into the shelf; reading progress stays device-local convenience state.
+real-shelf key, and a later position from either side, forward or a reset, wins
+by recency. Only a reader opened **directly** stays one-way, its `book`
+namespace folded in by projection; progress recorded in the desktop app does not
+appear there because it never carried that book's real shelf id. Nothing here is
+written into the shelf; reading progress stays device-local convenience state.
 
 The diagram cannot show either of these:
 
