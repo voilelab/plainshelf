@@ -25,8 +25,7 @@ import {
   writeTextFile
 } from './mobileCacheFs';
 
-// Downloaded books, inside the shared on-device layout defined by
-// mobileCacheFs.ts (which owns the base directory and the scope segment):
+// Downloaded books, inside the shared layout mobileCacheFs.ts owns:
 //
 //   plainshelf-cache/scopes/<enc(scopeKey)>/books/<enc(bookId)>/
 //       manifest.json      # CachedBookManifest
@@ -36,23 +35,15 @@ import {
 //       sources/<enc(sourceId)>.txt
 //       assets/<enc(sourceId)>/<hash(name)>.json   # StoredAsset
 //
-// `enc` is encodeURIComponent. The real id is nevertheless always read from
-// the manifest.json content, never decoded back from the directory name —
-// this keeps the read path independent of the encoding scheme and of any
-// platform-specific filename quirks.
+// `enc` is encodeURIComponent, but ids are always read from manifest.json, never
+// decoded from a directory name, so reads survive any encoding or filename quirk.
 //
-// Commit-point semantics: `saveDownloadedBook` writes manifest.json, and its
-// caller (see mobileBookshelfProvider.ts's downloadBook) writes it *last* —
-// after content.txt, the source files and the cover — so it is the download's
-// commit point. Presence of manifest.json is therefore the sole signal that
-// "this book is downloaded" (matching listDownloadedBooks/getCachedBook/
-// getDownloadState), and it implies the accounted-for content is already on
-// disk. A directory with no manifest.json is an orphan left by an interrupted
-// download and is ignored by listDownloadedBooks. A manifest.json that fails to
-// parse is treated the same as a missing manifest (ignored, not thrown). A
-// missing content/source file under a committed manifest is still handled as a
-// plain cache miss (returns null) rather than throwing, so a later partial
-// eviction degrades gracefully.
+// manifest.json is the commit point: downloadBook (mobileBookshelfProvider.ts)
+// writes it last, after content, sources and cover, so its presence alone means
+// downloaded (listDownloadedBooks, getCachedBook, getDownloadState). A directory
+// without one is an interrupted download's orphan; an unparsable one counts as
+// missing, and a missing file under a committed manifest is a cache miss, so a
+// later partial eviction degrades gracefully.
 
 // Pre-scope layout. Everything under it belongs to whichever connection was
 // configured when it was written, which — until the mobile shell can hold more
@@ -93,17 +84,13 @@ function coverPath(booksDir: string, bookId: string): string {
   return `${bookDir(booksDir, bookId)}/cover.json`;
 }
 
-// Illustrations sit under the book directory too, so the same recursive rmdir
-// sweeps them, and are nested by source because the shelf stores them per
-// source. Each is a sidecar for the reason above: binary does not survive the
-// text-only file API these caches share.
-//
-// The file name is a hash rather than the encoded asset name. An asset name is
-// user-chosen and the shelf accepts up to 255 UTF-8 bytes; percent-encoding a
-// CJK name triples it, so ~29 characters would overflow the 255-byte component
-// limit and the write would fail. The exact name is stored inside the file and
-// checked on read, so a hash collision is a cache miss and never the wrong
-// picture.
+// Illustrations sit under the book directory, so the same rmdir sweeps them,
+// nested by source as the shelf stores them; each is a sidecar because binary
+// does not survive the text-only file API. The file name hashes the asset name:
+// names may be 255 UTF-8 bytes and percent-encoding triples CJK, so ~29
+// characters would overflow the 255-byte component limit and fail the write.
+// The exact name is stored inside and checked on read, so a collision is a
+// cache miss, never the wrong picture.
 function assetPath(booksDir: string, bookId: string, sourceId: string, name: string): string {
   return `${bookDir(booksDir, bookId)}/assets/${encode(sourceId)}/${hashComponent(name)}.json`;
 }

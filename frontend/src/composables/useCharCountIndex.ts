@@ -4,16 +4,12 @@ import { ApiError } from '@/api/client';
 import { createShelfInitRetry, isShelfInitializing } from './shelfInitRetry';
 import { t } from '@/i18n';
 
-// A lazily loaded book ID -> char_count map for the pages that filter on it.
-//
-// char_count makes the backend open every book's current source, so it is kept
-// off the shared useBookStore listing and only requested once a char-count
-// filter is actually in use. Only the counts are kept here: the book list
-// itself stays on the shared store, so enabling the filter never forks the
-// data every other action on the page reads from.
-//
-// Each call returns its own refs, so mounting a page that filters on character
-// counts never changes what other pages fetch.
+// A lazily loaded book ID to char_count map for the pages that filter on it.
+// char_count makes the backend open every book's current source, so it stays off
+// the shared useBookStore listing until a char-count filter is in use. Only the
+// counts live here, so the filter never forks the list other actions read, and
+// each call returns its own refs, so one page's filter never changes what other
+// pages fetch.
 export function useCharCountIndex() {
   const counts = ref<Map<string, number | undefined>>(new Map());
   const ready = ref(false);

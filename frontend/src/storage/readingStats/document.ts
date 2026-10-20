@@ -1,13 +1,9 @@
-// The on-device reading-stats document. Every client (web, Wails desktop,
-// Capacitor Android) persists this exact shape; only the storage location
-// differs (see storage.ts). Reading time is per-device behavior and is never
-// sent to the server.
-//
-// `shelves` is keyed the same way reading history is (see
-// buildDeviceDocumentKey), so a multi-shelf — or repointed — client keeps
-// independent totals. Each entry maps "YYYY-MM-DD" to the seconds read that
-// day; the server's per-book breakdown is not kept, because nothing ever read
-// it.
+// The on-device reading-stats document. Web, Wails desktop and Android persist
+// this exact shape in different places (storage.ts); reading time is per device
+// and never sent to the server. `shelves` is keyed like reading history
+// (buildDeviceDocumentKey), so a multi-shelf or repointed client keeps separate
+// totals. Each entry maps "YYYY-MM-DD" to seconds read that day; the server's
+// per-book breakdown is not kept, because nothing ever read it.
 
 export const READING_STATS_DOCUMENT_VERSION = 1;
 

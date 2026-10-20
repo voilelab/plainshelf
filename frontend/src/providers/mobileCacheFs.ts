@@ -1,16 +1,14 @@
 import { Directory, Encoding, Filesystem, type WriteFileOptions } from '@capacitor/filesystem';
 
 // Shared layout and file access for everything the mobile shell keeps on the
-// device. Directory.Data is app-private, requires no runtime permission, and —
-// unlike IndexedDB in an Android WebView — is not subject to silent LRU
-// eviction (see the rationale in shells/mobile/index.ts).
+// device. Directory.Data is app-private, needs no runtime permission and, unlike
+// IndexedDB in an Android WebView, is not silently LRU-evicted (rationale in
+// shells/mobile/index.ts). The scope keeps two shelves' data apart, since book
+// ids alone cannot (cacheScope.ts):
 //
 //   plainshelf-cache/scopes/<enc(scopeKey)>/
 //       shelf-snapshot.json    # left by builds with the TypeScript pCloud reader; unread
 //       books/<enc(bookId)>/   # downloaded books (filesystemMobileBookCache.ts)
-//
-// The scope segment keeps two shelves' data apart; see cacheScope.ts for why
-// book ids alone cannot.
 export const BASE_DIR = 'plainshelf-cache';
 const SCOPES_DIR = `${BASE_DIR}/scopes`;
 export const CACHE_DIRECTORY = Directory.Data;
