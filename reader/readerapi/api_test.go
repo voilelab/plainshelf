@@ -19,9 +19,6 @@ const (
 	testContent  = "# Chapter 1\n\nA beginning is the time for taking care.\n"
 )
 
-// writeBookPackage builds a package the way a shelf would, through the same
-// structs the server writes, so a field renamed in shelf/ breaks this test
-// rather than the app.
 func writeBookPackage(t *testing.T, title string, bookID string) string {
 	t.Helper()
 
@@ -75,7 +72,7 @@ func newOpenLibrary(t *testing.T) *readerapi.Library {
 	t.Helper()
 
 	library := readerapi.NewLibrary(nil)
-	t.Cleanup(func() { library.Close() }) //nolint:errcheck // test cleanup
+	t.Cleanup(func() { library.Close() })
 
 	if _, err := library.Open(writeBookPackage(t, "Dune", testBookID)); err != nil {
 		t.Fatalf("Open: %v", err)
@@ -95,8 +92,6 @@ func bookPath(bookID string) string {
 	return "/api/shelves/" + readerapi.ShelfID + "/books/" + bookID
 }
 
-// The response shape is the frontend's contract: it reads metadata from "meta"
-// and the folder from beside it, and a package has none.
 func TestHandlerServesTheOpenBook(t *testing.T) {
 	handler := readerapi.NewHandler(newOpenLibrary(t), "test")
 
@@ -160,8 +155,6 @@ func TestHandlerServesContentAndSources(t *testing.T) {
 	}
 }
 
-// Cover and illustrations reach the UI as bytes with a type the browser can
-// render, not as octet-stream downloads.
 func TestHandlerServesImagesWithTheirType(t *testing.T) {
 	handler := readerapi.NewHandler(newOpenLibrary(t), "test")
 
@@ -184,8 +177,6 @@ func TestHandlerServesImagesWithTheirType(t *testing.T) {
 	}
 }
 
-// A reader that has not been given a folder yet is not broken, and a request
-// for some other book is not this reader's business.
 func TestHandlerReportsWhatItDoesNotHave(t *testing.T) {
 	t.Run("no book open", func(t *testing.T) {
 		handler := readerapi.NewHandler(readerapi.NewLibrary(nil), "test")
@@ -221,8 +212,6 @@ func TestHandlerReportsWhatItDoesNotHave(t *testing.T) {
 	})
 }
 
-// The reader has no write surface at all: the methods the editing UI would use
-// are refused by the router, before any handler can be reached.
 func TestHandlerRefusesWrites(t *testing.T) {
 	handler := readerapi.NewHandler(newOpenLibrary(t), "test")
 
@@ -245,8 +234,6 @@ func TestHandlerRefusesWrites(t *testing.T) {
 	}
 }
 
-// Opening another folder swaps the book the window serves, and the previous
-// book stops being addressable — the reader holds exactly one.
 func TestLibraryOpensAnotherBook(t *testing.T) {
 	library := newOpenLibrary(t)
 	handler := readerapi.NewHandler(library, "test")
@@ -267,8 +254,6 @@ func TestLibraryOpensAnotherBook(t *testing.T) {
 	}
 }
 
-// A folder the user picked by mistake must not take the book they were reading
-// away from them.
 func TestLibraryKeepsTheOpenBookWhenAnOpenFails(t *testing.T) {
 	library := newOpenLibrary(t)
 
