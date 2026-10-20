@@ -57,7 +57,12 @@ upstream or are added here.
     the label; write prose. A bold lead-in that names the item and is followed
     by new detail is fine, which is the shape `lessons.md` uses.
 17. **Sentence-case headings.** "Data format versioning", not "Data Format
-    Versioning". Proper nouns keep their capitals. Change the matching
+    Versioning". Proper nouns keep their capitals. This is the convention of
+    the [Google](https://developers.google.com/style/capitalization),
+    [Microsoft](https://learn.microsoft.com/en-us/style-guide/capitalization),
+    and [GitHub](https://docs.github.com/en/contributing/style-guide-and-content-model/style-guide#headers)
+    documentation style guides, and it spares a list of which small words stay
+    lower case. Change the matching
     `mkdocs.yml` nav title in the same edit, and check that no link points at
     the old anchor text (`mkdocs build --strict`).
 18. **Decorative emojis.** Remove them from headings and bullets.
