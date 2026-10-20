@@ -87,8 +87,9 @@ function coverPath(booksDir: string, bookId: string): string {
 // Illustrations sit under the book directory, so the same rmdir sweeps them,
 // nested by source as the shelf stores them; each is a sidecar because binary
 // does not survive the text-only file API. The file name hashes the asset name:
-// names may be 255 UTF-8 bytes and percent-encoding triples CJK, so ~29
-// characters would overflow the 255-byte component limit and fail the write.
+// names are user-chosen, the shelf accepts up to 255 UTF-8 bytes, and
+// percent-encoding triples CJK, so ~29 characters would overflow the 255-byte
+// component limit and fail the write.
 // The exact name is stored inside and checked on read, so a collision is a
 // cache miss, never the wrong picture.
 function assetPath(booksDir: string, bookId: string, sourceId: string, name: string): string {
