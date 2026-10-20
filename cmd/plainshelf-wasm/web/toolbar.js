@@ -26,6 +26,9 @@
   }
 
   function importShelf() {
+    // File input activation requires transient user activation (WHATWG HTML,
+    // https://html.spec.whatwg.org/multipage/input.html#file-upload-state-(type=file)).
+    // Open the picker before storage checks can outlive that activation.
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.zip,application/zip';

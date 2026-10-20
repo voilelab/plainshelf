@@ -203,6 +203,8 @@
       sw.addEventListener('controllerchange', resolve, { once: true });
       setTimeout(resolve, 3000);
     });
+    // Firefox can bypass an active worker on hard reload; explicitly request
+    // clients.claim() (https://github.com/voilelab/plainshelf/pull/700).
     (await sw.ready).active?.postMessage({ type: 'plainshelf-claim' });
     await taken;
   }
