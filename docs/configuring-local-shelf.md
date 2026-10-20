@@ -202,19 +202,31 @@ shelf list lives outside every shelf.
 read-only, to other devices on the same network. It is the server's
 [`dav_export`](reference/configuration.md#dav_export) behind a switch:
 
-- Off by default, and off means the app opens no network port at all.
+- Off by default, with no shelves ticked on a fresh setup. Turning it off
+  closes the listener immediately, including active transfers.
 - Turned on, no shelf is shared until you tick it. An unticked shelf is 404
   on the export, the same as one that does not exist.
 - The page shows the address (`http://<LAN IP>:20001/dav/`, one shelf per
   `/dav/<shelf id>/`), the token every request must carry, and a QR code
   holding both plus every ticked shelf (see [the QR code](#the-qr-code)).
   **Replace token** revokes the old one at once.
-- It binds one LAN address, never every interface; with more than one network
+- It binds one detected local LAN IPv4 address and refuses `0.0.0.0`; with more than one network
   the page lets you choose which. If that address is gone at the next start,
   the switch stays on and the page says why it is not running.
 - The switch, the ticked shelves and the token are kept in the app's data
   directory (`lan_share.json`, `lan_share.token`), not in any shelf, and
   survive a restart. The port is `20001` unless `lan_share.json` sets `port`.
+
+The URL reveals the computer's network address and shelf identifiers; the token
+and QR payload grant read access to the selected shelves. Treat the connection
+details as sensitive: keep them out of public screenshots, logs and messages.
+If the token or QR is disclosed, turn sharing off or replace the token and
+update the receiving devices. Replacing it affects subsequent requests; it does
+not erase files a device has already downloaded. Saved enabled settings can
+start the listener again on restart, so switch sharing off when finished.
+
+For the alternatives, scope and security tradeoffs, see the
+[desktop LAN sharing decision record](deployment-and-threat-model.md#desktop-lan-sharing-decision-record).
 
 ### The QR code
 
