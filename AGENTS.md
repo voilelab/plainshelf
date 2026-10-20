@@ -92,10 +92,11 @@ web builds; do not use it for Capacitor asset generation.
 ## Required guidance
 
 Before every task, read and follow [judgment](docs/development/agent/judgment.md),
-[maintenance](docs/development/agent/maintenance.md), and the relevant sections of
-[lessons](docs/development/agent/lessons.md).
+[comments](docs/development/agent/comments.md), [maintenance](docs/development/agent/maintenance.md),
+and the relevant sections of [lessons](docs/development/agent/lessons.md).
 For tracked tickets, follow the complete [ticket workflow](docs/development/agent/workflows/work-ticket.md).
 For documentation synchronization, follow the complete [docs workflow](docs/development/agent/workflows/update-docs.md).
 For prose cleanup, follow the complete [unslop workflow](docs/development/agent/workflows/unslop.md).
+For a comment cleanup pass, follow the complete [no-comments workflow](docs/development/agent/workflows/no-comments.md).
 These are required instructions: open linked files explicitly if your tool does
 not expand links. See the [loading map](docs/development/agent/index.md) for tool adapters.

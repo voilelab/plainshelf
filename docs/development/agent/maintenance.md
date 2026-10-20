@@ -8,6 +8,7 @@ The goal is a small active rule set grounded in current repository facts.
 
 - `AGENTS.md`: product invariants, repository map, canonical commands, routing
 - `judgment.md`: scope, escalation, delegation, and completion standards
+- `comments.md`: which code comments may exist
 - `maintenance.md`: this policy
 - `lessons.md`: concise, verified, project-specific pitfalls
 - `workflows/`: repeatable project workflows
@@ -31,7 +32,8 @@ Use this format:
 - **Topic:** The symptom or trigger. The verified cause. The next action. (`relevant/path`)
 ```
 
-Keep details in code comments, tests, issue/PR history, or durable technical docs.
+Keep details in names, types, tests, issue/PR history, or durable technical docs;
+code comments only where [the comment policy](comments.md) keeps them.
 Lessons are an index of traps, not a chronological incident log.
 
 ## Change procedure

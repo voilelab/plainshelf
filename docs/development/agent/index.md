@@ -15,11 +15,13 @@ workflow. Open it in the repository; it is not part of the published user docs.
 | Root `AGENTS.md` | Product constraints, commands, and routing | Every task |
 | Root `CLAUDE.md` | Imports `AGENTS.md` | Claude Code startup |
 | `.claude/rules/20-judgment.md` | [Judgment](judgment.md) | Claude Code startup; other agents open explicitly |
+| `.claude/rules/30-comments.md` | [Comments](comments.md) | Claude Code startup; other agents open explicitly |
 | `.claude/rules/40-maintenance.md` | [Maintenance](maintenance.md) | Claude Code startup; other agents open explicitly |
 | `.claude/rules/50-lessons.md` | [Lessons](lessons.md) | Claude Code startup; other agents read relevant sections |
 | `.claude/skills/work-ticket/SKILL.md` | [Ticket workflow](workflows/work-ticket.md) | A tracked-ticket task |
 | `.claude/skills/update-docs/SKILL.md` | [Documentation workflow](workflows/update-docs.md) | Documentation synchronization |
 | `.claude/skills/unslop/SKILL.md` | [Unslop workflow](workflows/unslop.md) | Prose cleanup; manual `/unslop` only |
+| `.claude/skills/no-comments/SKILL.md` | [No-comments workflow](workflows/no-comments.md) | Comment cleanup pass; manual `/no-comments` only |
 
 Claude rule adapters use imports relative to the adapter file. Skill adapters
 retain their discovery metadata and explicitly require opening the workflow;
