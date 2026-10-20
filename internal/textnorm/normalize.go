@@ -16,8 +16,9 @@ const NormalizeVersion = "nfkc-strip-space-punct-v2"
 // Normalize reduces text to the characters that carry its content: NFKC, then
 // every whitespace, punctuation, symbol and separator rune dropped, repeated
 // until stable. Rewrapped chapters, swapped bracket styles and ideographic indents
-// normalize alike; an EPUB rendered to text does not (its added headings are
-// content). Equality is a zero-false-positive fast path, not a sketch substitute.
+// normalize alike. Format conversions are weaker: an EPUB rendered to text tends
+// to gain a table of contents, and those headings are content. Equality is a
+// zero-false-positive fast path, not a sketch substitute.
 //
 // Latin words run together ("the dog" equals "thedog"), the price of making CJK
 // reflow invisible; Latin word boundaries are recoverable from the letters anyway.

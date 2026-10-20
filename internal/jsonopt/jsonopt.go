@@ -2,12 +2,13 @@
 // with, so one decision covers every writer.
 //
 // The reason is [json.Deterministic]: v2 marshals maps in unspecified order (v1
-// sorted them), and two mechanisms rely on same content giving same bytes. The
-// fingerprint cache compares the encoded file with the one on disk before
-// rewriting it, and the exported book cache is keyed by a digest of its payload.
-// Dropping the option breaks no build or test; it costs an upload per scan on
-// pCloud or SMB. Otherwise the sets add only indentation and keep the v2 defaults;
-// docs/development/json-encoding.md says why each one is accepted.
+// sorted them), and the fingerprint cache's byte compare and the exported book
+// cache's payload digest rely on same content giving same bytes. Dropping it
+// breaks no build or test, only costs an upload per scan on pCloud or SMB. The
+// sets add only indentation besides, so the other v2 defaults apply: empty slices
+// and maps as [] and {}, no HTML escaping, duplicate names and invalid UTF-8
+// rejected, case-sensitive member names. docs/development/json-encoding.md says
+// why each one is accepted.
 package jsonopt
 
 import (
