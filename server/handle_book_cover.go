@@ -7,9 +7,8 @@ import (
 	"github.com/voilelab/plainshelf/internal/imgutil"
 )
 
-const maxCoverBodySize = 20 << 20 // 20 MB
+const maxCoverBodySize = 20 << 20
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *bookHandlers) getCover(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)
 	if !ok {
@@ -22,7 +21,7 @@ func (h *bookHandlers) getCover(w http.ResponseWriter, r *http.Request) {
 
 	coverData, ext, err := book.OpenCover()
 	if err != nil {
-		// writeErr, so a virtual shelf offline answers BOOK_NOT_DOWNLOADED.
+
 		h.writeErr(w, r, err, "failed to get book cover")
 		return
 	}
@@ -36,7 +35,6 @@ func (h *bookHandlers) getCover(w http.ResponseWriter, r *http.Request) {
 	w.Write(coverData)
 }
 
-// PUT /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *bookHandlers) updateCover(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)
 	if !ok {
@@ -93,7 +91,6 @@ func (h *bookHandlers) updateCover(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *bookHandlers) deleteCover(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)
 	if !ok {

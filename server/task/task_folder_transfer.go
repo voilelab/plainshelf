@@ -16,10 +16,6 @@ import (
 
 const FolderTransferTaskName = "folder_transfer"
 
-// FolderTransferBook names one book a folder transfer will carry, together with the
-// source folder it sits in. The endpoint resolves the whole set up front - the same
-// snapshot it screens for conflicts - and the chain constructor remaps each source
-// folder onto the destination, so the task itself works from fixed destinations.
 type FolderTransferBook struct {
 	ID           string
 	SourceFolder shelf.FolderPath
@@ -30,10 +26,6 @@ type folderTransferFailure struct {
 	Code   string `json:"code"`
 }
 
-// FolderTransferResult is what a client reads back from the chain as a folder
-// transfer runs and once it settles. It reports the destination the transfer
-// aims at and, like the batch task, the books that made it across and the ones
-// that did not, so a caller sees "N of M" progress and every per-book failure.
 type FolderTransferResult struct {
 	Operation    string                  `json:"operation"`
 	SourceShelf  string                  `json:"source_shelf"`
@@ -44,22 +36,14 @@ type FolderTransferResult struct {
 	SucceededIDs []string                `json:"succeeded_ids"`
 	Failures     []folderTransferFailure `json:"failures"`
 
-	// FolderFailures counts destination folders that could not be created or
-	// whose folder.json could not be carried. A book's own folder is re-created
-	// when the book publishes, so a creation failure only bites an empty
-	// sub-folder - but either way the transfer did not fully reproduce the
-	// structure, so it holds the task back from a clean completion.
 	FolderFailures int `json:"folder_failures"`
 }
 
-// plannedFolder is one source folder paired with the destination it maps to.
 type plannedFolder struct {
 	source shelf.FolderPath
 	target shelf.FolderPath
 }
 
-// plannedTransfer is one book paired with the destination folder it lands in,
-// already remapped from its source folder onto the target root.
 type plannedTransfer struct {
 	id           string
 	targetFolder shelf.FolderPath
@@ -71,19 +55,12 @@ type folderTransferTask struct {
 	logger    *logutil.Logger
 	operation string
 
-	// sourceFolder is the folder being transferred, kept so a completed move can
-	// prune the folders it emptied on the source.
 	sourceFolder shelf.FolderPath
-	// createFolders are the destination folders to reproduce, with their
-	// folder.json, before any book is published, so an empty sub-folder carries
-	// across too.
+
 	createFolders []plannedFolder
-	// carriedMeta maps a source folder to the folder.json version copied to the
-	// target, "" when it had none. A folder missing from it did not carry, so a
-	// move keeps it.
+
 	carriedMeta map[string]string
-	// books are the per-book transfers, each with its remapped destination folder,
-	// sorted by ID for a deterministic transfer order.
+
 	books []plannedTransfer
 
 	progress taskutil.Progress
@@ -196,9 +173,6 @@ func (t *folderTransferTask) recordFailure(bookID string, err error) {
 		"error", err)
 }
 
-// interruptedStatus classifies a run stopped by a cancel: failed if it never
-// published a book, partially completed if some already landed - the same split
-// the batch task draws, so a cancel never reads as a clean completion.
 func (t *folderTransferTask) interruptedStatus() taskutil.Status {
 	t.mu.Lock()
 	processed := len(t.result.SucceededIDs) + len(t.result.Failures)
@@ -235,20 +209,11 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 	t.progress.SetTotal(len(t.books))
 	t.progress.SetStatus(taskutil.StatusRunning)
 
-	// Refuse before any work when the transfer is cancelled up front, so a cancel
-	// that arrives before the first book leaves both shelves untouched.
 	if err := ctx.Err(); err != nil {
 		t.progress.SetStatus(t.interruptedStatus())
 		return util.Errorf("%w", err)
 	}
 
-	// Reproduce the destination folder tree first - empty sub-folders and
-	// folder.json included - so the structure carries across even where there is
-	// no book to publish. Publishing a book re-creates its own folder, so
-	// re-creating one here is harmless and a book's folder survives a failure
-	// here. A failure does not abort the transfer, but it is counted so the task
-	// settles short of a clean completion rather than claiming it copied a
-	// structure it did not.
 	for _, folder := range t.createFolders {
 		if err := t.createFolder(folder); err != nil {
 			t.mu.Lock()
@@ -260,8 +225,7 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 	}
 
 	for _, planned := range t.books {
-		// Checked before each book so a cancel stops the transfer between books
-		// rather than partway through one: a half-copied book is never published.
+
 		if err := ctx.Err(); err != nil {
 			t.progress.SetStatus(t.interruptedStatus())
 			return util.Errorf("%w", err)
@@ -281,11 +245,6 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 		t.progress.Advance()
 	}
 
-	// A move that ran to the end leaves the source subtree holding only empty
-	// folders (and any package the scan could not read, which was never in the
-	// plan); drop the empty ones so the moved folder no longer shows on the source.
-	// This is reached only when the loop was not cancelled, so a cancel keeps the
-	// partially emptied source exactly as it is.
 	if t.operation == BookTransferOperationMove {
 		t.pruneSourceFolder()
 	}
@@ -294,8 +253,6 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 	return nil
 }
 
-// createFolder creates folder.target and copies folder.source's folder.json into
-// it, recording the carried version.
 func (t *folderTransferTask) createFolder(folder plannedFolder) error {
 	parent := append(shelf.FolderPath(nil), folder.target[:len(folder.target)-1]...)
 	if err := t.target.NewFolder(parent, folder.target[len(folder.target)-1]); err != nil {
@@ -309,13 +266,6 @@ func (t *folderTransferTask) createFolder(folder plannedFolder) error {
 	return nil
 }
 
-// pruneSourceFolder removes the now-empty folders a completed move left under the
-// source folder. It leans on PruneFolder, which refuses a non-empty folder and a
-// folder.json other than the one carried, so a book that failed to move (still
-// on the source), a package the scan could not read, or metadata that did not
-// reach the target keeps its folder - the move never deletes anything it did not
-// carry.
-// Deepest folders first, so a parent is empty by the time it is reached.
 func (t *folderTransferTask) pruneSourceFolder() {
 	folders, err := t.source.GetAllFolders()
 	if err != nil {
@@ -330,25 +280,17 @@ func (t *folderTransferTask) pruneSourceFolder() {
 			under = append(under, l)
 		}
 	}
-	// Deepest-first so a child folder is cleaned up before its parent. Paths of
-	// equal depth never nest, so their relative order does not affect the
-	// deletion; sort them by path anyway to keep the order deterministic.
+
 	slices.SortFunc(under, func(a, b shelf.FolderPath) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a.String(), b.String()))
 	})
 
 	for _, l := range under {
-		// A non-empty folder (a failed book or an unreadable package) is left in
-		// place, exactly as the shelf's own folder move does. A folder that did
-		// not carry reads as "", which keeps any folder.json it holds.
+
 		_ = t.source.PruneFolder(l, t.carriedMeta[l.String()])
 	}
 }
 
-// NewFolderTransferChain builds the one-task chain that copies or moves a whole
-// folder from one shelf to another. The dedupe key folds in both shelves, the
-// operation and both folders, so re-submitting the same transfer attaches to the
-// one already running instead of starting a second.
 func NewFolderTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation string, sourceFolder, targetFolder shelf.FolderPath, books []FolderTransferBook, sourceSubfolders []shelf.FolderPath) *taskutil.TaskChain {
 	key := strings.Join([]string{
 		FolderTransferTaskName, sourceShelfID, targetShelfID, operation, sourceFolder.String(), targetFolder.String(),
@@ -363,9 +305,6 @@ func NewFolderTransferChain(sourceShelfID string, source *shelf.Shelf, targetShe
 	}
 }
 
-// remapFolder rewrites a source folder sitting under sourceFolder into its place
-// under targetFolder, preserving the tail below sourceFolder. sourceFolder must be a
-// prefix of folder, which the caller has already ensured for every folder it maps.
 func remapFolder(folder, sourceFolder, targetFolder shelf.FolderPath) shelf.FolderPath {
 	return slices.Concat(targetFolder, folder[len(sourceFolder):])
 }

@@ -50,8 +50,6 @@ func TestAPINSFWBooksCannotBeReachedThroughABatch(t *testing.T) {
 		}
 	}
 
-	// Nothing was trashed, and the same batch really does work once it may — so
-	// the refusals above were the filter, not a batch that never works.
 	apitest.SetShowNSFW(t, s.Env, true)
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.All()...)
 	if got := trash(s.FolderHidden); len(got.SucceededIDs) != 1 {
@@ -76,8 +74,6 @@ func TestAPIBookNSFWIsWritableThroughPatch(t *testing.T) {
 		t.Errorf("re-read meta.nsfw = false, want the mark to have reached book.json")
 	}
 
-	// The mark is what the filter acts on, so the newly marked book now leaves
-	// with the ones marked before it.
 	apitest.SetShowNSFW(t, s.Env, false)
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Classic)
 	apitest.AssertStatus(t, s.Env.Get(apitest.BookURL(s.Visible)), http.StatusNotFound)
@@ -116,8 +112,6 @@ func TestAPIBookReportsTheFolderRuleThatMarksIt(t *testing.T) {
 		byID[book.Meta.ID] = book
 	}
 
-	// The listing and the single-book route have to agree: a chip drawn from one
-	// and a checkbox drawn from the other would otherwise contradict each other.
 	for _, bookID := range s.All() {
 		listed, ok := byID[bookID]
 		if !ok {
@@ -137,9 +131,6 @@ func TestAPIBookReportsTheFolderRuleThatMarksIt(t *testing.T) {
 		t.Errorf("nsfw_folder = %+v, want the rule as written in shelf.json", rule)
 	}
 
-	// The other three are outside the marked subtree, including the one marked
-	// by its own book.json: that half is meta.nsfw, and reporting it here as
-	// well would tell a client the mark is not editable when it is.
 	for _, bookID := range []string{s.Visible, s.Classic, s.BookHidden} {
 		if got := byID[bookID].NSFWFolder; got != nil {
 			t.Errorf("book %s: nsfw_folder = %+v, want none", bookID, got)

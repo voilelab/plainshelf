@@ -53,8 +53,7 @@ type Response struct {
 type shelfEntry struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	// LastExport is when the shelf was last written to a zip, RFC 3339; the
-	// UI shows it because the shelf is deleted with the app.
+
 	LastExport string `json:"last_export,omitempty"`
 }
 
@@ -62,21 +61,17 @@ type config struct {
 	Shelves []shelfEntry `json:"shelves"`
 }
 
-// instance holds the running server. Requests share mu for reading; anything
-// that changes the shelf set or reads a whole shelf takes it exclusively.
 type instance struct {
 	mu      sync.RWMutex
 	dataDir string
 	conf    config
 	app     *server.App
 	handler http.Handler
-	// virtual holds the open virtual shelves; see OpenPCloudShelf and
-	// OpenSourceShelf.
+
 	virtual map[string]virtualShelf
-	// share is the LAN share while it runs; see StartLANShare.
+
 	share *lanShare
-	// closed is set by Stop under mu, so a caller that fetched the instance
-	// just before Stop finds out once it holds the lock.
+
 	closed bool
 }
 
@@ -139,7 +134,7 @@ func start(dataDir string) (*instance, error) {
 		Shelves:    shelves,
 		StorePath:  filepath.Join(dataDir, "store"),
 		CoverToJPG: true,
-		// Nothing listens, so there is no one to authenticate against.
+
 		Security:    &server.SecurityConf{Mode: server.SecurityModeNone},
 		Credentials: credentialResolver{},
 	})
@@ -179,7 +174,6 @@ func running() (*instance, error) {
 	return current, nil
 }
 
-// rlock takes mu for a request; the caller unlocks only on success.
 func (rt *instance) rlock() error {
 	rt.mu.RLock()
 	if rt.closed {
@@ -189,7 +183,6 @@ func (rt *instance) rlock() error {
 	return nil
 }
 
-// lock takes mu exclusively; the caller unlocks only on success.
 func (rt *instance) lock() error {
 	rt.mu.Lock()
 	if rt.closed {
@@ -199,15 +192,11 @@ func (rt *instance) lock() error {
 	return nil
 }
 
-// quiesceTimeout bounds how long export, import and removal wait for queued tasks.
 var quiesceTimeout = 30 * time.Second
 
 // ErrBusy is returned when background tasks do not settle in time.
 var ErrBusy = errors.New("plainshelf: background tasks are still running")
 
-// quiesce waits, holding mu exclusively so no request can queue more, until
-// every task chain has settled: a chain accepted earlier keeps writing to its
-// shelves after its request returned.
 func (rt *instance) quiesce() error {
 	deadline := time.Now().Add(quiesceTimeout)
 	for rt.app.TaskChains().Busy() {
@@ -285,8 +274,6 @@ func Handle(method, url, headerJSON, bodyPath, outPath string) (res *Response, e
 	return &Response{Status: w.status, Header: string(hdrOut)}, nil
 }
 
-// fileResponseWriter streams the body to a file instead of buffering it the
-// way httptest.ResponseRecorder does.
 type fileResponseWriter struct {
 	header http.Header
 	status int
@@ -385,8 +372,6 @@ var ErrTooLarge = shelfzip.ErrTooLarge
 // staging a picked file past it.
 func MaxImportBytes() int64 { return shelfzip.MaxImportBytes() }
 
-// addShelf creates the shelf directory, fills it with populate when given,
-// then opens and records it. A failure removes the directory again.
 func (rt *instance) addShelf(name string, populate func(libRoot string) error) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -539,7 +524,6 @@ func MarkExported(id string) (err error) {
 	return nil
 }
 
-// writeZip writes beside zipPath first, so a failed export leaves no partial zip.
 func writeZip(zipPath, libRoot string) error {
 	tmp, err := os.CreateTemp(filepath.Dir(zipPath), ".export-*.zip")
 	if err != nil {
@@ -572,7 +556,7 @@ func shelfConf(dataDir string, e shelfEntry) shelf.ShelfConfWithID {
 		ID:      e.ID,
 		Name:    e.Name,
 		LibRoot: libRootOf(dataDir, e.ID),
-		// The app's private directory has one process; flock guards nothing.
+
 		LockMode: "none",
 	}
 }
@@ -581,7 +565,6 @@ func libRootOf(dataDir, id string) string {
 	return filepath.Join(dataDir, shelvesDir, id)
 }
 
-// newShelfID is random rather than derived from the name, so a rename keeps it.
 func newShelfID() string {
 	return "local-" + strings.ToLower(rand.Text()[:16])
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// pcloudHTTPClient is nil outside tests, which route requests to a fake.
 var pcloudHTTPClient *http.Client
 
 // OpenPCloudShelf opens the shelf in a pCloud folder as a read-only virtual
@@ -52,7 +51,6 @@ func OpenPCloudShelf(id, name, host, token, folder, scope string, showNSFW bool)
 	return rt.openVirtual(next, showNSFW)
 }
 
-// openVirtual opens next, replacing a virtual shelf already open under its ID.
 func (rt *instance) openVirtual(next virtualShelf, showNSFW bool) error {
 	id := next.conf.ID
 	if err := rt.lock(); err != nil {
@@ -64,7 +62,7 @@ func (rt *instance) openVirtual(next virtualShelf, showNSFW bool) error {
 	}
 	previous, replacing := rt.virtual[id]
 	if replacing {
-		// A chain accepted earlier may still read the shelf being replaced.
+
 		if err := rt.quiesce(); err != nil {
 			return err
 		}
@@ -74,7 +72,7 @@ func (rt *instance) openVirtual(next virtualShelf, showNSFW bool) error {
 		delete(rt.virtual, id)
 	}
 	if err := next.open(rt.app); err != nil {
-		// Put back the shelf that was working.
+
 		if replacing && previous.open(rt.app) == nil {
 			rt.virtual[id] = previous
 		}
@@ -104,7 +102,6 @@ func SetShelfShowNSFW(id string, show bool) (err error) {
 	return nil
 }
 
-// virtualShelf is what reopens a virtual shelf after a failed replacement.
 type virtualShelf struct {
 	scope string
 	conf  shelf.ShelfConfWithID

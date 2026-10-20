@@ -5,18 +5,10 @@ import (
 	"strings"
 )
 
-// The builders below assemble every route server/routes.go registers, in the
-// order that file lists them. They keep the repeated /api/shelves/<id> prefix
-// in one place while leaving each route's own shape spelled out at the call
-// site, since that shape is what a contract test is pinning. Reading this file
-// top to bottom is reading the API surface.
-
 // SettingPath is a representative route for the gate tests: it needs no
 // imported book, since reading it answers 200 and updating it 204, so one path
 // exercises both sides of the token gate.
 const SettingPath = "/api/setting/cover_to_jpg"
-
-// Shelf API
 
 func ShelfIDURL(shelfID string, elem ...string) string {
 	return strings.Join(append([]string{"/api/shelves", shelfID}, elem...), "/")
@@ -39,8 +31,6 @@ func ScansURL() string {
 func BookCacheExportURL() string {
 	return ShelfURL("book-cache-exports")
 }
-
-// Book API
 
 func BooksURL() string {
 	return ShelfURL("books")
@@ -78,8 +68,6 @@ func BookTransfersURL(bookID string) string {
 	return BookURL(bookID, "transfers")
 }
 
-// Download API, on the shelf AddVirtualShelf opens.
-
 func DownloadsURL() string {
 	return ShelfIDURL(VirtualShelfID, "downloads")
 }
@@ -92,8 +80,6 @@ func BookDownloadURL(bookID string) string {
 func VirtualBookURL(bookID string, elem ...string) string {
 	return ShelfIDURL(VirtualShelfID, append([]string{"books", bookID}, elem...)...)
 }
-
-// Source API
 
 func SourceURL(bookID, sourceID string, elem ...string) string {
 	return BookURL(bookID, append([]string{"sources", sourceID}, elem...)...)
@@ -121,8 +107,6 @@ func AssetsBundleURL(bookID, sourceID string, names ...string) string {
 	return base + "?" + query.Encode()
 }
 
-// Trash and folder API
-
 func TrashBooksURL(elem ...string) string {
 	return ShelfURL(append([]string{"trash", "books"}, elem...)...)
 }
@@ -135,8 +119,6 @@ func FolderTransfersURL() string {
 	return ShelfURL("folder-transfers")
 }
 
-// Task API
-
 func TaskChainURL(taskChainID string) string {
 	return "/api/taskchains/" + taskChainID
 }
@@ -145,13 +127,9 @@ func TaskChainCancelURL(taskChainID string) string {
 	return "/api/taskchains/" + taskChainID + "/cancel"
 }
 
-// Log API
-
 func LogURL(elem ...string) string {
 	return strings.Join(append([]string{"/api/logs"}, elem...), "/")
 }
-
-// Setting API
 
 func SettingURL(key string) string {
 	return "/api/setting/" + key

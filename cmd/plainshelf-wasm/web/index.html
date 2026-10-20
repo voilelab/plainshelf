@@ -11,7 +11,7 @@
 <body>
   <pre id="status">loading…</pre>
   <script>
-    // Answered by this tab's server or forwarded to the tab that runs it.
+
     window.plainshelfRequest({ method: 'GET', url: '/health', headers: {} })
       .then(() => { document.getElementById('status').textContent = 'ready'; });
   </script>

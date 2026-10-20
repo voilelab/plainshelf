@@ -76,8 +76,6 @@ func WaitForTaskChain(t *testing.T, env *Env, taskChainID string) server.TaskCha
 func AssertDuplicateChainConflict(t *testing.T, env *Env, submit func(wantStatus int) TaskChainSubmitResponse) TaskChainSubmitResponse {
 	t.Helper()
 
-	// Block the worker so the first chain stays queued, and therefore
-	// non-terminal, for the duration of the test.
 	release := blockWorker(t, env)
 
 	first := submit(http.StatusAccepted)
@@ -110,7 +108,6 @@ func TaskResult[T any](t *testing.T, chain server.TaskChain) T {
 	return out
 }
 
-// gateTask occupies the worker until it is released.
 type gateTask struct {
 	started chan struct{}
 	release chan struct{}
@@ -136,8 +133,6 @@ func (t *gateTask) Percentage() float64 { return 0 }
 
 func (t *gateTask) Status() taskutil.Status { return taskutil.StatusRunning }
 
-// blockWorker occupies the single worker goroutine so that chains submitted
-// afterwards stay queued. The returned function releases it.
 func blockWorker(t *testing.T, env *Env) func() {
 	t.Helper()
 

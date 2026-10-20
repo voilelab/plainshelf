@@ -18,8 +18,6 @@ import (
 
 const remoteShelfID = "remote"
 
-// davExporter is a PlainShelf exporting its default shelf over the read-only
-// WebDAV export (PSW-146), recording every request the export is sent.
 type davExporter struct {
 	env       *apitest.Env
 	srv       *httptest.Server
@@ -54,8 +52,6 @@ func (d *davExporter) take() []string {
 	return out
 }
 
-// seed imports one text book per title, gives the first a cover, and exports
-// the book cache.
 func (d *davExporter) seed(t *testing.T, titles ...string) {
 	t.Helper()
 	for i, title := range titles {
@@ -179,7 +175,6 @@ func TestAPIPlainShelfSourceErrorsContract(t *testing.T) {
 	rec = offline.Get(apitest.ShelfIDURL(remoteShelfID, "books"))
 	apitest.AssertErrorEnvelope(t, rec, http.StatusServiceUnavailable, "SOURCE_UNAVAILABLE", "the shelf source is unavailable")
 
-	// A mistyped URL and an unshared shelf both answer 404; not an empty shelf.
 	unshared := exporter.source("file:" + exporter.tokenFile)
 	unshared.URL = exporter.srv.URL + "/dav/not-shared/"
 	missing := newFailingRemote(t, unshared)
@@ -187,8 +182,6 @@ func TestAPIPlainShelfSourceErrorsContract(t *testing.T) {
 	apitest.AssertErrorEnvelope(t, rec, http.StatusServiceUnavailable, "NOT_A_SHELF", "the shelf source is not a shelf: it has no books/ directory")
 }
 
-// newFailingRemote opens a remote shelf whose first listing fails, waiting for
-// that failure rather than treating it as a broken test.
 func newFailingRemote(t *testing.T, src *shelf.SourceConf) *apitest.Env {
 	t.Helper()
 	env := apitest.NewUnstarted(t, withRemoteShelf(src))
@@ -291,7 +284,7 @@ func TestCheckSourceContract(t *testing.T) {
 			t.Errorf("CheckSource(%q) succeeded, want an error", typ)
 		}
 	}
-	// A pasted secret is a parameter, never part of the URL.
+
 	if _, err := server.CheckSource(shelf.SourceWebDAV, strings.Replace(url, "://", "://user:pw@", 1), "", ""); err == nil {
 		t.Error("CheckSource accepted a URL carrying credentials")
 	}

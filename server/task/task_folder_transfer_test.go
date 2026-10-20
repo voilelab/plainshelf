@@ -21,8 +21,6 @@ func newTransferTestShelf(t *testing.T, name string) *shelf.Shelf {
 	return s
 }
 
-// newTransferTestShelfAt is newTransferTestShelf that also returns the library
-// root, for a test that reads or writes files directly.
 func newTransferTestShelfAt(t *testing.T, name string) (*shelf.Shelf, string) {
 	t.Helper()
 	libRoot := path.Join(t.TempDir(), name)
@@ -48,7 +46,6 @@ func writeFolderMeta(t *testing.T, libRoot, content string, folder ...string) {
 	}
 }
 
-// readFolderMeta returns the folder.json bytes in folder, ok false when absent.
 func readFolderMeta(t *testing.T, libRoot string, folder ...string) (string, bool) {
 	t.Helper()
 	data, err := os.ReadFile(folderMetaPath(libRoot, folder...))
@@ -79,9 +76,6 @@ func newTestLogger(t *testing.T) *logutil.Logger {
 	return logger
 }
 
-// folderTransferPlan mirrors what the endpoint resolves before scheduling: the
-// folders under sourceFolder and the books beneath it. Building it from the same
-// exported reads the handler uses keeps the task tests honest about its input.
 func folderTransferPlan(t *testing.T, source *shelf.Shelf, sourceFolder shelf.FolderPath) ([]FolderTransferBook, []shelf.FolderPath) {
 	t.Helper()
 
@@ -124,8 +118,6 @@ func bookIDsUnderFolder(t *testing.T, s *shelf.Shelf, folder shelf.FolderPath) [
 	return ids
 }
 
-// A copy transfer reproduces the whole subtree - nested folders and an empty
-// sub-folder - on the target with fresh IDs and leaves the source untouched.
 func TestFolderTransferTaskCopyNested(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
@@ -152,7 +144,6 @@ func TestFolderTransferTaskCopyNested(t *testing.T) {
 		t.Fatalf("result = %+v, want two copied and no failures", result)
 	}
 
-	// Every book lands under its remapped folder with a fresh ID.
 	for _, tc := range []struct {
 		original string
 		folder   shelf.FolderPath
@@ -169,7 +160,6 @@ func TestFolderTransferTaskCopyNested(t *testing.T) {
 		}
 	}
 
-	// The empty sub-folder is reproduced on the target.
 	targetFolders, err := target.GetAllFolders()
 	if err != nil {
 		t.Fatalf("target GetAllFolders: %v", err)
@@ -178,7 +168,6 @@ func TestFolderTransferTaskCopyNested(t *testing.T) {
 		t.Errorf("empty sub-folder was not reproduced on the target: %v", targetFolders)
 	}
 
-	// The source keeps both books under their original IDs.
 	for _, id := range []string{topID, deepID} {
 		if _, err := source.GetBook(id); err != nil {
 			t.Errorf("source lost %q after a copy: %v", id, err)
@@ -186,8 +175,6 @@ func TestFolderTransferTaskCopyNested(t *testing.T) {
 	}
 }
 
-// A move transfer keeps every book's ID, publishes the subtree on the target, and
-// removes the emptied source folder once every book has moved.
 func TestFolderTransferTaskMoveNested(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
@@ -206,7 +193,6 @@ func TestFolderTransferTaskMoveNested(t *testing.T) {
 		t.Fatalf("status = %v at %v%%, want completed at 100%%", task.Status(), task.Percentage())
 	}
 
-	// The target lists both books under their original IDs at the remapped folders.
 	if got := bookIDsUnderFolder(t, target, shelf.FolderPath{"archive"}); len(got) != 1 || got[0] != topID {
 		t.Errorf("target [archive] = %v, want [%s]", got, topID)
 	}
@@ -214,7 +200,6 @@ func TestFolderTransferTaskMoveNested(t *testing.T) {
 		t.Errorf("target [archive sci-fi] = %v, want [%s]", got, deepID)
 	}
 
-	// The source no longer lists either book, and the emptied subtree is pruned.
 	for _, id := range []string{topID, deepID} {
 		if _, err := source.GetBook(id); !errors.Is(err, shelf.ErrBookNotFound) {
 			t.Errorf("source still lists moved book %q, err = %v", id, err)
@@ -229,9 +214,6 @@ func TestFolderTransferTaskMoveNested(t *testing.T) {
 	}
 }
 
-// Every folder's folder.json crosses byte for byte - the transferred folder's
-// own, a nested one, an empty sub-folder's, and files this build cannot read -
-// and a folder without one gains none. A move then prunes the source subtree.
 func TestFolderTransferTaskCarriesFolderMeta(t *testing.T) {
 	carried := map[string]string{
 		"fiction":         `{"schema_version":9,"future":{"x":[1]}}`,
@@ -278,7 +260,6 @@ func TestFolderTransferTaskCarriesFolderMeta(t *testing.T) {
 				}
 			}
 
-			// The very next listing shows the carried icon, without a scan.
 			listed, err := target.ListFolderMeta()
 			if err != nil {
 				t.Fatalf("ListFolderMeta: %v", err)
@@ -302,9 +283,6 @@ func TestFolderTransferTaskCarriesFolderMeta(t *testing.T) {
 	}
 }
 
-// folder.json that cannot be carried - the destination already has one - is a
-// recorded failure, the destination's file is not overwritten, and the move
-// keeps the source's file and every folder above it.
 func TestFolderTransferTaskMoveKeepsUncarriedFolderMeta(t *testing.T) {
 	source, sourceRoot := newTransferTestShelfAt(t, "source")
 	target, targetRoot := newTransferTestShelfAt(t, "target")
@@ -351,8 +329,6 @@ func TestFolderTransferTaskMoveKeepsUncarriedFolderMeta(t *testing.T) {
 	}
 }
 
-// A cancel arriving before the first book leaves both shelves untouched and the
-// task fails at 0%, recording no per-book results.
 func TestFolderTransferTaskCancelledBeforeStart(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
@@ -377,7 +353,6 @@ func TestFolderTransferTaskCancelledBeforeStart(t *testing.T) {
 		t.Fatalf("cancelled task recorded item results: %+v", result)
 	}
 
-	// Nothing landed on the target - not even the destination folder.
 	targetFolders, err := target.GetAllFolders()
 	if err != nil {
 		t.Fatalf("target GetAllFolders: %v", err)
@@ -387,10 +362,6 @@ func TestFolderTransferTaskCancelledBeforeStart(t *testing.T) {
 	}
 }
 
-// cancelWhenDone reports cancellation as soon as the task has published `after`
-// books, so a mid-run cancel is deterministic: the task probes ctx.Err() before
-// each book, sees no error until `after` have landed, then stops. It reads the
-// task's own progress rather than a timer, so there is no timing race.
 type cancelWhenDone struct {
 	context.Context
 	task  *folderTransferTask
@@ -404,14 +375,10 @@ func (c *cancelWhenDone) Err() error {
 	return c.Context.Err()
 }
 
-// A cancel partway through a move stops before the next book, keeps the books
-// already moved on the target, leaves the rest on the source, and rolls nothing
-// back. The status is partially completed, never a clean completion.
 func TestFolderTransferTaskCancelledMidMove(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
 
-	// Two books at the top of the folder; the transfer visits them sorted by ID.
 	idA := seedTransferBook(t, source, shelf.FolderPath{"fiction"}, "Alpha")
 	idB := seedTransferBook(t, source, shelf.FolderPath{"fiction"}, "Bravo")
 	first, second := idA, idB
@@ -440,8 +407,6 @@ func TestFolderTransferTaskCancelledMidMove(t *testing.T) {
 		t.Fatalf("succeeded = %v, want just the first book %q", result.SucceededIDs, first)
 	}
 
-	// The first book moved across and stays there (no rollback); the second never
-	// started and stays on the source.
 	if _, err := target.GetBook(first); err != nil {
 		t.Errorf("first book did not land on the target: %v", err)
 	}
@@ -454,22 +419,18 @@ func TestFolderTransferTaskCancelledMidMove(t *testing.T) {
 	if _, err := target.GetBook(second); !errors.Is(err, shelf.ErrBookNotFound) {
 		t.Errorf("the second book was transferred after the cancel, err = %v", err)
 	}
-	// The cancel skips the prune, so the source keeps its folder.json too.
+
 	if meta, err := source.ReadFolderMeta(shelf.FolderPath{"fiction"}); err != nil || meta.Icon != "moon" {
 		t.Errorf("source folder.json after the cancel = %+v, %v", meta, err)
 	}
 }
 
-// A destination folder that cannot be created must not read as a clean success:
-// an empty-folder transfer onto a read-only target creates nothing, so the task
-// settles failed and records the folder failure rather than reporting completed.
 func TestFolderTransferTaskFolderCreateFailureSettlesFailed(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	if err := source.NewFolder(shelf.FolderPath{}, "fiction"); err != nil {
 		t.Fatalf("NewFolder: %v", err)
 	}
 
-	// Lay the target down writable, then reopen it read-only so NewFolder fails.
 	targetDir := path.Join(t.TempDir(), "target")
 	seed, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: targetDir})
 	if err != nil {

@@ -12,10 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// The browser-hardening headers every response must carry, whatever the route
-// and whatever the security mode. They are restated here rather than imported:
-// the exact header names and values are part of the contract this ticket adds,
-// so a change to either has to be a change to this test too.
 var staticSecurityHeaders = map[string]string{
 	"X-Content-Type-Options": "nosniff",
 	"X-Frame-Options":        "DENY",
@@ -83,7 +79,6 @@ func TestContentSecurityPolicyOnIndexContract(t *testing.T) {
 		t.Fatal("index response carries no Content-Security-Policy header")
 	}
 
-	// The directives the ticket names as the required floor.
 	for _, directive := range []string{
 		"default-src 'self'",
 		"object-src 'none'",

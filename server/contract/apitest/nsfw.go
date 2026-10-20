@@ -39,10 +39,6 @@ const (
 		`","reason":"` + NSFWMarkedReason + `"}]}}`
 )
 
-// Visible and FolderHidden are given this same body, so they are a duplicate
-// pair and — it is long enough to yield many distinct shingles — a similar pair
-// too. Either endpoint has something to report only when the hidden half is
-// served, which is the assertion those areas make.
 const nsfwTwinProse = "the quick brown fox jumps over the lazy dog while the industrious " +
 	"bee gathers nectar from a thousand summer flowers and the river winds " +
 	"slowly toward the distant glimmering sea beneath an indifferent sky " +

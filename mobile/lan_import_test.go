@@ -8,8 +8,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/lanshare"
 )
 
-// Rejection cases live in internal/lanshare's shared contract suite. This test
-// checks that the gomobile bridge preserves both parsed fields and safe errors.
 func TestParseLANShareQRBridge(t *testing.T) {
 	text := `{"v":1,"url":"http://192.168.1.20/dav/","token":"private-token","shelves":[{"id":"one","name":"One","url":"http://192.168.1.20/dav/one/"}]}`
 	out, err := ParseLANShareQR(text)

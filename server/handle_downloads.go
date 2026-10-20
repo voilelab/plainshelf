@@ -7,8 +7,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// downloadHandlers serves a virtual shelf's offline copies. A download writes
-// to this installation's store, never to the shelf; see isReadOnlySafeRequest.
 type downloadHandlers struct {
 	*apiCore
 }
@@ -32,9 +30,6 @@ func newDownloadResponse(shelfData *shelf.ShelfData, d shelf.Download) DownloadR
 	}
 }
 
-// PUT /api/shelves/{shelf_id}/books/{book_id}/download
-//
-// Synchronous: one request copies one book, replacing an earlier copy.
 func (h *downloadHandlers) downloadBook(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
@@ -54,7 +49,6 @@ func (h *downloadHandlers) downloadBook(w http.ResponseWriter, r *http.Request) 
 	h.writeJSON(w, http.StatusOK, newDownloadResponse(shelfData, download))
 }
 
-// DELETE /api/shelves/{shelf_id}/books/{book_id}/download
 func (h *downloadHandlers) removeDownload(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
@@ -73,7 +67,6 @@ func (h *downloadHandlers) removeDownload(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /api/shelves/{shelf_id}/downloads
 func (h *downloadHandlers) getDownloads(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {

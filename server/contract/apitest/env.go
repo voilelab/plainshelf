@@ -166,16 +166,11 @@ func New(t *testing.T, opts ...Option) *Env {
 
 	env := NewUnstarted(t, opts...)
 
-	// Start the background worker so endpoints backed by task chains behave as
-	// they do in production.
 	if err := env.App.Start(); err != nil {
 		t.Fatalf("Start app: %v", err)
 	}
 
-	// Contract tests assert response shapes and status codes, so they must not
-	// race the shelf's initial scan: a read issued before it finishes is
-	// answered 503, which is correct behaviour and a meaningless failure here.
-	waitForShelves(t, env.App)
+	waitForInitialShelfScans(t, env.App)
 
 	return env
 }
@@ -201,11 +196,7 @@ func NewUnstarted(t *testing.T, opts ...Option) *Env {
 	return &Env{App: app, handler: app.Handler(), LibRoot: conf.Shelves[0].LibRoot}
 }
 
-// waitForShelves blocks until every configured shelf has finished its initial
-// scan, so a test's first request cannot arrive while the shelf is still
-// initializing. Endpoints that report "shelf is initializing" have their own
-// tests; everywhere else it is noise.
-func waitForShelves(t *testing.T, app *server.App) {
+func waitForInitialShelfScans(t *testing.T, app *server.App) {
 	t.Helper()
 
 	for _, shelfData := range app.ShelfManager().GetAllShelves() {
@@ -286,10 +277,6 @@ func (env *Env) Do(req *http.Request) *httptest.ResponseRecorder {
 	return env.DoRaw(env.withToken(req))
 }
 
-// withToken attaches the local token wherever the security gate asks for one:
-// every mutation, and the log API whatever the method. The rule is read from
-// the server rather than restated, so a route moving behind the token does not
-// need every test that reaches it to be found by hand.
 func (env *Env) withToken(req *http.Request) *http.Request {
 	needsToken := server.IsMutatingMethod(req.Method) || server.IsLogAPIPath(req.URL.Path)
 	if needsToken && req.Header.Get(env.App.SecurityTokenHeader()) == "" && req.Header.Get("Authorization") == "" {

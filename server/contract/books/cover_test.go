@@ -17,16 +17,12 @@ func TestAPICoverContract(t *testing.T) {
 	rec := env.Get(url)
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 
-	// The stored image format comes from the declared content type, so a body
-	// that is not an image at all is refused.
 	rec = env.PutContent(url, "text/plain", strings.NewReader("not image"))
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 
 	rec = env.PutContent(url, "image/png", bytes.NewReader(bytes.Repeat([]byte{'x'}, apitest.MaxBinaryUploadSize+1)))
 	apitest.AssertStatus(t, rec, http.StatusRequestEntityTooLarge)
 
-	// Each accepted image type is stored and served back byte for byte under its
-	// own content type, and the latest upload replaces the previous one.
 	for _, tc := range []struct{ contentType, body string }{
 		{"image/png", "fake png bytes"},
 		{"image/webp", "fake webp bytes"},

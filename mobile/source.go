@@ -44,8 +44,6 @@ func storedSecret(entryID string) (string, error) {
 	return strings.TrimSpace(secret), nil
 }
 
-// credentialResolver answers host:<entryID> from the native store and hands
-// every other scheme to the server's default.
 type credentialResolver struct{}
 
 func (credentialResolver) Resolve(ctx context.Context, ref string) (string, error) {

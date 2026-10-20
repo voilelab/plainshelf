@@ -13,14 +13,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// backdateSources ages a book's source files by an hour.
-//
-// The fingerprint cache refuses to index a file written moments ago: on a
-// filesystem with a coarse clock its stat cannot yet prove which content it
-// describes. A book imported by the test is exactly that file, so without this
-// the second run would re-read every source it just read - the property these
-// tests are here to check.
-func backdateSources(t *testing.T, env *apitest.Env, bookID string) {
+func backdateSourcesForFingerprintCache(t *testing.T, env *apitest.Env, bookID string) {
 	t.Helper()
 
 	sourcesDir := filepath.Join(filepath.Dir(env.BookMetaPath(t, bookID)), shelf.SourcesFolder)
@@ -84,8 +77,8 @@ func TestAPIFingerprintSourcesContract(t *testing.T) {
 
 	dune := apitest.ImportTextBook(t, env, "Dune", "", "dune.txt", "the spice must flow")
 	solaris := apitest.ImportTextBook(t, env, "Solaris", "", "solaris.txt", "the ocean thinks in shapes")
-	backdateSources(t, env, dune.Meta.ID)
-	backdateSources(t, env, solaris.Meta.ID)
+	backdateSourcesForFingerprintCache(t, env, dune.Meta.ID)
+	backdateSourcesForFingerprintCache(t, env, solaris.Meta.ID)
 
 	first := runFingerprintSources(t, env)
 	if first.Books != 2 || first.Sources != 2 || first.Fingerprinted != 2 || first.Built != 2 {
@@ -95,15 +88,13 @@ func TestAPIFingerprintSourcesContract(t *testing.T) {
 		t.Fatalf("first run reported failures: %+v", first.Failures)
 	}
 
-	// The second press of the button is the one that has to be free: every
-	// source is answered from the index, so nothing is opened at all.
 	second := runFingerprintSources(t, env)
 	if second.StatHits != 2 || second.Built != 0 || second.ContentHits != 0 {
 		t.Errorf("second run = %+v, want two stat hits and no reads", second)
 	}
 
 	ubik := apitest.ImportTextBook(t, env, "Ubik", "", "ubik.txt", "the coin-operated door")
-	backdateSources(t, env, ubik.Meta.ID)
+	backdateSourcesForFingerprintCache(t, env, ubik.Meta.ID)
 
 	third := runFingerprintSources(t, env)
 	if third.Books != 3 || third.Built != 1 || third.StatHits != 2 {
@@ -120,14 +111,13 @@ func TestAPIFingerprintSourcesForceRebuildsContract(t *testing.T) {
 
 	dune := apitest.ImportTextBook(t, env, "Dune", "", "dune.txt", "the spice must flow")
 	solaris := apitest.ImportTextBook(t, env, "Solaris", "", "solaris.txt", "the ocean thinks in shapes")
-	backdateSources(t, env, dune.Meta.ID)
-	backdateSources(t, env, solaris.Meta.ID)
+	backdateSourcesForFingerprintCache(t, env, dune.Meta.ID)
+	backdateSourcesForFingerprintCache(t, env, solaris.Meta.ID)
 
 	if first := runFingerprintSources(t, env); first.Built != 2 {
 		t.Fatalf("first run = %+v, want two builds", first)
 	}
 
-	// Baseline: a plain second run opens nothing.
 	if second := runFingerprintSources(t, env); second.StatHits != 2 || second.Built != 0 {
 		t.Fatalf("second run = %+v, want two stat hits and no builds", second)
 	}
@@ -164,10 +154,8 @@ func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
 
 	broken := apitest.ImportTextBook(t, env, "Truncated", "", "truncated.txt", "gone by the time it is read")
 	intact := apitest.ImportTextBook(t, env, "Intact", "", "intact.txt", "still here")
-	backdateSources(t, env, intact.Meta.ID)
+	backdateSourcesForFingerprintCache(t, env, intact.Meta.ID)
 
-	// The source folder and its meta.json stay, so the source is still listed
-	// and only the content read fails - what a half-finished copy looks like.
 	sourcesDir := filepath.Join(filepath.Dir(env.BookMetaPath(t, broken.Meta.ID)), shelf.SourcesFolder)
 	entries, err := os.ReadDir(sourcesDir)
 	if err != nil {
@@ -213,7 +201,6 @@ func TestAPIFingerprintSourcesConflictReportsRunningChainContract(t *testing.T) 
 		return fingerprintSources(t, env, wantStatus)
 	})
 
-	// Once the sweep has finished, a fresh request is accepted again.
 	if next := fingerprintSources(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
 		t.Errorf("expected a new chain after the previous one finished")
 	}

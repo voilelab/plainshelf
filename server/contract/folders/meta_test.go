@@ -49,7 +49,6 @@ func TestAPIFolderMetaRoundTripContract(t *testing.T) {
 		t.Fatalf("after setting an icon = %+v", got.Folders)
 	}
 
-	// The folder list keeps its shape: old clients parse path arrays.
 	folders := apitest.GetJSON[[]shelf.FolderPath](t, env, apitest.ShelfURL("folders"))
 	if len(folders) != 3 {
 		t.Fatalf("GET .../folders = %v, want the three paths unchanged", folders)
@@ -70,7 +69,6 @@ func TestAPIFolderMetaRefusalsContract(t *testing.T) {
 	apitest.AssertErrorEnvelope(t, putFolderIcon(env, "Missing", "book", ""), http.StatusNotFound,
 		"FOLDER_NOT_FOUND", "folder not found")
 
-	// Edited by hand after the client's read.
 	apitest.AssertStatus(t, putFolderIcon(env, "Fiction", "book", ""), http.StatusNoContent)
 	stale := getFolderMeta(t, env).Folders["Fiction"].Version
 	metaPath := filepath.Join(env.LibRoot, "books", "Fiction", shelf.FolderMetaFile)
@@ -80,7 +78,6 @@ func TestAPIFolderMetaRefusalsContract(t *testing.T) {
 	apitest.AssertErrorEnvelope(t, putFolderIcon(env, "Fiction", "star", stale), http.StatusConflict,
 		"FOLDER_META_CONFLICT", "folder.json changed since it was read; read it again and retry")
 
-	// The refusal refreshed what the next read reports, so the retry succeeds.
 	fresh := getFolderMeta(t, env).Folders["Fiction"]
 	if fresh.Icon != "moon" {
 		t.Fatalf("after the conflict = %+v, want the file on disk", fresh)
@@ -102,7 +99,6 @@ func TestAPIFolderMetaRefusalsContract(t *testing.T) {
 		t.Fatalf("a refused write changed folder.json to %q", onDisk)
 	}
 
-	// A blank path is the shelf root, which has no metadata.
 	apitest.AssertStatus(t, env.Put(apitest.ShelfURL("folder-meta", "%20"), strings.NewReader(`{"icon":"book"}`)), http.StatusBadRequest)
 }
 

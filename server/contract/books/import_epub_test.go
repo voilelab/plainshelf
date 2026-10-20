@@ -23,21 +23,18 @@ func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
 		want    string
 	}{
 		{
-			// Both plates are stored beside the text now, so an illustrated
-			// EPUB loses nothing and leaves no note.
+
 			archive: testutil.BuildIllustratedTestEPUB(t),
 			want:    "",
 		},
 		{
-			// A format the shelf cannot serve is still a loss, and is still
-			// what the note is for.
+
 			name:    "unstorable illustration is still reported",
 			archive: testutil.BuildUnstorableImageTestEPUB(t),
 			want:    "Converted from EPUB. 1 embedded image was dropped.",
 		},
 		{
-			// The cover is kept, so an EPUB whose only image is the cover has
-			// nothing to report.
+
 			name:    "epub without illustrations records nothing",
 			archive: testutil.BuildTestEPUB(t),
 			want:    "",
@@ -80,7 +77,6 @@ func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	content := rec.Body.String()
 
-	// Both plates are stored, numbered in the order the spine reached them.
 	for _, name := range []string{"img-0001.png", "img-0002.png"} {
 		link := "![](" + shelf.SourceAssetsFolder + "/" + name + ")"
 		if !strings.Contains(content, link) {
@@ -97,8 +93,6 @@ func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
 		}
 	}
 
-	// The book is Markdown, which is the only format whose reader renders the
-	// link that was just written into the text.
 	if imported.Meta.Format != "md" {
 		t.Errorf("imported format = %q, want md", imported.Meta.Format)
 	}

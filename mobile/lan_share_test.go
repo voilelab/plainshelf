@@ -15,7 +15,6 @@ import (
 	"time"
 )
 
-// shareOnLoopback lets the share bind 127.0.0.1 on a free port.
 func shareOnLoopback(t *testing.T) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -170,8 +169,6 @@ func TestLANShareTokenSurvivesRestart(t *testing.T) {
 	}
 }
 
-// Only requests the token admits count as activity, so a device without it
-// cannot hold the share open.
 func TestLANShareIdleCountsAdmittedRequests(t *testing.T) {
 	shareOnLoopback(t)
 	startT(t, t.TempDir())
@@ -203,7 +200,7 @@ func TestLANShareSelection(t *testing.T) {
 		t.Fatal("started with an unknown shelf")
 	}
 	st := startShare(t, a)
-	// Same host: the shelves change, the listener does not.
+
 	if again := startShare(t, b); again.URL != st.URL || len(again.ShelfIDs) != 1 || again.ShelfIDs[0] != b {
 		t.Fatalf("after reselecting: %+v", again)
 	}
@@ -305,7 +302,7 @@ func TestLANShareQRUsesCurrentSelectionAndNames(t *testing.T) {
 	if next.QRCode != expected || next.QRCode == st.QRCode {
 		t.Fatal("QR does not follow the selection")
 	}
-	// An oversized QR must not make the active share or token inaccessible.
+
 	rt, err := running()
 	if err != nil {
 		t.Fatal(err)

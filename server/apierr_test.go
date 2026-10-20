@@ -51,8 +51,7 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "invalid folder name: this name is skipped by the shelf scanner, so a folder named this way would not stay visible",
 		},
 		{
-			// The shelf decides which names it skips, so the rejection carries
-			// the name and the reason out and the API says both.
+
 			name:        "ignored folder name with a reason",
 			err:         &shelf.IgnoredFolderNameError{Folder: "@eaDir", Reason: "Synology index and thumbnail sidecar"},
 			wantStatus:  http.StatusBadRequest,
@@ -65,9 +64,7 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: `invalid folder name: this shelf skips "Thumbs" while scanning, so a folder named this way would not stay visible`,
 		},
 		{
-			// The path and the decoder's own words are the whole point: a user
-			// who broke a book.json by hand needs to be told which file and
-			// which member, not that "a file" is invalid.
+
 			name: "malformed metadata names the file and the member",
 			err: &shelf.MalformedMetadataError{
 				File: "books/Dune.bookpkg/book.json",
@@ -137,7 +134,7 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Handlers never see a bare sentinel.
+
 			wrapped := util.Errorf("%w", tt.err)
 
 			resp, ok := apiErrorFor(wrapped)
@@ -179,8 +176,6 @@ func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
 	}
 }
 
-// An error the table does not know must not reach the client verbatim: the
-// caller's fallback is sent instead, so internal detail stays in the log.
 func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
 	app := newTestApp(t)
 
@@ -203,7 +198,6 @@ func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
 	}
 }
 
-// decodeErrorEnvelope reads the JSON envelope writeErr answers with.
 func decodeErrorEnvelope(t *testing.T, rec *httptest.ResponseRecorder) apiErrorDetail {
 	t.Helper()
 
@@ -214,16 +208,12 @@ func decodeErrorEnvelope(t *testing.T, rec *httptest.ResponseRecorder) apiErrorD
 	return body.Error
 }
 
-// taskutil.ErrTaskChainRunning answers with a JSON body carrying the running
-// chain's ID, which the table cannot express, so it must stay out of it.
 func TestAPIErrorForExcludesTaskChainRunning(t *testing.T) {
 	if _, ok := apiErrorFor(util.Errorf("%w", taskutil.ErrTaskChainRunning)); ok {
 		t.Fatal("ErrTaskChainRunning must not be in the table; the task handlers answer it with a JSON body")
 	}
 }
 
-// ErrIgnoredFolderName also matches ErrInvalidFolder, so the table's ordering
-// rule is what makes the specific message reachable at all.
 func TestAPIErrorForPrefersIgnoredFolderNameOverInvalidFolder(t *testing.T) {
 	if !errors.Is(shelf.ErrIgnoredFolderName, shelf.ErrInvalidFolder) {
 		t.Fatal("ErrIgnoredFolderName must stay an ErrInvalidFolder for callers that only classify folder errors")
@@ -238,13 +228,6 @@ func TestAPIErrorForPrefersIgnoredFolderNameOverInvalidFolder(t *testing.T) {
 	}
 }
 
-// Error codes are a public interface: a user quotes one in a bug report and a
-// client switches on it, so a rename is a breaking change for both. This pins
-// the whole list, which is why it is spelled out here rather than derived from
-// the table - a test that read the table would agree with any edit to it.
-//
-// Changing this list is allowed. Changing it *silently* is not: an edit here is
-// the moment to decide whether callers can follow.
 func TestAPIErrorCodeListIsPinned(t *testing.T) {
 	want := []string{
 		"INVALID_IDENTIFIER_KEY",
@@ -287,7 +270,6 @@ func TestAPIErrorCodeListIsPinned(t *testing.T) {
 		t.Fatalf("codes =\n\t%q\nwant\n\t%q", got, want)
 	}
 
-	// The two codes no sentinel owns are part of the same published list.
 	for _, code := range []string{codeInternal, codeUnknown} {
 		if slices.Contains(want, code) {
 			t.Errorf("code %q is both a table entry and a fallback", code)
@@ -295,8 +277,6 @@ func TestAPIErrorCodeListIsPinned(t *testing.T) {
 	}
 }
 
-// A code identifies one error, so two entries sharing one would send a reporter
-// to the wrong row of the table, and an empty one identifies nothing.
 func TestAPIErrorCodesAreUniqueAndWellFormed(t *testing.T) {
 	wellFormed := regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
 
@@ -313,8 +293,6 @@ func TestAPIErrorCodesAreUniqueAndWellFormed(t *testing.T) {
 	}
 }
 
-// The ignored-folder rejection is matched by errors.As ahead of the table, so
-// it has its own code assignment that the table pin above cannot reach.
 func TestIgnoredFolderNameErrorKeepsTheTablesCode(t *testing.T) {
 	tableEntry, ok := apiErrorFor(util.Errorf("%w", shelf.ErrIgnoredFolderName))
 	if !ok {
@@ -333,8 +311,6 @@ func TestIgnoredFolderNameErrorKeepsTheTablesCode(t *testing.T) {
 	}
 }
 
-// Same shape as the ignored-folder case above: the file-naming message is
-// matched by errors.As ahead of the table, so it must carry the table's code.
 func TestMalformedMetadataErrorKeepsTheTablesCode(t *testing.T) {
 	tableEntry, ok := apiErrorFor(util.Errorf("%w", shelf.ErrMalformedMetadata))
 	if !ok {
@@ -351,9 +327,6 @@ func TestMalformedMetadataErrorKeepsTheTablesCode(t *testing.T) {
 	}
 }
 
-// writeErrStatus lets a handler pick a non-5xx status for an error the table
-// cannot name. Those are the caller's fault, not the server's, so they must not
-// be reported as INTERNAL - a reporter would go looking for a server bug.
 func TestWriteErrStatusSeparatesUnknownFromInternal(t *testing.T) {
 	app := newTestApp(t)
 
@@ -383,8 +356,6 @@ func TestWriteErrStatusSeparatesUnknownFromInternal(t *testing.T) {
 	}
 }
 
-// The envelope is what every client parses, so its content type and nesting are
-// pinned here rather than left to writeJSON's success-path tests.
 func TestWriteErrBodyShape(t *testing.T) {
 	app := newTestApp(t)
 
@@ -404,10 +375,6 @@ func TestWriteErrBodyShape(t *testing.T) {
 		t.Fatalf("top-level keys = %v, want only \"error\"", slices.Sorted(maps.Keys(raw)))
 	}
 
-	// A request that never passed through the middleware has no ID to quote,
-	// and the envelope omits the field rather than sending an empty string a
-	// client would have to special-case. The desktop client reaches handlers
-	// that way.
 	var detail map[string]any
 	if err := json.Unmarshal(raw["error"], &detail); err != nil {
 		t.Fatalf("decode error object: %v", err)

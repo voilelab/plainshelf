@@ -64,7 +64,6 @@ func TestAPIJSONResponsesShareOneShapeContract(t *testing.T) {
 			apitest.AssertStatus(t, rec, http.StatusOK)
 			apitest.AssertJSONContentType(t, rec)
 
-			// A client reading the body line-wise would block without the newline.
 			if body := rec.Body.String(); !strings.HasSuffix(body, "\n") {
 				t.Fatalf("body = %q, want a trailing newline", body)
 			}

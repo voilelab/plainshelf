@@ -41,10 +41,6 @@ type bookBatchTask struct {
 	bookIDs      []string
 	targetFolder shelf.FolderPath
 
-	// visible is what stops the batch being the way around the single-book
-	// routes: those answer 404 for a book the request may not see, so a batch
-	// that moved or trashed the same ID would undo the whole filter, and its
-	// succeeded_ids would name it besides.
 	visible VisibleBooks
 
 	progress taskutil.Progress
@@ -172,10 +168,6 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 			return util.Errorf("%w", err)
 		}
 
-		// Refused as a book that is not on the shelf, which is what an ID that
-		// was never issued gets here: the failure code is the same not_found, so
-		// the result cannot be read as confirmation that the book exists. The
-		// shelf is not touched at all, so nothing is moved or trashed.
 		if !t.visible.Allows(bookID) {
 			t.recordFailure(bookID, shelf.ErrBookNotFound)
 			t.progress.Advance()
@@ -211,8 +203,6 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 	return nil
 }
 
-// NewBookBatchChain builds the batch. visible is the set of books the
-// requesting client may see; see VisibleBooks.
 func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath, visible VisibleBooks) *taskutil.TaskChain {
 	keyIDs := slices.Clone(bookIDs)
 	slices.Sort(keyIDs)
