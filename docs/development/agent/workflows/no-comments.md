@@ -40,7 +40,8 @@ split into disjoint packages or directories, one reviewer each.
    failure named; if the rerun is also rejected, stop and report the scope as
    open.
 3. **Delete the accepted kills.** Move any fact that still matters to the place
-   the policy names before deleting it.
+   the policy names before deleting it. Leave constraint markers in place;
+   step 5 handles them.
 4. **Fix the `MUST KILL` flags.** Fix trivial ones directly: delete the dead
    path, drop the unused parameter, call the real API. For one that needs a new
    shape, settle the caller's usage, types, and module boundary first, then make
