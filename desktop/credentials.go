@@ -10,25 +10,18 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// keychainService names PlainShelf's items in the OS keychain.
 const keychainService = "PlainShelf"
 
-// hostCredentialPrefix is the credential scheme the desktop answers itself;
-// its ID is the shelf entry ID. See docs/concepts/shelf-sources.md#credentials.
 const hostCredentialPrefix = "host:"
 
-// errSecretNotFound is a host: reference with nothing stored under it.
 var errSecretNotFound = util.NewError("no secret is stored for this shelf")
 
-// secretStore keeps one secret per shelf entry ID.
 type secretStore interface {
 	Get(id string) (string, error)
 	Set(id, secret string) error
 	Delete(id string) error
 }
 
-// osKeychain is the OS keychain: Keychain on macOS, Credential Manager on
-// Windows, the Secret Service on Linux.
 type osKeychain struct{}
 
 func (osKeychain) Get(id string) (string, error) {
@@ -57,8 +50,6 @@ func (osKeychain) Delete(id string) error {
 	return nil
 }
 
-// desktopCredentialResolver answers host: from the secret store and hands
-// every other scheme to the server's default.
 type desktopCredentialResolver struct {
 	store secretStore
 }

@@ -8,14 +8,12 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// LANImportResult intentionally contains no payload text or credential.
 type LANImportResult struct {
 	Name   string `json:"name"`
 	URL    string `json:"url"`
 	Status string `json:"status"`
 }
 
-// PreviewLANShareQR validates without connecting or storing the secret.
 func (a *DesktopApp) PreviewLANShareQR(text string) ([]lanshare.Shelf, error) {
 	p, err := lanshare.Parse(text)
 	if err != nil {
@@ -24,9 +22,6 @@ func (a *DesktopApp) PreviewLANShareQR(text string) ([]lanshare.Shelf, error) {
 	return p.Shelves, nil
 }
 
-// ImportLANShareQR is called only after the user confirms the preview. Each
-// source is independent; a failed check saves nothing for that source, and a
-// retry skips sources already present without replacing their credentials.
 func (a *DesktopApp) ImportLANShareQR(text string) ([]LANImportResult, error) {
 	p, err := lanshare.Parse(text)
 	if err != nil {
@@ -61,7 +56,7 @@ func (a *DesktopApp) ImportLANShareQR(text string) ([]LANImportResult, error) {
 				result.Status = check.Code
 			default:
 				if err := a.AddShelf(AddShelfParams{Name: s.Name, Remote: remote, ReadOnly: true}); err != nil {
-					// Do not return arbitrary transport or keychain errors with secret data.
+
 					result.Status = "failed"
 				} else {
 					result.Status = "added"

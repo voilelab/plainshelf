@@ -23,8 +23,6 @@ func readerOffset(t *testing.T, store *readingprogress.Store, shelfKey, bookID s
 	return doc.Shelves[shelfKey][bookID].Offset
 }
 
-// A reader progress entry is projected onto the real shelf that holds the book,
-// and the projection is persisted so a second read is a no-op.
 func TestProjectStoredReaderProgress_FoldsAndPersists(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
@@ -49,7 +47,7 @@ func TestProjectStoredReaderProgress_FoldsAndPersists(t *testing.T) {
 	if v := got.Shelves["real-shelf"]["book-a"].Offset; v != 120 {
 		t.Fatalf("returned real-shelf offset = %d, want 120", v)
 	}
-	// Persisted, and the reader namespace is kept.
+
 	if v := readerOffset(t, store, "real-shelf", "book-a"); v != 120 {
 		t.Fatalf("persisted real-shelf offset = %d, want 120", v)
 	}
@@ -58,8 +56,6 @@ func TestProjectStoredReaderProgress_FoldsAndPersists(t *testing.T) {
 	}
 }
 
-// An unresolved book (no shelf holds it) is not projected and stays under the
-// reader namespace; the read returns the stored document untouched.
 func TestProjectStoredReaderProgress_UnresolvedStays(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
@@ -85,22 +81,18 @@ func TestProjectStoredReaderProgress_UnresolvedStays(t *testing.T) {
 	}
 }
 
-// A desktop write does not clobber a newer reader entry the desktop's in-memory
-// copy is stale about, in either namespace — recency decides.
 func TestWriteReadingProgress_DoesNotClobberNewerReaderEntry(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()
-		// A recent reader entry under the synthetic namespace, and an older
-		// desktop-owned real-shelf entry.
+
 		out.Shelves[readingprogress.ReaderShelfID] = map[string]readingprogress.Entry{"book-a": {Offset: 999, At: 2000}}
 		out.Shelves["real-shelf"] = map[string]readingprogress.Entry{"book-a": {Offset: 200, At: 1000}}
 		return out
 	})
 
 	app := &DesktopApp{readingProgressSync: store}
-	// A desktop write that advances the real shelf (newer) but carries a stale
-	// copy of the reader namespace (older) it read before the reader's last write.
+
 	if err := app.WriteReadingProgress(
 		`{"version":2,"shelves":{"real-shelf":{"book-a":{"offset":260,"at":3000}},"book":{"book-a":{"offset":1,"at":500}}}}`,
 	); err != nil {
@@ -115,8 +107,6 @@ func TestWriteReadingProgress_DoesNotClobberNewerReaderEntry(t *testing.T) {
 	}
 }
 
-// A shelf whose name slugifies to the reader's namespace must not be handed that
-// id, or its progress would share (and break) the reader's "book" namespace.
 func TestGenerateDesktopShelfIDReservesReaderNamespace(t *testing.T) {
 	if id := generateDesktopShelfID("book", map[string]bool{}); id == readingprogress.ReaderShelfID {
 		t.Fatalf("shelf id %q collides with the reader namespace", id)
@@ -124,14 +114,12 @@ func TestGenerateDesktopShelfIDReservesReaderNamespace(t *testing.T) {
 	if id := generateDesktopShelfID("Book", map[string]bool{}); id == readingprogress.ReaderShelfID {
 		t.Fatalf("shelf id %q collides with the reader namespace", id)
 	}
-	// An unrelated name is unaffected.
+
 	if id := generateDesktopShelfID("Comics", map[string]bool{}); id != "comics" {
 		t.Fatalf("unexpected shelf id for Comics: %q", id)
 	}
 }
 
-// A corrupt write is rejected rather than lenient-parsed into an empty document
-// (which would wipe stored progress).
 func TestWriteReadingProgress_RejectsCorruptJSON(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {

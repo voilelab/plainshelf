@@ -17,43 +17,31 @@ type DesktopShelfDetails struct {
 	ScanInterval      string `json:"scan_interval"`
 	BookCheckInterval string `json:"book_check_interval"`
 	ReadOnly          bool   `json:"read_only"`
-	// Source is the virtual shelf's source type, empty for a local shelf; URL
-	// and Username are then its address and account. The secret is never
-	// returned.
+
 	Source   string `json:"source"`
 	URL      string `json:"url"`
 	Username string `json:"username"`
 
-	// OpenError is a safe summary; backend errors can contain credentials.
 	OpenError string `json:"open_error"`
 }
 
-// ShelfSourceParams names a virtual shelf's source as the add-shelf form
-// typed it. Secret goes to the OS keychain only.
 type ShelfSourceParams struct {
-	// Source is "plainshelf" or "webdav"; empty means a local shelf.
 	Source   string `json:"source"`
 	URL      string `json:"url"`
 	Username string `json:"username"`
 	Secret   string `json:"secret"`
 }
 
-// AddShelfParams is a struct rather than a positional argument list because
-// Wails binds it by field name: every further per-shelf setting the UI exposes
-// is a field here rather than one more anonymous positional argument.
 type AddShelfParams struct {
 	Name              string `json:"name"`
 	LibRoot           string `json:"libRoot"`
 	ScanInterval      string `json:"scanInterval"`
 	BookCheckInterval string `json:"bookCheckInterval"`
 	ReadOnly          bool   `json:"readOnly"`
-	// Remote, when its Source is set, adds a virtual shelf instead of LibRoot.
+
 	Remote ShelfSourceParams `json:"remote"`
 }
 
-// ModifyShelfParams carries the fields the modify-shelf form submits; see
-// AddShelfParams for why this is a struct. LibRoot is absent because a shelf's
-// directory is fixed once it is registered.
 type ModifyShelfParams struct {
 	ShelfID           string `json:"shelfID"`
 	Name              string `json:"name"`
@@ -62,29 +50,12 @@ type ModifyShelfParams struct {
 	ReadOnly          bool   `json:"readOnly"`
 }
 
-// ShelfIDPreview is what the add-shelf form shows while the user types: the id
-// the shelf would be created with, and the directory it would be created in if
-// the user never picks one.
 type ShelfIDPreview struct {
 	ID string `json:"id"`
-	// DefaultPath is the shelf directory the form submits as lib_root unless the
-	// user typed or browsed to one. It is only ever a suggestion: AddShelf writes
-	// whatever lib_root it is given, so what the form shows is what shelves.json
-	// records.
+
 	DefaultPath string `json:"defaultPath"`
 }
 
-// PreviewShelfID reports the shelf id AddShelf would assign to a shelf created
-// with the given name right now, including the uniqueness suffix, along with
-// the default directory such a shelf would live in. The frontend shows both
-// live as the user types so a name that slugifies to nothing — a purely
-// non-ASCII name such as "小說" — visibly becomes "shelf" before the shelf is
-// created and its id frozen as the reading-progress key. An empty or
-// whitespace-only name has no preview and returns zero values.
-//
-// The id and the path are derived together because the path is named after the
-// id: the uniqueness suffix that keeps two shelves' ids apart keeps their
-// default directories apart as well.
 func (a *DesktopApp) PreviewShelfID(name string) (ShelfIDPreview, error) {
 	if strings.TrimSpace(name) == "" {
 		return ShelfIDPreview{}, nil
@@ -102,11 +73,6 @@ func (a *DesktopApp) PreviewShelfID(name string) (ShelfIDPreview, error) {
 	}, nil
 }
 
-// AddShelf registers a new shelf and persists it to shelves.json.
-//
-// readOnly opens the shelf without writing to it at all (shelf.ShelfConf):
-// lib_root must already exist, because a read-only shelf is never created, and
-// neither the lock file nor the exported book cache is written.
 func (a *DesktopApp) AddShelf(params AddShelfParams) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
@@ -160,9 +126,6 @@ func (a *DesktopApp) AddShelf(params AddShelfParams) error {
 	return nil
 }
 
-// addVirtualShelf adds a plainshelf or webdav shelf. The secret is stored in
-// the keychain under the new shelf's ID before the shelf opens, since opening
-// resolves it, and removed again if the shelf is not saved.
 func (a *DesktopApp) addVirtualShelf(name string, params AddShelfParams) error {
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
@@ -193,7 +156,7 @@ func (a *DesktopApp) addVirtualShelf(name string, params AddShelfParams) error {
 		Source:            src,
 		ScanInterval:      strings.TrimSpace(params.ScanInterval),
 		BookCheckInterval: strings.TrimSpace(params.BookCheckInterval),
-		// What the shelf opens as anyway; recorded so ModifyShelf matches it.
+
 		ReadOnly: true,
 	}
 
@@ -229,9 +192,6 @@ func (a *DesktopApp) addVirtualShelf(name string, params AddShelfParams) error {
 	return nil
 }
 
-// CheckShelfSource probes the source the add-shelf form describes, with the
-// secret it holds, before anything is stored. A Code of SOURCE_UNAUTHORIZED is
-// a refused credential and SOURCE_UNAVAILABLE no connection.
 func (a *DesktopApp) CheckShelfSource(params ShelfSourceParams) (server.SourceCheck, error) {
 	check, err := server.CheckSource(params.Source, strings.TrimSpace(params.URL),
 		strings.TrimSpace(params.Username), strings.TrimSpace(params.Secret))
@@ -281,8 +241,6 @@ func (a *DesktopApp) shelfDetails(entry desktopShelfEntry) *DesktopShelfDetails 
 	return details
 }
 
-// ListShelfDetails includes configured virtual shelves that never opened. This
-// management list is separate from the runtime list used to select a shelf.
 func (a *DesktopApp) ListShelfDetails() ([]DesktopShelfDetails, error) {
 	if a.app == nil {
 		return nil, util.NewError("desktop backend app instance is nil")
@@ -298,8 +256,6 @@ func (a *DesktopApp) ListShelfDetails() ([]DesktopShelfDetails, error) {
 	return details, nil
 }
 
-// RetryShelf opens a configured virtual shelf without restarting the desktop.
-// Never send raw source/keychain errors to the UI: they may contain secrets.
 func (a *DesktopApp) RetryShelf(shelfID string) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
@@ -321,16 +277,6 @@ func (a *DesktopApp) RetryShelf(shelfID string) error {
 	return nil
 }
 
-// ModifyShelf applies edited settings to an existing shelf. readOnly can be
-// turned off as well as on, because this edits shelves.json in the desktop data
-// directory, outside every shelf, so a shelf's read_only cannot block it.
-//
-// Keep that deliberately: today it holds only because the desktop calls this
-// through a Wails binding, which server.App.rejectReadOnlyWrite never sees. Moved
-// onto the HTTP API, a server with app_conf.read_only would refuse the request
-// that turns read-only off, leaving a hand edit of the config as the only way
-// back. Whatever serves this edit must stay reachable while its shelf is
-// read-only.
 func (a *DesktopApp) ModifyShelf(params ModifyShelfParams) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
@@ -365,7 +311,7 @@ func (a *DesktopApp) ModifyShelf(params ModifyShelfParams) error {
 	updated.Name = name
 	updated.ScanInterval = scanInterval
 	updated.BookCheckInterval = bookCheckInterval
-	// A virtual shelf has no write path to switch on.
+
 	updated.ReadOnly = params.ReadOnly || updated.Source != nil
 
 	if err := a.app.UpdateShelf(toShelfConfWithID(updated)); err != nil {
@@ -403,12 +349,9 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 	if removed == nil {
 		return util.Errorf("shelf with ID %q not found in config", shelfID)
 	}
-	// Read before DeleteFunc, which overwrites the slots removed points into.
+	// slices.DeleteFunc overwrites the slots that removed points into.
 	source := removed.Source
 
-	// First, while the entry still exists: a keychain that refuses leaves the
-	// shelf in place, so removing it again retries instead of orphaning the
-	// secret.
 	if source != nil && strings.HasPrefix(source.Credential, hostCredentialPrefix) {
 		if err := a.secretStore().Delete(strings.TrimPrefix(source.Credential, hostCredentialPrefix)); err != nil {
 			return util.Errorf("removing the shelf's secret from the keychain: %w", err)
@@ -423,7 +366,6 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 		return util.Errorf("saving shelf config: %w", err)
 	}
 
-	// A virtual shelf that failed to open at startup is in the config only.
 	if _, open := a.app.ShelfManager().GetShelf(shelfID); open || source == nil {
 		if err := a.app.RemoveShelf(shelfID); err != nil {
 			return util.Errorf("removing shelf from runtime: %w", err)
