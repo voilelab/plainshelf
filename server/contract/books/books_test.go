@@ -16,8 +16,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// patchBookOK patches a book, asserts it succeeded, and returns the updated book
-// the response carries.
 func patchBookOK(t *testing.T, env *apitest.Env, bookID, body string) server.Book {
 	t.Helper()
 
@@ -72,14 +70,12 @@ func TestAPIGetBooksCharCountContract(t *testing.T) {
 	env := apitest.New(t)
 	_ = apitest.ImportTextBook(t, env, "Char Count Me", "", "charcount.txt", "alpha body")
 
-	// Without include=char_count, the field must not appear in the response at all.
 	rec := env.Get(apitest.BooksURL())
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	if strings.Contains(rec.Body.String(), "char_count") {
 		t.Fatalf("response without include=char_count must not contain char_count field: %s", rec.Body.String())
 	}
 
-	// With include=char_count, every book carries a positive char_count.
 	books := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL()+"?include=char_count")
 	if len(books) != 1 {
 		t.Fatalf("list returned %d books, want 1", len(books))
@@ -108,22 +104,17 @@ func TestAPIGetBooksCharCountFollowsSourceWritesContract(t *testing.T) {
 		t.Fatalf("char_count after rewriting the current source = %d, want %d", got, wantRewritten)
 	}
 
-	// A second source changes the count only once it is the current one.
 	empty := apitest.CreateBookSource(t, env, bookID)
 	apitest.AssertStatus(t, env.Put(apitest.SourceURL(bookID, empty, "current"), nil), http.StatusNoContent)
 	if got := charCountByBookID(t, env)[bookID]; got != 0 {
 		t.Fatalf("char_count of an empty current source = %d, want 0", got)
 	}
 
-	// Deleting the current source hands the pointer back to the text.
 	apitest.AssertStatus(t, env.Delete(apitest.SourceURL(bookID, empty)), http.StatusNoContent)
 	if got := charCountByBookID(t, env)[bookID]; got != wantRewritten {
 		t.Fatalf("char_count after deleting the current source = %d, want %d", got, wantRewritten)
 	}
 
-	// The refresh route recomputes a count that was never stored - the state
-	// clearSourceCharCount reproduces - and the listing must report the result
-	// straight away rather than at the next walk of the shelf.
 	clearSourceCharCount(t, env, bookID)
 	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
 	if got := charCountByBookID(t, env)[bookID]; got != 0 {
@@ -190,8 +181,6 @@ func TestAPIUpdateBookContract(t *testing.T) {
 		t.Fatalf("folder = %#v, want new/folder", updated.Folder)
 	}
 
-	// An unknown field, an out-of-range star and a malformed language tag are all
-	// client errors rather than server failures.
 	for _, body := range []string{
 		`{"unexpected":true}`,
 		`{"star":6}`,
@@ -225,14 +214,12 @@ func TestAPIUpdateBookFormatContract(t *testing.T) {
 		t.Fatalf("format = %q, want md after GET", fetched.Meta.Format)
 	}
 
-	// Switching the format must not touch the text it describes.
 	rec = env.Get(apitest.BookURL(bookID, "content"))
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	if got := rec.Body.String(); got != contentBefore {
 		t.Fatalf("content = %q, want it unchanged at %q", got, contentBefore)
 	}
 
-	// A format this build cannot render is a client error, and the stored value survives it.
 	apitest.PatchBook(t, env, bookID, `{"format":"epub"}`, http.StatusBadRequest)
 
 	untouched := patchBookOK(t, env, bookID, `{"title":"Format Book Renamed"}`)
@@ -240,7 +227,6 @@ func TestAPIUpdateBookFormatContract(t *testing.T) {
 		t.Fatalf("format = %q, want md left alone when the PATCH omits it", untouched.Meta.Format)
 	}
 
-	// The switch is reversible: nothing about going to md is one-way.
 	if reverted := patchBookOK(t, env, bookID, `{"format":"txt"}`); reverted.Meta.Format != "txt" {
 		t.Fatalf("format = %q, want txt after switching back", reverted.Meta.Format)
 	}
@@ -251,7 +237,6 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	created := apitest.ImportTextBook(t, env, "Identifiers Book", "identifiers/folder", "identifiers.txt", "body")
 	bookID := created.Meta.ID
 
-	// Setting identifiers is reflected in the PATCH response and a subsequent GET.
 	updated := patchBookOK(t, env, bookID, `{"identifiers":{"isbn":"978-0-13-468599-1","douban":"123"}}`)
 	if updated.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || updated.Meta.Identifiers["douban"] != "123" {
 		t.Fatalf("identifiers not set in PATCH response: %#v", updated.Meta.Identifiers)
@@ -262,7 +247,6 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 		t.Fatalf("identifiers not set after GET: %#v", fetched.Meta.Identifiers)
 	}
 
-	// A subsequent PATCH with a new identifiers map fully replaces the old one (not a merge).
 	replaced := patchBookOK(t, env, bookID, `{"identifiers":{"isbn":"999"}}`)
 	if replaced.Meta.Identifiers["isbn"] != "999" {
 		t.Fatalf("identifiers isbn not replaced: %#v", replaced.Meta.Identifiers)
@@ -271,7 +255,6 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 		t.Fatalf("expected douban identifier to be gone after full replace, got: %#v", replaced.Meta.Identifiers)
 	}
 
-	// A PATCH that omits the identifiers field entirely leaves the existing value untouched.
 	untouched := patchBookOK(t, env, bookID, `{"title":"Identifiers Book Renamed"}`)
 	if untouched.Meta.Title != "Identifiers Book Renamed" {
 		t.Fatalf("title not updated: %#v", untouched.Meta)
@@ -280,20 +263,14 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 		t.Fatalf("identifiers should be unchanged when omitted from PATCH body: %#v", untouched.Meta.Identifiers)
 	}
 
-	// An explicit empty identifiers object clears the map.
 	cleared := patchBookOK(t, env, bookID, `{"identifiers":{}}`)
 	if len(cleared.Meta.Identifiers) != 0 {
 		t.Fatalf("expected identifiers to be cleared, got: %#v", cleared.Meta.Identifiers)
 	}
 
-	// An identifiers map with an empty key is rejected.
 	apitest.PatchBook(t, env, bookID, `{"identifiers":{"":"x"}}`, http.StatusBadRequest)
 }
 
-// removeSourceFolder deletes a source's folder behind the API's back, which is
-// how a shelf edited by hand or by a sync tool ends up with a current_source
-// pointing at nothing. Removing the folder rather than rewriting book.json keeps
-// the book metadata's own staleness checks out of the picture.
 func removeSourceFolder(t *testing.T, env *apitest.Env, bookID, sourceID string) {
 	t.Helper()
 
@@ -343,7 +320,5 @@ func TestAPIBookWithoutAnySourceReturns404(t *testing.T) {
 
 	apitest.AssertStatus(t, env.Get(apitest.BookURL(created.Meta.ID, "content")), http.StatusNotFound)
 
-	// The book itself is still perfectly readable, which is what keeps its
-	// detail page working while the shelf is in this state.
 	apitest.AssertStatus(t, env.Get(apitest.BookURL(created.Meta.ID)), http.StatusOK)
 }

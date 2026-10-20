@@ -11,8 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// bookHandlers serves the book routes. It reads settings because the cover
-// upload path has to know whether this installation stores covers as JPEG.
 type bookHandlers struct {
 	*apiCore
 
@@ -23,39 +21,20 @@ type Book struct {
 	Meta   *shelf.BookMeta  `json:"meta"`
 	Folder shelf.FolderPath `json:"folder"`
 
-	// CharCount is only populated when the request includes
-	// include=char_count; it is omitted otherwise, so the default response
-	// shape is unchanged.
 	CharCount int `json:"char_count,omitzero"`
 
-	// NSFWFolder is the shelf.json rule marking this book's folder, absent when
-	// none reaches it.
-	//
-	// Meta.NSFW is the book's own half of the mark and a client may write it
-	// back; this half belongs to the shelf and it may not. A client that offered
-	// one checkbox for both would let a user clear a mark that then reappears on
-	// the next read, so the two halves are reported separately - and the whole
-	// answer, the one the filter acts on, is Meta.NSFW or this being present.
 	NSFWFolder *NSFWFolderRule `json:"nsfw_folder,omitzero"`
 
-	// DownloadState and DownloadedAt are present only on a shelf that keeps
-	// offline copies; see shelf_offline.go.
 	DownloadState shelf.DownloadState `json:"download_state,omitzero"`
 	DownloadedAt  *time.Time          `json:"downloaded_at,omitzero"`
 }
 
-// NSFWFolderRule is one content.nsfw_folders entry, as written in shelf.json.
 type NSFWFolderRule struct {
 	Path string `json:"path"`
 
-	// Reason is what the person who wrote the entry noted, and is often absent;
-	// a client with nothing here names the path instead.
 	Reason string `json:"reason,omitempty"`
 }
 
-// nsfwFolderRule is the rule marking this folder, or nil. Every Book response
-// goes through it so no route can report a book as unmarked that another
-// reports as marked.
 func nsfwFolderRule(shelfData *shelf.ShelfData, folder shelf.FolderPath) *NSFWFolderRule {
 	rule, ok := shelfData.NSFWFolderRule(folder)
 	if !ok {
@@ -64,7 +43,6 @@ func nsfwFolderRule(shelfData *shelf.ShelfData, folder shelf.FolderPath) *NSFWFo
 	return &NSFWFolderRule{Path: rule.Path, Reason: rule.Reason}
 }
 
-// newBookResponse assembles the response for one book sitting at folder.
 func newBookResponse(shelfData *shelf.ShelfData, meta *shelf.BookMeta, folder shelf.FolderPath) Book {
 	book := Book{Meta: meta, Folder: folder, NSFWFolder: nsfwFolderRule(shelfData, folder)}
 	if shelfData.CanDownload() {
@@ -89,14 +67,9 @@ type UpdateBookRequest struct {
 	PublishedAt *util.JSONDate     `json:"published_at"`
 	Folder      *shelf.FolderPath  `json:"folder"`
 
-	// NSFW writes the book's own half of the adult-content mark. It cannot
-	// clear a mark the book's folder carries: shelf.json decides that one, and
-	// Shelf.IsBookNSFW adds the two rather than letting either override.
 	NSFW *bool `json:"nsfw"`
 }
 
-// folderPath locates a book on disk for the desktop client's "show in file
-// manager" action. It is not an HTTP route.
 func (h *bookHandlers) folderPath(shelfID, bookID string) (string, error) {
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
@@ -121,16 +94,12 @@ func (h *bookHandlers) folderPath(shelfID, bookID string) (string, error) {
 	return book.PackagePath(), nil
 }
 
-// GET /api/shelves/{shelf_id}/books
 func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
-	// The listing carries the character counts whether or not this request
-	// asked for them: they come out of the book cache, so fetching them costs
-	// nothing beyond the listing itself.
 	books, err := h.visibility(shelfData).listBooks()
 	if err != nil {
 		h.writeErr(w, r, err, "failed to list books")
@@ -149,8 +118,7 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	for i, b := range books {
 		jsonBooks[i] = newBookResponse(shelfData, b.Book.GetMeta(), b.Folders)
 		if includeCharCount {
-			// A book with a broken or missing source reports 0, which omitzero
-			// drops: one damaged book must not fail the whole listing.
+
 			jsonBooks[i].CharCount = b.CharCount
 		}
 	}
@@ -158,7 +126,6 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, jsonBooks)
 }
 
-// POST /api/shelves/{shelf_id}/books
 func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
@@ -183,8 +150,6 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The empty source and the current-source pointer are written while the book
-	// is still staged, so a failure here leaves no half-built book on disk.
 	newBook, err := shelfData.NewBookWith(req.Folder, req.Title, func(book *shelf.Book) error {
 		source, err := book.NewSource(nil)
 		if err != nil {
@@ -197,19 +162,13 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The book was created under req.Folder, so that is where it now sits; the
-	// book itself does not carry its folder back.
 	h.writeJSON(w, http.StatusCreated, newBookResponse(shelfData, newBook.GetMeta(), req.Folder))
 }
 
-// CopyBookRequest carries the optional destination for a copy. When the field is
-// unset - including an empty request body - the copy lands in the source book's
-// own folder.
 type CopyBookRequest struct {
 	Folder *shelf.FolderPath `json:"folder"`
 }
 
-// POST /api/shelves/{shelf_id}/books/{book_id}/copies
 func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
@@ -231,7 +190,6 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default to the source book's own folder so a plain "duplicate" needs no body.
 	target := append(shelf.FolderPath(nil), listing.Folders...)
 	if override := req.Folder; override != nil {
 		target = append(shelf.FolderPath(nil), (*override)...)
@@ -243,11 +201,9 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The copy landed under target, so that is its folder.
 	h.writeJSON(w, http.StatusCreated, newBookResponse(shelfData, copied.GetMeta(), target))
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}
 func (h *bookHandlers) getBook(w http.ResponseWriter, r *http.Request) {
 	shelfData, listing, ok := h.loadBookListing(w, r)
 	if !ok {
@@ -257,15 +213,12 @@ func (h *bookHandlers) getBook(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, newBookResponse(shelfData, listing.Book.GetMeta(), listing.Folders))
 }
 
-// PATCH /api/shelves/{shelf_id}/books/{book_id}
 func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
-	// The body is decoded before the book is loaded so a malformed body is
-	// still reported as 400 for a book that does not exist.
 	bookID, ok := resolveBookID(w, r)
 	if !ok {
 		return
@@ -283,8 +236,6 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	book := listing.Book
 	folder := listing.Folders
 
-	// Refuse a book this build must not modify before doing anything, otherwise
-	// a folder move would be applied to disk and then reported as a failure.
 	if err := book.EnsureWritable(); err != nil {
 		h.writeErr(w, r, err, "failed to update book metadata")
 		return
@@ -297,7 +248,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 			h.writeErr(w, r, err, "failed to move book folder")
 			return
 		}
-		// The book now sits where it was moved to.
+
 		book = movedBook
 		folder = moveTo
 	}
@@ -313,8 +264,6 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, newBookResponse(shelfData, &meta, folder))
 }
 
-// applyBookPatch validates nothing: the field rules belong to shelf, which
-// enforces them in SetMeta before anything reaches disk.
 func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {
 	if req.Title != nil {
 		meta.Title = *req.Title
@@ -350,7 +299,6 @@ func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {
 	meta.UpdatedAt = util.JSONTime(time.Now())
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/content
 func (h *bookHandlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)
 	if !ok {
@@ -373,7 +321,6 @@ func (h *bookHandlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 	h.streamTextFile(w, src, "failed to write book content")
 }
 
-// GET /api/shelves/{shelf_id}/books/duplicate
 func (h *bookHandlers) findDuplicateBooks(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {

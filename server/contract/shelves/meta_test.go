@@ -35,7 +35,6 @@ func TestAPIReadOnlyModeContract(t *testing.T) {
 		t.Fatalf("read_only = false, want true")
 	}
 
-	// Read-only mode refuses writes while leaving reads alone.
 	rec := env.Post(apitest.ShelfURL("folders", "blocked"), nil)
 	apitest.AssertStatus(t, rec, http.StatusForbidden)
 

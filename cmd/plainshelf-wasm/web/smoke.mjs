@@ -1,6 +1,3 @@
-// Usage: [SMOKE_BASE=/demo/] node smoke.mjs <site dir from build.sh> [screenshot.png]
-// Opens the real frontend on the wasm server in a browser, checks that the
-// shelf survives a reload through OPFS, then drives the raw API page.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -9,8 +6,6 @@ import { serveStatic } from './serve.mjs';
 const require = createRequire(new URL('../../../e2e/package.json', import.meta.url));
 const playwright = require('playwright');
 
-// SMOKE_BROWSER picks the engine: chromium (the default and the PR gate),
-// firefox or webkit (nightly, since the public demo has visitors on all three).
 const engine = process.env.SMOKE_BROWSER || 'chromium';
 if (!['chromium', 'firefox', 'webkit'].includes(engine)) {
   throw new Error(`SMOKE_BROWSER: unknown browser "${engine}"; expected chromium, firefox or webkit`);
@@ -19,16 +14,15 @@ if (!['chromium', 'firefox', 'webkit'].includes(engine)) {
 const dir = path.resolve(process.argv[2] ?? '.');
 const srv = await serveStatic(dir);
 const origin = `http://127.0.0.1:${srv.address().port}`;
-// SMOKE_BASE is the path the demo is served under: build.sh's base.
+
 const base = process.env.SMOKE_BASE || '/';
 const app = origin + base;
 
-// CHROMIUM points at a preinstalled chromium; unset, Playwright uses its own.
 const executablePath = engine === 'chromium' ? process.env.CHROMIUM || undefined : undefined;
 const browser = await playwright[engine].launch({ executablePath });
 console.log(`browser: ${engine} ${browser.version()}`);
-const context = await browser.newContext(); // fresh: OPFS starts empty
-// Every tab's console, printed when a check fails: the other engines only fail on CI.
+const context = await browser.newContext();
+
 const consoleLog = [];
 let nextTab = 0;
 context.on('page', (tab) => {
@@ -44,7 +38,6 @@ process.on('exit', (code) => {
   if (code !== 0) console.log(`last console lines:\n${consoleLog.slice(-40).join('\n')}`);
 });
 
-// Entry names from a zip's central directory.
 function zipEntryNames(buf) {
   const end = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   if (end < 0) return [];
@@ -64,10 +57,6 @@ function check(name, ok, detail = '') {
   if (!ok) failed = true;
 }
 
-// Without OPFS the demo runs in memory and says so; that is its documented
-// behavior, so those engines check it instead of persistence. Only an engine
-// declared to lack OPFS (SMOKE_EXPECT_MEMORY=1) may skip persistence, so a
-// regression elsewhere cannot hide behind the fallback.
 const expectMemory = process.env.SMOKE_EXPECT_MEMORY === '1';
 let persistent = true;
 function persisted(name, ok, detail = '') {
@@ -75,8 +64,6 @@ function persisted(name, ok, detail = '') {
   else console.log(`skip ${name} — this browser has no OPFS, so nothing persists`);
 }
 
-// Seeds one book with a cover, only into an empty shelf, the way a demo would.
-// On the context, so whichever tab ends up serving seeds what it starts with.
 await context.addInitScript(() => {
   window.plainshelfSeed = async (serve) => {
     window.seedRan = false;
@@ -113,14 +100,14 @@ const listBooks = () => page.evaluate(async () => {
 const bookCaches = () => page.evaluate(() => new Promise((resolve) => {
   fs.readdir('/plainshelf/shelf/app', (err, names) => resolve(err ? [] : names.filter((n) => n.startsWith('book-cache-'))));
 }));
-// Covers load through <img src>, which only the service worker relay can answer.
+
 const coverStatus = async (tab = page) => {
   const img = tab.locator('img[src*="/cover"]').first();
   try {
     await img.waitFor({ timeout: 10000 });
     await tab.waitForFunction((el) => el.complete, await img.elementHandle(), { timeout: 10000 });
   } catch {
-    // The app swaps a cover that fails to load for its placeholder, so say what is there.
+
     const seen = await tab.evaluate(() => ({
       controlled: Boolean(navigator.serviceWorker?.controller),
       imgs: [...document.images].map((i) => i.getAttribute('src')).slice(0, 5),
@@ -144,7 +131,7 @@ check(expectMemory ? 'runs in memory, as expected without OPFS' : 'persists to O
   `persistent=${persistent}`);
 const firstCover = await coverStatus();
 check('cover renders on first visit', /^[1-9]\d*x[1-9]/.test(firstCover), firstCover);
-await page.waitForTimeout(1000); // no explicit flush: the debounced write must land on its own
+await page.waitForTimeout(1000);
 
 const secondMs = await openApp(true);
 const second = await listBooks();
@@ -159,8 +146,7 @@ if (!persistent) {
 const secondCover = await coverStatus();
 check('cover renders after reload', /^[1-9]\d*x[1-9]/.test(secondCover), secondCover);
 if (engine === 'chromium') {
-  // A hard reload loads the page past the service worker, which then has to be
-  // asked to take it over. Only chromium exposes a cache-bypassing reload here.
+
   const cdp = await context.newCDPSession(page);
   const loaded = page.waitForEvent('load');
   await cdp.send('Page.reload', { ignoreCache: true });
@@ -169,19 +155,18 @@ if (engine === 'chromium') {
   const hardCover = await coverStatus();
   check('cover renders after a hard reload', /^[1-9]\d*x[1-9]/.test(hardCover), hardCover);
 }
-await page.waitForTimeout(500); // let the startup scan export its cache
+await page.waitForTimeout(500);
 const caches = await bookCaches();
 check('one book cache across loads', caches.length === 1, caches.join(','));
 console.log('app text:', (await page.innerText('body')).replace(/\s+/g, ' ').slice(0, 200));
 if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
 
-// The raw API page, on the same shelf (persisted, or reseeded without OPFS).
 await page.goto(`${app}wasm/index.html`);
 await page.waitForFunction(() => document.getElementById('status').textContent !== 'loading…', null, { timeout: 60000 });
 const apiCall = (method, url, body) => page.evaluate(async ([method, url, body]) => {
   const enc = body === undefined ? undefined : new TextEncoder().encode(JSON.stringify(body));
   const headers = enc ? { 'Content-Type': 'application/json' } : {};
-  // A read during the initial scan answers 503; retry briefly.
+
   for (let i = 0; ; i++) {
     const r = await window.plainshelfRequest({ method, url, headers, body: enc });
     if (r.status !== 503 || i > 50) {
@@ -191,14 +176,13 @@ const apiCall = (method, url, body) => page.evaluate(async ([method, url, body])
     await new Promise((ok) => setTimeout(ok, 100));
   }
 }, [method, url, body]);
-// Settings live in the store, which the browser build keeps in a file under OPFS.
+
 const nsfwBefore = await apiCall('GET', '/api/setting/show_nsfw');
-const nsfwSet = await apiCall('POST', '/api/setting/show_nsfw', true); // the body is a bare true or false
+const nsfwSet = await apiCall('POST', '/api/setting/show_nsfw', true);
 const created = await apiCall('POST', '/api/shelves/demo/books', { title: '測試書', folder: [] });
 const books = await apiCall('GET', '/api/shelves/demo/books');
 check('API page creates a second book', created.status === 201 && books.body.length === 2, `status ${created.status}`);
 
-// A move and a trash are renames in memfs; the old OPFS entries must go.
 const seeded = books.body.find((b) => b.meta.id !== created.body.meta.id).meta.id;
 const moved = await apiCall('PATCH', `/api/shelves/demo/books/${seeded}`, { folder: ['收藏'] });
 const trashed = await apiCall('DELETE', `/api/shelves/demo/books/${created.body.meta.id}`);
@@ -216,8 +200,6 @@ persisted('a saved setting survives reload', nsfwBefore.body?.value === false &&
 const top = await page.evaluate(() => new Promise((ok) => fs.readdir('/plainshelf/shelf/books', (e, l) => ok(l))));
 persisted('no stale book directories', JSON.stringify(top) === '["收藏"]', JSON.stringify(top));
 
-// Two tabs: one runs the server, the other forwards to it, and the second takes
-// over from OPFS when the first closes. Neither may lose the other's writes.
 const tabA = page;
 const tabB = await context.newPage();
 await tabB.goto(`${app}wasm/index.html`);
@@ -237,7 +219,7 @@ const seenA = await titles(tabA);
 const seenB = await titles(tabB);
 check('both tabs see both writes', fromA.status === 201 && fromB.status === 201 &&
   JSON.stringify(seenA) === JSON.stringify(seenB) && seenA.length === 3, seenB.join(','));
-await tabA.waitForTimeout(500); // the serving tab's debounced write
+await tabA.waitForTimeout(500);
 await tabA.close();
 await tabB.waitForFunction(() => typeof window.plainshelfFetch === 'function', null, { timeout: 30000 });
 check('the other tab takes over when it closes', true);
@@ -250,25 +232,20 @@ await tabB.waitForFunction(() => document.getElementById('status').textContent =
 const afterReload = await titles(tabB);
 persisted('and they survive a reload', JSON.stringify(afterReload) === JSON.stringify(afterTakeover), afterReload.join(','));
 
-// A tab without the server still shows covers: sw.js -> that tab -> the serving tab.
 const tabC = await context.newPage();
 await tabC.goto(app);
 await tabC.getByText('Total Books').first().waitFor({ timeout: 30000 });
 const forwardedCover = await coverStatus(tabC);
 check('cover renders in a tab that forwards', !(await runsServer(tabC)) && /^[1-9]\d*x[1-9]/.test(forwardedCover), forwardedCover);
 
-// Export and import through the demo bar, from the forwarding tab: the zip
-// round trip runs in the serving tab, and an import reloads every tab.
 check('the demo bar is shown', await tabC.locator('#plainshelf-demo-bar').isVisible());
-// The note tracks the serving tab's storage, which a forwarding tab has to ask for.
+
 const noteWanted = persistent ? 'may clear it' : 'a reload starts over';
 const note = await tabC.locator('#plainshelf-demo-note').filter({ hasText: noteWanted })
   .waitFor({ timeout: 5000 }).then(() => true, () => false);
 check('the demo bar warns where the shelf is kept', note,
   await tabC.locator('#plainshelf-demo-note').innerText().catch(() => 'missing'));
 
-// The bar offers to ask the browser to keep the shelf, and only where there is
-// a shelf to keep. Only chromium answers without a permission prompt.
 const persistPrompt = tabC.locator('#plainshelf-demo-persist');
 const offered = await persistPrompt.isVisible();
 check(persistent ? 'the demo bar offers to keep the shelf' : 'without OPFS it offers nothing to keep', offered === persistent);
@@ -281,7 +258,7 @@ if (persistent && engine === 'chromium') {
     .waitFor({ timeout: 5000 }).then(() => true, () => false);
   check('the demo bar shows the browser\'s answer', shown, `persisted=${kept}`);
 }
-// The settings tab reports the same state and can ask again; it exists only in the demo.
+
 const settingsTab = await context.newPage();
 await settingsTab.goto(new URL('settings?tab=demo-storage', app).href);
 const statusWanted = !persistent ? 'Not saved' : kept ? 'Kept:' : 'Not kept';
@@ -302,7 +279,7 @@ const [download] = await Promise.all([
 const zipBytes = await fs.readFile(await download.path());
 const exportedTitles = await titles(tabB);
 const zipNames = zipEntryNames(zipBytes);
-// Book directories are named after the title, lower-cased by the shelf.
+
 check('export is a shelf zip', zipNames.length > 0 && zipNames.every((n) => /^(books|trash)\//.test(n)) &&
   exportedTitles.every((t) => zipNames.some((n) => n.endsWith(`${t.toLowerCase()}.bookpkg/book.json`))),
   `${zipNames.length} entries, ${exportedTitles.length} books`);
@@ -325,7 +302,7 @@ if (persistent) {
   check('import restores the exported shelf in every tab', extra.status === 201 &&
     JSON.stringify(importedTitles) === JSON.stringify(exportedTitles), importedTitles.join(','));
 } else {
-  // Without OPFS the reload after an import would lose it, so it is refused.
+
   await chooser.setFiles({ name: 'shelf.zip', mimeType: 'application/zip', buffer: zipBytes });
   await tabC.waitForTimeout(500);
   const after = await titles(tabC);
@@ -337,7 +314,6 @@ const badImport = await tabC.evaluate(async () => (await window.plainshelfReques
 })).status);
 check('a file that is not a shelf zip is refused', badImport === 400, `status ${badImport}`);
 
-// A link straight to a route; under a base it reaches the host's 404 page first.
 const tabD = await context.newPage();
 const linked = await tabD.goto(`${app}trash`);
 await tabD.waitForFunction(() => document.title.startsWith('Trash'), null, { timeout: 30000 });

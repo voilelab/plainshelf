@@ -26,7 +26,6 @@ func TestCheckPCloudShelfCountsBooks(t *testing.T) {
 		t.Errorf("parent folder check = %s", out)
 	}
 
-	// A path that does not resolve is an error, not "not a shelf".
 	if _, err := CheckPCloudShelf(srv.Host(), pcloudtest.Token, "/Missing"); err == nil {
 		t.Error("missing folder: no error")
 	}

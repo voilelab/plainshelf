@@ -11,9 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// These serve the app's pCloud setup, before an entry exists, so the shelf
-// layout stays known only to Go. They need no running server.
-
 type pcloudShelfCheck struct {
 	IsShelf bool `json:"is_shelf"`
 	Books   int  `json:"books"`

@@ -21,10 +21,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// The URL builders below assemble the routes the tests share. They keep the
-// repeated /api/shelves/<id> prefix in one place while leaving each route's own
-// shape spelled out at the call site, since that shape is what is under test.
-
 // FormUpload is a multipart request body: text fields in the given order,
 // followed by at most one file part. Every multipart request in these tests goes
 // through it, so the writer boilerplate exists once.
@@ -97,7 +93,6 @@ func PostBookImport(t *testing.T, env *Env, up FormUpload) *httptest.ResponseRec
 	return env.Do(up.Request(t, http.MethodPost, ShelfURL("books", "import")))
 }
 
-// importBook uploads a book, asserts it was created, and returns it.
 func importBook(t *testing.T, env *Env, up FormUpload) server.Book {
 	t.Helper()
 
@@ -138,7 +133,6 @@ func ImportFileBook(t *testing.T, env *Env, filename, contentType, body string) 
 	return importBook(t, env, BookUpload(filename, contentType, body))
 }
 
-// epubUpload describes an EPUB import, optionally carrying a conversion strategy.
 func epubUpload(filename, archive, strategy string) FormUpload {
 	return BookUpload(filename, "application/epub+zip", archive, [2]string{"strategy", strategy})
 }

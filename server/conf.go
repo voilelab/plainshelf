@@ -10,8 +10,6 @@ type WorkerConf struct {
 	Logger logutil.LogConf `yaml:"logger"`
 	MaxLen int             `yaml:"max_len"`
 
-	// MaxKeep bounds how many finished task chains stay queryable through the
-	// task chain API. Zero selects the package default.
 	MaxKeep int `yaml:"max_keep"`
 }
 
@@ -25,7 +23,5 @@ type AppConf struct {
 	ReadOnly           bool                     `yaml:"read_only"`
 	Security           *SecurityConf            `yaml:"security"`
 
-	// Credentials resolves a shelf source's credential reference. nil is
-	// DefaultCredentialResolver; a host with a secret store sets its own.
 	Credentials CredentialResolver `yaml:"-"`
 }

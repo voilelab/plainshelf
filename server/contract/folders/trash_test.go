@@ -96,7 +96,6 @@ func TestAPIEmptyTrashConflictReportsRunningChainContract(t *testing.T) {
 		return apitest.EmptyTrash(t, env, wantStatus)
 	})
 
-	// Once the sweep has finished, a fresh request is accepted again.
 	if next := apitest.EmptyTrash(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
 		t.Errorf("expected a new chain after the previous one finished")
 	}
@@ -127,7 +126,6 @@ func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
 
 			apitest.AssertStatus(t, env.Get(apitest.BookURL(bookID)), http.StatusNotFound)
 
-			// Recoverable, which is what makes both routes a trash operation.
 			trashed := apitest.GetJSON[[]server.TrashedBook](t, env, apitest.ShelfURL("trash", "books"))
 			if !slices.ContainsFunc(trashed, func(b server.TrashedBook) bool { return b.ID == bookID }) {
 				t.Fatalf("trash = %+v, want it to contain the trashed book %s", trashed, bookID)

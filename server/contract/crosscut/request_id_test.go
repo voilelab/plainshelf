@@ -13,14 +13,8 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// requestIDConfusables are the characters a request ID must never contain. The
-// ID exists to be read aloud and copied by hand off a screen into a bug report,
-// so 0 against O and 1 against I or L would each cost a lookup that fails for a
-// reason the user cannot see.
 const requestIDConfusables = "0O1IL"
 
-// assertRequestIDShape pins what a user has to be able to transcribe: eight
-// characters, no pair anyone confuses.
 func assertRequestIDShape(t *testing.T, id string) {
 	t.Helper()
 
@@ -66,8 +60,6 @@ func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
 func TestAPIErrorEnvelopeIncidentIsTheRequestIDContract(t *testing.T) {
 	env := apitest.New(t)
 
-	// A refusal the table names, which is the case a per-error incident ID
-	// would have left without a number to quote.
 	rec := env.Request(http.MethodDelete, apitest.BookURL("no_such_book"), nil)
 	apitest.AssertErrorEnvelope(t, rec, http.StatusNotFound, "BOOK_NOT_FOUND", "book not found")
 
@@ -98,9 +90,6 @@ func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
 		t.Fatalf("sources = %d, want 1", len(sources))
 	}
 
-	// Replacing the source file with a directory makes the atomic rename fail.
-	// That is an error the table cannot name, which is the fallback path this
-	// test is about.
 	sourceFile := findSourceFile(t, libRoot)
 	if err := os.Remove(sourceFile); err != nil {
 		t.Fatalf("remove source file: %v", err)
@@ -134,8 +123,6 @@ func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
 	}
 }
 
-// findLogEntryByRequestID does what a developer holding a reported number does:
-// search the log for it and read the line back.
 func findLogEntryByRequestID(t *testing.T, logFile, requestID, msg string) map[string]any {
 	t.Helper()
 

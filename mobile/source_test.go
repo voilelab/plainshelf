@@ -12,7 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// mapSecrets stands in for the native Keystore store.
 type mapSecrets map[string]string
 
 func (m mapSecrets) Secret(entryID string) (string, error) { return m[entryID], nil }
@@ -23,8 +22,6 @@ func setSecretsT(t *testing.T, store SecretStore) {
 	t.Cleanup(func() { SetSecretStore(nil) })
 }
 
-// serveDAVShelf exports a shelf holding "Dune" over the read-only WebDAV
-// export and returns its URL and token.
 func serveDAVShelf(t *testing.T) (url, token string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -70,8 +67,6 @@ func serveDAVShelf(t *testing.T) (url, token string) {
 	return srv.URL + "/dav/default_shelf/", strings.TrimSpace(string(bs))
 }
 
-// The token is resolved through host:<entryID> from the native store; it is
-// never an argument of the open.
 func TestOpenSourceShelfResolvesHostCredential(t *testing.T) {
 	url, token := serveDAVShelf(t)
 	setSecretsT(t, mapSecrets{"entry-1": token})
@@ -85,7 +80,6 @@ func TestOpenSourceShelfResolvesHostCredential(t *testing.T) {
 		t.Fatalf("books = %s", titles)
 	}
 
-	// A local shelf list never shows it, and it closes like a pCloud shelf.
 	if out, err := ListShelves(); err != nil || strings.Contains(out, `"dav"`) {
 		t.Fatalf("ListShelves = %s, %v", out, err)
 	}
@@ -99,7 +93,6 @@ func TestOpenSourceShelfWithoutStoredSecret(t *testing.T) {
 	setSecretsT(t, mapSecrets{})
 	startT(t, t.TempDir())
 
-	// A plainshelf source needs a token, so the open is refused.
 	if err := OpenSourceShelf("dav", "Living room", shelf.SourcePlainShelf, url, "", "entry-1", false); err == nil {
 		t.Fatal("OpenSourceShelf opened a plainshelf source with no secret")
 	}
@@ -162,7 +155,7 @@ func TestSourceEntryRemovalCleansOfflineScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertOfflineScope(t, dataDir, src.Scope(), true)
-	// Deletion must work without the entry open or its secret available.
+
 	SetSecretStore(nil)
 	if err := RemoveSourceShelfOffline(shelf.SourcePlainShelf, url, ""); err != nil {
 		t.Fatal(err)
@@ -173,8 +166,6 @@ func TestSourceEntryRemovalCleansOfflineScope(t *testing.T) {
 	}
 }
 
-// Source type is not part of the offline scope, while account is. Hosts must
-// compare the engine's scope rather than a TS cache key when retaining aliases.
 func TestSourceShelfOfflineScope(t *testing.T) {
 	for _, sourceType := range []string{shelf.SourcePlainShelf, shelf.SourceWebDAV} {
 		scope, err := SourceShelfOfflineScope(sourceType, " https://NAS/books ", "reader")

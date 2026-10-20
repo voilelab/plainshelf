@@ -26,19 +26,13 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-// DAVExportConf turns on the read-only WebDAV export of every local shelf, on
-// a listener of its own. Absent, nothing is exported and no port is opened.
 type DAVExportConf struct {
 	Addr         string `yaml:"addr"`
 	ReadTimeout  string `yaml:"read_timeout"`
 	WriteTimeout string `yaml:"write_timeout"`
 
-	// TokenFile holds the bearer token every request must carry. It is
-	// generated when missing and replaced only by RotateDAVExportToken.
 	TokenFile string `yaml:"token_file"`
 
-	// AllowedOrigins are the browser origins sent CORS headers; empty sends
-	// none. No wildcard: any page holding the token could then read the shelf.
 	AllowedOrigins []string `yaml:"allowed_origins"`
 }
 
@@ -55,11 +49,6 @@ func (conf *DAVExportConf) validate(apiAddr string) error {
 	return err
 }
 
-// checkTokenFileNotExported refuses a token_file the export itself would
-// serve: one inside a local shelf's root that shelf.IsShelfFile admits. Both
-// sides resolve against the working directory, as the server reads them, and
-// through symlinks, since the shelf opens its root through one. Hard links are
-// not detected.
 func (conf *DAVExportConf) checkTokenFileNotExported(shelves []*shelf.ShelfConfWithID) error {
 	tokenFile, err := davCanonicalPath(conf.TokenFile)
 	if err != nil {
@@ -71,7 +60,7 @@ func (conf *DAVExportConf) checkTokenFileNotExported(shelves []*shelf.ShelfConfW
 		}
 		src, err := shelfConf.ResolveSource()
 		if err != nil || src.IsVirtual() {
-			// A broken entry fails when the shelf opens; a virtual one is not exported.
+
 			continue
 		}
 		root, err := davCanonicalPath(src.Path)
@@ -89,8 +78,6 @@ func (conf *DAVExportConf) checkTokenFileNotExported(shelves []*shelf.ShelfConfW
 	return nil
 }
 
-// davCanonicalPath is p made absolute with symlinks resolved in its longest
-// existing prefix; the rest, not created yet, is appended as written.
 func davCanonicalPath(p string) (string, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
@@ -114,7 +101,6 @@ func davCanonicalPath(p string) (string, error) {
 	}
 }
 
-// davOriginSet normalizes allowed_origins; nil when there are none.
 func davOriginSet(origins []string) (map[string]struct{}, error) {
 	if len(origins) == 0 {
 		return nil, nil
@@ -132,19 +118,14 @@ func davOriginSet(origins []string) (map[string]struct{}, error) {
 
 const davExportPrefix = "/dav/"
 
-// davExportAllow is every method the export answers; the rest get 405.
 const davExportAllow = "OPTIONS, GET, HEAD, PROPFIND"
 
-// davCORSAllowHeaders is what internal/davfs sends besides simple headers.
 const davCORSAllowHeaders = "Authorization, Content-Type, Depth, Range"
 
 const davTokenBytes = 32
 
-// davPropfindMaxBody bounds a PROPFIND request body; a real one is a few
-// hundred bytes.
 const davPropfindMaxBody = 64 << 10
 
-// EnsureDAVExportToken generates the token file when it does not exist yet.
 func EnsureDAVExportToken(tokenFile string) error {
 	token, err := readDAVExportToken(tokenFile)
 	if err == nil {
@@ -160,9 +141,6 @@ func EnsureDAVExportToken(tokenFile string) error {
 	return err
 }
 
-// RotateDAVExportToken replaces the token with a new one and returns it. A
-// running export reads the file on every request, so the old token stops
-// working at once.
 func RotateDAVExportToken(tokenFile string) (string, error) {
 	buf := make([]byte, davTokenBytes)
 	if _, err := rand.Read(buf); err != nil {
@@ -170,7 +148,6 @@ func RotateDAVExportToken(tokenFile string) (string, error) {
 	}
 	token := base64.RawURLEncoding.EncodeToString(buf)
 
-	// 0600, and a reader never sees a half-written token.
 	if err := fsutil.WriteTextFileAtomic(tokenFile, filepath.Base(tokenFile)+".*.tmp", token+"\n"); err != nil {
 		return "", util.Errorf("%w", err)
 	}
@@ -195,22 +172,14 @@ func readDAVExportToken(tokenFile string) (string, error) {
 	return strings.TrimSpace(string(bs)), nil
 }
 
-// DAVExportHandler serves /dav/{shelf_id}/ for every local shelf: a read-only
-// WebDAV subset limited to the shelf's own files (shelf.IsShelfFile). It holds
-// no route of the HTTP API.
 func (app *App) DAVExportHandler(tokenFile string) http.Handler {
 	return app.DAVExportShelvesHandler(tokenFile, nil)
 }
 
-// DAVExportShelvesHandler is DAVExportHandler limited to the shelves exported
-// reports true for, asked on every request; nil exports every local shelf. A
-// shelf it refuses is 404, the same as one that does not exist.
 func (app *App) DAVExportShelvesHandler(tokenFile string, exported func(shelfID string) bool) http.Handler {
 	return app.davExportHandler(tokenFile, exported, nil)
 }
 
-// davExportCORSHandler is DAVExportHandler answering CORS for the origins
-// allowedOrigins names.
 func (app *App) davExportCORSHandler(tokenFile string, allowedOrigins []string) (http.Handler, error) {
 	origins, err := davOriginSet(allowedOrigins)
 	if err != nil {
@@ -237,12 +206,10 @@ type davExport struct {
 	exported  func(shelfID string) bool
 	origins   map[string]struct{}
 
-	// tokenErrLogged keeps an unreadable token file from logging once per
-	// request; cleared when the file reads again.
 	tokenErrLogged atomic.Bool
 
-	// Never used: LOCK is refused before the handler, which only insists on
-	// having one.
+	// golang.org/x/net/webdav.Handler requires a LockSystem even though this
+	// read-only export refuses LOCK before calling the handler.
 	locks webdav.LockSystem
 }
 
@@ -250,7 +217,7 @@ func (d *davExport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if d.applyCORS(w, r) {
 		return
 	}
-	// Method first, so a write is 405 with or without a token.
+
 	switch r.Method {
 	case http.MethodOptions, http.MethodGet, http.MethodHead, "PROPFIND":
 	default:
@@ -312,9 +279,6 @@ func (d *davExport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.ServeHTTP(w, r)
 }
 
-// applyCORS adds CORS headers for an allowed origin, and reports true when it
-// answered a preflight. A preflight carries no token, so it is answered before
-// any path is resolved: it reveals nothing about the shelves.
 func (d *davExport) applyCORS(w http.ResponseWriter, r *http.Request) bool {
 	if d.origins == nil {
 		return false
@@ -346,20 +310,18 @@ func (d *davExport) authorized(r *http.Request) bool {
 	}
 	want, err := readDAVExportToken(d.tokenFile)
 	if err != nil || want == "" {
-		// Fail closed: a missing token file rejects every request.
+
 		if !d.tokenErrLogged.Swap(true) {
 			d.logger.Error("dav export token unreadable", "token_file", d.tokenFile, "error", err)
 		}
 		return false
 	}
 	d.tokenErrLogged.Store(false)
-	// Hashed first so the comparison does not leak the token's length.
+
 	gotSum, wantSum := sha256.Sum256([]byte(got)), sha256.Sum256([]byte(want))
 	return subtle.ConstantTimeCompare(gotSum[:], wantSum[:]) == 1
 }
 
-// davPathSafe rejects a ".." segment, a backslash or a NUL anywhere in the
-// decoded path, before anything resolves it.
 func davPathSafe(p string) bool {
 	if strings.ContainsAny(p, "\\\x00") {
 		return false
@@ -372,18 +334,12 @@ func davPathSafe(p string) bool {
 	return true
 }
 
-// davFS is a read-only webdav.FileSystem over one shelf directory. A path
-// outside shelf.IsShelfFile does not exist, and neither does one through a
-// symlink: os.Root follows a link that stays inside the shelf, which would
-// reach app/ from under books/.
 type davFS struct {
 	root fsutil.ReadFS
 }
 
 var _ webdav.FileSystem = davFS{}
 
-// rel maps a webdav name ("/books/x") to a shelf path ("books/x", "." for the
-// root), reporting false when it is not exported.
 func (davFS) rel(name string) (string, bool) {
 	rel := strings.TrimPrefix(path.Clean("/"+name), "/")
 	if rel == "" {
@@ -392,8 +348,6 @@ func (davFS) rel(name string) (string, bool) {
 	return rel, shelf.IsShelfFile(rel)
 }
 
-// open opens an exported path through fsutil.NoFollowFS, so a symlink along
-// it, one swapped in during the request included, does not exist.
 func (d davFS) open(name string) (fs.File, string, error) {
 	rel, ok := d.rel(name)
 	if !ok {
@@ -480,7 +434,7 @@ func (f *davFile) Stat() (fs.FileInfo, error) {
 
 func (f *davFile) Readdir(count int) ([]fs.FileInfo, error) {
 	if !f.listed {
-		// Read from the handle that was checked, not by path again.
+
 		dir, ok := f.File.(fs.ReadDirFile)
 		if !ok {
 			return nil, os.ErrNotExist
@@ -495,7 +449,7 @@ func (f *davFile) Readdir(count int) ([]fs.FileInfo, error) {
 			}
 			info, err := e.Info()
 			if err != nil {
-				continue // removed since the listing
+				continue
 			}
 			f.entries = append(f.entries, davFileInfo{info})
 		}
@@ -515,8 +469,6 @@ func (f *davFile) Readdir(count int) ([]fs.FileInfo, error) {
 	return out, nil
 }
 
-// davFileInfo names the content type from the extension, so PROPFIND does not
-// open and sniff every file it lists — a round trip each on a network mount.
 type davFileInfo struct {
 	fs.FileInfo
 }

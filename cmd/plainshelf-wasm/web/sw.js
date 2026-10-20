@@ -1,10 +1,6 @@
-// Relays /api requests the page's fetch patch never sees (<img src> covers,
-// asset links) to the page that runs the wasm server. Served from the app's base
-// path so its scope covers the app's pages; it sees their /api requests wherever
-// that base is.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
-// A page loaded past the worker (a hard reload) asks to be taken over.
+
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'plainshelf-claim') event.waitUntil(self.clients.claim());
 });
@@ -17,7 +13,7 @@ self.addEventListener('fetch', (event) => {
 
 async function relay(event) {
   const req = event.request;
-  // A navigation has no page with a server yet; let the static host answer.
+
   const client = event.clientId && await self.clients.get(event.clientId);
   if (!client) return fetch(req);
 

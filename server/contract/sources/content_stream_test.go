@@ -26,8 +26,6 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 	apitest.AssertEmptyTextResponse(t, "book", env.GetWailsLike(apitest.BookURL(bookID, "content")))
 	apitest.AssertEmptyTextResponse(t, "source", env.GetWailsLike(apitest.SourceURL(bookID, sourceID, "content")))
 
-	// A log file is streamed by the same path, and an empty one is what a freshly
-	// rotated log looks like.
 	logDir := t.TempDir()
 	logEnv := apitest.NewUnstarted(t, apitest.WithShelfLogDir(logDir, "shelf"))
 	apitest.WriteLogFile(t, filepath.Join(logDir, "shelf-2024-01-02.log"), "")
@@ -68,7 +66,6 @@ func TestAPIPatchContentRefusesOversizedBodyWithUnsupportedEncoding(t *testing.T
 	apitest.AssertStatus(t, rec, http.StatusRequestEntityTooLarge)
 }
 
-// repeatReader yields its byte forever without holding the body in memory.
 type repeatReader byte
 
 func (r repeatReader) Read(p []byte) (int, error) {

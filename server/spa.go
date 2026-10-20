@@ -12,32 +12,20 @@ import (
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
-// spaHandlers serves the embedded frontend. It holds security because the
-// index it serves carries the token the frontend bootstraps from.
 type spaHandlers struct {
 	fs       fs.FS
 	files    http.Handler
 	security *Security
 
-	// warnInsecurePublic makes the injected bootstrap carry an
-	// insecurePublicAccess flag so the Web UI shows a persistent "no API auth"
-	// warning. It is set only by the network server path when mode is none and
-	// the listen address is not loopback; see App.SetInsecureNetworkWarning.
 	warnInsecurePublic bool
 }
 
-// securityBootstrapPayload is the JSON shape written into
-// window.__PLAINSHELF_SECURITY__. Fields are omitted when empty so mode none
-// injects only the warning flag (it has no token) and a loopback none injects
-// nothing at all.
 type securityBootstrapPayload struct {
 	Token                string `json:"token,omitempty"`
 	TokenHeader          string `json:"tokenHeader,omitempty"`
 	InsecurePublicAccess bool   `json:"insecurePublicAccess,omitzero"`
 }
 
-// fallback serves index.html for all non-API GET requests that do not name a
-// file, so the SPA's own router can handle the path.
 func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 	cleanPath := strings.TrimPrefix(r.URL.Path, "/")
 	if cleanPath == "" || path.Ext(cleanPath) == "" {
@@ -46,8 +34,7 @@ func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		// A fresh nonce per response: a reused or guessable one would let an
-		// injected inline script claim it and defeat the policy.
+
 		nonce := rand.Text()
 		w.Header().Set("Content-Security-Policy", contentSecurityPolicy(nonce))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -58,17 +45,6 @@ func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 	h.files.ServeHTTP(w, r)
 }
 
-// contentSecurityPolicy is the browser-side backstop if the sanitizer is ever
-// bypassed: script-src has no 'unsafe-inline' (the bootstrap carries the nonce)
-// and framing is refused, so an XSS or clickjack cannot take the local token.
-// Each relaxation serves something the app loads: img-src data: for the inlined
-// bookcover.svg; img-src blob: for token-fetched illustrations
-// (frontend/src/composables/useAssetSrc.ts); style-src 'unsafe-inline' for the
-// author text colour frontend/src/utils/safeHtml.ts keeps through v-html (Vite
-// emits no inline style or script); font-src data: for the Noto subsets Vite
-// inlines, the rest loading from 'self' (verified on a real page load). The rest
-// is denied (object-, media-, worker-src) or same-origin. HSTS and violation
-// reporting are out of scope: the default deployment is http://127.0.0.1.
 func contentSecurityPolicy(nonce string) string {
 	return strings.Join([]string{
 		"default-src 'self'",

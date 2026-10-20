@@ -15,9 +15,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// writeBookIntoShelf drops a book package straight into books/, the way copying
-// a folder in from outside PlainShelf does. Nothing tells the server about it,
-// so only a walk of the tree can find it.
 func writeBookIntoShelf(t *testing.T, libRoot, dirName, bookID, title string) {
 	t.Helper()
 
@@ -42,8 +39,6 @@ func TestAPIRescanShelfContract(t *testing.T) {
 	env := apitest.New(t)
 	apitest.ImportTextBook(t, env, "Already Here", "Fiction", "here.txt", "Some content.")
 
-	// Added the way a user does when they ask why the book has not appeared:
-	// from outside PlainShelf, with no request to tell the server about it.
 	writeBookIntoShelf(t, env.LibRoot, "dropped-in", "drop1nkb", "Dropped In")
 
 	rec := env.Post(apitest.ScansURL(), nil)
@@ -60,12 +55,11 @@ func TestAPIRescanShelfContract(t *testing.T) {
 	if scan.BookCount != 2 {
 		t.Errorf("book_count = %d, want 2", scan.BookCount)
 	}
-	// "/" and "Fiction".
+
 	if scan.FolderCount != 2 {
 		t.Errorf("folder_count = %d, want 2", scan.FolderCount)
 	}
 
-	// The counts are only worth reporting if the listing agrees with them.
 	books := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL())
 	if len(books) != 2 {
 		t.Fatalf("books after the rescan = %d, want the externally added book to be listed", len(books))
@@ -139,7 +133,7 @@ func TestAPIScanExemptionsAreLimitedToTheScanRouteContract(t *testing.T) {
 
 		for _, url := range urls {
 			t.Run(url, func(t *testing.T) {
-				// DoRaw sends the request as-is, without the token Do() attaches.
+
 				rec := env.DoRaw(httptest.NewRequest(http.MethodPost, url, nil))
 				apitest.AssertStatus(t, rec, http.StatusUnauthorized)
 			})
@@ -164,9 +158,6 @@ func TestAPIScanExemptionsAreLimitedToTheScanRouteContract(t *testing.T) {
 func TestAPIRescanShelfRateLimitContract(t *testing.T) {
 	env := apitest.New(t)
 
-	// The burst is the shelf package's own, so this walks up to the refusal
-	// rather than encoding a count the server contract does not own. The bound
-	// only keeps a broken limiter from looping forever.
 	var rec *httptest.ResponseRecorder
 	for range 100 {
 		rec = env.Post(apitest.ScansURL(), nil)
@@ -189,8 +180,6 @@ func TestAPIRescanShelfRateLimitContract(t *testing.T) {
 		t.Errorf("Retry-After header = %q, want %q to match the body", header, strconv.Itoa(limited.RetryAfterSeconds))
 	}
 
-	// The body must not read as a conflict: 409 carries the running walk's ID
-	// and no counts, and a client keying on either would misreport this.
 	var asConflict server.ScanConflictResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &asConflict); err != nil {
 		t.Fatalf("unmarshal the 429 body: %v", err)

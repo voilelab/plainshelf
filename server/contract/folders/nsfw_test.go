@@ -38,29 +38,15 @@ func TestAPINSFWFoldersLeaveTheTreeWithTheirBooks(t *testing.T) {
 	}
 
 	got := folders()
-	// Fiction still holds Classic, and Empty never held a book at all, so
-	// neither is this setting's to remove.
+
 	assertListed(got, true, "Fiction", "Fiction/Classics", apitest.NSFWEmptyFolder)
-	// Marked, and left holding only a marked book, respectively.
+
 	assertListed(got, false, apitest.NSFWMarkedFolder, apitest.NSFWFlaggedFolder)
 
 	apitest.SetShowNSFW(t, s.Env, true)
 	assertListed(folders(), true, apitest.NSFWMarkedFolder, apitest.NSFWFlaggedFolder)
 }
 
-/*
-The trash is a listing like any other, so show_nsfw filters it too. It reaches
-this fixture only through a detour: a marked book cannot be trashed while the
-setting is off, so each test below trashes with the setting on and then turns it
-off, which is the order PSW-94's mark button makes an everyday one.
-
-The folder half of the mark still applies in the trash, because the trash record
-remembers the folder the book was deleted from — trash/ is outside books/, so
-shelf.json's rules cannot reach the book by its current path.
-*/
-
-// trashAllOf trashes the given books with the setting on, then turns it back
-// off, leaving a trash whose contents the request may not all see.
 func trashAllOf(t *testing.T, s apitest.NSFWShelf, bookIDs ...string) {
 	t.Helper()
 
@@ -98,8 +84,6 @@ func TestAPINSFWBooksAreAbsentFromTheTrash(t *testing.T) {
 	}
 	apitest.AssertBookIDs(t, trashedIDs(), s.Visible)
 
-	// The reverse half: nothing was deleted, and the whole trash is served once
-	// the setting says it may be.
 	apitest.SetShowNSFW(t, s.Env, true)
 	apitest.AssertBookIDs(t, trashedIDs(), s.Visible, s.FolderHidden, s.BookHidden)
 }
@@ -116,9 +100,6 @@ func TestAPINSFWTrashListingMarksItselfPartial(t *testing.T) {
 		return rec.Header().Get(server.TrashListingPartialHeader)
 	}
 
-	// Nothing withheld yet: an empty trash, then one holding only a book the
-	// request may see. The header must stay off for both, or the warning it
-	// drives would replace the count on every ordinary shelf.
 	if got := partial(); got != "" {
 		t.Errorf("header on an empty trash = %q, want it absent", got)
 	}
@@ -132,8 +113,6 @@ func TestAPINSFWTrashListingMarksItselfPartial(t *testing.T) {
 		t.Errorf("header with a marked book withheld = %q, want \"true\"", got)
 	}
 
-	// It describes this response, not the shelf: with the setting on, the same
-	// trash is answered in full and the header goes away again.
 	apitest.SetShowNSFW(t, s.Env, true)
 	if got := partial(); got != "" {
 		t.Errorf("header with show_nsfw on = %q, want it absent", got)
@@ -164,8 +143,6 @@ func TestAPINSFWTrashedBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
 		})
 	}
 
-	// The reverse half: the refusals were the filter, so both books are still
-	// in the trash and still restorable once they may be seen.
 	apitest.SetShowNSFW(t, s.Env, true)
 	for _, bookID := range s.Hidden() {
 		apitest.AssertStatus(t, s.Env.Post(apitest.TrashBooksURL(bookID, "restore"), nil), http.StatusNoContent)
@@ -191,21 +168,6 @@ func TestAPINSFWEmptyTrashStillErasesEverything(t *testing.T) {
 	}
 }
 
-/*
-Moving a marked folder — or any folder above one — takes its subtree out from
-under the shelf.json rule that marks it, so the books below it are served from
-the next request on. That is a whole folder's worth of books changing from
-hidden to public in one action nobody described, which is why the folder routes
-ask first: they answer 409 with nsfwRevealConflictKind and do nothing, and the
-caller retries with ?confirm=1.
-
-The mark itself is untouched either way. shelf.json is the user's own file and
-PlainShelf only reads it, so the folder really is unmarked afterwards — the
-confirmation is the whole of what this adds, not a rewrite of the rule.
-*/
-
-// nsfwRevealConflictBody mirrors the 409 body those routes answer with, pinning
-// the wire shape the frontend's confirmation dialog reads.
 type nsfwRevealConflictBody struct {
 	Error       string `json:"error"`
 	Message     string `json:"message"`
@@ -214,8 +176,6 @@ type nsfwRevealConflictBody struct {
 
 const nsfwRevealConflictKind = "nsfw_reveal_requires_confirmation"
 
-// assertRevealConflict reads the refusal and checks it names the books it is
-// about, so a dialog built on it cannot quote the wrong number.
 func assertRevealConflict(t *testing.T, rec *httptest.ResponseRecorder, wantHidden int) {
 	t.Helper()
 
@@ -232,13 +192,10 @@ func assertRevealConflict(t *testing.T, rec *httptest.ResponseRecorder, wantHidd
 	}
 }
 
-// confirmed is the same URL with the flag the caller retries under.
 func confirmed(url string) string { return url + "?confirm=1" }
 
 const nsfwMoveBody = `{"folder":["Fiction"],"target_folder":["Archive"]}`
 
-// newNSFWShelfWithArchive adds a root folder outside the marked subtree, which
-// is somewhere a move can go.
 func newNSFWShelfWithArchive(t *testing.T) apitest.NSFWShelf {
 	t.Helper()
 
@@ -256,8 +213,6 @@ func TestAPINSFWFolderMoveAsksBeforeUnhiding(t *testing.T) {
 
 	assertRevealConflict(t, s.Env.Post(moves, strings.NewReader(nsfwMoveBody)), 1)
 
-	// The refusal did nothing: Fiction is where it was, and the books it holds
-	// are still filtered the way they were.
 	folders := apitest.GetJSON[[]shelf.FolderPath](t, s.Env, apitest.ShelfURL("folders"))
 	if !slices.ContainsFunc(folders, func(f shelf.FolderPath) bool { return f.String() == "Fiction" }) {
 		t.Fatalf("folders = %v, want Fiction still at the root", folders)
@@ -266,8 +221,6 @@ func TestAPINSFWFolderMoveAsksBeforeUnhiding(t *testing.T) {
 
 	apitest.AssertStatus(t, s.Env.Post(confirmed(moves), strings.NewReader(nsfwMoveBody)), http.StatusNoContent)
 
-	// Confirmed, the move happened and did exactly what the refusal said it
-	// would: the folder-marked book is served, the book-marked one is not.
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic, s.FolderHidden)
 }
 
@@ -387,9 +340,6 @@ func TestAPINSFWFolderTransferDoesNotAskWithoutAMarkedFolder(t *testing.T) {
 func TestAPINSFWFolderMoveDoesNotAskWhenTheBooksStayHidden(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 
-	// Now the only book under the marked folder carries the mark itself, and
-	// Fiction/Empty is outside that folder, so nothing under Fiction/Adult can
-	// surface.
 	apitest.EditBookMetaFile(t, s.Env, s.FolderHidden, map[string]any{"nsfw": true})
 	apitest.AssertStatus(t, s.Env.Post(apitest.ScansURL(), nil), http.StatusOK)
 
@@ -405,8 +355,6 @@ func TestAPINSFWFolderMoveDoesNotAskWhenTheBooksStayHidden(t *testing.T) {
 func TestAPINSFWFolderRenameReportsItsOwnConflictRatherThanAsking(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 
-	// Fiction holds the marked folder, so this rename would reveal - but Archive
-	// is already taken, so RenameFolder refuses it whatever the user answers.
 	rec := s.Env.Patch(apitest.ShelfURL("folders", "Fiction"), strings.NewReader(`{"name":"Archive"}`))
 	apitest.AssertErrorEnvelope(t, rec, http.StatusConflict, "UNKNOWN", "failed to rename folder")
 }
@@ -433,14 +381,10 @@ func TestAPINSFWFolderMoveSeesAMarkedFolderAddedSinceTheLastScan(t *testing.T) {
 	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("folders", "Archive"), nil), http.StatusNoContent)
 	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
 
-	// Written straight to disk and deliberately not scanned. shelf.json already
-	// marks this path, and the shelf's cache is inside its scan interval, so
-	// only a forced scan can see it.
 	if err := os.MkdirAll(filepath.Join(libRoot, "books", filepath.FromSlash(marked)), 0o755); err != nil {
 		t.Fatalf("create the folder behind the shelf's back: %v", err)
 	}
 
-	// It holds no book, so the disclosure is the folder's name alone.
 	assertRevealConflict(t, env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(nsfwMoveBody)), 0)
 }
 
@@ -486,9 +430,6 @@ func TestAPINSFWFolderChangeOnAReadOnlyShelfRefusesRatherThanAsking(t *testing.T
 		})
 	}
 
-	// A malformed path is a request error whatever state the shelf is in, so it
-	// has to be answered before either refusal above - the shelf would have said
-	// so itself, and only says it later than these two now do.
 	malformed := []struct {
 		name string
 		rec  func() *httptest.ResponseRecorder

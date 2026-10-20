@@ -10,9 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// apiHandlers is everything that answers a request, assembled from the three
-// shared components. App owns the lifecycle of what these read; this owns the
-// routing.
 type apiHandlers struct {
 	core     *apiCore
 	settings *settings
@@ -44,8 +41,7 @@ func newAPIHandlers(
 	pool *taskutil.Pool,
 	spaFS fs.FS,
 	conf *AppConf,
-	// settingsSvc is built by NewApp, which needs it before the handlers exist
-	// to apply the stored log-retention window to the loggers already running.
+
 	settingsSvc *settings,
 ) *apiHandlers {
 	core := &apiCore{Logger: logger, shelves: shelfManager, security: security, settings: settingsSvc}
@@ -75,21 +71,14 @@ func newAPIHandlers(
 	}
 }
 
-// serve is the one place the whole HTTP surface is written down. The patterns
-// stay literal: the frontend and the end-to-end tests find a route by searching
-// for its path.
 func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", h.meta.health)
-
-	// Shelf API
 
 	mux.HandleFunc("GET /api/mode", h.meta.getMode)
 	mux.HandleFunc("GET /api/version", h.meta.getVersion)
 	mux.HandleFunc("GET /api/shelves", h.shelves.getShelves)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/status", h.shelves.getShelfStatus)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/scans", h.shelves.rescanShelf)
-
-	// Book API
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", h.books.getBooks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", h.books.createBook)
@@ -148,17 +137,11 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/folders/{folder_path...}", h.folders.renameFolder)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/folders/{folder_path...}", h.folders.deleteFolder)
 
-	// Task API
-
 	mux.HandleFunc("GET /api/taskchains/{taskchain_id}", h.taskAPI.getTaskChain)
 	mux.HandleFunc("POST /api/taskchains/{taskchain_id}/cancel", h.taskAPI.cancelTaskChain)
 
-	// Log API
-
 	mux.HandleFunc("GET /api/logs", h.logs.getLogs)
 	mux.HandleFunc("GET /api/logs/{log_id}/content", h.logs.getLogContent)
-
-	// Setting API
 
 	mux.HandleFunc("GET /api/setting/cover_to_jpg", h.setting.getCoverToJPG)
 	mux.HandleFunc("POST /api/setting/cover_to_jpg", h.setting.setCoverToJPG)
@@ -173,7 +156,6 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/setting/log_retention_days", h.setting.setLogRetentionDays)
 	mux.HandleFunc("DELETE /api/setting/log_retention_days", h.setting.deleteLogRetentionDays)
 
-	// Unknown API paths must not fall through to the SPA index.
 	mux.HandleFunc("GET /api/{path...}", http.NotFound)
 
 	mux.HandleFunc("GET /{path...}", h.spa.fallback)

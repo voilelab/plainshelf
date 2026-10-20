@@ -13,12 +13,6 @@ import (
 
 const EmptyTrashTaskName = "empty_trash"
 
-// emptyTrashTask permanently deletes every book in a shelf's trash.
-//
-// Books are deleted one at a time through the regular single-book primitive
-// rather than under one long-held shelf lock: the lock is a flock with a finite
-// timeout, and holding it for the whole sweep would block every read for as
-// long as the trash takes to empty.
 type emptyTrashTask struct {
 	shelfID string
 	shelf   *shelf.Shelf
@@ -68,9 +62,6 @@ func (t *emptyTrashTask) Status() taskutil.Status {
 func (t *emptyTrashTask) Run(ctx context.Context) error {
 	t.progress.SetStatus(taskutil.StatusRunning)
 
-	// A failure here means the deletion never started at all, for example
-	// because the trash directory could not be read or the shelf lock timed
-	// out. That is the only outcome reported as an outright failure.
 	ids, err := t.shelf.ListTrashedBookIDs()
 	if err != nil {
 		t.progress.SetStatus(taskutil.StatusFailed)
@@ -103,8 +94,6 @@ func (t *emptyTrashTask) Run(ctx context.Context) error {
 			t.mu.Unlock()
 		}
 
-		// Advance on failure too: the percentage tracks books processed, so it
-		// still reaches 100% when some deletions could not be completed.
 		t.progress.Advance()
 	}
 
@@ -114,7 +103,7 @@ func (t *emptyTrashTask) Run(ctx context.Context) error {
 
 	if failed > 0 {
 		t.progress.SetStatus(taskutil.StatusPartiallyCompleted)
-		// The chain itself did run, so do not report an error and abort it.
+
 		return nil
 	}
 

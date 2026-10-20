@@ -14,8 +14,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/testutil"
 )
 
-// settingValue reads a setting and returns the "value" the endpoint wraps it in.
-// The response is decoded generically so the wrapper's field name is pinned too.
 func settingValue[T any](t *testing.T, env *apitest.Env, key string) T {
 	t.Helper()
 
@@ -27,8 +25,6 @@ func settingValue[T any](t *testing.T, env *apitest.Env, key string) T {
 	return value
 }
 
-// setSetting stores a setting value, asserting the status the endpoint must
-// answer with — 204 for an accepted value, 400 for a rejected one.
 func setSetting(t *testing.T, env *apitest.Env, key, body string, wantStatus int) {
 	t.Helper()
 
@@ -36,8 +32,6 @@ func setSetting(t *testing.T, env *apitest.Env, key, body string, wantStatus int
 	apitest.AssertStatus(t, rec, wantStatus)
 }
 
-// deleteSetting clears a stored setting, which reverts it to the built-in or
-// configured default.
 func deleteSetting(t *testing.T, env *apitest.Env, key string) {
 	t.Helper()
 
@@ -49,7 +43,6 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 	env := apitest.New(t)
 	const key = "epub_import_strategy"
 
-	// The built-in default applies when nothing is configured.
 	value := settingValue[map[string]any](t, env, key)
 	if preset, _ := value["preset"].(string); preset != "markdown" {
 		t.Fatalf("default preset = %q, want markdown", preset)
@@ -58,7 +51,6 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 		t.Fatal("default include_description = false, want true")
 	}
 
-	// Setting it changes what an import with no strategy field uses.
 	setSetting(t, env, key, `{"preset":"plain","include_description":false}`, http.StatusNoContent)
 
 	value = settingValue[map[string]any](t, env, key)
@@ -71,7 +63,6 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 		t.Fatalf("format = %q, want txt from the configured default", imported.Meta.Format)
 	}
 
-	// Invalid payloads are rejected.
 	for _, body := range []string{
 		`{"preset":"custom"}`,
 		`{"include_description":true}`,
@@ -81,7 +72,6 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 		setSetting(t, env, key, body, http.StatusBadRequest)
 	}
 
-	// Deleting reverts to the built-in default.
 	deleteSetting(t, env, key)
 
 	value = settingValue[map[string]any](t, env, key)
@@ -94,7 +84,6 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 	env := apitest.New(t)
 	const key = "cover_to_jpg"
 
-	// The default value reflects apitest.AppConf, which is false in the test env.
 	if got := settingValue[bool](t, env, key); got {
 		t.Fatalf("default cover_to_jpg = %v, want false", got)
 	}
@@ -106,10 +95,8 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 		}
 	}
 
-	// A value that is not a boolean is rejected.
 	setSetting(t, env, key, "maybe", http.StatusBadRequest)
 
-	// Deleting a stored value resets it to the apitest.AppConf default (false).
 	setSetting(t, env, key, "true", http.StatusNoContent)
 	deleteSetting(t, env, key)
 	if got := settingValue[bool](t, env, key); got {
@@ -137,7 +124,6 @@ func TestAPISettingShowNSFWContract(t *testing.T) {
 		}
 	}
 
-	// A value that is not a boolean is rejected, the same as cover_to_jpg.
 	setSetting(t, env, key, `"yes"`, http.StatusBadRequest)
 
 	setSetting(t, env, key, "true", http.StatusNoContent)
@@ -155,12 +141,10 @@ func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithAppLogDir(logDir, "app"))
 	const key = "log_retention_days"
 
-	// Nothing stored and nothing configured: the built-in window applies.
 	if got := settingValue[float64](t, env, key); int(got) != logutil.DefaultRetentionDays {
 		t.Fatalf("default log_retention_days = %v, want %d", got, logutil.DefaultRetentionDays)
 	}
 
-	// Zero is the meaningful end of the range: it is how deletion is turned off.
 	for _, want := range []int{0, 7, apitest.MaxLogRetentionDays} {
 		setSetting(t, env, key, strconv.Itoa(want), http.StatusNoContent)
 		if got := settingValue[float64](t, env, key); int(got) != want {
@@ -172,7 +156,6 @@ func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 		setSetting(t, env, key, body, http.StatusBadRequest)
 	}
 
-	// The rejected values left the last accepted one in place.
 	if got := settingValue[float64](t, env, key); int(got) != apitest.MaxLogRetentionDays {
 		t.Fatalf("log_retention_days after rejected writes = %v, want %d", got, apitest.MaxLogRetentionDays)
 	}
@@ -192,7 +175,6 @@ func TestAPISettingLogRetentionAppliesWithoutRestart(t *testing.T) {
 
 	setSetting(t, env, "log_retention_days", "0", http.StatusNoContent)
 
-	// The app logger is the writer the running server actually holds.
 	writer := logutil.NewDailyFileWriter(env.App.Conf().Logger.LogFile)
 	t.Cleanup(func() { _ = writer.Close() })
 

@@ -21,7 +21,6 @@ func TestAPISourceAssetContract(t *testing.T) {
 	sourceID := env.CurrentSourceID(t, created.Meta.ID)
 	asset := func(name string) string { return apitest.AssetURL(created.Meta.ID, sourceID, name) }
 
-	// Nothing has been placed under assets/ yet.
 	rec := env.Get(asset("img-0001.png"))
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 
@@ -35,22 +34,14 @@ func TestAPISourceAssetContract(t *testing.T) {
 		t.Fatalf("asset bytes = %q, want %q", rec.Body.Bytes(), pngBytes)
 	}
 
-	// The asset is streamed rather than buffered, so the length has to be
-	// declared from the file's own size instead of the written body.
 	if got := rec.Header().Get("Content-Length"); got != strconv.Itoa(len(pngBytes)) {
 		t.Fatalf("asset Content-Length = %q, want %d", got, len(pngBytes))
 	}
 
-	// An asset can be replaced or removed while its URL stays the same, so the
-	// client has to ask every time. This env leaves protect_read off, so the
-	// response is still shared-cacheable; TestCacheVisibilityFollowsTheTokenGate
-	// covers the protected case.
 	if got := rec.Header().Get("Cache-Control"); got != "public, no-cache" {
 		t.Fatalf("asset Cache-Control = %q, want public, no-cache", got)
 	}
 
-	// The reader fetches every illustration on a chapter, so a revalidating
-	// request must be answerable without resending the bytes.
 	etag := rec.Header().Get("ETag")
 	if etag == "" {
 		t.Fatal("asset response carries no ETag")
@@ -61,7 +52,6 @@ func TestAPISourceAssetContract(t *testing.T) {
 		t.Fatalf("304 response body = %q, want empty", rec.Body.String())
 	}
 
-	// Each stored extension keeps its own content type.
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "img-0002.webp", []byte("fake webp bytes"))
 	rec = env.Get(asset("img-0002.webp"))
 	apitest.AssertStatus(t, rec, http.StatusOK)
@@ -99,13 +89,11 @@ func TestAPISourceAssetContract(t *testing.T) {
 	}
 	apitest.AssertContentType(t, rec, "image/png")
 
-	// A missing book or source is a 404, not a 500.
 	rec = env.Get(apitest.AssetURL("no-such-book", sourceID, "img-0001.png"))
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 	rec = env.Get(apitest.AssetURL(created.Meta.ID, "no-such-source", "img-0001.png"))
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 
-	// POST and PATCH still have no meaning on an asset; PUT and DELETE do.
 	for _, method := range []string{http.MethodPost, http.MethodPatch} {
 		rec = env.Request(method, asset("img-0001.png"), nil)
 		if rec.Code != http.StatusMethodNotAllowed {
@@ -120,7 +108,6 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 	sourceID := env.CurrentSourceID(t, created.Meta.ID)
 	asset := func(name string) string { return apitest.AssetURL(created.Meta.ID, sourceID, name) }
 
-	// Uploading creates the directory and the file.
 	pngBytes := []byte("fake png bytes")
 	rec := env.Put(asset("img-0001.png"), bytes.NewReader(pngBytes))
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
@@ -131,7 +118,6 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 		t.Fatalf("stored asset = %q, want %q", rec.Body.Bytes(), pngBytes)
 	}
 
-	// Uploading again under the same name replaces it.
 	replaced := []byte("replacement bytes")
 	rec = env.Put(asset("img-0001.png"), bytes.NewReader(replaced))
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
@@ -140,19 +126,14 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 		t.Fatalf("replaced asset = %q, want %q", rec.Body.Bytes(), replaced)
 	}
 
-	// The name is validated on the way in exactly as it is on the way out, so
-	// a file the read path could never serve cannot be written either.
 	for _, assetName := range []string{"..%2fescaped.png", ".hidden.png", "notes.txt", "img-0002"} {
 		rec = env.Put(asset(assetName), bytes.NewReader(pngBytes))
 		apitest.AssertStatus(t, rec, http.StatusBadRequest)
 	}
 
-	// Oversized uploads are refused rather than spooled.
 	rec = env.Put(asset("img-0003.png"), bytes.NewReader(bytes.Repeat([]byte{'x'}, apitest.MaxBinaryUploadSize+1)))
 	apitest.AssertStatus(t, rec, http.StatusRequestEntityTooLarge)
 
-	// Deleting removes it; deleting again reports the miss rather than
-	// succeeding quietly, since an asset is addressed by name.
 	rec = env.Delete(asset("img-0001.png"))
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
 	rec = env.Get(asset("img-0001.png"))
@@ -180,8 +161,6 @@ func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 		t.Fatalf("asset Cache-Control = %q, want it to force revalidation", got)
 	}
 
-	// A cover may be cached for a day because its URL gains a cache-busting key
-	// when it changes; an asset URL never changes, hence the difference.
 	coverURL := apitest.BookURL(created.Meta.ID, "cover")
 	rec = env.PutContent(coverURL, "image/png", strings.NewReader("cover"))
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
@@ -190,8 +169,6 @@ func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 		t.Fatalf("cover Cache-Control = %q, want it to stay cacheable", got)
 	}
 
-	// Replacing changes the validator, so a client holding the old one is told
-	// to take the new bytes rather than being answered 304.
 	rec = env.Put(url, strings.NewReader("second bytes, longer"))
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
@@ -201,8 +178,6 @@ func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 		t.Fatalf("revalidated asset = %q, want the replacement", got)
 	}
 
-	// And once it is deleted, the same conditional request reports the miss
-	// rather than confirming a copy that is no longer there.
 	rec = env.Delete(url)
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
 
@@ -220,9 +195,6 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
 
-	// A name is served exactly as addressed. Trimming it would make " lead.png"
-	// unreachable and, with both files present, quietly answer with the other
-	// one - the same failure the double-decode used to cause.
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, " lead.png", []byte("space prefixed"))
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "lead.png", []byte("plain"))
 
@@ -237,10 +209,6 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 		}
 	}
 
-	// An encoded separator survives routing: the mux hands these to the handler
-	// as one path value that decodes to "../source.txt". Since source.txt really
-	// does sit one level above assets/, they name a file that exists, so 400 is
-	// evidence the name was refused rather than merely unresolvable.
 	for _, assetName := range []string{
 		"..%2fsource.txt",
 		"..%2Fsource.txt",
@@ -262,8 +230,6 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 	}
 }
 
-// readZipBundle decodes a returned assets.zip into a name→bytes map, failing the
-// test if the archive is malformed or carries a duplicate entry.
 func readZipBundle(t *testing.T, body []byte) map[string][]byte {
 	t.Helper()
 
@@ -279,7 +245,7 @@ func readZipBundle(t *testing.T, body []byte) map[string][]byte {
 			t.Fatalf("open zip entry %q: %v", file.Name, err)
 		}
 		data, err := io.ReadAll(rc)
-		rc.Close() //nolint:errcheck // read already succeeded; nothing to salvage
+		rc.Close()
 		if err != nil {
 			t.Fatalf("read zip entry %q: %v", file.Name, err)
 		}
@@ -307,9 +273,6 @@ func TestAPISourceAssetsBundleContract(t *testing.T) {
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", png)
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "img-0002.webp", webp)
 
-	// A named subset is packed; a name with no file behind it is skipped rather
-	// than failing the request; and the entry names are flat - no assets/ prefix
-	// and no separator - so the client writes each straight back under its name.
 	rec := env.Get(apitest.AssetsBundleURL(created.Meta.ID, sourceID, "img-0001.png", "img-0002.webp", "missing.png"))
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	apitest.AssertContentType(t, rec, "application/zip")
@@ -325,8 +288,6 @@ func TestAPISourceAssetsBundleContract(t *testing.T) {
 		t.Fatalf("bundle img-0002.webp = %q, want %q", entries["img-0002.webp"], webp)
 	}
 
-	// With no names given the whole assets/ directory is packed, so a client that
-	// wants everything need not enumerate it first.
 	rec = env.Get(apitest.AssetsBundleURL(created.Meta.ID, sourceID))
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	entries = readZipBundle(t, rec.Body.Bytes())
@@ -334,7 +295,6 @@ func TestAPISourceAssetsBundleContract(t *testing.T) {
 		t.Fatalf("whole-directory bundle = %v, want both assets", got)
 	}
 
-	// Only GET (and the HEAD it implies) has meaning here; the archive is a read.
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
 		rec = env.Request(method, apitest.AssetsBundleURL(created.Meta.ID, sourceID), nil)
 		if rec.Code != http.StatusMethodNotAllowed {
@@ -342,7 +302,6 @@ func TestAPISourceAssetsBundleContract(t *testing.T) {
 		}
 	}
 
-	// A missing book or source is a 404, not a 500 or an empty archive.
 	rec = env.Get(apitest.AssetsBundleURL("no-such-book", sourceID, "img-0001.png"))
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 	rec = env.Get(apitest.AssetsBundleURL(created.Meta.ID, "no-such-source", "img-0001.png"))
@@ -356,8 +315,7 @@ func TestAPISourceAssetsBundleFollowsTheTokenGate(t *testing.T) {
 	security.ProtectRead = true
 	env := apitest.New(t, apitest.WithSecurity(security))
 	created := apitest.ImportTextBook(t, env, "Protected Bundle", "", "art.md", "body")
-	// Under protect_read even reading the source list needs the token, so take
-	// the source id from the import result rather than a tokenless GET.
+
 	sourceID := created.Meta.CurrentSource
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("bytes"))
 	url := apitest.AssetsBundleURL(created.Meta.ID, sourceID, "img-0001.png")
@@ -383,10 +341,6 @@ func TestAPISourceAssetsBundleRejectsUnsafeNames(t *testing.T) {
 	sourceID := env.CurrentSourceID(t, created.Meta.ID)
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
 
-	// source.txt, book.json and friends really do sit above assets/, so a 400
-	// proves the name was refused rather than merely missing its target. The
-	// valid img-0001.png alongside each unsafe name must not smuggle a 200 or a
-	// partial archive carrying its bytes.
 	for _, name := range []string{
 		"../source.txt",
 		"../../book.json",
