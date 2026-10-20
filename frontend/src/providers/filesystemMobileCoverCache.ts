@@ -10,21 +10,15 @@ import {
   writeBinaryFile
 } from './mobileCacheFs';
 
-// Persistent cover cache for books that have not been downloaded for offline
-// reading. Downloaded books already have their covers stored inside the book
-// directory by FilesystemMobileBookCache; this cache lives beside it:
+// Persistent cover cache for books not downloaded offline (downloaded books keep
+// theirs in the book directory). The scope segment prevents cross-shelf
+// collisions (cacheScope.ts), and removeCacheScope's rmdir sweeps it too:
 //
 //   plainshelf-cache/scopes/<enc(scopeKey)>/covers/<enc(bookId)>
 //
-// The scope segment prevents cross-shelf collisions (see cacheScope.ts).
-// removeCacheScope's recursive rmdir of the scope directory sweeps this
-// directory up together with the downloads.
-//
-// The file is the image itself. An earlier version wrapped it as
-// {mime, data: base64} JSON, which cost about a third of the space again —
-// base64 needs no JSON escaping, so the wrapper was cheap but the encoding was
-// not. The type is recovered by looking at the leading bytes instead of being
-// stored, which keeps this one file per cover and one read per lookup.
+// The file is the image itself: the old {mime, data: base64} JSON cost about a
+// third more space. The type is sniffed from the leading bytes, keeping one file
+// and one read per cover.
 
 function coverPath(bookId: string): string {
   return `${scopeDir(currentCacheScopeKey())}/covers/${encode(bookId)}`;

@@ -1,14 +1,11 @@
-// The on-device reading-progress document used by browser and Wails desktop
-// clients (the standalone reader included). Android keeps its existing per-book
-// progress.json files because they are already app-private and scoped per
-// connection.
+// The on-device reading-progress document for browser and Wails desktop clients,
+// the standalone reader included. Android keeps its per-book progress.json files,
+// which are already app-private and scoped per connection.
 //
-// Every entry carries the wall-clock time it was written so that the desktop app
-// and the standalone reader — two processes sharing one reading_progress.json —
-// can reconcile concurrent writes newest-wins per book instead of by namespace.
-// A reset is a timestamped tombstone (offset 0), not a deletion, so it too wins
-// by recency rather than being resurrected by an older advance. Callers still
-// deal only in plain offsets; the timestamp is internal to this module.
+// Entries carry their write time so the desktop app and the standalone reader,
+// sharing one reading_progress.json, reconcile newest-wins per book rather than
+// by namespace. A reset is a timestamped tombstone (offset 0) so an older
+// advance cannot resurrect it. Callers see plain offsets only.
 
 // Bumped from 1 to 2 for the timestamped shape. A document of any other version
 // is treated as absent (see parse). This file is device-local state, outside the

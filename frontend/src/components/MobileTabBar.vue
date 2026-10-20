@@ -19,17 +19,14 @@ import Icon from '@/components/Icon.vue';
 import type { IconName } from '@/components/icons/registry';
 import { useI18n } from '@/i18n';
 
-// The mobile shell's primary navigation. It replaces the off-canvas drawer as
-// the way to reach the frequent destinations, leaving the drawer for shelf
-// switching and the folder tree (MainLayout hides the redundant nav sections
-// on the mobile runtime).
-//
-// Active state is computed from the current path rather than RouterLink's
-// built-in classes: `library` (/books) and `book-detail` (/books/:id) are
-// sibling route records, so RouterLink's record-based matching would light the
-// Library tab on neither the list nor a book. `exact` names a leaf route that
-// must match on its own path only; the Library tab instead owns the whole
-// /books subtree (list, a book, the maintenance filters that redirect into it).
+// The mobile shell's primary navigation, replacing the off-canvas drawer for
+// frequent destinations; the drawer keeps shelf switching and the folder tree
+// (MainLayout hides the redundant nav on mobile). Active state comes from the
+// path, not RouterLink classes: `library` (/books) and `book-detail`
+// (/books/:id) are sibling records, so record matching would light the Library
+// tab on neither. `exact` names a leaf that matches its own path only; the
+// Library tab owns the whole /books subtree (list, a book, the maintenance
+// filters that redirect into it).
 interface MobileTab {
   to: string;
   icon: IconName;

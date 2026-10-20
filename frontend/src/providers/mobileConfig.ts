@@ -6,17 +6,13 @@ import { SecureStorage } from '@/providers/secureStorage';
 import { shelfSourceNeedsSecret, type ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 // Native (Capacitor) builds load a static bundle with no backend to inject the
-// server address, token, or selected shelf, so the device keeps its own list of
-// shelves: a phone can hold a couple of PlainShelf servers and a couple of
-// pCloud folders side by side and switch between them.
-//
-// Non-secret fields live in Capacitor Preferences as one JSON array; every
-// token is kept per entry in Android Keystore-backed storage, so no secret is
-// ever written into that array.
-//
-// A token is not what makes the app read-only — api/client.ts rejects every
-// mutation to a server or pCloud before it is sent. A server token is only
-// needed to read from a `protect_read` server. A local shelf has no token.
+// server address, token or shelf, so the device keeps its own shelf list: a few
+// PlainShelf servers and pCloud folders side by side. Non-secret fields are one
+// JSON array in Capacitor Preferences; each token is stored per entry in
+// Android Keystore-backed storage, never in that array. A token does not make
+// the app read-only (api/client.ts rejects every mutation to a server or pCloud
+// before sending); a server token is only needed for a `protect_read` server,
+// and a local shelf has none.
 const KEY_ENTRIES = 'plainshelf.mobile.shelves';
 const KEY_ACTIVE_ENTRY_ID = 'plainshelf.mobile.activeShelfId';
 const SECRET_KEY_PREFIX = 'plainshelf.mobile.secret.';

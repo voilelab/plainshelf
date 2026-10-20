@@ -191,12 +191,12 @@ Read the relevant section before working in that area. Add entries according to
   and server build, so run it rather than waiting on the nightly.
   (`docs/development/testing-levels.md`)
 - **E2E server ports are per worker, not per kernel:** `getFreePort()` takes a
-  port from a band derived from `TEST_PARALLEL_INDEX` instead of asking for port
-  0. Asking for 0 lets two parallel workers be handed the same number, and the
-     loser then finds a *healthy* `/health` on it (the other worker's server,
-     over the other worker's shelf), so it attaches and both specs mutate one
-     shelf. Verified by pinning one start onto a port a second `plainshelf-srv`
-     already held. (`e2e/tests/support/server.ts`)
+  port from a band derived from `TEST_PARALLEL_INDEX` instead of asking for
+  port 0. Asking for 0 lets two parallel workers be handed the same number, and
+  the loser then finds a *healthy* `/health` on it (the other worker's server,
+  over the other worker's shelf), so it attaches and both specs mutate one
+  shelf. Verified by pinning one start onto a port a second `plainshelf-srv`
+  already held. (`e2e/tests/support/server.ts`)
 
 ## Filesystem and API
 
