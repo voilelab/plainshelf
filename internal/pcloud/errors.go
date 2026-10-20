@@ -40,8 +40,7 @@ type Error struct {
 
 func newTransportError(method string, err error) *Error {
 	// A url.Error quotes the URL, and a download link is a credential.
-	var uerr *url.Error
-	if errors.As(err, &uerr) {
+	if uerr, ok := errors.AsType[*url.Error](err); ok {
 		err = uerr.Err
 	}
 	return &Error{Method: method, Message: err.Error(), transport: true, cause: err}

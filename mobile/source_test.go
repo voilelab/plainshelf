@@ -49,7 +49,7 @@ func serveDAVShelf(t *testing.T) (url, token string) {
 	s.Close()
 
 	exporter, err := server.NewApp(&server.AppConf{
-		Shelves:   []*shelf.ShelfConfWithID{{ID: "default_shelf", ShelfConf: shelf.ShelfConf{LibRoot: libRoot, ReadOnly: true}}},
+		Shelves:   []*shelf.ShelfConfWithID{{ID: "default_shelf", LibRoot: libRoot, ReadOnly: true}},
 		StorePath: filepath.Join(dir, "store"),
 		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
 	})

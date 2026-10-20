@@ -57,7 +57,7 @@ func davExport(t *testing.T) (url, token string) {
 	t.Helper()
 	dir := t.TempDir()
 	exporter, err := server.NewApp(&server.AppConf{
-		Shelves:   []*shelf.ShelfConfWithID{{ID: "default_shelf", ShelfConf: shelf.ShelfConf{LibRoot: filepath.Join(dir, "shelf")}}},
+		Shelves:   []*shelf.ShelfConfWithID{{ID: "default_shelf", LibRoot: filepath.Join(dir, "shelf")}},
 		StorePath: filepath.Join(dir, "store"),
 		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
 	})
@@ -254,7 +254,7 @@ func TestShelvesWithVirtualEntryStillOpenInAnOlderBuild(t *testing.T) {
 	}
 	var confs []*shelf.ShelfConfWithID
 	for _, e := range legacy.Shelves {
-		confs = append(confs, &shelf.ShelfConfWithID{ID: e.ID, Name: e.Name, ShelfConf: shelf.ShelfConf{LibRoot: e.LibRoot}})
+		confs = append(confs, &shelf.ShelfConfWithID{ID: e.ID, Name: e.Name, LibRoot: e.LibRoot})
 	}
 	if len(confs) != 1 || confs[0].ID != "local" {
 		t.Fatalf("an older build reads shelves %+v, want the local one", legacy.Shelves)

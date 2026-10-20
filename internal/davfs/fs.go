@@ -12,6 +12,7 @@ import (
 	"encoding/xml"
 	"io"
 	"io/fs"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -241,9 +242,7 @@ func (f *FS) send(ctx context.Context, method string, target *url.URL, header ht
 	if err != nil {
 		return nil, err
 	}
-	for key, values := range header {
-		req.Header[key] = values
-	}
+	maps.Copy(req.Header, header)
 	if auth != "" {
 		req.Header.Set("Authorization", auth)
 	}

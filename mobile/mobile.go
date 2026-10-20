@@ -569,13 +569,11 @@ func (rt *instance) find(id string) (int, error) {
 
 func shelfConf(dataDir string, e shelfEntry) shelf.ShelfConfWithID {
 	return shelf.ShelfConfWithID{
-		ID:   e.ID,
-		Name: e.Name,
-		ShelfConf: shelf.ShelfConf{
-			LibRoot: libRootOf(dataDir, e.ID),
-			// The app's private directory has one process; flock guards nothing.
-			LockMode: "none",
-		},
+		ID:      e.ID,
+		Name:    e.Name,
+		LibRoot: libRootOf(dataDir, e.ID),
+		// The app's private directory has one process; flock guards nothing.
+		LockMode: "none",
 	}
 }
 

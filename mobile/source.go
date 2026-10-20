@@ -88,7 +88,7 @@ func OpenSourceShelf(id, name, sourceType, rawURL, username, entryID string, sho
 	if secret != "" {
 		src.Credential = "host:" + entryID
 	}
-	conf := shelf.ShelfConfWithID{ID: id, Name: name, ShelfConf: shelf.ShelfConf{Source: src}}
+	conf := shelf.ShelfConfWithID{ID: id, Name: name, Source: src}
 	next := virtualShelf{
 		scope: src.Scope(),
 		conf:  conf,
