@@ -4,7 +4,8 @@ import { addReadingSeconds } from '@/storage/readingStats';
 
 const TICK_INTERVAL_MS = 45_000;
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-const MAX_REPORTABLE_SECONDS = 68;
+const TIMER_COALESCING_TOLERANCE_MS = 23_000;
+const MAX_REPORTABLE_SECONDS = (TICK_INTERVAL_MS + TIMER_COALESCING_TOLERANCE_MS) / 1000;
 
 // CSSOM View scrolling events do not bubble from elements; document listeners need capture to observe descendant scrolling (https://drafts.csswg.org/cssom-view/#scrolling-events).
 const INTERACTION_EVENT_NAMES: Array<keyof DocumentEventMap> = ['scroll', 'keydown', 'pointerdown'];

@@ -56,6 +56,22 @@ describe('useReadingHeartbeat', () => {
     scope.stop();
   });
 
+  it.each([[60_000, 60], [90_000, 68]])(
+    'reports a delayed %i ms tick with a %i second cap',
+    (elapsedMs, reportedSeconds) => {
+      const { scope, heartbeat } = setupHeartbeat(() => 'book-a');
+      heartbeat.start();
+      vi.setSystemTime(Date.now() + elapsedMs - 45_000);
+      vi.advanceTimersByTime(45_000);
+
+      expect(addReadingSecondsMock).toHaveBeenCalledTimes(1);
+      expect(addReadingSecondsMock).toHaveBeenCalledWith('book-a', reportedSeconds, expect.any(String));
+
+      heartbeat.stop();
+      scope.stop();
+    }
+  );
+
   it('attributes the pre-change stretch to the old book when the reader switches books', async () => {
     const id = ref('book-a');
     const { scope, heartbeat } = setupHeartbeat(() => id.value);
