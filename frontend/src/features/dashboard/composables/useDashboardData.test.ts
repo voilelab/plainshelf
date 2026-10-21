@@ -85,10 +85,6 @@ describe('useDashboardData', () => {
     const store = useDashboardData();
     await store.fetchDashboardData();
 
-    // An empty shelf is a clean, finished load: the page shows its guided empty
-    // state. It must be told apart from a shelf still initializing (503, tested
-    // next), where books is likewise empty but loading and shelfInitializing
-    // stay true — so a cold start never renders the empty-shelf guidance.
     expect(store.books.value).toHaveLength(0);
     expect(store.loading.value).toBe(false);
     expect(store.shelfInitializing.value).toBe(false);
@@ -103,8 +99,6 @@ describe('useDashboardData', () => {
     const store = useDashboardData();
     await store.fetchDashboardData();
 
-    // The sidebar retries through the initial scan, so the dashboard must not
-    // strand on an error the shelf resolves on its own.
     expect(store.error.value).toBe('');
     expect(store.loading.value).toBe(true);
     expect(store.shelfInitializing.value).toBe(true);
@@ -162,8 +156,6 @@ describe('useDashboardData', () => {
     const pending = store?.fetchDashboardData();
     app.unmount();
 
-    // The request was still in flight at unmount, so cancelling the (absent)
-    // timer is not enough: the rejection must not schedule a new one.
     rejectFirst?.(shelfInitializing());
     await pending;
     await vi.runAllTimersAsync();
@@ -189,7 +181,6 @@ describe('useDashboardData', () => {
       await store.fetchDashboardData();
 
       expect(store.recentReading.value.map((item) => item.book.id)).toEqual(['b2', 'b1']);
-      // 50/200 -> 25%. b1 has an entry at offset 0, so it is a real 0%, not "no bar".
       expect(store.recentReading.value[0]).toMatchObject({ percent: 25, lastReadAt: 1000 });
       expect(store.recentReading.value[1]).toMatchObject({ percent: 0, lastReadAt: 500 });
     });
@@ -207,8 +198,6 @@ describe('useDashboardData', () => {
     });
 
     it('shows the card without a progress bar or time when there is no local entry', async () => {
-      // The mobile shell keeps progress elsewhere, so getLocalReadingEntry is null
-      // even though char_count is known: the card must not fall back to a false 0%.
       listBooks.mockResolvedValue(page([makeBook({ id: 'b1', char_count: 100 })]));
       getReadHistoryIDs.mockResolvedValue(['b1']);
       getLocalReadingEntry.mockResolvedValue(null);
@@ -233,7 +222,6 @@ describe('useDashboardData', () => {
     it('drops history ids with no matching book and caps the list at six', async () => {
       const books = Array.from({ length: 8 }, (_, i) => makeBook({ id: `b${i}`, char_count: 100 }));
       listBooks.mockResolvedValue(page(books));
-      // "ghost" was read but no longer exists; the rest exceed the cap of six.
       getReadHistoryIDs.mockResolvedValue([
         'ghost',
         'b0',
@@ -285,7 +273,6 @@ describe('useDashboardData', () => {
       getLocalReadingEntries.mockResolvedValue({
         started: { offset: 40, at: 10 },
         finished: { offset: 100, at: 20 }
-        // "untouched" has no entry at all.
       });
 
       const store = useDashboardData();
@@ -312,7 +299,7 @@ describe('useDashboardData', () => {
       );
       getLocalReadingEntries.mockResolvedValue({
         b1: { offset: 100, at: 10 },
-        b2: { offset: 250, at: 20 } // past the end still clamps to 100%.
+        b2: { offset: 250, at: 20 }
       });
 
       const store = useDashboardData();
@@ -325,25 +312,21 @@ describe('useDashboardData', () => {
       listBooks.mockResolvedValue(
         page([
           makeBook({ id: 'reset', char_count: 100 }),
-          makeBook({ id: 'nolen' }) // char_count missing -> percent is unknown.
+          makeBook({ id: 'nolen' })
         ])
       );
       getLocalReadingEntries.mockResolvedValue({
-        reset: { offset: 0, at: 30 }, // tombstone: opened, then reset to the start.
+        reset: { offset: 0, at: 30 },
         nolen: { offset: 5, at: 40 }
       });
 
       const store = useDashboardData();
       await store.fetchDashboardData();
 
-      // The reset book is not in progress; the unknown-length book has real
-      // progress and no way to prove it is finished, so it stays counted.
       expect(store.inProgress.value).toBe(1);
     });
 
     it('still counts a book that is a few characters short of the end', async () => {
-      // 199/200 rounds to 100% for display, but the book is not finished; the
-      // count must compare the offset to the length unrounded.
       listBooks.mockResolvedValue(page([makeBook({ id: 'almost', char_count: 200 })]));
       getLocalReadingEntries.mockResolvedValue({ almost: { offset: 199, at: 10 } });
 
@@ -382,7 +365,6 @@ describe('useDashboardData', () => {
       const store = useDashboardData();
       await store.fetchDashboardData();
 
-      // Newest first, and the seventh-oldest ("oldest") is dropped by the cap.
       expect(store.recentlyAdded.value.map((book) => book.id)).toEqual([
         'newest',
         'middle',
@@ -404,7 +386,6 @@ describe('useDashboardData', () => {
       const store = useDashboardData();
       await store.fetchDashboardData();
 
-      // The only dated book leads; the two undated books keep the listing order.
       expect(store.recentlyAdded.value.map((book) => book.id)).toEqual([
         'dated',
         'no-date',
@@ -425,7 +406,6 @@ describe('useDashboardData', () => {
       getLocalReadingEntries.mockResolvedValue({
         started: { offset: 40, at: 10 },
         reset: { offset: 0, at: 20 }
-        // "untouched" has no entry.
       });
 
       const store = useDashboardData();
@@ -449,7 +429,6 @@ describe('useDashboardData', () => {
     expect(store.shelfInitializing.value).toBe(false);
     expect(store.books.value).toHaveLength(1);
 
-    // The cancelled retry must not fire a third request afterwards.
     await vi.runAllTimersAsync();
     expect(listBooks).toHaveBeenCalledTimes(2);
   });

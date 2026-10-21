@@ -36,7 +36,6 @@ export interface IdentifierRow {
   value: string;
 }
 
-// Edited in place, so several edits in one tick never read a stale copy.
 const rows = defineModel<IdentifierRow[]>({ required: true });
 
 const { t } = useI18n();

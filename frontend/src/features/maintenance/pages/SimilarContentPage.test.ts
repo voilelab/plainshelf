@@ -6,11 +6,6 @@ import type { SimilarBookPair, SimilarRelation } from '@/api/books';
 
 import { ref } from 'vue';
 
-// Hoisted so the module mocks below can close over the same spies. `writable`
-// is a real ref (assigned by the useWriteAccess mock) so the template unwraps
-// it. Write access is mocked at the composable rather than at useServerMode
-// because the page asks for all the ways the shelf can be read-only at once —
-// the server's mode, the shelf's own, and the client's write surface.
 const mocks = vi.hoisted(() => ({
   getSimilarBookPairs: vi.fn(),
   getFingerprintStatus: vi.fn(),
@@ -59,7 +54,6 @@ function pair(jaccard: number, relation: SimilarRelation = 'near_identical'): Si
   };
 }
 
-// One representative per tier, plus the truncated-25% subset the toggle targets.
 const truncatedSubset = pair(0.758, 'subset');
 const allPairs: SimilarBookPair[] = [
   pair(0.999, 'identical_after_normalize'),
@@ -97,8 +91,6 @@ function buttonByText(host: HTMLElement, text: string): HTMLButtonElement {
   return button as HTMLButtonElement;
 }
 
-// The confirmation dialog is portalled to document.body (reka DialogPortal), so
-// its buttons live outside the page host.
 function dialogButtonByText(text: string): HTMLButtonElement {
   const button = [...document.body.querySelectorAll('button')].find((el) => el.textContent?.trim() === text);
   if (!button) throw new Error(`no dialog button with text "${text}"`);
@@ -109,8 +101,6 @@ beforeEach(() => {
   setLocale('en');
   mocks.getSimilarBookPairs.mockReset().mockResolvedValue(allPairs);
   mocks.getFingerprintStatus.mockReset().mockResolvedValue(NO_MISSING);
-  // The card join and per-card source lookups are best-effort; empty results
-  // keep these page-level tests focused on filtering, not card content.
   mocks.listBooks.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 0 });
   mocks.listSources.mockReset().mockResolvedValue([]);
   mocks.startFingerprintSources.mockReset().mockResolvedValue('chain-1');
@@ -133,7 +123,6 @@ describe('SimilarContentPage', () => {
     expect(mocks.getSimilarBookPairs).toHaveBeenCalledTimes(1);
     expect(mocks.getSimilarBookPairs).toHaveBeenCalledWith(0.15);
 
-    // Default tier is "same book" (J >= 0.45): the 0.292 pair is filtered out.
     expect(rows(host)).toHaveLength(4);
   });
 
@@ -154,7 +143,6 @@ describe('SimilarContentPage', () => {
     const host = mount();
     await flush();
 
-    // Strictest tier hides the 0.758 subset pair entirely.
     buttonByText(host, 'Nearly identical').click();
     await flush();
     expect(host.textContent).not.toContain(truncatedSubset.a);
@@ -177,8 +165,6 @@ describe('SimilarContentPage', () => {
     const bar = host.querySelector('.similar-fingerprint-bar');
     expect(bar).not.toBeNull();
     expect(bar!.textContent).toContain('All 10 books are fingerprinted');
-    // The incremental build button is gone once nothing is missing, but force
-    // stays: a stat comparison can miss a change that leaves nothing "missing".
     expect(
       [...host.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'Build fingerprints')
     ).toBe(false);
@@ -211,12 +197,9 @@ describe('SimilarContentPage', () => {
     buttonByText(host, 'Force rebuild').click();
     await flush();
 
-    // The click only opened the dialog; the destructive-feeling sweep has not
-    // started, so a stray click costs nothing.
     expect(document.body.textContent).toContain('Rebuild every fingerprint?');
     expect(mocks.startFingerprintSources).not.toHaveBeenCalled();
 
-    // Cancelling dismisses it and still runs nothing.
     dialogButtonByText('Cancel').click();
     await flush();
     expect(mocks.startFingerprintSources).not.toHaveBeenCalled();
@@ -246,8 +229,6 @@ describe('SimilarContentPage', () => {
     await flush();
 
     expect(mocks.startFingerprintSources).toHaveBeenCalledWith(true);
-    // A benign notice, and crucially no chain is polled and no "Rebuilding…"
-    // label — the forced rebuild did not happen and must not claim it did.
     expect(host.querySelector('.similar-fingerprint-note')?.textContent).toContain('already running');
     expect(mocks.getTaskChain).not.toHaveBeenCalled();
     expect([...host.querySelectorAll('button')].some((b) => b.textContent?.includes('Rebuilding'))).toBe(false);

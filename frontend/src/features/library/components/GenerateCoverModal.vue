@@ -185,7 +185,6 @@ function getBgConfig(ctx: CanvasRenderingContext2D, style: BgStyle): BgConfig {
         paint(c) {
           c.fillStyle = '#f5f0e8';
           c.fillRect(0, 0, w, h);
-          // subtle texture lines
           c.strokeStyle = 'rgba(120,90,60,0.06)';
           c.lineWidth = 1;
           for (let y = 20; y < h; y += 28) {
@@ -225,7 +224,6 @@ function getBgConfig(ctx: CanvasRenderingContext2D, style: BgStyle): BgConfig {
         paint(c) {
           c.fillStyle = '#ffffff';
           c.fillRect(0, 0, w, h);
-          // subtle top/bottom accent bars
           c.fillStyle = '#e8eef5';
           c.fillRect(0, 0, w, 6);
           c.fillRect(0, h - 6, w, 6);
@@ -314,7 +312,6 @@ function renderCover(): void {
 
   switch (layout.value) {
     case 'top-bottom': {
-      // Title near top
       ctx.font = `bold 32px 'Segoe UI', 'Avenir Next', sans-serif`;
       ctx.fillStyle = cfg.textColor;
       const titleLines = wrapText(ctx, title, maxW);
@@ -323,7 +320,6 @@ function renderCover(): void {
       const titleY = 80;
       drawTextBlock(ctx, titleLines, w / 2, titleY, titleLineH);
 
-      // Separator
       if (titleLines.length > 0) {
         const sepY = titleY + titleBlock + 18;
         ctx.strokeStyle = cfg.mutedColor;
@@ -334,7 +330,6 @@ function renderCover(): void {
         ctx.stroke();
       }
 
-      // Author near bottom
       if (author) {
         ctx.font = `18px 'Segoe UI', 'Avenir Next', sans-serif`;
         ctx.fillStyle = cfg.mutedColor;
@@ -394,7 +389,6 @@ function renderCover(): void {
       const titleY = h - botPad - (author ? 28 : 0) - titleBlock - 8;
       drawTextBlock(ctx, titleLines, leftPad, titleY, titleLineH);
 
-      // Top accent line
       ctx.strokeStyle = cfg.mutedColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -488,7 +482,6 @@ async function onSave(): Promise<void> {
   saveError.value = '';
 
   try {
-    // Render one final time to ensure latest state
     renderCover();
 
     const blob = await new Promise<Blob | null>((resolve) => {

@@ -5,11 +5,6 @@
       {{ writesEnabled ? t('dashboard.empty.description') : t('dashboard.empty.readOnlyDescription') }}
     </p>
     <div class="empty-shelf-actions">
-      <!-- The import flow only exists where the client can write the shelf. A
-           read-only mobile/pCloud client strips the import query and a
-           read-only server suppresses the modal, so on those surfaces the
-           button would navigate to an inert library; hide it and describe the
-           shelf as read-only instead. -->
       <RouterLink
         v-if="writesEnabled"
         class="button primary empty-shelf-import"
@@ -21,11 +16,6 @@
         {{ t('dashboard.empty.docs') }}
       </a>
     </div>
-    <!-- On the desktop the shelf is a real folder on this machine, so a
-         first-time user who has not imported anything can see exactly where to
-         drop files. The path is the button: clicking it reveals the folder in
-         the host file explorer. Absent off the desktop, where no such local
-         path exists. -->
     <p v-if="shelfPath" class="empty-shelf-path">
       <span class="empty-shelf-path-label">{{ t('dashboard.empty.pathLabel') }}</span>
       <button
@@ -51,9 +41,6 @@ const { t } = useI18n();
 const { writesEnabled } = useWriteAccess();
 const { selectedShelfID } = useShelvesStore();
 
-// The active shelf's real lib_root, resolved through the desktop provider.
-// Empty off the desktop (the host has no shelf-management capability there) and
-// while nothing is selected, which hides the path row entirely.
 const shelfPath = ref('');
 
 async function loadShelfPath(shelfID: string): Promise<void> {
@@ -64,7 +51,6 @@ async function loadShelfPath(shelfID: string): Promise<void> {
   }
   try {
     const details = await platform.shelves!.getShelfDetails(shelfID);
-    // The lookup is async; ignore a response for a shelf we have since left.
     if (selectedShelfID.value === shelfID) {
       shelfPath.value = details.path;
     }
@@ -83,13 +69,9 @@ async function onOpenShelfFolder(): Promise<void> {
   try {
     await platform.openShelfFolder(selectedShelfID.value);
   } catch {
-    // Best-effort: revealing the folder is a convenience, and the shelf
-    // settings panel is where a genuine shelf error is surfaced.
   }
 }
 
-// PlainShelf has no hosted documentation site; the guides live in the repo.
-// `HEAD` resolves to the default branch so the link never pins to a stale one.
 const GETTING_STARTED_URL = 'https://github.com/voilelab/plainshelf/blob/HEAD/docs/getting-started.md';
 </script>
 

@@ -15,10 +15,6 @@ const bookExtPattern = /\.(txt|md|epub)$/i;
 const epubExtPattern = /\.epub$/i;
 const txtExtPattern = /\.txt$/i;
 
-// 'cancelled' is deliberately distinct from 'failed': a book left untouched by an
-// abort must never read as an import error. It mirrors taskutil's
-// partially_completed, so a future server-side taskchain keeps the same mental
-// model.
 type ImportStatus = 'pending' | 'importing' | 'success' | 'failed' | 'cancelled';
 
 interface ImportFileState {
@@ -29,8 +25,6 @@ interface ImportFileState {
   createdId?: string;
 }
 
-// A single thing to import, independent of where its bytes come from. The upload
-// path adds the File payload; a host-path source (desktop) can add its own.
 export interface ImportUnit {
   filename: string;
   title: string;
@@ -40,15 +34,10 @@ interface FileImportUnit extends ImportUnit {
   file: File;
 }
 
-// The desktop equivalent of FileImportUnit: the bytes stay on disk and are
-// named by a host path the Wails binding imports, rather than an in-memory File.
 interface LocalPathImportUnit extends ImportUnit {
   localPath: string;
 }
 
-// Turns one unit into a created book id, or throws to fail that unit. Abort is
-// cooperative and only checked between units, so an executor may ignore the
-// signal; it is passed so an implementation that can bail out early may.
 type ImportExecutor<T extends ImportUnit = ImportUnit> = (
   unit: T,
   signal: AbortSignal
@@ -66,16 +55,11 @@ export interface ImportSubmitResult {
 interface ImportProgress {
   total: number;
   completed: number;
-  // 1-based ordinal of the book currently importing; falls back to the completed
-  // count when nothing is in flight.
   current: number;
   filename: string;
   percentage: number;
 }
 
-// A just-imported TXT whose text reads as chaptered, offered to the user as a
-// one-click conversion. `content` is kept so accepting the offer does not fetch
-// the source a second time.
 interface ChapterConversionSuggestion {
   bookId: string;
   chapters: number;
@@ -95,10 +79,7 @@ export function useImportBook() {
   const chapterConversionError = ref('');
 
   let controller: AbortController | null = null;
-  // Bumped whenever the suggestion is cleared (a new import, a reset, or a modal
-  // close), so an in-flight chapter probe knows it has been superseded and must
-  // not repopulate the prompt for a book the user has moved on from.
-  let detectionGeneration = 0;
+  let chapterDetectionGeneration = 0;
 
   const progress = computed<ImportProgress>(() => {
     const total = files.value.length;
@@ -147,10 +128,6 @@ export function useImportBook() {
     clearChapterSuggestion();
   }
 
-  // Clears the retained import payload — the chosen files and their per-file
-  // states — without touching the result message. Accepting a detected-chapter
-  // prompt uses this so the now-empty file chooser cannot silently reimport the
-  // previous File while the success line stays visible.
   function clearImportSelection(): void {
     bookFiles.value = [];
     files.value = [];
@@ -167,22 +144,15 @@ export function useImportBook() {
   }
 
   function clearChapterSuggestion(): void {
-    // Invalidate any detection probe still awaiting content for a prior import.
-    detectionGeneration += 1;
+    chapterDetectionGeneration += 1;
     chapterSuggestion.value = null;
     convertingChapters.value = false;
     chapterConversionError.value = '';
   }
 
-  // Best-effort: after a single TXT imports cleanly, look at its text and, when
-  // it reads as chaptered, stage a one-click conversion. Anything else — a batch,
-  // a non-TXT file, a failed fetch, or text with no chapter lines — leaves no
-  // suggestion, so the import flow the user sees is unchanged.
   async function detectChapterConversion(result: ImportSubmitResult | null): Promise<void> {
     clearChapterSuggestion();
-    // Captured after the clear above bumped it, so any later clear (a reset, a
-    // modal close, a fresh import) makes this probe's own result stale.
-    const generation = detectionGeneration;
+    const generation = chapterDetectionGeneration;
     if (!result || result.total !== 1 || result.successCount !== 1 || !result.firstImportedId) {
       return;
     }
@@ -193,9 +163,7 @@ export function useImportBook() {
 
     try {
       const { content } = await getBookshelfProvider().getBookContent(result.firstImportedId);
-      if (generation !== detectionGeneration) {
-        // The modal was reset/closed (or another import started) while the
-        // content was in flight; do not resurrect a prompt for this book.
+      if (generation !== chapterDetectionGeneration) {
         return;
       }
       const chapters = countTextChapters(content);
@@ -203,13 +171,9 @@ export function useImportBook() {
         chapterSuggestion.value = { bookId: result.firstImportedId, chapters, content };
       }
     } catch {
-      // Detection is best-effort; a content-fetch failure just means no prompt.
     }
   }
 
-  // Accepts the staged suggestion: convert the detected TXT to Markdown, create
-  // it as a new source, and set it current — the original TXT source is kept so
-  // the user can still switch back to it.
   async function applyChapterConversion(): Promise<boolean> {
     const suggestion = chapterSuggestion.value;
     if (!suggestion || convertingChapters.value) {
@@ -276,8 +240,6 @@ export function useImportBook() {
 
       const isEpub = epubExtPattern.test(unit.filename);
       const created = await bookshelfWriter().importBook({
-        // An EPUB knows its own title; sending the one derived from the
-        // filename would only override it with something worse.
         title: isEpub ? '' : unit.title,
         folder,
         file: unit.file,
@@ -287,9 +249,6 @@ export function useImportBook() {
     };
   }
 
-  // Desktop host paths become units the same way files do. The blank-path filter
-  // that normalizeSelectedLocalPaths applies on the Go picker side is kept here
-  // too, so an empty or whitespace path never reaches the per-file binding.
   function buildLocalPathUnits(localPaths: string[]): LocalPathImportUnit[] {
     return localPaths
       .map((localPath) => localPath.trim())
@@ -300,12 +259,6 @@ export function useImportBook() {
       });
   }
 
-  // The desktop executor: one Wails call per file. Unlike the upload path it
-  // sends no per-batch EPUB strategy — the desktop import keeps the configured
-  // default the server applies. The single call cannot be interrupted mid-flight,
-  // so it ignores the signal; abort is enforced by the shared loop at the next
-  // file boundary. A per-file failure surfaces as the result's Error field, which
-  // becomes a thrown rejection here so the shared loop marks that unit failed.
   function createLocalPathExecutor(currentFolderPath?: string): ImportExecutor<LocalPathImportUnit> {
     const folder = normalizeImportFolderPath(currentFolderPath);
     return async (unit) => {
@@ -325,8 +278,6 @@ export function useImportBook() {
     const { total, successCount, failedCount, cancelled } = result;
 
     if (cancelled) {
-      // Reuse the partial-success wording; the untouched remainder are cancelled,
-      // not failed, so no "someFailed" banner unless a real failure occurred.
       success.value = successCount > 0
         ? t('libraryForms.importBook.results.partial', { count: successCount, total })
         : '';
@@ -354,9 +305,6 @@ export function useImportBook() {
     }
   }
 
-  // The source-agnostic core: it owns the progress accounting and the abort
-  // boundary, and knows nothing about File. Each unit carries its own executor
-  // via the passed-in strategy, so the desktop shell can reuse this loop.
   async function submit<T extends ImportUnit>(
     units: T[],
     executor: ImportExecutor<T>
@@ -387,8 +335,6 @@ export function useImportBook() {
     try {
       for (let index = 0; index < units.length; index += 1) {
         if (signal.aborted) {
-          // Abort stops at a file boundary: send no further requests and mark the
-          // untouched remainder cancelled rather than failed.
           for (let rest = index; rest < files.value.length; rest += 1) {
             files.value[rest] = { ...files.value[rest], status: 'cancelled', error: '' };
             cancelledCount += 1;
@@ -412,9 +358,6 @@ export function useImportBook() {
           }
         } catch (err) {
           if (signal.aborted) {
-            // The executor honoured the abort signal and bailed out of its
-            // in-flight work. That is this unit being cancelled, not a real
-            // import failure, so it must not count toward "someFailed".
             files.value[index] = { ...files.value[index], status: 'cancelled', error: '' };
             cancelledCount += 1;
           } else {
@@ -445,15 +388,10 @@ export function useImportBook() {
     }
   }
 
-  // The File-upload entry point the modal uses. It is one executor over the
-  // shared core, not a parallel implementation.
   async function submitFiles(currentFolderPath?: string): Promise<ImportSubmitResult | null> {
     return submit(buildFileUnits(bookFiles.value), createFileExecutor(currentFolderPath));
   }
 
-  // The desktop host-path entry point. Like submitFiles it is one executor over
-  // the shared core, so the desktop import shows the same N/M progress and abort
-  // as the upload path rather than a second implementation.
   async function submitLocalPaths(
     localPaths: string[],
     currentFolderPath?: string
@@ -461,8 +399,6 @@ export function useImportBook() {
     return submit(buildLocalPathUnits(localPaths), createLocalPathExecutor(currentFolderPath));
   }
 
-  // Cooperative abort: the in-flight file finishes, then the loop stops at the
-  // next boundary.
   function abort(): void {
     if (!submitting.value) {
       return;

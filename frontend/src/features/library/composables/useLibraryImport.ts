@@ -4,25 +4,17 @@ import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 
 interface LibraryImportOptions {
   readOnly: Ref<boolean>;
-  // ?import=1 owns the import modal's open state (useBooksRouteQuery.ts).
   isImportModalOpen: Ref<boolean>;
   openImportModalQuery: () => Promise<unknown>;
   closeImportModalQuery: () => Promise<unknown>;
   reloadAfterImport: () => Promise<void>;
 }
 
-/**
- * The library page's ways into an import: the file picker, a document-wide
- * drop, and the new-empty-book modal. Installs the drag/drop listeners for the
- * lifetime of the calling component.
- */
 export function useLibraryImport(options: LibraryImportOptions) {
   const { readOnly, isImportModalOpen, openImportModalQuery, closeImportModalQuery } = options;
 
   const isNewEmptyBookModalOpen = ref(false);
   const droppedFiles = ref<File[]>([]);
-  // Host paths from the desktop native picker, handed to the import modal to
-  // auto-start a per-file import. Empty on the web, where there is no picker.
   const desktopImportPaths = ref<string[]>([]);
 
   async function openImportFromFiles(): Promise<void> {
@@ -39,11 +31,6 @@ export function useLibraryImport(options: LibraryImportOptions) {
       desktopFiles = null;
     }
 
-    // On the desktop the native picker returns the chosen host paths — an empty
-    // array when the user cancelled. Hand them to the import modal, which
-    // auto-starts a per-file import showing the same N/M progress and abort as the
-    // browser upload. Off the desktop openLocalBookFiles is absent, so desktopFiles
-    // is null and the ordinary browser file-input modal opens instead.
     if (desktopFiles) {
       if (desktopFiles.length === 0) {
         return;
@@ -97,9 +84,6 @@ export function useLibraryImport(options: LibraryImportOptions) {
       return;
     }
 
-    // A drop is always a browser-File import, even on the desktop: clear any host
-    // paths so the modal seeds from the dropped files rather than auto-starting a
-    // stale picker selection.
     desktopImportPaths.value = [];
     droppedFiles.value = nextDroppedFiles;
     if (!isImportModalOpen.value) {

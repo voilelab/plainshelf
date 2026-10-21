@@ -10,12 +10,6 @@ import {
 import { facetEntries, filterValueLabel } from './filterLabels';
 import type { Book } from '@/types/book';
 
-// These are the words the filter chips and the library's empty state are made
-// of — "Cover: Unset" on the chip, "No books match Cover: Present." when that
-// condition empties the list. Two end-to-end cases used to read them off a real
-// page; the composition is pure, so it is checked here. Which condition gets
-// blamed is `apply.test.ts`; the chip row's own wiring is
-// `useBookFilters.test.ts`.
 
 function asDef(filter: unknown): AnyBookFilterDef {
   return filter as AnyBookFilterDef;

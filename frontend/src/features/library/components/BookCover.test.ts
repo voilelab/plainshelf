@@ -2,8 +2,6 @@
 import { createApp, defineComponent, h, nextTick, type App } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// BookCover only reaches the writer inside click handlers, but its cover image
-// and modals pull in providers and network paths that are irrelevant here.
 vi.mock('@/providers', () => ({
   bookshelfWriter: () => ({ uploadBookCover: vi.fn(), deleteBookCover: vi.fn() })
 }));
@@ -56,8 +54,6 @@ describe('BookCover options tray', () => {
   it('keeps the action buttons mounted while the tray is collapsed', () => {
     const host = mount();
 
-    // Collapsed by default: hidden, but the controls stay in the DOM so the
-    // tray behaves like the previous v-show (:unmount-on-hide="false").
     const collapsed = tray(host);
     expect(collapsed).not.toBeNull();
     expect(collapsed!.hasAttribute('hidden')).toBe(true);
@@ -68,8 +64,6 @@ describe('BookCover options tray', () => {
     const host = mount();
 
     toggle(host).click();
-    // reka's Presence settles the reveal across a macrotask (a queued tick
-    // then the mount-animation rAF), so flush past a real timer, not just ticks.
     await new Promise((resolve) => setTimeout(resolve));
     await nextTick();
 

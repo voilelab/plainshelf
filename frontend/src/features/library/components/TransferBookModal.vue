@@ -3,8 +3,6 @@
     <section class="panel transfer-modal">
       <h2>{{ t('bookDetail.transfer.title') }}</h2>
 
-      <!-- Once the chain is scheduled the form is replaced by its progress, the
-           same shape the empty-trash sweep uses. -->
       <template v-if="!started">
         <p class="transfer-intro">{{ t('bookDetail.transfer.description', { title: bookTitle }) }}</p>
 
@@ -95,10 +93,6 @@ import type { BookTransferMode } from '@/api/books';
 import type { TaskStatus } from '@/types/task';
 import { useI18n } from '@/i18n';
 
-// The progress-related props are driven by the useTaskChainProgress instance the
-// parent owns (through useBookActions): the modal renders the chain, it does not
-// poll it. `started` splits the form from the progress view; `busy` is the
-// running flag that keeps the dialog from being dismissed mid-transfer.
 const props = defineProps<{
   open: boolean;
   bookTitle: string;
@@ -124,21 +118,13 @@ const {
 } = useShelvesStore();
 
 const targetShelfId = ref('');
-// '/' is the labelled root option; it maps to '' (the shelf root) on submit.
 const targetFolder = ref('/');
 const mode = ref<BookTransferMode>('copy');
 const shelfFolders = ref<string[]>([]);
 const loadingFolders = ref(false);
 const folderError = ref('');
-// Bumped on every shelf change so a slow folder fetch for a shelf the user has
-// since switched away from cannot overwrite the current one's folders.
-let folderRequest = 0;
+let folderRequestGeneration = 0;
 
-// A move ends by deleting the source, which a read-only shelf refuses, so such
-// a shelf offers the copy alone — the server allows that, because only the
-// target is written (shelf/shelf_cross_book_test.go). `effectiveMode` is what
-// is reported and submitted, so a 'move' left in the ref by an earlier open
-// cannot escape once the radio is gone.
 const moveAvailable = computed(() => !selectedShelfReadOnly.value);
 const effectiveMode = computed<BookTransferMode>(() => (moveAvailable.value ? mode.value : 'copy'));
 
@@ -162,25 +148,23 @@ const statusText = computed(() => {
 });
 
 async function loadFolders(shelfID: string): Promise<void> {
-  const request = (folderRequest += 1);
+  const request = (folderRequestGeneration += 1);
   loadingFolders.value = true;
   folderError.value = '';
   shelfFolders.value = [];
   try {
     const folders = await bookshelfWriter().listShelfFolders(shelfID);
-    // A newer selection (or a close) landed while this was in flight.
-    if (request !== folderRequest) {
+    if (request !== folderRequestGeneration) {
       return;
     }
-    // The root is offered as its own option, so drop it from the list.
     shelfFolders.value = folders.filter((folder) => folder && folder !== '/');
   } catch (err) {
-    if (request !== folderRequest) {
+    if (request !== folderRequestGeneration) {
       return;
     }
     folderError.value = err instanceof Error ? err.message : t('bookDetail.transfer.foldersFailed');
   } finally {
-    if (request === folderRequest) {
+    if (request === folderRequestGeneration) {
       loadingFolders.value = false;
     }
   }
@@ -192,15 +176,12 @@ watch(
     if (!open) {
       return;
     }
-    // Reset the form each time it opens so a previous attempt's picks do not
-    // carry over, and make sure the shelf list is available offline of the
-    // sidebar (the detail page can be reached directly by URL).
     targetShelfId.value = '';
     targetFolder.value = '/';
     mode.value = 'copy';
     shelfFolders.value = [];
     folderError.value = '';
-    folderRequest += 1;
+    folderRequestGeneration += 1;
     void ensureShelvesLoaded();
   }
 );
@@ -212,7 +193,7 @@ watch(targetShelfId, (shelfID) => {
   if (shelfID) {
     void loadFolders(shelfID);
   } else {
-    folderRequest += 1;
+    folderRequestGeneration += 1;
   }
 });
 

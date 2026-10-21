@@ -18,9 +18,6 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: mocks.push })
 }));
 
-// The real DeleteModal renders through a Reka portal, out of the host subtree.
-// Stub it so its props (the comparison the card feeds it) are inspectable and
-// its confirm is clickable without standing up the whole dialog stack.
 vi.mock('@/components/DeleteModal.vue', () => ({
   default: defineComponent({
     props: {
@@ -119,7 +116,6 @@ describe('SimilarPairCard', () => {
 
     const rows = bookRows(host);
     expect(rows).toHaveLength(2);
-    // B has more normalized characters, so it leads and wears the badge.
     expect(rows[0].querySelector('.similar-title')?.textContent).toBe('Full');
     expect(rows[0].querySelector('.similar-badge')).not.toBeNull();
     expect(rows[1].querySelector('.similar-badge')).toBeNull();
@@ -136,7 +132,6 @@ describe('SimilarPairCard', () => {
     const desc = host.querySelector('.similar-pair-desc')?.textContent ?? '';
     expect(desc).toContain('25%');
     expect(desc).not.toMatch(/per 100|in every 100/);
-    // The trimmed copy carries the absolute character shortfall.
     expect(host.textContent).toContain('250 fewer');
   });
 
@@ -149,7 +144,6 @@ describe('SimilarPairCard', () => {
     await flush();
 
     const desc = host.querySelector('.similar-pair-desc')?.textContent ?? '';
-    // estimatedDiffPer100(0.85) === 2 under k = 5.
     expect(desc).toContain('2');
     expect(desc).toMatch(/in every 100/);
     expect(host.querySelector('.similar-badge')).toBeNull();
@@ -184,7 +178,6 @@ describe('SimilarPairCard', () => {
     await flush();
 
     expect(host.querySelector('.similar-delete')).toBeNull();
-    // Open stays available so results are still inspectable read-only.
     expect(host.querySelector('.similar-open')).not.toBeNull();
   });
 
@@ -198,14 +191,13 @@ describe('SimilarPairCard', () => {
     });
     await flush();
 
-    // Top row is the fuller copy; deleting it must surface the comparison.
     host.querySelector<HTMLButtonElement>('.similar-book-row .similar-delete')!.click();
     await flush();
 
     const desc = host.querySelector('.dm-desc')?.textContent ?? '';
     expect(host.querySelector('.dm-item')?.textContent).toBe('Full');
     expect(desc).toContain('more complete');
-    expect(desc).toContain('750'); // the other copy's character count
+    expect(desc).toContain('750');
     expect(desc).toContain('Trimmed');
 
     host.querySelector<HTMLButtonElement>('.dm-confirm')!.click();
@@ -225,7 +217,6 @@ describe('SimilarPairCard', () => {
 
     expect(host.textContent).toContain('ghost-a');
     expect(host.textContent).toContain('ghost-b');
-    // An unmatched book has no char_count, so the stat reads as unknown.
     expect(host.textContent).toContain('—');
   });
 });

@@ -26,12 +26,6 @@ import { computed, ref, watch } from 'vue';
 import BaseDialog from '@/components/BaseDialog.vue';
 import { useI18n } from '@/i18n';
 
-// `title` lets a single-book caller name what it is moving; batch callers omit
-// it and keep the selection wording. `busyLabel`/`confirmLabel` override the
-// move-specific button wording so the same dialog serves the copy action. `error`
-// belongs in here rather than on the page behind it: the dialog stays open after
-// a failed move, and the overlay hides — and takes out of the accessibility tree
-// — anything outside it.
 const props = defineProps<{
   open: boolean;
   count: number;
@@ -47,8 +41,6 @@ const { t } = useI18n();
 const target = ref('');
 const heading = computed(() => props.title ?? t('bookCollection.selection.moveTitle'));
 const busyText = computed(() => props.busyLabel ?? t('bookCollection.selection.moving'));
-// Neither locale has plural forms, so one book gets its own phrasing instead of
-// reading "Move 1 books".
 const confirmText = computed(() => (
   props.confirmLabel
     ?? (props.count === 1

@@ -178,15 +178,11 @@ import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 
-// A function, not a const array: the labels have to follow a locale change, and
-// a module-level array resolves them once at import.
 const epubPresetOptions = computed<{ value: EpubImportPreset; label: string }[]>(() => [
   { value: 'markdown', label: t('libraryForms.importBook.presetMarkdown') },
   { value: 'plain', label: t('libraryForms.importBook.presetPlain') }
 ]);
 
-// The status is an enum token the UI used to render raw, so users saw
-// "importing" rather than a sentence in their language.
 function statusLabel(status: string): string {
   return t(`libraryForms.importBook.statuses.${status}`);
 }
@@ -195,9 +191,6 @@ const props = defineProps<{
   open: boolean;
   currentFolderPath?: string;
   droppedFiles?: File[];
-  // Desktop host paths from the native picker. When the modal opens with these
-  // set, the import auto-starts through the shared executor — no file input and
-  // no extra confirmation, matching the desktop's select-and-go flow.
   localPaths?: string[];
 }>();
 
@@ -242,12 +235,8 @@ const bookInput = ref<HTMLInputElement | null>(null);
 const isDropTarget = ref(false);
 const selectedFiles = ref<File[]>([]);
 
-// The conversion options only mean anything for EPUB, so they stay hidden until
-// the selection actually contains one.
 const showEpubOptions = computed(() => selectedFiles.value.length > 0 && hasEpubFile());
 
-// A single-file import stays exactly as it was: no summary bar, no abort. The
-// N / M progress only earns its space once a batch is being imported.
 const showProgress = computed(() => submitting.value && progress.value.total > 1);
 
 const progressText = computed(() =>
@@ -273,13 +262,10 @@ function onIncludeDescriptionChange(event: Event): void {
   setEpubStrategy({ ...epubStrategy.value, include_description: target.checked });
 }
 
-// The configured default seeds the dialog; changing it here applies to this
-// batch only and is not written back to the setting.
 async function hydrateEpubStrategy(): Promise<void> {
   try {
     setEpubStrategy(await getEpubImportStrategySetting());
   } catch {
-    // Keep the built-in default when the setting cannot be read.
   }
 }
 
@@ -343,13 +329,6 @@ function onDrop(event: DragEvent): void {
   applyDroppedFiles(readDroppedFiles(event));
 }
 
-// Shared post-import handling for both the upload and desktop host-path flows:
-// reload on any success, notify the page, then reset only on a fully clean run.
-// A cancelled batch or one with any failure keeps its result message and
-// per-file statuses on screen — the modal stays open (the page only reloads
-// books), so resetting here would discard the very "N imported, rest cancelled"
-// or "which files failed" summary the user needs. Only when every file imported
-// is there nothing left to read, so the form clears for the next import.
 async function finishImport(result: ImportSubmitResult | null): Promise<void> {
   if (!result) {
     return;
@@ -367,9 +346,6 @@ async function finishImport(result: ImportSubmitResult | null): Promise<void> {
     return;
   }
 
-  // A detected chapter prompt lives in this results area; resetting now would
-  // wipe the success line and the prompt before the user can act on it. The
-  // form clears when they accept, dismiss, or close the modal instead.
   if (chapterSuggestion.value) {
     return;
   }
@@ -387,18 +363,13 @@ async function onConvertChapters(): Promise<void> {
   if (!(await applyChapterConversion())) {
     return;
   }
-  // Drop the retained payload so the now-empty file chooser cannot reimport the
-  // same File, while applyChapterConversion's success line stays on screen.
   clearFileInputs();
   selectedFiles.value = [];
   clearImportSelection();
-  // The conversion changed the book's current source and format, so refresh the
-  // listing behind the modal to keep any format-dependent card in sync.
   await fetchBooks();
 }
 
 function onDismissChapters(): void {
-  // Declining returns the modal to the same empty state a clean import ends in.
   resetImportForm();
 }
 
@@ -406,10 +377,6 @@ async function onSubmit(): Promise<void> {
   await finishImport(await submitFiles(props.currentFolderPath));
 }
 
-// The desktop select-and-go path: the native picker already chose the files, so
-// the modal opens straight into the shared progress/abort UI without a second
-// confirmation. Guarded against re-entry so a re-render while importing cannot
-// start a duplicate run.
 async function runLocalPathsImport(): Promise<void> {
   const paths = props.localPaths ?? [];
   if (paths.length === 0 || submitting.value) {
@@ -463,8 +430,6 @@ watch(
       return;
     }
 
-    // A desktop host-path import takes over the modal on open; the browser
-    // drag-drop seeding only applies when there are no host paths.
     if ((props.localPaths ?? []).length > 0) {
       return;
     }
@@ -484,8 +449,6 @@ watch(
   }
 );
 
-// Desktop select-and-go: auto-start the import when the modal opens with host
-// paths, and when a fresh selection arrives while it is already open.
 watch(
   () => props.open,
   (open) => {

@@ -28,8 +28,6 @@
           <input v-model="publishedAtInput" class="input" type="date" />
         </label>
 
-        <!-- Same row-as-label shape the settings panels use: the switch is a
-             <button>, so `for` is what keeps the help text a click target. -->
         <div class="field">
           <label class="nsfw-row" :for="nsfwSwitchId">
             <div>
@@ -179,17 +177,10 @@ import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 
-// The custom sentinel is not one of these — it only ever exists as a Select
-// choice — so the preset list needs no guard against it beyond dropping the
-// empty "unspecified" entry.
 const COMMON_LANGUAGE_VALUES: Set<string> = new Set(
   LANGUAGE_VALUES.filter((value) => value)
 );
-// reka-ui SelectItem forbids an empty-string value (it's reserved to mean
-// "clear selection / show placeholder"), but languageSelectOptions() uses ''
-// for "unspecified". Map it to this sentinel for the Select only; the
-// underlying languagePreset ref keeps using '' so the custom-language v-if
-// and watchers below are untouched.
+// Reka UI 2.10.5 SelectItem throws for empty-string values.
 const EMPTY_LANGUAGE_SELECT_VALUE = '__unspecified__';
 
 const props = defineProps<{
@@ -216,34 +207,19 @@ const tags = computed<string[]>({
 });
 const languagePreset = ref('');
 const customLanguage = ref('');
-// A flag, not the message. Holding translated text here would leave a shown
-// error stranded in the locale it was produced in while the placeholder, help
-// text and options around it follow a switch.
 const languageTagInvalid = ref(false);
 const languageError = computed(() => (languageTagInvalid.value ? t('language.book.invalidTag') : ''));
 const comment = ref('');
 const commentFieldId = useId();
 const showCommentPreview = ref(false);
-// The same render the detail page runs, so what is previewed here and what is
-// shown there are one output of one function; `SafeHtml` sanitizes it under the
-// same `summary` profile. The textarea keeps the source text either way - a
-// preview never changes what is submitted.
 const commentPreviewHtml = computed(() => renderDescriptionHtml(comment.value));
 const publishedAtInput = ref('');
 const star = ref(0);
-// The book's own half of the adult-content mark. The folder rule is the other
-// half and is not editable here, so a folder-marked book shows the switch on
-// and disabled — a control that could be turned off without the book becoming
-// visible would be a lie about what the shelf does.
 const nsfw = ref(false);
 const nsfwSwitchId = useId();
 const nsfwLabelId = useId();
 const nsfwHelpId = useId();
 const folderNsfwRule = computed(() => props.book.nsfw_folder);
-// What the switch renders is the whole mark; what the payload carries is only
-// the book's own half. They differ for a folder-marked book, and keeping them
-// one value would either show it as unmarked or write the folder's mark into
-// its book.json, where clearing the folder rule would then leave it behind.
 const nsfwShown = computed<boolean>({
   get: () => folderNsfwRule.value !== undefined || nsfw.value,
   set: (value) => {
@@ -261,8 +237,6 @@ const nsfwHelpText = computed(() => {
 });
 const identifierRows = ref<IdentifierRow[]>([]);
 const initialDraft = ref('');
-// languageSelectOptions() resolves its labels through t(), so reading it inside
-// a computed is what keeps them following a locale change.
 const languageSelectItems = computed(() =>
   languageSelectOptions().map((option) => ({
     value: option.value === '' ? EMPTY_LANGUAGE_SELECT_VALUE : option.value,
@@ -297,9 +271,6 @@ watch(
     comment.value = book.comment ?? '';
     publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
-    // A folder rule already marks the book, so the switch reads on whatever
-    // book.json says; the payload below still sends the book's own value, so
-    // saving cannot silently write the folder's mark into the book.
     nsfw.value = book.nsfw === true;
     identifierRows.value = Object.entries(book.identifiers ?? {}).map(([key, value]) => ({ key, value }));
     initialDraft.value = serializeDraft();
@@ -384,9 +355,6 @@ function toFormDateValue(rawValue?: string): string {
   if (!rawValue) {
     return '';
   }
-  // The HTML date input wants exactly "YYYY-MM-DD". The API already returns
-  // date-only values, so this slice is a no-op for them and a safety net if a
-  // full timestamp ever slips through.
   return rawValue.slice(0, 10);
 }
 </script>

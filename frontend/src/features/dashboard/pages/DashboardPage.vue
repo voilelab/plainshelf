@@ -6,19 +6,12 @@
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <template v-else-if="loading">
-      <!-- The skeleton is decorative (aria-hidden), so this status is the only
-           thing assistive tech hears while loading. It is visible during a cold
-           start — a 503 retry keeps loading true, and that wait reads as "still
-           starting" rather than a blank load — and visually hidden on an
-           ordinary fetch, where the skeleton carries the visual cue. -->
       <p class="loading-status" :class="{ 'sr-only': !shelfInitializing }" role="status">
         {{ shelfInitializing ? t('dashboard.shelfInitializing') : t('dashboard.loading') }}
       </p>
       <DashboardSkeleton />
     </template>
 
-    <!-- Only reached once loading is false with no error: a genuine empty shelf,
-         never a shelf that is still initializing (that path keeps loading true). -->
     <EmptyShelf v-else-if="books.length === 0" />
 
     <div v-else class="dashboard-grid">
@@ -81,11 +74,6 @@ const {
 
 useDocumentTitle(() => [t('dashboard.title'), 'PlainShelf']);
 
-// Refetch when the window regains focus so a book imported or read in another
-// window shows up on return. The Refresh button is gone; entering the route
-// (a fresh mount) and this focus handler are what keep the page current. Skip
-// while a load or a 503 retry is already in flight so focus does not stack
-// requests onto the cold-start retry loop.
 function refetchOnFocus(): void {
   if (loading.value) {
     return;

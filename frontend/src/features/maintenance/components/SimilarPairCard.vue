@@ -55,18 +55,10 @@ const { t } = useI18n();
 const props = withDefaults(
   defineProps<{
     pair: SimilarBookPair;
-    /** Resolved from the shelf listing; undefined when it could not be matched. */
     bookA?: Book;
     bookB?: Book;
-    /**
-     * Source counts, resolved once per distinct book by the page. Kept out of
-     * the card so a book appearing in several pairs is fetched once, not once
-     * per card. null = unresolved or the lookup failed; the row shows a dash
-     * rather than a wrong "0 sources".
-     */
     sourceCountA?: number | null;
     sourceCountB?: number | null;
-    /** A read-only shelf cannot delete, so the action is hidden rather than offered and refused. */
     readOnly?: boolean;
   }>(),
   {
@@ -90,10 +82,6 @@ const percent = computed(() => Math.round(props.pair.jaccard * 100));
 
 const relationLabel = computed(() => t(`maintenance.similar.relations.${props.pair.relation}`));
 
-// The subset shortfall is measured from the normalized character counts the
-// server already scored the pair with; the per-100 diff rate is the Mash
-// estimate, which only reads true when differences are spread through the text —
-// hence a distinct copy for the subset case (see the ticket's callout).
 const shortfallPercent = computed(() =>
   subsetShortfallPercent(props.pair.norm_chars_a, props.pair.norm_chars_b)
 );
@@ -119,8 +107,6 @@ interface RowEntry {
   fewerNote: string;
 }
 
-// A book that could not be matched in the listing still deserves a row so its
-// copy is deletable; fall back to a title-only stand-in keyed by the pair id.
 function bookFor(id: string, book: Book | undefined): Book {
   return book ?? { id, title: id, authors: [], tags: [], folders: [] };
 }
@@ -132,8 +118,6 @@ function charCountOf(book: Book | undefined): number | null {
 const orderedEntries = computed<RowEntry[]>(() => {
   const { pair } = props;
   const isSubset = pair.relation === 'subset';
-  // The fuller side is the one with more normalized characters; for a subset it
-  // is the superset to keep, and it leads so the trimmed copy reads as "below".
   const supersetIsA = pair.norm_chars_a >= pair.norm_chars_b;
   const moreCompleteId = supersetIsA ? pair.a : pair.b;
 

@@ -22,11 +22,6 @@ type BooksQueryInput = {
   search?: string;
   sort?: BookSortKey;
   order?: SortOrder;
-  /**
-   * Character-count bounds. Omitting the key carries the current bounds
-   * through; passing a range replaces both, so `{ charCount: {} }` clears the
-   * filter rather than leaving it untouched.
-   */
   charCount?: CharCountRange;
 };
 
@@ -102,8 +97,6 @@ export function useBooksRouteQuery() {
   const route = useRoute();
   const router = useRouter();
 
-  // The reactive reads share the registry's parsers, so a filter's URL shape is
-  // defined once and both the query builder and these computeds see it.
   const selectedFolder = computed(() => foldersFilter.parse(route.query));
   const page = computed(() => toPage(route.query.page));
   const sortBy = computed<BookSortKey>(() => toBookSort(route.query.sort));
@@ -120,26 +113,18 @@ export function useBooksRouteQuery() {
       ...route.query
     } as Record<string, LocationQueryValue | LocationQueryValue[]>;
 
-    // Clear every filter-owned key up front so a condition that is now inactive
-    // leaves nothing behind, then let each filter write itself back below.
     for (const filter of BOOK_FILTERS) {
       for (const key of filter.queryKeys) {
         delete nextQuery[key];
       }
     }
 
-    // page/sort/order are pagination and ordering, not filters: always present.
     const pageValue = input.page !== undefined ? input.page : page.value;
     const normalizedPage = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 1;
     nextQuery.page = String(normalizedPage);
     nextQuery.sort = input.sort ?? sortBy.value;
     nextQuery.order = input.order ?? sortOrder.value;
 
-    // Each filter re-serializes either its explicit input override or what the
-    // current query already carries. The typed override keys mirror
-    // BooksQueryInput; `panelOverrides` is the generic path any panel condition
-    // uses, where a key being *present* — even with a cleared value — overrides,
-    // so removing a chip is `{ author: undefined }` rather than a sentinel.
     const overrides: Record<string, unknown> = {
       [searchFilter.key]: input.search,
       [foldersFilter.key]: input.folder,
@@ -175,13 +160,6 @@ export function useBooksRouteQuery() {
     });
   }
 
-  /**
-   * Sets or clears any panel condition by key (the generic path for the filter
-   * panel, its chips, and "clear all"). Each override value is a filter's own
-   * value type — an inactive value (e.g. `undefined`, `{}`) clears it. Always
-   * resets to page 1, since the visible set changes, and leaves search, folder,
-   * sort, and order untouched.
-   */
   function applyPanelFilters(overrides: Record<string, unknown>): RouterNavigationResult {
     return router.replace({
       path: '/books',

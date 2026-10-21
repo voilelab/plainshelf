@@ -40,8 +40,6 @@ describe('useBookDetail', () => {
     expect(detail.error.value).toBe('');
   });
 
-  // A shelf edited by hand or by a sync tool can leave current_source naming a
-  // source that is gone. That must not cost the page its title and cover.
   it('still shows the book when the current source cannot be fetched', async () => {
     mocks.getSource.mockRejectedValue(new Error('source not found'));
 
@@ -66,8 +64,6 @@ describe('useBookDetail', () => {
     expect(detail.error.value).toBe('');
   });
 
-  // The chapter card and the percentage both want the same text, and reading a
-  // whole book off a network shelf is the expensive part of opening this page.
   it('reads the content once for both the chapter list and the percentage', async () => {
     mocks.getBook.mockResolvedValue({
       id: 'book-1',
@@ -96,8 +92,6 @@ describe('useBookDetail', () => {
     expect(detail.chapters.value).toEqual([]);
   });
 
-  // The source's own format is authoritative for what this build writes, so a
-  // book record left at txt must not hide the chapters of a Markdown source.
   it('follows the source format over the book format', async () => {
     mocks.getSource.mockResolvedValue({ id: 'source-1', format: 'md' });
     mocks.getSourceContent.mockResolvedValue('## Only\nBody');
@@ -119,7 +113,6 @@ describe('useBookDetail', () => {
     expect(detail.error.value).toBe('');
   });
 
-  // Losing the text costs the chapter card and nothing else on the page.
   it('still shows the book when the chapter text cannot be read', async () => {
     mocks.getBook.mockResolvedValue({
       id: 'book-1',
@@ -139,9 +132,6 @@ describe('useBookDetail', () => {
     expect(detail.error.value).toBe('');
   });
 
-  // The book-scoped route answers from the newest surviving source, so a book
-  // whose current_source is an older one would otherwise list the chapters of
-  // text the reader is not going to open.
   it('reads the chapters from the source the reader will open', async () => {
     mocks.getSourceContent.mockResolvedValue('## Current\nBody');
     mocks.getBookContent.mockResolvedValue({ content: '## Newest\nOther body' });
@@ -154,8 +144,6 @@ describe('useBookDetail', () => {
     expect(detail.chapters.value).toEqual([{ index: 0, title: 'Current' }]);
   });
 
-  // A shelf edited elsewhere can leave current_source naming a source that is
-  // gone; the book-scoped route still answers, exactly as it does for the reader.
   it('falls back to the book content when the current source is gone', async () => {
     mocks.getSource.mockResolvedValue({ id: 'source-1', format: 'md' });
     mocks.getSourceContent.mockRejectedValue(new Error('source not found'));
@@ -168,7 +156,6 @@ describe('useBookDetail', () => {
     expect(detail.error.value).toBe('');
   });
 
-  // The book itself failing is a real error and still has to surface.
   it('reports an error when the book itself cannot be fetched', async () => {
     mocks.getBook.mockRejectedValue(new Error('book not found'));
 

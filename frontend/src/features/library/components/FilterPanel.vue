@@ -1,5 +1,4 @@
 <template>
-  <!-- Desktop: an anchored popover. -->
   <PopoverRoot v-if="!isMobileEnv" v-model:open="open">
     <PopoverTrigger :class="triggerClass" type="button" :aria-label="triggerAriaLabel">
       <span>{{ t('library.filters.button') }}</span>
@@ -26,7 +25,6 @@
     </PopoverPortal>
   </PopoverRoot>
 
-  <!-- Mobile: a bottom sheet. -->
   <template v-else>
     <button :class="triggerClass" type="button" :aria-label="triggerAriaLabel" @click="open = true">
       <span>{{ t('library.filters.button') }}</span>
@@ -131,8 +129,6 @@ const triggerAriaLabel = computed(() =>
 }
 </style>
 
-<!-- Unscoped: Popover/Dialog content is portalled out of this component's DOM
-     subtree, so the scope attribute never lands on it. -->
 <style>
 .filter-popover {
   background: var(--bg, #fff);

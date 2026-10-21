@@ -10,10 +10,6 @@
         <p class="filter-field-note">{{ field.emptyNote }}</p>
       </div>
 
-      <!-- Numeric range (character count): its own control already carries the
-           min/max, clear, unknown-count note and the refresh-stats progress —
-           all of which now live here, inside the panel, so they can never resize
-           the header. -->
       <CharCountFilterBar
         v-if="field.control === 'range'"
         :range="(field.value as CharCountRange)"
@@ -28,7 +24,6 @@
         @refresh-stats="emit('refresh-stats')"
       />
 
-      <!-- Tri-state (cover): presence is all there is, so all / has / none. -->
       <div v-else-if="field.control === 'triState'" class="filter-tristate" role="radiogroup" :aria-label="field.label">
         <label
           v-for="option in TRISTATE_OPTIONS"
@@ -45,9 +40,6 @@
         </label>
       </div>
 
-      <!-- Facet (author, language, tags): the shelf's own values, searchable.
-           Single-select is a radio group with (any)/(unset); multi-select is
-           checkboxes with an exclusive (unset). -->
       <div v-else class="filter-facet">
         <input
           v-if="field.facet.length > FACET_SEARCH_THRESHOLD"
@@ -171,8 +163,6 @@ const route = useRoute();
 const { applyPanelFilters } = useBooksRouteQuery();
 const { hasActive, clearAll } = useBookFilters();
 
-// Above this many distinct values a field grows a search box; below it the list
-// is short enough to scan.
 const FACET_SEARCH_THRESHOLD = 8;
 
 const TRISTATE_OPTIONS = [
@@ -239,7 +229,6 @@ function charCountFilter(): AnyBookFilterDef {
   return PANEL_BOOK_FILTERS.find((filter) => filter.key === 'charCount')!;
 }
 
-// ── tri-state (cover) ────────────────────────────────────────────────────────
 function triStateMode(value: unknown): TriStateMode {
   const field = value as FilterFieldValue | undefined;
   if (field === undefined) {
@@ -255,7 +244,6 @@ function triStateValue(mode: TriStateMode): FilterFieldValue | undefined {
   return mode === 'has' ? { kind: 'has' } : { kind: 'none' };
 }
 
-// ── single facet (author, language) ──────────────────────────────────────────
 function isFieldKind(value: unknown, kind: FilterFieldValue['kind']): boolean {
   return (value as FilterFieldValue | undefined)?.kind === kind;
 }
@@ -265,7 +253,6 @@ function isFieldEq(value: unknown, eqValue: string): boolean {
   return field?.kind === 'eq' && field.value === eqValue;
 }
 
-// ── multi facet (tags) ───────────────────────────────────────────────────────
 function multiOf(value: unknown): MultiFieldValue {
   return value as MultiFieldValue;
 }
@@ -279,8 +266,6 @@ function isMultiChecked(value: unknown, eqValue: string): boolean {
 }
 
 function toggleMultiUnset(filter: AnyBookFilterDef, value: unknown): void {
-  // "(unset)" is exclusive with picking specific values: a book cannot both have
-  // no tags and carry tag X, so choosing it drops any eq selections.
   const next: MultiFieldValue = isMultiUnset(value)
     ? { values: [], op: 'all' }
     : { values: [{ kind: 'none' }], op: 'all' };

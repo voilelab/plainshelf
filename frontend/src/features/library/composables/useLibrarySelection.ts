@@ -18,11 +18,6 @@ interface LibrarySelectionOptions {
   reloadBooks: () => Promise<void>;
 }
 
-/**
- * Multi-select on the library page and the batch actions it drives: move and
- * trash (desktop), download (mobile). Installs the keyboard shortcuts and the
- * Android back-button handler for the lifetime of the calling component.
- */
 export function useLibrarySelection(options: LibrarySelectionOptions) {
   const { books, visibleBookIds, isMobileEnv, readOnly } = options;
   const { t } = useI18n();
@@ -120,8 +115,6 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
     downloadBatchTotal.value = targets.length;
     downloadBatchFailures.value = [];
 
-    // Called through the provider, not as a detached function: the mobile
-    // provider's downloadBook is a method and needs its own `this`.
     const outcome = await runDownloadBatch(targets, (id) => provider.downloadBook!(id), {
       onProgress: (percentage) => {
         downloadBatchPercentage.value = percentage;
@@ -175,8 +168,6 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
     });
   }
 
-  // A finished move/trash keeps only the visible books that failed selected, so
-  // the user can retry them.
   watch(
     batchOperations.completionVersion,
     () => {

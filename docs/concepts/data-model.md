@@ -238,6 +238,10 @@ Each position is a JavaScript UTF-16 character offset. Moving or renaming a
 book does not lose it because records use the persistent book ID rather than a
 filesystem path.
 
+The dashboard estimates completion by dividing this UTF-16 offset by the
+source's rune count. Supplementary characters occupy two UTF-16 units but one
+rune, so this estimate can reach 100% before the end of the source.
+
 The standalone reader writes into the desktop app's `reading_progress.json` so a
 book read there shows the same position in the desktop library. Because the
 reader has no real shelf, it stores progress under a synthetic `book` shelf key,
