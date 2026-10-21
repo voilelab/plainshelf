@@ -1,6 +1,6 @@
 module github.com/voilelab/plainshelf/reader
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/voilelab/plainshelf v0.0.0
