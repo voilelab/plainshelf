@@ -40,7 +40,7 @@ function isSortOrder(value: string): value is SortOrder {
   return (ORDER_OPTIONS as readonly string[]).includes(value);
 }
 
-export function toFolderPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
+function toFolderPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
   const raw = toSingleQueryValue(value);
   if (!raw) {
     return undefined;
@@ -50,7 +50,7 @@ export function toFolderPath(value: LocationQueryValue | LocationQueryValue[] | 
   return normalized.length > 0 ? normalized : undefined;
 }
 
-export function toBookSort(value: LocationQueryValue | LocationQueryValue[] | undefined): BookSortKey {
+function toBookSort(value: LocationQueryValue | LocationQueryValue[] | undefined): BookSortKey {
   const raw = toSingleQueryValue(value);
   if (!raw) {
     return 'updated_at';
