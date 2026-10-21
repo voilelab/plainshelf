@@ -141,6 +141,11 @@ you want registered with LaunchServices if `open -a` activates the wrong copy.
 
 Create a release-style desktop build with `just build-desktop`.
 
+The standalone reader accepts `-book`, `-shelf`, and `-section`. Unknown flags,
+missing values, and section values that cannot be parsed as integers stop startup
+with an error before the window opens. Omit `-section` or use a negative value to
+resume saved progress; `-section 0` opens the first section.
+
 ## Android app
 
 The Android client is experimental and reuses the Vue frontend through
