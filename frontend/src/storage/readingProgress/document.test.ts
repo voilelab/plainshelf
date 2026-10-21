@@ -86,8 +86,6 @@ describe('withBookReadingOffset', () => {
 
     doc = withBookReadingOffset(doc, 'main', 'book-1', 0, 3000);
     expect(getBookReadingOffset(doc, 'main', 'book-1')).toBe(0);
-    // A tombstone, not a deletion: it carries the reset time so the reset can
-    // win a cross-process merge against an older advance.
     expect(doc.shelves.main['book-1']).toEqual({ offset: 0, at: 3000 });
   });
 

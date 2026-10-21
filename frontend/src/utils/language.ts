@@ -5,23 +5,10 @@ type LanguageOption = {
   label: string;
 };
 
-/**
- * The book languages offered as presets, values only.
- *
- * Values are data — they are written to book metadata and compared against it —
- * while labels are presentation. Keeping them apart is what lets the labels
- * follow the UI locale, and it lets callers derive value sets without pulling
- * translations in with them.
- *
- * `''` means "unspecified".
- */
 export const LANGUAGE_VALUES = ['', 'zh-Hant', 'zh-Hans', 'ja', 'ko', 'en'] as const;
 
 export const CUSTOM_LANGUAGE_VALUE = 'custom';
 
-// An explicit map rather than a key built from the value: t() returns the key
-// itself when a lookup misses, so a constructed key turns a typo into a dotted
-// path rendered on screen instead of a compile error.
 const LABEL_KEYS: Record<string, string> = {
   '': 'language.book.unspecified',
   'zh-Hant': 'language.book.zhHant',
@@ -41,11 +28,6 @@ function languageOptions(): LanguageOption[] {
   return LANGUAGE_VALUES.map((value) => ({ value, label: labelFor(value) }));
 }
 
-/**
- * A function rather than the module-level constant it replaces: a const array
- * would resolve its labels once at import and never follow a locale change.
- * Call it from a computed so the labels re-resolve on switch.
- */
 export function languageSelectOptions(): LanguageOption[] {
   return [
     ...languageOptions(),
@@ -69,10 +51,6 @@ export function normalizeLanguage(input: string): string {
   return map[value.toLowerCase()] ?? value;
 }
 
-/**
- * A display label for a stored language tag. Falls back to the tag itself for
- * anything outside the presets, which is what a custom BCP 47 tag hits.
- */
 export function formatLanguage(input?: string): string {
   const value = normalizeLanguage(input ?? '');
 
@@ -80,20 +58,11 @@ export function formatLanguage(input?: string): string {
     return t('language.book.unspecified');
   }
 
-  // Presets only. The custom sentinel is a UI selection, never a stored tag, so
-  // a book whose language literally reads "custom" keeps showing that — the
-  // behaviour the previous label map had.
   return (LANGUAGE_VALUES as readonly string[]).includes(value) ? labelFor(value) : value;
 }
 
 const languageTagRE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 
-/**
- * A verdict rather than a message on purpose: returning translated text invites
- * the caller to capture it in a ref, where it freezes at whichever locale
- * produced it — the same trap the label constants above used to have. The caller
- * renders the message through a computed. An empty tag means "unspecified".
- */
 export function isValidLanguageTag(input: string): boolean {
   const value = input.trim();
   return value === '' || languageTagRE.test(value);

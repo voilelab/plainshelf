@@ -18,7 +18,6 @@ function makeClient(fetchImpl: typeof fetch) {
     host: 'api.pcloud.com',
     accessToken: TOKEN,
     fetchImpl,
-    // Retry backoff would otherwise add seconds to the suite.
     sleepImpl: async () => {}
   });
 }
@@ -118,9 +117,6 @@ describe('PCloudClient.call', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  // The regression this pins: a reply with no `result` used to be read as
-  // success, so a non-pCloud reply flowed on as an empty listing and only
-  // surfaced much later as a confusing "folder not found".
   it('refuses a reply that carries no pCloud result', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ hello: 'not pcloud' }));
 
@@ -234,8 +230,6 @@ describe('PCloudClient.resolveFolderTrail', () => {
     await expect(client.resolveFolderTrail('/test1/books')).rejects.toThrow(/"books".*"\/test1"/);
   });
 
-  // Without this the message cannot tell a typo from "this device is signed
-  // into a different pCloud account", which look identical to the user.
   it('lists the folders that level does contain', async () => {
     const fetchImpl = treeFetch({
       '0': [
@@ -277,7 +271,6 @@ describe('PCloudClient.resolveFolderTrail', () => {
     ).rejects.toBeInstanceOf(PCloudError);
   });
 
-  // The folder picker's breadcrumb needs every ancestor's id.
   it('reports one entry per segment, outermost first', async () => {
     const fetchImpl = treeFetch({
       '0': [{ name: 'test1', folderid: 7 }],

@@ -2,26 +2,16 @@ import { PCloudError } from './errors';
 import { PCLOUD_API_HOSTS, PCLOUD_DEFAULT_HOST } from './types';
 import type { PCloudApiHost, PCloudTokenResult } from './types';
 
-// The `poll_token` flow, as implemented by pCloud's own JS SDK
-// (pCloud/pcloud-sdk-js, src/oauth/index.js).
-//
-// It is the only one of pCloud's three OAuth flows that suits a packaged mobile
-// app: it needs no redirect_uri and no app secret, so there is no custom URL
-// scheme to register and nothing confidential to ship inside the APK. The app
-// opens an authorization URL in the system browser and simultaneously long-polls
-// `oauth2_token` on both regional hosts; whichever one answers both delivers the
-// token and identifies the account's region.
+// The pCloud SDK OAuth poll flow uses poll_token without a redirect URI or client secret and polls both regional endpoints (src/oauth/index.js).
 const AUTHORIZE_URL = 'https://my.pcloud.com/oauth2/authorize';
 
 const REQUEST_ID_LENGTH = 40;
 const REQUEST_ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-/** How long to keep polling before giving up on the user completing the flow. */
 const DEFAULT_AUTH_TIMEOUT_MS = 5 * 60_000;
 const POLL_INTERVAL_MS = 2_000;
 const POLL_REQUEST_TIMEOUT_MS = 60_000;
 
-/** An authorized pCloud session: a token plus the region that issued it. */
 interface PCloudSession {
   accessToken: string;
   host: PCloudApiHost;
@@ -34,7 +24,6 @@ interface PCloudAuthOptions {
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
   sleepImpl?: (ms: number) => Promise<void>;
-  /** Overridable so tests do not depend on wall-clock time. */
   nowImpl?: () => number;
 }
 
@@ -42,11 +31,6 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Generates the `request_id` that ties the browser authorization to this
- * device's poll. It is the only thing preventing another client from claiming
- * the token, so it must come from a CSPRNG.
- */
 export function generateRequestId(): string {
   const bytes = new Uint8Array(REQUEST_ID_LENGTH);
   const cryptoObj = globalThis.crypto;
@@ -63,11 +47,6 @@ export function generateRequestId(): string {
   return out;
 }
 
-/**
- * Builds the URL the user must open to approve access. The caller is
- * responsible for opening it in the system browser — keeping that out of here
- * leaves this module free of Capacitor imports and testable under Node.
- */
 export function buildAuthorizeUrl(clientId: string, requestId: string): string {
   const trimmedClientId = clientId.trim();
   if (!trimmedClientId) {
@@ -84,19 +63,10 @@ export function buildAuthorizeUrl(clientId: string, requestId: string): string {
   return url.toString();
 }
 
-/** Maps pCloud's numeric region id onto the API host that serves it. */
 export function hostForLocationId(locationId: number | undefined): PCloudApiHost {
   return locationId === 2 ? 'eapi.pcloud.com' : PCLOUD_DEFAULT_HOST;
 }
 
-/**
- * Waits for the user to approve the request and returns the resulting session.
- *
- * Both regional hosts are polled at once because the account's region is not
- * known until it answers. The host that returns the token is authoritative: it
- * is the one holding the account, so it — not a guess — becomes the session's
- * API host.
- */
 export async function pollForToken(options: PCloudAuthOptions): Promise<PCloudSession> {
   const {
     clientId,
@@ -109,11 +79,8 @@ export async function pollForToken(options: PCloudAuthOptions): Promise<PCloudSe
   } = options;
 
   const deadline = nowImpl() + timeoutMs;
-  // Cancels the losing region's poll as soon as a winner is known, so a
-  // successful sign-in does not leave a request hanging for the full timeout.
   const raceController = new AbortController();
-  // addEventListener never replays an abort that already fired, so a signal
-  // cancelled before this call would leave both polls running to the deadline.
+  // DOM Standard AbortSignal does not replay an abort event to listeners registered after abortion.
   if (signal?.aborted) {
     raceController.abort();
   }
@@ -162,11 +129,7 @@ async function pollHost(options: PollHostOptions): Promise<PCloudSession> {
   while (!signal.aborted && nowImpl() < deadline) {
     const token = await pollOnce(url.toString(), signal, fetchImpl);
     if (token) {
-      // The polling endpoint is global enough that either regional host can
-      // deliver the token. pCloud's locationid identifies where the account's
-      // files actually live, so it is authoritative whenever present. Keep the
-      // answering host only as a compatibility fallback for an old response
-      // that omits locationid.
+      // The pCloud SDK forwards response.locationid from either regional polling endpoint (src/oauth/index.js).
       return {
         accessToken: token.accessToken,
         host: token.locationId === undefined ? host : hostForLocationId(token.locationId)
@@ -186,11 +149,6 @@ async function pollHost(options: PollHostOptions): Promise<PCloudSession> {
   );
 }
 
-/**
- * One poll round. A failure here is expected rather than exceptional — the
- * wrong-region host errors for the whole flow, and the right one errors until
- * the user approves — so transport and API errors alike mean "not yet".
- */
 async function pollOnce(
   url: string,
   signal: AbortSignal,
@@ -221,11 +179,6 @@ async function pollOnce(
   }
 }
 
-/**
- * Resolves with the first fulfilled promise and rejects only once every one has
- * rejected. Hand-rolled because the project targets ES2020, which predates
- * Promise.any.
- */
 function firstFulfilled<T>(promises: Promise<T>[]): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     let pending = promises.length;

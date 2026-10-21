@@ -1,6 +1,3 @@
-/**
- * Runs `fn` over `items` with a bounded number in flight, preserving order.
- */
 export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,

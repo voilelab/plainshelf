@@ -59,17 +59,6 @@ class WailsPlatform {
 
   async openDesktopReader(bookId: string, section?: number): Promise<void> {
     await openDesktopReader(bookId, section);
-    // The standalone reader records its own read history in its WebView storage,
-    // which this desktop app cannot read, so its "recent reading" would stay
-    // empty on the default shell-out path. Write the entry from the launching
-    // side once the reader has actually started.
-    //
-    // Swallow every failure: the launch already succeeded, and letting it reach
-    // useReaderLaunch would be read as a launch failure — it would then pop a
-    // toast and open a second, in-app reader. A try/catch, not `.catch()`,
-    // because addReadHistory throws synchronously when no shelf is selected
-    // (requireHistoryKey() runs before the promise is returned), which a
-    // trailing `.catch()` would miss.
     try {
       await this.provider.addReadHistory(bookId);
     } catch (err) {

@@ -7,8 +7,6 @@ const { addReadHistoryMock, clearReadHistoryMock, getReadHistoryIDsMock } = vi.h
   getReadHistoryIDsMock: vi.fn()
 }));
 
-// Reading history is device-local; the provider must never route it through
-// the remote. Stubbing the store keeps these tests off real device storage.
 vi.mock('@/storage/readHistory', () => ({
   addReadHistory: addReadHistoryMock,
   clearReadHistory: clearReadHistoryMock,
@@ -29,19 +27,11 @@ const SERVER_B = 'http://192.168.1.50:20000';
 const SHELF_A = 'default_shelf';
 const SHELF_B = 'comics';
 
-/** Points the API client — and therefore the provider's scoping — at one shelf. */
 function connectTo(apiBase: string, shelfID: string): void {
   setApiBase(apiBase);
   setActiveShelfID(shelfID);
 }
 
-// These tests cover the "device online but server unreachable" fallback
-// path (e.g. phone on LTE away from the home LAN): navigator.onLine is
-// true, so the provider tries the remote first, but the remote call fails
-// with a transport-level error (no HTTP response at all) rather than the
-// server replying with an error status. In that case the provider must
-// fall back to the offline cache instead of surfacing the error, mirroring
-// (but not gated behind) the existing isOnline()===false offline path.
 
 function makeBook(id: string, overrides: Partial<Book> = {}): Book {
   return {
@@ -209,10 +199,6 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
 
 });
 
-// PSW-119: the offline cache is the one place a book is served without the
-// backend being asked, so it is the one place the pCloud provider's own filter
-// cannot reach. Already having downloaded a book must not be a way past the
-// device setting — see VisibleMobileBookCache.
 describe('MobileBookshelfProvider — adult content in the offline cache', () => {
   let cache: InMemoryMobileBookCache;
 
@@ -243,7 +229,6 @@ describe('MobileBookshelfProvider — adult content in the offline cache', () =>
     setShowNsfwOnDevice(false);
   });
 
-  /** A backend with no server to ask, as pCloud is; `isOnline` is the caller's. */
   function pcloudBacked(isOnline = () => false): MobileBookshelfProvider {
     const remote: Partial<BookshelfReader> = {
       filtersNsfwOnDevice: () => true,
@@ -267,8 +252,6 @@ describe('MobileBookshelfProvider — adult content in the offline cache', () =>
     expect(page.total).toBe(1);
   });
 
-  // The unreachable-server fallback is the same cache read, reached with
-  // navigator.onLine still true — the LTE-away-from-home case.
   it('leaves it out of the unreachable-server fallback too', async () => {
     const page = await pcloudBacked(() => true).listBooks(1, 20);
 
@@ -282,8 +265,6 @@ describe('MobileBookshelfProvider — adult content in the offline cache', () =>
     await expect(provider.getBook(PLAIN)).resolves.toMatchObject({ id: PLAIN });
   });
 
-  // These read the cache before connectivity is checked at all, so without the
-  // wrapper a marked download stayed readable even with the backend reachable.
   it('withholds its content, cover, sources and illustrations', async () => {
     const provider = pcloudBacked();
 
@@ -319,9 +300,6 @@ describe('MobileBookshelfProvider — adult content in the offline cache', () =>
     await expect(provider.getDownloadState(MARKED)).resolves.toBe('downloaded');
   });
 
-  // The reverse case: behind a PlainShelf server the listing was already
-  // filtered by that server's show_nsfw, and this device switch must not
-  // overrule it — a book only reaches the cache because the server served it.
   it('filters nothing when the backend has a server to answer for it', async () => {
     const remote: Partial<BookshelfReader> = {
       listBooks: () => Promise.reject(unreachableError()),
@@ -336,10 +314,6 @@ describe('MobileBookshelfProvider — adult content in the offline cache', () =>
   });
 });
 
-// Downloads taken before the marks were written into manifests (PSW-119) carry
-// neither half of them, so they read as unmarked and slipped past the device
-// switch. The marks are already on the device in the shelf snapshot; the cache
-// wrapper repairs those manifests from it before it answers.
 describe('MobileBookshelfProvider — downloads taken before the marks existed', () => {
   let cache: InMemoryMobileBookCache;
   let localNsfwMarks: ReturnType<typeof vi.fn>;
@@ -351,8 +325,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     connectTo(SERVER_A, SHELF_A);
     cache = new InMemoryMobileBookCache();
     setShowNsfwOnDevice(false);
-    // makeBook writes no `nsfw` field at all, which is exactly the shape a
-    // manifest stored by the previous release carries.
     for (const id of [OLD_MARKED, OLD_PLAIN]) {
       await cache.saveDownloadedBook({
         book: makeBook(id),
@@ -377,7 +349,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     connectTo(SERVER_A, SHELF_A);
   });
 
-  /** pCloud-shaped: no server to ask, and every remote read would fail offline. */
   function pcloudBacked(remoteOverrides: Partial<BookshelfReader> = {}): MobileBookshelfProvider {
     const remote: Partial<BookshelfReader> = {
       filtersNsfwOnDevice: () => true,
@@ -410,8 +381,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     await expect(provider.getDownloadState(OLD_MARKED)).resolves.toBe('not_downloaded');
   });
 
-  // The first reverse case: a book the shelf does not mark must read exactly as
-  // it did, missing field and all.
   it('leaves an unmarked one served from the same cache', async () => {
     const provider = pcloudBacked();
 
@@ -423,7 +392,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
   it('repairs the manifest rather than the download: content and sources stay', async () => {
     await pcloudBacked().listBooks(1, 20);
 
-    // Read straight from the wrapped cache, past the filter.
     await expect(cache.getCachedBook(OLD_MARKED)).resolves.toMatchObject({ nsfw: true });
     await expect(cache.getCachedBook(OLD_PLAIN)).resolves.toMatchObject({ nsfw: false });
     await expect(cache.getCachedBookContent(OLD_MARKED)).resolves.toEqual({
@@ -449,9 +417,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     expect(localNsfwMarks).toHaveBeenCalledTimes(1);
   });
 
-  // The window PSW-120 leaves open on purpose: with no listing on the device
-  // yet there is nothing to repair from, and blanking the offline library would
-  // cost more than the stale mark.
   it('keeps serving every pre-mark download when the device holds no listing', async () => {
     const provider = pcloudBacked({ localNsfwMarks: () => Promise.resolve(null) });
 
@@ -460,8 +425,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
   });
 
-  // The manifests are read before the marks and written after, so anything the
-  // user did in between has to survive: this write is a whole manifest.
   it('does not restore a download removed while the marks were read', async () => {
     localNsfwMarks.mockImplementationOnce(async () => {
       await cache.removeDownloadedBook(OLD_MARKED);
@@ -476,10 +439,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     await expect(cache.getCachedBook(OLD_MARKED)).resolves.toBeNull();
   });
 
-  // Defence in depth rather than a reachable bug: every shelf switch in the
-  // mobile shell restarts the app (reloadIntoApp), so nothing changes the scope
-  // under a live wrapper today. The cache writes below still resolve it for
-  // themselves, as downloadBook's own guard does.
   it('writes nothing when the device changes shelves mid-pass, and repairs the new one', async () => {
     localNsfwMarks.mockImplementationOnce(async () => {
       connectTo(SERVER_B, SHELF_B);
@@ -490,17 +449,12 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
     });
     const provider = pcloudBacked();
 
-    // One guarded read, so exactly one pass: the scope moves under it and it
-    // stops rather than filing these manifests under the shelf now connected.
     await provider.getDownloadState(OLD_PLAIN);
     expect((await cache.getCachedBook(OLD_MARKED))?.nsfw).toBeUndefined();
 
-    // That pass did not count, so the next read makes one for the new shelf.
     expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([OLD_PLAIN]);
   });
 
-  // ...and it closes on the next shelf update, not on the next app launch: a
-  // pass that found nothing to answer from must not count as the one pass.
   it('repairs on a later read once the listing has arrived', async () => {
     localNsfwMarks.mockResolvedValueOnce(null);
     const provider = pcloudBacked();
@@ -510,7 +464,6 @@ describe('MobileBookshelfProvider — downloads taken before the marks existed',
       OLD_PLAIN
     ]);
 
-    // Same provider, same wrapper — only the snapshot behind it has caught up.
     expect((await provider.listBooks(1, 20)).items.map((book) => book.id)).toEqual([OLD_PLAIN]);
     await expect(provider.getBook(OLD_MARKED)).rejects.toThrow();
   });
@@ -578,17 +531,7 @@ describe('MobileBookshelfProvider — device-local reading history', () => {
   });
 });
 
-// The cover-write cache sync from PR #220 review lived here: on a downloaded
-// book, uploadBookCover/deleteBookCover invalidated and refreshed the local
-// cover blob so getBookCover would not keep serving a stale one. Those methods
-// are gone with the rest of the mobile write surface, so the tests went with
-// them. If a mobile write mode is ever added, that is the bug to re-fix; see
-// git history for MobileBookshelfProvider.refreshCachedCover.
 
-// PR #266 review (P2): the filesystem cache is scoped by (server, shelf), but
-// two pieces of state alongside it were not — the cover object-URL memo, and
-// the window between a download's remote reads and its cache writes. Both let
-// data cross between shelves that share a book id.
 describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
   let cache: InMemoryMobileBookCache;
 
@@ -601,8 +544,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     return new MobileBookshelfProvider(remote as BookshelfReader, cache, () => true);
   }
 
-  // A failed bundle request, so the illustration cases below exercise the
-  // per-file path.
   function noBundle() {
     return vi.fn().mockRejectedValue(new Error('bundle unavailable'));
   }
@@ -622,11 +563,8 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
 
     connectTo(SERVER_A, SHELF_B);
     const [onShelfB] = await provider.listDownloadedBookEntries();
-    // A fresh lookup, not shelf A's memoized URL. With a scoped cache behind it
-    // this is what stops one shelf's cover appearing on another's book.
     expect(onShelfB.book.cover_url).toBe('blob:mock-2');
 
-    // Returning to shelf A still uses shelf A's own memo rather than shelf B's.
     connectTo(SERVER_A, SHELF_A);
     const [backOnShelfA] = await provider.listDownloadedBookEntries();
     expect(backOnShelfA.book.cover_url).toBe('blob:mock-1');
@@ -655,7 +593,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
   it('discards a download when the shelf changes while it is in flight', async () => {
     const provider = makeProvider({
       getBook: vi.fn().mockImplementation(async () => {
-        // The user switches shelf while the remote reads are outstanding.
         connectTo(SERVER_A, SHELF_B);
         return makeBook('book-1');
       }),
@@ -666,8 +603,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
 
     await expect(provider.downloadBook('book-1')).rejects.toThrow(DOWNLOAD_SHELF_CHANGED_ERROR);
 
-    // Nothing was written, on either shelf: a download split across two scopes
-    // is worse than no download at all.
     expect(await cache.listDownloadedManifests()).toEqual([]);
     expect(await cache.getCachedBookContent('book-1')).toBeNull();
   });
@@ -693,11 +628,8 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
 
     await provider.downloadBook('book-1');
 
-    // Exactly the files the reader will render: each referenced one once, and
-    // nothing for a link the reader leaves as text.
     expect(getSourceAsset.mock.calls.map((call) => call[2])).toEqual(['img-0001.png', 'img-0002.png']);
 
-    // Offline, the cache answers without touching the remote.
     const offline = new MobileBookshelfProvider(
       { getSourceAsset, getSourceAssetsBundle: noBundle() } as unknown as BookshelfReader,
       cache,
@@ -750,8 +682,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(getSourceAsset).toHaveBeenCalledWith('book-1', 'src-1', 'map.png');
   });
 
-  // A plain-text book cannot render an image, so scanning it would only fetch
-  // files the reader will never ask for.
   it('does not fetch illustrations for a plain-text book', async () => {
     const getSourceAsset = vi.fn();
     const getSourceAssetsBundle = noBundle();
@@ -770,7 +700,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(getSourceAsset).not.toHaveBeenCalled();
   });
 
-  // One unreachable picture must not cost the whole download.
   it('completes the download when an illustration fails', async () => {
     const provider = makeProvider({
       getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
@@ -787,8 +716,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png')).toBeNull();
   });
 
-  // An asset has no size bound, so a book with many pictures must not put them
-  // all in flight — and in memory — at once.
   it('bounds how many illustrations are fetched at a time', async () => {
     let inFlight = 0;
     let peak = 0;
@@ -816,8 +743,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(peak).toBeLessThanOrEqual(3);
   });
 
-  // A picture that cannot be stored is a figure the reader falls back on, not
-  // a reason to lose the book: the manifest is written either way.
   it('completes the download when storing an illustration fails', async () => {
     const failingCache = new InMemoryMobileBookCache();
     failingCache.saveCachedAsset = vi.fn().mockRejectedValue(new Error('name too long'));
@@ -841,10 +766,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect((await failingCache.listDownloadedManifests())[0].size_breakdown?.assets).toBe(0);
   });
 
-  // The manifest is the download's commit point: getDownloadState reads it alone
-  // and the mobile shell gates reading on it, so it must never appear before the
-  // content it accounts for. If the content write fails, the book must be left
-  // not-downloaded rather than readable-but-empty.
   it('does not mark a book downloaded when its content fails to persist', async () => {
     const failingCache = new InMemoryMobileBookCache();
     failingCache.saveCachedBookContent = vi.fn().mockRejectedValue(new Error('disk full'));
@@ -892,15 +813,10 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
     return new MobileBookshelfProvider(remote as BookshelfReader, cache, () => true);
   }
 
-  // The whole point of the ticket: one request for the source's figures instead
-  // of one per image. The per-image path must not be touched when the bundle is
-  // available.
   it('takes the whole-bundle path when the backend offers it, storing each figure', async () => {
     const zip = zipSync({
       'img-0001.png': strToU8('bytes of img-0001.png'),
       'img-0002.png': strToU8('bytes of img-0002.png')
-      // img-0003.png is referenced by the text but absent from the archive — a
-      // file the text names that was never uploaded.
     });
     const getSourceAssetsBundle = vi
       .fn()
@@ -921,8 +837,6 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
 
     await provider.downloadBook('book-1');
 
-    // One request, carrying exactly the referenced names, and never the
-    // per-image path.
     expect(getSourceAssetsBundle).toHaveBeenCalledWith('book-1', 'src-1', [
       'img-0001.png',
       'img-0002.png',
@@ -930,8 +844,6 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
     ]);
     expect(getSourceAsset).not.toHaveBeenCalled();
 
-    // Each figure the archive carried is stored, with the MIME its name implies;
-    // the referenced-but-absent one is simply not.
     const first = await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png');
     expect(await first!.text()).toBe('bytes of img-0001.png');
     expect(first!.type).toBe('image/png');
@@ -944,9 +856,6 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
     expect(manifest.size_breakdown?.assets).toBeGreaterThan(0);
   });
 
-  // The bundle is held whole in memory, so a book with many figures is fetched
-  // in bounded chunks rather than one giant archive — the request-count win is
-  // kept while the Android memory bound survives.
   it('splits a large source into bounded bundle requests', async () => {
     const getSourceAssetsBundle = vi
       .fn()
@@ -970,14 +879,11 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
 
     await provider.downloadBook('book-1');
 
-    // 20 figures at a chunk size of 16 is two requests, neither over the bound,
-    // and never the per-image path.
     const requested = getSourceAssetsBundle.mock.calls.map((call) => call[2] as string[]);
     expect(requested).toHaveLength(2);
     expect(Math.max(...requested.map((names) => names.length))).toBeLessThanOrEqual(16);
     expect(getSourceAsset).not.toHaveBeenCalled();
 
-    // Every figure across both chunks was stored, once.
     const allRequested = requested.flat();
     expect(new Set(allRequested).size).toBe(20);
     for (let i = 0; i < 20; i += 1) {
@@ -985,8 +891,6 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
     }
   });
 
-  // A bundle request that fails (here a transport error) must not cost the book
-  // its illustrations: the download drops to the per-file path unchanged.
   it('falls back to per-file fetches when the bundle request fails', async () => {
     const getSourceAssetsBundle = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
     const getSourceAsset = vi
@@ -1008,7 +912,6 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
     await provider.downloadBook('book-1');
 
     expect(getSourceAssetsBundle).toHaveBeenCalledTimes(1);
-    // Every referenced figure was fetched one at a time and stored.
     expect(getSourceAsset.mock.calls.map((call) => call[2]).sort()).toEqual([
       'img-0001.png',
       'img-0002.png'
@@ -1019,8 +922,6 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
     expect((await cache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
   });
 
-  // A well-formed response that is not a valid archive is a bundle failure like
-  // any other, and drops to the per-file path rather than losing the figures.
   it('falls back to per-file fetches when the bundle is a malformed archive', async () => {
     const getSourceAssetsBundle = vi
       .fn()
@@ -1050,8 +951,6 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
     expect(getSourceAssetsBundle).toHaveBeenCalledWith('book-1', 'src-1', ['a.png']);
   });
 
-  // The cache holds figures one by one, never an archive, so offline there is
-  // nothing to answer with; the reader's per-image path still reads the cache.
   it('rejects a bundle request offline without touching the remote', async () => {
     const getSourceAssetsBundle = vi.fn();
     const provider = new MobileBookshelfProvider(
@@ -1073,7 +972,6 @@ describe('MobileBookshelfProvider — manual shelf refresh', () => {
   it('reports no support when the backend refreshes its own listing', async () => {
     const provider = makeProvider({});
 
-    // Still safe to call: the UI hides the control, but nothing may throw.
     await expect(provider.refreshShelf()).resolves.toBeUndefined();
   });
 
@@ -1088,8 +986,6 @@ describe('MobileBookshelfProvider — manual shelf refresh', () => {
     expect(refreshShelf).toHaveBeenCalledTimes(1);
   });
 
-  // Only the backend can say what the walk found, so the wrapper must not eat
-  // the answer on its way to the button.
   it('passes through what the backend found', async () => {
     const provider = makeProvider({
       refreshShelf: async () => ({ bookCount: 12, folderCount: 3 })
@@ -1141,7 +1037,6 @@ describe('MobileBookshelfProvider — persistent cover cache', () => {
     expect(await result.text()).toBe('remote-cover');
     expect(getBookCover).toHaveBeenCalledTimes(1);
 
-    // Wait for the fire-and-forget write to complete.
     await vi.waitFor(async () => {
       expect(await coverCache.getCover('book-1')).not.toBeNull();
     });
@@ -1179,9 +1074,6 @@ describe('MobileBookshelfProvider shelf fallback', () => {
     connectTo(SERVER_A, SHELF_A);
     expect(provider.getPersistedShelfID()).toBe(SHELF_A);
 
-    // Read live, not captured: the settings UI repoints this process-wide
-    // state in place, and a stale answer here would strand the user on the
-    // previous shelf's downloads after switching.
     connectTo(SERVER_B, SHELF_B);
     expect(provider.getPersistedShelfID()).toBe(SHELF_B);
   });

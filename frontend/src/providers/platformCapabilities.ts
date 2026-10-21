@@ -20,7 +20,6 @@ export interface StorageEstimateResult {
   quota?: number;
 }
 
-/** Device operations supplied by the host; never part of the shelf HTTP API. */
 export interface PlatformCapabilities {
   shelves?: {
     previewLANShareQR?(text: string): Promise<DesktopQRShelf[]>;
@@ -47,11 +46,9 @@ export interface PlatformCapabilities {
   coversMustBeFetchedAsBlob?: boolean;
 }
 
-/** Web and wasm use the same browser host; wasm's shelf toolbar remains outside the app. */
 export function createBrowserPlatform(): PlatformCapabilities {
   return {
     async openExternalUrl(url) {
-      // noopener can return null even when the tab opened successfully.
       window.open(url, '_blank', 'noopener,noreferrer');
     }
   };

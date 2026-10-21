@@ -25,29 +25,7 @@ import {
   writeTextFile
 } from './mobileCacheFs';
 
-// Downloaded books, inside the shared layout mobileCacheFs.ts owns:
-//
-//   plainshelf-cache/scopes/<enc(scopeKey)>/books/<enc(bookId)>/
-//       manifest.json      # CachedBookManifest
-//       content.txt        # BookContent.content
-//       progress.json      # ReadingProgress (independent of manifest)
-//       cover.json         # StoredCover
-//       sources/<enc(sourceId)>.txt
-//       assets/<enc(sourceId)>/<hash(name)>.json   # StoredAsset
-//
-// `enc` is encodeURIComponent, but ids are always read from manifest.json, never
-// decoded from a directory name, so reads survive any encoding or filename quirk.
-//
-// manifest.json is the commit point: downloadBook (mobileBookshelfProvider.ts)
-// writes it last, after content, sources and cover, so its presence alone means
-// downloaded (listDownloadedBooks, getCachedBook, getDownloadState). A directory
-// without one is an interrupted download's orphan; an unparsable one counts as
-// missing, and a missing file under a committed manifest is a cache miss, so a
-// later partial eviction degrades gracefully.
 
-// Pre-scope layout. Everything under it belongs to whichever connection was
-// configured when it was written, which — until the mobile shell can hold more
-// than one connection — is the one configured now. See migrateLegacyBooks.
 const LEGACY_BOOKS_DIR = `${BASE_DIR}/books`;
 
 function bookDir(booksDir: string, bookId: string): string {
@@ -74,24 +52,10 @@ function sourcePath(booksDir: string, bookId: string, sourceId: string): string 
   return `${sourcesDir(booksDir, bookId)}/${encode(sourceId)}.txt`;
 }
 
-// The cached cover lives alongside the manifest inside the book directory, so
-// removeDownloadedBook's recursive rmdir already sweeps it up. Binary can't be
-// stored losslessly through a UTF-8 text file (the only shape both the native
-// plugin and its IndexedDB-backed web fallback round-trip identically here),
-// so the cover is persisted as a small JSON sidecar holding the blob's MIME
-// type plus its bytes base64-encoded — text all the way down.
 function coverPath(booksDir: string, bookId: string): string {
   return `${bookDir(booksDir, bookId)}/cover.json`;
 }
 
-// Illustrations sit under the book directory, so the same rmdir sweeps them,
-// nested by source as the shelf stores them; each is a sidecar because binary
-// does not survive the text-only file API. The file name hashes the asset name:
-// names are user-chosen, the shelf accepts up to 255 UTF-8 bytes, and
-// percent-encoding triples CJK, so ~29 characters would overflow the 255-byte
-// component limit and fail the write.
-// The exact name is stored inside and checked on read, so a collision is a
-// cache miss, never the wrong picture.
 function assetPath(booksDir: string, bookId: string, sourceId: string, name: string): string {
   return `${bookDir(booksDir, bookId)}/assets/${encode(sourceId)}/${hashComponent(name)}.json`;
 }
@@ -102,19 +66,9 @@ interface StoredAsset extends StoredCover {
 
 interface StoredCover {
   mime: string;
-  data: string; // base64 (no data: prefix)
+  data: string;
 }
 
-/**
- * Filesystem-backed {@link MobileBookCache}, using @capacitor/filesystem's
- * app-private `Directory.Data`. See the module-level comment above for the
- * on-disk layout and the commit-point semantics this implementation uses.
- *
- * Every read method (`get*`/`list*`) treats "file or directory missing",
- * "underlying plugin error", and "malformed JSON" uniformly as a cache miss
- * (`null` / empty array) rather than throwing — a single book's corruption
- * must never take down the whole library list.
- */
 export class FilesystemMobileBookCache implements MobileBookCache {
   private legacyMigration: Promise<void> | null = null;
 
@@ -182,9 +136,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
   }
 
   async saveReadProgress(bookId: string, progress: ReadingProgress): Promise<void> {
-    // Independent of the manifest/download state: progress can be written (and
-    // read back) even for a book that was never (or isn't currently)
-    // downloaded.
     const booksDir = await this.resolveBooksDir();
     await writeJsonFile(progressPath(booksDir, bookId), { ...progress });
   }
@@ -198,8 +149,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     try {
       return base64ToBlob(stored.data, typeof stored.mime === 'string' ? stored.mime : '');
     } catch {
-      // Corrupt/undecodable base64 is a cache miss, not a crash — the cover
-      // just falls back to the remote URL (or a broken-image placeholder).
       return null;
     }
   }
@@ -221,16 +170,12 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     if (!stored || typeof stored.data !== 'string') {
       return null;
     }
-    // The path is a hash, so the file has to confirm which name it holds. A
-    // collision must read as a cache miss rather than as another illustration.
     if (stored.name !== name) {
       return null;
     }
     try {
       return base64ToBlob(stored.data, typeof stored.mime === 'string' ? stored.mime : '');
     } catch {
-      // Undecodable base64 is a cache miss, not a crash: the reader falls back
-      // to the remote copy, or to the illustration's alt text when offline.
       return null;
     }
   }
@@ -246,10 +191,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     return manifests.map(cloneManifest);
   }
 
-  /**
-   * Directory holding the downloads of the currently connected (server, shelf),
-   * after any one-time move of the pre-scope layout has been applied.
-   */
   private async resolveBooksDir(): Promise<string> {
     const scopeKey = currentCacheScopeKey();
     await this.ensureLegacyMigrated(scopeKey);
@@ -258,8 +199,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   private async ensureLegacyMigrated(scopeKey: string): Promise<void> {
     if (!scopeKey) {
-      // No connection applied yet, so there is no scope to attribute the legacy
-      // downloads to. Skip without latching, so a later call still migrates.
       return;
     }
     if (!this.legacyMigration) {
@@ -268,16 +207,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     await this.legacyMigration;
   }
 
-  /**
-   * Moves `plainshelf-cache/books` into the current scope. Runs at most once per
-   * app run: the check costs two stats, and after a successful move the source
-   * is gone.
-   *
-   * Every failure path leaves the legacy directory untouched and lets the caller
-   * continue against an empty scope. Losing a download to a cache miss is
-   * recoverable — the book re-downloads — whereas deleting the directory to
-   * "clean up" would not be.
-   */
   private async migrateLegacyBooks(scopeKey: string): Promise<void> {
     if (!(await this.isDirectory(LEGACY_BOOKS_DIR))) {
       return;
@@ -285,9 +214,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
     const target = `${scopeDir(scopeKey)}/books`;
     if (await this.isDirectory(target)) {
-      // The scope already has its own downloads; merging the two could overwrite
-      // them with same-id books from a different shelf, which is the very
-      // collision the scope segment exists to prevent.
       return;
     }
 
@@ -304,7 +230,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
         toDirectory: CACHE_DIRECTORY
       });
     } catch {
-      // Left in place on purpose; see the doc comment.
     }
   }
 
@@ -346,10 +271,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     );
   }
 
-  // JSON that parses but has the wrong shape ({}, [], missing book.id, …)
-  // must count as a corrupt manifest, not a cache hit — otherwise
-  // toDownloadedBook dereferences undefined and one bad manifest throws out
-  // of listDownloadedBooks for the whole library.
   private asManifest(value: unknown): CachedBookManifest | null {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       return null;

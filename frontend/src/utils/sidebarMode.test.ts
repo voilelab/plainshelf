@@ -9,7 +9,6 @@ import {
   setStoredSidebarMode
 } from './sidebarMode';
 
-// Tests run in a node environment; the util only needs localStorage on window.
 function stubWindow(store: Map<string, string>): void {
   vi.stubGlobal('window', {
     localStorage: {

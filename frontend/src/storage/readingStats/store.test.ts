@@ -33,8 +33,6 @@ describe('ReadingStatsStore', () => {
     expect(await makeStore(storage).range(KEY, TODAY, TODAY)).toEqual({ [TODAY]: 45 });
   });
 
-  // Two heartbeat ticks can land while a read is still in flight; without the
-  // store's mutation queue one would overwrite the other's document.
   it('does not lose concurrent ticks', async () => {
     const store = makeStore();
 

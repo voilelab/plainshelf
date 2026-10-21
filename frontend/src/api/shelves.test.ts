@@ -20,7 +20,6 @@ const { ShelfScanInProgressError, ShelfScanRateLimitedError, listServerShelves, 
   await import('./shelves');
 const { registerShell } = await import('@/providers/shell');
 
-/** Stands in for a shell whose shelf list is device-local. */
 function installShelfProvidingShell(
   shelf: { id: string; name: string; readOnly?: boolean } | null
 ): void {
@@ -37,9 +36,6 @@ afterEach(() => {
 });
 
 describe('listShelves', () => {
-  // On the mobile shell the app-wide shelf list is the one entry the device is
-  // pointed at: the other entries belong to other servers and other pCloud
-  // folders, so no server can enumerate them.
   it('answers from the shell without a request when one supplies a shelf', async () => {
     installShelfProvidingShell({
       id: '/PlainShelf/default-shelf',
@@ -50,8 +46,6 @@ describe('listShelves', () => {
     await expect(listShelves()).resolves.toEqual([
       { id: '/PlainShelf/default-shelf', name: 'default-shelf', readOnly: true }
     ]);
-    // Issuing the request would fail and, worse, ensureActiveShelf would then
-    // clear the id the cache scope is keyed on.
     expect(fetchJsonMock).not.toHaveBeenCalled();
   });
 
@@ -71,8 +65,6 @@ describe('listShelves', () => {
 });
 
 describe('listServerShelves', () => {
-  // The shelf-entry form has to ask a server the user is still typing in what
-  // shelves it offers, so this one must never collapse to the active entry.
   it('asks the server even while a shell supplies an active shelf', async () => {
     installShelfProvidingShell({ id: 'main', name: 'main' });
     fetchJsonMock.mockResolvedValue([
@@ -94,8 +86,6 @@ describe('listServerShelves', () => {
     ]);
   });
 
-  // The whole point of the field: a writable and a read-only shelf side by side
-  // must not look the same to the client, or the UI has nothing to gate on.
   it('carries each shelf read-only state independently', async () => {
     fetchJsonMock.mockResolvedValue([
       { id: 'archive', name: 'Archive', read_only: true },
@@ -108,9 +98,6 @@ describe('listServerShelves', () => {
     ]);
   });
 
-  // A server predating the field never opened a shelf read-only, so defaulting
-  // to writable is what keeps its write buttons on screen. Anything that is not
-  // literally `true` — a string, a number, a missing key — reads as writable.
   it('treats a missing or non-boolean read_only as writable', async () => {
     fetchJsonMock.mockResolvedValue([
       { id: 'old', name: 'Old' },
@@ -131,8 +118,6 @@ describe('rescanShelf', () => {
     await expect(rescanShelf()).resolves.toEqual({ bookCount: 12, folderCount: 3 });
   });
 
-  // The gate that would otherwise reject this POST is the one that exists to
-  // stop writes, and a rescan is not one; the server draws the same exception.
   it('marks the request as writing nothing, and takes the 409 body as a result', async () => {
     fetchJsonMock.mockResolvedValue({ scan_id: 'abc', book_count: 0, folder_count: 0 });
 
@@ -145,16 +130,12 @@ describe('rescanShelf', () => {
     );
   });
 
-  // A 409 body carries no counts, which is how it is told apart from a walk
-  // that ran and genuinely found an empty shelf.
   it('rejects with the running scan when the shelf is already being walked', async () => {
     fetchJsonMock.mockResolvedValue({ scan_id: 'running-one' });
 
     await expect(rescanShelf()).rejects.toBeInstanceOf(ShelfScanInProgressError);
   });
 
-  // The 429 body carries no counts either, so a client keying only on their
-  // absence would report a running walk that does not exist.
   it('rejects with the wait when the server refuses the pace, not a running walk', async () => {
     fetchJsonMock.mockResolvedValue({ retry_after_seconds: 7, message: 'too many rescans' });
 

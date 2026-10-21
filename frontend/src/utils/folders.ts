@@ -3,11 +3,6 @@ import type { Book } from '@/types/book';
 
 const ROOT_FOLDER_PATH = '';
 
-/**
- * The `folders` query value that filters to books sitting directly at the shelf
- * root. Distinct from ROOT_FOLDER_PATH / a missing query, which mean "all books
- * in every folder".
- */
 export const ROOT_FOLDER_FILTER = '/';
 
 type FolderTreeNode = {
@@ -73,16 +68,6 @@ export function folderPathEquals(left: string, right: string): boolean {
   return toComparableFolderPath(left) === toComparableFolderPath(right);
 }
 
-/**
- * Shared by every caller that navigates into a folder (sidebar tree, breadcrumb,
- * post-delete redirect) so they all emit the same canonical `folders` query.
- *
- * Three destinations, not two: an empty path is the unfiltered "All books" view
- * (no `folders` key), `ROOT_FOLDER_FILTER` is the narrower "books sitting
- * directly at the shelf root" filter, and anything else is a normalized folder
- * path. `ROOT_FOLDER_FILTER` must survive verbatim — LibraryPage's
- * `matchesFolder` tells it apart from a missing query.
- */
 export function booksRouteForFolderPath(folderPath: string): BooksFolderRoute {
   const trimmed = folderPath.trim();
   const normalized = trimmed === ROOT_FOLDER_FILTER ? ROOT_FOLDER_FILTER : normalizeFolderPath(trimmed);
@@ -109,7 +94,6 @@ function compareFolderKeys(
   return hasX && hasY ? x! - y! : 0;
 }
 
-/** Keep the exact legacy order without keys; otherwise emit whole subtrees. */
 export function sortFolderPaths(paths: string[], metadata: FolderMetadata): string[] {
   if (!paths.some(path => Number.isFinite(metadata[path]?.sort_key))) return [...paths];
   const present = new Set(paths);
@@ -192,12 +176,6 @@ export function buildFolderTreeNodes(
   return roots;
 }
 
-/**
- * Flattens a folder tree into a depth-first list of selectable paths. Reads the
- * tree rather than the raw folder list because the tree synthesizes intermediate
- * ancestors that the flat list may omit. The synthetic '/' root node is skipped;
- * callers that need a root entry prepend their own labelled option.
- */
 export function flattenFolderTreePaths(nodes: FolderTreeNode[], depth = 0): FolderPathOption[] {
   const options: FolderPathOption[] = [];
 

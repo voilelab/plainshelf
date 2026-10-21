@@ -8,13 +8,9 @@ import {
   type FilterFieldValue
 } from './codec';
 
-// A small deterministic string generator, so the property test explores a wide
-// range of eq values (colons, commas, the literal sentinels, unicode, empties)
-// without a random seed that could pass one run and fail the next.
 function pseudoRandom(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
-    // Numerical Recipes LCG; only its spread matters here, not its quality.
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
     return state / 0x100000000;
   };
@@ -44,8 +40,6 @@ describe('serializeFilterField / parseFilterField', () => {
   });
 
   it('keeps eq values distinct from the bare sentinels', () => {
-    // The literal strings "none" and "has" survive as eq values rather than
-    // collapsing into the "absent"/"present" sentinels.
     expect(serializeFilterField({ kind: 'eq', value: 'none' })).toBe('eq:none');
     expect(parseFilterField('eq:none')).toEqual({ kind: 'eq', value: 'none' });
     expect(parseFilterField('eq:has')).toEqual({ kind: 'eq', value: 'has' });
@@ -82,8 +76,6 @@ describe('serializeFilterField / parseFilterField', () => {
   });
 
   it('ignores an invalid token rather than throwing', () => {
-    // `?author=garbage`: an unknown value applies no condition and raises nothing,
-    // the same way toBookSort falls back on an unknown sort key.
     for (const raw of ['garbage', 'eq', 'EQ:x', 'None', 'has ', '', ' ', 'author=garbage']) {
       expect(parseFilterField(raw)).toBeUndefined();
     }

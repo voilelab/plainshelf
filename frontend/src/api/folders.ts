@@ -70,11 +70,6 @@ function encodeFolderPath(path: string): string {
     .join('/');
 }
 
-/**
- * Lists the folders of a shelf. Defaults to the active shelf; pass `shelfID` to
- * read another shelf's folders, which is what the cross-shelf transfer picker
- * needs — its destination folders belong to the target shelf, not the active one.
- */
 export async function getFolders(shelfID?: string): Promise<string[]> {
   if (isMockApiMode()) {
     return delay(getMockFolders());
@@ -98,17 +93,8 @@ export async function getFolders(shelfID?: string): Promise<string[]> {
   return Array.from(unique).sort((a, b) => a.localeCompare(b));
 }
 
-/** Which cross-shelf conflict a folder transfer was refused for. */
 type FolderTransferConflictKind = 'target_folder_conflict' | 'book_id_conflict';
 
-/**
- * Thrown by {@link transferFolder} when the server refuses the transfer up front
- * with a 409 conflict body — either the target shelf already holds a folder with
- * this name, or (for a move) it already holds books with these IDs. A distinct
- * type, not a bare Error, so the modal can name which conflict it is and list the
- * colliding book IDs rather than showing one opaque message. The server's own
- * message is kept as `message` so the UI can fall back to it.
- */
 export class FolderTransferConflictError extends Error {
   constructor(
     readonly kind: FolderTransferConflictKind,
@@ -120,17 +106,6 @@ export class FolderTransferConflictError extends Error {
   }
 }
 
-/**
- * Thrown when the server refuses a folder change because it would take content
- * out of a folder `shelf.json` marks as adult content, while `show_nsfw` is
- * hiding it — moving or renaming the folder unmarks everything below it at once.
- *
- * It is a question, not a rule: the same request goes through with
- * `{ confirm: true }` once the user has been told what it reveals.
- * `hiddenBooks` is how many books they cannot currently see would be served
- * afterwards, and is 0 when the whole disclosure is a folder name, so it must
- * not be read as "nothing would change".
- */
 export class NsfwRevealConfirmationError extends Error {
   constructor(
     readonly hiddenBooks: number,
@@ -141,16 +116,12 @@ export class NsfwRevealConfirmationError extends Error {
   }
 }
 
-/** Options every folder change that can be refused this way accepts. */
 export interface FolderChangeOptions {
-  /** Go ahead even though the change unhides marked content. */
   confirm?: boolean;
 }
 
 const NSFW_REVEAL_CONFLICT = 'nsfw_reveal_requires_confirmation';
 
-// Three folder routes answer 409 with more than one body shape, so this checks
-// the shape rather than asserting it, and returns null for every other 409.
 function nsfwRevealConfirmation(err: unknown): NsfwRevealConfirmationError | null {
   if (!(err instanceof ApiError) || err.status !== 409) {
     return null;
@@ -174,32 +145,22 @@ function nsfwRevealConfirmation(err: unknown): NsfwRevealConfirmationError | nul
   );
 }
 
-// The flag is a query parameter because the three routes carry three different
-// bodies and the rename's has room for a folder name and nothing else.
 function withConfirm(path: string, confirm?: boolean): string {
   return confirm ? `${path}?confirm=1` : path;
 }
 
-// The 409 body a pre-flight refusal answers with. conflicting_book_ids carries
-// no omitempty, so a folder conflict - which collides on no book at all - still
-// sends it, as []. The list is never null and never absent.
 interface FolderTransferConflictBody {
   error: FolderTransferConflictKind;
   message?: string;
   conflicting_book_ids: string[];
 }
 
-// The endpoint's other 409: a transfer is already running, and the client should
-// attach to that chain rather than report a conflict.
 interface FolderTransferBusyBody {
   taskchain_id?: string;
 }
 
 type FolderTransfer409Body = Partial<FolderTransferConflictBody> & FolderTransferBusyBody;
 
-// The body reaches us as an arbitrary string, so the shape is checked rather
-// than asserted. Once it passes, conflicting_book_ids is a list and the caller
-// needs no fallback of its own.
 function isFolderTransferConflict(
   body: FolderTransfer409Body
 ): body is FolderTransferConflictBody {
@@ -209,22 +170,6 @@ function isFolderTransferConflict(
   );
 }
 
-/**
- * Copies or moves a whole folder — every book and sub-folder beneath it —
- * from the active shelf to `targetShelfID`, returning the id of the background
- * task chain to poll. The work is asynchronous because a folder can hold hundreds
- * of megabytes and either shelf may be a network mount, so the request must not
- * block on it.
- *
- * `sourceFolder` and `targetFolder` are '/'-joined paths. `targetFolder` is the full
- * destination path the folder lands at on the target shelf (it keeps its own name
- * when the caller nests it under a chosen parent); the server refuses a root
- * target. When the same transfer is already running the server answers 409 with
- * that chain's id, returned here so the caller attaches to the in-flight work.
- * The two pre-flight conflicts (target folder exists, or a move would overwrite
- * book IDs) are surfaced as {@link FolderTransferConflictError}; any other refusal
- * (a read-only target, an invalid path) propagates with the server's message.
- */
 export async function transferFolder(
   sourceFolder: string,
   targetShelfID: string,
@@ -256,8 +201,6 @@ export async function transferFolder(
     }
     if (err instanceof ApiError && err.status === 409) {
       const conflict = parseFolderTransferConflict(err.message);
-      // The already-running case answers 409 with the chain id, not a conflict
-      // body; attach to it rather than failing.
       if (conflict?.taskchain_id) {
         return conflict.taskchain_id;
       }
@@ -278,8 +221,6 @@ function parseFolderTransferConflict(body: string): FolderTransfer409Body | null
     const parsed = JSON.parse(body) as FolderTransfer409Body;
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
-    // A plain-text 409 (a read-only shelf) is not a conflict body; let the caller
-    // propagate the original ApiError so its message reaches the user.
     return null;
   }
 }
@@ -304,10 +245,6 @@ export async function createFolder(folderPath: string): Promise<void> {
     });
   } catch (err) {
     if (err instanceof ApiError && err.status === 400) {
-      // The server names the reason it refused the name - an empty path, or a
-      // hidden/system directory name its scanner would skip - and the user
-      // cannot guess between them, so pass the message through instead of
-      // replacing it with one fixed guess.
       throw new FolderHttpError(err.message || 'Folder path cannot be empty');
     }
 
@@ -437,21 +374,15 @@ export async function deleteFolder(folderPath: string): Promise<void> {
   }
 }
 
-/** One folder's folder.json, as GET .../folder-meta lists it. */
 export interface FolderMeta {
   sort_key?: number;
-  /** '' for the default icon, which includes a name this server does not offer. */
   icon: string;
-  /** What setFolderIcon passes back; '' on a shelf that is never written. */
   version: string;
-  /** The folder.json is one the server will not rewrite. */
   readOnly: boolean;
 }
 
 export interface FolderMetaListing {
-  /** The icon names the server accepts. */
   icons: string[];
-  /** Keyed by folder path ('Fiction/Classics'); an absent folder has no metadata. */
   folders: Record<string, FolderMeta>;
 }
 
@@ -468,7 +399,6 @@ function parseFolderMeta(value: unknown): FolderMeta | null {
   };
 }
 
-/** Lists the active shelf's folder metadata and the icons it accepts. */
 export async function getFolderMeta(shelfID?: string): Promise<FolderMetaListing> {
   if (isMockApiMode()) {
     return delay({ icons: [...FOLDER_ICON_NAMES], folders: getMockFolderMeta() });
@@ -491,10 +421,6 @@ export async function getFolderMeta(shelfID?: string): Promise<FolderMetaListing
   return { icons, folders };
 }
 
-/**
- * Sets a folder's icon, or clears it with ''. `version` is the folder's
- * FolderMeta.version from the listing, '' for a folder it did not list.
- */
 export async function setFolderIcon(folderPath: string, icon: string, version: string): Promise<void> {
   const normalized = normalizeFolderPath(folderPath);
   if (!normalized) {

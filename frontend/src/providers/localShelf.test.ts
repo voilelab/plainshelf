@@ -57,7 +57,6 @@ describe('localShelfFetch', () => {
     expect(plugin.beginBody).toHaveBeenCalledOnce();
     expect(plugin.appendBody).toHaveBeenCalledTimes(3);
     expect(staged.map((c) => c.length)).toEqual([1 << 20, 1 << 20, 0.5 * (1 << 20)]);
-    // Compared by hand: toEqual walks 2.5 MiB element by element.
     const joined = new Uint8Array(body.length);
     let offset = 0;
     for (const chunk of staged) {
@@ -120,7 +119,6 @@ describe('localShelfExportFileName', () => {
 });
 
 describe('localShelfErrorKey', () => {
-  // Wording as the Go sentinels produce it, prefixed the way util.Errorf wraps them.
   it.each([
     ['plainshelf: background tasks are still running', 'mobileShelves.errorBusy'],
     ['not a PlainShelf shelf: the zip has no books/ directory', 'mobileShelves.errorNotShelf'],

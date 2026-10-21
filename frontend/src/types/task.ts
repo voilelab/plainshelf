@@ -63,7 +63,6 @@ interface RefreshContentStatsFailure {
   code: RefreshContentStatsFailureCode;
 }
 
-/** Result of the shelf-wide sweep that recomputes unknown character counts. */
 export interface RefreshContentStatsResult {
   total: number;
   refreshed: number;
@@ -85,13 +84,7 @@ interface FolderTransferFailure {
   code: string;
 }
 
-/**
- * Result of a cross-shelf folder transfer, mirroring the server's
- * FolderTransferResult. The single task carries this from its first poll, so the
- * modal can report an "N of M books" count the chain's bare percentage does not
- * expose on its own.
- */
-export interface FolderTransferResult {
+interface FolderTransferResult {
   operation: 'copy' | 'move';
   source_shelf: string;
   target_shelf: string;
@@ -124,12 +117,6 @@ export interface TaskChain {
   tasks: Task[];
 }
 
-/**
- * Per-book progress of a folder transfer, read out of the chain's single task
- * result. `processed` counts books the transfer has finished with (succeeded or
- * failed) so the modal can show "N of M books" beside the percentage bar.
- * Returns null until a task carries a FolderTransferResult.
- */
 export function folderTransferCounts(
   chain: TaskChain | null
 ): { processed: number; total: number; succeeded: number; failed: number } | null {

@@ -42,8 +42,6 @@ describe('transferFolder', () => {
     await expect(transferFolder('Fiction', 'shelf-b', 'Fiction', 'copy')).resolves.toBe('chain-running');
   });
 
-  // A folder conflict collides on no book, so the server sends an empty list
-  // rather than omitting the field.
   it('raises a typed conflict when the target already holds a folder with this name', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError(
@@ -94,8 +92,6 @@ describe('transferFolder', () => {
 });
 
 describe('createFolder', () => {
-  // The server refuses a name the shelf scanner would skip with an explanation
-  // the user needs; replacing every 400 with one fixed sentence hid it.
   it('surfaces the reason the server gave for a rejected name', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError('invalid folder name: hidden and system directory names are skipped', { status: 400 })
@@ -113,12 +109,6 @@ describe('createFolder', () => {
   });
 });
 
-/*
-Moving or renaming a folder out of a subtree shelf.json marks as adult content
-unmarks everything below it, so the server refuses the change with its own 409
-body until the caller confirms. All three routes carry the flag as ?confirm=1
-because the rename's body has room for a folder name and nothing else.
-*/
 describe('folder changes that would unhide marked content', () => {
   const refusal = () =>
     new ApiError(
@@ -157,8 +147,6 @@ describe('folder changes that would unhide marked content', () => {
     });
   }
 
-  // hidden_books is 0 when the whole disclosure is a folder name, and a client
-  // that read that as "nothing would change" would skip the question entirely.
   it('keeps a count of zero rather than falling back to the generic 409 path', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError(

@@ -10,10 +10,6 @@ import { registerMockTaskChain } from './taskchains';
 import type { BookBatchRequest, BookBatchResult, RefreshContentStatsResult } from '@/types/task';
 import { normalizeFolderPath } from '@/utils/folders';
 
-// In-memory backend for VITE_USE_MOCK_API. The gate that reaches for it lives in
-// api/client.ts (isMockApiMode); nothing here is reachable in a real build.
-// State is module-level and mutable on purpose: a mock session should behave
-// like a tiny server that remembers edits until the page reloads.
 
 export const mockBooks: Book[] = [
   {
@@ -171,8 +167,6 @@ export const mockBooks: Book[] = [
     created_at: '2026-07-05T09:00:00Z',
     cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf11/120/180'
-    // char_count is deliberately absent: this is the "unknown character count"
-    // case the character-count filter reports and the content-stats sweep repairs.
   }
 ];
 
@@ -249,8 +243,6 @@ export function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   if (payload.published_at !== undefined) book.published_at = payload.published_at;
   if (payload.identifiers !== undefined) book.identifiers = payload.identifiers;
   if (payload.format !== undefined) book.format = payload.format;
-  // Only the book's own half: nsfw_folder comes from shelf.json, which the mock
-  // shelf has no equivalent of, and a payload can never write it anyway.
   if (payload.nsfw !== undefined) book.nsfw = payload.nsfw;
   book.updated_at = new Date().toISOString();
   return { ...book };
@@ -282,8 +274,6 @@ export function mockCopyBook(id: string, folderPath: string): Book {
     updated_at: now
   };
   mockBooks.unshift(copy);
-  // The server duplicates the whole package, so the copy reads the same body.
-  // Carry the content entry across too, otherwise the mock copy would open empty.
   if (mockContent[id] !== undefined) {
     mockContent[copy.id] = mockContent[id];
   }
@@ -312,8 +302,6 @@ export function mockImportBook(payload: BookCreateRequest): Book {
     authors: [],
     folders: normalizedFolder,
     language: 'unknown',
-    // An EPUB import stores whatever the conversion strategy produces, not the
-    // uploaded file's own format.
     format: isEpub ? epubFormat : 'txt',
     tags: [],
     created_at: now,
@@ -382,10 +370,6 @@ export function mockDeleteTrashedBook(id: string): void {
   }
 }
 
-/**
- * mockEmptyTrash schedules a task chain that drops one trashed book per poll,
- * so mock mode exercises the same progress reporting as the real sweep.
- */
 export function mockEmptyTrash(): string {
   const doomed = mockTrashedBooks.map((book) => book.id);
   return registerMockTaskChain({
@@ -401,11 +385,6 @@ export function mockEmptyTrash(): string {
   });
 }
 
-/**
- * mockRefreshContentStats schedules a task chain that fills in one missing
- * char_count per poll, so mock mode exercises the same progress reporting as
- * the real sweep.
- */
 export function mockRefreshContentStats(): string {
   const pending = mockBooks.filter((book) => typeof book.char_count !== 'number').map((book) => book.id);
   const result: RefreshContentStatsResult = {
@@ -425,8 +404,6 @@ export function mockRefreshContentStats(): string {
         result.failures.push({ book_id: id, code: 'not_found' });
         return;
       }
-      // Spread rather than .length so the count is code points, matching the
-      // server's rune-based count.
       book.char_count = [...(mockContent[id] ?? '')].length;
       result.refreshed += 1;
     },
@@ -437,17 +414,6 @@ export function mockRefreshContentStats(): string {
   });
 }
 
-/**
- * mockStartFingerprintSources schedules a task chain that walks every mock book
- * once, so mock mode exercises the same progress reporting as the real
- * fingerprint sweep. Mock mode reports full fingerprint coverage
- * (getFingerprintStatus → missing: 0), so this is here for completeness rather
- * than to change any mock state.
- *
- * The `force` flag makes no difference here: with no real cache to bypass, an
- * incremental sweep and a forced one both walk every book once. It is accepted
- * only so the mock matches the real signature.
- */
 export function mockStartFingerprintSources(_force = false): string {
   return registerMockTaskChain({
     name: 'fingerprint_sources',
@@ -456,12 +422,6 @@ export function mockStartFingerprintSources(_force = false): string {
   });
 }
 
-/**
- * mockTransferBook schedules a single-item task chain that mirrors the real
- * cross-shelf transfer's progress reporting. Mock mode models only one shelf, so
- * the target is a phantom the fixture set does not track: a `move` drops the
- * source book, and a `copy` leaves the source list unchanged.
- */
 export function mockTransferBook(
   bookId: string,
   _targetShelfId: string,
@@ -484,13 +444,6 @@ export function mockTransferBook(
   });
 }
 
-/**
- * mockTransferFolder schedules a task chain that mirrors the real cross-shelf
- * folder transfer's progress and its FolderTransferResult, one mock book per poll.
- * Mock mode models only one shelf, so the target is a phantom: a `move` drops the
- * carried books from the source list, a `copy` leaves them. The result it reports
- * is what drives the modal's "N of M books" count.
- */
 export function mockTransferFolder(
   sourceFolder: string,
   targetShelfId: string,

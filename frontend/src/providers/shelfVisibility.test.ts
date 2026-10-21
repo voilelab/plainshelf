@@ -12,8 +12,6 @@ describe('ShelfVisibility.allows', () => {
     ['an unmarked book', {}, true],
     ['a book marked in its own book.json', { nsfw: true }, false],
     ['a book in a marked folder', { nsfw_folder: { path: 'Adult' } }, false],
-    // The two halves add: clearing the book's own mark does not take it out of
-    // a marked folder, the same sum isBookNsfw and Shelf.IsBookNSFW compute.
     ['a book that refused its own mark inside a marked folder', { nsfw: false, nsfw_folder: { path: 'Adult' } }, false]
   ])('hides %s with the setting off', (_label, mark, want) => {
     const visibility = new ShelfVisibility({ showNsfw: false });
@@ -47,7 +45,6 @@ describe('ShelfVisibility.keepBooks', () => {
 });
 
 describe('ShelfVisibility.filterFolders', () => {
-  // Mirrors the shelf rules: a rule marks its own folder and everything below.
   const isNsfwFolder = (folders: readonly string[]) => folders[0] === 'Adult';
 
   function filter(folders: string[], books: Book[], showNsfw = false): string[] {
@@ -58,8 +55,6 @@ describe('ShelfVisibility.filterFolders', () => {
     expect(filter(['/', 'Adult', 'Adult/2024', 'Fiction'], [])).toEqual(['/', 'Fiction']);
   });
 
-  // A folder left empty by the filter is the disclosure the filter exists to
-  // prevent: its name usually says what it held.
   it('drops a folder holding nothing but hidden books', () => {
     const books = [book('a', ['Fiction']), book('b', ['Doujin'], { nsfw: true })];
 
@@ -70,8 +65,6 @@ describe('ShelfVisibility.filterFolders', () => {
     expect(filter(['/', 'Empty'], [book('a', ['Fiction'])])).toEqual(['/', 'Empty']);
   });
 
-  // A folder counts everything in its subtree, so a parent with one visible
-  // book below it stays even when its own books are hidden.
   it('keeps an ancestor of a visible book', () => {
     const books = [book('a', ['Fiction'], { nsfw: true }), book('b', ['Fiction', 'Classics'])];
 

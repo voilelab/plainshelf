@@ -97,8 +97,6 @@ describe('transferBook', () => {
     expect(JSON.parse((init as { body: string }).body).target_folder).toEqual([]);
   });
 
-  // A transfer already in flight answers 409 with the running chain's id as JSON,
-  // which is adopted so the caller attaches to it rather than failing.
   it('attaches to the chain a 409 already-running body names', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError(JSON.stringify({ taskchain_id: 'chain-running' }), { status: 409 })
@@ -107,8 +105,6 @@ describe('transferBook', () => {
     await expect(transferBook('book-1', 'shelf-b', '', 'move')).resolves.toBe('chain-running');
   });
 
-  // Every other 409 (target holds this id, target/source read-only) is a
-  // plain-text conflict that must surface with the server's message.
   it('propagates a plain-text 409 conflict', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError('the target shelf already holds a book with this ID; the move would overwrite it', {
@@ -136,8 +132,6 @@ describe('startFingerprintSources', () => {
     const [path, init, options] = fetchJsonMock.mock.calls[0];
     expect(path).toBe('/source-fingerprints');
     expect(init).toMatchObject({ method: 'POST' });
-    // The incremental request accepts a 409 so a second press attaches to the
-    // sweep already running.
     expect(options).toEqual({ acceptStatuses: [409] });
   });
 
@@ -150,8 +144,6 @@ describe('startFingerprintSources', () => {
     const [path, init, options] = fetchJsonMock.mock.calls[0];
     expect(path).toBe('/source-fingerprints?force=true');
     expect(init).toMatchObject({ method: 'POST' });
-    // No acceptStatuses: a 409 must reject so the force path can classify it
-    // rather than silently adopt whatever chain is already running.
     expect(options).toBeUndefined();
   });
 

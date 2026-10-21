@@ -38,10 +38,6 @@ describe('InMemoryMobileBookCache', () => {
     cache = new InMemoryMobileBookCache();
   });
 
-  // Source contents are keyed by book and source id joined together, and
-  // removeDownloadedBook drops a book's entries by matching that key's prefix.
-  // The prefix has to include the separator, or removing `book1` would take
-  // `book10`'s sources with it.
   it('removes only the named book, not one whose id it prefixes', async () => {
     await cache.saveDownloadedBook(makeManifest('book1', ['s1']));
     await cache.saveDownloadedBook(makeManifest('book10', ['s1']));
@@ -63,8 +59,6 @@ describe('InMemoryMobileBookCache', () => {
     expect(await cache.getCachedSourceContent('book1', 's10')).toBe('second');
   });
 
-  // Only the manifest's own objects are detached; see cloneManifest for what
-  // stays shared below that level.
   it("detaches a stored manifest's own objects from the caller", async () => {
     const manifest = makeManifest('book1', ['s1']);
     await cache.saveDownloadedBook(manifest);
