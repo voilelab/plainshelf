@@ -7,6 +7,7 @@
     "test": "tests"
   },
   "scripts": {
+    "check-config": "node check-config.cjs",
     "test": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
     "test:headed": "playwright test --headed"

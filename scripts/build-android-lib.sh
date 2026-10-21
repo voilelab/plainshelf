@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Builds the embedded server (mobile/) as an Android arm64 AAR with gomobile
-# and reports its size and whether every .so passes 16 KB page alignment.
-# Usage: scripts/build-android-lib.sh <out-dir>
-# Needs ANDROID_HOME, an NDK (ANDROID_NDK_HOME) and a JDK; runs on Linux and
-# macOS. Exits 1 on a misaligned .so. Appends the report to $GITHUB_STEP_SUMMARY when set.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 out=${1:?usage: build-android-lib.sh <out-dir>}
@@ -14,10 +9,10 @@ mkdir -p "$out" && out=$(cd "$out" && pwd)
 cd "$repo"
 go install "golang.org/x/mobile/cmd/gomobile@$mobile_version"
 go install "golang.org/x/mobile/cmd/gobind@$mobile_version"
-# bind needs x/mobile in the module graph; kept out of the committed go.mod.
-backup=$(mktemp -d)
-cp go.mod go.sum "$backup/"
-trap 'cp "$backup/go.mod" "$backup/go.sum" "$repo/"; rm -rf "$backup"' EXIT
+# gomobile 197770444867 requires golang.org/x/mobile/bind in the current module graph (cmd/gomobile/bind.go).
+module_backup_dir=$(mktemp -d)
+cp go.mod go.sum "$module_backup_dir/"
+trap 'cp "$module_backup_dir/go.mod" "$module_backup_dir/go.sum" "$repo/"; rm -rf "$module_backup_dir"' EXIT
 go get "golang.org/x/mobile/bind@$mobile_version"
 
 PATH="$(go env GOPATH)/bin:$PATH" gomobile bind \
@@ -30,10 +25,10 @@ unpacked="$out/aar"
 rm -rf "$unpacked" && mkdir -p "$unpacked"
 (cd "$unpacked" && unzip -q "$out/plainshelf.aar")
 
-# GNU readelf where installed, else the NDK's llvm-readelf (macOS).
 readelf=$(command -v readelf || ls "${ANDROID_NDK_HOME:-/nonexistent}"/toolchains/llvm/prebuilt/*/bin/llvm-readelf 2>/dev/null | head -1 || true)
 [[ -n $readelf ]] || { echo "no readelf: install binutils or set ANDROID_NDK_HOME" >&2; exit 2; }
-bytes() { wc -c <"$1" | tr -d ' '; } # stat -c is GNU-only
+# BSD stat uses -f for formatting; GNU stat uses -c (stat(1)).
+bytes() { wc -c <"$1" | tr -d ' '; }
 
 report="$out/report.md"
 status=0
@@ -44,7 +39,6 @@ status=0
   echo "|---|---:|---:|---:|---|"
   echo "| plainshelf.aar | $(bytes "$out/plainshelf.aar") | | | |"
   while IFS= read -r so; do
-    # Smallest alignment over the LOAD segments; 16 KB pages need >= 0x4000.
     align=$("$readelf" -lW "$so" | awk '$1 == "LOAD" { print $NF }' | sort -u | while read -r a; do echo $((a)); done | sort -n | head -1)
     ok=yes
     if (( align < 0x4000 )); then ok=no; status=1; fi

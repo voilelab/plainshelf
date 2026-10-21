@@ -1,7 +1,5 @@
 name: PR labels
 
-# Release notes are PR titles grouped by label (.github/release.yml), so every
-# PR into dev needs a category label. See docs/development/releasing.md.
 on:
   pull_request:
     branches:
