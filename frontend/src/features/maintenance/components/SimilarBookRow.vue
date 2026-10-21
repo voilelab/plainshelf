@@ -68,19 +68,12 @@ const { t } = useI18n();
 const props = withDefaults(
   defineProps<{
     book: Book;
-    /** From the shelf listing's char_count; null when the shelf could not report it. */
     charCount: number | null;
-    /** Number of sources on record; null while unresolved or if the lookup failed. */
     sourceCount: number | null;
-    /** Marks the fuller side of a `subset` pair — the one to keep. */
     isMoreComplete?: boolean;
-    /** Pre-formatted "how much less" note (subset percentage or character delta). */
     fewerNote?: string;
-    /** Whether the shelf accepts deletes; false hides the action on a read-only shelf. */
     canDelete?: boolean;
-    /** This row's own delete is in flight. */
     deleting?: boolean;
-    /** Another row in the same card is mid-delete, so this one is inert. */
     disabled?: boolean;
   }>(),
   {

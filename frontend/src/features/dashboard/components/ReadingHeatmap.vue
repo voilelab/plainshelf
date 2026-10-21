@@ -28,16 +28,11 @@ import { computed } from 'vue';
 import { useI18n } from '@/i18n';
 
 const props = defineProps<{
-  /** Map of "YYYY-MM-DD" -> seconds spent reading that day. */
   data: Record<string, number>;
 }>();
 
 const { t } = useI18n();
 
-// An upper bound on how many days the strip covers. The cells now flow to fill
-// the container width (a wide band that grows shorter as it widens) rather than
-// forming fixed Sun-Sat week columns, so this only caps the total, and the CSS
-// grid decides how many fit per row at the current width.
 const WEEKS_TO_SHOW = 20;
 
 interface HeatmapCell {

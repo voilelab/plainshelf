@@ -42,7 +42,7 @@ function mountImport(readOnly = false) {
   return { api, openImportModalQuery, reloadAfterImport };
 }
 
-// jsdom has no DataTransfer; the composable reads only `types` and `files`.
+// jsdom 30.1.1 does not implement DataTransfer in its living interface registry.
 function dropEvent(type: 'dragover' | 'drop', files: File[]): DragEvent {
   const event = new Event(type, { cancelable: true }) as DragEvent;
   Object.defineProperty(event, 'dataTransfer', {

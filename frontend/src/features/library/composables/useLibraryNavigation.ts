@@ -15,10 +15,6 @@ interface LibraryRouteQuery {
   pushBooksQuery: ReturnType<typeof useBooksRouteQuery>['pushBooksQuery'];
 }
 
-/**
- * Folder, breadcrumb, page and sort navigation on the library page. Every
- * change is a route push; the page reacts to the query, not to these handlers.
- */
 export function useLibraryNavigation(query: LibraryRouteQuery, setPageSize: (size: number) => void) {
   const { selectedFolder, page, sortBy, sortOrder, pushBooksQuery } = query;
   const { t } = useI18n();
@@ -91,10 +87,7 @@ export function useLibraryNavigation(query: LibraryRouteQuery, setPageSize: (siz
     });
   }
 
-  // Rendered into the SelectValue slot so the closed trigger follows a locale
-  // change. reka-ui snapshots each SelectItemText's text into an option registry
-  // at mount, and a runtime i18n switch does not refresh it — the popup options
-  // retranslate but the trigger would stay stale until the list is reopened.
+  // Reka UI 2.10.5 SelectItemText registers textContent on mount without refreshing the registry when locale text changes.
   const sortLabel = computed(() => {
     switch (sortBy.value) {
       case 'created_at':

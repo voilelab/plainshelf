@@ -2,11 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { retrySelection, runDownloadBatch } from './downloadBatch';
 import type { Book, DownloadState } from '@/types/book';
 
-// The mobile long-press end-to-end case ended by proving three things about a
-// batch download: a partly-failed run reports both tallies and keeps the failed
-// book selected, a retry then succeeds, and selecting books that are already
-// current does not call the provider again. Those are decisions, not device
-// behavior, so they moved here when that case was removed.
 
 function book(id: string, state?: DownloadState): Book {
   return { id, title: id.toUpperCase(), download_state: state } as Book;
@@ -25,8 +20,6 @@ describe('runDownloadBatch', () => {
   });
 
   it('skips a book that is already downloaded, but still counts it a success', async () => {
-    // Offered on a mixed selection, so re-fetching is the costly mistake — and
-    // reporting the skipped book as a failure would be a lie.
     const download = vi.fn(async () => {});
     const outcome = await runDownloadBatch(
       [book('a', 'downloaded'), book('b', 'not_downloaded')],
@@ -49,7 +42,6 @@ describe('runDownloadBatch', () => {
       if (id === 'b') throw new Error('connection refused');
     });
 
-    // The third book is not abandoned because the second one failed.
     expect(outcome.succeeded).toBe(2);
     expect(outcome.failures).toEqual([{ id: 'b', title: 'B' }]);
   });
@@ -102,8 +94,6 @@ describe('retrySelection', () => {
   });
 
   it('drops a failure that is no longer on the page', () => {
-    // Re-selecting a row the user cannot see would make the toolbar act on
-    // something invisible.
     expect(retrySelection([{ id: 'z', title: 'Z' }], ['a', 'b'])).toEqual(new Set());
   });
 });

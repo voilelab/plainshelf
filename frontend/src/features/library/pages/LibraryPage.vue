@@ -331,23 +331,12 @@ const {
   clearSearch
 } = useBooksSearch(searchQuery.value);
 const booksLoaded = ref<boolean>(false);
-// Matches the isMobileEnv pattern in MainLayout.vue and SettingsPage.vue: the
-// runtime does not change during a session, but a computed keeps it consistent
-// with the other environment checks used in the template.
 const isMobileEnv = computed(() => isMobileRuntime());
 const folderOptions = computed(() => sortFolderPaths([...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort(), folderMetadata.value));
 const visibleBookIds = computed(() => visibleBooks.value.map((book) => book.id));
 
-// Character counts are not part of the shared listing: asking for them makes
-// the backend open every book's current source, so they are fetched lazily and
-// only while a character-count range is actually set.
 const charCountIndex = useCharCountIndex();
 
-// Hidden on a backend that cannot afford the counts: pCloud would have to read
-// each book's source meta.json over the network to answer includeCharCount,
-// which is why the maintenance page that used to own this filter was blocked
-// there too. A phone pointed at a self-hosted server is not in that position,
-// so it keeps the filter.
 const charCountFilterSupported = computed(
   () => useShelfCapabilities().charCount.value
 );
@@ -356,8 +345,6 @@ async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
   await fetchBooks();
   booksLoaded.value = true;
-  // A no-op once the counts are cached, so navigating between folders does not
-  // pay for them again: they are keyed by book ID and do not depend on a folder.
   await loadCharCountsIfNeeded();
 }
 
@@ -368,22 +355,13 @@ async function loadCharCountsIfNeeded(): Promise<void> {
   await charCountIndex.load();
 }
 
-// Books added since the counts were cached are absent from the index and read
-// as unknown, so an import is the one listing change that invalidates it.
 async function reloadBooksAfterImport(): Promise<void> {
   charCountIndex.invalidate();
   await reloadBooks();
 }
 
-// Every backend whose listing can lag the shelf reports support: pCloud, whose
-// listing the user updates themselves, and a server, which finds an externally
-// added book only on its next `scan_interval` walk.
 const shelfRefresh = useShelfRefresh();
 
-// Only durable state sits beside the button. A backend that dates its stored
-// listing (pCloud) says when; a server has no such date and reports what its
-// walk found in a toast instead, so that a count of five digits cannot widen
-// the toolbar.
 const lastSyncedLabel = computed(() => {
   if (!shelfRefresh.tracksLastSynced.value) {
     return '';
@@ -421,10 +399,6 @@ const {
   onSaved: onMetadataSaved
 } = useMetadataEditorModal({ books, readOnly, refresh: reloadBooks });
 
-// isImportModalOpen comes straight off ?import=1 (useBooksRouteQuery.ts), which
-// the /import route redirects to. Every other way of opening an import flow is
-// already guarded, so without this a direct link would present a full import
-// form on a client that cannot write.
 const importModalOpen = computed(() => isImportModalOpen.value && !readOnly.value);
 
 const {
@@ -501,10 +475,6 @@ const charCountFilterActive = computed(
   () => charCountFilterSupported.value && isCharCountRangeActive(charCountRange.value)
 );
 
-// The character count lives only in the lazy index, so a book carries it into a
-// predicate through this: `char_count` already present (mock data, or a listing
-// that included it) is left as-is; otherwise the index supplies it. Other
-// filters ignore the extra field.
 function augmentBook(book: Book): Book {
   return book.char_count !== undefined
     ? book
@@ -515,11 +485,6 @@ function charCountOf(book: Book): number | undefined {
   return book.char_count ?? charCountIndex.counts.value.get(book.id);
 }
 
-// Every condition the page actually applies, parsed once from the registry.
-// Search uses the *committed* text (not the transient input box), a condition an
-// unsupported backend cannot answer is dropped, and the character range only
-// joins once its lazy index is ready to decide books — until then the page is in
-// its loading state rather than briefly showing an unfiltered list.
 const activeFilters = computed<ActiveBookFilter[]>(() => {
   const result: ActiveBookFilter[] = [];
   for (const filter of BOOK_FILTERS) {
@@ -538,11 +503,7 @@ const activeFilters = computed<ActiveBookFilter[]>(() => {
   return result;
 });
 
-// A stable string that changes only when an active panel condition changes, so
-// the selection-clearing watcher fires when the visible set does. Without it,
-// changing a panel filter reuses LibraryPage and leaves now-hidden books
-// selected — and a batch move/trash would then act on books the user cannot see.
-const panelFiltersKey = computed(() =>
+const activePanelFilterSelectionKey = computed(() =>
   PANEL_BOOK_FILTERS.map((filter) => {
     const value = filter.parse(route.query);
     return filter.isActive(value) ? `${filter.key}=${JSON.stringify(filter.serialize(value))}` : '';
@@ -561,9 +522,6 @@ const unknownCharCountCount = computed(() => {
   return filteredBooks.value.filter((book) => charCountOf(book) === undefined).length;
 });
 
-// The recompute sweep is tracked here, on the always-mounted page, so closing
-// the filter panel mid-sweep does not abandon the poll or the index refresh it
-// triggers when the sweep settles.
 const {
   running: contentStatsRunning,
   label: contentStatsLabel,
@@ -581,18 +539,8 @@ function startContentStatsRefresh(): void {
   void startContentStats();
 }
 
-// Only the book-list load drives the full loading state. The character counts
-// are a second request, but making them tear the content down would unmount the
-// filter panel the user is setting the range in (BookCollectionPage swaps the
-// whole header/toolbar/list for a loading placeholder). While the counts are in
-// flight the character range simply isn't applied yet (see activeFilters), so
-// the list shows the other conditions' result until the counts arrive — the
-// panel, its chips, and any refresh progress stay mounted throughout.
 const collectionLoading = computed(() => loading.value);
 
-// Reported next to the shelf-refresh error rather than through
-// BookCollectionPage, which would replace the list with the message: the books
-// are still readable when only their character counts failed to load.
 const charCountError = computed(() =>
   charCountFilterActive.value ? charCountIndex.error.value : ''
 );
@@ -600,15 +548,8 @@ const charCountError = computed(() =>
 const total = computed(() => filteredBooks.value.length);
 const totalPages = computed(() => countPages(total.value, pageSize.value));
 
-// Sliced from sortedBooks, counted from filteredBooks — the sort reorders the
-// same set, so both lengths agree.
 const visibleBooks = computed(() => pageSlice(sortedBooks.value, page.value, pageSize.value));
 
-// The single condition to blame for an empty list, derived generically from the
-// predicates (see soleBlockingFilter) rather than a hand-written cascade: it is
-// the one condition whose removal alone would bring books back. `null` when the
-// shelf itself is empty, when the list is non-empty, or when no single condition
-// is solely responsible.
 const blamedFilter = computed(() => {
   if (collectionLoading.value || books.value.length === 0 || filteredBooks.value.length > 0) {
     return null;
@@ -620,8 +561,6 @@ const emptyMessage = computed(() => {
   if (books.value.length === 0) {
     return t('library.empty.noBooksYet');
   }
-  // Blame is generic; only the wording per cause is hand-written, because
-  // search, folder, and the character range each read better than a generic line.
   const blamed = blamedFilter.value;
   if (blamed) {
     switch (blamed.filter.key) {
@@ -641,8 +580,6 @@ const emptyMessage = computed(() => {
         });
     }
   }
-  // Books exist but several conditions together emptied the list, so no single
-  // one can be singled out.
   if (activeFilters.value.length > 0 && filteredBooks.value.length === 0 && !collectionLoading.value) {
     return t('library.empty.noBooksMatchFilters');
   }
@@ -650,9 +587,6 @@ const emptyMessage = computed(() => {
 });
 
 onMounted(() => {
-  // Chained, not concurrent: on a first connection the listing itself is what
-  // creates the timestamp, so reading it alongside the initial load would find
-  // nothing and leave the toolbar saying "never updated" for the whole session.
   void reloadBooks().then(() => shelfRefresh.loadLastSyncedAt());
 });
 
@@ -662,14 +596,10 @@ watch(selectedFolder, async () => {
 });
 
 watch(
-  [selectedFolder, page, pageSize, sortBy, sortOrder, committedSearch, panelFiltersKey, selectedShelfID],
+  [selectedFolder, page, pageSize, sortBy, sortOrder, committedSearch, activePanelFilterSelectionKey, selectedShelfID],
   () => selection.clear()
 );
 
-// Setting a range is what pays for the counts; clearing it leaves them cached
-// so turning the filter back on does not refetch the whole shelf. The initial
-// load is left to reloadBooks() in onMounted, which already covers a direct
-// link that arrives with a range in the URL.
 watch(charCountFilterActive, (active) => {
   if (active) {
     void charCountIndex.load();
@@ -677,8 +607,6 @@ watch(charCountFilterActive, (active) => {
 });
 
 
-// Watch committed search: keep the URL in sync and reset to page 1.
-// Filtering itself is a pure computed (searchedBooks) — no refetch needed.
 watch(
   committedSearch,
   (newSearch) => {
@@ -698,9 +626,6 @@ watch(
     const normalizedPage = hasLoaded ? Math.min(currentPage, maxPage) : currentPage;
     const currentSearch = committedSearch.value.trim();
 
-    // Committing a search changes totalPages in the same tick, before the
-    // page-1 replace above lands. Normalizing with the stale page here would
-    // override that reset, so wait until the route reflects the new search.
     if (currentSearch !== searchQuery.value) {
       return;
     }

@@ -7,12 +7,6 @@ interface UseMetadataEditorModalOptions {
   refresh: () => void | Promise<void>;
 }
 
-/**
- * Owns the list-page side of the metadata modal lifecycle. The modal itself
- * owns loading and saving; this keeps a stable book id selected while a list is
- * reloaded, blocks forged edit events in read-only mode, and reconciles the
- * saved result with both the current view and the provider's latest listing.
- */
 export function useMetadataEditorModal(options: UseMetadataEditorModalOptions) {
   const selectedBookId = ref<string | null>(null);
   const open = computed(() => selectedBookId.value !== null && !options.readOnly.value);
@@ -33,9 +27,6 @@ export function useMetadataEditorModal(options: UseMetadataEditorModalOptions) {
   }
 
   function onSaved(updatedBook: Book): void {
-    // Patch first: refresh failures leave a truthful card/history entry. The
-    // full refresh still runs so filters, sorting, folders, and pagination are
-    // evaluated against the provider's complete current listing.
     options.books.value = options.books.value.map((book) =>
       book.id === updatedBook.id ? updatedBook : book
     );

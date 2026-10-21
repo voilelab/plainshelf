@@ -144,7 +144,6 @@ const readOnly = computed(() => !writesEnabled.value);
 const { fetchBooks } = useBookStore();
 const { fetchFolders } = useFolderStore();
 const items = ref<TrashedBook[]>([]);
-// Whether `items` is the whole trash; see TrashedBookListing.
 const listingComplete = ref(true);
 const loading = ref(false);
 const loaded = ref(false);
@@ -160,8 +159,6 @@ function buildPageQuery(nextPage: number): Record<string, string> {
   } as Record<string, string>;
 }
 
-// `items` stays the full trash listing: the empty state, the sweep confirmation
-// count, and the total below all describe the whole trash, not the visible page.
 const {
   page,
   pageSize,
@@ -172,8 +169,6 @@ const {
 } = useBookCollectionRoute<TrashedBook>({
   items,
   buildQuery: buildPageQuery,
-  // The listing is fetched on mount, so clamping before it lands would drop a
-  // deep-linked or reloaded `?page=N` back to page 1.
   clampEnabled: loaded
 });
 
@@ -194,11 +189,6 @@ const {
   pollFailedMessage: () => t('trash.emptyAll.pollFailed')
 });
 
-// The table is not always the whole trash: books whose metadata cannot be read
-// are left out of it, and so are the ones the adult-content setting hides
-// (`complete: false`). The sweep removes those too, so quoting the table's
-// length would confirm one deletion and perform several. Only promise a count
-// when the listing is known to be the whole trash.
 const emptyQuestionText = computed(() =>
   listingComplete.value && items.value.length > 0
     ? t('trash.emptyAll.question', { count: items.value.length })
@@ -330,8 +320,6 @@ function requestEmptyTrash(): void {
 }
 
 function closeEmptyModal(): void {
-  // Closing mid-sweep would leave the user without any progress feedback, and
-  // the task keeps running on the server regardless.
   if (emptying.value) {
     return;
   }
@@ -345,8 +333,6 @@ async function confirmEmptyTrash(): Promise<void> {
     return;
   }
 
-  // A sweep already in flight returns its own ID, so this attaches to the
-  // existing progress instead of scheduling a second one.
   await startEmptyTrash(() => bookshelfWriter().emptyTrash());
 }
 

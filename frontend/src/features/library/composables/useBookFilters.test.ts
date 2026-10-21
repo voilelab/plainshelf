@@ -4,12 +4,6 @@ import { createMemoryHistory, createRouter, type Router } from 'vue-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useBookFilters } from './useBookFilters';
 
-// The filter panel had two end-to-end cases: one watched two chips, a removal
-// and the URL stay in agreement, the other read the trigger's active-condition
-// badge. Both are this composable's output — the panel only renders it — and
-// neither needs a server to answer, since a condition is active or not by what
-// the URL says. `apply.test.ts` covers which condition gets blamed for an empty
-// list, and `filterLabels.test.ts` the words a chip is given.
 
 let active: { app: App } | null = null;
 
@@ -37,7 +31,6 @@ async function mountFilters(query: string) {
   return { api, router };
 }
 
-/** Lets the composable's `router.push` settle before the query is read back. */
 async function settle(): Promise<void> {
   await new Promise((done) => setTimeout(done, 0));
 }
@@ -57,8 +50,6 @@ describe('useBookFilters', () => {
   });
 
   it('raises one chip per condition, whatever control shape it came from', async () => {
-    // Cover is tri-state and author is a single facet, so this also proves the
-    // chip row is driven by the registry rather than by a hand-kept list.
     const { api } = await mountFilters('?cover=none&author=none');
 
     expect(api.activeCount.value).toBe(2);
@@ -93,7 +84,6 @@ describe('useBookFilters', () => {
   });
 
   it('ignores an unrelated query key rather than counting it as a condition', async () => {
-    // The library's own sort and paging live in the same query string.
     const { api } = await mountFilters('?sort=title&order=asc&page=2');
 
     expect(api.activeCount.value).toBe(0);

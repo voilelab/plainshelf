@@ -4,8 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Book } from '@/types/book';
 
-// Reader launch reaches vue-router, the runtime provider and the device-local
-// preference; stub all three so "Read now" can be exercised deterministically.
 const launch = vi.hoisted(() => ({
   push: vi.fn(),
   resolve: vi.fn((to: unknown) => ({
@@ -20,7 +18,6 @@ vi.mock('vue-router', () => ({
 }));
 
 vi.mock('@/providers', () => ({
-  // No desktop reader on this web build, so launch stays on the window.open path.
   getBookshelfProvider: () => ({}),
   isWebRuntime: launch.isWebRuntime
 }));
@@ -29,8 +26,6 @@ vi.mock('@/composables/useReaderLaunchPreference', () => ({
   getReaderLaunchMode: launch.getReaderLaunchMode
 }));
 
-// BookCoverImg reaches the cover pipeline; the pick logic under test does not
-// need it, so render a bare stub in its place.
 vi.mock('@/components/BookCoverImg.vue', () => ({
   default: defineComponent({
     props: { bookId: String, coverUrl: String, alt: String },
@@ -42,9 +37,6 @@ import RandomBook from './RandomBook.vue';
 import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
-// Mirrors RouterLink: a plain link renders an <a>; `custom` renders the slot
-// content instead, handing it the resolved `href` the entry wires onto its own
-// <a>.
 const RouterLinkStub = defineComponent({
   props: { to: { type: [String, Object], default: '' }, custom: Boolean },
   setup(props, { slots }) {
@@ -64,13 +56,11 @@ function mountRandom(props: { books: Book[]; startedIds?: Set<string> }) {
   return mount(RandomBook, { props, components: { RouterLink: RouterLinkStub } });
 }
 
-// window.open is unimplemented in jsdom; a spy silences it and lets the launch
-// tests assert the new-tab call.
+// jsdom 30.1.1 Window.js leaves window.open unimplemented.
 let openSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   setLocale('en');
-  // Deterministic pick: always the first element of whatever pool is chosen.
   vi.spyOn(Math, 'random').mockReturnValue(0);
   launch.push.mockReset();
   launch.resolve.mockReset();
@@ -94,8 +84,6 @@ describe('RandomBook', () => {
     ];
     const { host } = mountRandom({ books, startedIds: new Set(['started']) });
 
-    // Index 0 of the unstarted pool is "Fresh"; the started book is skipped even
-    // though it is first in the full list.
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('Fresh');
   });
 
@@ -106,16 +94,11 @@ describe('RandomBook', () => {
     ];
     const { host } = mountRandom({ books, startedIds: new Set(['a', 'b']) });
 
-    // No unstarted book to prefer, so it must still surface one rather than the
-    // empty state — index 0 of the full list.
     expect(host.querySelector('.random-book-empty')).toBeNull();
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('Alpha');
   });
 
   it('advances on Shuffle even when the current book is the only unstarted one', async () => {
-    // The button is enabled on total book count, so a shelf with several books
-    // but a single unstarted one (which becomes the initial pick) must still move
-    // off it — otherwise Shuffle looks broken.
     const books = [
       makeBook({ id: 's1', title: 'StartedOne' }),
       makeBook({ id: 's2', title: 'StartedTwo' }),
@@ -123,18 +106,13 @@ describe('RandomBook', () => {
     ];
     const { host } = mountRandom({ books, startedIds: new Set(['s1', 's2']) });
 
-    // Initial pick prefers the sole unstarted book.
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('Fresh');
 
-    // Shuffle falls back to the started books (index 0 of the current-excluded list).
     host.querySelector('button')?.click();
     await nextTick();
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('StartedOne');
   });
 
-  // "Read now" now honours the reader-launch preference instead of always
-  // navigating in place: on a web build with 'new-reader' it opens a new tab and
-  // must not push the current window.
   it('opens the reader in a new tab under the new-reader preference and does not push', () => {
     const { host } = mountRandom({ books: [makeBook({ id: 'b1', title: 'Book' })] });
 
@@ -144,7 +122,6 @@ describe('RandomBook', () => {
     expect(launch.push).not.toHaveBeenCalled();
   });
 
-  // Reverse: with 'in-window' it navigates in place and must not open a new tab.
   it('navigates in place under the in-window preference and does not open a new tab', () => {
     launch.getReaderLaunchMode.mockReturnValue('in-window');
     const { host } = mountRandom({ books: [makeBook({ id: 'b1', title: 'Book' })] });

@@ -7,8 +7,6 @@ const { listFoldersMock } = vi.hoisted(() => ({ listFoldersMock: vi.fn() }));
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({ listFolders: listFoldersMock })
 }));
-// BaseDialog portals to document.body and traps focus; the modal's own markup is
-// what these cases inspect, so it renders as a plain wrapper here.
 vi.mock('@/components/BaseDialog.vue', () => ({
   default: { props: ['open', 'title', 'busy'], setup: (_: unknown, { slots }: any) => () => h('div', slots.default?.()) }
 }));
@@ -70,7 +68,6 @@ afterEach(() => {
 });
 
 describe('TransferBookModal destinations', () => {
-  // A transfer writes its target, so a read-only shelf can never receive one.
   it('leaves read-only shelves out of the destination list', async () => {
     const host = mount();
     await flush();
@@ -87,8 +84,6 @@ describe('TransferBookModal on a read-only source', () => {
     selectedShelfID.value = 'archive';
   });
 
-  // Copying out reads the source and writes the target, so it stays; only the
-  // move is refused, because it ends by deleting the original.
   it('offers copy alone, with an explanation in place of the move option', async () => {
     const host = mount();
     await flush();
@@ -106,11 +101,6 @@ describe('TransferBookModal on a read-only source', () => {
   });
 });
 
-// The modal is a module-level singleton's consumer, not remounted per shelf, so
-// a 'move' picked while a writable shelf was selected outlives the switch to a
-// read-only one. Hiding the radio is not enough: what is submitted has to
-// change with it, or the server answers 409 on a request the UI thinks it
-// allowed.
 describe('TransferBookModal after a shelf switch', () => {
   it('submits copy for a move picked before the source became read-only', async () => {
     selectedShelfID.value = 'main';

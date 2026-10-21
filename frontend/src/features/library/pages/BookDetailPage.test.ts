@@ -18,9 +18,6 @@ const mocks = vi.hoisted(() => ({
   outgoingCopyEnabled: null as any,
   transferDestinations: null as any,
   detailBook: null as any,
-  // What the metadata modal reports back from a save. A field per test rather
-  // than a constant because one case turns the book into one the server no
-  // longer serves.
   savedBook: null as any,
   currentSource: null as any,
   guardDirty: null as any,
@@ -29,8 +26,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('vue-router', async () => {
   const { reactive } = await import('vue');
-  // The page derives its book id from the route, so navigating between books in
-  // a test only reaches the page's watchers through a reactive route.
   mocks.route = reactive(mocks.route);
   return {
     useRoute: () => mocks.route,
@@ -83,8 +78,6 @@ vi.mock('@/features/library/composables/useBookDetail', async () => {
 vi.mock('@/composables/useWriteAccess', async () => {
   const { ref } = await import('vue');
   mocks.writesEnabled = ref(true);
-  // A read-only *shelf* still allows copying a book out of it, so the two are
-  // separate refs here rather than one negated flag.
   mocks.outgoingCopyEnabled = ref(true);
   return {
     useWriteAccess: () => ({
@@ -159,8 +152,6 @@ vi.mock('@/composables/useBookActions', async () => {
 
 vi.mock('@/composables/useShelvesStore', async () => {
   const { ref } = await import('vue');
-  // Created here rather than lazily in the accessor so beforeEach can seed it
-  // before the page ever calls useShelvesStore().
   mocks.transferDestinations = ref([]);
   return {
     useShelvesStore: () => ({
@@ -407,8 +398,6 @@ describe('BookDetailPage metadata editor', () => {
 
   it.each([
     ['the book\'s own mark', { nsfw: true }],
-    // A move into a marked folder hides the book just as its own mark does,
-    // which is why the page asks isBookNsfw rather than reading `nsfw`.
     ['a folder rule', { nsfw_folder: { path: 'Fiction/Adult' } }]
   ])('re-reads the book when a save marks it through %s', async (_name, mark) => {
     mocks.savedBook = { ...mocks.savedBook, ...mark };
@@ -422,10 +411,6 @@ describe('BookDetailPage metadata editor', () => {
     host.querySelector<HTMLButtonElement>('.metadata-save')?.click();
     await flush();
 
-    // With `show_nsfw` off the server now answers 404 for this book, and the
-    // page has no listing behind it to notice. The re-read is what turns the
-    // stale detail into the error state; with the setting on it just returns
-    // the same book.
     expect(mocks.fetchDetail).toHaveBeenCalledTimes(2);
   });
 
@@ -440,8 +425,6 @@ describe('BookDetailPage metadata editor', () => {
     host.querySelector<HTMLButtonElement>('.metadata-save')?.click();
     await flush();
 
-    // It was already marked and still on screen, so this server is serving
-    // marked books; nothing about its visibility changed.
     expect(mocks.fetchDetail).toHaveBeenCalledTimes(1);
   });
 
@@ -493,8 +476,6 @@ describe('BookDetailPage import note removal', () => {
     expect(noteDialog(host)).toBeNull();
   });
 
-  // The router reuses this page across /books/:id, so a dialog left open over a
-  // navigation would otherwise confirm against whichever book arrived next.
   it('drops a pending removal when the route moves to another book', async () => {
     mocks.currentSource.value = { id: 'source-1', created_at: '', comment: '轉換備註', md5_hash: '' };
     const host = mountPage();
@@ -525,9 +506,6 @@ describe('BookDetailPage import note removal', () => {
   });
 });
 
-// A read-only shelf keeps the outgoing copy: the entry renders, and the handler
-// has to let it through. Guarding the handler on `readOnly` instead left a menu
-// item that did nothing when clicked.
 describe('BookDetailPage transfer on a read-only shelf', () => {
   it('opens the transfer modal though every other write is withdrawn', async () => {
     mocks.writesEnabled.value = false;

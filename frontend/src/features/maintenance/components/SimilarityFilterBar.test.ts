@@ -10,9 +10,7 @@ import {
   type SimilarityTierKey
 } from '@/utils/similarity';
 
-// reka's SliderThumb measures itself with a ResizeObserver, which jsdom does
-// not implement. Nothing here depends on the measurement (it only offsets the
-// thumb inside the track), so an inert stub is enough to mount the slider.
+// Reka UI 2.10.5 SliderThumb uses ResizeObserver through useSize; jsdom 30.1.1 does not implement ResizeObserver.
 class NoopResizeObserver {
   observe(): void {}
   unobserve(): void {}
@@ -47,8 +45,6 @@ function mount(overrides: Partial<Harness['state']> = {}): Harness {
   });
   const events: Harness['events'] = { tier: [], advancedOpen: [], threshold: [] };
 
-  // The bar is a controlled component: mirror each emit back into the props so
-  // the DOM reflects what a real parent would render on the next tick.
   const app = createApp({
     setup: () => () =>
       h(SimilarityFilterBar, {
@@ -128,8 +124,6 @@ describe('SimilarityFilterBar segmented tiers', () => {
     active?.click();
     await nextTick();
 
-    // reka's single ToggleGroup would deselect here; the bar guards against it,
-    // so no tier change is emitted and one segment stays pressed.
     expect(events.tier).toHaveLength(0);
     expect(pressed(host)).toHaveLength(1);
   });
@@ -143,21 +137,15 @@ describe('SimilarityFilterBar segmented tiers', () => {
     }
   });
 
-  // Guards the controlled-vs-uncontrolled trap: reka latches the group into
-  // uncontrolled mode when the *initial* model-value is undefined. Mounting
-  // with the advanced slider already open (no tier pressed) must not sever the
-  // parent's control, or a later re-click would leave every segment unpressed.
   it('stays controlled when mounted with the advanced slider open', async () => {
     const { host, events } = mount({ advancedOpen: true });
     expect(pressed(host)).toHaveLength(0);
 
-    // Parent flow: picking a tier closes the slider and selects that tier.
     segments(host)[0].click();
     await nextTick();
     expect(events.tier).toHaveLength(1);
     expect(pressed(host)).toHaveLength(1);
 
-    // Re-clicking the now-active tier must keep it pressed, not deselect it.
     const active = segments(host).find((button) => button.getAttribute('aria-pressed') === 'true');
     active?.click();
     await nextTick();
@@ -206,8 +194,6 @@ describe('SimilarityFilterBar threshold slider', () => {
     expect(control.getAttribute('aria-valuemin')).toBe(String(SIMILARITY_SLIDER_MIN));
     expect(control.getAttribute('aria-valuemax')).toBe(String(SIMILARITY_SLIDER_MAX));
 
-    // The thumb is a span, which `<label for>` cannot name, so the accessible
-    // name comes from the label element beside it.
     const labelId = control.getAttribute('aria-labelledby');
     expect(labelId).toBeTruthy();
     expect(host.querySelector(`#${labelId}`)?.textContent?.trim()).toBeTruthy();

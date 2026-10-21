@@ -25,8 +25,6 @@ describe('useMetadataEditorModal', () => {
     editor.openEditor('book-2');
     expect(editor.selectedBookId.value).toBe('book-1');
 
-    // A folder/page refresh may replace the list while the modal is open. The
-    // explicit id must not silently follow whichever card now occupies a slot.
     books.value = [book('book-2')];
     expect(editor.selectedBookId.value).toBe('book-1');
     expect(editor.open.value).toBe(true);

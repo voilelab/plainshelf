@@ -48,8 +48,6 @@ const { t } = useI18n();
 
 const STAR_VALUES = [1, 2, 3, 4, 5] as const;
 
-// English says "1 star" but "2 stars"; the catalog has no plural rules, so the
-// two forms are separate keys.
 function starLabel(value: number): string {
   return value === 1
     ? t('libraryForms.editBook.starValueOne')

@@ -142,7 +142,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-/** A book with hundreds of chapters must not push the rest of the page away. */
 const CHAPTER_PREVIEW_LIMIT = 12;
 const showAllChapters = ref(false);
 const chapters = computed(() => props.chapters);
@@ -160,12 +159,6 @@ interface DetailRow {
   className?: string;
 }
 
-/**
- * The two notes rows differ in kind, not in label. A description is written by
- * a person in Markdown, or arrives from an EPUB import as the HTML the OPF
- * carried, and is rendered; an import note is prose this app generated to say
- * what the conversion could not keep, and stays the literal text it is.
- */
 type NoteRow =
   | { kind: 'importNote'; label: string; render: 'text'; value: string }
   | { kind: 'description'; label: string; render: 'html'; html: string };
@@ -226,9 +219,6 @@ const noteRows = computed<NoteRow[]>(() => {
   const description = renderDescription(props.book.comment);
   const importNotes = props.currentSource?.comment?.trim();
 
-  // A description earns a row when it amounts to words. Markup with no text in
-  // it - `<br>`, an empty `<p>`, an image on its own - survives sanitizing as
-  // an empty block, which is a labelled row with nothing under it.
   if (description.text) {
     rows.push({
       kind: 'description',

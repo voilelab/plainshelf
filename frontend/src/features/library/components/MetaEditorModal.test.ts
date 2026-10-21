@@ -74,9 +74,6 @@ vi.mock('./EditBook.vue', async () => {
       },
       emits: ['submit', 'cancel', 'dirty-change'],
       setup(props, { emit }) {
-        // Carries nsfw as well as a plain field: the modal must forward whatever
-        // the editor submits rather than a set of fields it knows about, or a
-        // control added to the editor would silently stop saving.
         const payload: BookUpdateRequest = { title: 'Updated title', nsfw: true };
         return () => h('div', {
           class: 'edit-book-stub',
