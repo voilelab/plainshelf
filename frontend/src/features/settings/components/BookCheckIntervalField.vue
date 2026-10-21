@@ -13,9 +13,6 @@
 </template>
 
 <script setup lang="ts">
-// book_check_interval is the same duration control as the scan interval; only
-// the copy differs, so this delegates to ScanIntervalField with the book-check
-// label and help keys rather than duplicating the mode/amount/unit logic.
 import ScanIntervalField from '@/features/settings/components/ScanIntervalField.vue';
 
 withDefaults(defineProps<{ modelValue: string; disabled?: boolean }>(), {

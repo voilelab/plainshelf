@@ -14,18 +14,12 @@
       {{ error }}
     </p>
 
-    <!-- Reka unmounts an inactive tab's content by default. These panels own
-         state that has to outlive a tab switch — a book-cache export in flight,
-         the fetched shelf list, the font-license cache — so they stay mounted,
-         the way they did when every tab body lived in this component. -->
+    <!-- Reka UI 2.10.5 Tabs defaults unmountOnHide to true. -->
     <TabsRoot v-model="activeSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
         <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
           t('settings.cover.title')
         }}</TabsTrigger>
-        <!-- Reading history and the reader-launch preference are device-local,
-             so they are editable on every client, including the read-only
-             mobile shell. -->
         <TabsTrigger value="read-history" class="settings-tab-trigger">{{
           t('settings.readHistory.title')
         }}</TabsTrigger>
@@ -38,9 +32,6 @@
         <TabsTrigger v-if="serverSettingsEditable" value="nsfw" class="settings-tab-trigger">{{
           t('settings.nsfw.title')
         }}</TabsTrigger>
-        <!-- The device's own answer, for a client with no server to ask: it is
-             what the pCloud reader filters on. Shown only where the server tab
-             above is not, so one question never has two switches. -->
         <TabsTrigger v-else value="device-nsfw" class="settings-tab-trigger">{{
           t('settings.deviceNsfw.title')
         }}</TabsTrigger>
@@ -50,7 +41,6 @@
         <TabsTrigger v-if="serverSettingsEditable" value="logs" class="settings-tab-trigger">{{
           t('settings.logs.title')
         }}</TabsTrigger>
-        <!-- Browser-only wasm demo; never on a server, desktop or app. -->
         <TabsTrigger v-if="wasmDemo" value="demo-storage" class="settings-tab-trigger">{{
           t('settings.demoStorage.title')
         }}</TabsTrigger>
@@ -152,17 +142,10 @@ import { useSettingsTabs } from '@/features/settings/composables/useSettingsTabs
 import { isWasmDemo } from '@/features/settings/composables/useDemoStoragePersistence';
 
 const { t } = useI18n();
-// Shelves is the useful landing tab when the server settings tabs are gone:
-// it holds the connection and downloads panels.
 const { serverSettingsEditable } = useWriteAccess();
-// The active tab is backed by the ?tab= query so the sidebar's "manage
-// shelves" deep link lands here even on repeat clicks — see useSettingsTabs.
 const wasmDemo = isWasmDemo();
-// Desktop only: the switch is a Wails binding, not a server route.
 const lanShareAvailable = hasDesktopLANShareBinding();
 const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable, wasmDemo);
-// Device-local, so it is not part of the server settings form: nothing to load
-// and nothing to save, and it survives a shelf the server never answers for.
 const { showNsfw: showNsfwOnDevice, setShowNsfw: setShowNsfwOnDevice } = useDeviceNsfwPreference();
 
 const {

@@ -76,12 +76,10 @@ async function scan(): Promise<void> {
       const parsed = await LocalShelf.parseLANShareQR({ text: result.text });
       if (alive) preview.value = parsed;
     } catch (cause) {
-      // Go's shared parser reports fields only, never the scanned values.
       const message = cause instanceof Error ? cause.message : '';
       error.value = message || t('mobileQR.invalid');
     }
   } catch {
-    // Camera/transport exceptions may contain arbitrary data. Never surface or log them.
     error.value = t('mobileQR.failed');
   } finally {
     busy.value = false;
@@ -116,7 +114,6 @@ async function confirm(): Promise<void> {
             message = 'settings.shelves.qrAdded';
           }
         } catch {
-          // Neither source nor Keystore failures may expose a token.
         }
       }
       results.value.push({ name: shelf.name, message });

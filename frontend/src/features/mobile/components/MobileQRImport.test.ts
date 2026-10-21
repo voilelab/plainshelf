@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount as mountComponent } from '../../../../testing/mount';
 
 const mocks = vi.hoisted(() => ({
@@ -21,6 +21,7 @@ import MobileQRImport from './MobileQRImport.vue';
 import { setLocale } from '@/i18n';
 
 const one = { id: 'one', name: 'One', url: 'http://192.168.1.20/dav/one/' };
+afterEach(() => vi.restoreAllMocks());
 async function flush(): Promise<void> { await new Promise((r) => setTimeout(r)); }
 function button(host: HTMLElement, label: string): HTMLButtonElement {
   const found = [...host.querySelectorAll('button')].find((b) => b.textContent?.trim() === label);
@@ -79,6 +80,9 @@ describe('Android QR import', () => {
     expect(mocks.check).not.toHaveBeenCalled();
   });
   it('handles missing native capability and scanner failure without exposing exception data', async () => {
+    const logs = ['log', 'warn', 'error'].map((method) =>
+      vi.spyOn(console, method as 'log' | 'warn' | 'error').mockImplementation(() => {})
+    );
     mocks.available.mockReturnValue(false);
     const host = await scanned();
     expect(mocks.scan).not.toHaveBeenCalled();
@@ -89,6 +93,7 @@ describe('Android QR import', () => {
     expect(host.textContent).toContain('Could not scan');
     expect(host.textContent).not.toContain('secret-token');
     expect(mocks.save).not.toHaveBeenCalled();
+    for (const log of logs) expect(log).not.toHaveBeenCalled();
   });
   it('skips existing URLs without replacing credentials and continues after individual failures', async () => {
     mocks.entries = [{ type: 'dav', davSource: 'plainshelf', davUrl: one.url.slice(0, -1) }];

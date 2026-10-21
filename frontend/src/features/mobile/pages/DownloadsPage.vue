@@ -115,8 +115,6 @@ const actionError = ref('');
 
 const { showNsfw } = useDeviceNsfwPreference();
 
-// The provider already withholds what this device hides, so this page only has
-// to ask again when the answer changes.
 watch(showNsfw, () => {
   void loadEntries();
 });

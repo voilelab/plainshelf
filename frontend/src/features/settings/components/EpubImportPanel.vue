@@ -27,8 +27,6 @@
       </SelectRoot>
     </label>
 
-    <!-- Row-wide click target, same as the preset row above; see CoverPanel
-         for why a <label> can still wrap the switch button. -->
     <label class="setting-item" :for="switchId">
       <div>
         <span :id="labelId" class="setting-label">
@@ -91,9 +89,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-// Rendered into the SelectValue slot so the closed trigger follows a locale
-// change: reka-ui snapshots each SelectItemText at mount and does not refresh
-// the trigger label on a runtime i18n switch.
+// Reka UI 2.10.5 SelectItemText registers textContent on mount without refreshing the registry when locale text changes.
 const currentPresetLabel = computed(() =>
   props.preset === 'plain'
     ? t('settings.epubImport.presetPlain')

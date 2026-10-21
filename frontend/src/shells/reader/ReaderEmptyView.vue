@@ -15,9 +15,6 @@ import { ref } from 'vue';
 import { useI18n } from '@/i18n';
 import { hasOpenBookBinding, openBookPackage } from './openBook';
 
-// Where the reader app waits when the user cancelled the folder dialog. The
-// app reloads the window itself once a book is open, so this view never has to
-// route anywhere: it either stays, or it is replaced by the reload.
 const { t } = useI18n();
 const canOpen = hasOpenBookBinding();
 const failed = ref(false);

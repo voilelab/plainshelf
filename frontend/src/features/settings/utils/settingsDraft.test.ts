@@ -13,9 +13,6 @@ describe('parseReadHistoryLimit', () => {
     expect(parseReadHistoryLimit('abc')).toBeNull();
   });
 
-  // Number('') is 0, so clearing the field saves "no limit" rather than
-  // reporting an invalid value. Documented here because the number input makes
-  // an empty string easy to produce.
   it('treats an empty field as zero', () => {
     expect(parseReadHistoryLimit('')).toBe(0);
   });
@@ -27,7 +24,6 @@ describe('parseLogRetentionDays', () => {
     expect(parseLogRetentionDays(String(MAX_LOG_RETENTION_DAYS))).toBe(MAX_LOG_RETENTION_DAYS);
   });
 
-  // Zero is the one value with a meaning of its own: it turns log deletion off.
   it('accepts zero, which keeps every log file', () => {
     expect(parseLogRetentionDays('0')).toBe(0);
   });

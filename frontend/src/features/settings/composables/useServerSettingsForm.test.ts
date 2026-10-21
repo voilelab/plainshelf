@@ -67,9 +67,6 @@ describe('useServerSettingsForm show_nsfw', () => {
     await onShowNsfwChange(true);
 
     expect(settingsApi.setShowNsfwSetting).toHaveBeenCalledWith(true);
-    // Both stores are module-level singletons that outlive this page: without
-    // this the sidebar and a library page returned to would still be showing
-    // the shelf the previous value produced.
     expect(stores.fetchBooks).toHaveBeenCalledTimes(1);
     expect(stores.fetchFolders).toHaveBeenCalledTimes(1);
     expect(showNsfw.value).toBe(true);
@@ -84,9 +81,6 @@ describe('useServerSettingsForm show_nsfw', () => {
 
     expect(showNsfw.value).toBe(false);
     expect(error.value).toBe('nope');
-    // Nothing changed on the server, so refetching would only redraw the same
-    // listing — and would clear an error the sidebar is showing for its own
-    // reasons.
     expect(stores.fetchBooks).not.toHaveBeenCalled();
     expect(stores.fetchFolders).not.toHaveBeenCalled();
     expect(saving.value).toBe(false);

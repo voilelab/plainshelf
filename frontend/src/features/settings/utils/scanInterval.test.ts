@@ -20,7 +20,6 @@ describe('parseGoDuration', () => {
 
   it('rejects what the shelf would reject, including the bare number users type', () => {
     expect(parseGoDuration('10')).toBeNull();
-    // Past int64 nanoseconds time.ParseDuration answers "invalid duration".
     expect(parseGoDuration('2562048h')).toBeNull();
     expect(parseGoDuration('2562047h')).not.toBeNull();
     expect(parseGoDuration('10 min')).toBeNull();
@@ -58,8 +57,6 @@ describe('scanIntervalToSelection', () => {
   });
 
   it('carries a compound duration as a single unit', () => {
-    // 1h30m has no whole-hour form, so it comes back as ninety minutes - the
-    // same duration, expressible by the controls.
     expect(scanIntervalToSelection('1h30m')).toEqual({
       mode: 'interval',
       amount: 90,
@@ -75,16 +72,13 @@ describe('scanIntervalToSelection', () => {
       unit: 's',
       adjustedFrom: '1500ms'
     });
-    // Under half a second still has to become a usable interval.
     expect(scanIntervalToSelection('200ms')).toMatchObject({
       mode: 'interval',
       amount: 1,
       unit: 's',
       adjustedFrom: '200ms'
     });
-    // A negative interval throttles nothing, like 0s, but is not what we store.
     expect(scanIntervalToSelection('-5m')).toMatchObject({ mode: 'always', adjustedFrom: '-5m' });
-    // Nothing time.ParseDuration accepts; fall back to the default and say so.
     expect(scanIntervalToSelection('10')).toMatchObject({ mode: 'default', adjustedFrom: '10' });
     expect(scanIntervalToSelection('2562048h')).toMatchObject({
       mode: 'default',
@@ -108,8 +102,6 @@ describe('scanIntervalFromSelection', () => {
   });
 
   it('never writes a duration past what time.Duration can hold', () => {
-    // 2562048h is the first hour count Go cannot parse; the controls stop one
-    // short of it rather than emitting a string the backend would reject.
     expect(maxScanIntervalAmount('h')).toBe(2_562_047);
     expect(maxScanIntervalAmount('m')).toBe(153_722_867);
     expect(maxScanIntervalAmount('s')).toBe(9_223_372_036);

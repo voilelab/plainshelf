@@ -355,6 +355,10 @@ rename does not change:
 | `webdav` | the normalized `url`, plus `username` when present |
 | `local` | none: a local shelf has no offline layer |
 
+Editing an existing pCloud entry preserves its saved `pcloudUserId`, including
+an absent value, so opening the form does not change its cache scope. A new
+authorization uses the authorized account's user ID.
+
 ---
 
 ## Availability by client

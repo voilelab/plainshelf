@@ -46,7 +46,6 @@ const { installMobileShell } = await import('./index');
 
 const pcloudEntry = { id: 'e1', type: 'pcloud', pcloudHost: 'eapi.pcloud.com', pcloudShelfRoot: '/Shelf' };
 
-/** The remote the registered shell's provider wraps. */
 function providerRemote(): unknown {
   h.registerShell.mock.calls[0][0].createProvider();
   return h.mobileProvider.mock.calls[0]?.[0] ?? h.registerShell.mock.calls[0][0].createProvider();
@@ -76,7 +75,6 @@ describe('installMobileShell', () => {
   it('does not wait for the shelf to open', async () => {
     h.entry = pcloudEntry;
     h.token = 'secret';
-    // Never awaited, and settles false rather than rejecting.
     h.openShelf.mockReturnValue(new Promise(() => undefined));
     await installMobileShell();
 

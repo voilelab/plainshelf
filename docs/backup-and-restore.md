@@ -219,6 +219,9 @@ shelves out, so restoring a phone from it brings none back. Moving to a new
 phone with a cable or Wi-Fi transfer (Android 12 and later) does copy them,
 but the export zip is the only backup PlainShelf guarantees.
 
+If transferred local shelf directories return without their connection entries,
+the app recreates those entries on first launch when the entry list is empty.
+
 If background work such as a cover conversion or an import is still running, the
 export waits up to 30 seconds and then asks you to try again later rather than
 write an incomplete backup.

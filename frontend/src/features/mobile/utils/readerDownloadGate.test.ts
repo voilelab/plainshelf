@@ -11,7 +11,6 @@ describe('isReadableWhenDownloadRequired', () => {
   });
 
   it('allows a downloaded-but-stale book to be read', () => {
-    // A pending update must not lock the user out of the copy they already have.
     expect(isReadableWhenDownloadRequired('update_available')).toBe(true);
   });
 
@@ -23,7 +22,6 @@ describe('isReadableWhenDownloadRequired', () => {
   );
 
   it('matches the query flag BookDetailPage reads', () => {
-    // The page reads this literal directly; the constant must not drift from it.
     expect(DOWNLOAD_REQUIRED_QUERY_KEY).toBe('downloadRequired');
   });
 });

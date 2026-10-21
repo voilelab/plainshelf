@@ -54,18 +54,13 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-// Rendered into the SelectValue slot so the closed trigger follows a locale
-// change: reka-ui snapshots each SelectItemText at mount and does not refresh
-// the trigger label on a runtime i18n switch.
+// Reka UI 2.10.5 SelectItemText registers textContent on mount without refreshing the registry when locale text changes.
 const currentLabel = computed(() =>
   props.value === 'in-window'
     ? t('settings.readerLaunch.inWindow')
     : t('settings.readerLaunch.newReader')
 );
 
-// The setter in the parent coerces any unexpected option back to the default,
-// so the raw cast mirrors the previous native-select behavior; the Select only
-// ever yields one of the two declared values in practice.
 function onSelect(value: AcceptableValue): void {
   if (typeof value === 'string') {
     emit('change', value as ReaderLaunchMode);

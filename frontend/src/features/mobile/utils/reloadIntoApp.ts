@@ -1,18 +1,4 @@
-/**
- * Restarts the app at the library, discarding everything the previous shelf
- * left in memory.
- *
- * Every shelf switch needs this, not just the ones involving pCloud. The
- * provider is a singleton built for the active entry once at bootstrap; the
- * shelf, folder and server-mode stores are module-level too. A plain `router.push` would leave
- * all of it pointing at the shelf the user just left.
- *
- * Loading a deep path directly is safe in the native shell: Capacitor serves
- * index.html for any path whose last segment has no extension (html5mode, on by
- * default — WebViewLocalServer.java). The query string is kept so the browser
- * preview stays in mobile mode, which a reload would otherwise lose along with
- * the latched runtime.
- */
+// Capacitor Android 8.5.2 WebViewLocalServer serves index.html for extensionless paths with the default html5mode.
 export function reloadIntoApp(path = '/books'): void {
   const url = new URL(window.location.href);
   url.pathname = path;

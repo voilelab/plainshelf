@@ -2,10 +2,6 @@
 import { createApp, defineComponent, h, nextTick, ref, watch } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The panel's shelf-management surface is desktop-only: the add-shelf button,
-// the per-row "Open folder" action and the shelf-ID preview appear on the
-// desktop shell and are absent on the server/web build, which instead says the
-// shelves are server-managed. These flags drive that split.
 const state = vi.hoisted(() => ({ desktop: false, mobile: false }));
 
 vi.mock('@/providers', () => ({
@@ -21,11 +17,6 @@ vi.mock('@/composables/useWriteAccess', async () => {
 const shelvesApi = vi.hoisted(() => ({ exportShelfBookCache: vi.fn() }));
 vi.mock('@/api/shelves', () => shelvesApi);
 
-// The two modals render their default slot while open, so the add- and
-// modify-shelf forms are inspectable without standing up the real dialogs, and
-// a closed one contributes nothing to the DOM the way the real dialog does.
-// Each factory is self-contained — it references only the hoisted `h` import —
-// since vi.mock runs above any top-level binding it would otherwise close over.
 vi.mock('@/components/ConfirmModal.vue', () => ({
   default: defineComponent({
     props: {
@@ -33,10 +24,6 @@ vi.mock('@/components/ConfirmModal.vue', () => ({
       initialFocus: { type: String, default: undefined }
     },
     setup: (props, { slots }) => {
-      // The stub reproduces ConfirmModal's opt-in focus contract — resolve
-      // `initialFocus` as a selector inside the dialog once it is open — so the
-      // panel's wiring of it is checkable here. The contract's implementation is
-      // what ConfirmModal.test.ts covers.
       const root = ref<HTMLElement | null>(null);
       watch(
         () => props.open,
@@ -58,7 +45,6 @@ vi.mock('@/components/DeleteModal.vue', () => ({
   })
 }));
 
-// Controlled management state so the test decides what the panel renders.
 const mgmt = vi.hoisted(() => ({ value: null as Record<string, unknown> | null }));
 vi.mock('@/features/settings/composables/useShelfManagement', () => ({
   useShelfManagement: () => mgmt.value
@@ -128,8 +114,6 @@ const hosts: HTMLElement[] = [];
 
 function mount() {
   const host = document.createElement('div');
-  // Attached, not detached: focus only moves to an element that is in the
-  // document, so a detached host would make every activeElement check vacuous.
   document.body.appendChild(host);
   hosts.push(host);
   const app = createApp(ShelvesPanel);
@@ -164,10 +148,7 @@ describe('ShelvesPanel', () => {
     const actionCell = host.querySelector('.shelf-action-cell');
     expect(actionCell).not.toBeNull();
     expect(actionCell?.textContent).toContain('Open folder');
-    // The `.shelf-add-toggle` class is shared with the book-cache export button,
-    // so match the add-shelf toggle by its label instead.
     expect(hasButton(host, 'Create shelf')).toBe(true);
-    // The server-managed notice is only for shells that cannot manage shelves.
     expect(host.textContent).not.toContain('managed by the server');
 
     app.unmount();
@@ -200,11 +181,6 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 
-  // The directory the form will submit is shown, not just the id, so a user who
-  // creates a shelf from a name alone still knows where it lands.
-  // The default branch asks for a name and nothing else: no path box to fill in,
-  // no read-only toggle to misread, and neither interval to decide on before
-  // there is a shelf to scan — those stay in the modify dialog.
   it('asks only for a name on the new-folder branch, and names the folder it will create', () => {
     state.desktop = true;
     mgmt.value = buildManagement({
@@ -241,11 +217,9 @@ describe('ShelvesPanel', () => {
 
     expect(host.querySelector('[data-testid="shelf-directory-input"]')).not.toBeNull();
     expect(host.querySelector('[data-testid="shelf-read-only"]')).not.toBeNull();
-    // The relative-path refusal is shown on the form, not waited for from Go.
     expect(host.querySelector('[data-testid="shelf-directory-error"]')?.textContent).toContain(
       'full path'
     );
-    // No folder is promised once the user brings their own; the id still shows.
     expect(host.querySelector('[data-testid="shelf-default-path"]')).toBeNull();
     expect(host.querySelector('.shelf-id-preview')?.textContent).toContain('archive');
 
@@ -297,9 +271,6 @@ describe('ShelvesPanel', () => {
     });
     const { host, app } = mount();
 
-    // It is tucked behind the advanced-settings disclosure so it does not crowd
-    // the common fields, and it is the same mode/amount/unit control the scan
-    // interval uses, only under its own test-id prefix.
     const advanced = host.querySelector('details.shelf-advanced');
     expect(advanced).not.toBeNull();
     const mode = advanced!.querySelector<HTMLSelectElement>(
@@ -327,8 +298,6 @@ describe('ShelvesPanel', () => {
 
     const toggle = host.querySelector<HTMLInputElement>('[data-testid="shelf-read-only"]');
     expect(toggle).not.toBeNull();
-    // None of the three follows from the word "read-only"; a user cannot guess
-    // any of them from the shelf's own behaviour before it is too late.
     expect(host.textContent).toContain('File locking is turned off');
     expect(host.textContent).toContain('exported book cache is not written');
     expect(host.textContent).toContain('The directory is never created');
@@ -341,10 +310,6 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 
-  // The one-way-door guard: what makes a shelf read-only lives in shelves.json,
-  // outside every shelf, so a read-only shelf's own settings stay editable. If
-  // the toggle were ever rendered off or disabled for a shelf that is already
-  // read-only, turning it back off would need a hand-edited config file.
   it('shows the read-only toggle as on and operable for an already read-only shelf', async () => {
     state.desktop = true;
     const modifyShelfReadOnly = ref(true);
@@ -368,9 +333,6 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 
-  // The autofocus attribute this replaces never took: ConfirmModal moved focus
-  // to its own confirm button, which is disabled until the name is filled in,
-  // so opening the dialog left focus on neither.
   it('opens the create-shelf dialog with the caret in the name field', async () => {
     state.desktop = true;
     mgmt.value = buildManagement({ showAddShelfModal: ref(true) });
@@ -403,8 +365,6 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 
-  // With nothing on the shelf list there is no table for a secondary toggle to
-  // sit under, so creating one is the section's primary action.
   it('promotes creating a shelf to the primary action while no shelf exists', () => {
     state.desktop = true;
     mgmt.value = buildManagement({ shelves: ref([]) });
@@ -414,7 +374,6 @@ describe('ShelvesPanel', () => {
     expect(primary).not.toBeNull();
     expect(primary!.textContent?.trim()).toBe('Create shelf');
     expect(primary!.classList.contains('primary')).toBe(true);
-    // The secondary toggle under the table is gone with the table.
     expect(
       Array.from(host.querySelectorAll('.shelf-add-toggle')).some(
         (b) => b.textContent?.trim() === 'Create shelf'
@@ -453,8 +412,6 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 
-  // The server writes no exported cache for a read-only shelf, so asking for one
-  // answers 409 — which would abort the loop and skip every shelf after it.
   it('rewrites the book cache only for the writable shelves', async () => {
     shelvesApi.exportShelfBookCache.mockReset().mockResolvedValue(0);
     mgmt.value = buildManagement({

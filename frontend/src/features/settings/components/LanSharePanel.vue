@@ -27,7 +27,6 @@
       <p v-if="status.addresses.length === 0" class="setting-description">
         {{ t('settings.lanShare.noAddress') }}
       </p>
-      <!-- A computer on two networks picks which one the export binds; never all. -->
       <div v-else-if="status.addresses.length > 1" class="setting-item">
         <div class="setting-label">
           {{ t('settings.lanShare.addressLabel') }}
@@ -134,7 +133,6 @@ const error = ref('');
 
 const sharedCount = computed(() => status.value?.shelves.filter((s) => s.shared).length ?? 0);
 
-// Wails rejects with the Go error's message string, not an Error.
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -147,11 +145,9 @@ async function run(action: () => Promise<DesktopLANShareStatus>): Promise<void> 
     error.value = status.value.error;
   } catch (err) {
     error.value = message(err);
-    // The switch may have been turned back off; show what Go now holds.
     try {
       status.value = await getDesktopLANShare();
     } catch {
-      // keep the previous state
     }
   } finally {
     busy.value = false;
@@ -170,8 +166,6 @@ function submit(change: { enabled?: boolean; host?: string; shelfIDs?: string[] 
   );
 }
 
-// A native checkbox flips itself on click; when Go refuses, the bound value
-// does not change, so Vue would not flip it back.
 function checkbox(event: Event): HTMLInputElement {
   return event.target as HTMLInputElement;
 }
@@ -203,8 +197,6 @@ onMounted(() => {
   void run(getDesktopLANShare);
 });
 
-// The shelf list comes from Go; re-read it when the shelves panel adds,
-// removes or renames one.
 const { shelves } = useShelvesStore();
 watch(shelves, () => {
   void run(getDesktopLANShare);

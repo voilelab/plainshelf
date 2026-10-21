@@ -32,7 +32,6 @@ describe('checkPCloudShelf', () => {
     });
   });
 
-  // An empty shelf is still a shelf; only Go's verdict decides.
   it('tells an empty shelf from a folder that is not one', async () => {
     mocks.checkPCloudShelf.mockResolvedValueOnce({ isShelf: true, books: 0 });
     mocks.checkPCloudShelf.mockResolvedValueOnce({ isShelf: false, books: 0 });

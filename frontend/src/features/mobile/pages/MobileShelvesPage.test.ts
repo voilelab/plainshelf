@@ -34,7 +34,6 @@ vi.mock('@/providers/mobileConfig', () => ({
   shelfEntryDisplayName: (entry: { name: string }) => entry.name,
   SOURCE_TYPE_LABEL_KEYS: { dav: 'mobileConnect.modeWebDav', server: 'mobileConnect.modeServer', pcloud: 'mobileConnect.modePCloud', local: 'mobileConnect.modeLocal' }
 }));
-// The real helpers, so the Go error wording is matched as in the app.
 vi.mock('@/providers/localShelf', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/providers/localShelf')>()),
   LocalShelf: {

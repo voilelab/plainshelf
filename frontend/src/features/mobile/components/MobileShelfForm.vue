@@ -310,7 +310,6 @@ import MobileQRImport from '@/features/mobile/components/MobileQRImport.vue';
 import PCloudFolderPicker from '@/features/mobile/components/PCloudFolderPicker.vue';
 
 const props = defineProps<{
-  /** The entry being edited, or null when adding one. */
   entry?: ShelfEntry | null;
   cancellable?: boolean;
 }>();
@@ -324,7 +323,6 @@ const entry = computed(() => props.entry ?? null);
 const typeOptions: Array<{ value: ShelfSourceType; labelKey: string }> = [
   { value: 'server', labelKey: 'mobileConnect.modeServer' },
   { value: 'pcloud', labelKey: 'mobileConnect.modePCloud' },
-  // The embedded server exists only in the native app, not the browser preview.
   ...(Capacitor.isNativePlatform()
     ? [
         { value: 'local' as const, labelKey: 'mobileConnect.modeLocal' },
@@ -345,11 +343,8 @@ const pcloudClientId = ref('');
 const pcloudAccessToken = ref('');
 const pcloudHost = ref('');
 const pcloudShelfRoot = ref('');
-/** Carried through an edit unchanged; only re-authorizing rewrites it. */
 const pcloudUserId = ref('');
-/** Email (or userid fallback) returned by pCloud userinfo for the active token. */
 const pcloudAccountIdentity = ref('');
-/** Set by a successful shelf check; null means "not verified yet". */
 const pcloudBookCount = ref<number | null>(null);
 const pickerOpen = ref(false);
 
@@ -357,20 +352,16 @@ const davSource = ref<ShelfSourceKind>('plainshelf');
 const davUrl = ref('');
 const davUsername = ref('');
 const davSecret = ref('');
-/** Set by a successful source check; null means "not checked yet". */
 const davBookCount = ref<number | null>(null);
-/** Bumped by every edit, so a check answering for older values is dropped. */
-let davCheckToken = 0;
-/** A PlainShelf export takes a bearer token, never a username. */
+let davDraftRevision = 0;
 const davAccount = () => (davSource.value === 'webdav' ? davUsername.value.trim() : '');
 const davCanCheck = computed(
   () =>
     davUrl.value.trim().length > 0 &&
     (!shelfSourceNeedsSecret(davSource.value, davAccount()) || davSecret.value.trim().length > 0)
 );
-// A check vouches only for what it was run with.
 watch([davSource, davUrl, davUsername, davSecret], () => {
-  davCheckToken++;
+  davDraftRevision++;
   davBookCount.value = null;
 });
 
@@ -426,9 +417,6 @@ onMounted(async () => {
     pcloudHost.value = existing.pcloudHost;
     pcloudShelfRoot.value = existing.pcloudShelfRoot;
     pcloudAccessToken.value = secret;
-    // Carried, not re-derived: an entry saved before the account id was
-    // recorded must keep deriving the cache scope its downloads already live
-    // under, so merely opening it for editing cannot start writing one.
     pcloudUserId.value = existing.pcloudUserId ?? '';
     if (secret && existing.pcloudHost) {
       try {
@@ -444,8 +432,6 @@ onMounted(async () => {
   serverUrl.value = existing.serverUrl;
   shelfId.value = existing.shelfId;
   token.value = secret;
-  // A returning user already has a server saved; load its shelves so the
-  // dropdown is populated without an extra tap.
   if (existing.serverUrl) {
     await loadShelves();
   }
@@ -456,17 +442,7 @@ function onTypeSelect(next: ShelfSourceType): void {
   localError.value = '';
 }
 
-/**
- * Points the API client at the server currently typed into the form, runs
- * `probe`, and puts the active shelf back.
- *
- * The client's base URL and token hook are module-level state shared with the
- * running app, and the base URL is half of the device-local cache scope key
- * (providers/cacheScope.ts). Leaving a draft applied would attribute another
- * shelf's downloads to whatever was typed here, so the restore is in `finally`
- * rather than on the success path.
- */
-async function withServerProbe<T>(probe: () => Promise<T>): Promise<T> {
+async function withTemporaryServerClient<T>(probe: () => Promise<T>): Promise<T> {
   const probeToken = token.value;
   setApiBase(serverUrl.value);
   window.plainshelf = { getApiToken: async () => probeToken };
@@ -480,10 +456,8 @@ async function withServerProbe<T>(probe: () => Promise<T>): Promise<T> {
 async function loadShelves(): Promise<void> {
   shelvesLoading.value = true;
   try {
-    const loaded = await withServerProbe(listServerShelves);
+    const loaded = await withTemporaryServerClient(listServerShelves);
     shelves.value = loaded;
-    // A shelf the typed server does not offer cannot stay selected, or Save
-    // would write an entry pointing at nothing.
     if (!loaded.some((shelf) => shelf.id === shelfId.value)) {
       shelfId.value = '';
     }
@@ -511,13 +485,6 @@ function onShelfSelect(value: AcceptableValue): void {
   }
 }
 
-/**
- * Verifies that a token and regional host resolve to a real pCloud account.
- *
- * Returns the numeric id alongside the label: the id is what separates two
- * accounts' caches (see PCloudShelfEntry.pcloudUserId), while the label is only
- * shown so the user can confirm which account the system browser reached.
- */
 async function loadPCloudAccountIdentity(
   host: string,
   accessToken: string
@@ -527,11 +494,6 @@ async function loadPCloudAccountIdentity(
   return { label: info.email?.trim() || userId, userId };
 }
 
-/**
- * Runs pCloud's poll_token flow: open the approval page in the system browser
- * and wait for the token. The region comes back with it, so nothing here has to
- * be told which regional host serves the account.
- */
 async function onAuthorize(): Promise<void> {
   localError.value = '';
   const clientId = pcloudClientId.value.trim();
@@ -551,13 +513,7 @@ async function onAuthorize(): Promise<void> {
     pcloudAccessToken.value = session.accessToken;
     pcloudHost.value = session.host;
     pcloudAccountIdentity.value = account.label;
-    // Only set here. Authorization is the one moment the account is known for
-    // certain, and it is also the only moment at which changing the entry's
-    // cache scope is the right thing to do — a fresh token can belong to a
-    // different account than the one whose books are on the device.
     pcloudUserId.value = account.userId;
-    // New credentials may reach a different account, so the previous shelf
-    // check no longer vouches for anything.
     pcloudBookCount.value = null;
     await closeBrowser();
   } catch (err) {
@@ -573,19 +529,12 @@ function onCancelAuthorize(): void {
 }
 
 async function closeBrowser(): Promise<void> {
-  // Closing is best-effort: the web implementation opens a tab it cannot close,
-  // and a browser the user already dismissed is not an error worth surfacing.
   try {
     await Browser.close();
   } catch {
-    // ignored
   }
 }
 
-/**
- * The pCloud equivalent of loading a server's shelves: prove the credentials
- * work and that the named folder really is a shelf, before anything is saved.
- */
 async function onVerifyPCloudShelf(): Promise<void> {
   localError.value = '';
   pcloudBookCount.value = null;
@@ -610,13 +559,6 @@ async function onVerifyPCloudShelf(): Promise<void> {
   }
 }
 
-/**
- * Takes the folder the picker settled on and checks it straight away.
- *
- * The picker only offers a folder that holds `books/`, but saving still
- * requires a book count, and asking for one more tap to confirm what the picker
- * just showed would be busywork. Typed paths keep their own Check shelf button.
- */
 async function onPickShelfRoot(path: string): Promise<void> {
   pickerOpen.value = false;
   pcloudShelfRoot.value = path;
@@ -624,15 +566,11 @@ async function onPickShelfRoot(path: string): Promise<void> {
   await onVerifyPCloudShelf();
 }
 
-/**
- * Proves the URL is a shelf and the secret is accepted, before anything is
- * saved: a wrong token and no connection get different messages.
- */
 async function onCheckDavShelf(): Promise<void> {
   localError.value = '';
   davBookCount.value = null;
   verifying.value = true;
-  const token = ++davCheckToken;
+  const token = ++davDraftRevision;
   try {
     const check = await LocalShelf.checkSource({
       source: davSource.value,
@@ -640,7 +578,7 @@ async function onCheckDavShelf(): Promise<void> {
       username: davAccount(),
       secret: davSecret.value.trim()
     });
-    if (token !== davCheckToken) {
+    if (token !== davDraftRevision) {
       return;
     }
     const messageKey = shelfSourceCheckMessageKey(check);
@@ -657,8 +595,6 @@ async function onCheckDavShelf(): Promise<void> {
 }
 
 function draftEntry(): { entry: ShelfEntry; secret: string } {
-  // A new entry mints its id here; an edited one keeps its own, so the shelf it
-  // names stays the same shelf to the picker and to the active-entry pointer.
   const base = entry.value ?? newShelfEntry(type.value);
   if (type.value === 'dav') {
     const username = davAccount();
@@ -701,11 +637,6 @@ function draftEntry(): { entry: ShelfEntry; secret: string } {
   };
 }
 
-/**
- * Creates or renames the embedded server's shelf, then records the entry.
- * The shelf exists before its entry does, so a failed save can leave an
- * unlisted empty shelf behind but never an entry pointing at nothing.
- */
 async function saveLocalShelf(): Promise<void> {
   const trimmed = name.value.trim();
   const existing = entry.value;

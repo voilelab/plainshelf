@@ -3,18 +3,7 @@ import { createApp, defineComponent, h, nextTick, ref, type App } from 'vue';
 import { createMemoryHistory, createRouter, type Router } from 'vue-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// Two end-to-end cases used to guard this page: one measured every panel's
-// offset below the tab list in a real browser, the other counted requests
-// across tab switches. Both were really about one thing — Reka keeps an
-// inactive tab's wrapper in the DOM, and with `unmount-on-hide` off it keeps
-// the content too — so they are checked here, where a tab switch costs
-// milliseconds instead of a server and a browser.
-//
-// What this file cannot check is the CSS half of that: jsdom applies no
-// stylesheet, so whether a hidden panel collapses is a style contract instead —
-// scripts/check-style-contracts.mjs.
 
-/** Counts one entry per panel mount, so a re-mount after a tab switch shows up. */
 const mounts = vi.hoisted(() => ({ log: [] as string[] }));
 
 function stubPanel(name: string) {
@@ -45,8 +34,6 @@ vi.mock('@/composables/useWriteAccess', async () => {
   return { useWriteAccess: () => ({ serverSettingsEditable: r(true) }) };
 });
 
-// The page loads the server settings once on mount; `loadSettings` is counted
-// so a tab switch that re-ran it would be visible.
 const form = vi.hoisted(() => ({ loads: 0 }));
 vi.mock('@/features/settings/composables/useServerSettingsForm', async () => {
   const { ref: r } = await import('vue');
@@ -103,11 +90,7 @@ async function mountSettings(): Promise<{ host: HTMLElement; router: Router }> {
   return { host, router };
 }
 
-/**
- * Selects a tab by its visible label. Reka activates a trigger from
- * `mousedown.left`, not `click`, so `element.click()` — which dispatches only a
- * click event — leaves the tab list untouched.
- */
+// Reka UI 2.10.5 TabsTrigger activates on mousedown.left; a synthetic click alone does not activate it.
 async function selectTab(host: HTMLElement, label: string): Promise<void> {
   const tab = [...host.querySelectorAll<HTMLElement>('[role="tab"]')].find(
     (element) => element.textContent?.trim() === label
@@ -116,8 +99,6 @@ async function selectTab(host: HTMLElement, label: string): Promise<void> {
     throw new Error(`No settings tab labelled ${label}`);
   }
   tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-  // The active tab is backed by `?tab=`, so the switch is a router navigation:
-  // it needs a macrotask to settle, not just a render tick.
   await new Promise((done) => setTimeout(done, 0));
   await nextTick();
 }
@@ -138,7 +119,6 @@ afterEach(() => {
   active?.host.remove();
   active = null;
   delete window.plainshelfDemo;
-  // The router keeps the tab in ?tab=, so nothing else leaks between cases.
   vi.clearAllMocks();
 });
 
@@ -146,8 +126,6 @@ describe('SettingsPage tabs', () => {
   it('mounts every panel once and keeps them mounted across tab switches', async () => {
     const { host } = await mountSettings();
 
-    // Every panel body exists from the first render: with unmountOnHide left at
-    // Reka's default only the active tab's content would be here.
     expect(new Set(mounts.log).size).toBe(mounts.log.length);
     expect(mounts.log).toHaveLength(9);
 
@@ -156,8 +134,6 @@ describe('SettingsPage tabs', () => {
       await selectTab(host, label);
     }
 
-    // Nothing re-mounted, so a panel's in-flight request or fetched list is
-    // still there rather than restarted on every visit.
     expect(mounts.log).toEqual(mountedOnce);
   });
 
@@ -174,7 +150,6 @@ describe('SettingsPage tabs', () => {
   it('marks exactly the inactive panels hidden', async () => {
     const { host } = await mountSettings();
 
-    // Cover is the default tab when the server settings are editable.
     expect(panelStates(host).cover).toBe(false);
     expect(Object.values(panelStates(host)).filter((hidden) => !hidden)).toHaveLength(1);
 
@@ -186,8 +161,6 @@ describe('SettingsPage tabs', () => {
     expect(Object.values(states).filter((hidden) => !hidden)).toHaveLength(1);
   });
 
-  // Browser storage only exists in the wasm demo, which boot.js marks with
-  // window.plainshelfDemo; a server, desktop or app never shows the tab.
   it('shows the browser storage tab only in the wasm demo', async () => {
     const tabLabels = (host: HTMLElement) =>
       [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim());

@@ -6,13 +6,9 @@ import ScanIntervalField from './ScanIntervalField.vue';
 import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
-// A tiny host so the field is exercised through v-model, which is how both
-// shelf modals use it: the parent holds the Go duration string.
 function mountField(initial: string) {
   const value = ref(initial);
   const { host } = mount(ScanIntervalField, {
-    // A getter, not an object: this host exists to exercise v-model, so the
-    // component has to see each value it reports back.
     props: () => ({
       modelValue: value.value,
       'onUpdate:modelValue': (next: string) => (value.value = next)
@@ -42,8 +38,6 @@ function setValue(el: HTMLSelectElement, value: string): void {
   el.dispatchEvent(new Event('change'));
 }
 
-// Reka's NumberField commits on blur, Enter and the steppers rather than on
-// every keystroke, so typing alone reports nothing.
 function commit(el: HTMLInputElement, value: string): void {
   el.value = value;
   el.dispatchEvent(new Event('input'));
@@ -69,7 +63,6 @@ describe('ScanIntervalField', () => {
     expect(select(host, 'scan-interval-mode').value).toBe('interval');
     expect(amountBox(host).value).toBe('90');
     expect(select(host, 'scan-interval-unit').value).toBe('m');
-    // What the controls show is what a save would write.
     expect(value.value).toBe('90m');
   });
 
@@ -100,8 +93,6 @@ describe('ScanIntervalField', () => {
     await nextTick();
     await nextTick();
 
-    // There is nothing to build a duration from, so the interval in force
-    // stands and the box is redrawn with it rather than left blank over it.
     expect(value.value).toBe('10m');
     expect(amount.value).toBe('10');
   });
@@ -114,8 +105,6 @@ describe('ScanIntervalField', () => {
 
     commit(amount, '2562048');
     await nextTick();
-    // The clamped value is one the backend accepts, so the raw
-    // `invalid duration` error still cannot reach the user.
     expect(value.value).toBe('2562047h');
 
     await nextTick();
@@ -134,9 +123,6 @@ describe('ScanIntervalField', () => {
     await nextTick();
     await nextTick();
 
-    // An hour holds 3600 times what a second does, so the ceiling drops with
-    // the unit; carried over unchanged this would be a duration
-    // `time.ParseDuration` rejects outright.
     expect(value.value).toBe('2562047h');
     expect(amount.value).toBe('2562047');
   });
@@ -164,7 +150,6 @@ describe('ScanIntervalField', () => {
     expect(amountBox(host).value).toBe('2');
     expect(host.querySelector('.scan-interval-adjusted')?.textContent).toContain('1500ms');
 
-    // The note goes away once the user picks a value of their own.
     commit(amountBox(host), '5');
     await nextTick();
     expect(value.value).toBe('5s');
