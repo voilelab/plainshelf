@@ -247,6 +247,11 @@ On Android the `ID` of a `host:` reference is the shelf entry ID, so the
 Keystore key stays `plainshelf.mobile.secret.<entryID>` and no stored token
 moves.
 
+A reference is not a process-isolation boundary: the resolver returns the
+plaintext secret to the source client so it can authenticate. For the current
+connection types, transmission destinations, and the separate locally generated
+UI / export tokens, see [Where credentials live](../deployment-and-threat-model.md#where-credentials-live).
+
 ### The Go interface
 
 ```go

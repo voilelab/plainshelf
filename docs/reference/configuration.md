@@ -311,6 +311,13 @@ are not listed here; see [Data model](../concepts/data-model.md).
 
 ### `shelves[].source`
 
+The server resolves `credential` references into plaintext secrets for the
+source client; a reference does not mean the process never handles a password
+or token. Keep referenced files private to its user. These remote-source
+credentials are separate from `dav_export.token_file` and the UI API's
+`local_token`; see [Where credentials live](../deployment-and-threat-model.md#where-credentials-live)
+for storage and transmission boundaries on each host.
+
 Opens a shelf from somewhere other than a local path. A `plainshelf` or
 `webdav` source is a **virtual shelf**: always read-only whatever `read_only`
 says, never locked or exported, listed from the exported book cache when the
