@@ -44,9 +44,6 @@ describe('pageSlice', () => {
   });
 });
 
-// The composable is exercised through a real router and a mounted host so the
-// clamp watcher runs the way it does on a page. There is no component-mounting
-// helper in this project, so the harness below is deliberately minimal.
 interface TrashedRow {
   id: string;
   title: string;
@@ -90,7 +87,6 @@ async function mountCollection<T>(options: {
   app.mount(document.createElement('div'));
   active = { app, router };
 
-  // Let the immediate clamp watcher's router.replace settle.
   await router.isReady();
   await new Promise((resolve) => setTimeout(resolve, 0));
 

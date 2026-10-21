@@ -39,8 +39,6 @@ const zhHant = {
     label: '語言',
     en: 'English',
     zhHant: '繁體中文',
-    // 書籍本身的語言，與上面兩個 key 不同：那兩個指的是介面語言，
-    // 且無論介面切到哪一種都維持各自的母語寫法。
     book: {
       unspecified: '未指定',
       zhHant: '中文（繁體）',
@@ -1370,8 +1368,6 @@ const zhHant = {
       delete: '刪除',
       deleteLabel: '刪除來源 {id}'
     },
-    // 沒有記錄格式的來源屬於 source format 出現之前的舊資料。
-    // 其他情況徽章直接顯示大寫的格式名，不需要字典條目。
     format: {
       legacy: '舊格式'
     },
@@ -1409,14 +1405,12 @@ const zhHant = {
         noMatches: '沒有符合的結果。',
         matchOrdinal: '第 {ordinal} 個，共 {total} 個。',
         matchCount: '共 {total} 個符合。',
-        // 中文沒有單複數變化，兩個形式的譯文相同；分成兩個 key 是為了英文。
         replacedOne: '已取代 1 處。',
         replacedMany: '已取代 {count} 處。',
         replacedOneNoneRemain: '已取代 1 處，沒有其他符合的結果。',
         replacedOneThenMatch: '已取代 1 處。第 {ordinal} 個，共 {total} 個。',
         replacedOneThenCount: '已取代 1 處。共 {total} 個符合。',
         invalidRegexp: '這個正規表示式不合法。',
-        // 由編輯器自己的 live region 唸出，與上方看得見的狀態列各自獨立。
         announce: {
           currentMatch: '目前的符合項目',
           onLine: '位於行號',

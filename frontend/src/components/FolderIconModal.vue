@@ -26,7 +26,6 @@ const props = withDefaults(
   defineProps<{
     open: boolean;
     folderName: string;
-    /** The folder's icon now, '' for the default. */
     currentIcon: string;
     busy?: boolean;
     error?: string;

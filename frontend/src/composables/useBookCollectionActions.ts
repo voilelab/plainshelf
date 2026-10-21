@@ -5,17 +5,10 @@ import { useWriteAccess } from '@/composables/useWriteAccess';
 import type { Book } from '@/types/book';
 
 interface UseBookCollectionActionsOptions {
-  /** The list the emitted ids are resolved against. */
   books: Ref<Book[]> | ComputedRef<Book[]>;
-  /** Called after a delete succeeds, to reload the list. */
   onDeleted: () => void;
 }
 
-/**
- * Adapts useBookActions to BookCollectionPage, which emits book ids while the
- * actions work on Book objects. Also keeps the read-only guard on delete in one
- * place instead of once per list page.
- */
 export function useBookCollectionActions(options: UseBookCollectionActionsOptions) {
   const { writesEnabled } = useWriteAccess();
   const readOnly = computed(() => !writesEnabled.value);

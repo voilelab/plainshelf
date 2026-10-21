@@ -25,7 +25,6 @@ import { DEFAULT_FOLDER_ICON, FOLDER_ICON_NAMES } from '@/components/icons/folde
 import { useI18n } from '@/i18n';
 
 const props = defineProps<{
-  /** The chosen icon name, '' for the default. */
   modelValue: string;
   disabled?: boolean;
 }>();
@@ -36,9 +35,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-// The default comes first and is a choice of its own: it is what clearing an
-// icon picks. It draws as the plain folder, so that name is offered again only
-// to a folder that already stores it.
 const options = computed(() => [
   { value: '', label: t('layout.folderIcon.default') },
   ...FOLDER_ICON_NAMES.filter((name) => name !== DEFAULT_FOLDER_ICON || props.modelValue === name).map((name) => ({

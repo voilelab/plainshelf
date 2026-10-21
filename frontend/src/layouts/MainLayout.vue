@@ -18,10 +18,6 @@
       @cancel="cancelPendingRenameFolder"
       @submit="confirmRenameFolder"
     />
-    <!-- Sits above the rename/move/transfer flows rather than inside any of
-         them: all three can unmark a folder subtree, and the question is the
-         same one. Danger variant, because the mark cannot be put back from the
-         app - shelf.json is the user's file and PlainShelf only reads it. -->
     <ConfirmModal
       :open="pendingNsfwReveal !== null"
       :title="t('layout.folderReveal.title')"
@@ -122,9 +118,6 @@
                   <SelectViewport>
                     <SelectItem v-for="item in shelfPicker.items.value" :key="item.id" class="reka-menu-item" :value="item.id">
                       <SelectItemText>{{ item.name }}</SelectItemText>
-                      <!-- Sibling of SelectItemText, not inside it: the trigger
-                           echoes the item text, and a badge in there would read
-                           as part of the shelf's name. -->
                       <span v-if="item.typeLabel" class="sidebar-shelf-type">{{ item.typeLabel }}</span>
                     </SelectItem>
                   </SelectViewport>
@@ -211,7 +204,6 @@
                 <p>{{ foldersError }}</p>
                 <button type="button" class="button" @click="fetchFolders">{{ t('common.retry') }}</button>
               </div>
-              <!-- Keep sorting mode and failure messages alive while folders reload. -->
               <FolderTree
                 v-show="!foldersLoading && !foldersError"
                 :nodes="folderTree"
@@ -281,9 +273,6 @@
           </section>
         </template>
 
-        <!-- Downloads and the admin section (Logs + Settings) are reached from
-             the bottom tab bar on the mobile shell, so the drawer drops them
-             there and keeps only shelf switching and the folder tree. -->
         <template v-if="hasDownloadsStore && !isMobileShell">
           <div class="sidebar-nav-divider" role="presentation"></div>
           <section class="sidebar-section" :aria-label="t('layout.downloads')">
@@ -347,8 +336,7 @@
     />
 
     <SplitterPanel as="main" class="main-content">
-      <!-- SplitterPanel forces inline overflow:hidden, so scrolling lives on
-           this inner wrapper (same pattern as .sidebar-inner). -->
+      <!-- Reka UI 2.10.5 SplitterPanel applies inline overflow: hidden (utils/style.ts). -->
       <div class="main-scroll">
       <div v-if="readOnlyBannerKey" class="read-only-banner" role="status">
         {{ t(readOnlyBannerKey) }}
@@ -436,19 +424,10 @@ const {
 const route = useRoute();
 const router = useRouter();
 
-// Both uses of this are the Downloads nav entry, so ask what that entry
-// actually needs — a provider that keeps downloads — rather than which
-// runtime we are on. Only MobileBookshelfProvider implements it, so this is
-// the same answer by a name that says why.
 const hasDownloadsStore = computed(() =>
   useShelfCapabilities().download.value && Boolean(getBookshelfProvider().listDownloadedBookEntries)
 );
 
-// The mobile shell gets a bottom tab bar for its frequent destinations. Gated
-// on the mobile *runtime* (not merely a narrow viewport) because the Downloads
-// tab only exists on the mobile provider, and because a narrow desktop browser
-// should keep the existing drawer. Latched like the runtime itself, so read it
-// once rather than reactively.
 const isMobileShell = isMobileRuntime();
 
 const { books, loading, fetchBooks } = useBookStore();
@@ -511,17 +490,11 @@ const {
   confirmDeleteFolder
 } = useFolderManagement();
 const { t } = useI18n();
-// The dropdown itself goes through useShelfPicker; what is left here is the
-// resolved-shelf gate the rest of the layout hangs off, which is the same on
-// every client.
 const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, ensureShelvesLoaded } = useShelvesStore();
 const { fetchServerMode } = useServerMode();
 const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdminAvailable } =
   useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
-// The Android client being read-only is its normal state, not a condition to
-// warn about, so the banner stays reserved for the two settings an operator
-// chose: a read-only server, and a shelf opened read-only on a writable one.
 const readOnlyBannerKey = computed(() => {
   if (writeDisabledReason.value === 'server-read-only') {
     return 'layout.readOnly.banner' as const;
@@ -532,8 +505,6 @@ const readOnlyBannerKey = computed(() => {
   return null;
 });
 const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
-// Rail mode's icon-only nav: the expanded sidebar's links, under the same
-// conditions, in the same order.
 const railNavItems = computed<SidebarRailItem[]>(() => {
   const items: SidebarRailItem[] = [];
   if (hasActiveShelf.value) {
@@ -557,8 +528,6 @@ const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShe
 const shelfUnavailableMessage = computed(() =>
   shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
-// What the sidebar dropdown lists differs by client: the server's shelves on
-// web and desktop, the device's own shelf list on the mobile shell.
 const shelfPicker = useShelfPicker({
   onServerShelfSelected: async () => {
     clearFolderErrors();
@@ -567,9 +536,6 @@ const shelfPicker = useShelfPicker({
   }
 });
 
-// The picker names where "manage shelves" points (or null for none); merge the
-// current route query in so the mobile shell-preview flag survives the jump,
-// while the picker's own query (the desktop settings tab) still wins.
 const shelfManageTo = computed<RouteLocationRaw | null>(() => {
   const to = shelfPicker.manageTo;
   if (!to || typeof to === 'string') {
@@ -578,13 +544,6 @@ const shelfManageTo = computed<RouteLocationRaw | null>(() => {
   return { ...to, query: { ...route.query, ...(to.query ?? {}) } };
 });
 
-// The narrow-viewport top bar shows where the user is instead of the language
-// picker. Most MainLayout routes map to their existing sidebar label; the
-// library route prefers the open folder's leaf name so "which folder" reads
-// literally. A book's detail page is deliberately left out: it already shows
-// its own live title on the page, and mirroring it here would have to read the
-// shared books list, which a rename in the metadata editor does not refresh.
-// Reader and source-edit live on ReaderLayout, so they never reach this bar.
 const ROUTE_LOCATION_LABEL_KEYS: Record<string, string> = {
   home: 'layout.dashboard',
   library: 'layout.library',

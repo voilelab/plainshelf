@@ -7,12 +7,6 @@ import BookListView from './BookListView.vue';
 import en from '@/i18n/locales/en';
 import type { Book } from '@/types/book';
 
-/**
- * The card and the list show the same book's description in the same words, so
- * they are asserted against each other rather than one at a time. Rendering
- * them through `vue/server-renderer` - which ships with Vue - keeps that
- * possible without a component-test harness the repository does not have.
- */
 function book(overrides: Partial<Book>): Book {
   return { id: 'b1', title: '書名', authors: [], tags: [], folders: [], ...overrides };
 }

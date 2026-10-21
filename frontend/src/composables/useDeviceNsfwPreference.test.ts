@@ -15,8 +15,6 @@ describe('useDeviceNsfwPreference', () => {
     window.localStorage.clear();
   });
 
-  // Hiding is the safe direction to fail in: a device that cannot tell shows
-  // nothing rather than everything.
   it('defaults to hiding adult content when nothing is stored', () => {
     expect(getShowNsfwOnDevice()).toBe(false);
     expect(useDeviceNsfwPreference().showNsfw.value).toBe(false);

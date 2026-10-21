@@ -5,12 +5,6 @@ import { useBookItemInteractions } from './useBookItemInteractions';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
 
-// This is what the mobile long-press case and the drag half of the library
-// multi-select case were really testing: a touch held still for long enough
-// starts a selection, one that slides does not, the compatibility click a real
-// touch emits afterwards is swallowed, and a drag carries the whole selection
-// only when the dragged book is part of it. None of that needs a server; the
-// end-to-end cases paid for one because they drove it through a rendered row.
 
 const LONG_PRESS_MS = 450;
 
@@ -22,7 +16,6 @@ function book(id: string, title = id): Book {
   return { id, title } as Book;
 }
 
-/** A DragEvent stand-in that records what was written to its dataTransfer. */
 function dragEvent() {
   const data = new Map<string, string>();
   const dataTransfer = {
@@ -84,8 +77,6 @@ describe('long press on a touch device', () => {
   });
 
   it('cancels the pending press when the finger slides past the tolerance', () => {
-    // A scroll starts as a press; treating it as a selection makes the list
-    // unscrollable.
     harness = setup({ mobile: true });
 
     harness.api.onPointerDown(touch('b1', 20, 20), 'b1');
@@ -106,8 +97,6 @@ describe('long press on a touch device', () => {
   });
 
   it('swallows the compatibility click a real touch emits after the press', () => {
-    // Without this the long-pressed row is selected and then immediately
-    // toggled back off, so nothing appears to happen.
     harness = setup({ mobile: true });
     harness.api.onPointerDown(touch('b1', 24, 24), 'b1');
     vi.advanceTimersByTime(LONG_PRESS_MS);
@@ -118,7 +107,6 @@ describe('long press on a touch device', () => {
     expect(harness.activations).toEqual([]);
     expect(click.preventDefault).toHaveBeenCalled();
 
-    // Only the one click is eaten; the next tap opens the book as usual.
     harness.api.onClick(click as unknown as MouseEvent, 'b1');
     expect(harness.activations).toHaveLength(1);
   });
@@ -155,8 +143,6 @@ describe('dragging a book', () => {
 
     harness.api.onDragStart(event, book('b3', 'Solaris'));
 
-    // No id-list payload at all: the drop target moves the single book named by
-    // the scalar key rather than the selection the user did not drag.
     expect(data.has('application/x-plainshelf-book-ids')).toBe(false);
     expect(data.get('application/x-plainshelf-book-id')).toBe('b3');
     expect(harness.api.draggingBookId.value).toBe('b3');
@@ -170,7 +156,6 @@ describe('dragging a book', () => {
     harness.api.onDragStart(event, book('b1', 'Solaris'));
 
     expect(JSON.parse(data.get('application/x-plainshelf-book-ids')!).sort()).toEqual(['b1', 'b2']);
-    // The preview counts what is being moved, so a group drag is visibly one.
     expect(document.querySelector('.book-drag-preview')?.textContent).toBe('Solaris · 2');
   });
 

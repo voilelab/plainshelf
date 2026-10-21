@@ -25,11 +25,7 @@
       </div>
 
       <footer class="confirm-modal-actions">
-        <!-- On the destructive path the cancel button must be the element
-             AlertDialogCancel registers, because AlertDialogContent focuses
-             exactly that element when the dialog opens. Closing then travels
-             the same route as ESC — AlertDialogRoot's update:open — so this
-             button deliberately has no click handler of its own. -->
+        <!-- Reka UI 2.10.5 AlertDialogContent focuses its registered Cancel element on open. -->
         <AlertDialogCancel v-if="destructive" as-child>
           <button class="button" type="button" :disabled="busy">
             {{ cancelText }}
@@ -38,9 +34,7 @@
         <button v-else class="button" type="button" :disabled="busy" @click="emit('cancel')">
           {{ cancelText }}
         </button>
-        <!-- Not AlertDialogAction: that closes the dialog on click, and several
-             callers keep it open after confirming to show progress (see the
-             empty-trash flow in TrashPage.vue). The parent owns the close. -->
+        <!-- Reka UI 2.10.5 AlertDialogAction wraps DialogClose and closes on click. -->
         <button
           ref="confirmButton"
           class="button"
@@ -90,10 +84,6 @@ const props = withDefaults(
   }
 );
 
-// The four text props fall back through computeds rather than through
-// withDefaults: a default is evaluated once where the component is defined, so
-// a t() call there would freeze the English string in place and never follow a
-// locale change. Same pattern as DeleteModal.vue.
 const confirmText = computed(() => props.confirmText ?? t('common.confirm'));
 const cancelText = computed(() => props.cancelText ?? t('common.cancel'));
 const busyText = computed(() => props.busyText ?? t('common.working'));
@@ -112,10 +102,6 @@ const confirmVariant = computed(() => ({
   danger: props.variant === 'danger'
 }));
 
-// The danger variant is the irreversible one, so it gets alert-dialog
-// semantics: role="alertdialog", no backdrop dismissal, focus on cancel.
-// Everything else — editing, importing, choosing a font — stays an ordinary
-// dialog on BaseDialog.
 const destructive = computed(() => props.variant === 'danger');
 const shell = computed(() => (destructive.value ? BaseAlertDialog : BaseDialog));
 const shellProps = computed(() => ({
@@ -123,28 +109,18 @@ const shellProps = computed(() => ({
   title: props.title,
   busy: props.busy,
   describedBy: descriptionId,
-  // BaseAlertDialog has no such prop: an alert dialog is never dismissed by
-  // its backdrop, whatever the caller asks for.
   ...(destructive.value ? {} : { dismissible: props.closeOnBackdrop })
 }));
 
 watch(
   () => props.open,
   async (open) => {
-    // Destructive dialogs must open on cancel, and AlertDialogContent already
-    // puts focus there; stealing it back to confirm would defeat the point.
-    // That holds even for a caller that asked for initialFocus: the alert
-    // dialog's own focus contract is not opt-out.
     if (!open || destructive.value) {
       return;
     }
 
     await nextTick();
 
-    // Opt-in: a form dialog names the field it wants the caret in, because the
-    // confirm button below is disabled until that field is filled and focusing
-    // a disabled button leaves the focus nowhere. Callers that name nothing
-    // keep the original behaviour exactly.
     if (props.initialFocus) {
       const target = panel.value?.querySelector<HTMLElement>(props.initialFocus);
       if (target) {

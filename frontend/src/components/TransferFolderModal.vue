@@ -8,8 +8,6 @@
     <section class="panel transfer-modal">
       <h2>{{ t('layout.transferFolder.title') }}</h2>
 
-      <!-- Once the chain is scheduled the form is replaced by its progress, the
-           same shape the single-book transfer uses. -->
       <template v-if="!started">
         <p class="transfer-intro">{{ t('layout.transferFolder.description', { folder: folderName }) }}</p>
 
@@ -92,8 +90,6 @@
         </p>
         <p v-if="error" class="transfer-error" role="alert">{{ error }}</p>
         <footer>
-          <!-- The chain keeps running on the server regardless, so the only close
-               is offered once it settles — mirroring the single-book transfer. -->
           <button type="button" class="button primary" :disabled="!finished" @click="emit('close')">
             {{ t('layout.transferFolder.close') }}
           </button>
@@ -113,12 +109,6 @@ import type { BookTransferMode } from '@/api/books';
 import { folderTransferCounts, type TaskChain, type TaskStatus } from '@/types/task';
 import { useI18n } from '@/i18n';
 
-// The progress-related props are driven by the useTaskChainProgress instance the
-// parent owns (through useFolderManagement): the modal renders the chain, it does
-// not poll it. `started` splits the form from the progress view; `busy` is the
-// running flag that keeps the dialog from being dismissed mid-transfer. `chain`
-// is passed so the per-book "N of M" count can be read from its task result,
-// which the bare percentage does not carry.
 const props = defineProps<{
   open: boolean;
   folderName: string;
@@ -145,28 +135,18 @@ const {
 } = useShelvesStore();
 
 const targetShelfId = ref('');
-// '/' is the labelled root option; it maps to '' (the shelf root) on submit.
 const targetParentFolder = ref('/');
 const mode = ref<BookTransferMode>('copy');
 const shelfFolders = ref<string[]>([]);
 const loadingFolders = ref(false);
 const folderError = ref('');
-// Bumped on every shelf change so a slow folder fetch for a shelf the user has
-// since switched away from cannot overwrite the current one's folders.
 let folderRequest = 0;
 
-// A move ends by deleting the source, which a read-only shelf refuses, so such
-// a shelf offers the copy alone — the server allows that, because only the
-// target is written (shelf/shelf_cross_book_test.go). `effectiveMode` is what
-// is reported and submitted, so a 'move' left in the ref by an earlier open
-// cannot escape once the radio is gone.
 const moveAvailable = computed(() => !selectedShelfReadOnly.value);
 const effectiveMode = computed<BookTransferMode>(() => (moveAvailable.value ? mode.value : 'copy'));
 
 const canSubmit = computed(() => targetShelfId.value !== '' && !loadingFolders.value);
 
-// The folder keeps its own name and nests under the chosen parent, so preview the
-// path it will land at on the target shelf.
 const destinationPreview = computed(() =>
   targetParentFolder.value === '/' ? props.folderName : `${targetParentFolder.value}/${props.folderName}`
 );
@@ -197,11 +177,9 @@ async function loadFolders(shelfID: string): Promise<void> {
   shelfFolders.value = [];
   try {
     const folders = await bookshelfWriter().listShelfFolders(shelfID);
-    // A newer selection (or a close) landed while this was in flight.
     if (request !== folderRequest) {
       return;
     }
-    // The root is offered as its own option, so drop it from the list.
     shelfFolders.value = folders.filter((folder) => folder && folder !== '/');
   } catch (err) {
     if (request !== folderRequest) {
@@ -221,8 +199,6 @@ watch(
     if (!open) {
       return;
     }
-    // Reset the form each time it opens so a previous attempt's picks do not
-    // carry over.
     targetShelfId.value = '';
     targetParentFolder.value = '/';
     mode.value = 'copy';

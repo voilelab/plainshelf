@@ -3,7 +3,6 @@ import { getBookshelfProvider } from '@/providers';
 import { acquireObjectUrl, releaseObjectUrl } from '@/composables/objectUrlCache';
 
 interface UseAssetSrcResult {
-  /** Empty until the illustration has loaded, and whenever it failed. */
   src: Ref<string>;
   failed: Ref<boolean>;
   handleError: () => void;
@@ -13,20 +12,7 @@ function objectUrlCacheKey(bookId: string, sourceId: string, name: string): stri
   return `asset::${bookId}::${sourceId}::${name}`;
 }
 
-/**
- * Resolves the `src` for one illustration stored in a source's `assets/`
- * directory.
- *
- * Unlike `useCoverSrc`, this fetches through the provider on every runtime
- * rather than handing a URL to the browser on desktop and web. Two reasons: a
- * plain `<img src="...">` carries no API token, so it fails outright when the
- * server sets `protect_read`; and on mobile the WebView issues that request
- * itself, bypassing CapacitorHttp and tripping mixed-content blocking. One code
- * path avoids having a second, platform-shaped way for images to break.
- *
- * An illustration the provider cannot reach (an offline mobile cache that did
- * not download it) leaves `failed` set, and the caller shows the alt text.
- */
+// HTML image requests cannot attach custom authorization headers and bypass the Capacitor Android 8.5.2 native fetch bridge.
 export function useAssetSrc(
   bookId: () => string,
   sourceId: () => string,
@@ -59,7 +45,6 @@ export function useAssetSrc(
       return;
     }
 
-    // Bound now, so the fetch cannot land on a provider swapped in later.
     const provider = getBookshelfProvider();
     const fetchAsset = provider.getSourceAsset.bind(provider);
 

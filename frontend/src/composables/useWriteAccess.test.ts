@@ -4,8 +4,6 @@ const { getBookshelfProviderMock } = vi.hoisted(() => ({
   getBookshelfProviderMock: vi.fn()
 }));
 
-// isWritableProvider is deliberately NOT mocked: it is the predicate under
-// test here, so the tests hand it real provider shapes and let it narrow.
 vi.mock('@/providers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/providers')>()),
   getBookshelfProvider: getBookshelfProviderMock
@@ -20,17 +18,9 @@ const { InMemoryMobileBookCache } = await import('@/providers/mobileBookCache');
 const { EmbeddedPCloudReader } = await import('@/providers/embeddedPCloud');
 const { useWriteAccess } = await import('./useWriteAccess');
 
-// readOnly is a module-level ref shared by every useServerMode() caller, so the
-// test drives it directly instead of stubbing GET /api/mode.
 const { readOnly } = useServerMode();
-// Same for the shelf list: selectedShelfReadOnly is derived from these two refs,
-// so seeding them is how a read-only shelf is put in front of the composable.
 const { shelves, selectedShelfID } = useShelvesStore();
 
-/**
- * Lists one read-only and one writable shelf and selects the named one, which
- * is the arrangement the feature exists for: the two must not look alike.
- */
 function browseShelf(id: 'writable' | 'archive'): void {
   shelves.value = [
     { id: 'writable', name: 'Writable', readOnly: false },
@@ -39,7 +29,6 @@ function browseShelf(id: 'writable' | 'archive'): void {
   selectedShelfID.value = id;
 }
 
-/** Points the composable at a real provider instance, not a stub shape. */
 function connectReadingClient(): void {
   getBookshelfProviderMock.mockReturnValue(
     new MobileBookshelfProvider(new ServerBookshelfProvider(), new InMemoryMobileBookCache())
@@ -101,9 +90,6 @@ describe('useWriteAccess', () => {
     expect(writeDisabledReason.value).toBe('shelf-read-only');
   });
 
-  // The same list, the other shelf: this is the acceptance case for the whole
-  // change, and it fails if the flag is read off the list rather than the
-  // selection.
   it('keeps writes on the writable shelf beside a read-only one', () => {
     connectWritableClient();
     browseShelf('writable');
@@ -123,9 +109,6 @@ describe('useWriteAccess', () => {
     expect(writesEnabled.value).toBe(false);
   });
 
-  // A read-only server opens every shelf read-only, so both reasons apply at
-  // once. Naming the server is what points the user at the setting that is
-  // actually in the way.
   it('names the server ahead of the shelf when both are read-only', () => {
     connectWritableClient();
     readOnly.value = true;
@@ -143,8 +126,6 @@ describe('useWriteAccess', () => {
     expect(writeDisabledReason.value).toBe('platform');
   });
 
-  // The refusal message must not blame a server the user would then find
-  // writable.
   it('names the shelf in the refusal message only when the shelf is the reason', () => {
     connectWritableClient();
     browseShelf('archive');
@@ -166,9 +147,6 @@ describe('useWriteAccess', () => {
 
 });
 
-// Copying a book or folder out of a shelf reads that shelf and writes the
-// target, so a read-only *source* still allows it — the server refuses only a
-// move, which ends by deleting the original.
 describe('outgoingCopyEnabled', () => {
   beforeEach(() => {
     readOnly.value = false;
@@ -201,10 +179,6 @@ describe('outgoingCopyEnabled', () => {
   });
 });
 
-// These answer "what can a reading client not do", so they must follow the
-// client alone. A read-only *server* still shows Trash, the maintenance lists,
-// the settings tabs, and the logs — read-only there means the controls render
-// disabled, not that the pages disappear.
 describe('platform capabilities', () => {
   beforeEach(() => {
     readOnly.value = false;
@@ -257,10 +231,6 @@ describe('platform capabilities', () => {
   });
 });
 
-// The provider's write surface is what decides these, and it is read through
-// the flags rather than directly: libraryEditingAvailable is the one that says
-// only "can this client write at all", without the server's or the shelf's
-// read_only folded in.
 describe('the provider write surface', () => {
   it('decides whether library editing is available at all', () => {
     connectReadingClient();
@@ -270,18 +240,12 @@ describe('the provider write surface', () => {
     expect(useWriteAccess().libraryEditingAvailable.value).toBe(true);
   });
 
-  // WailsBookshelfProvider inherits its write surface from
-  // ServerBookshelfProvider rather than declaring one. If that ever stops
-  // being true, the desktop app silently loses every editing affordance —
-  // which no mobile test would catch.
   it('keeps the desktop shell writable through inheritance', () => {
     getBookshelfProviderMock.mockReturnValue(new WailsBookshelfProvider());
 
     expect(useWriteAccess().libraryEditingAvailable.value).toBe(true);
   });
 
-  // The pCloud reader inherits a write surface from ServerBookshelfProvider;
-  // the mobile wrapper the app builds around it is what keeps it read-only.
   it('treats a pCloud-backed client as read-only', () => {
     getBookshelfProviderMock.mockReturnValue(
       new MobileBookshelfProvider(new EmbeddedPCloudReader(), new InMemoryMobileBookCache())

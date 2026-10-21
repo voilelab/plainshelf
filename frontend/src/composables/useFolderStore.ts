@@ -6,7 +6,6 @@ import { t } from '@/i18n';
 
 const folders = ref<string[]>([]);
 const folderMetaError = ref('');
-// Keyed by folder path; a folder absent here shows the default icon.
 const folderMeta = ref<Record<string, FolderMeta>>({});
 const loading = ref(false);
 const error = ref('');
@@ -31,8 +30,6 @@ async function run(isAutoRetry: boolean): Promise<void> {
     loaded.value = true;
     initRetry.reset();
   } catch (err) {
-    // Wait out the initial scan rather than stranding the sidebar on an error
-    // the shelf resolves on its own. See `shelfInitRetry`.
     if (isShelfInitializing(err)) {
       if (initRetry.schedule(() => void run(true), err)) {
         return;
@@ -42,16 +39,12 @@ async function run(isAutoRetry: boolean): Promise<void> {
       error.value = err instanceof Error ? err.message : t('layout.folderErrors.loadFailed');
     }
   } finally {
-    // A pending retry keeps the sidebar in its loading state rather than
-    // flashing an error between attempts.
     if (!initRetry.pending) {
       loading.value = false;
     }
   }
 }
 
-// Icons are decoration: a listing that fails, or a backend without one, leaves
-// every folder on the default icon rather than failing the folder tree.
 async function loadFolderMeta(): Promise<Record<string, FolderMeta>> {
   folderMetaError.value = '';
   const provider = getBookshelfProvider();
@@ -66,13 +59,10 @@ async function loadFolderMeta(): Promise<Record<string, FolderMeta>> {
   }
 }
 
-/** Re-reads only the metadata, after a write or a refused one. */
 async function fetchFolderMeta(): Promise<void> {
   folderMeta.value = await loadFolderMeta();
 }
 
-// Takes no arguments on purpose: it is bound straight to a template click
-// handler, which would otherwise pass the event in as the retry flag.
 async function fetchFolders(): Promise<void> {
   await run(false);
 }

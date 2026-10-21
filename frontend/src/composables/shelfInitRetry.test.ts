@@ -25,8 +25,6 @@ describe('isShelfInitializing', () => {
   });
 });
 
-// Every case schedules against the refusal a scanning shelf answers with; only
-// the reference cases below care what is in it.
 const scanning = () => new ApiError('initializing', { status: 503, incident: 'K7MQ4XZB' });
 
 describe('createShelfInitRetry', () => {
@@ -49,8 +47,6 @@ describe('createShelfInitRetry', () => {
     const retry = createShelfInitRetry();
     const attempt = vi.fn();
 
-    // The counter is the number of failures seen, so the last one in the budget
-    // is the one that gives up rather than scheduling again.
     for (let i = 1; i < SHELF_INIT_MAX_AUTO_RETRIES; i++) {
       expect(retry.schedule(attempt, scanning())).toBe(true);
     }
@@ -110,10 +106,6 @@ describe('createShelfInitRetry', () => {
   });
 });
 
-// api/client.ts publishes no reference for a refusal carrying Retry-After,
-// because the retry that hides it usually succeeds. The attempt that spends the
-// budget is not hidden - the caller shows the failure - so the reference has to
-// come back with it.
 describe('the reference on the terminal attempt', () => {
   const { incident, dismissIncident } = useErrorIncident();
 

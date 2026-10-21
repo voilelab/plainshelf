@@ -19,11 +19,7 @@ function isInternalPath(value: unknown): value is string {
   );
 }
 
-/**
- * Vue Router records the previous in-app fullPath in history.state.back.
- * Only use browser history when that value still resolves to a real
- * PlainShelf route; otherwise history.back() could leave the application.
- */
+// Vue Router 5.3.1 stores the previous fullPath in history.state.back.
 export function isSafePlainShelfBackTarget(
   router: Router,
   currentFullPath: string,
@@ -37,11 +33,6 @@ export function isSafePlainShelfBackTarget(
   return resolved.matched.length > 0 && resolved.name !== 'not-found';
 }
 
-/**
- * Return to the exact preceding PlainShelf history entry when possible. A
- * direct/deep link has no safe in-app predecessor, so replace it with the
- * caller's fallback instead of adding another history entry.
- */
 export function navigateBackSafely(
   router: Router,
   currentFullPath: string,

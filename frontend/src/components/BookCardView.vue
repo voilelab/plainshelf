@@ -151,9 +151,6 @@ function folderLabel(book: Book): string {
 const summaries = useBookSummaries(() => props.books);
 
 function summaryText(book: Book): string {
-  // A description of nothing but markup - `<br>`, an empty tag - reads as a
-  // summary until it is stripped, which is why the fallback asks the plain
-  // text rather than `comment` itself.
   const summary = summaries.value.get(book.id);
   if (summary) {
     return summary;

@@ -12,17 +12,7 @@
     {{ t('app.mockModeBadge') }}
   </div>
   <SecurityWarningBanner />
-  <!--
-    Outside RouterView for the same reason ToastHost is: any page's failure -
-    and the render error above, which reaches here through main.ts's
-    app.config.errorHandler - raises its reference into the same one notice.
-  -->
   <ErrorIncidentNotice />
-  <!--
-    Outside RouterView so a toast raised by one page survives the navigation it
-    may itself have caused, and so every route - library, reader, mobile shell -
-    gets the same one host without mounting its own.
-  -->
   <ToastHost />
 </template>
 
@@ -41,20 +31,12 @@ const route = useRoute();
 const { dismissIncident } = useErrorIncident();
 const showMockModeBadge = computed(() => isMockApiMode());
 
-// An uncaught render error unmounts the subtree and leaves a blank page with no
-// way back. Capturing it here swaps in a recoverable panel instead. The hook
-// deliberately returns nothing: returning false would stop propagation, and
-// with it the app.config.errorHandler logging set up in main.ts.
 const renderError = ref('');
 
 onErrorCaptured((err) => {
   renderError.value = err instanceof Error ? err.message : String(err);
 });
 
-// A failed route is not necessarily fatal for the next one, so navigating away
-// clears the panel and gives the app a chance to render again. The reference
-// goes with it: it names the failure the user was looking at, and the next page
-// has its own.
 watch(
   () => route.fullPath,
   () => {

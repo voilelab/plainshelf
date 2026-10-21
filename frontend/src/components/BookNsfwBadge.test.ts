@@ -30,9 +30,6 @@ afterEach(() => {
 
 describe('BookNsfwBadge', () => {
   it('renders for either half of the mark and for neither', () => {
-    // The folder row is the one a card cannot get from `nsfw`: without it,
-    // exactly the books a folder rule hides would look unmarked in the listing
-    // that is showing them because the setting is on.
     const cases: [Pick<Book, 'nsfw' | 'nsfw_folder'>, boolean][] = [
       [{}, false],
       [{ nsfw: false }, false],

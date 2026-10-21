@@ -18,8 +18,6 @@ describe('FolderIcon', () => {
     expect(render('rocket')).not.toBe(render(''));
   });
 
-  // The server already maps an unknown name to '', but a listing from an older
-  // server, or the mock backend, can still hand one over.
   it('draws the default for no icon and for a name this build does not ship', () => {
     const fallback = render(undefined);
     expect(render('')).toBe(fallback);

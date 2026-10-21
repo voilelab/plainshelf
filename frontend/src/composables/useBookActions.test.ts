@@ -20,9 +20,6 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: mocks.push })
 }));
 
-// The reader-launch path moved to useReaderLaunch (covered by its own suite);
-// stub it so instantiating useBookActions here neither reaches the real router
-// nor opens a reader.
 vi.mock('@/composables/useReaderLaunch', () => ({
   useReaderLaunch: () => ({ launchReader: vi.fn(), onReaderLinkClick: vi.fn() })
 }));
@@ -87,8 +84,6 @@ describe('useBookActions copy', () => {
     expect(actions.actionError.value).toBe('');
   });
 
-  // Copying into the book's own folder is a real "duplicate here", not a no-op,
-  // so the current folder must stay in the offered destinations.
   it('keeps the book\'s own folder among the copy destinations', () => {
     const actions = useBookActions();
     actions.requestCopy(book({ folders: ['fiction'] }));

@@ -15,9 +15,6 @@
         <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
         <span class="brand-name">{{ t('app.name') }}</span>
       </h1>
-      <!-- On a narrow viewport the brand collapses to its icon and this
-           takes the freed space to answer "where am I" — the current folder
-           or page — which the full sidebar otherwise carries on wide. -->
       <span
         v-if="narrow && locationLabel"
         class="topbar-location"
@@ -88,10 +85,6 @@ const emit = defineEmits<{
 
 const { locale, setLocale, supportedLocales, t } = useI18n();
 
-// The Wails desktop shell has a browser-history stack worth navigating; the web
-// and mobile clients don't surface these pills. Scoping this to MainLayout keeps
-// them off the immersive ReaderLayout routes, where the keyboard ←/→ already
-// mean previous/next chapter.
 const showHistoryControls = computed(() => isWailsRuntime());
 
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {

@@ -4,18 +4,6 @@ import { getBookshelfProvider } from '@/providers';
 import type { DownloadState } from '@/types/book';
 import { t } from '@/i18n';
 
-/**
- * Wraps the optional `downloadBook` / `removeDownload` / `getDownloadState`
- * BookshelfProvider methods into a small state machine for a single book's
- * offline-download UI (BookDetailPage's "Download to device" button).
- *
- * `downloading` and `failed` are transient, component-local states — they
- * are never persisted to the cache, only `not_downloaded` / `downloaded` /
- * `update_available` come back from `getDownloadState`. When the provider
- * does not implement these optional methods (desktop, plain server), the
- * state stays `not_downloaded` and `supported` is false so callers can
- * disable/hide the control.
- */
 export function useOfflineDownload(bookId: () => string) {
   const capability = useShelfCapabilities();
   const state = ref<DownloadState>('not_downloaded');
