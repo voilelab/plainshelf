@@ -145,6 +145,8 @@ The standalone reader accepts `-book`, `-shelf`, and `-section`. Unknown flags,
 missing values, and section values that cannot be parsed as integers stop startup
 with an error before the window opens. Omit `-section` or use a negative value to
 resume saved progress; `-section 0` opens the first section.
+For a `-book` or `-shelf` value beginning with `-`, use the joined form, such as
+`-book=-notes.bookpkg`, so it cannot be mistaken for another flag.
 
 ## Android app
 

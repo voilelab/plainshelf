@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -92,10 +93,32 @@ func parseLaunchArgs(args []string) (launchArgs, error) {
 	shelf := flags.String("shelf", "", "real shelf id the book belongs to; empty uses the synthetic reader shelf")
 	section := flags.Int("section", noLaunchSection, "reader section index to open at; negative opens at the restored progress")
 
+	if err := validateLaunchStringFlagValues(args); err != nil {
+		return launchArgs{}, err
+	}
 	if err := flags.Parse(args); err != nil {
 		return launchArgs{}, err
 	}
 	return launchArgs{bookPath: *book, shelfID: *shelf, section: *section}, nil
+}
+
+func validateLaunchStringFlagValues(args []string) error {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "-" || arg == "--" || !strings.HasPrefix(arg, "-") {
+			break
+		}
+		switch arg {
+		case "-book", "--book", "-shelf", "--shelf":
+			if i+1 < len(args) && args[i+1] != "-" && strings.HasPrefix(args[i+1], "-") {
+				return fmt.Errorf("flag needs an argument: %s", arg)
+			}
+			i++
+		case "-section", "--section":
+			i++
+		}
+	}
+	return nil
 }
 
 func newApplicationMenu(app *ReaderApp) *menu.Menu {
