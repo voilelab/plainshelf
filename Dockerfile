@@ -9,12 +9,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && node_arch="$(dpkg --print-architecture)" \
     && case "$node_arch" in \
-        amd64) node_arch="x64" ;; \
-        arm64) node_arch="arm64" ;; \
-        *) echo "Unsupported Node.js architecture: $node_arch" >&2; exit 1 ;; \
+    amd64) node_arch="x64" ;; \
+    arm64) node_arch="arm64" ;; \
+    *) echo "Unsupported Node.js architecture: $node_arch" >&2; exit 1 ;; \
     esac \
     && curl -fsSL --retry 5 --retry-all-errors -o /tmp/node.tar.xz \
-        "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" \
+    "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" \
     && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
     && rm /tmp/node.tar.xz
 
@@ -28,7 +28,7 @@ RUN npm run build
 
 FROM ubuntu:24.04 AS server-build
 
-ARG GO_VERSION=1.27.2
+ARG GO_VERSION=1.27.3
 ARG VERSION=dev
 ENV PATH="/usr/local/go/bin:${PATH}"
 
@@ -37,12 +37,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && go_arch="$(dpkg --print-architecture)" \
     && case "$go_arch" in \
-        amd64) go_arch="amd64" ;; \
-        arm64) go_arch="arm64" ;; \
-        *) echo "Unsupported Go architecture: $go_arch" >&2; exit 1 ;; \
+    amd64) go_arch="amd64" ;; \
+    arm64) go_arch="arm64" ;; \
+    *) echo "Unsupported Go architecture: $go_arch" >&2; exit 1 ;; \
     esac \
     && curl -fsSL --retry 5 --retry-all-errors -o /tmp/go.tar.gz \
-        "https://go.dev/dl/go${GO_VERSION}.linux-${go_arch}.tar.gz" \
+    "https://go.dev/dl/go${GO_VERSION}.linux-${go_arch}.tar.gz" \
     && tar -xzf /tmp/go.tar.gz -C /usr/local \
     && rm /tmp/go.tar.gz
 
