@@ -14,7 +14,6 @@ function clampOffset(offset: number, total: number): number {
   return Math.max(0, Math.min(total, Math.round(offset)));
 }
 
-/** The whole source as one section, which is all a TXT source ever has. */
 function buildSingleSection(content: string): ReaderSection[] {
   return [
     {
@@ -46,8 +45,6 @@ function findSectionIndexByOffset(sections: ReaderSection[], offset: number): nu
 export function useReader(bookID: () => string) {
   const title = ref('');
   const bookFormat = ref('txt');
-  // The source the reader is showing. Illustrations are stored per source, so
-  // rendering one needs this alongside the book ID.
   const currentSourceId = ref('');
   const content = ref('');
   const sections = ref<ReaderSection[]>([]);
@@ -73,9 +70,6 @@ export function useReader(bookID: () => string) {
     async (savedBookID, offset, at) => {
       await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset, at });
     },
-    // On the desktop and reader apps, hand each position change to the native
-    // shell so a window close before the next interval save still records it.
-    // A no-op elsewhere.
     (stagedBookID, offset, at) => stageDesktopReadingProgress(stagedBookID, offset, at)
   );
 
@@ -156,8 +150,6 @@ export function useReader(bookID: () => string) {
     let restoredOffset: number | null = null;
 
     try {
-      // A route-param change reuses this component, so persist the previous
-      // book before replacing the autosave baseline with the next one.
       await flushReadingProgress();
       if (generation !== fetchGeneration) {
         return;
@@ -169,10 +161,6 @@ export function useReader(bookID: () => string) {
         return;
       }
 
-      // current_source can name a source that no longer exists — a shelf is
-      // edited by hand and by sync tools. The server answers the book-scoped
-      // content route from the newest surviving source, so falling back to it
-      // keeps such a book readable instead of failing the whole reader.
       const sourceID = book.current_source ?? '';
       const bookContent = () => provider.getBookContent(requestedBookID).then((result) => result.content);
       const [sourceContent, currentProgress, sourceMeta] = await Promise.all([
@@ -249,10 +237,6 @@ export function useReader(bookID: () => string) {
     currentSectionIndex.value = clampedIndex;
     const section = sections.value[clampedIndex];
     updateProgressByOffset(section.startOffset);
-    // A chapter boundary is a semantically valuable checkpoint, so persist it
-    // now instead of waiting up to a full autosave interval. Not awaited: the
-    // jump's UI response must not wait on a disk write, and a queued flush that
-    // finds the snapshot already clean is a no-op.
     void flushReadingProgress();
     await syncScrollToOffset(section.startOffset);
     readerRef.value?.focus();

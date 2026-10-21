@@ -37,36 +37,19 @@ import type {
   SourceFindScope
 } from '@/features/sources/types/editorAdapter';
 
-/**
- * The shortest gap between two document snapshots handed to the host.
- *
- * The page only needs a copy to derive the outline, the dirty flag and the save
- * payload, so a burst of typing publishes on its first change and then at most
- * this often, with a trailing snapshot once it stops. `flushDocument()` covers
- * the callers that need an exact, current document.
- */
 const DOCUMENT_SYNC_INTERVAL_MS = 150;
 
 interface SourceCodeMirrorOptions {
   content: () => string;
   sourceId: () => string;
   disabled: () => boolean;
-  /** The focused chapter, or null while the whole source is shown. */
   viewRange: () => SourceEditorViewRange | null;
   findScope: () => SourceFindScope;
-  /** Only a Markdown source is parsed as Markdown; a TXT one is prose. */
   format: () => 'txt' | 'md';
   contentLabel: () => string;
   updateDocument: (edit: SourceDocumentEdit) => void;
 }
 
-/**
- * What the find/replace line is currently reporting, as data.
- *
- * Not the rendered sentence: a translated string held in a ref freezes at
- * whichever locale produced it, so the status would stay in the old language
- * after a switch while the controls around it updated.
- */
 type FindState =
   | { kind: 'noMatches' }
   | { kind: 'invalidRegexp' }
@@ -91,9 +74,6 @@ function renderFindState(state: FindState | null): string {
       return t('sources.editor.find.matchOrdinal', { ordinal: state.ordinal, total: state.total });
     case 'count':
       return t('sources.editor.find.matchCount', { total: state.total });
-    // English distinguishes one from many here, and did so before these
-    // strings moved into the catalog; the catalog has no plural rules, so the
-    // two forms are separate keys. Replace-next always replaces exactly one.
     case 'replaced':
       return state.count === 1
         ? t('sources.editor.find.replacedOne')
@@ -110,35 +90,19 @@ function renderFindState(state: FindState | null): string {
   }
 }
 
-/**
- * CodeMirror stores line breaks as single positions and renders back with `\n`
- * unless told otherwise, so a source saved from a CRLF file would come back
- * rewritten end to end — a whole-file diff for a project whose files are the
- * source of truth. A consistently CRLF document therefore keeps it, both for
- * what the editor emits and for what pressing Enter inserts.
- *
- * A document that mixes endings has no separator that round-trips it, so those
- * normalize to `\n`.
- */
+// CodeMirror state 6.7.6 positions count line breaks as one unit; lineSeparator controls serialization, so CRLF source offsets differ from document positions.
 function lineSeparatorOf(text: string): string {
   if (!text.includes('\r')) return '\n';
   const mixed = /(?<!\r)\n/.test(text) || /\r(?!\n)/.test(text);
   return mixed ? '\n' : '\r\n';
 }
 
-/** Splits into lines the way the chosen separator implies. */
 function splitLines(text: string, separator: string): string[] {
   return separator === '\r\n' ? text.split('\r\n') : text.split(/\r\n?|\n/);
 }
 
-/** Replaces the dimmed range; null shows the whole source undimmed. */
 const setSectionRange = StateEffect.define<SourceEditorViewRange | null>();
 
-/**
- * The focused chapter as a range the editor maps through every change, rather
- * than a slice: between two pushes from the page the boundary tracks the text
- * instead of drifting.
- */
 const sectionRangeField = StateField.define<SourceEditorViewRange | null>({
   create: () => null,
   update(value, tr) {
@@ -148,8 +112,6 @@ const sectionRangeField = StateField.define<SourceEditorViewRange | null>({
     }
     if (!next) return null;
     if (!tr.docChanged) return next;
-    // Both edges are greedy so that text typed against a boundary stays inside
-    // the chapter the caret is in rather than falling into the dimmed part.
     const startOffset = tr.changes.mapPos(next.startOffset, -1);
     const endOffset = tr.changes.mapPos(next.endOffset, 1);
     return {
@@ -161,7 +123,6 @@ const sectionRangeField = StateField.define<SourceEditorViewRange | null>({
 
 const dimmedMark = Decoration.mark({ class: 'cm-source-dimmed' });
 
-/** Dims everything outside the focused chapter without touching the document. */
 const sectionDecorations = EditorView.decorations.compute([sectionRangeField], (state) => {
   const range = state.field(sectionRangeField);
   if (!range) return Decoration.none;
@@ -173,15 +134,7 @@ const sectionDecorations = EditorView.decorations.compute([sectionRangeField], (
   return Decoration.set(ranges);
 });
 
-/**
- * The query our own find bar last installed.
- *
- * `@codemirror/search` only highlights matches while its own panel is open, and
- * this editor deliberately keeps the panel closed and drives the same commands
- * from the existing Vue controls. Holding the query separately lets the
- * highlighter below run without the panel, and keeps the highlighted set
- * identical to the one `findNext`/`replaceAll` act on.
- */
+// CodeMirror search 6.7.2 only highlights search matches while its search panel is present (searchPanelOpen in dist/index.js).
 const setActiveQuery = StateEffect.define<SearchQuery | null>();
 
 const activeQueryField = StateField.define<SearchQuery | null>({
@@ -199,7 +152,6 @@ function queryOf(state: EditorState): SearchQuery | null {
   return state.field(activeQueryField);
 }
 
-/** Extra context scanned around the viewport so matches crossing it still light up. */
 const HIGHLIGHT_MARGIN = 250;
 
 const matchMark = Decoration.mark({ class: 'cm-searchMatch' });
@@ -253,14 +205,6 @@ const matchHighlighter = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations }
 );
 
-/**
- * Markdown styled as prose rather than as code.
- *
- * The reader renders these sources with `html: true`, so the embedded tags are
- * part of the format and are highlighted alongside it. The syntax characters
- * themselves — hashes, bullets, fences, emphasis markers — recede instead of
- * being coloured, so what is left reading like the text it produces.
- */
 const markdownHighlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: '700' },
   { tag: tags.strong, fontWeight: '700' },
@@ -301,9 +245,7 @@ const editorTheme = EditorView.theme({
     padding: '24px 32px',
     caretColor: 'var(--text)'
   },
-  // Opacity, not colour: the syntax highlighting below paints colours onto
-  // spans nested inside this one, and those would win. Opacity applies to the
-  // whole subtree, so the chapter outside the focused one recedes either way.
+  // CSS Color opacity applies to the entire subtree; child syntax-span colors cannot override ancestor opacity.
   '.cm-source-dimmed': {
     opacity: '0.38'
   },
@@ -315,18 +257,8 @@ const editorTheme = EditorView.theme({
   }
 });
 
-/**
- * Keeps the space a match is scrolled into clear of the panel edges.
- *
- * Everything that reveals a position — the chapter jumps, the find commands,
- * the editor's own caret tracking — goes through `EditorView.scrollIntoView`,
- * which subtracts these margins from the visible box. Anything that later
- * overlays the editor (a sticky chapter header, for instance) belongs here too,
- * rather than in a per-call `yMargin` or a hand-computed `scrollTop`.
- */
 const scrollMargins = EditorView.scrollMargins.of(() => ({ top: 24, bottom: 24 }));
 
-/** The announcements `@codemirror/search` makes through its own live region. */
 function searchPhrases(): Extension {
   return EditorState.phrases.of({
     'current match': t('sources.editor.find.announce.currentMatch'),
@@ -338,9 +270,7 @@ function searchPhrases(): Extension {
 
 export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   const hostRef = ref<HTMLElement | null>(null);
-  // shallowRef, never ref()/reactive(): CodeMirror state is a large immutable
-  // graph that a deep proxy would both walk and hand back wrapped, and a wrapped
-  // EditorState fails CodeMirror's own identity checks.
+  // Vue 3.5.43 deep refs proxy objects; CodeMirror view 6.43.13 requires transaction.startState identity to match the current state.
   const view = shallowRef<EditorView | null>(null);
 
   const findQuery = ref('');
@@ -349,8 +279,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   const useRegexp = ref(false);
   const wholeWord = ref(false);
   const findState = ref<FindState | null>(null);
-  // Rendered here rather than in the component so the sentence re-resolves on a
-  // locale change: t() reads the locale ref, and this computed depends on it.
   const findStatus = computed(() => renderFindState(findState.value));
   const disableFind = computed(() => options.disabled() || !findQuery.value);
 
@@ -359,11 +287,8 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   const labelCompartment = new Compartment();
   const phraseCompartment = new Compartment();
 
-  /** The line ending the current source uses; see lineSeparatorOf. */
   let lineSeparator = '\n';
-  /** The document the host has already been told about. */
   let syncedDocument = '';
-  /** Set while the editor holds changes that `syncedDocument` predates. */
   let documentStale = false;
   let syncTimer: ReturnType<typeof setTimeout> | null = null;
   let syncPending = false;
@@ -391,8 +316,8 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     const selection = current.state.selection.main;
     options.updateDocument({
       value: syncedDocument,
-      selectionStart: docToStringOffset(current.state, selection.from),
-      selectionEnd: docToStringOffset(current.state, selection.to)
+      selectionStart: docPositionToSourceOffset(current.state, selection.from),
+      selectionEnd: docPositionToSourceOffset(current.state, selection.to)
     });
   }
 
@@ -407,13 +332,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     emitDocument();
   }
 
-  /**
-   * Publishes now if the interval has elapsed, otherwise once it does.
-   *
-   * Publishing on the leading edge is what keeps "unsaved changes" and the Save
-   * button honest from the first keystroke; the interval only limits how often
-   * the rope is flattened while typing continues.
-   */
   function scheduleSync(): void {
     if (syncTimer !== null) {
       syncPending = true;
@@ -433,17 +351,12 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
       documentStale = true;
       scheduleSync();
     } else if (update.selectionSet) {
-      // Nothing was rewritten, so the cached document is still exact and the
-      // caret can reach the chapter outline without waiting for the interval.
       emitDocument();
     }
   });
 
   const blurHandler = EditorView.domEventHandlers({
     blur: () => {
-      // Buttons outside the editor act on the document the page holds, and a
-      // click blurs the editor before it fires. Flushing here keeps those
-      // handlers reading exactly what is on screen.
       flushDocument();
       return false;
     }
@@ -470,16 +383,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     ];
   }
 
-  /**
-   * A freshly loaded source starts with the caret at its end.
-   *
-   * That is where a textarea leaves it after its value is assigned, and the
-   * chapter outline's "Add" button inserts at the caret's paragraph — so
-   * starting anywhere else would silently move new chapters from the end of an
-   * untouched book to its beginning. The document is built first because a line
-   * break is one position to CodeMirror however many characters it was written
-   * with, so the text's length is not the document's.
-   */
   function initialState(text: string): EditorState {
     lineSeparator = lineSeparatorOf(text);
     const doc = Text.of(splitLines(text, lineSeparator));
@@ -490,39 +393,19 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     });
   }
 
-  /** The document as text, written back with the line ending it came in with. */
   function documentText(state: EditorState): string {
     return state.doc.sliceString(0, state.doc.length, lineSeparator);
   }
 
-  /**
-   * The same position, measured in the file's characters rather than the
-   * document's.
-   *
-   * The page indexes `content` as a plain string, where a CRLF is two
-   * characters, and derives every chapter range from it; CodeMirror counts a
-   * line break as one position however it was written. Both directions of this
-   * boundary are converted here — the caret the editor publishes, the focused
-   * range it is handed, the ranges chapter edits act on — so that the whole
-   * adapter contract is stated in the file's coordinates and nothing outside
-   * this composable has to know the document has its own.
-   *
-   * A document that mixes endings normalizes to `\n` on the way in, so its text
-   * and the file's diverge until the first edit publishes the normalized
-   * version; identity is the closest either direction can get in that window.
-   */
-  function docToStringOffset(state: EditorState, pos: number): number {
+  function docPositionToSourceOffset(state: EditorState, pos: number): number {
     const clamped = Math.max(0, Math.min(state.doc.length, pos));
     if (lineSeparator !== '\r\n') return clamped;
     return clamped + state.doc.lineAt(clamped).number - 1;
   }
 
-  /** The inverse: a position in the file's characters, as a document position. */
-  function stringToDocOffset(state: EditorState, offset: number): number {
+  function sourceOffsetToDocPosition(state: EditorState, offset: number): number {
     const doc = state.doc;
     if (lineSeparator !== '\r\n') return Math.max(0, Math.min(doc.length, offset));
-    // One character per line break precedes each line, so a line's own start is
-    // the last one at or before the offset and the search below is monotonic.
     const clamped = Math.max(0, Math.min(doc.length + doc.lines - 1, offset));
     let low = 1;
     let high = doc.lines;
@@ -532,16 +415,10 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
       else high = mid - 1;
     }
     const line = doc.line(low);
-    // An offset landing between a `\r` and its `\n` is the end of the line they
-    // terminate together: the pair is one position in the document.
     return Math.min(clamped - (low - 1), line.to);
   }
 
   function createView(host: HTMLElement): void {
-    // The host's own string, not the document's: a source that mixes line
-    // endings normalizes on the way in, and reporting that as an unsaved change
-    // before the user has touched anything would be a lie. The first real edit
-    // publishes the normalized text, which is what the textarea did too.
     syncedDocument = options.content();
     documentStale = false;
     view.value = new EditorView({
@@ -558,7 +435,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     view.value = null;
   }
 
-  /** Replaces the whole document and drops the undo history with it. */
   function resetDocument(text: string): void {
     const current = view.value;
     if (!current) return;
@@ -570,14 +446,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     pushSearchQuery();
   }
 
-  /**
-   * Applies an externally supplied document as the single range that differs.
-   *
-   * A full replacement would move every position in the document, which is
-   * exactly what this migration removed; narrowing it to the changed span lets
-   * CodeMirror map the selection, the chapter range and the undo history
-   * through it like any other edit.
-   */
   function syncExternalValue(text: string): void {
     const current = view.value;
     if (!current) return;
@@ -587,14 +455,10 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
       return;
     }
     if (lineSeparatorOf(text) !== lineSeparator) {
-      // Nothing can be mapped across a change of line ending, and a document
-      // that arrives written differently is a reload rather than an edit.
       resetDocument(text);
       return;
     }
 
-    // Diffed in document coordinates, where a line break is one position
-    // whatever it was written with, so the offsets below are dispatchable.
     const previous = current.state.doc.toString();
     const next = splitLines(text, lineSeparator).join('\n');
     let start = 0;
@@ -628,12 +492,10 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     const current = view.value;
     if (!current) return;
     const requested = options.viewRange();
-    // The field holds document positions so that it maps through every edit;
-    // what the page asks for is stated in the file's characters.
     const mapped = requested
       ? {
-          startOffset: stringToDocOffset(current.state, requested.startOffset),
-          endOffset: stringToDocOffset(current.state, requested.endOffset)
+          startOffset: sourceOffsetToDocPosition(current.state, requested.startOffset),
+          endOffset: sourceOffsetToDocPosition(current.state, requested.endOffset)
         }
       : null;
     const stored = current.state.field(sectionRangeField);
@@ -654,11 +516,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
       caseSensitive: caseSensitive.value,
       regexp: useRegexp.value,
       wholeWord: wholeWord.value,
-      // The chapter scope is a filter on matches, not a slice of the document:
-      // findNext, replaceAll and the highlighter all consult it, so restricting
-      // the search to the focused chapter costs nothing beyond this predicate.
-      // It reads the mapped range out of the state so it stays correct while the
-      // chapter's boundaries move under an edit.
       test: (_match, state, from, to) => {
         if (options.findScope() !== 'section') return true;
         const range = state.field(sectionRangeField, false);
@@ -667,7 +524,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     });
   }
 
-  /** Installs the current query and reports whether it can be searched with. */
   function pushSearchQuery(): boolean {
     const current = view.value;
     if (!current) return false;
@@ -700,7 +556,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     return stats;
   }
 
-  /** Prepares the shared preconditions for every find/replace button. */
   function readyView(): EditorView | null {
     const current = view.value;
     if (!current || options.disabled() || !findQuery.value) return null;
@@ -731,7 +586,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     runFind(true);
   }
 
-  /** True when the selection is exactly a match, which is what replaceNext replaces. */
   function selectionIsMatch(current: EditorView): boolean {
     const query = queryOf(current.state);
     const selection = current.state.selection.main;
@@ -745,9 +599,7 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     const current = readyView();
     if (!current) return;
 
-    // CodeMirror's replaceNext only replaces a match the selection already
-    // covers exactly, and otherwise just moves to it. Selecting first keeps the
-    // button a one-click replace, which is what the control promised before.
+    // CodeMirror search 6.7.2 replaceNext replaces only an exactly selected match; otherwise it selects the next match.
     if (!selectionIsMatch(current) && !cmFindNext(current)) {
       findState.value = { kind: 'noMatches' };
       return;
@@ -758,9 +610,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     }
     current.focus();
 
-    // replaceNext leaves the following match selected, so the counts below
-    // describe what is left rather than what was replaced. Folding the two into
-    // one sentence keeps the status translatable as a whole.
     const stats = matchStats();
     if (stats.total === 0) {
       findState.value = { kind: 'replacedOneNoneRemain' };
@@ -795,14 +644,11 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   function getCurrentParagraphStart(): number {
     const current = view.value;
     if (!current) return 0;
-    // toString(), not documentText(): the caret is a document position, so the
-    // text it is measured against has to use one character per line break too.
-    // The result is handed back to the page, so it converts on the way out.
     const start = paragraphStartOffset(
       current.state.doc.toString(),
       current.state.selection.main.from
     );
-    return docToStringOffset(current.state, start);
+    return docPositionToSourceOffset(current.state, start);
   }
 
   function dispatchReplace(
@@ -813,12 +659,8 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   ): void {
     const current = view.value;
     if (!current) return;
-    const from = stringToDocOffset(current.state, startOffset);
-    const to = Math.max(from, stringToDocOffset(current.state, endOffset));
-    // Built as a document rather than passed as a string: the caller writes its
-    // own line breaks, and this is what both renders them with the document's
-    // ending and makes the selection below a position rather than a character
-    // count.
+    const from = sourceOffsetToDocPosition(current.state, startOffset);
+    const to = Math.max(from, sourceOffsetToDocPosition(current.state, endOffset));
     const insert = Text.of(replacement.split(/\r\n?|\n/));
     current.dispatch({
       changes: { from, to, insert },
@@ -826,9 +668,6 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
       scrollIntoView: select
     });
     if (select) current.focus();
-    // The caller computed this edit from the document it holds; publishing the
-    // result immediately keeps a follow-up edit from being computed against the
-    // pre-edit copy.
     flushDocument();
   }
 
@@ -847,8 +686,8 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   function focusAndSelect(startOffset: number, endOffset: number): void {
     const current = view.value;
     if (!current) return;
-    const from = stringToDocOffset(current.state, startOffset);
-    const to = Math.max(from, stringToDocOffset(current.state, endOffset));
+    const from = sourceOffsetToDocPosition(current.state, startOffset);
+    const to = Math.max(from, sourceOffsetToDocPosition(current.state, endOffset));
     const selection = EditorSelection.range(from, to);
     current.focus();
     current.dispatch({

@@ -31,10 +31,6 @@ export function useSourceEditorSession(
 
   const loadError = ref('');
   const editorError = ref('');
-  // A key, not the rendered sentence: the success line is entirely ours, so it
-  // can follow a locale switch. The error refs below cannot — errorMessage()
-  // passes the server's own message through when there is one — so they keep
-  // holding text.
   const saveSuccessKey = ref('');
   const saveSuccess = computed(() => (saveSuccessKey.value ? t(saveSuccessKey.value) : ''));
   const deleteError = ref('');
@@ -153,10 +149,6 @@ export function useSourceEditorSession(
     }
   }
 
-  // reloadBookMeta refreshes only book.json-level state, which listSources does
-  // not carry. Deleting the current source moves current_source server-side, so
-  // the cached copy would otherwise keep naming a source that is gone. A failure
-  // here leaves the stale copy in place rather than failing the caller's action.
   async function reloadBookMeta(
     expectedSession = sessionGeneration,
     requestedBookId = bookId()
@@ -168,7 +160,6 @@ export function useSourceEditorSession(
         book.value = bookData;
       }
     } catch {
-      // Keep the previous metadata; the caller's own result still stands.
     }
   }
 
@@ -339,8 +330,6 @@ export function useSourceEditorSession(
     try {
       await bookshelfWriter().deleteSource(requestedBookId, sourceId);
       if (!isCurrentSession(generation, requestedBookId)) return false;
-      // The server hands current_source over to another source when the deleted
-      // one was current, so refresh both halves before choosing what to show.
       await Promise.all([
         reloadSourceMeta(generation, requestedBookId),
         reloadBookMeta(generation, requestedBookId)

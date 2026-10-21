@@ -26,8 +26,6 @@ describe('useReadingProgressAutosave', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    // Pin the clock so change-time timestamps are deterministic. Updates in these
-    // tests happen at t=0, so every save carries at=0 even when it flushes later.
     vi.setSystemTime(0);
     documentTarget = { ...eventTargetStub(), hidden: false };
     windowTarget = eventTargetStub();
@@ -70,10 +68,6 @@ describe('useReadingProgressAutosave', () => {
   });
 
   it('writes once across repeated flushes of an unchanged position', async () => {
-    // A section jump flushes immediately (goToSection), and the running interval
-    // keeps ticking. Once the first flush persists the position, every later
-    // flush finds isDirty() false and skips, so N jumps without a move in between
-    // still produce a single write — no debounce needed.
     const save = vi.fn().mockResolvedValue(undefined);
     const autosave = useReadingProgressAutosave(save);
     autosave.setBaseline('book-a', 0);
@@ -83,7 +77,6 @@ describe('useReadingProgressAutosave', () => {
     await autosave.flush();
     await autosave.flush();
     await autosave.flush();
-    // A later interval tick after the jump, with no scroll in between.
     await vi.advanceTimersByTimeAsync(READING_PROGRESS_AUTOSAVE_INTERVAL_MS * 2);
 
     expect(save).toHaveBeenCalledTimes(1);
@@ -96,10 +89,8 @@ describe('useReadingProgressAutosave', () => {
     const autosave = useReadingProgressAutosave(save);
     autosave.setBaseline('book-a', 0);
     autosave.start();
-    autosave.update(10); // changed at t=0
+    autosave.update(10);
 
-    // Flushes a full interval later; the timestamp must still be the change time,
-    // not the flush time, or a buffered move could out-rank a newer one.
     await vi.advanceTimersByTimeAsync(READING_PROGRESS_AUTOSAVE_INTERVAL_MS);
     expect(save).toHaveBeenCalledWith('book-a', 10, 0);
     await autosave.stop();
@@ -136,13 +127,11 @@ describe('useReadingProgressAutosave', () => {
     const save = vi.fn().mockReturnValueOnce(firstWrite).mockResolvedValue(undefined);
     const autosave = useReadingProgressAutosave(save);
     autosave.setBaseline('book-a', 0);
-    autosave.update(10); // changed at t=0, snapshotted by the first flush
+    autosave.update(10);
 
     const firstFlush = autosave.flush();
     await Promise.resolve();
 
-    // While that save is in flight, move away and back to the same offset. The
-    // final position is offset 10 again but with a newer change time.
     vi.setSystemTime(5);
     autosave.update(20);
     vi.setSystemTime(9);
@@ -151,9 +140,6 @@ describe('useReadingProgressAutosave', () => {
     resolveFirst();
     await firstFlush;
 
-    // The in-flight save persisted {10, 0}. The state is still dirty because the
-    // current offset carries a newer time, so the next flush re-saves it — without
-    // this a concurrent write from t=5..9 would wrongly win the merge.
     await autosave.flush();
 
     expect(save.mock.calls).toEqual([
@@ -177,8 +163,6 @@ describe('useReadingProgressAutosave', () => {
 
     await vi.advanceTimersByTimeAsync(READING_PROGRESS_AUTOSAVE_INTERVAL_MS);
     expect(save).toHaveBeenCalledTimes(2);
-    // The retry re-sends the original change time (0), not the later flush time,
-    // so a transient failure cannot bump the position's timestamp forward.
     expect(save.mock.calls).toEqual([
       ['book-a', 10, 0],
       ['book-a', 10, 0]
@@ -244,14 +228,12 @@ describe('useReadingProgressAutosave', () => {
     const autosave = useReadingProgressAutosave(save, stage);
     autosave.setBaseline('book-a', 0);
 
-    // Setting the baseline is not a movement and must not stage.
     expect(stage).not.toHaveBeenCalled();
 
     autosave.update(10);
     expect(stage).toHaveBeenCalledOnce();
     expect(stage).toHaveBeenCalledWith('book-a', 10, 0);
 
-    // Re-setting the same offset is a no-op and must not stage again.
     autosave.update(10);
     expect(stage).toHaveBeenCalledOnce();
 

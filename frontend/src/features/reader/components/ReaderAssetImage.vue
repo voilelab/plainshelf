@@ -33,9 +33,6 @@ const { src, failed, handleError } = useAssetSrc(
   () => props.name
 );
 
-// An illustration that cannot be loaded is reported in place rather than
-// leaving a gap: the alt text is what the author wrote to stand in for it, and
-// the generic label only appears when there is no alt text to show.
 const fallbackText = computed(() => props.alt || t('reader.imageUnavailable'));
 </script>
 

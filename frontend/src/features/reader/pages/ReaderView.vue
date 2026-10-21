@@ -16,7 +16,7 @@
     :show-back-navigation="showBackNavigation"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
-    @retry="loadReader"
+    @retry="loadBookAndApplySectionDeepLink"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
     @back="goBack"
@@ -45,7 +45,7 @@
     :show-back-navigation="showBackNavigation"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
-    @retry="loadReader"
+    @retry="loadBookAndApplySectionDeepLink"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
     @back="goBack"
@@ -178,11 +178,6 @@ function onDocumentKeydown(event: KeyboardEvent): void {
     return;
   }
 
-  // Only text-entry elements should swallow the arrow keys, so their caret can
-  // move. A focused button must not: the desktop chapter/side-action controls
-  // and the just-closed modals all leave focus on a <button>, and excluding it
-  // here silently killed keyboard chapter navigation until the reader clicked
-  // back into the body.
   const activeElement = document.activeElement;
   if (
     activeElement instanceof HTMLInputElement ||
@@ -193,8 +188,7 @@ function onDocumentKeydown(event: KeyboardEvent): void {
     return;
   }
 
-  // Claim the key even at the first/last chapter: an unhandled key reaches
-  // AppKit through macOS WKWebView (desktop, reader), which beeps.
+  // macOS WKWebView/AppKit beeps on unhandled arrow keys, including chapter boundaries (d0c64e0c).
   event.preventDefault();
 
   if (event.key === 'ArrowLeft' && currentSectionIndex.value > 0) {
@@ -204,13 +198,7 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   }
 }
 
-/**
- * Loads the book, then honours a `?section=` link by opening that chapter
- * instead of the restored progress. Jumping writes progress, which is the
- * point: the reader asked for this chapter. The book ID is re-checked because
- * a navigation during the load leaves the newer book owning the reader.
- */
-async function loadReader(): Promise<void> {
+async function loadBookAndApplySectionDeepLink(): Promise<void> {
   const requestedBookID = id.value;
   const requestedSection = parseSectionQuery(route.query.section);
   await fetchReaderData();
@@ -219,7 +207,6 @@ async function loadReader(): Promise<void> {
     return;
   }
 
-  // goToSection clamps, so an out-of-range link opens the nearest chapter.
   await goToSection(requestedSection);
 }
 
@@ -239,7 +226,7 @@ onBeforeRouteLeave(async () => {
 });
 
 watch(id, () => {
-  void loadReader();
+  void loadBookAndApplySectionDeepLink();
 }, { immediate: true });
 
 watch([isChapterModalOpen, isFontModalOpen], ([chapterOpen, fontOpen]) => {

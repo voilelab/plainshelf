@@ -52,7 +52,7 @@ function radios(host: HTMLElement): HTMLElement[] {
   return [...host.querySelectorAll<HTMLElement>('[role="radio"]')];
 }
 
-/** Lets RovingFocusItem's `nextTick` focus move and RadioGroupItem's `setTimeout(0)` click land. */
+// Reka UI 2.10.5 RovingFocusItem defers focus with nextTick; RadioGroupItem defers click with setTimeout.
 async function settleKeyboardMove(): Promise<void> {
   await nextTick();
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -83,7 +83,6 @@ describe('FontSelectionModal', () => {
       'noto-serif-tc',
       'noto-sans-tc'
     ]);
-    // The hand-written markup is gone: no native radio input and no manual role.
     expect(host.querySelectorAll('input[type="radio"]')).toHaveLength(0);
     expect(host.querySelectorAll('div[role="radiogroup"] > label')).toHaveLength(0);
   });

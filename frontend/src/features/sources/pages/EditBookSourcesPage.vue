@@ -227,9 +227,7 @@ type PendingSourceTransition =
   | { kind: 'select'; sourceId: string }
   | { kind: 'create' };
 
-// Stable reference: see MainLayout.vue's SIDEBAR_RESIZE_HIT_AREA_MARGINS for why this
-// object must not be an inline template literal (reka-ui re-registers the resize handle
-// on every identity change, which can strand `pointer-events: none` mid-drag).
+// Reka UI 2.10.5 SplitterResizeHandle re-registers when watched hitAreaMargins changes, including during a drag.
 const SOURCE_LIST_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 
 const { writesEnabled } = useWriteAccess();
@@ -273,7 +271,7 @@ const {
   requestLeave,
   cancelLeave,
   confirmLeave
-} = useUnsavedChangesGuard(isDirty, { goBack, beforeCheck: syncEditorDocument });
+} = useUnsavedChangesGuard(isDirty, { goBack, beforeCheck: flushEditorDocument });
 const mobilePane = ref<'sources' | 'editor' | 'chapters'>('editor');
 const pendingTransition = ref<PendingSourceTransition | null>(null);
 const showDiscardModal = computed(() => pendingTransition.value !== null);
@@ -285,14 +283,7 @@ const pendingRenameChapterIndex = ref<number | null>(null);
 const pendingChapterTitle = ref('');
 const chapterTitleInput = ref<HTMLInputElement | null>(null);
 const pendingMergeChapterIndex = ref<number | null>(null);
-/**
- * Whether the outline has narrowed the editor to one chapter.
- *
- * The chapter itself is not stored: the editor holds the whole source and
- * reports where its caret is, so the active chapter is whatever contains that
- * caret. That is the whole of the coordinate bookkeeping this page used to do.
- */
-const sectionFocus = ref(false);
+const isChapterFocused = ref(false);
 const caretOffset = ref(0);
 
 const markdownSections = computed(() =>
@@ -307,7 +298,7 @@ const hasMarkdownChapters = computed(() =>
   markdownSections.value.some((section) => section.kind === 'chapter')
 );
 const activeEditorSection = computed(() => {
-  if (!sectionFocus.value || !hasMarkdownChapters.value) return null;
+  if (!isChapterFocused.value || !hasMarkdownChapters.value) return null;
   return findMarkdownEditorSection(markdownSections.value, caretOffset.value, 'forward');
 });
 const editorFocused = computed(() => activeEditorSection.value !== null);
@@ -331,7 +322,7 @@ async function selectSource(sourceId: string): Promise<void> {
 
 async function onSelectSource(sourceId: string): Promise<void> {
   if (sourceId === activeSourceId.value) return;
-  syncEditorDocument();
+  flushEditorDocument();
   if (isDirty.value) {
     pendingTransition.value = { kind: 'select', sourceId };
     return;
@@ -356,7 +347,7 @@ async function confirmPendingSource(): Promise<void> {
 
 async function onCreateSource(): Promise<void> {
   if (!writesEnabled.value) return;
-  syncEditorDocument();
+  flushEditorDocument();
   if (isDirty.value) {
     pendingTransition.value = { kind: 'create' };
     return;
@@ -369,12 +360,12 @@ async function doCreateSource(): Promise<void> {
 }
 
 async function onSave(): Promise<void> {
-  syncEditorDocument();
+  flushEditorDocument();
   await saveSource();
 }
 
 async function onConvertSource(kind: SourceConversionKind): Promise<void> {
-  syncEditorDocument();
+  flushEditorDocument();
   conversionKind.value = kind;
   conversionError.value = '';
   showConversionModal.value = true;
@@ -399,17 +390,17 @@ async function submitConversion(payload: {
 }
 
 function showWholeSource(): void {
-  sectionFocus.value = false;
+  isChapterFocused.value = false;
 }
 
 function resetEditorView(): void {
-  sectionFocus.value = false;
+  isChapterFocused.value = false;
   caretOffset.value = 0;
 }
 
 function selectEditorSection(section: MarkdownEditorSection): void {
   if (!hasMarkdownChapters.value) return;
-  sectionFocus.value = true;
+  isChapterFocused.value = true;
   caretOffset.value = section.startOffset;
   mobilePane.value = 'editor';
   void nextTick(() => editorRef.value?.focusAndSelect(section.startOffset, section.startOffset));
@@ -420,25 +411,10 @@ function onDocumentEdit(edit: SourceDocumentEdit): void {
   caretOffset.value = edit.selectionEnd;
 }
 
-/**
- * Publishes the editor's document before anything computes offsets against it.
- *
- * The editor batches its snapshots, so `content` can trail the text on screen
- * by a keystroke or two. Everything below turns `content` into document offsets
- * — chapter edits, the saved payload, the conversion preview — and has to see
- * exactly what the user does.
- */
-function syncEditorDocument(): void {
+function flushEditorDocument(): void {
   editorRef.value?.flushDocument();
 }
 
-/**
- * Hands a chapter edit to the editor as a transaction.
- *
- * Rewriting the whole document would move every position in it, which is the
- * class of bug this editor was rebuilt to remove; a ranged edit lets the caret,
- * the focused chapter and the undo history map through it.
- */
 function applyEdit(edit: SourceTextEdit, focus = true): void {
   const editor = editorRef.value;
   if (!editor) return;
@@ -449,13 +425,13 @@ function applyEdit(edit: SourceTextEdit, focus = true): void {
 function insertChapter(): void {
   const editor = editorRef.value;
   if (!editor) return;
-  syncEditorDocument();
+  flushEditorDocument();
   applyEdit(insertChapterEdit(content.value, editor.getCurrentParagraphStart()));
   mobilePane.value = 'editor';
 }
 
 async function openRenameChapter(index: number): Promise<void> {
-  syncEditorDocument();
+  flushEditorDocument();
   const heading = chapterHeadings.value[index];
   if (!heading) return;
   pendingRenameChapterIndex.value = index;
@@ -475,19 +451,17 @@ function confirmRenameChapter(): void {
   const index = pendingRenameChapterIndex.value;
   const title = pendingChapterTitle.value.trim();
   if (index === null || !title) return;
-  syncEditorDocument();
+  flushEditorDocument();
   const heading = chapterHeadings.value[index];
   if (heading) {
-    // Renaming the chapter being edited should leave the caret in it; renaming
-    // another one from the outline must not pull focus out of the current one.
-    const followsActive = activeEditorSection.value?.headingIndex === index;
-    applyEdit(renameChapterEdit(content.value, heading, title), followsActive);
+    const renamesActiveChapter = activeEditorSection.value?.headingIndex === index;
+    applyEdit(renameChapterEdit(content.value, heading, title), renamesActiveChapter);
   }
   cancelRenameChapter();
 }
 
 function openMergeChapter(index: number): void {
-  syncEditorDocument();
+  flushEditorDocument();
   if (chapterHeadings.value[index]) pendingMergeChapterIndex.value = index;
 }
 
@@ -498,10 +472,8 @@ function cancelMergeChapter(): void {
 function confirmMergeChapter(): void {
   const index = pendingMergeChapterIndex.value;
   if (index === null) return;
-  syncEditorDocument();
+  flushEditorDocument();
   const heading = chapterHeadings.value[index];
-  // Dropping the heading leaves the caret where it was, which is now part of
-  // the preceding chapter — the outline follows it there on its own.
   if (heading) applyEdit(mergeChapterEdit(content.value, heading), false);
   cancelMergeChapter();
 }

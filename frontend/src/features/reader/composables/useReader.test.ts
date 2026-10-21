@@ -30,7 +30,6 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve };
 }
 
-/** Two macrotask hops, which is longer than any microtask chain under test. */
 function settle(): Promise<void> {
   return new Promise((done) => setTimeout(done)).then(() => new Promise((done) => setTimeout(done)));
 }
@@ -58,9 +57,6 @@ describe('useReader source consistency', () => {
     expect(reader.sections.value.map((section) => section.title)).toEqual(['Source one']);
   });
 
-  // A shelf edited by hand or by a sync tool can leave current_source naming a
-  // source that is gone. The book-scoped route answers from the newest source
-  // the book still has, so the reader must fall back to it rather than fail.
   it('falls back to the book content when the current source is gone', async () => {
     mocks.getSourceContent.mockRejectedValue(new Error('source not found'));
     mocks.getSource.mockRejectedValue(new Error('source not found'));
@@ -94,8 +90,6 @@ describe('useReader section navigation', () => {
     expect(reader.progress.value?.char_offset).toBe('## One\nBody\n'.length);
   });
 
-  // A `?section=` deep link is a URL: it can name a chapter this book does not
-  // have, and the nearest chapter is a better answer than an error page.
   it('clamps an out-of-range index to the nearest chapter', async () => {
     const reader = useReader(() => 'book-1');
     await reader.fetchReaderData();
@@ -109,11 +103,6 @@ describe('useReader section navigation', () => {
   });
 });
 
-/*
-A route-param change reuses the reader component, so two fetches can be in
-flight for two different books at once. Everything below is about what the
-second one owes the first: not letting it win, and not losing its position.
-*/
 describe('useReader overlapping fetches', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -125,9 +114,6 @@ describe('useReader overlapping fetches', () => {
     mocks.saveReadProgress.mockResolvedValue(undefined);
   });
 
-  // The older fetch is parked inside the parallel read, which is past the
-  // guard that follows getBook — so only the guard after Promise.all can stop
-  // it painting the previous book over the one now on screen.
   it('keeps the newer book when an older fetch settles later', async () => {
     const olderProgress = deferred<{ char_offset: number; percent: number }>();
     mocks.getBook.mockImplementation((bookID: string) =>
@@ -161,8 +147,6 @@ describe('useReader overlapping fetches', () => {
     expect(reader.error.value).toBe('');
   });
 
-  // The autosave baseline holds one book at a time, so the previous book's
-  // position has to reach storage before the next book replaces it.
   it('persists the previous book before taking the next book baseline', async () => {
     mocks.getBook.mockImplementation((bookID: string) =>
       Promise.resolve({ id: bookID, title: bookID, format: 'md', current_source: '' })
@@ -192,10 +176,6 @@ describe('useReader overlapping fetches', () => {
   });
 });
 
-/*
-Reading is the point; the bookkeeping around it is not. Each case here breaks
-one thing the reader does not need and asserts the book still opens.
-*/
 describe('useReader tolerated failures', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -219,9 +199,6 @@ describe('useReader tolerated failures', () => {
     expect(reader.loading.value).toBe(false);
   });
 
-  // The source's own metadata carries the format the reader renders with. When
-  // only that read fails the content is still there, so the book's format is a
-  // better answer than an error page.
   it('falls back to the book format when the source metadata is unreadable', async () => {
     mocks.getSource.mockRejectedValue(new Error('meta.json is gone'));
 
@@ -266,11 +243,6 @@ describe('useReader chapter boundaries', () => {
     mocks.saveReadProgress.mockResolvedValue(undefined);
   });
 
-  // What the clamp promises is only the index: an out-of-range section — from a
-  // `?section=` link, say — opens the nearest one instead of failing. It does
-  // not make the call free, because goToSection still moves the saved position
-  // to that chapter's start. Refusing to make the call at all is the page's
-  // job, and ReaderView.test.ts is where that is pinned.
   it('opens the nearest chapter when asked to step past either end', async () => {
     const reader = useReader(() => 'book-1');
     await reader.fetchReaderData();
@@ -283,8 +255,6 @@ describe('useReader chapter boundaries', () => {
     expect(reader.currentSectionIndex.value).toBe(1);
   });
 
-  // A finished book restores at an offset equal to its length, which is the
-  // one offset that falls outside every half-open section range.
   it('restores a position at the very end into the last chapter', async () => {
     const content = '## One\nBody\n## Two\nMore';
     mocks.getReadProgress.mockResolvedValue({ char_offset: content.length, percent: 100 });

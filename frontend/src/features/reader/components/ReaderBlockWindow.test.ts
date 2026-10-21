@@ -7,7 +7,6 @@ interface Item {
   label: string;
 }
 
-/** A controllable IntersectionObserver stub the tests drive by hand. */
 class MockIntersectionObserver {
   static instances: MockIntersectionObserver[] = [];
   readonly elements = new Set<Element>();
@@ -68,7 +67,6 @@ describe('ReaderBlockWindow', () => {
     const root = mount([{ label: 'A' }, { label: 'B' }, { label: 'C' }]);
     const contents = root.querySelectorAll('.content');
     expect(Array.from(contents, (el) => el.textContent)).toEqual(['A', 'B', 'C']);
-    // Nothing is collapsed, so no placeholder height is imposed.
     expect(wrappers(root).every((el) => el.style.minHeight === '')).toBe(true);
   });
 
@@ -79,7 +77,6 @@ describe('ReaderBlockWindow', () => {
 
     const contents = root.querySelectorAll('.content');
     expect(Array.from(contents, (el) => el.textContent)).toEqual(['A']);
-    // The off-screen blocks reserve their estimated height so scrollHeight holds.
     const [, second, third] = wrappers(root);
     expect(second.style.minHeight).toBe('101px');
     expect(third.style.minHeight).toBe('101px');

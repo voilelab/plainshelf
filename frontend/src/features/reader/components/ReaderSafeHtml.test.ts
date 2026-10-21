@@ -2,8 +2,6 @@
 import { createApp, h, nextTick, ref, type App } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// The illustration component reaches the asset API and the locale; neither is
-// what this file is about. The stub records the props the slot was mounted with.
 vi.mock('@/features/reader/components/ReaderAssetImage.vue', () => ({
   default: {
     props: ['bookId', 'sourceId', 'name', 'alt'],

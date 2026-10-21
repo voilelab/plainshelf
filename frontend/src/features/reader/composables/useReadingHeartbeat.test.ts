@@ -11,8 +11,6 @@ vi.mock('@/storage/readingStats', () => ({
 
 const { useReadingHeartbeat } = await import('./useReadingHeartbeat');
 
-// Tests run in a node environment; the composable only needs the listener
-// registration surface and the `hidden` flag from `document`.
 function stubDocument(): void {
   vi.stubGlobal('document', {
     hidden: false,
@@ -58,14 +56,28 @@ describe('useReadingHeartbeat', () => {
     scope.stop();
   });
 
+  it.each([[60_000, 60], [90_000, 68]])(
+    'reports a delayed %i ms tick with a %i second cap',
+    (elapsedMs, reportedSeconds) => {
+      const { scope, heartbeat } = setupHeartbeat(() => 'book-a');
+      heartbeat.start();
+      vi.setSystemTime(Date.now() + elapsedMs - 45_000);
+      vi.advanceTimersByTime(45_000);
+
+      expect(addReadingSecondsMock).toHaveBeenCalledTimes(1);
+      expect(addReadingSecondsMock).toHaveBeenCalledWith('book-a', reportedSeconds, expect.any(String));
+
+      heartbeat.stop();
+      scope.stop();
+    }
+  );
+
   it('attributes the pre-change stretch to the old book when the reader switches books', async () => {
     const id = ref('book-a');
     const { scope, heartbeat } = setupHeartbeat(() => id.value);
 
     heartbeat.start();
 
-    // Read book A for 20s, then navigate /reader/book-a -> /reader/book-b
-    // (Vue Router reuses the ReaderView component, only the id changes).
     vi.advanceTimersByTime(20_000);
     id.value = 'book-b';
     await nextTick();
@@ -74,8 +86,6 @@ describe('useReadingHeartbeat', () => {
     expect(addReadingSecondsMock.mock.calls[0][0]).toBe('book-a');
     expect(addReadingSecondsMock.mock.calls[0][1]).toBe(20);
 
-    // The next interval tick fires 45s after start; only the 25s that passed
-    // since the switch belong to book B.
     vi.advanceTimersByTime(25_000);
 
     expect(addReadingSecondsMock).toHaveBeenCalledTimes(2);
