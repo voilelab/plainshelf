@@ -23,18 +23,10 @@ vi.mock('@capacitor/filesystem', () => ({
 
 const { FilesystemMobileCoverCache } = await import('./filesystemMobileCoverCache');
 
-/** base64 of the given bytes. */
 function b64(...bytes: number[]): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-/**
- * A Blob that can be read back.
- *
- * jsdom's Blob has no arrayBuffer(), which blobToBase64 needs; a real browser
- * and the Android WebView both do. Polyfilled per blob rather than globally so
- * the gap stays visible here instead of looking like production behaviour.
- */
 function imageBlob(bytes: number[]): Blob {
   const blob = new Blob([new Uint8Array(bytes)]);
   Object.defineProperty(blob, 'arrayBuffer', {
@@ -61,10 +53,8 @@ describe('FilesystemMobileCoverCache', () => {
     await new FilesystemMobileCoverCache().setCover('book-1', imageBlob(JPEG));
 
     const [call] = writeFileMock.mock.calls;
-    // No encoding: that is what makes the plugin decode the base64 to bytes.
     expect(call[0].encoding).toBeUndefined();
     expect(call[0].data).toBe(b64(...JPEG));
-    // And no .json suffix on the path any more.
     expect(call[0].path).not.toMatch(/\.json$/);
   });
 
@@ -81,9 +71,6 @@ describe('FilesystemMobileCoverCache', () => {
     expect(blob?.type).toBe(mime);
   });
 
-  // Without these, tightening the signatures would be untestable: the happy
-  // cases pass either way, so only a near-miss can tell a full check from a
-  // partial one.
   it.each([
     ['PNG missing its trailing CRLF/EOF bytes', [0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0, 0, 0, 0, 0]],
     ['GIF without a version', [0x47, 0x49, 0x46, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
@@ -101,8 +88,6 @@ describe('FilesystemMobileCoverCache', () => {
 
     const blob = await new FilesystemMobileCoverCache().getCover('book-1');
 
-    // Untyped rather than absent: the decoder sniffs the bytes anyway, so a
-    // cover the shelf accepted but this does not recognise still renders.
     expect(blob).not.toBeNull();
     expect(blob?.type).toBe('');
   });
@@ -116,8 +101,6 @@ describe('FilesystemMobileCoverCache', () => {
   it('drops the pre-binary file when the cover is rewritten', async () => {
     await new FilesystemMobileCoverCache().setCover('book-1', imageBlob(PNG));
 
-    // A cover is rebuildable, so the old layout is cleaned up per book rather
-    // than by a migration pass.
     expect(deleteFileMock.mock.calls.some(([arg]) => arg.path.endsWith('.json'))).toBe(true);
   });
 

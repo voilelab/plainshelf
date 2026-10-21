@@ -2,9 +2,6 @@ import { FolderHttpError, FolderMetaConflictError } from '../folderErrors';
 import { mockBooks } from './books';
 import { normalizeFolderInput, normalizeFolderPath } from '@/utils/folders';
 
-// In-memory folder tree for VITE_USE_MOCK_API, seeded from the mock books so the
-// two agree on startup. The gate that reaches for it lives in api/client.ts
-// (isMockApiMode); nothing here is reachable in a real build.
 
 function pathFromFolders(folders: string[] = []): string {
   const segments = folders.map((s) => s.trim()).filter((s) => s.length > 0);
@@ -42,9 +39,6 @@ function deriveMockFoldersFromBooks(): string[] {
 
 const mockFolders = new Set<string>(deriveMockFoldersFromBooks());
 
-// Icons by folder path, standing in for each folder's folder.json. A version
-// counter plays the content hash the server hands out, so a stale write can be
-// refused the same way.
 const mockFolderIcons = new Map<string, { icon: string; version: string; sort_key?: number }>();
 let mockFolderMetaVersion = 0;
 
@@ -100,7 +94,6 @@ export function addMockFolder(path: string): void {
   }
 }
 
-/** Moves a subtree and drags the mock books' folder paths along with it. */
 function moveMockSubtree(from: string, to: string): void {
   for (const folder of getMockFolders()) {
     if (folder === from || folder.startsWith(`${from}/`)) {
@@ -109,7 +102,6 @@ function moveMockSubtree(from: string, to: string): void {
     }
   }
 
-  // folder.json lives in the directory, so it moves with it.
   for (const [path, meta] of [...mockFolderIcons]) {
     const nextPath = replaceFolderPrefix(path, from, to);
     if (nextPath !== path) {

@@ -63,9 +63,6 @@ describe('ReadHistoryStore', () => {
     expect(await store.list('shelf-1')).toEqual([]);
   });
 
-  // Read-modify-write over one document: concurrent mutations must queue, or
-  // the reader's addReadHistory and the settings page's setLimit overwrite each
-  // other's copy of the document.
   it('does not lose concurrent writes', async () => {
     const store = makeStore();
 
@@ -108,8 +105,6 @@ describe('buildReadHistoryKey', () => {
     expect(buildReadHistoryKey('', 'default_shelf')).toBe('default_shelf');
   });
 
-  // The mobile shell can be pointed at another server that also calls its
-  // shelf `default_shelf`, whose book ids mean something else entirely.
   it('separates identically named shelves on different servers', () => {
     const first = buildReadHistoryKey('http://192.168.1.5:20000', 'default_shelf');
     const second = buildReadHistoryKey('http://192.168.1.9:20000', 'default_shelf');

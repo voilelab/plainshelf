@@ -1,20 +1,6 @@
-// The on-device reading-progress document for browser and Wails desktop clients,
-// the standalone reader included. Android keeps its per-book progress.json files,
-// which are already app-private and scoped per connection.
-//
-// Entries carry their write time so the desktop app and the standalone reader,
-// sharing one reading_progress.json, reconcile newest-wins per book rather than
-// by namespace. A reset is a timestamped tombstone (offset 0) so an older
-// advance cannot resurrect it. Callers see plain offsets only.
 
-// Bumped from 1 to 2 for the timestamped shape. A document of any other version
-// is treated as absent (see parse). This file is device-local state, outside the
-// on-disk format commitments, and dropping the untimestamped v1 shipped in
-// v0.10.0 as a documented breaking change (its release notes, docs/installation.md) —
-// not a pattern to follow for shelf data.
 export const READING_PROGRESS_DOCUMENT_VERSION = 2;
 
-/** A book's stored progress: a UTF-16 offset and the epoch ms it was written. */
 export interface ProgressEntry {
   offset: number;
   at: number;
@@ -22,7 +8,6 @@ export interface ProgressEntry {
 
 export interface ReadingProgressDocument {
   version: number;
-  /** device-document key -> book id -> progress entry. */
   shelves: Record<string, Record<string, ProgressEntry>>;
 }
 
@@ -30,7 +15,6 @@ export function createReadingProgressDocument(): ReadingProgressDocument {
   return { version: READING_PROGRESS_DOCUMENT_VERSION, shelves: {} };
 }
 
-/** A non-negative, safe-integer number, or null when the value is not one. */
 function normalizeCount(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     return null;
@@ -38,10 +22,6 @@ function normalizeCount(value: unknown): number | null {
   return value;
 }
 
-// An entry is kept when its offset is a valid non-negative integer and it is
-// meaningful: a positive offset, or a zero offset with a timestamp (a reset
-// tombstone). A bare {offset:0, at:0} is nothing and is dropped. An unparseable
-// timestamp is treated as unknown (0, the oldest) rather than dropping the entry.
 function normalizeEntry(value: unknown): ProgressEntry | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return null;
@@ -74,11 +54,6 @@ function normalizeShelf(value: unknown): Record<string, ProgressEntry> {
   return books;
 }
 
-/**
- * Reading progress is convenience state. A missing, corrupt, wrongly shaped,
- * or other-version document therefore falls back to an empty document rather
- * than preventing the reader from opening.
- */
 export function parseReadingProgressDocument(
   text: string | null | undefined
 ): ReadingProgressDocument {
@@ -132,12 +107,6 @@ export function getBookReadingOffset(
   return doc.shelves[shelfKey]?.[bookID]?.offset ?? 0;
 }
 
-/**
- * The full stored entry (offset plus the epoch ms it was written) for a book, or
- * null when the book has no entry. Unlike getBookReadingOffset this also exposes
- * the timestamp, which a "last read" label needs; writers still go through the
- * offset helpers so the timestamp stays internal to writes.
- */
 export function getBookReadingEntry(
   doc: ReadingProgressDocument,
   shelfKey: string,
@@ -146,11 +115,6 @@ export function getBookReadingEntry(
   return doc.shelves[shelfKey]?.[bookID] ?? null;
 }
 
-/**
- * Every stored entry for a shelf, keyed by book id. Returns a fresh object (an
- * empty one when the shelf has nothing stored) so callers can read it without
- * touching the document's internals. Read-only, like getBookReadingEntry.
- */
 export function getShelfReadingEntries(
   doc: ReadingProgressDocument,
   shelfKey: string
@@ -173,17 +137,6 @@ function setBookEntry(
   };
 }
 
-/**
- * Records an offset for a book, stamped with `at` (defaulting to now) so a later
- * cross-process merge can pick the most recent write.
- *
- * A non-positive or invalid offset is a reset: it stores a zero-offset tombstone
- * carrying `at`, rather than deleting the entry, so the reset out-competes an
- * older advance the other process may hold. Resetting a book that has no entry at
- * all is a no-op — there is nothing to out-compete, and a tombstone would only be
- * noise. An unchanged offset is also a no-op, so re-reading the same position does
- * not churn the timestamp or force a write.
- */
 export function withBookReadingOffset(
   doc: ReadingProgressDocument,
   shelfKey: string,
@@ -200,8 +153,6 @@ export function withBookReadingOffset(
   const previous = doc.shelves[trimmedShelfKey]?.[trimmedBookID];
   const normalizedOffset = normalizeCount(offset);
 
-  // Reset: any non-positive or invalid offset. Missing entries already read as
-  // zero, so only an existing, non-tombstone entry needs a tombstone written.
   if (normalizedOffset === null || normalizedOffset === 0) {
     if (!previous || previous.offset === 0) {
       return doc;

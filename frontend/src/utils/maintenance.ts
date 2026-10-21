@@ -24,7 +24,4 @@ export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
     to: '/similar',
     icon: 'similar-content'
   }
-  // The former "missing author/cover/language" entries are gone: each is now a
-  // book-list filter reached by URL (?author=none etc.) and, later, the filter
-  // panel — not a maintenance sidebar entry.
 ];

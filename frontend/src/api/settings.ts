@@ -6,11 +6,6 @@ interface SettingResponse {
   value?: unknown;
 }
 
-/**
- * The window the server applies when nothing is stored or configured. Restated
- * here only so mock mode has something to answer with; the live value always
- * comes from the server.
- */
 export const DEFAULT_LOG_RETENTION_DAYS = 30;
 
 let mockCoverToJpg = false;
@@ -46,11 +41,6 @@ export async function setCoverToJpgSetting(enabled: boolean): Promise<void> {
   });
 }
 
-/**
- * Whether the server serves the books its shelves mark as adult content. Off is
- * the default and the value the server answers with when nothing is stored, so
- * a client that cannot read the setting shows less rather than more.
- */
 export async function getShowNsfwSetting(): Promise<boolean> {
   if (isMockApiMode()) {
     return mockShowNsfw;
@@ -66,8 +56,6 @@ export async function setShowNsfwSetting(enabled: boolean): Promise<void> {
     return;
   }
 
-  // The endpoint takes the bare literal true or false, not a JSON document —
-  // the shape cover_to_jpg established and this one follows.
   await fetchJson<void>('/api/setting/show_nsfw', {
     method: 'POST',
     headers: {
@@ -103,10 +91,6 @@ export async function setEpubImportStrategySetting(strategy: EpubImportStrategy)
   });
 }
 
-/**
- * How many days of rotated log files the server keeps. Zero means it keeps
- * every one, which is how log deletion is turned off.
- */
 export async function getLogRetentionDaysSetting(): Promise<number> {
   if (isMockApiMode()) {
     return mockLogRetentionDays;

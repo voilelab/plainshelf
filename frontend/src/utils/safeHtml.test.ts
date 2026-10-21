@@ -9,7 +9,6 @@ import {
   toPlainSummary
 } from './safeHtml';
 
-/** Every case in the sanitizer blocks is the reader profile unless it says otherwise. */
 const sanitizeReaderHtml = (html: string): string => sanitizeHtml(html, 'reader');
 
 describe('toPlainSummary', () => {
@@ -45,8 +44,6 @@ describe('toPlainSummary', () => {
     expect(toPlainSummary('<style>p { color: red }</style><p>簡介</p><script>alert(1)</script>')).toBe('簡介');
   });
 
-  // A summary that read a subtree the sanitizer deletes would report words the
-  // detail page never shows, and would make an empty block look worth a row.
   it('reads nothing out of a subtree the sanitizer deletes whole', () => {
     for (const source of ['<svg><text>Hello</text></svg>', '<math><mi>x</mi></math>']) {
       expect(toPlainSummary(source), source).toBe('');
@@ -86,10 +83,6 @@ describe('sanitizeColorStyle', () => {
     }
   });
 
-  // The declaration is rejected on the name, not on the CSS parser's verdict:
-  // `var(...)` is a value the parser accepts and would hand back verbatim, and
-  // a parser that also tolerates a space before `(` would let the same
-  // reference through. The last case is one such value here.
   it('rejects a functional value whose name is separated from its parenthesis', () => {
     for (const value of [
       'color: url (https://example.com/x)',
@@ -101,8 +94,6 @@ describe('sanitizeColorStyle', () => {
     }
   });
 
-  // The regex guards a style attribute, so over-blocking would silently strip
-  // an author's colors; these spellings all have to survive it.
   it('keeps every spelling of a plain color the CSS parser understands', () => {
     expect(sanitizeColorStyle('color: RED')).toBe('color: red');
     expect(sanitizeColorStyle('color: #abc')).toBe('color: rgb(170, 187, 204)');
@@ -111,8 +102,6 @@ describe('sanitizeColorStyle', () => {
     expect(sanitizeColorStyle('COLOR: purple')).toBe('color: purple');
   });
 
-  // A later unparseable value must not take the earlier one down with it,
-  // otherwise one typo further along the attribute silently drops the color.
   it('keeps the last color the parser accepted, not the last one written', () => {
     expect(sanitizeColorStyle('color: purple; color: bogus')).toBe('color: purple');
     expect(sanitizeColorStyle('color: purple; color: var(--secret)')).toBe('color: purple');
@@ -168,18 +157,12 @@ describe('sanitizeHtml, reader profile', () => {
     expect(clean).toBe('<p class="reader-text-block reader-md-code">Text</p>');
   });
 
-  // Dropping the names but keeping an empty attribute would leave `class=""`
-  // on every styled element the source authored, and any empty name reaching
-  // the allowlist would make that the normal outcome.
   it('drops a class attribute that names nothing the renderer owns', () => {
     expect(sanitizeReaderHtml('<p class="evil">Text</p>')).toBe('<p>Text</p>');
     expect(sanitizeReaderHtml('<p class=" evil ">Text</p>')).toBe('<p>Text</p>');
     expect(sanitizeReaderHtml('<p class="">Text</p>')).toBe('<p>Text</p>');
   });
 
-  // These class names are the contract between the Markdown renderer and the
-  // reader stylesheet: one lost from the allowlist is unstyled output, with no
-  // error anywhere.
   it('keeps every class name the renderer is allowed to emit', () => {
     for (const name of [
       'reader-text-block',
@@ -198,8 +181,6 @@ describe('sanitizeHtml, reader profile', () => {
     }
   });
 
-  // The tag list is the reader's markup vocabulary. Losing one entry unwraps
-  // that element everywhere without failing anything else.
   it('keeps every tag the reader promises to render', () => {
     for (const tag of [
       'div', 'section', 'article', 'blockquote', 'pre', 'span',
@@ -220,8 +201,6 @@ describe('sanitizeHtml, reader profile', () => {
     );
   });
 
-  // Structure a book actually uses: an author's numbering and a table's own
-  // cell wiring are lost if these attributes stop being allowed.
   it('keeps the list and table attributes that carry meaning', () => {
     expect(sanitizeReaderHtml('<ol start="3" reversed type="a"><li>x</li></ol>'))
       .toBe('<ol start="3" reversed="" type="a"><li>x</li></ol>');
@@ -229,8 +208,6 @@ describe('sanitizeHtml, reader profile', () => {
       .toBe('<table><tbody><tr><th headers="a">H</th><td rowspan="2">D</td></tr></tbody></table>');
   });
 
-  // `span` is a <col>/<colgroup> attribute and neither tag is allowed here, so
-  // on any tag the reader can render it is noise the sanitizer should remove.
   it('drops the span attribute while keeping the table attributes beside it', () => {
     expect(sanitizeReaderHtml('<table><tr><td span="2" colspan="2">D</td></tr></table>'))
       .toBe('<table><tbody><tr><td colspan="2">D</td></tr></tbody></table>');
@@ -239,8 +216,6 @@ describe('sanitizeHtml, reader profile', () => {
     expect(sanitizeReaderHtml('<span span="2">Text</span>')).toBe('<span>Text</span>');
   });
 
-  // Unwrapping an unknown element keeps its prose on purpose, but the text
-  // inside active content is markup for another engine, never reading matter.
   it('drops the text inside active content instead of unwrapping it', () => {
     for (const tag of ['script', 'style', 'iframe', 'object', 'svg', 'math']) {
       expect(sanitizeReaderHtml(`<${tag}>LEAK</${tag}>`), tag).toBe('');
@@ -287,8 +262,6 @@ describe('sanitizeHtml, summary profile', () => {
     expect(sanitizeHtml('<script>alert(1)</script>', 'summary')).toBe('');
   });
 
-  // The class allowlist used to be a module-level DOMPurify hook shared by every
-  // caller. Interleaving the profiles is what a single hook would get wrong.
   it('does not leak its class allowlist into the reader profile, in either order', () => {
     const markup = '<h2 class="reader-md-h2">Heading</h2>';
     const results = [
@@ -311,12 +284,6 @@ describe('sanitizeHtml, summary profile', () => {
   });
 });
 
-/**
- * The two steps the detail page runs together: the description is rendered as
- * the document it is, then sanitized under the profile that decides what a
- * summary may contain. Neither step is safe on its own, so the cases below
- * assert on the pair.
- */
 const sanitizedDescription = (source: string): string =>
   sanitizeHtml(renderDescriptionHtml(source), 'summary');
 
@@ -329,8 +296,6 @@ describe('renderDescriptionHtml', () => {
     expect(sanitizedDescription('> 引文')).toBe('<blockquote>\n<p>引文</p>\n</blockquote>\n');
   });
 
-  // The paragraphs an EPUB import carried over are already HTML on disk, which
-  // is what the detail page used to print as text.
   it('renders the HTML an EPUB description arrives as', () => {
     expect(sanitizedDescription('<p>第一段</p><p>第二段</p>')).toBe('<p>第一段</p><p>第二段</p>');
   });
@@ -344,8 +309,6 @@ describe('renderDescriptionHtml', () => {
     expect(sanitizedDescription('<style>p { color: red }</style>正文')).toBe('正文');
   });
 
-  // A target the dialect refuses is never a link to begin with, so nothing
-  // downstream has to recognize the scheme.
   it('leaves a Markdown link to a script target as the text it was written as', () => {
     expect(sanitizedDescription('[連結](javascript:alert(1))')).toBe('<p>[連結](javascript:alert(1))</p>\n');
   });
@@ -358,12 +321,6 @@ describe('renderDescriptionHtml', () => {
   });
 });
 
-/**
- * The detail page decides whether a description earns a row from `text` and
- * renders `html`, so the two readings must never disagree about the same
- * source - a row labelled over an empty body is exactly what that would look
- * like.
- */
 describe('renderDescription', () => {
   it('reports no text for markup that amounts to no words', () => {
     for (const source of ['<br>', '<p> </p><div></div>', '![封面](cover.png)', '<style>p { color: red }</style>']) {
@@ -371,8 +328,6 @@ describe('renderDescription', () => {
     }
   });
 
-  // The detail page used to render the source twice, once only to ask whether
-  // it had any words in it.
   it('reads the source once for both', () => {
     const parse = vi.spyOn(DOMParser.prototype, 'parseFromString');
     try {

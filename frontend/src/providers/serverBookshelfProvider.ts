@@ -72,8 +72,6 @@ import type {
   ShelfRefreshResult
 } from './bookshelfProvider';
 
-// Declares both halves rather than the loose BookshelfProvider alias, so
-// dropping or mistyping any write method fails to compile here.
 export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter {
   readonly writable = true as const;
 
@@ -102,7 +100,6 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     try {
       return sortFolderPaths(folders, (await getFolderMeta(shelfID)).folders);
     } catch {
-      // Metadata is optional, including on older target servers.
       return folders;
     }
   }
@@ -146,8 +143,6 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return saveLocalReadingProgress(bookId, progress);
   }
 
-  // Reading progress and history are device-local; only book data comes from
-  // the server.
   addReadHistory(bookId: string): Promise<void> {
     return addLocalReadHistory(bookId);
   }
@@ -280,9 +275,6 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return refreshSourceMeta(bookId, sourceId);
   }
 
-  // A server discovers external changes only every `scan_interval`, and on an
-  // SMB or cloud-mounted shelf nothing notifies it sooner, so the user needs a
-  // way to say "look now". Report the counts from that scan to the UI.
 
   refreshShelf(): Promise<ShelfRefreshResult> {
     return rescanShelf();

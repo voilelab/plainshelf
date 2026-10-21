@@ -6,7 +6,6 @@ export interface SourceMeta {
   created_at: string;
   comment: string;
   md5_hash: string;
-  /** Authoritative for every source this build writes. */
   format?: BookFormat;
   line_count?: number;
   char_count?: number;

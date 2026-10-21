@@ -27,8 +27,6 @@ function pair(jaccard: number, relation: SimilarRelation = 'near_identical'): Si
   };
 }
 
-// One pair per tier's canonical scenario, plus the truncated-25% subset case
-// that the subset toggle is meant to reach without loosening the tier.
 const truncatedSubset = pair(0.758, 'subset');
 const pairs: SimilarBookPair[] = [
   pair(0.999, 'identical_after_normalize'),
@@ -64,7 +62,6 @@ describe('filterSimilarPairs', () => {
     expect(strict.length).toBeLessThanOrEqual(mid.length);
     expect(mid.length).toBeLessThanOrEqual(wide.length);
 
-    // Loosening only adds; every stricter result stays in the looser one.
     for (const p of strict) expect(mid).toContain(p);
     for (const p of mid) expect(wide).toContain(p);
   });
@@ -75,11 +72,9 @@ describe('filterSimilarPairs', () => {
   });
 
   it('subset toggle is independent of the threshold: the truncated-25% pair shows even at the strictest tier', () => {
-    // At the strictest tier its 0.758 Jaccard is filtered out entirely...
     const strict = filterSimilarPairs(pairs, { threshold: 0.85, subsetOnly: false });
     expect(strict).not.toContain(truncatedSubset);
 
-    // ...but the subset toggle surfaces it regardless of the tier threshold.
     for (const threshold of [0.85, 0.45, SIMILARITY_FLOOR]) {
       const subsetOnly = filterSimilarPairs(pairs, { threshold, subsetOnly: true });
       expect(subsetOnly).toContain(truncatedSubset);
@@ -102,7 +97,6 @@ describe('approxDiffPer100Chars', () => {
 });
 
 describe('estimatedDiffRate', () => {
-  // The conversion table the pair-card ticket is specified against, at n = 5.
   const table: [number, number][] = [
     [0.999, 0],
     [0.9, 1.1],
@@ -121,8 +115,6 @@ describe('estimatedDiffRate', () => {
   });
 
   it('divides shingle disagreement down: it reads far below the raw ratio', () => {
-    // A single edit disturbs up to k shingles, so the Mash estimate must sit
-    // well under approxDiffPer100Chars for the same Jaccard.
     expect(estimatedDiffPer100(0.85)).toBeLessThan(approxDiffPer100Chars(0.85));
     expect(estimatedDiffPer100(0.85)).toBe(2);
   });
@@ -135,7 +127,6 @@ describe('estimatedDiffRate', () => {
 
 describe('subsetShortfallPercent', () => {
   it('is the fraction the shorter side is missing, order-independent', () => {
-    // A copy trimmed to 75% of the fuller one is missing about 25%.
     expect(subsetShortfallPercent(750, 1000)).toBe(25);
     expect(subsetShortfallPercent(1000, 750)).toBe(25);
   });

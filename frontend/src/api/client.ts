@@ -6,18 +6,7 @@ export class ApiError extends Error {
   statusText?: string;
   url?: string;
   isTimeout: boolean;
-  /**
-   * The server's stable error code (SCREAMING_SNAKE), when the response carried
-   * the JSON error envelope. Unset for the routes that still answer plain text
-   * and for transport failures, so callers must treat it as optional.
-   */
   code?: string;
-  /**
-   * The reference a bug report quotes. For a server failure it is the request's
-   * ID, so it names the log line that carries the cause the body withheld; for
-   * a failure the frontend raised itself it is a `c-` ID (see api/incident.ts).
-   * Unset where neither is available, so callers must treat it as optional.
-   */
   incident?: string;
 
   constructor(
@@ -54,10 +43,6 @@ declare global {
     __PLAINSHELF_SECURITY__?: {
       token?: string;
       tokenHeader?: string;
-      // Set by the Go server only when security mode is none and the listen
-      // address is not loopback: the API answers every request, including
-      // writes and deletes, without authentication. Drives the persistent
-      // Web UI warning; see SecurityWarningBanner.vue.
       insecurePublicAccess?: boolean;
     };
     __PLAINSHELF_READ_ONLY__?: boolean;
@@ -83,21 +68,12 @@ if (IS_DEV && API_MODE === 'mock') {
   console.info('[api] MOCK API mode enabled (VITE_USE_MOCK_API=true).');
 }
 
-// Build-time default. On native (Capacitor) builds there is no server to inject
-// a base URL, so the mobile bootstrap can override this at runtime via
-// setApiBase() once the user has entered their server address.
 let apiBase = API_BASE_NORMALIZED;
 
 export function getApiBase(): string {
   return apiBase;
 }
 
-/**
- * Exported because the stored and applied values have to agree exactly: on
- * mobile the applied base is half the key that scopes device-local book data
- * (providers/cacheScope.ts), so a trailing slash left on one side and stripped
- * on the other points at a different cache.
- */
 export function normalizeApiBase(base: string): string {
   return String(base ?? '').trim().replace(/\/+$/, '');
 }
@@ -120,8 +96,6 @@ export function isMockApiMode(): boolean {
   return API_MODE === 'mock';
 }
 
-// The Go server sets this flag only for security mode none bound to a
-// non-loopback address; every other posture leaves it unset.
 export function isInsecurePublicAccess(): boolean {
   return typeof window !== 'undefined' && window.__PLAINSHELF_SECURITY__?.insecurePublicAccess === true;
 }
@@ -133,9 +107,6 @@ function assertApiMode(): void {
 }
 
 
-// How requests leave the client. The mobile shell swaps it for a local shelf,
-// whose embedded server is reached through a native plugin rather than the
-// network, and is the one mobile source that accepts writes.
 let apiFetch: typeof fetch = (...args) => fetch(...args);
 let mobileWritesAllowed = false;
 
@@ -144,25 +115,16 @@ export function setApiTransport(transport: { fetch: typeof fetch; allowMobileWri
   mobileWritesAllowed = transport.allowMobileWrites;
 }
 
-// The mobile shell reading a server or pCloud is a reading client and issues
-// no writes at all: reading history, reading progress and reading stats are
-// all stored on the device and never sent. Every mutation is rejected before it
-// leaves the device.
 function assertWritableRequest(init?: RequestInit, options?: FetchJsonOptions): void {
   const method = String(init?.method ?? 'GET').toUpperCase();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     return;
   }
 
-  // Source reads and mutations of device-local offline copies are safe for
-  // a read-only shelf. The server makes the same exceptions; see
-  // isReadOnlySafeRequest in server/app.go.
   if (options?.readOnlySafe) {
     return;
   }
 
-  // Imported from providers/runtime rather than the providers barrel, and
-  // statically: the barrel pulls in the providers, which import this module.
   const readOnly = typeof window !== 'undefined' && window.__PLAINSHELF_READ_ONLY__ === true;
   if (readOnly) {
     throw new ApiError('Server is in read-only mode. Write operations are disabled.');
@@ -204,10 +166,6 @@ export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): s
 }
 
 async function getApiToken(): Promise<string> {
-  // First non-empty source wins. `??` alone is not enough: the mobile provider
-  // resolves getApiToken to '' when no token is stored, and an empty string is
-  // not nullish, so it would mask a server-injected token instead of falling
-  // through to it.
   const candidates = [
     await window.plainshelf?.getApiToken?.(),
     window.__PLAINSHELF_SECURITY__?.token,
@@ -240,15 +198,8 @@ async function withApiHeaders(init?: RequestInit): Promise<RequestInit> {
 }
 
 const FETCH_TIMEOUT_MS = 30_000;
-// Large content (book text, cover images) on slow SMB mounts may take several minutes.
 const FETCH_STREAM_TIMEOUT_MS = 300_000;
 
-/**
- * The JSON body the Go server's error table answers with. Not every refusal
- * carries it — the routes that still call http.Error answer plain text, as does
- * the standalone reader — so it is parsed opportunistically with the raw text as
- * the fallback.
- */
 interface ApiErrorEnvelope {
   error: { code?: unknown; message?: unknown; incident?: unknown };
 }
@@ -279,19 +230,12 @@ function parseErrorEnvelope(raw: string): {
   return { code, message, incident };
 }
 
-// Every response leaves the server through the request-ID middleware, so the
-// plain-text refusals carry a reference even without an envelope to put it in.
 const REQUEST_ID_HEADER = 'X-Request-Id';
 
 function responseIncident(res: Response, fromEnvelope?: string): string | undefined {
   return fromEnvelope || res.headers.get(REQUEST_ID_HEADER)?.trim() || undefined;
 }
 
-// A refusal the server itself calls transient - the shelf is still scanning, a
-// lock is held - is waited out and usually succeeds, so it must not leave a
-// reference on screen for a failure the user never saw. The error still carries
-// its incident, and shelfInitRetry publishes it on the attempt that spends the
-// retry budget, which is the one the caller goes on to show.
 function reportResponseIncident(res: Response, incident?: string): void {
   if (incident && !res.headers.has('Retry-After')) {
     reportIncident(incident);
@@ -337,18 +281,9 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FET
 }
 
 interface FetchJsonOptions {
-  // acceptStatuses lists non-2xx statuses whose JSON body is a normal result
-  // rather than an error, such as a 409 that reports the task already running.
   acceptStatuses?: number[];
-  // Uploads and other streaming requests can legitimately outlive the normal
-  // metadata request timeout, especially when the shelf is on a sync mount.
   timeoutMs?: number;
-  // readOnlySafe marks a source read or device-local offline operation.
-  // It must never be used for a mutation of the source shelf.
   readOnlySafe?: boolean;
-  // onResponse hands the caller the response before its body is read, for the
-  // few routes whose answer is not only in the body. It is called for an error
-  // response too, so a header is not missed on the path that throws.
   onResponse?: (res: Response) => void;
 }
 
@@ -386,11 +321,6 @@ export async function fetchJson<T>(
     return undefined as T;
   }
 
-  // acceptStatuses says a body at that status *may* be a normal result, not
-  // that every body at it is one: a 409 carries either the running chain's ID
-  // or a refusal. The error envelope is self-identifying, so it is rejected
-  // here whatever the status - otherwise the caller reads taskchain_id off a
-  // refusal, gets undefined, and polls it.
   if (!res.ok && parseErrorEnvelope(raw.trim())) {
     throw apiErrorFrom(res, raw.trim());
   }

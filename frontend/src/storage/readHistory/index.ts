@@ -1,8 +1,6 @@
 import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
 import { hasDesktopReadHistoryBinding } from '@/api/desktop';
 import { mockBooks } from '@/api/mocks/books';
-// Imported from providers/runtime rather than the providers barrel: the barrel
-// pulls in the providers, which import this module.
 import { isWailsRuntime } from '@/providers/runtime';
 import { getShell } from '@/providers/shell';
 import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
@@ -28,14 +26,6 @@ export { DEFAULT_READ_HISTORY_LIMIT } from './document';
 export type { ReadHistoryDocument } from './document';
 export type { ReadHistoryStorage } from './storage';
 
-/**
- * Reading history, kept on the device that did the reading. The server has no
- * part in it: no API call, no shelf file, nothing shared between clients.
- *
- * Mutation serialization comes from DeviceDocumentStore: without it, opening
- * the reader (addReadHistory) while the settings page saves a new limit would
- * let one overwrite the other's document.
- */
 export class ReadHistoryStore extends DeviceDocumentStore<ReadHistoryDocument> {
   constructor(storage: ReadHistoryStorage) {
     super(storage, parseReadHistoryDocument, serializeReadHistoryDocument);
@@ -62,8 +52,6 @@ export class ReadHistoryStore extends DeviceDocumentStore<ReadHistoryDocument> {
   }
 }
 
-// Mock mode keeps the dev UI populated the way the old mock API did: the three
-// first mock books, seeded lazily so the active shelf is already known.
 function createMockReadHistoryStorage(): ReadHistoryStorage {
   const backing = createInMemoryReadHistoryStorage();
   let seeded = false;
@@ -88,16 +76,10 @@ function createReadHistoryStorage(): ReadHistoryStorage {
     return createMockReadHistoryStorage();
   }
 
-  // `?desktop-shell-preview=1` reports the Wails runtime in an ordinary
-  // browser, where the Go bindings do not exist; fall back to localStorage
-  // there rather than failing every write.
   if (isWailsRuntime() && hasDesktopReadHistoryBinding()) {
     return createDesktopReadHistoryStorage();
   }
 
-  // A shell that keeps documents somewhere other than the browser says so;
-  // the mobile one writes to app-private storage, which an Android WebView
-  // does not silently evict the way it may evict localStorage.
   const fromShell = getShell()?.createDeviceDocumentStorage?.(MOBILE_READ_HISTORY_PATH);
   if (fromShell) {
     return fromShell;
@@ -115,7 +97,6 @@ function getReadHistoryStore(): ReadHistoryStore {
   return store;
 }
 
-/** The key a shelf's history is stored under. See buildDeviceDocumentKey. */
 export const buildReadHistoryKey = buildDeviceDocumentKey;
 
 function requireHistoryKey(): string {

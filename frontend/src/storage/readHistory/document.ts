@@ -1,17 +1,9 @@
-// The on-device reading-history document. Every client (web, Wails desktop,
-// Capacitor Android) persists this exact shape; only the storage location
-// differs (see storage.ts). Reading history is per-device state and is never
-// sent to the server.
-//
-// `shelves` is keyed by shelf id so a multi-shelf setup keeps independent
-// histories, each ordered most-recently-read first.
 
 const READ_HISTORY_DOCUMENT_VERSION = 1;
 export const DEFAULT_READ_HISTORY_LIMIT = 100;
 
 export interface ReadHistoryDocument {
   version: number;
-  /** Maximum entries kept per shelf. 0 disables retaining history. */
   limit: number;
   shelves: Record<string, string[]>;
 }
@@ -55,13 +47,6 @@ function normalizeIDs(value: unknown, limit: number): string[] {
   return ids;
 }
 
-/**
- * Reads a stored document, tolerating anything that is not a document this
- * build understands — unparseable text, a wrong shape, or a version written by
- * a future build — by falling back to an empty default. Reading history is
- * disposable convenience state, so a corrupt file must never surface as an
- * error in the reader or the history page.
- */
 export function parseReadHistoryDocument(text: string | null | undefined): ReadHistoryDocument {
   if (typeof text !== 'string' || text.trim() === '') {
     return createReadHistoryDocument();
@@ -105,7 +90,6 @@ export function getShelfReadHistory(doc: ReadHistoryDocument, shelfID: string): 
   return [...(doc.shelves[shelfID] ?? [])];
 }
 
-/** Moves `bookID` to the front of the shelf's history, deduplicated and trimmed. */
 export function withReadEntry(
   doc: ReadHistoryDocument,
   shelfID: string,
@@ -131,7 +115,6 @@ export function withClearedShelf(doc: ReadHistoryDocument, shelfID: string): Rea
   return { ...doc, shelves };
 }
 
-/** Applies a new retention limit, trimming every shelf to match it. */
 export function withLimit(doc: ReadHistoryDocument, limit: number): ReadHistoryDocument {
   const normalized = normalizeReadHistoryLimit(limit);
   const shelves: Record<string, string[]> = {};

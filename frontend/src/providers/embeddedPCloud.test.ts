@@ -37,8 +37,6 @@ let setShowNsfwOnDevice: (value: boolean) => void;
 let currentCacheScopeKey: () => string;
 
 beforeEach(async () => {
-  // Fresh modules per test: what Go was last given is module state, and the
-  // client state has to be the instance the module under test reads.
   vi.resetModules();
   mod = await import('./embeddedPCloud');
   const { setActiveShelfID, setApiBase } = await import('@/api/client');
@@ -70,7 +68,6 @@ describe('openEmbeddedPCloudShelf', () => {
       scope,
       showNsfw: false
     });
-    // The identity downloads and progress are filed under is untouched.
     expect(currentCacheScopeKey()).toBe(scope);
   });
 

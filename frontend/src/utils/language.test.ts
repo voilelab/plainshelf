@@ -9,8 +9,6 @@ import {
   normalizeLanguage
 } from './language';
 
-// These labels used to be hardcoded Traditional Chinese, so an English UI
-// showed Chinese for a book's language.
 describe('book language labels', () => {
   beforeEach(() => {
     setLocale('en');
@@ -34,9 +32,6 @@ describe('book language labels', () => {
 
   it('passes through a tag that is not a preset', () => {
     expect(formatLanguage('fr')).toBe('fr');
-    // The custom sentinel is a Select choice, never a stored tag: a book whose
-    // language literally reads "custom" keeps showing that rather than picking
-    // up the "Custom..." option label.
     expect(formatLanguage(CUSTOM_LANGUAGE_VALUE)).toBe(CUSTOM_LANGUAGE_VALUE);
   });
 
@@ -57,15 +52,12 @@ describe('book language labels', () => {
   it('judges tag validity without producing a message', () => {
     expect(isValidLanguageTag('zh-Hant')).toBe(true);
     expect(isValidLanguageTag('fr')).toBe(true);
-    // Empty means "unspecified", which is a legitimate choice.
     expect(isValidLanguageTag('')).toBe(true);
     expect(isValidLanguageTag('  ')).toBe(true);
 
     expect(isValidLanguageTag('not a tag')).toBe(false);
     expect(isValidLanguageTag('zh_Hant')).toBe(false);
 
-    // The verdict is locale-independent: it is the caller that renders a
-    // message, so a shown error follows a switch instead of freezing.
     setLocale('zh-Hant');
     expect(isValidLanguageTag('not a tag')).toBe(false);
   });

@@ -11,12 +11,6 @@ export function normalizeEpubImportPreset(value: unknown): EpubImportPreset {
   return DEFAULT_EPUB_IMPORT_STRATEGY.preset;
 }
 
-/**
- * Coerces an unknown value into a usable strategy. The server always sends a
- * complete object, but the setting is also read on paths where a stale or
- * partial value should degrade to the default rather than break the import
- * dialog.
- */
 export function normalizeEpubImportStrategy(raw: unknown): EpubImportStrategy {
   if (!raw || typeof raw !== 'object') {
     return { ...DEFAULT_EPUB_IMPORT_STRATEGY };
@@ -32,9 +26,6 @@ export function normalizeEpubImportStrategy(raw: unknown): EpubImportStrategy {
         : DEFAULT_EPUB_IMPORT_STRATEGY.include_description
   };
 
-  // Carried through rather than defaulted: the import dialog submits this
-  // object as an explicit strategy, so dropping the field here would turn a
-  // configured opt-out back into the server's default on every import.
   if (typeof data.keep_images === 'boolean') {
     strategy.keep_images = data.keep_images;
   }
