@@ -10,10 +10,6 @@ import {
 
 type PCloudFolderListing = Awaited<ReturnType<PCloudFolderClient['listFolder']>>;
 
-/**
- * A client backed by a folder-id keyed tree, standing in for the bridge to Go,
- * which leaves book packages out and decides which level is a shelf.
- */
 function fakeClient(tree: Record<number, PCloudFolderListing>) {
   const listFolder = vi.fn(async (folderid: number) => {
     const listing = tree[folderid];
@@ -44,7 +40,6 @@ function level(folders: Array<[string, number]>, isShelf = false): PCloudFolderL
   return { folders: folders.map(([name, folderid]) => ({ name, folderid })), isShelf };
 }
 
-// /PlainShelf/my-shelf is a shelf; /Photos is not.
 const TREE: Record<number, PCloudFolderListing> = {
   0: level([
     ['PlainShelf', 10],
@@ -89,10 +84,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(browser.isShelf.value).toBe(true);
   });
 
-  // A saved path can name a folder that was renamed, or one belonging to the
-  // account authorized before this one. The root has to stay browsable
-  // underneath the explanation, which is why the reason is not an error: the
-  // picker hides the folder list while one is set.
   it('falls back to a browsable root and explains why, when a path does not resolve', async () => {
     const client = fakeClient(TREE);
     const browser = usePCloudFolderBrowser(() => client);
@@ -115,8 +106,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(browser.notice.value).toBe('');
   });
 
-  // Otherwise the reason the saved path failed would be reported as though it
-  // were the reason the root could not be listed.
   it('reports a failed fallback listing on its own terms', async () => {
     const client = fakeClient(TREE);
     const browser = usePCloudFolderBrowser(() => client);
@@ -177,8 +166,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(browser.folders.value).toEqual([]);
   });
 
-  // Nothing between a failed listing and the alert region publishes the
-  // reference it minted.
   it('publishes the reference of a failed listing', async () => {
     const { incident, dismissIncident } = useErrorIncident();
     dismissIncident();
@@ -196,8 +183,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(incident.value).toMatch(/^c-/);
   });
 
-  // A reply the user has navigated away from lands nowhere, and its reference
-  // must not either.
   it('publishes nothing for a listing the user navigated away from', async () => {
     const { incident, dismissIncident } = useErrorIncident();
     dismissIncident();
@@ -222,8 +207,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(incident.value).toBe('');
   });
 
-  // Two taps in a row must not let the first, slower reply repaint the level
-  // the user has already moved past.
   it('drops the reply to a listing the user navigated away from', async () => {
     const client = fakeClient(TREE);
     const browser = usePCloudFolderBrowser(() => client);

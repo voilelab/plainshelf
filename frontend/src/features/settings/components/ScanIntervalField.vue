@@ -73,11 +73,6 @@ import {
 } from '@/features/settings/utils/scanInterval';
 import '@/styles/numeric-controls.css';
 
-// The scan-interval and book-check-interval fields are the same control — a
-// mode/amount/unit selection over a Go duration string, defaulting off (empty)
-// and offering an "always" (0s) mode — differing only in their label, help text
-// and test ids. The scan-interval keys are the defaults so the original call
-// site keeps its exact markup and copy.
 const props = withDefaults(
   defineProps<{
     modelValue: string;
@@ -104,24 +99,16 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 const { t } = useI18n();
 const modeId = `scan-interval-mode-${useId()}`;
 
-// The box and its two steppers name whichever interval this instance edits, so
-// the per-book field does not announce itself as the shelf-wide scan setting.
 const amountLabel = computed(() => t(props.amountLabelKey));
 const decreaseLabel = computed(() => t('common.decrease', { label: amountLabel.value }));
 const increaseLabel = computed(() => t('common.increase', { label: amountLabel.value }));
 
 const mode = ref<ScanIntervalMode>('default');
 const unit = ref<ScanIntervalUnit>('m');
-// The committed amount, always whole and in range, so nothing the box is in the
-// middle of can produce an invalid duration.
 const amount = ref(1);
-// What the box shows: the committed amount, except for the one tick that
-// redraws it after the user empties it.
 const draft = ref<number | null>(1);
 const adjustedFrom = ref('');
 
-// The largest amount that still fits Go's time.Duration in the chosen unit;
-// above it time.ParseDuration fails and the raw error would be back.
 const maxAmount = computed(() => maxScanIntervalAmount(unit.value));
 
 function clampAmount(value: number): number {
@@ -136,11 +123,7 @@ function setAmount(value: number): void {
   draft.value = value;
 }
 
-// reka commits on blur, Enter and the steppers rather than on every keystroke,
-// and reports `undefined` for an emptied box. There is nothing to build a
-// duration from then, so the committed amount stands and the box is redrawn
-// with it. The null tick is what makes that visible: reka refreshes the input
-// only when the formatted value changes, and it is already blank.
+// Reka UI 2.10.5 NumberField emits undefined for empty input; NumberFieldInput refreshes its DOM value when formatted textValue changes.
 async function onAmountUpdate(next: number | undefined): Promise<void> {
   if (next === undefined) {
     draft.value = null;
@@ -151,10 +134,7 @@ async function onAmountUpdate(next: number | undefined): Promise<void> {
   setAmount(clampAmount(next));
 }
 
-// `maxScanIntervalAmount` falls as the unit grows, so an amount that fits in
-// seconds can be past what hours can hold. reka clamps against `:max` only when
-// it applies a value of its own, so the new ceiling has to be carried here;
-// otherwise the box keeps showing a number the field would never save.
+// Reka UI 2.10.5 NumberField clamps applied values but does not watch max to reclamp an existing model.
 watch(unit, () => {
   const capped = clampAmount(amount.value);
   if (capped !== amount.value) {
@@ -176,12 +156,7 @@ const duration = computed(() =>
   scanIntervalFromSelection({ mode: mode.value, amount: amount.value, unit: unit.value })
 );
 
-// The value this field last sent up, so the round trip through the parent does
-// not reload (and renormalize) the controls while they are being edited.
 let emitted: string | null = null;
-// What the controls read as immediately after a load, consumed by the first
-// change they report, so the move a load itself causes is not mistaken for an
-// edit by the user.
 let loadedDuration: string | null = null;
 
 function load(stored: string): void {
@@ -191,9 +166,6 @@ function load(stored: string): void {
   setAmount(selection.amount);
   adjustedFrom.value = selection.adjustedFrom;
 
-  // The controls carry a single unit, so a stored `60s` or `1h30m` shows as one
-  // minute or ninety minutes. Push that reading straight back up, so what the
-  // field shows is exactly what a save would write.
   const canonical = scanIntervalFromSelection(selection);
   loadedDuration = canonical;
   if (canonical !== stored) {
@@ -220,7 +192,6 @@ watch(duration, (value) => {
       return;
     }
   }
-  // Whatever the stored value could not express, the user has now overridden.
   adjustedFrom.value = '';
   if (value !== props.modelValue) {
     emitted = value;

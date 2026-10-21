@@ -11,8 +11,6 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve));
 }
 
-// Mounts the composable inside a real router context and returns its handle
-// plus the router, so a test can drive navigation and read the active tab.
 async function setup(editable: boolean, initialPath = '/settings', wasmDemo = false) {
   const router: Router = createRouter({
     history: createMemoryHistory(),
@@ -55,16 +53,11 @@ describe('useSettingsTabs', () => {
   });
 
   it('honours ?tab=language on a read-only server', async () => {
-    // Language moved out of the top bar into Settings; it must stay reachable
-    // on the read-only mobile shell, so it lives outside EDITABLE_TABS.
     const { api, app } = await setup(false, '/settings?tab=language');
     expect(api.activeSettingsTab.value).toBe('language');
     app.unmount();
   });
 
-  // The device's own adult-content answer is the mirror image of `cover`: it is
-  // shown only where the server's `nsfw` tab is not, so one question never has
-  // two switches in front of a user whose server already decides it.
   it('honours ?tab=device-nsfw only on a client with no server settings', async () => {
     const readOnly = await setup(false, '/settings?tab=device-nsfw');
     expect(readOnly.api.activeSettingsTab.value).toBe('device-nsfw');
@@ -86,7 +79,6 @@ describe('useSettingsTabs', () => {
   });
 
   it('ignores a tab the current shell does not show', async () => {
-    // cover is editable-only; on a read-only server it falls back to default.
     const { api, app } = await setup(false, '/settings?tab=cover');
     expect(api.activeSettingsTab.value).toBe('shelves');
     app.unmount();
@@ -104,11 +96,6 @@ describe('useSettingsTabs', () => {
   });
 
   it('returns to shelves when the manage link is followed after a tab switch', async () => {
-    // The regression the fix guards: deep-link to Shelves, switch to Cover,
-    // then follow /settings?tab=shelves again. Because switching to Cover wrote
-    // ?tab=cover, the second navigation is a real query change and lands back
-    // on Shelves — rather than re-targeting the already-current URL and being
-    // ignored.
     const { api, router, app } = await setup(true, '/settings?tab=shelves');
 
     api.activeSettingsTab.value = 'cover';

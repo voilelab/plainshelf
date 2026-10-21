@@ -20,7 +20,6 @@ function fakeDemo(opts: { storage?: boolean; canPersist?: boolean; persisted?: b
       persisted = opts.grants ?? false;
       return persisted;
     }),
-    // What the Demo bar's own request looks like from here.
     grantElsewhere() {
       persisted = true;
       window.dispatchEvent(new CustomEvent('plainshelf-demo-persist'));

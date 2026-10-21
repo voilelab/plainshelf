@@ -64,13 +64,11 @@ import { useI18n } from '@/i18n';
 import { LanShare, type LanShareStatus } from '@/features/mobile/utils/lanShare';
 
 const props = defineProps<{
-  /** The device's local shelves; only these can be shared. */
   shelves: Array<{ id: string; name: string }>;
 }>();
 
 const { t } = useI18n();
 const status = ref<LanShareStatus | null>(null);
-/** Nothing is ticked until the user ticks it, as on the desktop. */
 const selected = ref<string[]>([]);
 const busy = ref(false);
 const error = ref('');
@@ -83,10 +81,6 @@ function apply(next: LanShareStatus): void {
   }
 }
 
-/**
- * A removed shelf leaves the share in Go but not this selection; pruned here,
- * or the next start would name a shelf that no longer exists.
- */
 watch(
   () => props.shelves,
   async (shelves) => {
@@ -141,7 +135,6 @@ function onStop(): Promise<void> {
   return run(() => LanShare.stop());
 }
 
-/** While running, a changed tick applies at once; unticking the last one stops. */
 function onSelectionChange(): Promise<void> | undefined {
   if (!status.value?.running) {
     return undefined;

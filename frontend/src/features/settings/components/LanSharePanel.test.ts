@@ -27,7 +27,6 @@ function offStatus(): DesktopLANShareStatus {
   };
 }
 
-// Plays the Go side: SetLANShare echoes what it was given back as the state.
 function installBinding(state: DesktopLANShareStatus) {
   const setLANShare = vi.fn(async (params: DesktopLANShareParams) => {
     state.enabled = params.enabled;
@@ -113,7 +112,6 @@ describe('LanSharePanel', () => {
 
     click(host, 'lan-share-enabled');
     await settle();
-    // Off keeps the selection for next time.
     expect(setLANShare).toHaveBeenLastCalledWith({
       enabled: false,
       host: '192.168.1.20',
@@ -132,7 +130,6 @@ describe('LanSharePanel', () => {
     click(host, 'lan-share-enabled');
     await settle();
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('address already in use');
-    // Re-read from Go rather than trusting the click.
     expect(getLANShare).toHaveBeenCalledTimes(2);
     expect(host.querySelector<HTMLInputElement>('[data-testid="lan-share-enabled"]')?.checked).toBe(
       false
@@ -148,7 +145,6 @@ describe('LanSharePanel', () => {
     await settle();
     expect(host.querySelector('[data-testid="lan-share-shelf-c"]')).toBeNull();
 
-    // A shelf added in the panel beside this one.
     state.shelves = [...state.shelves, { id: 'c', name: 'Shelf C', shared: false }];
     const { shelves } = useShelvesStore();
     shelves.value = [...shelves.value];

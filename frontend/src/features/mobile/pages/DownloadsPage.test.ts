@@ -73,9 +73,6 @@ describe('DownloadsPage', () => {
     expect(overview).toContain('10 B');
   });
 
-  // The provider withholds the books this device hides (see
-  // VisibleMobileBookCache), so the page's job is only to ask again when the
-  // answer changes — the list is otherwise fetched once, on mount.
   it('refetches when the device adult-content setting changes', async () => {
     mocks.listDownloadedBookEntries.mockResolvedValue([
       { book: book('plain'), sizeBytes: 10, downloadedAt: 1 }

@@ -99,10 +99,6 @@
           :disabled="addingShelf"
         />
       </div>
-      <!-- The two ways to place a shelf answer the question the single path box
-           left the user to guess: whether PlainShelf is about to create a folder
-           on their disk or open one they already have. Only the second branch
-           can be read-only, so the toggle lives inside it. -->
       <RadioGroupRoot
         v-model="newShelfLocationMode"
         class="shelf-location-modes"
@@ -275,9 +271,6 @@
         <ShelfReadOnlyField v-model="newShelfReadOnly" :disabled="addingShelf" />
       </template>
 
-      <!-- Previews what submitting would create: on the default branch the
-           folder that is actually sent as lib_root, and either way the id it
-           would be frozen with. -->
       <p v-if="newShelfLocationMode !== 'qr' && newShelfIDPreview" class="shelf-add-help shelf-id-preview">
         <span
           v-if="newShelfLocationMode === 'new' && newShelfEffectiveDirectory"
@@ -327,9 +320,6 @@
 
     <div v-if="shelvesLoading" class="setting-description">{{ t('layout.shelf.loading') }}</div>
     <template v-else>
-      <!-- With no shelf yet, creating one is the only thing this section can
-           do, so it is the section's primary button rather than a secondary
-           toggle under a table that is not there. -->
       <div v-if="shelves.length === 0" class="shelf-empty">
         <p class="setting-description">{{ t('settings.shelves.empty') }}</p>
         <button
@@ -420,12 +410,6 @@
     </div>
   </section>
 
-  <!-- The export is written by whatever serves these shelves, so the panel
-       belongs to the server and desktop shells and not to the mobile one,
-       which is the client that reads the file. serverSettingsEditable is that
-       platform question already: it is false on the mobile shell. It is
-       deliberately not the server's own read_only mode, which leaves these
-       panels rendered and disabled rather than dropping them. -->
   <section v-if="serverSettingsEditable" class="panel settings-group">
     <h3>{{ t('settings.bookCache.title') }}</h3>
     <p class="setting-description">{{ t('settings.bookCache.description') }}</p>
@@ -470,8 +454,6 @@ const { serverSettingsEditable } = useWriteAccess();
 const isDesktopEnv = computed(() => Boolean(getPlatformCapabilities().shelves));
 const isMobileEnv = computed(() => isMobileRuntime());
 
-// ConfirmModal resolves `initial-focus` as a selector inside its own panel, so
-// the field ids serve both the <label for> and the caret placement.
 const addShelfQRId = `shelf-add-qr-${useId()}`;
 const addShelfNameId = `shelf-add-name-${useId()}`;
 const addShelfDirectoryId = `shelf-add-directory-${useId()}`;
@@ -540,22 +522,8 @@ const {
   onSubmitModifyShelf
 } = useShelfManagement();
 
-/**
- * The shelves this export can write to.
- *
- * A read-only shelf is skipped rather than attempted: the server never writes
- * its cache file on its own account either, so the request is refused with 409
- * and — the loop being sequential — would abandon the shelves after it.
- */
 const exportableShelves = computed(() => shelves.value.filter((shelf) => !shelf.readOnly));
 
-/**
- * Rewrites every writable shelf's exported book cache.
- *
- * Sequential rather than concurrent: each call makes the server walk a shelf,
- * and on a network shelf several walks at once is exactly the load this cache
- * exists to avoid.
- */
 async function onExportBookCache(): Promise<void> {
   bookCacheError.value = '';
   bookCacheExported.value = false;

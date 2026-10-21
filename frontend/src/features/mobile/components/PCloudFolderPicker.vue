@@ -115,10 +115,8 @@ import { pcloudFolderClient } from '@/features/mobile/utils/pcloudSetup';
 
 const props = defineProps<{
   open: boolean;
-  /** Regional API host of the authorized account. */
   host: string;
   accessToken: string;
-  /** Where to start browsing; the account root when it does not resolve. */
   initialPath: string;
 }>();
 
@@ -131,9 +129,6 @@ const { t } = useI18n();
 
 const descriptionId = `pcloud-picker-path-${useId()}`;
 
-// Built per request rather than held: the form can re-authorize while the
-// picker is closed, and a client captured once would keep using the old token.
-// `open` is renamed: the prop of that name is what the template needs to see.
 const {
   trail,
   folders,
@@ -156,8 +151,6 @@ watch(
       void openAt(props.initialPath);
       return;
     }
-    // Nothing is on screen any more, so a listing still in flight has nowhere
-    // to land and would only spend the connection.
     close();
   },
   { immediate: true }

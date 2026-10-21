@@ -26,9 +26,6 @@ function stubBootConfig(bookID: string | null, section?: number): void {
   };
 }
 
-// A stand-in for the shared router: the same route names the app registers,
-// with placeholder components, so the guard is exercised against real
-// navigation rather than a mock.
 function newRouter(): Router {
   const blank = { template: '<div />' };
   const router = createRouter({
@@ -79,8 +76,6 @@ describe('reader router guards', () => {
     expect(router.currentRoute.value.fullPath).toBe(`/reader/${BOOK_ID}?section=3`);
   });
 
-  // The reader serves exactly one book, so a link to another id would 404
-  // against its own API rather than open anything.
   it('redirects a reader link for another book to the open one', async () => {
     const router = newRouter();
 
@@ -88,9 +83,6 @@ describe('reader router guards', () => {
     expect(router.currentRoute.value.params.id).toBe(BOOK_ID);
   });
 
-  // A reader launched for a chapter carries the section as the `?section=` deep
-  // link, so the standalone window opens on that chapter rather than the restored
-  // progress. Section 0 (the first chapter) is a real request and must be carried.
   it('carries the launch section into the reader route', async () => {
     for (const section of [3, 0]) {
       stubBootConfig(BOOK_ID, section);
@@ -103,8 +95,6 @@ describe('reader router guards', () => {
     }
   });
 
-  // Without a launch section the redirect stays query-free, so the reader opens
-  // at the restored progress just as a default read does.
   it('omits the section when none was requested', async () => {
     const router = newRouter();
 

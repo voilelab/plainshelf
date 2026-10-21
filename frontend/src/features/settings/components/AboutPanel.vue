@@ -67,7 +67,6 @@ interface BundledFont {
 const { t } = useI18n();
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
-// Under BASE_URL, so the licenses resolve where the bundle is served under a path.
 const licenseDir = `${import.meta.env.BASE_URL}licenses/`;
 
 const bundledFonts: BundledFont[] = [

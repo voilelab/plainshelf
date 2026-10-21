@@ -10,15 +10,9 @@ import {
   setLogRetentionDaysSetting,
   setShowNsfwSetting
 } from '@/api/settings';
-// The listing and the folder tree are module-level stores that outlive a route
-// change, so flipping show_nsfw has to refresh them explicitly — otherwise the
-// sidebar and a library page returned to keep showing the shelf the previous
-// setting produced.
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
-// Reading history and its retention limit are per-device state, not server settings.
 import { getReadHistoryLimit, setReadHistoryLimit } from '@/storage/readHistory';
-// The reader-launch preference is likewise per-device, not a server setting.
 import {
   getReaderLaunchMode,
   setReaderLaunchMode,
@@ -58,16 +52,6 @@ interface ServerSettingsForm {
   onSaveEpubImportStrategy: () => Promise<void>;
 }
 
-/**
- * The settings that live on the server (plus the device-local read-history
- * limit, which loads on every client) and the shared load/save state the
- * settings page uses to disable its controls while a request is in flight.
- *
- * The select handler takes the raw DOM event because it restores the control's
- * own value when a save fails, which needs the element itself. The number
- * fields and the cover switch render from their refs, so a failed save restores
- * them by putting the previous value back.
- */
 export function useServerSettingsForm(options: {
   serverSettingsEditable: Ref<boolean>;
 }): ServerSettingsForm {
@@ -84,9 +68,7 @@ export function useServerSettingsForm(options: {
   const readerLaunchMode = ref<ReaderLaunchMode>(getReaderLaunchMode());
   const epubPreset = ref<EpubImportPreset>(DEFAULT_EPUB_IMPORT_STRATEGY.preset);
   const epubIncludeDescription = ref(DEFAULT_EPUB_IMPORT_STRATEGY.include_description);
-  // Held only so saving another EPUB setting does not erase it. There is no
-  // control for it yet; it is configured through the API or the config file.
-  const epubKeepImages = ref<boolean | undefined>(undefined);
+  const preservedEpubKeepImages = ref<boolean | undefined>(undefined);
   const epubImportError = ref('');
 
   async function loadSettings(): Promise<void> {
@@ -94,11 +76,7 @@ export function useServerSettingsForm(options: {
     error.value = '';
 
     try {
-      // The retention limit is device-local, so it loads even where the
-      // server-only settings are not shown (the mobile shell).
       readHistoryLimit.value = await getReadHistoryLimit();
-      // The reader-launch preference is device-local too and available on every
-      // client, so re-read it here in case it changed in another tab.
       readerLaunchMode.value = getReaderLaunchMode();
       if (!serverSettingsEditable.value) {
         return;
@@ -124,7 +102,7 @@ export function useServerSettingsForm(options: {
   function hydrateEpubImportDraft(strategy: EpubImportStrategy): void {
     epubPreset.value = strategy.preset;
     epubIncludeDescription.value = strategy.include_description;
-    epubKeepImages.value = strategy.keep_images;
+    preservedEpubKeepImages.value = strategy.keep_images;
   }
 
   function onEpubPresetChange(preset: EpubImportPreset): void {
@@ -140,7 +118,7 @@ export function useServerSettingsForm(options: {
       await setEpubImportStrategySetting({
         preset: epubPreset.value,
         include_description: epubIncludeDescription.value,
-        ...(epubKeepImages.value === undefined ? {} : { keep_images: epubKeepImages.value })
+        ...(preservedEpubKeepImages.value === undefined ? {} : { keep_images: preservedEpubKeepImages.value })
       });
     } catch (err) {
       epubImportError.value = err instanceof Error ? err.message : t('settings.saveFailed');
@@ -158,9 +136,6 @@ export function useServerSettingsForm(options: {
     try {
       await setCoverToJpgSetting(nextValue);
     } catch (err) {
-      // The switch renders from this ref, so putting it back is the whole
-      // rollback — the native checkbox it replaced also needed its own DOM
-      // state restored, because the browser had already toggled it.
       coverToJpg.value = prevValue;
       error.value = err instanceof Error ? err.message : t('settings.saveFailed');
     } finally {
@@ -168,17 +143,6 @@ export function useServerSettingsForm(options: {
     }
   }
 
-  /**
-   * Unlike the other settings, this one changes which books the server serves at
-   * all, so storing it is only half the work: the shared listing and folder
-   * stores still hold the shelf the previous value produced, and they outlive
-   * this page. Refetching both here is what `useShelfRefresh` does after a
-   * rescan, and for the same reason.
-   *
-   * Only the store call is rolled back on failure — the refetch is not, because
-   * the stores report their own failures on the pages that render them, and
-   * putting the switch back would misstate what the server now serves.
-   */
   async function onShowNsfwChange(nextValue: boolean): Promise<void> {
     const prevValue = showNsfw.value;
     showNsfw.value = nextValue;
@@ -194,15 +158,17 @@ export function useServerSettingsForm(options: {
       return;
     }
 
-    const { fetchBooks } = useBookStore();
-    const { fetchFolders } = useFolderStore();
-    await Promise.all([fetchBooks(), fetchFolders()]);
+    await refreshBookAndFolderListings();
     saving.value = false;
   }
 
+  async function refreshBookAndFolderListings(): Promise<void> {
+    const { fetchBooks } = useBookStore();
+    const { fetchFolders } = useFolderStore();
+    await Promise.all([fetchBooks(), fetchFolders()]);
+  }
+
   async function onLogRetentionDaysChange(value: number): Promise<void> {
-    // The field clamps to the same bounds, so this only catches a value that
-    // reached the handler some other way; it never rejects what a user typed.
     const nextValue = parseLogRetentionDays(String(value));
     const prevValue = logRetentionDays.value;
     if (nextValue === null) {
@@ -225,8 +191,6 @@ export function useServerSettingsForm(options: {
   }
 
   async function onReadHistoryLimitChange(value: number): Promise<void> {
-    // As above: the field already refuses a negative or fractional limit, so
-    // this guard only covers a value that did not come from it.
     const nextValue = parseReadHistoryLimit(String(value));
     const prevValue = readHistoryLimit.value;
     if (nextValue === null) {
@@ -249,10 +213,6 @@ export function useServerSettingsForm(options: {
   }
 
   function onReaderLaunchModeChange(mode: ReaderLaunchMode): void {
-    // Device-local and synchronous: setReaderLaunchMode persists to localStorage
-    // (mirroring useAppZoom) with no server round-trip that could fail. The
-    // setter coerces any unexpected option back to the default, so mirror the
-    // stored result onto the local ref rather than the raw value.
     setReaderLaunchMode(mode);
     readerLaunchMode.value = getReaderLaunchMode();
     error.value = '';

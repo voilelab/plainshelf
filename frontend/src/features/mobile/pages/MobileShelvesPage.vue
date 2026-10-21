@@ -1,8 +1,5 @@
 <template>
   <div class="mobile-connect">
-    <!-- A device with no shelves has nothing to list, and the router sends every
-         route here until it has one — so show the form itself rather than an
-         empty state the user would have to tap through. -->
     <div v-if="ready && entries.length === 0" class="mobile-shelves-first-run">
       <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
       <section v-if="restorePrompt" class="mobile-shelves-restore panel" :aria-label="t('mobileShelves.restoreTitle')">
@@ -78,7 +75,6 @@
       <button type="button" class="button primary" @click="onAdd">
         {{ t('mobileShelves.add') }}
       </button>
-      <!-- Local shelves exist only in the native app, not the browser preview. -->
       <button v-if="canImport" type="button" class="button mobile-shelves-import" :disabled="busy" @click="onImport">
         {{ t('mobileShelves.importZip') }}
       </button>
@@ -143,7 +139,6 @@ const busy = ref(false);
 const error = ref('');
 const notice = ref('');
 const pendingRemoval = ref<ShelfEntry | null>(null);
-/** last_export per local shelf id, as the Go side records it. */
 const lastExports = ref<Record<string, string>>({});
 const canImport = Capacitor.isNativePlatform();
 const hasLocal = computed(() => entries.value.some((entry) => entry.type === 'local'));
@@ -152,7 +147,6 @@ const localShelves = computed(() =>
     entry.type === 'local' ? [{ id: entry.localShelfId, name: shelfEntryDisplayName(entry) }] : []
   )
 );
-/** Offered on a device with no shelf at all, as after a reinstall. */
 const restorePrompt = ref(false);
 
 onMounted(async () => {
@@ -163,14 +157,6 @@ onMounted(async () => {
   ready.value = true;
 });
 
-/**
- * Keeping the app's data across a reinstall keeps the entries and the native
- * shelves, so only a device with neither is offered a restore. Android backup
- * and device transfer carry the shelves but not the entries (Preferences are
- * excluded), so shelves found without entries are listed again.
- *
- * Returns true when the app is reloading.
- */
 async function firstRun(): Promise<boolean> {
   if (!canImport || entries.value.length > 0) {
     return false;
@@ -213,7 +199,6 @@ async function refresh(): Promise<void> {
       const { shelves } = await LocalShelf.listShelves();
       lastExports.value = Object.fromEntries(shelves.map((shelf) => [shelf.id, shelf.last_export ?? '']));
     } catch {
-      // Only the "last exported" line goes missing.
     }
   }
 }
@@ -231,7 +216,6 @@ function explain(err: unknown): string {
   return key ? t(key) : err instanceof Error ? err.message : String(err);
 }
 
-/** The zip goes wherever the user picks; last_export moves only once it is there. */
 async function onExport(entry: ShelfEntry): Promise<void> {
   if (entry.type !== 'local') {
     return;
@@ -255,7 +239,6 @@ async function onExport(entry: ShelfEntry): Promise<void> {
   }
 }
 
-/** Always a new shelf; the one in use stays in use and untouched. */
 async function onImport(): Promise<void> {
   busy.value = true;
   error.value = '';
@@ -276,7 +259,6 @@ async function onImport(): Promise<void> {
   }
 }
 
-/** The PSW-151 import, but the restored shelf is the only one, so it is opened. */
 async function onRestore(): Promise<void> {
   busy.value = true;
   error.value = '';
@@ -319,11 +301,6 @@ function detail(entry: ShelfEntry): string {
     : `${entry.serverUrl} · ${entry.shelfId}`;
 }
 
-// The query is carried across every navigation between the setup pages: saving
-// restarts the app from the current URL (reloadIntoApp), so a push that dropped
-// `?mobile-shell-preview=1` would leave the browser preview — and the e2e suite
-// built on it — restarting outside mobile mode. Native Capacitor is unaffected,
-// which is exactly what makes the loss silent.
 function onAdd(): void {
   void router.push({ name: 'mobile-shelf-add', query: route.query });
 }
@@ -348,7 +325,6 @@ async function onUse(entryID: string): Promise<void> {
   }
 }
 
-/** Go owns DAV scope normalization, including sharing across source types. */
 async function offlineScopeForEntry(entry: ShelfEntry): Promise<string | null> {
   if (entry.type === 'pcloud') {
     return cacheScopeKeyForEntry(entry);
@@ -362,11 +338,6 @@ async function offlineScopeForEntry(entry: ShelfEntry): Promise<string | null> {
   return null;
 }
 
-/**
- * Native local-shelf removal and Go offline cleanup run before dropping the
- * entry, so a failure remains retryable. Legacy TS cache files are swept after
- * the entry write; a failed sweep leaves only reclaimable cache data behind.
- */
 async function onRemove(): Promise<void> {
   const target = pendingRemoval.value;
   if (!target) {
@@ -378,7 +349,6 @@ async function onRemove(): Promise<void> {
   const wasActive = target.id === activeEntryID.value;
   try {
     if (target.type === 'local') {
-      // The books themselves, which the confirmation above names.
       const { shelves } = await LocalShelf.listShelves();
       if (shelves.some((shelf) => shelf.id === target.localShelfId)) {
         await LocalShelf.removeShelf({ id: target.localShelfId });
@@ -388,13 +358,10 @@ async function onRemove(): Promise<void> {
       const remaining = entries.value.filter((entry) => entry.id !== target.id);
       const cacheScope = cacheScopeKeyForEntry(target);
       const sharedCache = remaining.some((entry) => cacheScopeKeyForEntry(entry) === cacheScope);
-      // Keep the entry retryable if Go cannot stop a running download or
-      // remove its files. Credentials are still present until cleanup succeeds.
       if (target.type === 'pcloud' || target.type === 'dav') {
         const peers = remaining.filter((entry) => entry.type === target.type);
         const scopes = await Promise.all(peers.map(offlineScopeForEntry));
         const sharedOffline = peers.length > 0 && scopes.includes(await offlineScopeForEntry(target));
-        // Deleting one alias must not close the active alias or delete its books.
         if (!sharedOffline) {
           await LocalShelf.removeVirtualShelfOffline({
             scope: cacheScope,
@@ -410,8 +377,6 @@ async function onRemove(): Promise<void> {
     pendingRemoval.value = null;
     await refresh();
 
-    // The app was reading this shelf, so everything held in memory now belongs
-    // to a shelf that no longer exists.
     if (wasActive) {
       reloadIntoApp(entries.value.length > 0 ? '/books' : '/connect');
       return;

@@ -31,8 +31,6 @@ type Guard = (
   next: NavigationGuardNext
 ) => unknown;
 
-// Captures the guard `installMobileRouterGuards` registers so it can be invoked
-// with a synthetic destination, without standing up a real router.
 function captureGuard(): Guard {
   let guard: Guard | null = null;
   const router = {
@@ -47,8 +45,6 @@ function captureGuard(): Guard {
   return guard;
 }
 
-// The guard returns its verdict (a redirect location or `true`) rather than
-// calling `next`, so a no-op stands in for the unused navigation callback.
 function runGuard(guard: Guard, id: string, query: Record<string, string> = {}) {
   const to = {
     name: 'reader',

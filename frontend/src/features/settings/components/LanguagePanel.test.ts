@@ -4,10 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setLocale, useI18n } from '@/i18n';
 
-// Reka's Select portals its listbox and needs pointer gestures jsdom does not
-// model, so a thin stand-in stands in for it: SelectItem becomes a button that
-// forwards its value the way a real selection would, and a captured emitter
-// lets a test also probe the guard with a value the list never offers.
 const captured = vi.hoisted(() => ({ emit: null as null | ((value: unknown) => void) }));
 
 vi.mock('reka-ui', async () => {
@@ -85,8 +81,6 @@ describe('LanguagePanel', () => {
     setLocale('zh-Hant');
     await nextTick();
 
-    // reka-ui snapshots each item's text at mount; currentLabel is what keeps
-    // the trigger honest after a runtime switch.
     expect(trigger?.textContent?.trim()).toBe('繁體中文');
   });
 

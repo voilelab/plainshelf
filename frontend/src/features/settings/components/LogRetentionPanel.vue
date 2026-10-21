@@ -5,8 +5,6 @@
       <div>
         <label class="setting-label" :for="FIELD_ID">{{ t('settings.logRetention.label') }}</label>
         <p class="setting-description">{{ t('settings.logRetention.description') }}</p>
-        <!-- Deleting files is not something to leave a user guessing about, so
-             the panel says in words what the current number does. -->
         <p class="setting-description setting-effect">
           {{
             value === 0
@@ -68,19 +66,12 @@ const increaseLabel = computed(() =>
   t('common.increase', { label: t('settings.logRetention.label') })
 );
 
-// What the field shows, which is the stored value except while it is being
-// edited. Reka drives the input from this, so restoring it here is what redraws
-// the box.
 const draft = ref<number | null>(props.value);
 watch(() => props.value, (value) => {
   draft.value = value;
 });
 
-// reka reports `undefined` for an emptied box: there is no window to save, and
-// leaving it blank would sit over a still-active setting — and the steppers,
-// which read the box's text, would then start from the minimum instead of it.
-// The null tick is what makes the restore visible: reka refreshes the input
-// only when the formatted value changes, and it is already blank.
+// Reka UI 2.10.5 NumberField emits undefined for empty input; NumberFieldInput refreshes its DOM value when formatted textValue changes.
 async function onUpdate(next: number | undefined): Promise<void> {
   if (next === undefined) {
     draft.value = null;

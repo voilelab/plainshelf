@@ -1,8 +1,6 @@
 <template>
   <section class="panel settings-group">
     <h3>{{ t('settings.deviceNsfw.title') }}</h3>
-    <!-- Same row-as-label shape as NsfwPanel: the switch is a <button>, so
-         `for` is what makes a click on the description toggle it too. -->
     <label class="setting-item" :for="switchId">
       <div>
         <span :id="labelId" class="setting-label">
@@ -29,9 +27,6 @@ import { useId } from 'vue';
 import BaseSwitch from '@/components/BaseSwitch.vue';
 import { useI18n } from '@/i18n';
 
-// No `disabled` prop, unlike the server panels: this preference is written to
-// localStorage, so it is never waiting on a request and there is nothing to
-// disable it for.
 defineProps<{
   value: boolean;
 }>();

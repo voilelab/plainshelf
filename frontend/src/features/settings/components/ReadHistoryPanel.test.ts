@@ -6,8 +6,6 @@ import ReadHistoryPanel from './ReadHistoryPanel.vue';
 import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
-// Captured emits stay here rather than in the shared helper: what a component
-// reports is its own, and only this file knows what to do with it.
 function mountPanel(value: number, disabled = false) {
   const changes: number[] = [];
   const { host } = mount(ReadHistoryPanel, {
@@ -22,8 +20,7 @@ function field(host: HTMLElement): HTMLInputElement {
   return input;
 }
 
-// Reka's steppers act on pointerdown (so a press-and-hold repeats), not click.
-// Every stepper matches pointerup by pointerId, so the events need a real one.
+// Reka UI 2.10.5 NumberField steppers handle pointer press/hold and match pointerup by pointerId.
 const POINTER = { bubbles: true, button: 0, pointerId: 1, pointerType: 'mouse' };
 function press(host: HTMLElement, direction: 'increase' | 'decrease'): void {
   const buttons = host.querySelectorAll<HTMLButtonElement>('.number-field-step');
@@ -43,7 +40,6 @@ describe('ReadHistoryPanel', () => {
     const input = field(host);
     expect(input.value).toBe('20');
     expect(input.getAttribute('aria-valuemin')).toBe('0');
-    // The label is a real `<label for>`: reka's NumberFieldInput is an input.
     const label = host.querySelector<HTMLLabelElement>('label');
     expect(label?.htmlFor).toBe(input.id);
   });
@@ -60,8 +56,6 @@ describe('ReadHistoryPanel', () => {
     await nextTick();
     press(floorHost, 'decrease');
     await nextTick();
-    // A negative limit is not a state the server accepts, so the stepper is
-    // disabled at the floor rather than reporting one.
     expect(floorChanges).toEqual([]);
 
   });
@@ -77,13 +71,9 @@ describe('ReadHistoryPanel', () => {
     await nextTick();
     await nextTick();
 
-    // Nothing to save, and the box must not sit blank over a setting that is
-    // still in force.
     expect(changes).toEqual([]);
     expect(input.value).toBe('20');
 
-    // The steppers read the box's text, so a box left blank would step from the
-    // minimum instead of the stored value.
     press(host, 'increase');
     await nextTick();
     expect(changes).toEqual([21]);
@@ -103,10 +93,6 @@ describe('ReadHistoryPanel', () => {
   it('disables the whole field while a save is in flight', () => {
     const { host } = mountPanel(20, true);
 
-    // Reka pairs the native attribute with `data-disabled` on the input, both
-    // steppers and the surrounding box; numeric-controls.css styles the
-    // disabled state off the data attribute, which is the only one the box
-    // itself can carry.
     for (const element of [field(host), ...host.querySelectorAll('.number-field-step')]) {
       expect(element.hasAttribute('disabled')).toBe(true);
       expect(element.hasAttribute('data-disabled')).toBe(true);

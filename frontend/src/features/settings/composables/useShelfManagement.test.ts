@@ -2,9 +2,6 @@
 import { nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The composable resolves the shelf-ID preview and the reveal-in-Finder action
-// through the active bookshelf provider; hold a swappable provider so each case
-// controls what those bindings do (or whether they exist at all).
 const provider = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock('@/providers', () => ({ getBookshelfProvider: () => provider.value }));
 
@@ -69,9 +66,6 @@ describe('useShelfManagement default shelf directory', () => {
     return vi.fn(() => Promise.resolve({ id: 'novels', defaultPath }));
   }
 
-  // The point of the default: a shelf can be created from a name alone, and the
-  // path the dialog showed is the path that is written — the backend does not
-  // derive it a second time.
   it('submits the previewed default path when the user picks no directory', async () => {
     const addDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
@@ -124,8 +118,6 @@ describe('useShelfManagement default shelf directory', () => {
     );
   });
 
-  // The default path shares the preview's latest-wins token, so a slow response
-  // cannot repopulate the directory of a form that has since been cleared.
   it('drops a late default path after the form is reset', async () => {
     let resolveLate: ((value: { id: string; defaultPath: string }) => void) | undefined;
     provider.value = {
@@ -150,9 +142,6 @@ describe('useShelfManagement default shelf directory', () => {
     expect(newShelfEffectiveDirectory.value).toBe('');
   });
 
-  // The default belongs to the name it was derived from. Holding the previous
-  // answer across the next lookup would let a submit in that window create a
-  // shelf named for the new name under the old name's directory.
   it('drops the previous default while the next name is being previewed', async () => {
     let pending: ((value: { id: string; defaultPath: string }) => void) | undefined;
     provider.value = {
@@ -183,10 +172,6 @@ describe('useShelfManagement default shelf directory', () => {
     await vi.waitFor(() => expect(newShelfEffectiveDirectory.value).toBe('/shelves/poetry'));
   });
 
-  // shelf.NewShelf refuses to create lib_root for a read-only shelf, and the
-  // default names a directory that does not exist yet. The branch is what keeps
-  // the two apart now: read-only is only reachable where the user supplies a
-  // directory that already exists.
   it('never pairs the default directory with read-only', async () => {
     provider.value = {
       previewDesktopShelfID: previewing('/config/PlainShelf/shelves/novels'),
@@ -207,7 +192,6 @@ describe('useShelfManagement default shelf directory', () => {
     await nextTick();
     expect(newShelfEffectiveDirectory.value).toBe('/mnt/archive');
 
-    // Going back to the default branch drops the read-only choice with it.
     newShelfLocationMode.value = 'new';
     await nextTick();
     expect(newShelfReadOnly.value).toBe(false);
@@ -226,8 +210,6 @@ describe('useShelfManagement default shelf directory', () => {
     expect(canSubmitAddShelf.value).toBe(false);
   });
 
-  // Neither interval is asked for while creating a shelf; both keep the backend
-  // default and stay adjustable in the modify dialog.
   it('creates a shelf on the default branch with no intervals and read-only off', async () => {
     const addDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
@@ -273,8 +255,6 @@ describe('useShelfManagement default shelf directory', () => {
     );
   });
 
-  // Without this the submit reaches Go and comes back as
-  // `shelf directory must be an absolute path` (desktop/shelves.go).
   it('refuses a relative folder before it reaches the backend', async () => {
     const addDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
@@ -375,10 +355,6 @@ describe('useShelfManagement read-only shelves', () => {
     expect(newShelfReadOnly.value).toBe(false);
   });
 
-  // Loading the stored value is what keeps read-only reversible from the UI: a
-  // form that always opened unchecked would silently turn the shelf writable on
-  // an unrelated save, and one that could not send `false` would be a one-way
-  // door. Both directions have to reach the backend.
   it('loads a shelf read-only state into the modify form and sends the change back', async () => {
     const modifyDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
@@ -403,8 +379,6 @@ describe('useShelfManagement read-only shelves', () => {
 
     await requestModifyShelf({ id: 'archive', name: 'Archive' });
     expect(modifyShelfReadOnly.value).toBe(true);
-    // book_check_interval is loaded from the stored details so it round-trips
-    // rather than resetting to the default on an unrelated save.
     expect(modifyShelfBookCheckInterval.value).toBe('5m');
 
     modifyShelfReadOnly.value = false;
@@ -455,7 +429,6 @@ describe('useShelfManagement remote shelves', () => {
       remote
     });
     expect(m.showAddShelfModal.value).toBe(false);
-    // The secret does not outlive the form.
     expect(m.newShelfSourceSecret.value).toBe('');
   });
 
@@ -489,7 +462,6 @@ describe('useShelfManagement remote shelves', () => {
     await nextTick();
     expect(m.canSubmitAddShelf.value).toBe(true);
 
-    // An account's password is required, as Go refuses one without it.
     m.newShelfSourceUsername.value = 'reader';
     await nextTick();
     expect(m.canSubmitAddShelf.value).toBe(false);

@@ -13,9 +13,6 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-// Reka UI is used for real here: the point of these tests is the switch's own
-// DOM contract (role, aria-checked, the disabled button), which a stub would
-// invent rather than verify.
 describe('CoverPanel', () => {
   it('renders the setting as a switch that reflects the current value', () => {
     const { host } = mount(CoverPanel, { props: { value: true, disabled: false } });
@@ -23,7 +20,6 @@ describe('CoverPanel', () => {
     const control = host.querySelector('[role="switch"]');
     expect(control).not.toBeNull();
     expect(control?.getAttribute('aria-checked')).toBe('true');
-    // The old control was an <input type="checkbox">; nothing should render one.
     expect(host.querySelector('input[type="checkbox"]')).toBeNull();
   });
 
@@ -45,8 +41,6 @@ describe('CoverPanel', () => {
     const description = host.querySelector('p.setting-description');
 
     expect(host.querySelector('label.setting-item')?.getAttribute('for')).toBe(control?.id);
-    // Without these the accessible name would be the row's whole text, the
-    // description included.
     expect(control?.getAttribute('aria-labelledby')).toBe(title?.id);
     expect(control?.getAttribute('aria-describedby')).toBe(description?.id);
   });
@@ -55,9 +49,6 @@ describe('CoverPanel', () => {
     const onChange = vi.fn();
     const { host } = mount(CoverPanel, { props: { value: false, disabled: false, onChange } });
 
-    // The row was one big <label> around the checkbox, so anywhere in it
-    // toggled the setting. A switch is a <button>, and pointing the same label
-    // at it by id is what preserves that.
     host.querySelector<HTMLElement>('p.setting-description')?.click();
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith(true);
@@ -70,8 +61,6 @@ describe('CoverPanel', () => {
     const onChange = vi.fn();
     const { host } = mount(CoverPanel, { props: { value: false, disabled: false, onChange } });
 
-    // A label does nothing for clicks targeting interactive content inside it,
-    // so the switch does not also receive the label's synthetic click.
     host.querySelector<HTMLElement>('[role="switch"]')?.click();
 
     expect(onChange).toHaveBeenCalledTimes(1);
