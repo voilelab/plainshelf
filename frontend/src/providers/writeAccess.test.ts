@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import type { BookshelfProvider, BookshelfWriter } from './bookshelfProvider';
 
@@ -64,8 +64,6 @@ describe('bookshelfWriter', () => {
 
 describe('the write surface is optional on BookshelfProvider', () => {
   it('does not accept a plain provider as a writer', () => {
-    // @ts-expect-error a BookshelfProvider is not known to implement BookshelfWriter
-    const asWriter: BookshelfWriter = reader;
-    expect(asWriter).toBeDefined();
+    expectTypeOf<BookshelfProvider>().not.toMatchTypeOf<BookshelfWriter>();
   });
 });
