@@ -38,23 +38,11 @@ async function importEpub(page: Page): Promise<void> {
 
 async function openReader(page: Page): Promise<Page> {
   await page.locator('.book-list-row').getByRole('heading', { name: epubFixtureTitle, exact: true }).click();
-  // The web build opens the reader in a new tab. A popup inherits the browser
-  // context's default viewport, not this page's mobile override, so the caller
-  // must size the returned reader tab itself.
+  // Playwright 1.62.1 popups inherit the context viewport, not the opener's page override.
   return openReaderTab(page, () => page.getByRole('button', { name: 'Start reading' }).click());
 }
 
-// WebKit is the second engine the nightly runs (PSW-111), and it does not
-// expose a constructible `Touch`: `new Touch(...)` throws "Illegal
-// constructor" there. Its equivalents are the legacy `document.createTouch`
-// and `document.createTouchList`, which take *page* coordinates and return a
-// real `TouchList` — the same split Playwright makes inside its own
-// `dispatchEvent`. Chromium dropped both, so their presence is the switch.
-//
-// The whole gesture stays inside one `evaluate` on purpose: a tap is only a
-// tap while touchstart and touchend are under 350ms apart
-// (`MOBILE_READER_TAP_DURATION_MS`), which one protocol round-trip per event
-// would put at the mercy of a loaded runner.
+// Playwright 1.62.1 dispatchEvent uses createTouch/createTouchList with page coordinates on WebKit; new Touch throws Illegal constructor there (a2bf1cff).
 interface LegacyTouchDocument extends Document {
   createTouch(
     view: Window,
@@ -68,7 +56,7 @@ interface LegacyTouchDocument extends Document {
   createTouchList(...touches: Touch[]): TouchList;
 }
 
-async function dispatchTouch(
+async function dispatchTouchGesture(
   target: Locator,
   points: Array<{ x: number; y: number }>,
   pointerId = 1
@@ -121,18 +109,6 @@ async function dispatchTouch(
   }, { gesturePoints: points, identifier: pointerId });
 }
 
-/*
-What is left here is the part no lower level reaches: a real TouchEvent, in a
-real engine, driving a real EPUB that was imported through the API and written
-to a shelf on disk. Everything this case used to assert about the reader's own
-behaviour — the hint and its timer, the chrome toggling, gesture classification,
-the keyboard guards, the toolbar's contents, the boundary messages — is pinned
-in MobileReaderView.test.ts, mobileReaderGestures.test.ts, ReaderView.test.ts
-and useReaderPresentation.test.ts, where none of it needs a browser. The CSS it
-asserted (the font-size hop, the code block's touch-action, the 44px controls)
-is in frontend/scripts/check-style-contracts.mjs; the geometry it asserted is in
-the manual table in docs/development/testing-levels.md.
-*/
 test('drives the mobile reader with real touch gestures', async ({ page }) => {
   const { baseUrl } = getServer();
 
@@ -140,8 +116,6 @@ test('drives the mobile reader with real touch gestures', async ({ page }) => {
   await page.goto(`${baseUrl}/books`);
   await importEpub(page);
   const reader = await openReader(page);
-  // The reader opened in its own tab; give it the mobile viewport this test
-  // exercises (the popup inherited the context's desktop default).
   await reader.setViewportSize({ width: 390, height: 844 });
 
   const mobileReader = reader.locator('[data-reader-variant="mobile"]');
@@ -151,16 +125,12 @@ test('drives the mobile reader with real touch gestures', async ({ page }) => {
   expect(box).not.toBeNull();
   const center = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
 
-  // A tap in the centre band is the only way to the chrome, and the chapter
-  // counter in it is how the rest of this case reads the reader's position.
-  await dispatchTouch(mobileReader, [center, center]);
+  await dispatchTouchGesture(mobileReader, [center, center]);
   await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
   await expect(mobileReader.getByText('1 / 3')).toBeVisible();
   await expect(mobileReader.getByText(epubFixtureDescription)).toBeVisible();
 
-  // Right to left turns the page forward, and the chapter that arrives is the
-  // one the importer converted out of the EPUB.
-  await dispatchTouch(mobileReader, [
+  await dispatchTouchGesture(mobileReader, [
     { x: box!.x + box!.width * 0.8, y: center.y },
     { x: box!.x + box!.width * 0.5, y: center.y + 4 },
     { x: box!.x + box!.width * 0.2, y: center.y + 6 }
@@ -168,7 +138,7 @@ test('drives the mobile reader with real touch gestures', async ({ page }) => {
   await expect(mobileReader.getByText('2 / 3')).toBeVisible();
   await expect(mobileReader.getByRole('heading', { name: epubFixtureChapters[0] })).toBeVisible();
 
-  await dispatchTouch(mobileReader, [
+  await dispatchTouchGesture(mobileReader, [
     { x: box!.x + box!.width * 0.2, y: center.y },
     { x: box!.x + box!.width * 0.5, y: center.y },
     { x: box!.x + box!.width * 0.8, y: center.y }

@@ -25,10 +25,6 @@ test.afterAll(() => {
   }
 });
 
-/**
- * Opens the import modal and selects the EPUB without importing yet, so the
- * caller can inspect or change the conversion options first.
- */
 async function openImportWithEpub(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: /^Import/ }).click();
   await page.getByRole('menuitem', { name: 'Import from files' }).click();
@@ -58,15 +54,10 @@ async function openImportedBookInReader(page: Page): Promise<Page> {
   await bookTitle.click();
 
   await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  // The web build opens the reader in a new tab.
   return openReaderTab(page, () => page.getByRole('button', { name: 'Start reading' }).click());
 }
 
 test('should import an EPUB and name its sections after the table of contents', { tag: '@smoke' }, async ({ page }) => {
-  // per-test server: the imported book's title comes from the fixture's fixed
-  // dc:title ("Hello EPUB"), which cannot be made unique per test without
-  // editing the shared EPUB fixture. The "1 books" count and the by-title reader
-  // lookup below both require a pristine shelf, so this test keeps its own server.
   const server = await startServer();
 
   try {
@@ -76,23 +67,18 @@ test('should import an EPUB and name its sections after the table of contents', 
 
     const dialog = await openImportWithEpub(page);
 
-    // The conversion options only appear once an EPUB is selected.
     await expect(dialog.getByText('EPUB Conversion')).toBeVisible();
 
     await runImport(dialog);
 
     await expect(page.getByText('1 books')).toBeVisible();
-    // The book's own dc:title wins over the filename.
     const readerPage = await openImportedBookInReader(page);
 
     const reader = readerPage.getByRole('article');
 
-    // A header section plus one section per chapter.
     await expect(reader.getByText('1 / 3')).toBeVisible();
     await expect(reader.getByText(epubFixtureDescription)).toBeVisible();
 
-    // The default Markdown preset stores the chapter names as H2. The heading
-    // remains in the body and the reader does not add a duplicate synthetic title.
     const sectionTitle = reader.locator('.reader-nav-title');
 
     await reader.getByRole('button', { name: 'Next' }).click();

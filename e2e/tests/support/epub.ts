@@ -1,11 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-/**
- * Builds an EPUB fixture at test time instead of committing a binary blob, so
- * the archive's contents stay readable in a diff. Everything below is stored
- * uncompressed, which keeps the writer small and is perfectly valid ZIP.
- */
 
 interface ZipEntry {
   name: string;
@@ -32,7 +27,7 @@ function crc32(buffer: Buffer): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function buildZip(entries: ZipEntry[]): Buffer {
+function buildStoredZipFixture(entries: ZipEntry[]): Buffer {
   const localParts: Buffer[] = [];
   const centralParts: Buffer[] = [];
   let offset = 0;
@@ -44,36 +39,36 @@ function buildZip(entries: ZipEntry[]): Buffer {
 
     const localHeader = Buffer.alloc(30);
     localHeader.writeUInt32LE(0x04034b50, 0);
-    localHeader.writeUInt16LE(20, 4); // version needed
-    localHeader.writeUInt16LE(0, 6); // flags
-    localHeader.writeUInt16LE(0, 8); // method: stored
-    localHeader.writeUInt16LE(0, 10); // mod time
-    localHeader.writeUInt16LE(0, 12); // mod date
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(0, 6);
+    localHeader.writeUInt16LE(0, 8);
+    localHeader.writeUInt16LE(0, 10);
+    localHeader.writeUInt16LE(0, 12);
     localHeader.writeUInt32LE(crc, 14);
     localHeader.writeUInt32LE(size, 18);
     localHeader.writeUInt32LE(size, 22);
     localHeader.writeUInt16LE(nameBuffer.length, 26);
-    localHeader.writeUInt16LE(0, 28); // extra length
+    localHeader.writeUInt16LE(0, 28);
 
     localParts.push(localHeader, nameBuffer, entry.body);
 
     const centralHeader = Buffer.alloc(46);
     centralHeader.writeUInt32LE(0x02014b50, 0);
-    centralHeader.writeUInt16LE(20, 4); // version made by
-    centralHeader.writeUInt16LE(20, 6); // version needed
-    centralHeader.writeUInt16LE(0, 8); // flags
-    centralHeader.writeUInt16LE(0, 10); // method: stored
-    centralHeader.writeUInt16LE(0, 12); // mod time
-    centralHeader.writeUInt16LE(0, 14); // mod date
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(0, 8);
+    centralHeader.writeUInt16LE(0, 10);
+    centralHeader.writeUInt16LE(0, 12);
+    centralHeader.writeUInt16LE(0, 14);
     centralHeader.writeUInt32LE(crc, 16);
     centralHeader.writeUInt32LE(size, 20);
     centralHeader.writeUInt32LE(size, 24);
     centralHeader.writeUInt16LE(nameBuffer.length, 28);
-    centralHeader.writeUInt16LE(0, 30); // extra length
-    centralHeader.writeUInt16LE(0, 32); // comment length
-    centralHeader.writeUInt16LE(0, 34); // disk number start
-    centralHeader.writeUInt16LE(0, 36); // internal attributes
-    centralHeader.writeUInt32LE(0, 38); // external attributes
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(0, 38);
     centralHeader.writeUInt32LE(offset, 42);
 
     centralParts.push(centralHeader, nameBuffer);
@@ -84,13 +79,13 @@ function buildZip(entries: ZipEntry[]): Buffer {
   const central = Buffer.concat(centralParts);
   const end = Buffer.alloc(22);
   end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(0, 4); // disk number
-  end.writeUInt16LE(0, 6); // disk with central directory
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
   end.writeUInt16LE(entries.length, 8);
   end.writeUInt16LE(entries.length, 10);
   end.writeUInt32LE(central.length, 12);
   end.writeUInt32LE(offset, 16);
-  end.writeUInt16LE(0, 20); // comment length
+  end.writeUInt16LE(0, 20);
 
   return Buffer.concat([...localParts, central, end]);
 }
@@ -151,12 +146,9 @@ const epubEntries: ZipEntry[] = [
   }
 ];
 
-/**
- * Writes the EPUB fixture into dir and returns its path.
- */
 export function writeEpubFixture(dir: string, filename = 'hello.epub'): string {
   const filePath = path.join(dir, filename);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(filePath, buildZip(epubEntries));
+  fs.writeFileSync(filePath, buildStoredZipFixture(epubEntries));
   return filePath;
 }

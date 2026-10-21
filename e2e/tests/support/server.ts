@@ -10,26 +10,11 @@ import { serverBinaryEnvVar } from './globalSetup';
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const serverStartupTimeoutMs = 30_000;
 const serverShutdownTimeoutMs = 10_000;
-/**
- * How many times a server start may pick a fresh port after losing a race for
- * the previous one. See {@link portTakenMarker}.
- */
 const serverStartAttempts = 3;
-/**
- * The server logs this and then *keeps running* without a listener, so a lost
- * port race looks like a healthy process that never answers /health. Matching
- * the line turns a 30-second timeout into an immediate retry.
- */
 const portTakenMarker = 'bind: address already in use';
-/**
- * Per-probe cap on the /health request. `fetch` has no timeout of its own, so a
- * port held by a process that accepts and never answers would stop the poll
- * loop ticking and `serverStartupTimeoutMs` would never be reached — the run
- * failing much later with a bare "beforeAll hook timeout".
- */
+// Node 22 fetch has no overall request deadline; AbortSignal.timeout bounds the health probe independently of transport timeouts.
 const healthProbeTimeoutMs = 2_000;
-/** How many times a busy temp shelf may be re-tried before teardown fails. */
-const tempRootRemovalAttempts = 5;
+const tempRootRemovalRetries = 4;
 
 export type ServerEnv = {
   baseUrl: string;
@@ -38,26 +23,13 @@ export type ServerEnv = {
   dispose: () => Promise<void>;
 };
 
-/**
- * Base of the port bands handed out below. Above the privileged range and
- * below Linux's ephemeral range (32768+), so a band never overlaps a port the
- * kernel might hand to something else on the machine.
- */
 const portBandBase = 21_000;
-/** Ports per worker. Bands are disjoint, so two workers cannot collide. */
 const portBandSize = 100;
 
-/**
- * Playwright numbers its workers 0..workers-1 and reuses the number when a
- * worker is replaced, so it is a stable band index rather than a run counter.
- * Absent (a plain `node` caller, or a spec run outside the runner) means one
- * server at a time, which band 0 serves.
- */
-const parallelIndex = Number(process.env.TEST_PARALLEL_INDEX ?? 0);
-/** Rotates within the band so a restart rarely lands on the port just freed. */
+// Playwright 1.62.1 preserves TEST_PARALLEL_INDEX when replacing a worker (lib/runner/index.js and workerProcessEntry.js).
+const workerParallelIndex = Number(process.env.TEST_PARALLEL_INDEX ?? 0);
 let nextPortOffset = 0;
 
-/** Resolves true when nothing holds `port`, false when the bind is refused. */
 async function canBind(port: number): Promise<boolean> {
   const probe = net.createServer();
   const bound = await new Promise<boolean>((resolve) => {
@@ -71,20 +43,9 @@ async function canBind(port: number): Promise<boolean> {
   return true;
 }
 
-/**
- * Picks a port from this worker's own band.
- *
- * Asking the kernel for port 0 would be shorter, but it makes the port a
- * lottery across the whole machine: two workers can be handed the same number,
- * and the loser then finds a *healthy* /health answer on it — the other
- * worker's server, over the other worker's shelf. A per-worker band removes
- * the collision instead of detecting it. Within one worker, starts are
- * sequential and a live server still holds its port, so the bind probe is
- * enough to keep two of them apart.
- */
-async function getFreePort(): Promise<number> {
+async function getWorkerBandPort(): Promise<number> {
   for (let tried = 0; tried < portBandSize; tried++) {
-    const port = portBandBase + parallelIndex * portBandSize + (nextPortOffset % portBandSize);
+    const port = portBandBase + workerParallelIndex * portBandSize + (nextPortOffset % portBandSize);
     nextPortOffset = (nextPortOffset + 1) % portBandSize;
     if (await canBind(port)) {
       return port;
@@ -92,8 +53,8 @@ async function getFreePort(): Promise<number> {
   }
 
   throw new Error(
-    `No free port in the E2E band ${portBandBase + parallelIndex * portBandSize}` +
-      `-${portBandBase + (parallelIndex + 1) * portBandSize - 1} for worker ${parallelIndex}.`
+    `No free port in the E2E band ${portBandBase + workerParallelIndex * portBandSize}` +
+      `-${portBandBase + (workerParallelIndex + 1) * portBandSize - 1} for worker ${workerParallelIndex}.`
   );
 }
 
@@ -137,7 +98,6 @@ function buildConfigYAML(port: number, shelfDir: string, storeDir: string): stri
   ].join('\n');
 }
 
-/** Distinguishes a lost port race, which is worth retrying, from a real failure. */
 class PortTakenError extends Error {
   constructor(baseUrl: string) {
     super(`Another process holds the port of ${baseUrl}; retrying with a new one.`);
@@ -162,12 +122,8 @@ async function waitForServer(baseUrl: string, server: ChildProcess, logs: string
       });
       healthy = response.ok && (await response.text()).trim() === '1';
     } catch {
-      // Server is still starting.
     }
 
-    // After the probe, not only before it: a healthy answer on a port we lost
-    // comes from *another worker's* server, and taking it would quietly hand
-    // two workers the same shelf. Our own process reports the lost bind here.
     if (logs.join('').includes(portTakenMarker)) {
       throw new PortTakenError(baseUrl);
     }
@@ -224,41 +180,15 @@ async function stopServer(server: ChildProcess): Promise<void> {
   }
 }
 
-/**
- * Deletes a temp shelf, tolerating a directory that is still busy.
- *
- * The server is gone by the time this runs, but its last writes are not
- * necessarily visible to `rm` yet, and the whole-suite failure recorded in
- * `docs/development/agent/lessons.md` was exactly that: `ENOTEMPTY … rmdir
- * '<tmp>/shelf/app'`, landing on a different spec each run. Parallel workers
- * multiply the chances, so retry briefly instead of failing a green spec in
- * teardown.
- */
 async function removeTempRoot(tempRoot: string): Promise<void> {
-  // `fs.rm`'s own maxRetries only covers EBUSY/EMFILE/ENFILE/ENOTEMPTY/EPERM
-  // on Windows, so the backoff has to be ours.
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await fs.rm(tempRoot, { recursive: true, force: true });
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      const retryable = code === 'ENOTEMPTY' || code === 'EBUSY' || code === 'EPERM';
-      if (!retryable || attempt >= tempRootRemovalAttempts) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, attempt * 100));
-    }
-  }
+  await fs.rm(tempRoot, {
+    recursive: true,
+    force: true,
+    maxRetries: tempRootRemovalRetries,
+    retryDelay: 100
+  });
 }
 
-/**
- * Starts one server on its own port, over its own temp shelf and store.
- *
- * Every call is independent, which is what lets `playwright.config.ts` run
- * fully parallel: no state is shared between two of these, not even the
- * directory names.
- */
 export async function startServer(): Promise<ServerEnv> {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -281,13 +211,10 @@ async function startServerOnce(): Promise<ServerEnv> {
   await fs.mkdir(shelfDir, { recursive: true });
   await fs.mkdir(storeDir, { recursive: true });
 
-  const port = await getFreePort();
+  const port = await getWorkerBandPort();
   const baseUrl = `http://127.0.0.1:${port}`;
   await fs.writeFile(configPath, buildConfigYAML(port, shelfDir, storeDir), 'utf8');
 
-  // globalSetup compiles the server once and publishes its path here, so a
-  // server start is just a process spawn. Without it (e.g. a spec run that
-  // bypasses globalSetup), fall back to `go run` so the helper stays usable.
   const serverBinary = process.env[serverBinaryEnvVar];
   const command = serverBinary ?? 'go';
   const args = serverBinary
@@ -327,41 +254,22 @@ async function startServerOnce(): Promise<ServerEnv> {
   };
 }
 
-/**
- * Registers one server for the whole spec file: `beforeAll` starts it and
- * `afterAll` disposes of it, so every test in the file shares the same
- * pre-built server (and its temp shelf/store) instead of paying for a fresh
- * boot each time. Call it once at the top level of a spec file and read the
- * environment inside each test through the returned accessor:
- *
- * ```ts
- * const getServer = useServer();
- * test('...', async ({ page }) => {
- *   const { baseUrl } = getServer();
- * });
- * ```
- *
- * The shared shelf persists across the file's tests, so each test must use its
- * own book and folder names rather than assuming an empty shelf. A spec that
- * genuinely needs a pristine server per test should keep calling
- * {@link startServer} directly and say why in a comment.
- */
 export function useServer(): () => ServerEnv {
-  let env: ServerEnv | undefined;
+  let workerServer: ServerEnv | undefined;
 
   test.beforeAll(async () => {
-    env = await startServer();
+    workerServer = await startServer();
   });
 
   test.afterAll(async () => {
-    await env?.dispose();
-    env = undefined;
+    await workerServer?.dispose();
+    workerServer = undefined;
   });
 
   return () => {
-    if (!env) {
+    if (!workerServer) {
       throw new Error('useServer() accessor read before beforeAll ran; call it at the spec top level.');
     }
-    return env;
+    return workerServer;
   };
 }

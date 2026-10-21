@@ -5,10 +5,6 @@ import { MISSING_KEY_PATTERN, useLocale } from './support/locale';
 
 const getServer = useServer();
 
-// t() returns the key itself on a miss — no throw, no warning — so a typo'd or
-// not-yet-added key reaches the screen as a literal dotted path. That failure
-// is invisible to the catalog tests, because the catalogs are fine; it is the
-// reference that is wrong.
 test('no missing-key paths leak into the rendered page', async ({ page }) => {
   const { baseUrl } = getServer();
 

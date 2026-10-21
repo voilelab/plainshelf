@@ -1,8 +1,5 @@
 name: Release
 
-# Builds every release artifact. publish-release.yml calls it with publish: true
-# after a release PR merges; a manual run builds the same artifacts and
-# publishes nothing. See docs/development/releasing.md.
 on:
   workflow_dispatch:
     inputs:
@@ -320,7 +317,6 @@ jobs:
   docker:
     name: Build and push Docker image
     needs: [prepare, test, release]
-    # release is skipped on a non-publishing build; build the image anyway.
     if: ${{ !cancelled() && !failure() }}
     runs-on: ubuntu-latest
     permissions:
@@ -378,7 +374,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
-          # Tags, to find the previous release for the PR list.
+          # actions/checkout@v7 fetches one commit and no tags by default (action README).
           fetch-depth: 0
 
       - name: Download packages
@@ -402,8 +398,7 @@ jobs:
           REF: ${{ inputs.ref }}
         run: ./scripts/release-notes.sh "$VERSION" "$REF" > release-notes.md
 
-      # Creates the tag on the built commit. A tag pushed with GITHUB_TOKEN
-      # starts no workflow, so nothing else reacts to it.
+      # GitHub Actions does not start workflows from tag-push events performed with GITHUB_TOKEN (Triggering a workflow).
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:

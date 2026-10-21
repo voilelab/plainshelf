@@ -25,7 +25,6 @@ test('creates a nested folder level by level and filters books by exact folder',
   await expect(folderRow(page, 'ftnested')).toBeVisible();
   await expect(folderRow(page, 'ftnested-scifi')).toBeVisible();
 
-  // Sibling order persists without changing either directory's parent.
   await addFolder(page, 'ftorder-a');
   await addFolder(page, 'ftorder-b');
   await page.getByRole('button', { name: 'Reorder folders', exact: true }).click();
@@ -55,14 +54,10 @@ test('creates a nested folder level by level and filters books by exact folder',
     page.locator('.book-list-row').getByRole('heading', { name: 'ft-nested-book', exact: true })
   ).toBeVisible();
 
-  // "ftnested" itself has no directly-attached books (only its "ftnested-scifi" child does).
   await selectFolder(page, 'ftnested');
   await expect(page.getByText('No books in ftnested.')).toBeVisible();
 });
 
-// Merged with the icon flow (PSW-180) rather than added beside it: folder.json
-// lives in the folder directory, so the rename is also what proves the icon
-// travels with it.
 test('renames a folder, keeping its icon and updating the tree and the active URL filter', async ({ page }) => {
   const { baseUrl } = getServer();
 
@@ -92,7 +87,6 @@ test('renames a folder, keeping its icon and updating the tree and the active UR
   await expect(folderRow(page, 'ftrenamed')).toBeVisible();
   await expect(page).toHaveURL(foldersQueryRegex('ftrenamed'));
 
-  // Read back from the server, not the store this page wrote it into.
   await page.reload();
   await expect(folderRow(page, 'ftrenamed').locator('[data-folder-icon="rocket"]')).toBeVisible();
 
@@ -164,7 +158,6 @@ test('moves a book into a folder via drag and drop', async ({ page }) => {
   await expect(
     page.locator('.book-card-view').getByRole('heading', { name: 'ft-dnd-book', exact: true })
   ).toBeVisible();
-  // Folder-scoped count: only this test's book was moved into ftreading.
   await expect(page.getByText('1 books')).toBeVisible();
 
   await selectAllBooks(page);

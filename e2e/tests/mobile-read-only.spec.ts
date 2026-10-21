@@ -9,16 +9,6 @@ import {
   showMobileReaderControls
 } from './support/mobile';
 
-// The Android app is a read-only reading client. These tests run the desktop
-// Chromium build with `?mobile-shell-preview=1`, which makes isMobileRuntime()
-// true — the same switch the native Capacitor shell flips — so the routing
-// guard, the hidden write affordances, and the API-client rejection are all
-// exercised without an emulator.
-//
-// Books are imported in the ordinary desktop flow first: importing is a write,
-// which the mobile client no longer performs. The server (and its shelf) is
-// shared across this file's tests, so each test imports its own uniquely-named
-// book.
 
 const getServer = useServer();
 
@@ -50,18 +40,11 @@ test('keeps reading routes reachable', { tag: '@smoke' }, async ({ page }) => {
 
   for (const [route, pattern] of [
     ['/home', /\/home/],
-    // The old /dashboard path still resolves via a redirect, so an existing
-    // bookmark or link keeps working and lands on the renamed home route.
     ['/dashboard', /\/home/],
     ['/books', /\/books/],
     ['/read-history', /\/read-history/],
     ['/downloads', /\/downloads/],
     ['/settings', /\/settings/],
-    // The former "missing X" maintenance routes are now read-only book-list
-    // filters. They redirect through `library`, which the mobile shell keeps
-    // reachable, so these conditions are available on mobile by design. The
-    // filter param can sit anywhere in the query once LibraryPage normalizes
-    // page/sort/order in, so match it position-independently.
     ['/books/maintenance/missing-author', /\/books\?[^#]*author=none/],
     ['/books/maintenance/missing-cover', /\/books\?[^#]*cover=none/],
     ['/books/maintenance/missing-language', /\/books\?[^#]*language=none/]
@@ -80,17 +63,13 @@ test('hides write affordances in the library and on book detail', { tag: '@smoke
   const bookId = await getBookIdByTitle(page, 'readonly-affordances');
 
   await reopenMobileAt(page, baseUrl, '/books');
-  // Shelf editing and server log controls are unavailable on mobile.
   await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add folder' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Logs' })).toHaveCount(0);
-  // Downloads is a local-device action and must survive — now reached from the
-  // bottom tab bar, the mobile shell's primary nav, rather than the drawer.
   await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Downloads' })).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Library' })).toHaveCount(1);
-  // The banner is for a read-only *server*, not for this platform.
   await expect(page.locator('.read-only-banner')).toHaveCount(0);
 
   await reopenMobileAt(page, baseUrl, `/books/${bookId}`);
@@ -104,30 +83,19 @@ test('rejects a write from the mobile client but still records reading on the de
   await page.goto(`${baseUrl}/books`);
   await importBookAs(page, helloFixturePath, 'readonly-write');
 
-  // Take the token the way a user would (the server prints it at startup) and
-  // enter it in the connect form, so it comes from Capacitor Preferences —
-  // the only source a real APK has. Relying on the server-injected
-  // window.__PLAINSHELF_SECURITY__ would pass even with the mobile token
-  // wiring removed entirely.
-  const serverToken = await page.evaluate(
+  const bootstrapTokenForMobileConnection = await page.evaluate(
     () =>
       (window as unknown as { __PLAINSHELF_SECURITY__?: { token?: string } })
         .__PLAINSHELF_SECURITY__?.token ?? ''
   );
-  expect(serverToken).not.toBe('');
+  expect(bootstrapTokenForMobileConnection).not.toBe('');
 
-  await connectMobile(page, baseUrl, { token: serverToken });
+  await connectMobile(page, baseUrl, { token: bootstrapTokenForMobileConnection });
   const bookId = await getBookIdByTitle(page, 'readonly-write');
   await reopenMobileAt(page, baseUrl, '/books');
 
-  // main.ts installs the hook only after awaiting initMobileConfig(), so it
-  // is not present the instant `load` fires. Without this wait the evaluate
-  // below can read an undefined hook and pass vacuously.
   await page.waitForFunction(() => Boolean(window.__plainshelfTestHooks));
 
-  // The shelf write surface is absent on this provider, not merely refused:
-  // asserting on a thrown message alone would now pass on a TypeError from
-  // calling a method that does not exist, which proves nothing.
   const updateBookType = await page.evaluate(
     () =>
       typeof (window.__plainshelfTestHooks?.provider as unknown as { updateBook?: unknown })
@@ -135,8 +103,6 @@ test('rejects a write from the mobile client but still records reading on the de
   );
   expect(updateBookType).toBe('undefined');
 
-  // And asking for a writer is refused rather than handed one out. api/client.ts
-  // still rejects any mutating request that reaches it; this is the layer above.
   const writeResult = await page.evaluate(() => {
     const hooks = window.__plainshelfTestHooks;
     if (!hooks) {
@@ -151,14 +117,8 @@ test('rejects a write from the mobile client but still records reading on the de
   });
   expect(writeResult).toContain('read-only');
 
-  // The mobile client requires a book to be downloaded before it can be read,
-  // so download it first — otherwise the reader route redirects to the book's
-  // detail page and the reading assertions below never run.
   await downloadBookViaHook(page, bookId);
 
-  // Opening the reader records read history and reading time on the device
-  // (no request at all — both are stored in app-private storage). Reading
-  // progress is automatic, so no manual bookmark action remains.
   const deviceStateRequests: string[] = [];
   page.on('request', (request) => {
     const url = request.url();
@@ -169,15 +129,9 @@ test('rejects a write from the mobile client but still records reading on the de
   await reopenMobileAt(page, baseUrl, `/reader/${bookId}`);
   await showMobileReaderControls(page);
   await expect(page.getByRole('button', { name: /bookmark/i })).toHaveCount(0);
-  // The history entry is written while the reader is still loading, and the
-  // device store is asynchronous (app-private files), so wait for the load to
-  // finish before navigating away — otherwise the assertion below races the
-  // in-flight write.
   await expect(page.getByText('Loading content...')).toHaveCount(0);
   expect(deviceStateRequests).toEqual([]);
 
-  // Read history survives the reload reopenMobileAt performs, proving it was
-  // persisted rather than held in memory.
   await reopenMobileAt(page, baseUrl, '/read-history');
   await expect(page.getByRole('heading', { name: 'readonly-write', exact: true }).first()).toBeVisible();
 });

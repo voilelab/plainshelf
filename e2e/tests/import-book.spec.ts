@@ -41,8 +41,6 @@ test('should import a markdown book from the UI and render it as formatted markd
   );
 
   await expect(reader.getByRole('heading', { name: 'import-md-render', exact: true })).toBeVisible();
-  // Markdown source must be rendered as formatted content, so the "#" heading
-  // marker becomes an actual heading element rather than literal text.
   await expect(reader.getByRole('heading', { name: 'Hello Markdown' })).toBeVisible();
   await expect(reader.getByText('# Hello Markdown')).not.toBeVisible();
   await expect(reader.getByText('This text came from a real uploaded MD file.')).toBeVisible();
@@ -51,8 +49,6 @@ test('should import a markdown book from the UI and render it as formatted markd
 test('should render allow-listed HTML without executing or loading active content', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
   const externalRequests: string[] = [];
-  // The reader renders in a new tab on the web build, so watch the whole browser
-  // context rather than only this page for any active-content fetch.
   page.context().on('request', (request) => {
     if (request.url().startsWith('https://example.com/')) externalRequests.push(request.url());
   });
