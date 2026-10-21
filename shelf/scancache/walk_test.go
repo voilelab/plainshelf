@@ -101,15 +101,15 @@ func walkTree(t *testing.T, cache *Cache, root fsutil.ReadFS, start string) (map
 	w := cache.NewWalk()
 	found := map[string]bool{}
 
-	var dfs func(pth string, child *DirChild, trusted bool)
-	dfs = func(pth string, child *DirChild, trusted bool) {
+	var dfs func(pth string, child *DirChild, parentListingReused bool)
+	dfs = func(pth string, child *DirChild, parentListingReused bool) {
 		isDir, err := ChildIsDir(root, pth, child)
 		if err != nil || !isDir {
 			return
 		}
 		found[pth] = true
 
-		children, childrenTrusted, err := w.ReadDir(root, pth, trusted)
+		children, childrenTrusted, err := w.ReadDir(root, pth, parentListingReused)
 		if err != nil {
 			t.Fatalf("ReadDir(%q): %v", pth, err)
 		}
@@ -119,7 +119,7 @@ func walkTree(t *testing.T, cache *Cache, root fsutil.ReadFS, start string) (map
 	}
 
 	dfs(start, nil, true)
-	return found, w.Install(true)
+	return found, w.Install()
 }
 
 func TestScanCacheFindsChildAddedUnderReusedParent(t *testing.T) {
@@ -259,5 +259,45 @@ func TestScanCacheNeverPairsANewerMtimeWithAnOlderListing(t *testing.T) {
 	found, _ := walkTree(t, cache, f, "books")
 	if !found["books/Fiction/Poetry"] {
 		t.Errorf("a child added between Stat and ReadDir was not found by the next walk")
+	}
+}
+
+func TestScanCacheDoesNotReuseZeroDirectoryModTime(t *testing.T) {
+	f := newFakeFS()
+	f.mkdir("books", time.Time{})
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+	if _, stats := walkTree(t, cache, f, "books"); stats.ReadDirs != 1 || stats.ReusedDirs != 0 {
+		t.Errorf("zero mtime walk = %+v, want one listing and no reuse", stats)
+	}
+}
+
+func TestAbandonKeepsThePreviousSnapshotAndReportsWalkStats(t *testing.T) {
+	originalModTime := time.Now().Add(-time.Minute)
+	f := newFakeFS()
+	f.mkdir("books", originalModTime)
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+
+	f.mkdir("books/new", time.Now().Add(-time.Minute))
+	f.touch("books", time.Now().Add(-30*time.Second))
+	w := cache.NewWalk()
+	children, reused, err := w.ReadDir(f, "books", true)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(children) != 1 || reused {
+		t.Fatalf("ReadDir = %+v, reused %v, want the changed listing", children, reused)
+	}
+	stats := w.Abandon()
+	if stats.Dirs != 1 || stats.ReadDirs != 1 || stats.Duration <= 0 || cache.LastStats() != stats {
+		t.Errorf("Abandon stats = %+v, last stats = %+v", stats, cache.LastStats())
+	}
+	if got := cache.dirs["books"]; len(got.Children) != 0 || !got.ModTime.Equal(originalModTime) {
+		t.Errorf("abandoned walk replaced the previous snapshot: %+v", got)
+	}
+
+	if found, stats := walkTree(t, cache, f, "books"); !found["books/new"] || stats.ReadDirs == 0 {
+		t.Errorf("walk after abandonment = %v, stats = %+v, want the new directory found by listing", found, stats)
 	}
 }
