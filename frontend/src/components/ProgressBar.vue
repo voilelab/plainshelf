@@ -5,8 +5,6 @@
     :model-value="value"
     :get-value-label="() => label"
   >
-    <!-- modelValue is the value ProgressRoot validated, so an out-of-range
-         value renders as indeterminate instead of an oversized fill. -->
     <ProgressIndicator
       class="progress-bar-fill"
       :style="typeof modelValue === 'number' ? { width: `${modelValue}%` } : undefined"
@@ -18,7 +16,6 @@
 import { ProgressIndicator, ProgressRoot } from 'reka-ui';
 
 defineProps<{
-  // null renders an animated bar for work whose size is not known yet.
   value: number | null;
   label?: string;
 }>();

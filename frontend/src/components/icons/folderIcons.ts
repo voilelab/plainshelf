@@ -1,10 +1,3 @@
-/**
- * The folder icons a user may pick, keyed by the name folder.json stores. The
- * server owns the list (shelf.FolderIcons); internal/repocheck fails when the
- * two differ, so a name is added in both places or neither.
- *
- * Imported one by one, like registry.ts, so only these icons reach the bundle.
- */
 import type { Component } from 'vue';
 import IconAlien from '~icons/tabler/alien';
 import IconAtom from '~icons/tabler/atom';
@@ -90,18 +83,14 @@ const FOLDER_ICONS: Readonly<Record<string, Component>> = {
   world: IconWorld
 };
 
-/** The names in FOLDER_ICONS, in the server's order. */
 export const FOLDER_ICON_NAMES: readonly string[] = Object.keys(FOLDER_ICONS);
 
-/** The icon a folder without a usable one of its own shows. */
 export const DEFAULT_FOLDER_ICON = 'folder';
 
-/** The icon a stored name draws as: itself when offered, the default otherwise. */
 export function shownFolderIcon(name: string | undefined): string {
   return name !== undefined && Object.hasOwn(FOLDER_ICONS, name) ? name : DEFAULT_FOLDER_ICON;
 }
 
-/** The component for a name shownFolderIcon returned. */
 export function folderIconComponent(shown: string): Component {
   return FOLDER_ICONS[shown] ?? FOLDER_ICONS[DEFAULT_FOLDER_ICON];
 }

@@ -77,8 +77,6 @@ const displayError = computed(() =>
 );
 
 async function focusNameInput(): Promise<void> {
-  // ConfirmModal focuses its confirm button one tick after `open` flips, so wait
-  // a second tick to land after it. Same approach as RenameFolderModal.
   await nextTick();
   await nextTick();
   nameInput.value?.focus();

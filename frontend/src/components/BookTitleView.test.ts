@@ -31,17 +31,11 @@ describe('BookTitleView download state', () => {
   });
 });
 
-// The end-to-end case here drove Enter and then Space on a focused row and
-// expected the book to open. Both are the browser's own behavior for a button
-// and neither is for a div with a click handler, so what actually has to hold
-// is that the row is a button — which is also what puts it in the tab order and
-// gives a screen reader something to announce.
 describe('BookTitleView row activation', () => {
   it('renders each row as a button, so it is focusable and keyboard-operable', () => {
     const row = mountTitles([book({ title: 'Solaris' })]).querySelector('.book-title-row');
 
     expect(row?.tagName).toBe('BUTTON');
-    // type=button: inside a form a submit button would navigate instead.
     expect(row?.getAttribute('type')).toBe('button');
     expect(row?.hasAttribute('disabled')).toBe(false);
   });
@@ -50,7 +44,6 @@ describe('BookTitleView row activation', () => {
     const host = mountTitles([book({ id: 'book-1' })]);
     const row = host.querySelector('.book-title-row');
 
-    // Not selectable: no pressed state to announce at all.
     expect(row?.getAttribute('aria-pressed')).toBeNull();
   });
 });

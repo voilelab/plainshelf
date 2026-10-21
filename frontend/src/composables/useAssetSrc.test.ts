@@ -72,8 +72,6 @@ describe('useAssetSrc', () => {
     scope.stop();
   });
 
-  // Two illustrations of the same file in one chapter must share one blob, and
-  // the blob must survive until the last of them is gone.
   it('shares one object URL across consumers and revokes it at the last release', async () => {
     getSourceAssetMock.mockResolvedValue(new Blob(['shared'], { type: 'image/png' }));
 
@@ -102,9 +100,6 @@ describe('useAssetSrc', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith(a.src.value);
   });
 
-  // Leaving the chapter before a large illustration arrives must not strand
-  // the blob: nothing would ever release a URL created after the last holder
-  // let go.
   it('revokes a blob created after the last holder released', async () => {
     let settle!: (blob: Blob) => void;
     getSourceAssetMock.mockReturnValue(
@@ -122,7 +117,6 @@ describe('useAssetSrc', () => {
       );
     });
 
-    // Gone before the fetch settles.
     scope.stop();
 
     settle(new Blob(['late'], { type: 'image/png' }));

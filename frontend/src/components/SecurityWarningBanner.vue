@@ -50,18 +50,10 @@ import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 
-// The deployment guide that explains the loopback-only default and how to add
-// an authentication boundary. Kept as a GitHub blob URL because the docs are
-// not published to a website yet.
 const DOCS_URL = 'https://github.com/voilelab/plainshelf/blob/main/docs/development/docker.md';
 
-// Read once at setup: the flag is injected into the page before the bundle runs
-// and never changes for the life of the document.
 const show = isInsecurePublicAccess();
 
-// Collapsing only minimizes the banner to a persistent badge, and the state is
-// component-local so a reload brings the full warning back. There is
-// deliberately no "dismiss forever": the point is that it cannot be silenced.
 const collapsed = ref(false);
 </script>
 

@@ -46,9 +46,7 @@ function onUpdateOpen(value: boolean): void {
 }
 
 function onEscapeKeyDown(event: Event): void {
-  // Always consume the key event so the native desktop folder (e.g. macOS
-  // fullscreen) does not also react to ESC. Because Reka UI checks
-  // defaultPrevented to decide whether to dismiss, we close manually.
+  // Reka UI 2.10.5 DismissableLayer suppresses dismissal when the Escape event is prevented.
   event.preventDefault();
   if (!props.busy && props.dismissible) {
     emit('close');

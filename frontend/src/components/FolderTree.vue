@@ -50,11 +50,6 @@
       v-model:expanded="expanded"
     >
       <ContextMenuRoot v-for="item in flattenItems" :key="item._id">
-        <!-- The synthetic / node cannot be renamed, moved, or deleted, but it
-             still owns top-level folder creation. -->
-        <!-- Open on a read-only shelf only when it still holds something that
-             shelf allows: copying the folder out. Every item below states its
-             own condition, so the trigger is not what keeps writes off it. -->
         <ContextMenuTrigger as-child :disabled="readOnly && !canTransferFolder">
           <TreeItem
             v-slot="{ isExpanded, handleToggle }"
@@ -204,7 +199,6 @@ const props = defineProps<{
   readOnly?: boolean;
   canOpenFolder?: boolean;
   canTransferFolder?: boolean;
-  /** Each folder's folder.json by path; an absent folder shows the default icon. */
   folderMeta?: Record<string, FolderMeta>;
 }>();
 
@@ -240,7 +234,6 @@ function orderNeighbor(path: string, direction: number): string | undefined {
 function stepOrder(path: string, direction: number): void {
   const neighbor = orderNeighbor(path, direction);
   if (!neighbor) return;
-  // Moving down is equivalent to moving the next sibling before this one.
   void saveOrder(
     direction < 0 ? path : neighbor,
     direction < 0 ? neighbor : path
@@ -292,12 +285,7 @@ const bookCountByFolder = computed(() => {
   return counts;
 });
 
-/**
- * A leaf's `children` is always an empty array (never undefined), but Reka's
- * TreeItem treats "children is an array" (even empty) as "has children" for
- * `aria-expanded` purposes. Returning `undefined` for empty arrays keeps
- * leaf nodes free of `aria-expanded`, matching the original markup.
- */
+// Reka UI 2.10.5 TreeItem treats an empty children array as expandable; leaves require undefined.
 function getChildren(node: FolderNode): FolderNode[] | undefined {
   return node.children.length > 0 ? node.children : undefined;
 }
@@ -323,12 +311,6 @@ function findNodeByPath(nodes: FolderNode[], path: string): FolderNode | undefin
   return undefined;
 }
 
-/**
- * Drive Reka's selection model from the app's selected folder so
- * aria-selected always matches the actual navigation state. Label clicks
- * bypass TreeItem's built-in select (@click.stop), and keyboard selection
- * would otherwise leave Reka's uncontrolled model stale.
- */
 const selectedTreeNode = computed(() =>
   props.selected ? findNodeByPath(props.nodes, props.selected) : undefined
 );
@@ -345,8 +327,6 @@ function folderIcon(node: FolderNode): string {
   return props.folderMeta?.[node.path]?.icon ?? '';
 }
 
-// A folder.json the server will not rewrite keeps its icon, so the dialog that
-// would only end in a refusal is not offered.
 function canChangeIcon(node: FolderNode): boolean {
   return canManageFolder(node) && !props.readOnly && !props.folderMeta?.[node.path]?.readOnly;
 }
@@ -544,7 +524,6 @@ function readDraggedBookIDs(dataTransfer: DataTransfer | null): { ids: string[];
       const ids = JSON.parse(raw);
       if (Array.isArray(ids)) return { ids: [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))], batch: true };
     } catch {
-      // Fall back to the legacy single-book drag payload.
     }
   }
   const single = dataTransfer.getData('application/x-plainshelf-book-id');

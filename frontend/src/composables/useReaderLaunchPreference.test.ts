@@ -45,9 +45,6 @@ describe('setReaderLaunchMode / getReaderLaunchMode', () => {
     expect(window.localStorage.getItem('reader-launch-mode')).toBe('new-reader');
   });
 
-  // The getter reads straight from storage, so a value written by another tab
-  // (here, a direct localStorage write) is picked up rather than a stale cached
-  // ref — the cross-tab case the Codex review flagged.
   it('reflects a value written directly to storage by another tab', () => {
     window.localStorage.setItem('reader-launch-mode', 'in-window');
 

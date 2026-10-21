@@ -41,23 +41,18 @@ afterEach(() => {
 });
 
 describe('SecurityWarningBanner', () => {
-  // The three security postures the ticket names, expressed as what the Go
-  // server injects for each: only "none + non-loopback" carries the flag.
   it('shows the warning for mode none bound to a non-loopback address', () => {
     setInjectedSecurity({ insecurePublicAccess: true });
     const host = mountBanner();
 
     const panel = host.querySelector('.security-warning__panel');
     expect(panel).not.toBeNull();
-    // The text names the consequence, not the config key.
     expect(host.textContent).toContain('read, change, and delete');
-    // And links to the deployment guide.
     const link = host.querySelector<HTMLAnchorElement>('.security-warning__link');
     expect(link?.getAttribute('href')).toContain('docs/development/docker.md');
   });
 
   it('stays hidden for mode none bound to loopback (nothing injected)', () => {
-    // A loopback none injects no bootstrap at all.
     setInjectedSecurity(undefined);
     const host = mountBanner();
     expect(host.querySelector('.security-warning')).toBeNull();
@@ -76,7 +71,6 @@ describe('SecurityWarningBanner', () => {
     host.querySelector<HTMLButtonElement>('.security-warning__collapse')!.click();
     await nextTick();
 
-    // Collapsed: the full panel is gone but a badge remains — never nothing.
     expect(host.querySelector('.security-warning__panel')).toBeNull();
     expect(host.querySelector('.security-warning__badge')).not.toBeNull();
 

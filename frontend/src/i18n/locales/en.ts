@@ -39,8 +39,6 @@ const en = {
     label: 'Language',
     en: 'English',
     zhHant: '繁體中文',
-    // The language a book is written in, distinct from the two keys above,
-    // which name the UI locale and stay in their own endonym either way.
     book: {
       unspecified: 'Unspecified',
       zhHant: 'Chinese (Traditional)',
@@ -67,8 +65,6 @@ const en = {
     inFolder: ' in {folder}',
     taskStartFailed: 'Failed to start the task',
     taskPollFailed: 'Failed to read task progress',
-    // Names the stepper buttons of a number field; {label} is the field's own
-    // label, so two fields side by side do not read as the same button.
     decrease: 'Decrease {label}',
     increase: 'Increase {label}'
   },
@@ -152,9 +148,6 @@ const en = {
     moveFolder: {
       failed: 'Failed to move folder. Drag a folder onto an existing target folder.'
     },
-    // The change takes a folder out of a subtree shelf.json marks as adult
-    // content. folderOnly covers the count of 0, which is a real case: an empty
-    // marked folder discloses itself by its name alone.
     folderReveal: {
       title: 'Make hidden content visible?',
       bookCount:
@@ -1395,9 +1388,6 @@ const en = {
       delete: 'Delete',
       deleteLabel: 'Delete source {id}'
     },
-    // A source without a stored format predates source-level format metadata.
-    // The badge shows the format otherwise, uppercased, which needs no catalog
-    // entry.
     format: {
       legacy: 'Legacy'
     },
@@ -1432,9 +1422,6 @@ const en = {
         next: 'Next',
         replace: 'Replace',
         replaceAll: 'Replace all',
-        // The catalog has no pluralization, so counted nouns that can be one
-        // or many get a key per form. Replacing that with a "(s)" suffix would
-        // have made the English worse than it was before it was translated.
         noMatches: 'No matches.',
         matchOrdinal: 'Match {ordinal} of {total}.',
         matchCount: '{total} matches.',
@@ -1444,8 +1431,6 @@ const en = {
         replacedOneThenMatch: 'Replaced 1 occurrence. Match {ordinal} of {total}.',
         replacedOneThenCount: 'Replaced 1 occurrence. {total} matches.',
         invalidRegexp: 'That regular expression is not valid.',
-        // Spoken by the editor's own live region when a command moves or
-        // replaces a match; the visible status line above stays separate.
         announce: {
           currentMatch: 'Current match',
           onLine: 'on line',

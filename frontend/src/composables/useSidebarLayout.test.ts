@@ -9,15 +9,7 @@ import {
   SIDEBAR_MODE_STORAGE_KEY
 } from '@/utils/sidebarMode';
 
-// The sidebar chrome used to be pinned by five end-to-end cases that measured
-// the rendered panel in a real browser. Everything they actually asserted —
-// which mode is active, what is persisted, which width comes back, whether the
-// rail hides itself behind the narrow-viewport drawer — is state this composable
-// owns, so it is checked here instead. The 48px itself is a CSS constraint fed
-// from RAIL_SIDEBAR_WIDTH; what matters below is that the panel is told to go
-// there.
 
-/** Minimal stand-in for reka-ui's SplitterPanel instance methods. */
 function fakePanel(initialWidth: number) {
   const resizes: number[] = [];
   let width = initialWidth;
@@ -31,10 +23,6 @@ function fakePanel(initialWidth: number) {
   };
 }
 
-/**
- * Drives useIsNarrowViewport, which reads window.matchMedia. jsdom has no
- * implementation, so the composable would otherwise be permanently wide.
- */
 function stubMatchMedia(initialMatches: boolean) {
   const listeners = new Set<(event: MediaQueryListEvent) => void>();
   let matches = initialMatches;
@@ -118,7 +106,6 @@ describe('useSidebarLayout mode', () => {
     await api.toggleSidebarMode();
     expect(window.localStorage.getItem(SIDEBAR_MODE_STORAGE_KEY)).toBe('rail');
 
-    // A reload is a second composable over the same storage.
     active?.app.unmount();
     active = null;
     const reloaded = await mountSidebar();
@@ -127,9 +114,6 @@ describe('useSidebarLayout mode', () => {
   });
 
   it('restores the width the panel was dragged to before railing', async () => {
-    // Railing resizes the panel to 48px, which overwrites reka's own auto-saved
-    // layout — so the expanded width has to be remembered separately or a drag
-    // followed by railing loses it.
     const { api, panel } = await mountSidebar({ panelWidth: 280 });
 
     await api.toggleSidebarMode();
@@ -147,8 +131,6 @@ describe('useSidebarLayout mode', () => {
 
     active?.app.unmount();
     active = null;
-    // The reload starts railed at 48px; expanding must not fall back to the
-    // default width.
     const reloaded = await mountSidebar({ panelWidth: RAIL_SIDEBAR_WIDTH });
     await reloaded.api.toggleSidebarMode();
 
@@ -156,8 +138,6 @@ describe('useSidebarLayout mode', () => {
   });
 
   it('ignores a width below the expanded minimum instead of storing it', async () => {
-    // getSize() reports the rail width during a mid-drag toggle; storing it
-    // would make "expanded" 48px wide on the next visit.
     const { api } = await mountSidebar({ panelWidth: RAIL_SIDEBAR_WIDTH });
 
     await api.toggleSidebarMode();
@@ -175,7 +155,6 @@ describe('useSidebarLayout narrow viewport', () => {
 
     await media.set(true);
 
-    // The drawer shows the full sidebar, so the rail must not render inside it.
     expect(api.isRailSidebar.value).toBe(true);
     expect(api.showRailNav.value).toBe(false);
 

@@ -34,13 +34,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'not-found'
 ]);
 
-// A route that edits the shelf, administers the server, or opens a write
-// surface from a query parameter also belongs in
-// features/mobile/utils/blockedRoutes.ts — the mobile shell is a read-only
-// reading client, and the guard that shell installs (shells/mobile/routerGuard)
-// is what keeps it that way.
 const router = createRouter({
-  // BASE_URL is "/" except where the bundle is served under a path, as the wasm demo is.
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
@@ -72,11 +66,6 @@ const router = createRouter({
           component: DashboardPage
         },
         {
-          // The home page was called "dashboard" before it was reframed as the
-          // library's landing page. Old bookmarks and in-app links keep working
-          // by redirecting here; the incoming query is preserved (like the
-          // /import redirect below) so a carried flag such as
-          // ?mobile-shell-preview=1 survives.
           path: 'dashboard',
           redirect: (to) => ({ path: '/home', query: { ...to.query } })
         },
@@ -127,11 +116,6 @@ const router = createRouter({
           name: 'downloads',
           component: DownloadsPage
         },
-        // The dedicated "missing X" pages are gone: each condition is now a
-        // book-list filter, so these paths redirect to the library query that
-        // expresses them. Old links and bookmarks keep working. The incoming
-        // query is preserved (like the /import redirect above) so a carried flag
-        // such as ?mobile-shell-preview=1 survives the redirect.
         {
           path: 'books/maintenance/missing-author',
           redirect: (to) => ({ path: '/books', query: { ...to.query, author: 'none' } })
@@ -155,12 +139,6 @@ const router = createRouter({
           component: SettingsPage
         },
         {
-          // Lowest-ranked pattern in the table, so it only matches what nothing
-          // else did. Without it an unknown URL renders the shell around an
-          // empty <RouterView>, which reads as a broken app rather than a bad
-          // address. It lives under MainLayout so the sidebar stays usable, and
-          // the mobile shell's shelf gate still applies to it: an unconfigured
-          // mobile shell is sent to /connect instead.
           path: ':pathMatch(.*)*',
           name: 'not-found',
           component: NotFoundPage

@@ -5,7 +5,6 @@ import { createShelfInitRetry, isShelfInitializing } from './shelfInitRetry';
 import type { Book } from '@/types/book';
 import { t } from '@/i18n';
 
-// Module-level singleton: shared across all components that call useBookStore()
 const books = ref<Book[]>([]);
 const loading = ref(false);
 const error = ref('');
@@ -27,8 +26,6 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
   try {
     const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER);
     books.value = data.items;
-    // Also clears a retry an overlapping load armed: the shelf answered, so
-    // that retry has nothing left to wait for.
     initRetry.reset();
     shelfInitializing.value = false;
     shelfUnreachable.value = false;
@@ -47,10 +44,6 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
       : err instanceof Error ? err.message : t('library.loadFailed');
     error.value = msg;
   } finally {
-    // A pending retry keeps the page in its loading state rather than flashing
-    // an error between attempts. Keyed on the retry itself, not on the
-    // initializing flag, which an overlapping load can leave set with no retry
-    // behind it.
     if (!initRetry.pending) {
       loading.value = false;
     }

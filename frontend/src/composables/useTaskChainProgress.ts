@@ -8,27 +8,15 @@ const DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS = 500;
 
 interface UseTaskChainProgressOptions {
   intervalMs?: number;
-  // onSettled runs once the chain reaches a terminal status, for callers that
-  // need to refresh whatever the task changed.
   onSettled?: (status: TaskStatus) => void | Promise<void>;
   startFailedMessage?: () => string;
   pollFailedMessage?: () => string;
 }
 
-/**
- * useTaskChainProgress tracks a background task chain by polling the read-only
- * task chain API until it settles.
- *
- * The server has no streaming channel, so polling is the only way to observe a
- * chain's progress.
- */
 export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) {
   const intervalMs = options.intervalMs ?? DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS;
 
   const taskChainId = ref<string | null>(null);
-  // submitting covers the window between asking for the work and learning its
-  // chain ID. The task is already under way then, so the caller must be able to
-  // treat it as running before an ID exists.
   const submitting = ref(false);
   const status = ref<TaskStatus>('pending');
   const percentage = ref(0);
@@ -36,7 +24,6 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
   const chain = ref<TaskChain | null>(null);
 
   let timer: ReturnType<typeof setTimeout> | null = null;
-  // generation invalidates an in-flight submission when reset lands first.
   let generation = 0;
 
   const started = computed(() => submitting.value || taskChainId.value !== null);
@@ -76,7 +63,6 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
 
     try {
       const nextChain = await bookshelfWriter().getTaskChain(polling);
-      // A reset or a new chain during the request makes this response stale.
       if (taskChainId.value !== polling) {
         return;
       }
@@ -97,20 +83,10 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
       }
       error.value =
         err instanceof Error ? err.message : (options.pollFailedMessage?.() ?? t('common.taskPollFailed'));
-      // Settle so the caller stops reporting itself as busy even though the
-      // progress is no longer observable.
       status.value = 'failed';
     }
   }
 
-  /**
-   * start runs `begin`, which schedules the work and resolves to the task chain
-   * ID, then polls that chain until it settles.
-   *
-   * It reports itself as running before awaiting `begin`, so a caller that
-   * gates its UI on `running` cannot be dismissed — or fire a second
-   * submission — during a slow request for work that is already happening.
-   */
   async function start(begin: () => Promise<string>): Promise<void> {
     if (running.value) {
       return;
@@ -122,8 +98,6 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
 
     try {
       const id = await begin();
-      // A reset during the request abandoned this submission; adopting its ID
-      // now would poll a chain nothing is displaying.
       if (generation !== submission) {
         return;
       }

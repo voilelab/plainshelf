@@ -6,7 +6,6 @@
 import { computed } from 'vue';
 import { folderIconComponent, shownFolderIcon } from '@/components/icons/folderIcons';
 
-// '' or a name this build does not ship draws the default folder icon.
 const props = defineProps<{
   icon?: string;
 }>();

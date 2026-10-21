@@ -17,7 +17,6 @@ function loadPageSize(): number {
   return (PAGE_SIZE_OPTIONS as readonly number[]).includes(parsed) ? parsed : DEFAULT_PAGE_SIZE;
 }
 
-// Module-level singleton: shared across all components that call useBookPagination()
 const pageSize = ref<number>(loadPageSize());
 
 export function setPageSize(newSize: number): void {

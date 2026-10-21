@@ -18,16 +18,9 @@ interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
   onMoved?: (book: Book, targetFolder: string) => void;
   onCopied?: (copy: Book, targetFolder: string) => void;
-  /**
-   * Fired once a cross-shelf transfer settles without failing. `status` is the
-   * chain's terminal status so a caller can distinguish a full completion from a
-   * partial one; the modal still shows the outcome, so this is for side effects
-   * like navigating away after a move.
-   */
   onTransferred?: (book: Book, mode: BookTransferMode, status: TaskStatus) => void;
 }
 
-/** Shown by every DeleteModal that moves a book to Trash. */
 export const DELETE_BOOK_DESCRIPTION =
   'The book will be moved to Trash. You can restore it later.';
 
@@ -38,21 +31,11 @@ function sanitizeDownloadName(name: string): string {
     .trim() || 'book';
 }
 
-/**
- * Shared book-level actions, used by both BookDetailPage and the card view's
- * context menu. Each call site gets its own instance: the delete/download busy
- * state below is intentionally per-instance, not a module singleton.
- *
- * Every path that moves or copies a book refreshes the book store afterwards,
- * because the sidebar derives its per-folder counts from it.
- */
 export function useBookActions(options: UseBookActionsOptions = {}) {
   const router = useRouter();
   const { folders, folderMeta: metadata, loaded: foldersLoaded, fetchFolders } = useFolderStore();
   const { fetchBooks } = useBookStore();
   const { showToast } = useToasts();
-  // In its own composable so the home dashboard's reading entries share it
-  // without pulling in the stores above; goRead below is a thin delegate.
   const { launchReader } = useReaderLaunch();
 
   const downloading = ref(false);
@@ -64,8 +47,6 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   const copyTarget = ref<Book | null>(null);
   const copying = ref(false);
   const transferTarget = ref<Book | null>(null);
-  // The mode of the transfer currently in flight, read when it settles so the
-  // caller learns whether the source was moved away or merely copied.
   const transferMode = ref<BookTransferMode>('copy');
 
   const {
@@ -79,13 +60,10 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     reset: resetTransfer
   } = useTaskChainProgress({
     onSettled: (status) => {
-      // A failed transfer changed nothing on the active shelf and must not
-      // trigger the post-success side effects (a navigation away, say).
       if (status === 'failed') {
         return;
       }
       const target = transferTarget.value;
-      // Either mode shifts the per-folder counts.
       void fetchBooks();
       if (target) {
         options.onTransferred?.(target, transferMode.value, status);
@@ -95,34 +73,18 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     pollFailedMessage: () => t('bookDetail.errors.transferPollFailed')
   });
 
-  /**
-   * Destinations offered for `moveTarget`, flat and sorted like the batch move
-   * modal's list. The book's own folder is dropped because moving there is a
-   * no-op; the root entry is not in here at all — MoveBooksModal renders its
-   * own labelled root option.
-   */
   const moveFolderOptions = computed(() => {
     const currentFolder = moveTarget.value ? getFolderPath(moveTarget.value) : '';
     return sortFolderPaths([...new Set(folders.value.filter((folder) => folder && folder !== '/'))]
       .filter((folder) => !folderPathEquals(folder, currentFolder)).sort(), metadata?.value ?? {});
   });
 
-  /**
-   * Destinations offered for `copyTarget`. Unlike moveFolderOptions this keeps the
-   * book's own folder: copying a book into the folder it already sits in is a valid
-   * "duplicate here", not a no-op. The root is offered by the modal itself.
-   */
   const copyFolderOptions = computed(() =>
     sortFolderPaths([...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort(), metadata?.value ?? {})
   );
 
   const canOpenBookFolder = computed(() => Boolean(getPlatformCapabilities().openBookFolder));
 
-  /**
-   * Forwards to `useReaderLaunch`, which owns the launch policy, so existing
-   * call sites keep the `goRead` name. The optional index is the reader's own
-   * section index, so it survives a title change.
-   */
   function goRead(id: string, sectionIndex?: number): void {
     launchReader(id, sectionIndex);
   }
@@ -161,9 +123,6 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
       const platform = getPlatformCapabilities();
       if (platform.saveBookContentToFile) {
-        // A returned location string means the file was written somewhere with
-        // no save dialog of its own (the mobile Documents export), so confirm it
-        // with a toast; the desktop dialog resolves to void and needs none.
         const location = await platform.saveBookContentToFile(
           book.id,
           formatDownloadFilename(book, sourceFormat)
@@ -192,11 +151,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   function requestMove(book: Book): void {
     moveTarget.value = book;
-    // The dialog shows actionError itself, so it must not open carrying a
-    // message some earlier action left behind.
     actionError.value = '';
-    // The sidebar normally fills the folder store on load, but the detail page
-    // can be opened directly by URL, and mobile has no sidebar at all.
     if (!foldersLoaded.value) {
       void fetchFolders();
     }
@@ -214,8 +169,6 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       return;
     }
 
-    // moveFolderOptions already drops the book's own folder, but the modal always
-    // offers the root entry, so a book at the root can still land here.
     if (folderPathEquals(getFolderPath(target), targetFolder)) {
       moveTarget.value = null;
       return;
@@ -227,11 +180,9 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     try {
       await bookshelfWriter().updateBookFolder(target.id, targetFolder);
       moveTarget.value = null;
-      // Per-folder counts; see the note on useBookActions.
       void fetchBooks();
       options.onMoved?.(target, targetFolder);
     } catch (err) {
-      // Leaves the modal open so the destination stays picked for a retry.
       actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.moveFailed');
     } finally {
       moving.value = false;
@@ -240,7 +191,6 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   function requestCopy(book: Book): void {
     copyTarget.value = book;
-    // Cleared for the same reason as openMoveDialog.
     actionError.value = '';
     if (!foldersLoaded.value) {
       void fetchFolders();
@@ -265,11 +215,9 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     try {
       const copy = await bookshelfWriter().copyBook(target.id, targetFolder);
       copyTarget.value = null;
-      // Per-folder counts, as in submitMove.
       void fetchBooks();
       options.onCopied?.(copy, targetFolder);
     } catch (err) {
-      // Left open, as in submitMove.
       actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.copyFailed');
     } finally {
       copying.value = false;
@@ -278,15 +226,11 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   function requestTransfer(book: Book): void {
     transferTarget.value = book;
-    // Cleared for the same reason as openMoveDialog.
     actionError.value = '';
     resetTransfer();
   }
 
   function cancelTransfer(): void {
-    // Closing mid-transfer would drop the only view of progress the user has,
-    // while the task keeps running on the server regardless; mirror the
-    // empty-trash modal and refuse to close until it settles.
     if (transferring.value) {
       return;
     }
@@ -305,8 +249,6 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     }
 
     transferMode.value = payload.mode;
-    // A transfer already in flight for this book answers with its own chain id,
-    // so this attaches to the existing progress instead of scheduling a second.
     await beginTransfer(() =>
       bookshelfWriter().transferBook(target.id, payload.targetShelfId, payload.targetFolder, payload.mode)
     );

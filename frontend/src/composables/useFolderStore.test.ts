@@ -8,9 +8,6 @@ vi.mock('@/providers', () => ({
   getBookshelfProvider: () => (withFolderMeta ? { listFolders, listFolderMeta } : { listFolders })
 }));
 
-// The store is a module-level singleton, so each test needs its own copy of it.
-// The reset also gives the store a fresh `@/api/client`, so the errors it is
-// fed have to come from that same copy or its `instanceof ApiError` check fails.
 async function freshStore() {
   vi.resetModules();
   const { ApiError } = await import('@/api/client');
@@ -43,8 +40,6 @@ describe('useFolderStore', () => {
 
     await fetchFolders();
 
-    // Between attempts the sidebar stays in its loading state instead of
-    // showing an error the shelf resolves on its own.
     expect(loading.value).toBe(true);
     expect(error.value).toBe('');
     expect(loaded.value).toBe(false);
@@ -94,7 +89,6 @@ describe('useFolderStore', () => {
 
     listFolders.mockReset();
     listFolders.mockResolvedValue(['/']);
-    // Bound directly to the Retry button, so it is called with a click event.
     await (fetchFolders as (...args: unknown[]) => Promise<void>)(new Event('click'));
     expect(listFolders).toHaveBeenCalledTimes(1);
   });
@@ -113,7 +107,6 @@ describe('useFolderStore folder metadata', () => {
     expect(folderMeta.value).toEqual(meta);
   });
 
-  // Icons are decoration: the tree must not fail because they could not load.
   it('keeps the folder list when the metadata cannot be read', async () => {
     const { folders, folderMeta, error, fetchFolders } = await freshStore();
     listFolders.mockResolvedValueOnce(['/', 'Fiction']);

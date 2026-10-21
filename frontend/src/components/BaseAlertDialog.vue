@@ -26,15 +26,6 @@ import {
   VisuallyHidden
 } from 'reka-ui';
 
-// The destructive counterpart of BaseDialog. Two differences carry the whole
-// point of the split, and both come from AlertDialogContent rather than from
-// anything here: it renders role="alertdialog", and it prevents every
-// outside interaction, so a stray click on the backdrop can never confirm
-// away a delete. There is deliberately no `dismissible` prop — an alert
-// dialog is dismissed by its own buttons or by ESC, never by the backdrop.
-//
-// Focus lands on the element rendered by AlertDialogCancel, which the caller
-// supplies in the slot; see ConfirmModal.vue.
 const props = withDefaults(
   defineProps<{
     open: boolean;
@@ -59,9 +50,7 @@ function onUpdateOpen(value: boolean): void {
 }
 
 function onEscapeKeyDown(event: Event): void {
-  // Same reasoning as BaseDialog: always consume the key event so the native
-  // desktop shell (e.g. macOS fullscreen) does not also react to ESC, then
-  // close manually because Reka UI checks defaultPrevented before dismissing.
+  // Reka UI 2.10.5 DismissableLayer suppresses dismissal when the Escape event is prevented.
   event.preventDefault();
   if (!props.busy) {
     emit('close');

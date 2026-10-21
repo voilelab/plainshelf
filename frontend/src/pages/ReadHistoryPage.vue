@@ -41,8 +41,6 @@
       @update:page-size="onPageSizeChange"
     >
       <template #toolbar>
-        <!-- Clearing only touches this device's stored history, so it stays
-             available on read-only servers and on the mobile shell. -->
         <button
           class="button clear-history-button"
           type="button"

@@ -8,12 +8,7 @@
   --danger: #cf3d3d;
   --shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
   --z-modal: 80;
-  /* Above modals: a toast raised while a dialog is open still has to be seen. */
   --z-toast: 90;
-  /* Reserved height of the mobile shell's bottom tab bar (MobileTabBar). Other
-     bottom-fixed mobile bars offset by this so they stack above it instead of
-     being overlaid; it is an upper bound on the bar's content height, not its
-     footprint (which adds the bottom safe-area inset on top). */
   --mobile-tab-bar-height: 56px;
 }
 
@@ -39,11 +34,7 @@ a {
   text-decoration: none;
 }
 
-/* Popper layers are teleported to <body> and positioned by floating-ui using
-   getBoundingClientRect coordinates, which already include the html zoom
-   factor. Cancel the inherited zoom on the positioning wrapper so its
-   translate values are interpreted 1:1, then re-apply zoom to the content.
-   When --app-zoom is unset both rules compute to zoom: 1 (identity). */
+/* Floating UI uses getBoundingClientRect coordinates, which include HTML zoom; Reka UI 2.10.5 positions the popper wrapper in those coordinates. */
 [data-reka-popper-content-wrapper] {
   zoom: calc(1 / var(--app-zoom, 1));
 }
@@ -220,21 +211,13 @@ a {
   line-height: 1;
 }
 
-/* Shared reka-ui popper menu styles (DropdownMenu/Select content + items).
-   reka-ui portals popper content outside the consumer's DOM subtree and
-   wraps it in a positioner element, so a consumer's `scoped` attribute never
-   lands on the menu itself — these classes must stay global. */
 .reka-menu {
   background: var(--surface, #fff);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
   display: grid;
-  /* Popper content inherits --reka-popper-available-height (space between the
-     anchor and the viewport edge) from the wrapper, measured in visual pixels.
-     The wrapper re-applies --app-zoom to this element, so divide it back out.
-     Select content scrolls inside its own SelectViewport; DropdownMenu and
-     ContextMenu content have no viewport child and scroll here. */
+  /* Reka UI 2.10.5 Popper reports available height in viewport pixels through Floating UI size middleware; HTML zoom scales CSS lengths. */
   max-height: calc(min(var(--reka-popper-available-height, 100vh), 320px) / var(--app-zoom, 1));
   min-width: 180px;
   overflow-y: auto;
@@ -242,17 +225,12 @@ a {
   z-index: var(--z-modal);
 }
 
-/* SelectViewport hides its own scrollbar from inside the portal, and that style
-   lands after this file in document order, so out-specify it rather than relying
-   on the cascade. Platforms using overlay scrollbars (macOS, mobile WebViews)
-   still only reveal it while scrolling. */
+/* Reka UI 2.10.5 SelectViewport injects scrollbar-width: none and hides the WebKit scrollbar on its data attribute selector. */
 .reka-menu [data-reka-select-viewport] {
   scrollbar-color: var(--muted) transparent;
   scrollbar-width: thin;
 }
 
-/* Legacy fallback for WebViews predating scrollbar-width; inert where the
-   standard properties above are supported. */
 .reka-menu [data-reka-select-viewport]::-webkit-scrollbar {
   display: block;
   width: 8px;
@@ -283,9 +261,6 @@ a {
   background: #fff1f2;
 }
 
-/* Shared reka-ui Tooltip content styling. Same popper-portal caveat as
-   .reka-menu above: TooltipContent is teleported and wrapped, so a
-   consumer's `scoped` attribute never reaches it — keep this global. */
 .reka-tooltip {
   background: var(--surface, #fff);
   border: 1px solid var(--border);
@@ -297,14 +272,7 @@ a {
   z-index: var(--z-modal);
 }
 
-/* Shared reka-ui Toast styling, mounted once by ToastHost in App.vue. Same
-   caveat as .reka-menu above for a different reason: ToastRoot renders a
-   fragment and teleports its body into the viewport, so a consumer's `scoped`
-   attribute reaches neither the viewport nor the toast — keep these global.
-
-   A list, not a stack: two rescans in a row queue downward instead of
-   overwriting each other. The list styles are reset because ToastViewport
-   renders an <ol>, whose markers and padding are layout this does not want. */
+/* Reka UI 2.10.5 ToastRootImpl renders a fragment with teleported content; ToastViewport defaults to an ol. */
 .reka-toast-viewport {
   position: fixed;
   right: 16px;
@@ -316,8 +284,7 @@ a {
   margin: 0;
   padding: 0;
   list-style: none;
-  /* 100vw is in visual pixels, which the zoomed shell has already scaled; divide
-     it back out so the toast does not overhang the window there. */
+  /* CSS Values viewport units refer to the viewport size; HTML zoom scales the resulting CSS length. */
   width: min(360px, calc(100vw / var(--app-zoom, 1) - 32px));
   outline: none;
 }
@@ -340,8 +307,6 @@ a {
   opacity: 0;
 }
 
-/* Applied via ToastHost's `reka-toast-${toast.variant}` binding when a toast is
-   raised with { variant: 'danger' }; keep it in sync with ToastVariant. */
 .reka-toast-danger {
   border-color: var(--danger);
   color: var(--danger);
@@ -350,7 +315,6 @@ a {
 .reka-toast-message {
   flex: 1;
   margin: 0;
-  /* A book title or a server error can be arbitrarily long; wrap, do not clip. */
   overflow-wrap: anywhere;
 }
 
@@ -377,8 +341,6 @@ a {
   }
 }
 
-/* Shared reka-ui Splitter resize-handle styling, used by any SplitterGroup
-   in the app (sidebar / source list panels). */
 .reka-resize-handle {
   background: var(--border);
   cursor: col-resize;
