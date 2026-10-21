@@ -21,7 +21,10 @@ import (
 )
 
 func main() {
-
+	launch, err := parseLaunchArgs(os.Args[1:])
+	if err != nil {
+		log.Fatal("invalid reader launch arguments: ", err)
+	}
 	logger, err := logutil.NewLogger(&logutil.LogConf{
 		Level:   "info",
 		Format:  "text",
@@ -31,7 +34,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	launch := parseLaunchArgs(os.Args[1:])
 	app := NewReaderApp(logger, launch.shelfID, launch.section)
 
 	if launch.bookPath != "" {
@@ -83,17 +85,17 @@ type launchArgs struct {
 	section int
 }
 
-// Wails v2.16.0 internal/app/app_dev.go ignores FlagSet.Parse errors because
-// -appargs may contain application-specific flags.
-func parseLaunchArgs(args []string) launchArgs {
+func parseLaunchArgs(args []string) (launchArgs, error) {
 	flags := flag.NewFlagSet("plainshelf-reader", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	book := flags.String("book", "", "path to the .bookpkg folder to open")
 	shelf := flags.String("shelf", "", "real shelf id the book belongs to; empty uses the synthetic reader shelf")
 	section := flags.Int("section", noLaunchSection, "reader section index to open at; negative opens at the restored progress")
 
-	_ = flags.Parse(args)
-	return launchArgs{bookPath: *book, shelfID: *shelf, section: *section}
+	if err := flags.Parse(args); err != nil {
+		return launchArgs{}, err
+	}
+	return launchArgs{bookPath: *book, shelfID: *shelf, section: *section}, nil
 }
 
 func newApplicationMenu(app *ReaderApp) *menu.Menu {
