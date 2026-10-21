@@ -218,9 +218,7 @@ function showBoundary(message: string): void {
 }
 
 function onPointerDown(event: PointerEvent): void {
-  // Android WebView emits both pointer and touch events for a physical touch.
-  // Let TouchEvent own that path so one swipe cannot navigate twice; pointer
-  // handling remains available for mouse and pen input.
+  // Android WebView dispatches pointer and touch events for the same physical touch (2714484e).
   if (event.pointerType === 'touch') {
     return;
   }

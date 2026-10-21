@@ -33,8 +33,6 @@ describe('estimateMarkdownBlockHeight', () => {
       html: `<p class="reader-text-block">${longLine}</p>`,
       images: []
     });
-    // The code line does not wrap, so it must estimate far shorter than the same
-    // number of characters flowed as prose.
     expect(code).toBeLessThan(prose);
   });
 

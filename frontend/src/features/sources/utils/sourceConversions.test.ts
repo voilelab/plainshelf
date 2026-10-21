@@ -38,8 +38,6 @@ describe('default chapter detection', () => {
       '第三章'
     ].join('\n');
 
-    // 第1回 / 第十二節 / Chapter 3 / 第三章 hit; the prose line that merely
-    // mentions "第一章" mid-sentence does not, because the marker must open the line.
     expect(countTextChapters(content)).toBe(4);
   });
 

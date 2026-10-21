@@ -5,9 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import SourceConversionModal from './SourceConversionModal.vue';
 import { setLocale } from '@/i18n';
 
-// Reka's dialog measures the scrollbar and traps focus; jsdom has neither
-// ResizeObserver nor a layout, and the modal's own behavior does not depend on
-// either.
 class NoopResizeObserver {
   observe(): void {}
   unobserve(): void {}
@@ -17,8 +14,6 @@ globalThis.ResizeObserver ??= NoopResizeObserver as unknown as typeof ResizeObse
 
 let app: App | null = null;
 
-// The dialog content is teleported to <body>, so the fields are looked up there
-// rather than under the mount host.
 function mount(content: string) {
   const state = reactive({ open: true });
   const host = document.createElement('div');
@@ -73,8 +68,6 @@ describe('SourceConversionModal line-count field', () => {
     await nextTick();
 
     expect(field().value).toBe('1000');
-    // Formatted without a thousands separator, so the box reads as a number the
-    // conversion actually uses.
     expect(previewText()).not.toContain('1,000');
   });
 
@@ -85,7 +78,6 @@ describe('SourceConversionModal line-count field', () => {
     commit(field(), '5');
     await nextTick();
 
-    // 12 lines in chapters of five is three chapters.
     expect(previewText()).toContain('3');
   });
 
@@ -109,7 +101,6 @@ describe('SourceConversionModal line-count field', () => {
 
     const error = document.body.querySelector('.conversion-error');
     expect(error?.textContent).toBeTruthy();
-    // The confirm button is the modal's own, not one of the field's steppers.
     const confirm = Array.from(document.body.querySelectorAll('button')).find(
       (button) => button.textContent?.trim() === 'Create source'
     );

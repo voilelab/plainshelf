@@ -145,9 +145,7 @@ const emit = defineEmits<{
 const isEditorDisabled = computed(() => !props.sourceId || props.loading || props.saving);
 const findScope = ref<SourceFindScope>(props.focused ? 'section' : 'source');
 
-// Rendered into the SelectValue slot so the closed trigger follows a locale
-// change: reka-ui snapshots each SelectItemText at mount and does not refresh
-// the trigger label on a runtime i18n switch.
+// Reka UI 2.10.5 SelectItemText registers textContent on mount without refreshing the registry when locale text changes.
 const scopeLabel = computed(() =>
   findScope.value === 'source'
     ? t('sources.editor.find.scopeSource')

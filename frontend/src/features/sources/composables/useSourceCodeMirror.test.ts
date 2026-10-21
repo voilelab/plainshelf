@@ -30,10 +30,6 @@ interface Harness {
   type: (from: number, to: number, insert: string) => void;
 }
 
-/**
- * Mounts the composable in a real component so that the editor is created,
- * torn down and driven exactly the way SourceEditor.vue drives it.
- */
 async function mountEditor(initialContent: string): Promise<Harness> {
   const content = ref(initialContent);
   const viewRange = ref<SourceEditorViewRange | null>(null);
@@ -61,8 +57,6 @@ async function mountEditor(initialContent: string): Promise<Harness> {
     }
   });
   app.mount(document.body.appendChild(document.createElement('div')));
-  // The host element only exists after the first render, and the composable
-  // creates the editor from a watcher on that ref.
   await nextTick();
 
   function view() {
@@ -91,9 +85,6 @@ async function mountEditor(initialContent: string): Promise<Harness> {
       viewRange.value = range;
       await nextTick();
     },
-    // One entry per rendered line the dimming covers: a mark decoration is
-    // split at every line, so the last entry is where the focused chapter
-    // begins.
     dimmed: () =>
       Array.from(view().dom.querySelectorAll('.cm-source-dimmed')).map(
         (node) => node.textContent ?? ''
@@ -123,7 +114,6 @@ const CHAPTERS = [
   ''
 ].join('\n');
 
-/** The range the page would report for the "## Two" chapter. */
 function chapterTwoRange(): SourceEditorViewRange {
   return { startOffset: CHAPTERS.indexOf('## Two'), endOffset: CHAPTERS.length };
 }
@@ -157,7 +147,6 @@ describe('useSourceCodeMirror document sync', () => {
 
     editor.type(6, 6, 'Y');
     editor.type(7, 7, 'Z');
-    // Still one snapshot: the burst is inside the publish interval.
     expect(editor.edits).toHaveLength(1);
     expect(editor.content()).toBe('alphaX\n');
 
@@ -175,7 +164,6 @@ describe('useSourceCodeMirror document sync', () => {
 
     editor.editor.flushDocument();
     expect(editor.content()).toBe('alphaXY\n');
-    // The pending trailing snapshot was consumed, not left to fire again.
     const published = editor.edits.length;
     vi.advanceTimersByTime(500);
     expect(editor.edits).toHaveLength(published);
@@ -206,7 +194,6 @@ describe('useSourceCodeMirror find and replace', () => {
     const selection = editor.selection();
     expect(selection.from).toBeGreaterThanOrEqual(chapterTwoRange().startOffset);
     expect(editor.doc().slice(selection.from, selection.to)).toBe('marker');
-    // Three "marker"s exist in the source; only the chapter's one is counted.
     expect(editor.editor.findStatus.value).toContain('1');
 
     editor.editor.replaceQuery.value = 'flag';
@@ -226,7 +213,6 @@ describe('useSourceCodeMirror find and replace', () => {
     await nextTick();
     const parked = editor.selection();
     editor.editor.findNext();
-    // The one match lies outside the chapter, so nothing moved.
     expect(editor.editor.findStatus.value).toBe('No matches.');
     expect(editor.selection()).toEqual(parked);
 
@@ -241,8 +227,6 @@ describe('useSourceCodeMirror find and replace', () => {
     await editor.setViewRange(chapterTwoRange());
     await editor.setFindScope('section');
 
-    // Insert into the opening, which pushes the whole chapter down. Nothing
-    // recomputes the boundary here; CodeMirror maps it through the change.
     editor.type(0, 0, 'PREFIX\n');
 
     editor.editor.findQuery.value = 'marker';
@@ -331,7 +315,6 @@ describe('useSourceCodeMirror editing adapter', () => {
 
     editor.editor.replaceRange(5, 5, ' one');
     expect(editor.content()).toBe('alpha one\r\nbravo\r\n');
-    // And a line break the user adds is written the same way.
     expect(editor.lineBreak()).toBe('\r\n');
   });
 
@@ -356,8 +339,6 @@ describe('useSourceCodeMirror editing adapter', () => {
 
     expect(parsed()).toBe('ATXHeading1');
 
-    // A TXT source is prose, not Markdown; nothing in it should be styled as
-    // syntax just because it happens to start with a hash.
     await editor.setFormat('txt');
     expect(parsed()).toBeNull();
   });
@@ -373,14 +354,6 @@ describe('useSourceCodeMirror editing adapter', () => {
     expect(view?.dom.isConnected).toBe(false);
   });
 });
-/**
- * The coordinates the page and the editor disagreed on.
- *
- * Everything the adapter takes or publishes is an offset into the source text,
- * where a CRLF is two characters; the document counts a line break as one
- * position. The drift is one character per preceding line break, so each case
- * below deliberately acts past several of them.
- */
 describe('useSourceCodeMirror CRLF coordinates', () => {
   const CRLF_CHAPTERS = CHAPTERS.replace(/\n/g, '\r\n');
 
@@ -392,8 +365,6 @@ describe('useSourceCodeMirror CRLF coordinates', () => {
     });
 
     const dimmed = editor.dimmed();
-    // Six line breaks precede the heading, so reading the range as document
-    // positions used to swallow "## Two" whole.
     expect(dimmed.join('')).not.toContain('Two');
     expect(dimmed[dimmed.length - 1]).toBe('First marker.');
     expect(dimmed[0]).toBe('# Book');
@@ -402,7 +373,6 @@ describe('useSourceCodeMirror CRLF coordinates', () => {
   it('publishes the caret as an offset into the source text', async () => {
     const editor = await mount('alpha\r\nbravo\r\n');
 
-    // Typed at a document position, the way the user's keystroke arrives.
     editor.type(6, 6, 'X');
     const published = editor.edits[editor.edits.length - 1];
     expect(published.value).toBe('alpha\r\nXbravo\r\n');
@@ -427,8 +397,6 @@ describe('useSourceCodeMirror CRLF coordinates', () => {
     editor.editor.focusAndSelect(caret, caret);
     const start = editor.editor.getCurrentParagraphStart();
     expect(start).toBe(content.indexOf('second'));
-    // The blank line before the paragraph is already there, so the heading is
-    // inserted without one — which is only decidable in source coordinates.
     expect(insertChapterEdit(content, start).replacement).toBe(
       '## Untitled chapter\r\n\r\n'
     );

@@ -177,8 +177,6 @@ describe('useSourceEditorSession', () => {
   it('deletes the active source and follows the current source the server picked', async () => {
     const session = useSourceEditorSession(() => currentBookId, () => true);
     await session.fetchInitial();
-    // Deleting the current source moves current_source server-side, so the
-    // cached book must be refreshed or it keeps naming the deleted source.
     mocks.listSources.mockResolvedValue([source('source-1')]);
     mocks.getBook.mockResolvedValue({
       id: 'book-1',
@@ -202,7 +200,6 @@ describe('useSourceEditorSession', () => {
 
     expect(await session.deleteSource('source-2')).toBe(true);
     expect(session.deleteError.value).toBe('');
-    // The stale pointer no longer matches any source, so the list decides.
     expect(session.activeSourceId.value).toBe('source-1');
   });
 

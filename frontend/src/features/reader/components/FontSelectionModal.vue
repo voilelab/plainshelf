@@ -65,8 +65,6 @@ const fontOptions = READER_FONT_OPTIONS.map((option) => ({
   descriptionKey: `reader.fontDialog.fonts.${option.id}.description`
 }));
 
-// RadioGroupRoot carries its model value as `unknown`, so narrow it back to a
-// known font id before forwarding the selection.
 function onSelect(value: unknown): void {
   const option = fontOptions.find((candidate) => candidate.id === value);
   if (option) {

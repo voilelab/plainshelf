@@ -42,10 +42,6 @@ export function classifyReaderGesture(input: ReaderGestureInput): ReaderGesture 
   return 'none';
 }
 
-// The chrome-toggle zone is a vertical band, not a centered square: the two far
-// horizontal edges stay reserved for the page-turn taps, but the band spans the
-// full height so a tap low on the screen — where a thumb naturally lands — still
-// toggles the toolbars instead of falling into dead space.
 export function isInReaderCenter(point: ReaderTapPoint, bounds: ReaderBounds): boolean {
   if (bounds.width <= 0 || bounds.height <= 0) {
     return false;

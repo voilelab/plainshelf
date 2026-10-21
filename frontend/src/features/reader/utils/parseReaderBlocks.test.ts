@@ -19,8 +19,6 @@ describe('parseReaderBlocks', () => {
     ]);
   });
 
-  // Hand-edited Markdown routinely leaves several blank lines and trailing
-  // spaces between paragraphs; neither may produce an empty rendered block.
   it('collapses runs of blank lines and trims each block', () => {
     expect(parseReaderBlocks('\n\n  One  \n\n\n\n  Two  \n\n')).toEqual([
       { type: 'paragraph', text: 'One' },
@@ -34,9 +32,6 @@ describe('parseReaderBlocks', () => {
     ]);
   });
 
-  // The marker has to hold for the whole block: a partially quoted block is
-  // prose that happens to contain a ">", and losing its markers would rewrite
-  // the author's text.
   it('keeps a partially quoted block as a paragraph with its markers intact', () => {
     expect(parseReaderBlocks('> Quoted\nNot quoted')).toEqual([
       { type: 'paragraph', text: '> Quoted\nNot quoted' }
@@ -57,31 +52,25 @@ describe('parseReaderBlocks', () => {
     ]);
   });
 
-  // Only the marker and one optional space belong to the syntax; deeper
-  // indentation is the quote's own content.
   it('removes exactly one leading space after the marker and keeps nesting visible', () => {
     expect(parseReaderBlocks('>> Nested\n> > Spaced')).toEqual([
       { type: 'quote', text: '> Nested\n> Spaced' }
     ]);
   });
 
-  // A plain-text section with no blank lines is one giant block; virtualization
-  // needs it cut into several so off-screen text can drop out of the DOM.
   it('splits a blank-line-free block that exceeds the line budget', () => {
     const lines = Array.from({ length: READER_BLOCK_LINE_BUDGET * 2 }, (_unused, index) => `line ${index}`);
     const blocks = parseReaderBlocks(lines.join('\n'));
 
     expect(blocks.length).toBeGreaterThan(1);
-    // Every line survives, in order, split only at line boundaries.
     expect(blocks.flatMap((block) => block.text.split('\n'))).toEqual(lines);
-    // Continuation chunks render seamlessly; only the final chunk keeps its gap.
     expect(blocks.slice(0, -1).every((block) => block.spacedAfter === false)).toBe(true);
     expect(blocks[blocks.length - 1].spacedAfter).toBeUndefined();
   });
 
   it('splits on the character budget and never cuts a line in half', () => {
     const line = 'w'.repeat(200);
-    const lines = Array.from({ length: 40 }, () => line); // 40 * ~201 chars > budget
+    const lines = Array.from({ length: 40 }, () => line);
     const blocks = parseReaderBlocks(lines.join('\n'));
 
     expect(blocks.length).toBeGreaterThan(1);
