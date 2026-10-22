@@ -89,7 +89,7 @@ func TestAPIEmptyTrashOnEmptyTrashContract(t *testing.T) {
 
 // A second request while a sweep is still in flight must point the client at
 // the existing chain instead of queueing a redundant one.
-func TestAPIEmptyTrashConflictReportsRunningChainContract(t *testing.T) {
+func TestAPIEmptyTrashRunningChainConflict(t *testing.T) {
 	env := apitest.New(t)
 
 	first := apitest.AssertDuplicateChainConflict(t, env, func(wantStatus int) apitest.TaskChainSubmitResponse {
@@ -105,7 +105,7 @@ func TestAPIEmptyTrashConflictReportsRunningChainContract(t *testing.T) {
 // below pin that they stay interchangeable. The lifecycle itself is covered by
 // TestAPITrashLifecycleContract. One env serves both routes: each trashes its
 // own book, so they never observe each other's effect.
-func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
+func TestAPIDeleteAndTrashRoutes(t *testing.T) {
 	env := apitest.New(t)
 
 	routes := map[string]func(bookID string) *http.Request{
@@ -134,7 +134,7 @@ func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
 	}
 }
 
-func TestAPIDeleteAndTrashRoutesAgreeOnUnknownBookContract(t *testing.T) {
+func TestAPITrashRoutesUnknownBook(t *testing.T) {
 	env := apitest.New(t)
 
 	requests := map[string]*http.Request{

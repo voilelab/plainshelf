@@ -71,7 +71,7 @@ describe('filterSimilarPairs', () => {
     expect(atBoundary).toHaveLength(1);
   });
 
-  it('subset toggle is independent of the threshold: the truncated-25% pair shows even at the strictest tier', () => {
+  it('shows subsets independently of the score threshold', () => {
     const strict = filterSimilarPairs(pairs, { threshold: 0.85, subsetOnly: false });
     expect(strict).not.toContain(truncatedSubset);
 

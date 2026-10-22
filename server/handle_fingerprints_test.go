@@ -253,7 +253,7 @@ func (r *deadlineRecorder) SetWriteDeadline(deadline time.Time) error {
 	return nil
 }
 
-func TestFindSimilarBooksConfirmExtendsServerWriteDeadline(t *testing.T) {
+func TestFindSimilarBooksConfirmDeadline(t *testing.T) {
 	libRoot := t.TempDir()
 	app := fingerprintTestApp(t, libRoot)
 
@@ -299,7 +299,7 @@ func TestFindSimilarBooksOverBudgetReturns200(t *testing.T) {
 	}
 }
 
-func TestFindSimilarBooksConfirmBypassesBudgetWithoutChangingPairs(t *testing.T) {
+func TestFindSimilarBooksConfirmPreservesPairs(t *testing.T) {
 	libRoot := t.TempDir()
 	app := fingerprintTestApp(t, libRoot)
 
@@ -342,7 +342,7 @@ func TestFindSimilarBooksConfirmBypassesBudgetWithoutChangingPairs(t *testing.T)
 	}
 }
 
-func TestFindSimilarBooksBudgetTracksSketchLengthNotBookCount(t *testing.T) {
+func TestFindSimilarBooksSketchBudget(t *testing.T) {
 	restore := similarWorkBudget
 	similarWorkBudget = 1500
 	defer func() { similarWorkBudget = restore }()

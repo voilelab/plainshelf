@@ -164,7 +164,7 @@ func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 	}
 }
 
-func TestDefaultIgnoreRulesSkipEachDefaultAndCarryItsRefusalReason(t *testing.T) {
+func TestDefaultIgnoreRulesAndReasons(t *testing.T) {
 	rules := shelfutil.NewIgnoreRules(shelfutil.DefaultIgnoredDirs())
 
 	tests := []struct {
@@ -226,7 +226,7 @@ func TestValidateFolderPathRejectsIgnoredNames(t *testing.T) {
 	}
 }
 
-func TestValidateFolderPathReportsIgnoredNamesAsTheirOwnSentinel(t *testing.T) {
+func TestIgnoredFolderErrorType(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	for _, name := range ignoredDirFixtures {

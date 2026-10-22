@@ -50,7 +50,7 @@ func listedCharCount(t *testing.T, s *Shelf, bookID string) int {
 	return 0
 }
 
-func TestListBooksWithCharCountReportsCurrentSourceAndZeroWhenUnreadable(t *testing.T) {
+func TestListBooksCharCount(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	counted := newBookWithContent(t, s, "Counted", "abcde")
@@ -76,7 +76,7 @@ func TestListBooksWithCharCountReportsCurrentSourceAndZeroWhenUnreadable(t *test
 	}
 }
 
-func TestRefreshBookCharCountFollowsASourceContentUpdate(t *testing.T) {
+func TestCharCountRefreshAfterContentUpdate(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	book := newBookWithContent(t, s, "Rewritten", "abcde")
@@ -100,7 +100,7 @@ func TestRefreshBookCharCountFollowsASourceContentUpdate(t *testing.T) {
 	}
 }
 
-func TestRefreshBookCharCountFollowsTheCurrentSourcePointer(t *testing.T) {
+func TestCharCountRefreshAfterSourceSwitch(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	book := newBookWithContent(t, s, "Two Sources", "abcde")

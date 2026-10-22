@@ -310,7 +310,7 @@ func TestPCloudShelfFollowsTheDevicesAdultContentChoice(t *testing.T) {
 	}
 }
 
-func TestPCloudShelfOpenedOfflineAnswersSourceUnavailable(t *testing.T) {
+func TestPCloudShelfOfflineError(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 	srv.SetOffline(true)
 	startT(t, t.TempDir())

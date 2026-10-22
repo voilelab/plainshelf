@@ -52,7 +52,7 @@ func TestDailyFileWriterRotateRemovesExpired(t *testing.T) {
 	}
 }
 
-func TestDailyFileWriterRotateKeepsEverythingWhenDisabled(t *testing.T) {
+func TestDailyFileWriterDisabledRotation(t *testing.T) {
 	dir := t.TempDir()
 	seedLogFile(t, dir, "app-2020-01-01.log")
 

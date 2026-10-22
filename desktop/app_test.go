@@ -462,7 +462,7 @@ func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
 	}
 }
 
-func TestLoadOrMigrateDesktopShelvesSeedsLegacyDefaultShelf(t *testing.T) {
+func TestDesktopShelvesLegacyMigration(t *testing.T) {
 	dataRoot := t.TempDir()
 	configPath := filepath.Join(dataRoot, "shelves.json")
 

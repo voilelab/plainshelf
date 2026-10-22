@@ -45,7 +45,7 @@ func TestBookBatchTaskNoOpStillCompletes(t *testing.T) {
 	}
 }
 
-func TestBookBatchTaskAllFailuresStillProcessesEveryBook(t *testing.T) {
+func TestBookBatchProcessesAllFailures(t *testing.T) {
 	shelfDir := path.Join(t.TempDir(), "shelf")
 	newShelf, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: shelfDir})
 	if err != nil {

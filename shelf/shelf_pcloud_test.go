@@ -102,7 +102,7 @@ func TestPCloudShelfReadsADownloadedBookOffline(t *testing.T) {
 	}
 }
 
-func TestPCloudShelfWithoutExportOpensFromTheOfflineSnapshot(t *testing.T) {
+func TestPCloudShelfOpensOfflineSnapshot(t *testing.T) {
 	libRoot := seedExportedShelf(t, "Dune", "Solaris", "Hyperion")
 	if err := os.RemoveAll(path.Join(libRoot, appFolder)); err != nil {
 		t.Fatalf("remove app/: %v", err)

@@ -15,7 +15,7 @@ import (
 // client reading it applies its own — the mark is in every entry for exactly
 // that reason — and a cache pruned here would quietly become that client's whole
 // library. See apitest.NewNSFWShelf for the shelf this runs against.
-func TestAPIBookCacheExportIsCompleteWhateverShowNSFWSays(t *testing.T) {
+func TestAPIBookCacheExportIncludesNSFW(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
 	exportedIDs := func() []string {

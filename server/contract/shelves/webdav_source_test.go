@@ -132,7 +132,7 @@ func TestAPIPlainShelfSourceReadsTheExportContract(t *testing.T) {
 
 // Opening a remote shelf that has an exported book cache costs the same
 // number of requests however many books it holds.
-func TestAPIPlainShelfSourceRequestsDoNotGrowWithBooksContract(t *testing.T) {
+func TestAPIPlainShelfSourceRequestCount(t *testing.T) {
 	counts := map[int][]string{}
 	for _, n := range []int{2, 12} {
 		exporter := newDAVExporter(t)
@@ -197,7 +197,7 @@ func newFailingRemote(t *testing.T, src *shelf.SourceConf) *apitest.Env {
 
 // Every refusal below happens at startup, naming the shelf, rather than
 // opening something else.
-func TestAPISourceConfigurationIsCheckedAtStartupContract(t *testing.T) {
+func TestAPISourceValidationAtStartup(t *testing.T) {
 	t.Setenv("PLAINSHELF_TEST_UNSET", "")
 	for name, src := range map[string]*shelf.SourceConf{
 		"pcloud":            {Type: shelf.SourcePCloud, Host: "eapi.pcloud.com", Path: "/PlainShelf", Credential: "env:PLAINSHELF_TEST_UNSET"},

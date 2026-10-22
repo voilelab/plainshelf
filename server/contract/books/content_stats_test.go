@@ -134,7 +134,7 @@ func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
 
 // A second request while a sweep is still in flight must point the client at
 // the existing chain instead of queueing a redundant one.
-func TestAPIRefreshContentStatsConflictReportsRunningChainContract(t *testing.T) {
+func TestAPIContentStatsRunningChainConflict(t *testing.T) {
 	env := apitest.New(t)
 
 	first := apitest.AssertDuplicateChainConflict(t, env, func(wantStatus int) apitest.TaskChainSubmitResponse {

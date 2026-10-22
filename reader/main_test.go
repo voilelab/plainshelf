@@ -75,7 +75,7 @@ func TestParseLaunchArgs(t *testing.T) {
 	}
 }
 
-func TestParseLaunchArgsRejectsInvalidFlagsWithoutPartialResults(t *testing.T) {
+func TestParseLaunchArgsInvalidFlags(t *testing.T) {
 	for name, args := range map[string][]string{
 		"unknown flag":                      {"-loglevel", "debug"},
 		"unknown flag before book":          {"-loglevel", "debug", "-book", "/books/dune.bookpkg"},

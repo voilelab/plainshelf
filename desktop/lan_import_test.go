@@ -12,7 +12,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/lanshare"
 )
 
-func TestLANImportDoesNotReturnTokenBearingKeychainErrors(t *testing.T) {
+func TestLANImportRedactsKeychainErrors(t *testing.T) {
 	url, token := davExport(t)
 	secrets := newFakeSecrets()
 	secrets.setErr = errors.New("keychain refused secret " + token)
@@ -63,7 +63,7 @@ func TestLANImportValidatesAllBeforeSideEffects(t *testing.T) {
 	}
 }
 
-func TestLANImportPartialFailureRetryAndSecretSeparation(t *testing.T) {
+func TestLANImportPartialRetry(t *testing.T) {
 	url, token := davExport(t)
 	root := strings.TrimSuffix(url, "default_shelf/")
 	secrets := newFakeSecrets()

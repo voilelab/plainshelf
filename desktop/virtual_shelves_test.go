@@ -98,7 +98,7 @@ func desktopAppWithSecrets(t *testing.T, secrets *fakeSecrets) *DesktopApp {
 	return a
 }
 
-func TestCheckShelfSourceTellsWrongTokenFromNoConnection(t *testing.T) {
+func TestCheckShelfSourceErrorTypes(t *testing.T) {
 	url, token := davExport(t)
 	a := &DesktopApp{}
 
@@ -295,7 +295,7 @@ func TestOpenVirtualShelvesSkipsOneThatFails(t *testing.T) {
 	}
 }
 
-func TestRemoveVirtualShelfKeepsEntryWhenKeychainRefuses(t *testing.T) {
+func TestRemoveVirtualShelfKeychainFailure(t *testing.T) {
 	url, token := davExport(t)
 	secrets := newFakeSecrets()
 	a := desktopAppWithSecrets(t, secrets)

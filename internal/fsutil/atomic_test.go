@@ -141,7 +141,7 @@ func TestWriteFileAtomicReplacesExistingFile(t *testing.T) {
 	}
 }
 
-func TestWriteFileAtomicLeavesDestinationIntactOnWriteFailure(t *testing.T) {
+func TestAtomicWriteFileFailurePreservesDestination(t *testing.T) {
 	root := t.TempDir()
 	ffs := newTestFS(t, root)
 
@@ -204,7 +204,7 @@ func TestWriteAtomicStreamsReader(t *testing.T) {
 	}
 }
 
-func TestWriteAtomicLeavesDestinationIntactWhenReaderFails(t *testing.T) {
+func TestAtomicReadFailurePreservesDestination(t *testing.T) {
 	root := t.TempDir()
 	ffs := newTestFS(t, root)
 
@@ -242,7 +242,7 @@ func TestWriteAtomicRemovesTempWhenOpenWriterFails(t *testing.T) {
 	}
 }
 
-func TestWriteFileAtomicConcurrentWritersUseDistinctTempFiles(t *testing.T) {
+func TestAtomicWriteFileConcurrentWriters(t *testing.T) {
 	root := t.TempDir()
 	faulty := &faultFS{FS: newTestFS(t, root)}
 

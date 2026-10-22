@@ -206,7 +206,7 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 // reason is what the user needs: they wrote the rule and can take it back. The
 // message therefore carries the shelf's own words rather than the built-in
 // directory names, which on such a shelf are not the rule in force.
-func TestAPIConfiguredIgnoredFolderNameCarriesTheShelfsReasonContract(t *testing.T) {
+func TestAPIIgnoredFolderReason(t *testing.T) {
 	libRoot := t.TempDir()
 	config := `{"schema_version":1,"scan":{"ignored_dirs":[{"name":"@Snapshot","reason":"Synology snapshot directory"}]}}`
 	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(config), 0644); err != nil {

@@ -214,7 +214,7 @@ func TestAPIErrorForExcludesTaskChainRunning(t *testing.T) {
 	}
 }
 
-func TestAPIErrorForPrefersIgnoredFolderNameOverInvalidFolder(t *testing.T) {
+func TestAPIIgnoredFolderErrorPriority(t *testing.T) {
 	if !errors.Is(shelf.ErrIgnoredFolderName, shelf.ErrInvalidFolder) {
 		t.Fatal("ErrIgnoredFolderName must stay an ErrInvalidFolder for callers that only classify folder errors")
 	}

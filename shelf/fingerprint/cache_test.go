@@ -16,7 +16,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
-func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T) {
+func TestCacheReusesUnchangedSources(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.PackagePath()
@@ -104,7 +104,7 @@ func TestFingerprintCacheSurvivesMovingABook(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheRecognizesACopiedBookByItsContent(t *testing.T) {
+func TestCacheRecognizesCopiedContent(t *testing.T) {
 	ts := newTestShelf(t)
 
 	const content = "the spice must flow"
@@ -190,7 +190,7 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
+func TestCacheInvalidatedByAlgorithmChange(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.PackagePath()
@@ -282,7 +282,7 @@ func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	}
 }
 
-func TestMergeIndexFallsBackToModTimeForRecordsWithoutSeenAt(t *testing.T) {
+func TestMergeIndexWithoutSeenAt(t *testing.T) {
 	older := time.Date(2026, 3, 15, 8, 30, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
 
@@ -353,7 +353,7 @@ func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheOnReadOnlyShelfResolvesButRefusesSaveAndRepair(t *testing.T) {
+func TestReadOnlyCacheResolvesButRejectsWrites(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.PackagePath()
@@ -392,7 +392,7 @@ func TestFingerprintCacheOnReadOnlyShelfResolvesButRefusesSaveAndRepair(t *testi
 	}
 }
 
-func TestFingerprintCacheWillNotIndexAFreshlyWrittenSource(t *testing.T) {
+func TestCacheSkipsFreshSources(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("fresh.bookpkg", "book-fresh", "Just Written", "written moments ago", 0)
 
@@ -549,7 +549,7 @@ func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
+func TestCacheKeepsUnindexedFingerprint(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("fresh.bookpkg", "book-fresh", "Just Written", "written moments ago", 0)
 
@@ -683,7 +683,7 @@ func firstDifference(a, b string) (string, string) {
 	return a[i:min(i+60, len(a))], b[i:min(i+60, len(b))]
 }
 
-func TestFingerprintCacheWithDuplicateMemberIsDiscardedNotReported(t *testing.T) {
+func TestCacheDiscardsDuplicateMembers(t *testing.T) {
 	ts := newTestShelf(t)
 
 	writeCacheAt(t, ts.libRoot, cacheFile{
@@ -717,7 +717,7 @@ func TestCacheFileMarshalsSchemaVersionAsTheFirstKey(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheNeverPairsANewerStatWithOlderContent(t *testing.T) {
+func TestCacheRejectsRacyContent(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.PackagePath()

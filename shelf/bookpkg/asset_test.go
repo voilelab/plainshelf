@@ -240,7 +240,7 @@ func TestSourceAssetETagTracksContent(t *testing.T) {
 	}
 }
 
-func TestValidateAssetNameReportsRejectionsAsErrInvalidAssetName(t *testing.T) {
+func TestInvalidAssetNameErrors(t *testing.T) {
 	for _, name := range []string{"@eaDir", "", ".hidden.png", ".hidden/nested.png", "nested/image.png", "image.txt"} {
 		t.Run(name, func(t *testing.T) {
 			if err := validateAssetName(name); !errors.Is(err, ErrInvalidAssetName) {

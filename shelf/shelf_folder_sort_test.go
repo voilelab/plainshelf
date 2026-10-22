@@ -30,7 +30,7 @@ func TestFolderSortKeyParsingAndPreservingMembers(t *testing.T) {
 	}
 }
 
-func TestSortFolderSiblingsKeepsLegacyFallbackAndWholeSubtrees(t *testing.T) {
+func TestFolderSortPreservesSubtreesAndFallback(t *testing.T) {
 	paths := []FolderPath{{}, {"a"}, {"a", "child"}, {"b"}, {"c"}, {"d"}}
 	original := slices.Clone(paths)
 	sortFolderSiblings(paths, nil)

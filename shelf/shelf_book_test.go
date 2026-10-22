@@ -243,7 +243,7 @@ func TestShelfNewBookIDsAreRandomNotDerived(t *testing.T) {
 	}
 }
 
-func TestShelfBookIDSurvivesTitleFolderAndTrashRoundTrip(t *testing.T) {
+func TestBookIDSurvivesMovesAndTrash(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 

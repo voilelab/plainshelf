@@ -189,7 +189,7 @@ func TestAPIFolderSortKeyContract(t *testing.T) {
 	apitest.AssertStatus(t, env.Put(apitest.ShelfURL("folder-meta", "A"), strings.NewReader(`{"sort_key":"bad"}`)), http.StatusBadRequest)
 }
 
-func TestAPIFolderMetaRejectsAmbiguousSortWritesWithoutChangingIcon(t *testing.T) {
+func TestAPIFolderMetaRejectsAmbiguousSort(t *testing.T) {
 	env := apitest.New(t)
 	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("folders", "A"), nil), http.StatusNoContent)
 	apitest.AssertStatus(t, putFolderIcon(env, "A", "moon", ""), http.StatusNoContent)

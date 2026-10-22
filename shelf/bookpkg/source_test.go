@@ -393,7 +393,7 @@ func (f failSourceMetaRenameFS) Rename(oldPath, newPath string) error {
 	return f.FS.Rename(oldPath, newPath)
 }
 
-func TestSourcePublishesMetadataOnlyAfterPersistenceSucceeds(t *testing.T) {
+func TestSourceMetadataWriteFailure(t *testing.T) {
 	for _, mutation := range []struct {
 		name string
 		run  func(*Source) error

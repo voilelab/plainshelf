@@ -121,7 +121,7 @@ func TestAPINSFWTrashListingMarksItselfPartial(t *testing.T) {
 
 // Restoring or erasing a book the listing just withheld would confirm it is
 // there, so both answer with the envelope an ID that was never issued gets.
-func TestAPINSFWTrashedBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
+func TestAPINSFWTrashedBooksNotFound(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	trashAllOf(t, s, s.FolderHidden, s.BookHidden)
 
@@ -239,7 +239,7 @@ func TestAPINSFWFolderMoveDoesNotAskWhileShowNSFWIsOn(t *testing.T) {
 // way the setting is set. Fiction/Flagged is the case worth pinning: it holds a
 // book the request cannot see, but the mark is the book's own and travels with
 // it, so nothing is revealed.
-func TestAPINSFWFolderMoveDoesNotAskWithoutAMarkedFolder(t *testing.T) {
+func TestAPINSFWFolderMoveWithoutMarks(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 	moves := apitest.ShelfURL("folder-moves")
 
@@ -321,7 +321,7 @@ func TestAPINSFWFolderTransferAsksBeforeUnhiding(t *testing.T) {
 
 // The reverse half of the transfer rule: a source folder holding no marked
 // folder transfers without a confirmation, exactly as it did before.
-func TestAPINSFWFolderTransferDoesNotAskWithoutAMarkedFolder(t *testing.T) {
+func TestAPINSFWFolderTransferWithoutMarks(t *testing.T) {
 	s := apitest.NewNSFWShelf(t, apitest.WithSecondShelf(t.TempDir()))
 
 	apitest.SubmitTaskChain(t, s.Env, apitest.FolderTransfersURL(), []byte(`{
@@ -337,7 +337,7 @@ func TestAPINSFWFolderTransferDoesNotAskWithoutAMarkedFolder(t *testing.T) {
 // holding nothing but book-marked books stays out of the tree wherever it goes -
 // and a confirmation claiming otherwise would train the user to click through
 // the ones that mean something.
-func TestAPINSFWFolderMoveDoesNotAskWhenTheBooksStayHidden(t *testing.T) {
+func TestAPINSFWFolderMoveKeepsBooksHidden(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 
 	apitest.EditBookMetaFile(t, s.Env, s.FolderHidden, map[string]any{"nsfw": true})
@@ -352,7 +352,7 @@ func TestAPINSFWFolderMoveDoesNotAskWhenTheBooksStayHidden(t *testing.T) {
 // A change the shelf would refuse anyway must fail as itself. Asking the user to
 // approve a disclosure and then answering the confirmed retry with the real
 // conflict spends the one question this feature gets on nothing.
-func TestAPINSFWFolderRenameReportsItsOwnConflictRatherThanAsking(t *testing.T) {
+func TestAPINSFWFolderRenameConflict(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 
 	rec := s.Env.Patch(apitest.ShelfURL("folders", "Fiction"), strings.NewReader(`{"name":"Archive"}`))
@@ -367,7 +367,7 @@ func TestAPINSFWFolderRenameReportsItsOwnConflictRatherThanAsking(t *testing.T) 
 // This builds its own shelf rather than using the shared fixture: the point is a
 // marked folder the cache has never seen, and the fixture's is scanned into the
 // cache when it is built.
-func TestAPINSFWFolderMoveSeesAMarkedFolderAddedSinceTheLastScan(t *testing.T) {
+func TestAPINSFWFolderMoveWithUnscannedMark(t *testing.T) {
 	const marked = "Fiction/Secret"
 
 	libRoot := t.TempDir()
@@ -397,7 +397,7 @@ func TestAPINSFWFolderMoveSeesAMarkedFolderAddedSinceTheLastScan(t *testing.T) {
 // cannot write to it: shelf.json marks Fiction/Secret, and the marked folder
 // holds no book, so the move would otherwise be refused for the disclosure its
 // name alone carries.
-func TestAPINSFWFolderChangeOnAReadOnlyShelfRefusesRatherThanAsking(t *testing.T) {
+func TestAPINSFWFolderChangeReadOnly(t *testing.T) {
 	libRoot := t.TempDir()
 	shelfJSON := `{"schema_version":1,"content":{"nsfw_folders":[{"path":"Fiction/Secret"}]}}`
 	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(shelfJSON), 0o644); err != nil {

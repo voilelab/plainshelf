@@ -278,7 +278,7 @@ func TestBookCacheExportSkipsUnchangedContent(t *testing.T) {
 	}
 }
 
-func TestBookCacheDigestIsStableAcrossMapOrderSoUnchangedShelvesSkipExport(t *testing.T) {
+func TestBookCacheExportStableAcrossMapOrder(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{
 		LibRoot:           libRoot,
@@ -626,7 +626,7 @@ func TestBookCacheExportCarriesCurrentSourceMD5(t *testing.T) {
 	}
 }
 
-func TestBookCacheFileMarshalsSchemaVersionAsTheFirstKey(t *testing.T) {
+func TestBookCacheSchemaVersionFirst(t *testing.T) {
 	data, err := json.Marshal(BookCacheFile{SchemaVersion: BookCacheSchemaVersion}, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

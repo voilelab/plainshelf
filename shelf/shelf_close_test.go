@@ -103,7 +103,7 @@ func TestBookCacheWorkDoesNotOverlapAndReleasesItsClaim(t *testing.T) {
 	}
 }
 
-func TestBookCacheWorkReleasesClaimsOnPanicAndRejectedStart(t *testing.T) {
+func TestBookCacheClaimFailureCleanup(t *testing.T) {
 	for _, slot := range []string{"refresh", "export"} {
 		for _, rejected := range []bool{false, true} {
 			t.Run(slot+"/rejected="+strconv.FormatBool(rejected), func(t *testing.T) {

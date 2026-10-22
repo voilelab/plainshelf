@@ -19,7 +19,7 @@ func rootFS(t *testing.T, dir string) fsutil.ReadFS {
 	return fsutil.NewRootFS(rt)
 }
 
-func TestCountBookPackagesSkipsIgnoredDirsAndDoesNotDescendIntoBooks(t *testing.T) {
+func TestCountBookPackagesTraversal(t *testing.T) {
 	dir := t.TempDir()
 	for _, d := range []string{
 		"books/a.bookpkg/nested.bookpkg",

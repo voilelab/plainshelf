@@ -246,7 +246,7 @@ func (f *addChildAfterListingFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return entries, err
 }
 
-func TestScanCacheNeverPairsANewerMtimeWithAnOlderListing(t *testing.T) {
+func TestScanCacheRejectsRacyListing(t *testing.T) {
 	aged := time.Now().Add(-time.Minute)
 
 	f := &addChildAfterListingFS{fakeFS: newFakeFS(), dir: "books/Fiction"}
@@ -272,7 +272,7 @@ func TestScanCacheDoesNotReuseZeroDirectoryModTime(t *testing.T) {
 	}
 }
 
-func TestAbandonKeepsThePreviousSnapshotAndReportsWalkStats(t *testing.T) {
+func TestAbandonPreservesSnapshotAndStats(t *testing.T) {
 	originalModTime := time.Now().Add(-time.Minute)
 	f := newFakeFS()
 	f.mkdir("books", originalModTime)

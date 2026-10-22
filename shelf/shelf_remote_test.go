@@ -125,7 +125,7 @@ func listedTitles(t *testing.T, s *Shelf) []string {
 	return titles
 }
 
-func TestRemoteShelfListsFromExportedCacheWithoutReadingBooks(t *testing.T) {
+func TestRemoteShelfListsWithoutBookReads(t *testing.T) {
 	counts := map[int]int{}
 	for _, n := range []int{2, 12} {
 		titles := make([]string, n)
