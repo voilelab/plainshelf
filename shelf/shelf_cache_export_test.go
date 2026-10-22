@@ -278,7 +278,7 @@ func TestBookCacheExportSkipsUnchangedContent(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportOfManyBooksSkipsUnchangedContent(t *testing.T) {
+func TestBookCacheDigestIsStableAcrossMapOrderSoUnchangedShelvesSkipExport(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{
 		LibRoot:           libRoot,

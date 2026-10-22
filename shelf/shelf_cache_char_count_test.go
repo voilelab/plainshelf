@@ -50,7 +50,7 @@ func listedCharCount(t *testing.T, s *Shelf, bookID string) int {
 	return 0
 }
 
-func TestListBooksWithCharCountReportsTheCurrentSource(t *testing.T) {
+func TestListBooksWithCharCountReportsCurrentSourceAndZeroWhenUnreadable(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	counted := newBookWithContent(t, s, "Counted", "abcde")
@@ -58,12 +58,21 @@ func TestListBooksWithCharCountReportsTheCurrentSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
+	unreadable := newBookWithContent(t, s, "Unreadable", "abc")
+	metaPath := path.Join(unreadable.PackagePath(), SourcesFolder, unreadable.CurrentSource(), "meta.json")
+	if err := writeRootForTest(t, s).Remove(metaPath); err != nil {
+		t.Fatal(err)
+	}
+	s.RefreshBookCharCount(unreadable.ID())
 
 	if got := listedCharCount(t, s, counted.ID()); got != 5 {
 		t.Errorf("char count of a book with content = %d, want 5", got)
 	}
 	if got := listedCharCount(t, s, sourceless.ID()); got != 0 {
 		t.Errorf("char count of a book without a current source = %d, want 0", got)
+	}
+	if got := listedCharCount(t, s, unreadable.ID()); got != 0 {
+		t.Errorf("char count of a book with unreadable source metadata = %d, want 0", got)
 	}
 }
 
@@ -172,7 +181,7 @@ func TestRefreshBookCharCountAppliesToAReplacedEntry(t *testing.T) {
 
 	book := newBookWithContent(t, s, "Replaced", "abcde")
 
-	stale := newBookIDCacheEntry(bookFolderPath(book.PackagePath()), book.PackagePath(), book)
+	stale := readBookIDCacheEntry(bookFolderPath(book.PackagePath()), book.PackagePath(), book)
 
 	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {

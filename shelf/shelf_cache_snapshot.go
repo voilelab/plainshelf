@@ -57,7 +57,7 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	s.bookCache.folderMeta = folderMeta
 	s.bookCache.treeDirty = false
 	s.bookCache.lastScanStart = time.Unix(snapshot.Timestamp, 0)
-	s.bookCache.remoteDigest = ""
+	s.bookCache.forgetAppliedExportDigestLocked()
 	s.bookCache.Unlock()
 
 	s.reconcileDownloads()
@@ -97,7 +97,7 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 	applied := s.bookCache.remoteDigest
 	s.bookCache.RUnlock()
 
-	if !current.IsZero() && (takenAt.Before(current) || (takenAt.Equal(current) && digest == applied)) {
+	if exportIsNotNewer(takenAt, current, digest, applied) {
 		s.markRemoteRefreshAttempt()
 		return nil
 	}
@@ -130,6 +130,14 @@ func (s *Shelf) markRemoteRefreshAttempt() {
 	s.bookCache.Lock()
 	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.Unlock()
+}
+
+func (c *bookCache) forgetAppliedExportDigestLocked() {
+	c.remoteDigest = ""
+}
+
+func exportIsNotNewer(takenAt, current time.Time, digest, applied string) bool {
+	return !current.IsZero() && (takenAt.Before(current) || (takenAt.Equal(current) && digest == applied))
 }
 
 func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {
@@ -175,12 +183,7 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 			return nil, nil, nil, util.Errorf("entry %q has an invalid path %q", bookID, entry.Path)
 		}
 
-		entries[bookID] = &bookIDCacheEntry{
-			folders:   bookFolderPath(entry.Path),
-			path:      entry.Path,
-			book:      bookpkg.FromSnapshot(s.dbRoot, s.Logger, entry.Path, entry.Meta),
-			sourceMD5: entry.CurrentSourceMD5,
-		}
+		entries[bookID] = s.newRemoteBookIDCacheEntry(entry)
 	}
 
 	folders := make([]FolderPath, 0, len(cache.Folders))
@@ -201,14 +204,27 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 		if name == "/" || meta == (BookCacheFolderMeta{}) || !slices.Contains(cache.Folders, name) {
 			continue
 		}
-		entry := FolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
-		if meta.SortKey != nil && !math.IsNaN(*meta.SortKey) && !math.IsInf(*meta.SortKey, 0) {
-			entry.SortKey, entry.HasSortKey = *meta.SortKey, true
-		}
-		folderMeta[name] = entry
+		folderMeta[name] = folderMetaFromExport(meta)
 	}
 
 	return entries, folders, folderMeta, nil
+}
+
+func (s *Shelf) newRemoteBookIDCacheEntry(entry BookCacheEntry) *bookIDCacheEntry {
+	return &bookIDCacheEntry{
+		folders:   bookFolderPath(entry.Path),
+		path:      entry.Path,
+		book:      bookpkg.FromSnapshot(s.dbRoot, s.Logger, entry.Path, entry.Meta),
+		sourceMD5: entry.CurrentSourceMD5,
+	}
+}
+
+func folderMetaFromExport(meta BookCacheFolderMeta) FolderMeta {
+	entry := FolderMeta{Icon: meta.Icon, ReadOnly: meta.ReadOnly}
+	if meta.SortKey != nil && !math.IsNaN(*meta.SortKey) && !math.IsInf(*meta.SortKey, 0) {
+		entry.SortKey, entry.HasSortKey = *meta.SortKey, true
+	}
+	return entry
 }
 
 func isBookPackagePath(p string) bool {

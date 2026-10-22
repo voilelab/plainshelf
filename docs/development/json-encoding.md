@@ -181,7 +181,7 @@ and `TestSPAEscapesScriptCloseInTheBootConfig` fail if the replacement is droppe
 **Determinism, per write path.** Each of the three "unchanged content, do not
 rewrite" checks has a case that writes the same data eight times over and fails
 if the bytes or the file's mtime move: `TestFingerprintCacheWithManyEntriesIsByteStable`,
-`TestBookCacheExportOfManyBooksSkipsUnchangedContent` and
+`TestBookCacheDigestIsStableAcrossMapOrderSoUnchangedShelvesSkipExport` and
 `TestScanCacheWithManyDirectoriesIsNotRewritten`. Each uses twelve to sixteen
 map entries, because a map with one entry has no order to vary and passes with
 or without the option; removing `jsonopt.DiskCompact()` from one write path
