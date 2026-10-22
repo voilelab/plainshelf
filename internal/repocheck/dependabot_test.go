@@ -11,10 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ciJobNames pins the `name:` of every job in .github/workflows/ci.yml. Branch
-// protection binds required checks by name, so renaming a job silently drops
-// its protection instead of failing anything. Changing this list is allowed;
-// doing it without updating the branch protection rule for `dev` is the bug.
 var ciJobNames = map[string]string{
 	"frontend":    "Frontend build",
 	"lint":        "Go lint",
@@ -87,9 +83,9 @@ func TestDependabotCoversEveryManifest(t *testing.T) {
 	}
 
 	for _, want := range discoverManifests(t, root) {
-		if !covered[want.ecosystem+" "+want.directory] {
+		if !covered[want.dependabotEcosystem+" "+want.dependabotDirectory] {
 			t.Errorf("%s is not covered by .github/dependabot.yml; add a %q entry for %q",
-				want.source, want.ecosystem, want.directory)
+				want.sourcePath, want.dependabotEcosystem, want.dependabotDirectory)
 		}
 	}
 }
@@ -146,13 +142,13 @@ func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 	}
 
 	for _, want := range discoverManifests(t, root) {
-		if want.ecosystem != "gomod" {
+		if want.dependabotEcosystem != "gomod" {
 			continue
 		}
 		for _, goos := range releasedGOOS {
-			if !scanned[want.directory+" "+goos] {
+			if !scanned[want.dependabotDirectory+" "+goos] {
 				t.Errorf("ci.yml's vulncheck job does not scan %q (from %s) as GOOS=%s",
-					want.directory, want.source, goos)
+					want.dependabotDirectory, want.sourcePath, goos)
 			}
 		}
 	}
@@ -186,9 +182,9 @@ func TestScanStepsSurviveAnEarlierFailure(t *testing.T) {
 }
 
 type manifest struct {
-	source    string
-	ecosystem string
-	directory string
+	sourcePath          string
+	dependabotEcosystem string
+	dependabotDirectory string
 }
 
 func discoverManifests(t *testing.T, root string) []manifest {
@@ -196,7 +192,7 @@ func discoverManifests(t *testing.T, root string) []manifest {
 
 	var found []manifest
 	add := func(rel, ecosystem, dir string) {
-		found = append(found, manifest{source: rel, ecosystem: ecosystem, directory: dir})
+		found = append(found, manifest{sourcePath: rel, dependabotEcosystem: ecosystem, dependabotDirectory: dir})
 	}
 
 	err := filepath.WalkDir(root, func(pth string, d fs.DirEntry, err error) error {
@@ -234,7 +230,7 @@ func discoverManifests(t *testing.T, root string) []manifest {
 		t.Fatalf("Failed to walk the repository: %v", err)
 	}
 
-	sort.Slice(found, func(i, j int) bool { return found[i].source < found[j].source })
+	sort.Slice(found, func(i, j int) bool { return found[i].sourcePath < found[j].sourcePath })
 	return found
 }
 

@@ -66,7 +66,7 @@ func (p *Pool) Submit(chain *TaskChain) (*TaskChain, error) {
 		chain.CreatedAt = time.Now()
 	}
 
-	if err := p.worker.Run(chain); err != nil {
+	if err := p.worker.TryEnqueue(chain); err != nil {
 		chain.ID = ""
 		return nil, util.Errorf("%w", err)
 	}

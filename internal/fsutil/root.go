@@ -64,7 +64,7 @@ func (l *RootFS) OpenNoFollow(name string) (fs.File, error) {
 		}
 	}()
 	parts := strings.Split(name, "/")
-	for i, part := range parts {
+	for _, part := range parts[:len(parts)-1] {
 		checked, err := dir.Lstat(part)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
@@ -73,18 +73,6 @@ func (l *RootFS) OpenNoFollow(name string) (fs.File, error) {
 			return nil, notExist
 		}
 
-		if i == len(parts)-1 {
-			fp, err := dir.Open(part)
-			if err != nil {
-				return nil, util.Errorf("%w", err)
-			}
-			opened, err := fp.Stat()
-			if err != nil || !os.SameFile(checked, opened) {
-				fp.Close()
-				return nil, notExist
-			}
-			return fp, nil
-		}
 		if !checked.IsDir() {
 			return nil, notExist
 		}
@@ -102,7 +90,24 @@ func (l *RootFS) OpenNoFollow(name string) (fs.File, error) {
 			return nil, notExist
 		}
 	}
-	return nil, notExist
+	part := parts[len(parts)-1]
+	checked, err := dir.Lstat(part)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	if checked.Mode()&fs.ModeSymlink != 0 {
+		return nil, notExist
+	}
+	fp, err := dir.Open(part)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	opened, err := fp.Stat()
+	if err != nil || !os.SameFile(checked, opened) {
+		fp.Close()
+		return nil, notExist
+	}
+	return fp, nil
 }
 
 func (l *RootFS) OpenWriter(name string) (io.WriteCloser, error) {

@@ -281,31 +281,41 @@ func TestWriteFileAtomicConcurrentWritersUseDistinctTempFiles(t *testing.T) {
 }
 
 func TestIsTempName(t *testing.T) {
-	for range 100 {
-		for _, name := range []string{
-			path.Base(tempPath("books/a.bookpkg/book.json")),
-			TempDirName("20260101-000000"),
-		} {
-			if !IsTempName(name) {
-				t.Errorf("IsTempName(%q) = false for a generated name", name)
-			}
-		}
-	}
-	for _, name := range []string{
-		"notes.tmp",
-		"a.tmp.txt",
-		".tmp",
-		"x.abcdefg.tmp",
-		"x.abcdefghi.tmp",
-		".abcdefgh.tmp",
-		"x.abcd-fgh.tmp",
-		".x-abcde.tmp",
-		".-abcdef.tmp",
-		"x-abcdef.tmp",
-		"book.json.aB3dE6gH.tmp.txt",
+	for _, tc := range []struct {
+		name     string
+		generate func() string
+	}{
+		{"atomic file beside its destination", func() string { return path.Base(tempPath("books/a.bookpkg/book.json")) }},
+		{"hidden staging directory", func() string { return TempDirName("20260101-000000") }},
 	} {
-		if IsTempName(name) {
-			t.Errorf("IsTempName(%q) = true", name)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			for range 100 {
+				if name := tc.generate(); !IsTempName(name) {
+					t.Errorf("IsTempName(%q) = false for a generated name", name)
+				}
+			}
+		})
+	}
+	for _, tc := range []struct {
+		name  string
+		input string
+	}{
+		{"ordinary tmp extension", "notes.tmp"},
+		{"tmp extension is not last", "a.tmp.txt"},
+		{"extension without a stem", ".tmp"},
+		{"file random suffix too short", "x.abcdefg.tmp"},
+		{"file random suffix too long", "x.abcdefghi.tmp"},
+		{"file stem is missing", ".abcdefgh.tmp"},
+		{"file suffix contains a separator", "x.abcd-fgh.tmp"},
+		{"directory random suffix too short", ".x-abcde.tmp"},
+		{"directory base is missing", ".-abcdef.tmp"},
+		{"directory is not hidden", "x-abcdef.tmp"},
+		{"atomic name followed by another extension", "book.json.aB3dE6gH.tmp.txt"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if IsTempName(tc.input) {
+				t.Errorf("IsTempName(%q) = true", tc.input)
+			}
+		})
 	}
 }

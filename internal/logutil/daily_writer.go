@@ -13,8 +13,8 @@ type DailyFileWriter struct {
 	dir    string
 	prefix string
 
-	retentionDays int
-	retention     *Retention
+	configuredRetentionDays int
+	runtimeRetention        *Retention
 
 	curDate string
 	file    *os.File
@@ -29,10 +29,10 @@ func NewDailyFileWriter(conf LogFileConf) *DailyFileWriter {
 	retentionDays := max(conf.ResolvedRetentionDays(), 0)
 
 	return &DailyFileWriter{
-		dir:           conf.Dir,
-		prefix:        prefix,
-		retentionDays: retentionDays,
-		retention:     conf.Retention,
+		dir:                     conf.Dir,
+		prefix:                  prefix,
+		configuredRetentionDays: retentionDays,
+		runtimeRetention:        conf.Retention,
 	}
 }
 
@@ -71,13 +71,13 @@ func (w *DailyFileWriter) rotate(date string) error {
 		_ = oldFile.Close()
 	}
 
-	w.removeExpired(date)
+	w.removeExpiredLocked(date)
 
 	return nil
 }
 
-func (w *DailyFileWriter) removeExpired(date string) {
-	retentionDays := w.retention.Days(w.retentionDays)
+func (w *DailyFileWriter) removeExpiredLocked(date string) {
+	retentionDays := w.runtimeRetention.Days(w.configuredRetentionDays)
 	if retentionDays <= 0 {
 		return
 	}

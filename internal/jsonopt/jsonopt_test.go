@@ -10,17 +10,13 @@ import (
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
-// marshalRounds is how many times each option set is exercised. One round
-// cannot tell a deterministic marshal from a lucky one: Go randomises map
-// iteration per range, so a set that lost json.Deterministic would still sort
-// its keys correctly about 1 time in n!. Repeating collapses that to nothing.
 const marshalRounds = 20
 
-var mapKeys = []string{"zeta", "alpha", "mu", "beta", "omega", "delta", "kappa", "gamma"}
+var unsortedWideKeys = []string{"zeta", "alpha", "mu", "beta", "omega", "delta", "kappa", "gamma"}
 
 func unsortedMap() map[string]int {
-	m := make(map[string]int, len(mapKeys))
-	for i, key := range mapKeys {
+	m := make(map[string]int, len(unsortedWideKeys))
+	for i, key := range unsortedWideKeys {
 		m[key] = i
 	}
 	return m
@@ -83,8 +79,8 @@ func TestDiskIndentsAndTheMachineOnlySetsDoNot(t *testing.T) {
 func keyOrder(t *testing.T, encoded string) []string {
 	t.Helper()
 
-	positions := make(map[string]int, len(mapKeys))
-	for _, key := range mapKeys {
+	positions := make(map[string]int, len(unsortedWideKeys))
+	for _, key := range unsortedWideKeys {
 		index := strings.Index(encoded, fmt.Sprintf("%q", key))
 		if index < 0 {
 			t.Fatalf("key %q missing from %s", key, encoded)
@@ -92,7 +88,7 @@ func keyOrder(t *testing.T, encoded string) []string {
 		positions[key] = index
 	}
 
-	names := slices.Clone(mapKeys)
+	names := slices.Clone(unsortedWideKeys)
 	slices.SortFunc(names, func(a, b string) int { return positions[a] - positions[b] })
 	return names
 }

@@ -39,7 +39,7 @@ func TestJSONDateUnmarshalRFC3339Compat(t *testing.T) {
 	}
 }
 
-func TestJSONDateUnmarshalRFC3339OffsetBoundary(t *testing.T) {
+func TestJSONDateUnmarshalRFC3339TakesTheDateInItsOwnOffset(t *testing.T) {
 	var d JSONDate
 	if err := json.Unmarshal([]byte(`"2026-03-16T00:30:00+09:00"`), &d); err != nil {
 		t.Fatalf("Failed to unmarshal RFC3339 with offset: %v", err)

@@ -3,6 +3,8 @@ package textnorm
 import (
 	"strings"
 	"testing"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 func wrapAt(paragraph string, width int, lineBreak string) string {
@@ -47,15 +49,13 @@ func TestNormalizeIgnoresLayout(t *testing.T) {
 		shredded.WriteString(wrapAt(p, 1, "\n"))
 	}
 
-	want := Normalize(narrow.String())
-	if want == "" {
-		t.Fatal("Normalize dropped the entire passage")
-	}
+	const want = "話說天下大勢分久必合合久必分周末七國分爭并入於秦"
 
 	for _, tc := range []struct {
 		name string
 		text string
 	}{
+		{"narrow wrap with LF and ideographic indent", narrow.String()},
 		{"wide wrap with CRLF", wide.String()},
 		{"one line per paragraph", flat.String()},
 		{"one rune per line", shredded.String()},
@@ -151,9 +151,9 @@ func TestNormalizeComposesAcrossRemovedLayout(t *testing.T) {
 				t.Errorf("Normalize(%q) = %q, want %q from Normalize(%q)",
 					tc.split, gotSplit, gotWhole, tc.whole)
 			}
-			if hash64String(gotSplit) != hash64String(gotWhole) {
+			if xxhash.Sum64String(gotSplit) != xxhash.Sum64String(gotWhole) {
 				t.Errorf("layout changed the hash: %#016x vs %#016x",
-					hash64String(gotSplit), hash64String(gotWhole))
+					xxhash.Sum64String(gotSplit), xxhash.Sum64String(gotWhole))
 			}
 		})
 	}

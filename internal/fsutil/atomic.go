@@ -9,6 +9,8 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
+const tempExtension = ".tmp"
+
 const tempSuffixLength = 8
 
 const tempDirSuffixLength = 6
@@ -16,20 +18,30 @@ const tempDirSuffixLength = 6
 const randomAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 func tempPath(name string) string {
-	return fmt.Sprintf("%s.%s.tmp", name, RandomString(tempSuffixLength))
+	return fmt.Sprintf("%s.%s%s", name, RandomString(tempSuffixLength), tempExtension)
 }
 
 func TempDirName(base string) string {
-	return fmt.Sprintf(".%s-%s.tmp", base, RandomString(tempDirSuffixLength))
+	return fmt.Sprintf(".%s-%s%s", base, RandomString(tempDirSuffixLength), tempExtension)
 }
 
 func IsTempName(name string) bool {
-	stem, ok := strings.CutSuffix(name, ".tmp")
+	return isTempFileName(name) || isStagingDirName(name)
+}
+
+func isTempFileName(name string) bool {
+	stem, ok := strings.CutSuffix(name, tempExtension)
 	if !ok {
 		return false
 	}
-	if i := len(stem) - tempSuffixLength - 1; i > 0 && stem[i] == '.' && isRandomString(stem[i+1:]) {
-		return true
+	i := len(stem) - tempSuffixLength - 1
+	return i > 0 && stem[i] == '.' && isRandomString(stem[i+1:])
+}
+
+func isStagingDirName(name string) bool {
+	stem, ok := strings.CutSuffix(name, tempExtension)
+	if !ok {
+		return false
 	}
 	i := len(stem) - tempDirSuffixLength - 1
 	return i > 1 && stem[0] == '.' && stem[i] == '-' && isRandomString(stem[i+1:])

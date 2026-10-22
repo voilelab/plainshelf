@@ -69,8 +69,8 @@ func TestWorkerRunsChainInOrder(t *testing.T) {
 		&fakeTask{name: "third", record: &ran},
 	}}
 
-	if err := w.Run(chain); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(chain); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 
 	if err := w.Close(); err != nil {
@@ -94,8 +94,8 @@ func TestWorkerStopsChainAfterFailure(t *testing.T) {
 		&fakeTask{name: "skipped", record: &ran},
 	}}
 
-	if err := w.Run(chain); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(chain); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close returned an error: %v", err)
@@ -115,8 +115,8 @@ func TestWorkerCancelsRunningTaskOnClose(t *testing.T) {
 	observed := make(chan error, 1)
 	chain := &TaskChain{Tasks: []Task{&blockingTask{started: started, observed: observed}}}
 
-	if err := w.Run(chain); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(chain); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 
 	<-started
@@ -137,8 +137,8 @@ func TestWorkerCancelStopsOnlyThatChain(t *testing.T) {
 	observed := make(chan error, 1)
 	cancelled := &TaskChain{Tasks: []Task{&blockingTask{started: started, observed: observed}}}
 
-	if err := w.Run(cancelled); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(cancelled); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 
 	<-started
@@ -149,7 +149,7 @@ func TestWorkerCancelStopsOnlyThatChain(t *testing.T) {
 
 	ran := []string{}
 	next := &TaskChain{Tasks: []Task{&fakeTask{name: "after", record: &ran}}}
-	if err := w.Run(next); err != nil {
+	if err := w.TryEnqueue(next); err != nil {
 		t.Fatalf("Run after cancel returned an error: %v", err)
 	}
 	if err := w.Close(); err != nil {
@@ -170,7 +170,7 @@ func TestWorkerRunAfterCloseReturnsError(t *testing.T) {
 	}
 
 	ran := []string{}
-	err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "late", record: &ran}}})
+	err := w.TryEnqueue(&TaskChain{Tasks: []Task{&fakeTask{name: "late", record: &ran}}})
 	if !errors.Is(err, ErrWorkerClosed) {
 		t.Errorf("Expected ErrWorkerClosed, got %v", err)
 	}
@@ -192,11 +192,11 @@ func TestWorkerRunReturnsErrWorkerBusyWhenQueueIsFull(t *testing.T) {
 	w := newTestWorker(t, 1)
 
 	ran := []string{}
-	if err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "queued", record: &ran}}}); err != nil {
+	if err := w.TryEnqueue(&TaskChain{Tasks: []Task{&fakeTask{name: "queued", record: &ran}}}); err != nil {
 		t.Fatalf("Run returned an error for the first chain: %v", err)
 	}
 
-	err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "rejected", record: &ran}}})
+	err := w.TryEnqueue(&TaskChain{Tasks: []Task{&fakeTask{name: "rejected", record: &ran}}})
 	if !errors.Is(err, ErrWorkerBusy) {
 		t.Errorf("Expected ErrWorkerBusy, got %v", err)
 	}
@@ -221,14 +221,14 @@ func TestWorkerSurvivesPanickingTask(t *testing.T) {
 	w.Start()
 
 	ran := []string{}
-	if err := w.Run(&TaskChain{Tasks: []Task{
+	if err := w.TryEnqueue(&TaskChain{Tasks: []Task{
 		&panickingTask{fakeTask{name: "panicking", record: &ran}},
 		&fakeTask{name: "skipped", record: &ran},
 	}}); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
-	if err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "next", record: &ran}}}); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(&TaskChain{Tasks: []Task{&fakeTask{name: "next", record: &ran}}}); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close returned an error: %v", err)

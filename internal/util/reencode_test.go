@@ -188,8 +188,8 @@ func TestReEncodeToUTF8ReadsOnlyThePrefixUpFront(t *testing.T) {
 		name string
 		line string
 	}{
-		{"ascii", "plain ascii line\n"},
-		{"utf-8", "一行文字 line of text\n"},
+		{"ASCII sniffing stops within the prefix and leaves the rest unread", "plain ascii line\n"},
+		{"UTF-8 sniffing stops within the prefix and leaves the rest unread", "一行文字 line of text\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			src := strings.Repeat(tc.line, 8*encodingSniffLimit/len(tc.line))

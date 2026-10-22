@@ -10,7 +10,13 @@ import (
 const NormalizeVersion = "nfkc-strip-space-punct-v2"
 
 func Normalize(s string) string {
-	for range maxNormalizeRounds {
+	return normalizeToFixpoint(s, maxNormalizeRounds)
+}
+
+const maxNormalizeRounds = 4
+
+func normalizeToFixpoint(s string, maxRounds int) string {
+	for range maxRounds {
 		stripped := stripLayout(norm.NFKC.String(s))
 		if stripped == s {
 			break
@@ -20,8 +26,6 @@ func Normalize(s string) string {
 
 	return s
 }
-
-const maxNormalizeRounds = 4
 
 func stripLayout(s string) string {
 	var b strings.Builder
@@ -36,9 +40,6 @@ func stripLayout(s string) string {
 	return b.String()
 }
 
-// isLayout reports whether r describes how text is presented rather than what it
-// says. unicode.IsSpace covers the separator categories plus the ASCII control
-// runes that end a line, which no category does.
 func isLayout(r rune) bool {
 	if unicode.IsSpace(r) {
 		return true

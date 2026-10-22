@@ -10,16 +10,14 @@ const requestIDAlphabet = "23456789ABCDEFGHJKMNPQRSTVWXYZ"
 const requestIDLength = 8
 
 func NewRequestID() string {
-	const unbiasedBound = byte(256 - 256%len(requestIDAlphabet))
+	const rejectAtOrAbove = byte(256 - 256%len(requestIDAlphabet))
 
 	id := make([]byte, 0, requestIDLength)
 	buf := make([]byte, requestIDLength)
 	for len(id) < requestIDLength {
-		// crypto/rand.Read never reports an error; it panics if the system
-		// source fails.
 		_, _ = rand.Read(buf)
 		for _, b := range buf {
-			if b >= unbiasedBound {
+			if b >= rejectAtOrAbove {
 				continue
 			}
 			id = append(id, requestIDAlphabet[int(b)%len(requestIDAlphabet)])
