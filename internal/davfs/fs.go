@@ -104,20 +104,21 @@ func New(rawURL string, opts Options) (*FS, error) {
 }
 
 func (f *FS) target(name string, dir bool) *url.URL {
+	u := *f.base
 	escaped := f.base.EscapedPath()
 	if name != "." {
+		u.Path += name
 		segments := strings.Split(name, "/")
 		for i, s := range segments {
 			segments[i] = url.PathEscape(s)
 		}
 		escaped += strings.Join(segments, "/")
 		if dir {
+			u.Path += "/"
 			escaped += "/"
 		}
 	}
-	u := *f.base
 	u.RawPath = escaped
-	u.Path, _ = url.PathUnescape(escaped)
 	return &u
 }
 
@@ -389,9 +390,8 @@ func (f *file) start() error {
 	}
 
 	var skip int64
-	switch {
-	case res.StatusCode == http.StatusPartialContent:
-	case f.offset > 0:
+	rangeIgnored := res.StatusCode != http.StatusPartialContent && f.offset > 0
+	if rangeIgnored {
 		skip = f.offset
 	}
 	if f.offset == 0 {

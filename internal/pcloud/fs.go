@@ -46,6 +46,10 @@ type node struct {
 	listedAt time.Time
 }
 
+func (n *node) listed() bool {
+	return n.children != nil
+}
+
 func newNode(it *item, listedAt time.Time, recursive bool) *node {
 	n := &node{name: it.Name, isDir: it.IsFolder, size: it.Size}
 	if t, err := time.Parse(time.RFC1123Z, it.Modified); err == nil {
@@ -68,7 +72,7 @@ func (n *node) setChildren(items []item, listedAt time.Time, recursive bool, pre
 	n.listedAt = listedAt
 	for i := range items {
 		child := newNode(&items[i], listedAt, recursive)
-		if old, ok := previous[child.name]; ok && old.isDir && child.isDir && old.id == child.id && child.children == nil {
+		if old, ok := previous[child.name]; ok && old.isDir && child.isDir && old.id == child.id && !child.listed() {
 			child.children, child.listedAt = old.children, old.listedAt
 		}
 		n.children[child.name] = child
@@ -76,7 +80,7 @@ func (n *node) setChildren(items []item, listedAt time.Time, recursive bool, pre
 }
 
 func (f *FS) stale(n *node) bool {
-	return n.children == nil || f.now().Sub(n.listedAt) > f.ListingMaxAge
+	return !n.listed() || f.now().Sub(n.listedAt) > f.ListingMaxAge
 }
 
 func (f *FS) loadLocked(ctx context.Context) error {
@@ -124,7 +128,7 @@ func (f *FS) lookup(op, name string) (*node, error) {
 		if !n.isDir {
 			return nil, &fs.PathError{Op: op, Path: name, Err: fs.ErrNotExist}
 		}
-		if n.children == nil {
+		if !n.listed() {
 			if err := f.relistLocked(ctx, n); err != nil {
 				return nil, &fs.PathError{Op: op, Path: name, Err: err}
 			}
