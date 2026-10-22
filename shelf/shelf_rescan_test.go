@@ -197,6 +197,36 @@ func TestRescanAllowsAHumanPacePressAfterPress(t *testing.T) {
 	}
 }
 
+func TestRescanTokensIgnoreClockSteppingBack(t *testing.T) {
+	now := time.Date(2026, time.October, 22, 12, 0, 0, 0, time.UTC)
+	cache := &bookCache{rescanTokensAt: now}
+	cache.Lock()
+	defer cache.Unlock()
+
+	for _, tc := range []struct {
+		name       string
+		at         time.Time
+		wantWait   time.Duration
+		wantAnchor time.Time
+	}{
+		{"backward step gives no token", now.Add(-rescanRefill), rescanRefill, now},
+		{"catching up gives no token", now, rescanRefill, now},
+		{"half refill", now.Add(rescanRefill / 2), rescanRefill / 2, now.Add(rescanRefill / 2)},
+		{"second backward step keeps partial refill", now, rescanRefill / 2, now.Add(rescanRefill / 2)},
+		{"full refill allows exactly one token", now.Add(rescanRefill), 0, now.Add(rescanRefill)},
+		{"same instant does not refill twice", now.Add(rescanRefill), rescanRefill, now.Add(rescanRefill)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := cache.takeRescanTokenLocked(tc.at); got != tc.wantWait {
+				t.Fatalf("retry wait = %v, want %v", got, tc.wantWait)
+			}
+			if !cache.rescanTokensAt.Equal(tc.wantAnchor) {
+				t.Fatalf("refill anchor = %v, want %v", cache.rescanTokensAt, tc.wantAnchor)
+			}
+		})
+	}
+}
+
 func TestRescanTokensRefillOverTime(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 	now := time.Now()

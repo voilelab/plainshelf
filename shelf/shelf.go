@@ -47,9 +47,9 @@ type Shelf struct {
 	readyCh   chan struct{}
 	initErr   atomic.Pointer[error]
 
-	awaitingSource atomic.Bool
-	initRetryMu    sync.Mutex
-	lastInitTry    atomic.Int64
+	awaitingSource      atomic.Bool
+	initRetryMu         sync.Mutex
+	lastInitTryUnixNano atomic.Int64
 
 	scanCache *scancache.Cache
 
@@ -350,12 +350,7 @@ func (s *Shelf) makeStructure() error {
 		return util.Errorf("%w", err)
 	}
 
-	err = s.migrateLegacyTrash(root)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	err = root.MkdirAll(trashBooksFolder)
+	err = s.ensureTrashFolder(root)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -369,6 +364,20 @@ func (s *Shelf) writeRoot() (fsutil.FS, error) {
 		return nil, util.Errorf("%w", err)
 	}
 	return root, nil
+}
+
+func (s *Shelf) ensureTrashFolder(root fsutil.FS) error {
+	if err := s.migrateLegacyTrash(root); err != nil {
+		return util.Errorf("%w", err)
+	}
+	if err := root.MkdirAll(trashBooksFolder); err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
+}
+
+func (s *Shelf) exportEnabled() bool {
+	return s.bookCacheWriterID != ""
 }
 
 func (s *Shelf) ReadOnly() bool {
@@ -393,7 +402,7 @@ func (s *Shelf) initCache() error {
 		wrapped := util.Errorf("%w", err)
 		s.initErr.Store(&wrapped)
 		if s.remote && isAwaitingSource(err) {
-			s.lastInitTry.Store(time.Now().UnixNano())
+			s.lastInitTryUnixNano.Store(time.Now().UnixNano())
 			s.awaitingSource.Store(true)
 		}
 		close(s.readyCh)
@@ -403,7 +412,7 @@ func (s *Shelf) initCache() error {
 	close(s.readyCh)
 	s.Debug("shelf cache initialized")
 
-	if s.bookCacheWriterID != "" {
+	if s.exportEnabled() {
 		if err := s.exportBookCache(false); err != nil {
 			s.Warn("failed to export the book cache after the initial scan", "error", err)
 		}
@@ -433,7 +442,7 @@ func (s *Shelf) notReady() error {
 }
 
 func (s *Shelf) retryInitSoon() {
-	if time.Since(time.Unix(0, s.lastInitTry.Load())) < initRetryInterval {
+	if time.Since(time.Unix(0, s.lastInitTryUnixNano.Load())) < initRetryInterval {
 		return
 	}
 	s.goBackground(func() {
@@ -448,7 +457,7 @@ func (s *Shelf) retryInitSoon() {
 }
 
 func (s *Shelf) retryInit() error {
-	s.lastInitTry.Store(time.Now().UnixNano())
+	s.lastInitTryUnixNano.Store(time.Now().UnixNano())
 	err := s.refreshRemoteBookCache(s.openWithoutExport)
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
@@ -485,7 +494,7 @@ func (s *Shelf) WaitReady(ctx context.Context) error {
 	}
 }
 
-func (s *Shelf) SetScanInterval(scanInterval string) error {
+func (s *Shelf) SetIntervals(scanInterval, bookCheckInterval string) error {
 	interval := time.Minute
 	if scanInterval != "" {
 		var err error
@@ -494,28 +503,18 @@ func (s *Shelf) SetScanInterval(scanInterval string) error {
 			return util.Errorf("invalid scan interval: %w", err)
 		}
 	}
-	s.bookCache.Lock()
-	s.bookCache.scanInterval = interval
-	s.bookCache.Unlock()
-	return nil
-}
-
-func (s *Shelf) SetBookCheckInterval(bookCheckInterval string) error {
-	var interval time.Duration
-	useScanInterval := bookCheckInterval == ""
-	if !useScanInterval {
+	checkInterval := interval
+	if bookCheckInterval != "" {
 		var err error
-		interval, err = time.ParseDuration(bookCheckInterval)
+		checkInterval, err = time.ParseDuration(bookCheckInterval)
 		if err != nil {
 			return util.Errorf("invalid book check interval: %w", err)
 		}
 	}
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
-	if useScanInterval {
-		interval = s.bookCache.scanInterval
-	}
-	s.bookCache.bookCheckInterval = interval
+	s.bookCache.scanInterval = interval
+	s.bookCache.bookCheckInterval = checkInterval
 	return nil
 }
 
@@ -568,7 +567,7 @@ func (s *Shelf) Close() error {
 
 	errs := []error{}
 
-	if s.bookCacheWriterID != "" {
+	if s.exportEnabled() {
 		if err := s.exportBookCache(false); err != nil {
 			s.Warn("failed to export the book cache while closing", "error", err)
 		}

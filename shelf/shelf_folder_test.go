@@ -26,7 +26,7 @@ func (f *countingDirFS) ReadDir(name string) ([]fs.DirEntry, error) {
 func countBookTreeReads(t *testing.T, s *Shelf) *countingDirFS {
 	t.Helper()
 
-	if s.bookCacheWriterID != "" {
+	if s.exportEnabled() {
 		t.Fatal("countBookTreeReads needs a shelf without a book cache writer ID")
 	}
 

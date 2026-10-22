@@ -96,7 +96,7 @@ func (s *Shelf) beginRescan(now time.Time, rateLimited bool) rescanClaim {
 	}
 
 	if rateLimited {
-		if retryAfter := s.bookCache.takeRescanToken(now); retryAfter > 0 {
+		if retryAfter := s.bookCache.takeRescanTokenLocked(now); retryAfter > 0 {
 			return rescanClaim{retryAfter: retryAfter}
 		}
 	}
@@ -105,11 +105,8 @@ func (s *Shelf) beginRescan(now time.Time, rateLimited bool) rescanClaim {
 	return rescanClaim{scanID: s.bookCache.rescanID}
 }
 
-func (c *bookCache) takeRescanToken(now time.Time) time.Duration {
-	if elapsed := now.Sub(c.rescanTokensAt); elapsed > 0 {
-		c.rescanTokens = min(rescanBurst, c.rescanTokens+float64(elapsed)/float64(rescanRefill))
-	}
-	c.rescanTokensAt = now
+func (c *bookCache) takeRescanTokenLocked(now time.Time) time.Duration {
+	c.refillSince(now)
 
 	if c.rescanTokens < 1 {
 		return time.Duration((1 - c.rescanTokens) * float64(rescanRefill))
@@ -117,6 +114,15 @@ func (c *bookCache) takeRescanToken(now time.Time) time.Duration {
 
 	c.rescanTokens--
 	return 0
+}
+
+func (c *bookCache) refillSince(now time.Time) {
+	elapsed := now.Sub(c.rescanTokensAt)
+	if elapsed <= 0 {
+		return
+	}
+	c.rescanTokens = min(rescanBurst, c.rescanTokens+float64(elapsed)/float64(rescanRefill))
+	c.rescanTokensAt = now
 }
 
 func (s *Shelf) endRescan() {
