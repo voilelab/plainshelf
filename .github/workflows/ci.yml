@@ -9,6 +9,14 @@ on:
 permissions:
   contents: read
 
+env:
+  NPM_CONFIG_PREFER_OFFLINE: "true"
+  NPM_CONFIG_FETCH_TIMEOUT: "30000"
+  NPM_CONFIG_FETCH_RETRIES: "2"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "10000"
+  NPM_CONFIG_LOGLEVEL: http
+
 jobs:
   frontend:
     name: Frontend build
@@ -33,6 +41,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        timeout-minutes: 3
         run: npm ci
 
       - name: Run unit tests
@@ -159,6 +168,7 @@ jobs:
 
       - name: Install E2E dependencies
         working-directory: e2e
+        timeout-minutes: 3
         run: npm ci
 
       - name: Install Playwright browser
@@ -208,6 +218,7 @@ jobs:
 
       - name: Install E2E dependencies
         working-directory: e2e
+        timeout-minutes: 3
         run: npm ci
 
       - name: Install Playwright browser
@@ -216,6 +227,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
+        timeout-minutes: 3
         run: npm ci
 
       - name: Build wasm demo
@@ -278,6 +290,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
+        timeout-minutes: 3
         run: npm ci
 
       - name: Sync the web build into the Android project
