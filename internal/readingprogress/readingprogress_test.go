@@ -34,7 +34,7 @@ func TestProjectMapsReaderBookToRealShelf(t *testing.T) {
 	}
 }
 
-func TestProjectShelfIDDifference(t *testing.T) {
+func TestProjectMapsToRealShelfWhoseKeyDiffersFromReaderShelf(t *testing.T) {
 	doc := New()
 	doc.Shelves[ReaderShelfID] = map[string]Entry{"book-a": ent(5, 1000)}
 
@@ -105,7 +105,7 @@ func TestProjectIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestProjectDeferredReHome(t *testing.T) {
+func TestProjectFoldsBookOnceALaterImportMakesItResolvable(t *testing.T) {
 	doc := New()
 	doc.Shelves[ReaderShelfID] = map[string]Entry{"book-a": ent(55, 1000)}
 
@@ -166,7 +166,9 @@ func TestMergeNewestTombstoneWinsByRecency(t *testing.T) {
 	if e := entryOf(got, "shelf-real", "book-a"); e != ent(0, 2000) {
 		t.Fatalf("newer reset tombstone must win: %+v, want {0 2000}", e)
 	}
+}
 
+func TestMergeNewestOlderResetDoesNotUndoNewerAdvance(t *testing.T) {
 	advance := New()
 	advance.Shelves["shelf-real"] = map[string]Entry{"book-a": ent(120, 3000)}
 	oldReset := New()
@@ -262,7 +264,7 @@ func TestSerializeEmptyShelvesIsObjectNotNull(t *testing.T) {
 	}
 }
 
-func TestStoreMutateReadRoundTrip(t *testing.T) {
+func TestStoreReadMissingFileIsEmptyDocument(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "reading_progress.json")
 	store := NewStore(path)
 
@@ -273,8 +275,13 @@ func TestStoreMutateReadRoundTrip(t *testing.T) {
 	if len(doc.Shelves) != 0 {
 		t.Fatalf("expected empty document, got %v", doc)
 	}
+}
 
-	_, err = store.Mutate(func(d Document) Document {
+func TestStoreMutateReadRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "reading_progress.json")
+	store := NewStore(path)
+
+	_, err := store.Mutate(func(d Document) Document {
 		out := d.Clone()
 		out.Shelves[ReaderShelfID] = map[string]Entry{"book-a": ent(12, 1000)}
 		return out

@@ -83,6 +83,35 @@ func staticSecret(s string) Secret {
 	return func(context.Context) (string, error) { return s, nil }
 }
 
+func TestTargetPreservesBaseEscapingAndEscapesEachFileSegment(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		base    string
+		file    string
+		dir     bool
+		path    string
+		escaped string
+	}{
+		{"root", "/dav/shelf", ".", true, "/dav/shelf/", "/dav/shelf/"},
+		{"directory", "/dav/shelf", "books/F", true, "/dav/shelf/books/F/", "/dav/shelf/books/F/"},
+		{"escaped base slash", "/dav%2fshelf", "book.json", false, "/dav/shelf/book.json", "/dav%2fshelf/book.json"},
+		{"literal percent escape in name", "/dav/shelf", "books/%2F/book.json", false, "/dav/shelf/books/%2F/book.json", "/dav/shelf/books/%252F/book.json"},
+		{"reserved characters", "/dav/shelf", "Dune #1/50%?.md", false, "/dav/shelf/Dune #1/50%?.md", "/dav/shelf/Dune%20%231/50%25%3F.md"},
+		{"unicode", "/dav/shelf", "書/一.md", false, "/dav/shelf/書/一.md", "/dav/shelf/%E6%9B%B8/%E4%B8%80.md"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newTestFS(t, "https://example.com"+tc.base, nil)
+			got := f.target(tc.file, tc.dir)
+			if got.Path != tc.path || got.EscapedPath() != tc.escaped {
+				t.Fatalf("target = path %q, escaped %q; want %q, %q", got.Path, got.EscapedPath(), tc.path, tc.escaped)
+			}
+			if got.String() != "https://example.com"+tc.escaped {
+				t.Fatalf("URL = %q, want %q", got.String(), "https://example.com"+tc.escaped)
+			}
+		})
+	}
+}
+
 func TestReadDirStatAndOpen(t *testing.T) {
 	srv := newFakeDAV(t, "/dav/shelf")
 	srv.write(t, "books/Dune #1/book.json", `{"title":"Dune"}`)

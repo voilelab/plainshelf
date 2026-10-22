@@ -181,6 +181,26 @@ func TestFSRelistsAStaleFolder(t *testing.T) {
 	if got := srv.Take(); !slices.Equal(got, []string{"listfolder"}) {
 		t.Errorf("stale ReadDir requests = %v, want one non-recursive listing", got)
 	}
+}
+
+func TestFSRelistingAParentKeepsWhatIsKnownBelowIt(t *testing.T) {
+	srv := pcloudtest.New(t, seedTree(t, sampleTree), mount)
+	f := newTestFS(t, srv, pcloudtest.Token)
+	now := time.Now()
+	f.now = func() time.Time { return now }
+
+	if _, err := f.Stat("books/F/Two.bookpkg/book.json"); err != nil {
+		t.Fatal(err)
+	}
+	srv.Take()
+
+	now = now.Add(f.ListingMaxAge + time.Second)
+	if _, err := f.ReadDir("books"); err != nil {
+		t.Fatal(err)
+	}
+	if got := srv.Take(); !slices.Equal(got, []string{"listfolder"}) {
+		t.Fatalf("parent ReadDir requests = %v, want one non-recursive listing", got)
+	}
 	if _, err := f.Stat("books/F/Two.bookpkg/book.json"); err != nil || len(srv.Take()) != 0 {
 		t.Errorf("Stat after relisting = %v, want it answered from the tree", err)
 	}
