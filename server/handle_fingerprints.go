@@ -170,7 +170,7 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 	sumValues := 0
 	for _, listing := range books {
 		book := listing.Book
-		entry, ok := cache.Lookup(book.ID(), book.CurrentSource())
+		entry, ok := cache.LookupRecorded(book.ID(), book.CurrentSource())
 		if !ok {
 
 			continue

@@ -291,7 +291,7 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onFolderMeta fu
 
 	var dfsFunc func(string, *scancache.DirChild, bool)
 
-	dfsFunc = func(pth string, child *scancache.DirChild, trusted bool) {
+	dfsFunc = func(pth string, child *scancache.DirChild, parentListingReused bool) {
 		if skipAll {
 			return
 		}
@@ -350,7 +350,7 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onFolderMeta fu
 			return
 		}
 
-		children, childrenTrusted, err := walk.ReadDir(root, pth, trusted)
+		children, childrenTrusted, err := walk.ReadDir(root, pth, parentListingReused)
 		if err != nil {
 			if stopIfUnavailable(err) {
 				return
@@ -370,7 +370,12 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onFolderMeta fu
 	}
 
 	dfsFunc(booksFolder, nil, true)
-	stats := walk.Install(!skipAll)
+	var stats scanStats
+	if skipAll {
+		stats = walk.Abandon()
+	} else {
+		stats = walk.Install()
+	}
 	if unavailable != nil {
 		return stats, util.Errorf("%w", unavailable)
 	}

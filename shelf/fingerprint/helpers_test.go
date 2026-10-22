@@ -55,7 +55,11 @@ func newTestShelf(t *testing.T) *testShelf {
 	if err != nil {
 		t.Fatalf("OpenRoot(%q): %v", libRoot, err)
 	}
-	t.Cleanup(func() { osRoot.Close() })
+	t.Cleanup(func() {
+		if err := osRoot.Close(); err != nil {
+			t.Errorf("closing shelf root: %v", err)
+		}
+	})
 
 	base := fsutil.NewRootFS(osRoot)
 	if err := base.MkdirAll(appDir); err != nil {
@@ -69,7 +73,7 @@ func (ts *testShelf) liveBooks() (map[string]struct{}, bool) {
 	return ts.live, true
 }
 
-func (ts *testShelf) addBook(dir, id, title, content string, age time.Duration) *bookpkg.Book {
+func (ts *testShelf) addBook(dir, id, title, content string, modTimeOffset time.Duration) *bookpkg.Book {
 	t := ts.t
 	t.Helper()
 
@@ -87,8 +91,8 @@ func (ts *testShelf) addBook(dir, id, title, content string, age time.Duration) 
 
 	ts.live[id] = struct{}{}
 
-	if age != 0 {
-		shiftModTime(t, ts.sourceFilePath(book), age)
+	if modTimeOffset != 0 {
+		shiftModTime(t, ts.sourceFilePath(book), modTimeOffset)
 	}
 	return book
 }
@@ -114,6 +118,7 @@ func (ts *testShelf) sourceFilePath(book *bookpkg.Book) string {
 type countingFS struct {
 	fsutil.FS
 	opens atomic.Int64
+	stats atomic.Int64
 }
 
 func (f *countingFS) Open(name string) (fs.File, error) {
@@ -121,6 +126,11 @@ func (f *countingFS) Open(name string) (fs.File, error) {
 		f.opens.Add(1)
 	}
 	return f.FS.Open(name)
+}
+
+func (f *countingFS) Stat(name string) (fs.FileInfo, error) {
+	f.stats.Add(1)
+	return f.FS.Stat(name)
 }
 
 type fakeFingerprint struct {

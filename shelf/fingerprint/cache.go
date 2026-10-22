@@ -39,7 +39,7 @@ func (e indexEntry) matches(stat *bookpkg.FileStat) bool {
 	return stat != nil && e.Size == stat.Size && e.ModTime.Equal(stat.ModTime)
 }
 
-func (e indexEntry) describesSame(other indexEntry) bool {
+func (e indexEntry) equalIgnoringSeenAt(other indexEntry) bool {
 	return e.Size == other.Size && e.ModTime.Equal(other.ModTime) && e.MD5 == other.MD5
 }
 
@@ -64,6 +64,8 @@ type cacheFile struct {
 
 type RepairHashFunc func(source *bookpkg.Source, contentMD5 string) (bool, error)
 
+type LiveBooksFunc func() (bookIDs map[string]struct{}, complete bool)
+
 type Config struct {
 	Store appcache.Store
 
@@ -71,7 +73,7 @@ type Config struct {
 
 	Logger logutil.Logger
 
-	LiveBooks func() (map[string]struct{}, bool)
+	LiveBooks LiveBooksFunc
 
 	RepairHash RepairHashFunc
 }
@@ -80,7 +82,7 @@ type Cache struct {
 	store      appcache.Store
 	algo       Algo
 	logger     logutil.Logger
-	liveBooks  func() (map[string]struct{}, bool)
+	liveBooks  LiveBooksFunc
 	repairHash RepairHashFunc
 
 	mu      sync.Mutex
@@ -88,7 +90,7 @@ type Cache struct {
 	entries map[string]Entry
 	stats   Stats
 
-	resolved map[string]struct{}
+	answeredThisRun map[string]struct{}
 }
 
 func Open(cfg Config) (*Cache, error) {
@@ -102,14 +104,14 @@ func Open(cfg Config) (*Cache, error) {
 	}
 
 	cache := &Cache{
-		store:      cfg.Store,
-		algo:       cfg.Algo,
-		logger:     logger,
-		liveBooks:  cfg.LiveBooks,
-		repairHash: cfg.RepairHash,
-		index:      map[string]indexEntry{},
-		entries:    map[string]Entry{},
-		resolved:   map[string]struct{}{},
+		store:           cfg.Store,
+		algo:            cfg.Algo,
+		logger:          logger,
+		liveBooks:       cfg.LiveBooks,
+		repairHash:      cfg.RepairHash,
+		index:           map[string]indexEntry{},
+		entries:         map[string]Entry{},
+		answeredThisRun: map[string]struct{}{},
 	}
 
 	stored, _, err := cache.readFile()
@@ -135,7 +137,7 @@ type BookSource struct {
 func (c *Cache) CoverageFor(books []BookSource) Coverage {
 	fingerprinted := 0
 	for _, book := range books {
-		if _, ok := c.Lookup(book.BookID, book.SourceID); ok {
+		if _, ok := c.LookupRecorded(book.BookID, book.SourceID); ok {
 			fingerprinted++
 		}
 	}
@@ -240,7 +242,7 @@ func (c *Cache) lookupByContent(md5Hash string) (Entry, bool) {
 	return entry, ok
 }
 
-func (c *Cache) Lookup(bookID, sourceID string) (Entry, bool) {
+func (c *Cache) LookupRecorded(bookID, sourceID string) (Entry, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -264,14 +266,14 @@ func (c *Cache) record(key string, stat *bookpkg.FileStat, readAt time.Time, md5
 		c.stats.Built++
 	}
 
-	c.resolved[md5Hash] = struct{}{}
+	c.answeredThisRun[md5Hash] = struct{}{}
 
-	if stat == nil || !stat.ModTime.Before(readAt.Add(-fsutil.RacyWindow)) {
+	if stat == nil || !fsutil.Settled(stat.ModTime, readAt) {
 		return
 	}
 
 	observed := indexEntry{Size: stat.Size, ModTime: stat.ModTime, MD5: md5Hash, SeenAt: readAt}
-	if current, ok := c.index[key]; ok && current.describesSame(observed) {
+	if current, ok := c.index[key]; ok && current.equalIgnoringSeenAt(observed) {
 		observed.SeenAt = current.SeenAt
 	}
 
@@ -317,7 +319,7 @@ func (c *Cache) Save() error {
 
 	if c.liveBooks != nil {
 		if live, ok := c.liveBooks(); ok {
-			pruneCache(index, entries, live, c.resolved)
+			pruneCache(index, entries, live, c.answeredThisRun)
 		}
 	}
 

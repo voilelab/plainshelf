@@ -282,7 +282,7 @@ func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	}
 }
 
-func TestMergeIndexKeepsTheNewerRecord(t *testing.T) {
+func TestMergeIndexFallsBackToModTimeForRecordsWithoutSeenAt(t *testing.T) {
 	older := time.Date(2026, 3, 15, 8, 30, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
 
@@ -353,7 +353,7 @@ func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheOnAReadOnlyShelf(t *testing.T) {
+func TestFingerprintCacheOnReadOnlyShelfResolvesButRefusesSaveAndRepair(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.PackagePath()
@@ -744,5 +744,40 @@ func TestFingerprintCacheNeverPairsANewerStatWithOlderContent(t *testing.T) {
 	}
 	if got != want {
 		t.Errorf("after a write between stat and read, the next run answered %+v, want the rewritten content's %+v", got, want)
+	}
+}
+
+func TestMergeIndexOrdersSeenAtBeforeModTime(t *testing.T) {
+	older := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	newer := older.Add(time.Hour)
+	for _, tc := range []struct {
+		name          string
+		currentSeenAt time.Time
+		otherSeenAt   time.Time
+		want          string
+	}{
+		{"later observation wins despite older mtime", older, newer, "other"},
+		{"earlier observation loses despite being merged later", newer, older, "current"},
+		{"observed record beats legacy record", time.Time{}, older, "other"},
+		{"legacy record does not replace observed record", older, time.Time{}, "current"},
+		{"equal observation falls back to mtime", older, older, "current"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			index := map[string]indexEntry{"book/source": {MD5: "current", ModTime: newer, SeenAt: tc.currentSeenAt}}
+			other := map[string]indexEntry{"book/source": {MD5: "other", ModTime: older, SeenAt: tc.otherSeenAt}}
+			mergeIndex(index, other)
+			if got := index["book/source"].MD5; got != tc.want {
+				t.Errorf("merged fingerprint = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFingerprintCacheRecordsZeroModTime(t *testing.T) {
+	ts := newTestShelf(t)
+	cache := openCache(t, ts, ts.base, testAlgo)
+	cache.record("book/source", &bookpkg.FileStat{}, time.Now(), "content", Entry{}, false)
+	if _, ok := cache.LookupRecorded("book", "source"); !ok {
+		t.Error("zero source mtime was not recorded")
 	}
 }

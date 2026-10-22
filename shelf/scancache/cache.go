@@ -124,7 +124,7 @@ func (c *Cache) NewWalk() *Walk {
 	return w
 }
 
-func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild, bool, error) {
+func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, parentListingReused bool) ([]DirChild, bool, error) {
 	w.stats.Dirs++
 
 	if !w.enabled {
@@ -140,7 +140,7 @@ func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild
 	if info, err := root.Stat(pth); err == nil {
 		modTime = info.ModTime()
 
-		if prev, ok := w.prev[pth]; trusted && ok && prev.ModTime.Equal(modTime) {
+		if prev, ok := w.prev[pth]; parentListingReused && ok && prev.ModTime.Equal(modTime) {
 			w.next[pth] = prev
 			w.stats.ReusedDirs++
 			return prev.Children, true, nil
@@ -155,13 +155,21 @@ func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild
 	w.stats.ReadDirs++
 
 	children := dirChildren(entries, w.cache.keepFiles)
-	if !modTime.IsZero() && modTime.Before(readAt.Add(-fsutil.RacyWindow)) {
+	if !modTime.IsZero() && fsutil.Settled(modTime, readAt) {
 		w.next[pth] = dirSnapshot{ModTime: modTime, Children: children}
 	}
 	return children, false, nil
 }
 
-func (w *Walk) Install(complete bool) Stats {
+func (w *Walk) Install() Stats {
+	return w.finish(true)
+}
+
+func (w *Walk) Abandon() Stats {
+	return w.finish(false)
+}
+
+func (w *Walk) finish(complete bool) Stats {
 	w.stats.Duration = time.Since(w.startedAt)
 
 	c := w.cache
