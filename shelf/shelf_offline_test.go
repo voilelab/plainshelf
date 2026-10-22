@@ -165,7 +165,7 @@ func TestDownloadMirrorsThePackageOutsideTheShelf(t *testing.T) {
 		t.Errorf("offline copy holds %v, want the source package %v", offlineFiles, sourceFiles)
 	}
 
-	if entries, err := os.ReadDir(filepath.Join(offlineDir, offlineTmpFolder)); err != nil || len(entries) > 0 {
+	if entries, err := os.ReadDir(filepath.Join(offlineDir, offlineStagingFolder)); err != nil || len(entries) > 0 {
 		t.Errorf("tmp/ after a download = %v (%v), want empty", entries, err)
 	}
 	if _, err := os.Stat(filepath.Join(offlineDir, offlineDownloadsFile)); err != nil {
@@ -220,7 +220,7 @@ func TestInterruptedDownloadLeavesNoPartialBook(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(offlineDir, booksFolder)); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("books/ after a failed download: %v, want absent", err)
 	}
-	if entries, _ := os.ReadDir(filepath.Join(offlineDir, offlineTmpFolder)); len(entries) > 0 {
+	if entries, _ := os.ReadDir(filepath.Join(offlineDir, offlineStagingFolder)); len(entries) > 0 {
 		t.Errorf("tmp/ after a failed download holds %v", entries)
 	}
 	if state, _ := s.DownloadStatus(fixture.ids["Dune"]); state != DownloadNotDownloaded {
@@ -663,5 +663,87 @@ func TestSourceDisappearingKeepsTheSnapshot(t *testing.T) {
 	}
 	if text, err := readCurrentText(t, s, dune); err != nil || text != "Dune text" {
 		t.Errorf("downloaded book after the source disappeared = %q, %v", text, err)
+	}
+}
+
+type downloadRemovalFS struct {
+	fsutil.FS
+	beforeRemove func(string)
+	failList     bool
+	failRemove   bool
+}
+
+func (f *downloadRemovalFS) Rename(from, to string) error {
+	if f.failList && to == offlineDownloadsFile {
+		return fs.ErrPermission
+	}
+	return f.FS.Rename(from, to)
+}
+
+func (f *downloadRemovalFS) RemoveAll(name string) error {
+	f.beforeRemove(name)
+	if f.failRemove {
+		return fs.ErrPermission
+	}
+	return f.FS.RemoveAll(name)
+}
+
+func TestRemoveDownloadPersistsListFirst(t *testing.T) {
+	fixture := seedOfflineSource(t)
+	for _, mode := range []string{"success", "list failure", "delete failure"} {
+		t.Run(mode, func(t *testing.T) {
+			offlineDir := t.TempDir()
+			s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
+			id := fixture.ids["Dune"]
+			if _, err := s.DownloadBook(id); err != nil {
+				t.Fatal(err)
+			}
+			record, _ := s.offline.download(id)
+			readList := func() offlineDownloadsJSON {
+				t.Helper()
+				var listing offlineDownloadsJSON
+				if !s.offline.readJSON(offlineDownloadsFile, &listing) {
+					t.Fatal("cannot read persisted download list")
+				}
+				return listing
+			}
+			removed := false
+			original := s.offline.fs
+			s.offline.fs = &downloadRemovalFS{
+				FS: original, failList: mode == "list failure", failRemove: mode == "delete failure",
+				beforeRemove: func(name string) {
+					removed = true
+					if name != record.Path {
+						t.Errorf("removal path = %q, want %q", name, record.Path)
+					}
+					if _, ok := readList().Books[id]; ok {
+						t.Error("download list still contains the book when deletion starts")
+					}
+				},
+			}
+			err := s.RemoveDownload(id)
+			s.offline.fs = original
+			if mode == "success" && err != nil {
+				t.Fatal(err)
+			}
+			if mode != "success" && !errors.Is(err, fs.ErrPermission) {
+				t.Fatalf("error = %v, want permission failure", err)
+			}
+			if removed != (mode != "list failure") {
+				t.Errorf("package deletion attempted = %v", removed)
+			}
+			_, listed := readList().Books[id]
+			if listed != (mode == "list failure") {
+				t.Errorf("persisted list contains book = %v", listed)
+			}
+			_, statErr := original.Stat(record.Path)
+			if mode == "success" {
+				if !errors.Is(statErr, fs.ErrNotExist) {
+					t.Errorf("deleted package stat = %v", statErr)
+				}
+			} else if statErr != nil {
+				t.Errorf("package lost on failure: %v", statErr)
+			}
+		})
 	}
 }

@@ -15,7 +15,7 @@ var ErrBookIDConflict = util.NewError("target shelf already holds a book with th
 
 var ErrSameShelfTransfer = util.NewError("source and target are the same shelf")
 
-func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book, targetFolder FolderPath, preserveID bool) (*Book, error) {
+func (target writeLockedShelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book, targetFolder FolderPath, preserveID bool) (*Book, error) {
 	root, err := target.writeRoot()
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -95,15 +95,11 @@ func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetFolder Fol
 		return nil, util.Errorf("%w", err)
 	}
 
-	if err := source.shelfLock.RLock(); err != nil {
+	locked, unlock, err := lockForTransfer(source, target)
+	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer source.shelfLock.Unlock()
-
-	if err := target.shelfLock.Lock(); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	defer target.shelfLock.Unlock()
+	defer unlock()
 
 	sourceBook, _, err := source.getUpdatedBookFromBookID(bookID)
 	if err != nil {
@@ -111,7 +107,7 @@ func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetFolder Fol
 	}
 
 	if preserveID {
-		if err := target.ensureBookIDFree(bookID); err != nil {
+		if err := target.ensureBookIDFreeAfterRescan(bookID); err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 	} else {
@@ -120,7 +116,7 @@ func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetFolder Fol
 		}
 	}
 
-	newBook, err := target.publishBookCopy(source.dbRoot, sourceBook, targetFolder, preserveID)
+	newBook, err := locked.publishBookCopy(source.dbRoot, sourceBook, targetFolder, preserveID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -145,7 +141,7 @@ func (target *Shelf) MoveBookFrom(source *Shelf, bookID string, targetFolder Fol
 	return moved, nil
 }
 
-func (s *Shelf) ensureBookIDFree(bookID string) error {
+func (s *Shelf) ensureBookIDFreeAfterRescan(bookID string) error {
 	if err := s.refreshBookCacheIfNeeded(true); err != nil {
 		return util.Errorf("%w", err)
 	}

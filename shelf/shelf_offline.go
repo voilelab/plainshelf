@@ -29,7 +29,7 @@ var ErrBookNotDownloaded = util.NewError("book is not downloaded and the shelf s
 const offlineSchemaVersion = 1
 const offlineDownloadsFile = "downloads.json"
 const offlineSnapshotFile = "snapshot.json"
-const offlineTmpFolder = "tmp"
+const offlineStagingFolder = "tmp"
 
 type DownloadState string
 
@@ -71,7 +71,7 @@ type offlineSnapshotJSON struct {
 type offlineStore struct {
 	logger logutil.Logger
 	root   *os.Root
-	fs     *fsutil.RootFS
+	fs     fsutil.FS
 
 	downloadMu sync.Mutex
 
@@ -100,11 +100,11 @@ func openOfflineStore(dir string, logger logutil.Logger) (*offlineStore, error) 
 		byPath:    map[string]string{},
 	}
 
-	if err := store.fs.RemoveAll(offlineTmpFolder); err != nil {
+	if err := store.fs.RemoveAll(offlineStagingFolder); err != nil {
 		_ = root.Close()
 		return nil, util.Errorf("%w", err)
 	}
-	if err := store.fs.MkdirAll(offlineTmpFolder); err != nil {
+	if err := store.fs.MkdirAll(offlineStagingFolder); err != nil {
 		_ = root.Close()
 		return nil, util.Errorf("%w", err)
 	}
@@ -183,7 +183,7 @@ func (o *offlineStore) writeJSON(name string, v any) error {
 	return nil
 }
 
-func (o *offlineStore) writeDownloadsLocked() error {
+func (o *offlineStore) writeDownloadsUnderDownloadMu() error {
 	o.mu.RLock()
 	file := offlineDownloadsJSON{SchemaVersion: offlineSchemaVersion, Books: maps.Clone(o.downloads)}
 	o.mu.RUnlock()
@@ -457,7 +457,7 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 	o.downloadMu.Lock()
 	defer o.downloadMu.Unlock()
 
-	staging := path.Join(offlineTmpFolder, fsutil.RandomString(12))
+	staging := path.Join(offlineStagingFolder, fsutil.RandomString(12))
 	size, err := copyTree(s.remoteRoot, o.fs, entry.path, staging)
 	if err != nil {
 		_ = o.fs.RemoveAll(staging)
@@ -469,19 +469,8 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 		return Download{}, util.Errorf("%w", err)
 	}
 
-	previous := ""
-	if _, err := o.fs.Stat(entry.path); err == nil {
-		previous = staging + ".previous"
-		if err := o.fs.Rename(entry.path, previous); err != nil {
-			_ = o.fs.RemoveAll(staging)
-			return Download{}, util.Errorf("%w", err)
-		}
-	}
-	if err := o.fs.Rename(staging, entry.path); err != nil {
-		if previous != "" {
-			_ = o.fs.Rename(previous, entry.path)
-		}
-		_ = o.fs.RemoveAll(staging)
+	previous, err := replaceDirKeepingPrevious(o.fs, staging, entry.path)
+	if err != nil {
 		return Download{}, util.Errorf("%w", err)
 	}
 
@@ -506,7 +495,7 @@ func (s *Shelf) DownloadBook(bookID string) (Download, error) {
 	if previous != "" {
 		_ = o.fs.RemoveAll(previous)
 	}
-	if err := o.writeDownloadsLocked(); err != nil {
+	if err := o.writeDownloadsUnderDownloadMu(); err != nil {
 		return Download{}, util.Errorf("%w", err)
 	}
 	if hadOld && old.Path != record.Path && !keepOld {
@@ -539,7 +528,7 @@ func (s *Shelf) RemoveDownload(bookID string) error {
 		return nil
 	}
 
-	if err := o.writeDownloadsLocked(); err != nil {
+	if err := o.writeDownloadsUnderDownloadMu(); err != nil {
 		return util.Errorf("%w", err)
 	}
 	if shared {
@@ -659,4 +648,24 @@ func copyFile(from fsutil.ReadFS, to fsutil.FS, src, dst string) (int64, error) 
 		return 0, util.Errorf("%w", closeErr)
 	}
 	return n, nil
+}
+
+func replaceDirKeepingPrevious(root fsutil.FS, staging, dst string) (string, error) {
+	previous := ""
+	if _, err := root.Stat(dst); err == nil {
+		previous = staging + ".previous"
+		if err := root.Rename(dst, previous); err != nil {
+			_ = root.RemoveAll(staging)
+			return "", util.Errorf("%w", err)
+		}
+	}
+	if err := root.Rename(staging, dst); err != nil {
+		if previous != "" {
+			_ = root.Rename(previous, dst)
+		}
+		_ = root.RemoveAll(staging)
+		return "", util.Errorf("%w", err)
+	}
+
+	return previous, nil
 }

@@ -80,7 +80,8 @@ func (s *Shelf) NewBookWith(folders FolderPath, title string, init func(*Book) e
 		return nil, util.Errorf("%w", err)
 	}
 
-	if err := s.shelfLock.Lock(); err != nil {
+	locked, err := lockShelfForWrite(s)
+	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	defer s.shelfLock.Unlock()
@@ -91,7 +92,7 @@ func (s *Shelf) NewBookWith(folders FolderPath, title string, init func(*Book) e
 	}
 	defer root.RemoveAll(bookPath)
 
-	bookID, err := s.drawUnusedBookID()
+	bookID, err := locked.drawUnusedBookID()
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -163,7 +164,7 @@ func (s *Shelf) GetBookListing(bookID string) (BookListing, error) {
 	return BookListing{Book: book, Folders: folders}, nil
 }
 
-func (s *Shelf) drawUnusedBookID() (string, error) {
+func (s writeLockedShelf) drawUnusedBookID() (string, error) {
 	for range MaxBookIDCreationAttempts {
 		candidate := newBookID()
 
@@ -241,7 +242,8 @@ func (s *Shelf) CopyBook(bookID string, targetFolder FolderPath) (*Book, error) 
 		return nil, util.Errorf("%w", err)
 	}
 
-	if err := s.shelfLock.Lock(); err != nil {
+	locked, err := lockShelfForWrite(s)
+	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	defer s.shelfLock.Unlock()
@@ -255,7 +257,7 @@ func (s *Shelf) CopyBook(bookID string, targetFolder FolderPath) (*Book, error) 
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := s.publishBookCopy(s.dbRoot, sourceBook, targetFolder, false)
+	newBook, err := locked.publishBookCopy(s.dbRoot, sourceBook, targetFolder, false)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

@@ -121,10 +121,7 @@ func folderMetaFromData(data []byte) (FolderMeta, error) {
 		return meta, util.Errorf("%w", err)
 	}
 
-	var icon string
-	if _, err := obj.Lookup(folderMetaIconKey, &icon); err == nil {
-		meta.Icon = icon
-	}
+	meta.Icon = iconIgnoringWrongType(obj)
 	// json/v2 accepts null into float64 as zero, but null means unspecified here.
 	if raw, ok := obj[folderMetaSortKeyKey]; ok && strings.TrimSpace(string(raw)) != "null" {
 		var key float64
@@ -191,8 +188,7 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 		return util.Errorf("%w: %w", ErrFolderMetaNotWritable, err)
 	}
 	if folderMetaVersion(data) != version {
-		current, _ := folderMetaFromData(data)
-		s.cacheFolderMeta(folder, current)
+		s.refreshCachedFolderMeta(folder, data)
 		return util.Errorf("%w", ErrFolderMetaConflict)
 	}
 
@@ -229,8 +225,7 @@ func (s *Shelf) updateFolderMeta(folder FolderPath, version string, mutate func(
 		return util.Errorf("%w", err)
 	}
 
-	written, _ := folderMetaFromData(payload)
-	s.cacheFolderMeta(folder, written)
+	s.refreshCachedFolderMeta(folder, payload)
 	return nil
 }
 
@@ -416,4 +411,17 @@ func validateNewFolderName(name string) error {
 		return util.Errorf("%w", ErrReservedFolderName)
 	}
 	return nil
+}
+
+func iconIgnoringWrongType(obj jsonopt.Object) string {
+	var icon string
+	if _, err := obj.Lookup(folderMetaIconKey, &icon); err != nil {
+		return ""
+	}
+	return icon
+}
+
+func (s *Shelf) refreshCachedFolderMeta(folder FolderPath, data []byte) {
+	meta, _ := folderMetaFromData(data)
+	s.cacheFolderMeta(folder, meta)
 }
