@@ -24,7 +24,9 @@ var headingTags = map[string]struct{}{
 	"h1": {}, "h2": {}, "h3": {}, "h4": {}, "h5": {}, "h6": {},
 }
 
-func documentToChapter(data []byte, opts Options) (title, text string, imageHrefs []string) {
+type imageResolver func(href string) string
+
+func documentToChapter(data []byte, opts Options, resolveImage imageResolver) (title, text string, imageHrefs []string) {
 	doc, err := html.Parse(bytes.NewReader(data))
 	if err != nil {
 		return "", "", nil
@@ -37,14 +39,18 @@ func documentToChapter(data []byte, opts Options) (title, text string, imageHref
 
 	imageHrefs = collectImageHrefs(root)
 
+	title, root = takeFirstHeading(root)
+	return title, extractText(root, opts, resolveImage), imageHrefs
+}
+
+func takeFirstHeading(root *html.Node) (title string, body *html.Node) {
 	if heading := findFirstHeading(root); heading != nil {
 		title = collapseSpaces(textContent(heading))
 		if title != "" && heading.Parent != nil {
 			heading.Parent.RemoveChild(heading)
 		}
 	}
-
-	return title, extractText(root, opts), imageHrefs
+	return title, root
 }
 
 // <img> carries src; SVG's <image> carries href, or xlink:href in older files.
@@ -116,13 +122,13 @@ func sanitizeImageAlt(alt string) string {
 	return collapseSpaces(strings.NewReplacer("[", "", "]", "", "\n", " ", "\r", " ").Replace(alt))
 }
 
-func extractText(root *html.Node, opts Options) string {
+func extractText(root *html.Node, opts Options, resolveImage imageResolver) string {
 	var b strings.Builder
-	writeNode(root, &b, opts)
+	writeNode(root, &b, opts, resolveImage)
 	return normalizeText(b.String())
 }
 
-func writeNode(n *html.Node, b *strings.Builder, opts Options) {
+func writeNode(n *html.Node, b *strings.Builder, opts Options, resolveImage imageResolver) {
 	switch n.Type {
 	case html.TextNode:
 		b.WriteString(collapseInlineSpaces(n.Data))
@@ -137,8 +143,8 @@ func writeNode(n *html.Node, b *strings.Builder, opts Options) {
 			b.WriteByte('\n')
 			return
 		case "img":
-			if opts.imageTarget != nil {
-				if target := opts.imageTarget(attr(n, "src")); target != "" {
+			if resolveImage != nil {
+				if target := resolveImage(attr(n, "src")); target != "" {
 					b.WriteByte('\n')
 					b.WriteString("![" + sanitizeImageAlt(attr(n, "alt")) + "](" + target + ")")
 					b.WriteByte('\n')
@@ -155,9 +161,9 @@ func writeNode(n *html.Node, b *strings.Builder, opts Options) {
 		}
 
 		if marker := emphasisMarker(n.Data, opts); marker != "" {
-			writeEmphasis(n, b, opts, marker)
+			writeEmphasis(n, b, opts, resolveImage, marker)
 		} else {
-			writeChildren(n, b, opts)
+			writeChildren(n, b, opts, resolveImage)
 		}
 
 		if isBlock {
@@ -166,12 +172,12 @@ func writeNode(n *html.Node, b *strings.Builder, opts Options) {
 		return
 	}
 
-	writeChildren(n, b, opts)
+	writeChildren(n, b, opts, resolveImage)
 }
 
-func writeChildren(n *html.Node, b *strings.Builder, opts Options) {
+func writeChildren(n *html.Node, b *strings.Builder, opts Options, resolveImage imageResolver) {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		writeNode(c, b, opts)
+		writeNode(c, b, opts, resolveImage)
 	}
 }
 
@@ -192,9 +198,9 @@ func emphasisMarker(tag string, opts Options) string {
 // writeEmphasis wraps inline emphasis in Markdown markers, keeping surrounding
 // spaces outside the markers. "* text *" is not emphasis in Markdown, so the
 // padding has to move out for the marker to mean anything.
-func writeEmphasis(n *html.Node, b *strings.Builder, opts Options, marker string) {
+func writeEmphasis(n *html.Node, b *strings.Builder, opts Options, resolveImage imageResolver, marker string) {
 	var inner strings.Builder
-	writeChildren(n, &inner, opts)
+	writeChildren(n, &inner, opts, resolveImage)
 
 	raw := inner.String()
 	trimmed := strings.Trim(raw, " ")
@@ -313,11 +319,18 @@ func dropCJKJoinSpaces(s string) string {
 	return string(out)
 }
 
+const (
+	cjkSymbolsAndPunctuationStart   = 0x3000
+	cjkSymbolsAndPunctuationEnd     = 0x303F
+	halfwidthAndFullwidthFormsStart = 0xFF00
+	halfwidthAndFullwidthFormsEnd   = 0xFFEF
+)
+
 func isCJK(r rune) bool {
 	switch {
-	case r >= 0x3000 && r <= 0x303F:
+	case r >= cjkSymbolsAndPunctuationStart && r <= cjkSymbolsAndPunctuationEnd:
 		return true
-	case r >= 0xFF00 && r <= 0xFFEF:
+	case r >= halfwidthAndFullwidthFormsStart && r <= halfwidthAndFullwidthFormsEnd:
 		return true
 	case unicode.Is(unicode.Han, r),
 		unicode.Is(unicode.Hiragana, r),
