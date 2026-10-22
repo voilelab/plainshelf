@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"io"
 	"net/url"
 	"path"
@@ -66,8 +65,6 @@ type Options struct {
 	MarkdownInline bool
 
 	KeepImages bool
-
-	imageTarget func(href string) string
 }
 
 func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
@@ -117,41 +114,7 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 
 	titles := readTOCTitles(files, manifest, pkg, baseDir)
 
-	droppedImages := make(map[*zip.File]struct{})
-
-	keptImages := make(map[*zip.File]string)
-	var imageBytes int64
-
-	keepImage := func(docDir, href string) string {
-		entry, ok := lookupZipEntry(files, resolveHref(docDir, href))
-		if !ok {
-			return ""
-		}
-		if name, ok := keptImages[entry]; ok {
-			return path.Join(ImageFolder, name)
-		}
-		if _, dropped := droppedImages[entry]; dropped {
-			return ""
-		}
-
-		ext := strings.ToLower(path.Ext(entry.Name))
-		if !imageExtensions[ext] {
-			droppedImages[entry] = struct{}{}
-			return ""
-		}
-
-		data, err := readZipEntryLimit(files, entry.Name, maxImageBytes)
-		if err != nil || imageBytes+int64(len(data)) > maxTotalImageBytes {
-			droppedImages[entry] = struct{}{}
-			return ""
-		}
-		imageBytes += int64(len(data))
-
-		name := fmt.Sprintf("img-%04d%s", len(book.Images)+1, ext)
-		book.Images = append(book.Images, Image{Name: name, Data: data})
-		keptImages[entry] = name
-		return path.Join(ImageFolder, name)
-	}
+	images := newImageCollector(files)
 
 	var total int64
 	for _, ref := range pkg.Spine.ItemRefs {
@@ -180,22 +143,14 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 			return nil, util.NewError("epub content exceeds the maximum supported size")
 		}
 
-		docOpts := opts
+		docDir := path.Dir(docPath)
+		var resolveImage imageResolver
 		if opts.KeepImages {
-			docDir := path.Dir(docPath)
-			docOpts.imageTarget = func(href string) string { return keepImage(docDir, href) }
+			resolveImage = func(href string) string { return images.keep(docDir, href) }
 		}
 
-		headingTitle, text, imageHrefs := documentToChapter(data, docOpts)
-
-		for _, href := range imageHrefs {
-			if image, ok := lookupZipEntry(files, resolveHref(path.Dir(docPath), href)); ok {
-				if _, kept := keptImages[image]; kept {
-					continue
-				}
-				droppedImages[image] = struct{}{}
-			}
-		}
+		headingTitle, text, imageHrefs := documentToChapter(data, opts, resolveImage)
+		images.recordUnflattenedRefs(docDir, imageHrefs)
 
 		title := titles[docPath]
 		if title == "" {
@@ -213,9 +168,10 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 	}
 
 	if cover, ok := lookupZipEntry(files, coverPath); ok {
-		delete(droppedImages, cover)
+		delete(images.dropped, cover)
 	}
-	book.DroppedImages = len(droppedImages)
+	book.Images = images.images
+	book.DroppedImages = len(images.dropped)
 
 	return book, nil
 }

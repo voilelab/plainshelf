@@ -86,6 +86,7 @@ func epub3Entries() []zipEntry {
 </body></html>`},
 		{"OEBPS/text/ch2.xhtml", `<html><body>
   <h2>第二章</h2>
+  <img src="../images/cover.png"/>
   <p>回程的路上，他<em>沉默</em>不語。</p>
 </body></html>`},
 	}
@@ -97,50 +98,70 @@ func TestParseEPUB3(t *testing.T) {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
-	if book.Title != "星塵集" {
-		t.Errorf("Title = %q, want %q", book.Title, "星塵集")
-	}
-	if len(book.Authors) != 1 || book.Authors[0] != "林望舒" {
-		t.Errorf("Authors = %v, want [林望舒]", book.Authors)
-	}
-	if book.Language != "zh-Hant" {
-		t.Errorf("Language = %q, want zh-Hant", book.Language)
-	}
-	if book.Description != "一部關於旅途的短篇小說。" {
-		t.Errorf("Description = %q", book.Description)
-	}
-	if book.PublishedAt != "2024-03-01" {
-		t.Errorf("PublishedAt = %q, want 2024-03-01", book.PublishedAt)
-	}
-	if got := book.Identifiers["isbn"]; got != "urn:isbn:9781234567897" {
-		t.Errorf("Identifiers[isbn] = %q", got)
-	}
-	if string(book.Cover) != "\x89PNG-not-a-real-image" {
-		t.Errorf("Cover = %q, want the manifest cover-image entry", string(book.Cover))
-	}
-	if book.CoverExt != ".png" {
-		t.Errorf("CoverExt = %q, want .png", book.CoverExt)
+	t.Run("metadata and manifest cover are extracted", func(t *testing.T) {
+		if book.Title != "星塵集" {
+			t.Errorf("Title = %q, want %q", book.Title, "星塵集")
+		}
+		if len(book.Authors) != 1 || book.Authors[0] != "林望舒" {
+			t.Errorf("Authors = %v, want [林望舒]", book.Authors)
+		}
+		if book.Language != "zh-Hant" {
+			t.Errorf("Language = %q, want zh-Hant", book.Language)
+		}
+		if book.Description != "一部關於旅途的短篇小說。" {
+			t.Errorf("Description = %q", book.Description)
+		}
+		if book.PublishedAt != "2024-03-01" {
+			t.Errorf("PublishedAt = %q, want 2024-03-01", book.PublishedAt)
+		}
+		if got := book.Identifiers["isbn"]; got != "urn:isbn:9781234567897" {
+			t.Errorf("Identifiers[isbn] = %q", got)
+		}
+		if string(book.Cover) != "\x89PNG-not-a-real-image" {
+			t.Errorf("Cover = %q, want the manifest cover-image entry", string(book.Cover))
+		}
+		if book.CoverExt != ".png" {
+			t.Errorf("CoverExt = %q, want .png", book.CoverExt)
+		}
+	})
+
+	if !t.Run("nav document in spine is not a chapter", func(t *testing.T) {
+		if len(book.Chapters) != 2 {
+			t.Fatalf("len(Chapters) = %d, want 2; chapters = %+v", len(book.Chapters), book.Chapters)
+		}
+	}) {
+		return
 	}
 
-	if len(book.Chapters) != 2 {
-		t.Fatalf("len(Chapters) = %d, want 2; chapters = %+v", len(book.Chapters), book.Chapters)
-	}
+	t.Run("nav title wins over heading", func(t *testing.T) {
+		if book.Chapters[0].Title != "啟程" {
+			t.Errorf("Chapters[0].Title = %q, want 啟程", book.Chapters[0].Title)
+		}
+		if book.Chapters[1].Title != "歸途" {
+			t.Errorf("Chapters[1].Title = %q, want 歸途", book.Chapters[1].Title)
+		}
+	})
 
-	if book.Chapters[0].Title != "啟程" {
-		t.Errorf("Chapters[0].Title = %q, want 啟程", book.Chapters[0].Title)
-	}
-	if book.Chapters[1].Title != "歸途" {
-		t.Errorf("Chapters[1].Title = %q, want 歸途", book.Chapters[1].Title)
-	}
+	t.Run("consumed heading not repeated in body", func(t *testing.T) {
+		for i, heading := range []string{"第一章", "第二章"} {
+			if strings.Contains(book.Chapters[i].Text, heading) {
+				t.Errorf("chapter %d repeats heading %q in its body", i+1, heading)
+			}
+		}
+	})
 
-	wantText := "他走出了車站，天色still早。\n\n風很大。"
-	if got := book.Chapters[0].Text; got != wantText {
-		t.Errorf("Chapters[0].Text = %q, want %q", got, wantText)
-	}
+	t.Run("CJK line wrap joins without space", func(t *testing.T) {
+		wantText := "他走出了車站，天色still早。\n\n風很大。"
+		if got := book.Chapters[0].Text; got != wantText {
+			t.Errorf("Chapters[0].Text = %q, want %q", got, wantText)
+		}
+	})
 
-	if book.DroppedImages != 0 {
-		t.Errorf("DroppedImages = %d, want 0", book.DroppedImages)
-	}
+	t.Run("stored cover is not a dropped image", func(t *testing.T) {
+		if book.DroppedImages != 0 {
+			t.Errorf("DroppedImages = %d, want 0", book.DroppedImages)
+		}
+	})
 }
 
 func TestParseDroppedImages(t *testing.T) {

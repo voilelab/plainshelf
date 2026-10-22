@@ -159,8 +159,14 @@ func TestStrategyNormalizedFillsUnsetFields(t *testing.T) {
 	if got.IncludeDescription {
 		t.Error("include_description = true, want the written false to survive")
 	}
+}
 
-	if err := (Strategy{Preset: "nonsense"}).Normalized().Validate(); err == nil {
+func TestStrategyNormalizedKeepsUnknownPresetForValidate(t *testing.T) {
+	got := (Strategy{Preset: "nonsense"}).Normalized()
+	if got.Preset != "nonsense" {
+		t.Errorf("Normalized preset = %q, want the unknown preset preserved", got.Preset)
+	}
+	if err := got.Validate(); err == nil {
 		t.Error("Normalized().Validate() on an unknown preset = nil, want an error")
 	}
 }

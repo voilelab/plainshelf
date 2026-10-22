@@ -115,7 +115,7 @@ func TestKeepImagesStillCountsWhatItCannotStore(t *testing.T) {
 	}
 }
 
-func TestKeepImagesDisabledLeavesTheOldBehaviour(t *testing.T) {
+func TestKeepImagesDisabledCountsEveryIllustrationAsDropped(t *testing.T) {
 	book := parseIllustrated(t, false)
 
 	if len(book.Images) != 0 {
@@ -160,5 +160,27 @@ func TestKeepImagesRespectsThePerImageBudget(t *testing.T) {
 func TestSanitizeImageAlt(t *testing.T) {
 	if got := sanitizeImageAlt("a [bracketed] alt\nsecond line"); got != "a bracketed alt second line" {
 		t.Fatalf("sanitizeImageAlt = %q", got)
+	}
+}
+
+func TestIllustrationInsideConsumedHeadingCountsAsDropped(t *testing.T) {
+	entries := []zipEntry{
+		{"META-INF/container.xml", containerXML},
+		{"OEBPS/content.opf", `<package xmlns="http://www.idpf.org/2007/opf">
+  <manifest><item id="c1" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>`},
+		{"OEBPS/chapter.xhtml", `<html><body><h1>Chapter<img src="heading.png"/></h1><p>Body.</p></body></html>`},
+		{"OEBPS/heading.png", "heading-artwork"},
+	}
+	book, err := parseArchive(t, buildArchive(t, entries), Options{MarkdownInline: true, KeepImages: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(book.Chapters) != 1 || book.Chapters[0].Title != "Chapter" || book.Chapters[0].Text != "Body." {
+		t.Fatalf("Chapters = %+v, want the heading consumed and the body preserved", book.Chapters)
+	}
+	if len(book.Images) != 0 || book.DroppedImages != 1 {
+		t.Errorf("kept %d images, dropped %d, want the consumed heading's image counted once as dropped", len(book.Images), book.DroppedImages)
 	}
 }
