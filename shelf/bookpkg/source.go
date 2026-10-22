@@ -150,9 +150,10 @@ func (r *Source) refreshContentMetadata() error {
 	if closeErr != nil {
 		return util.Errorf("%w", closeErr)
 	}
-	r.meta.MD5Hash, r.meta.LineCount, r.meta.CharCount = stats.md5Hash, stats.lineCount, stats.charCount
+	meta := r.GetMeta()
+	meta.MD5Hash, meta.LineCount, meta.CharCount = stats.md5Hash, stats.lineCount, stats.charCount
 
-	return r.writebackMeta(root)
+	return r.writebackMeta(root, meta)
 }
 
 func (r *Source) RepairContentHash(md5Hash string) (bool, error) {
@@ -167,8 +168,9 @@ func (r *Source) RepairContentHash(md5Hash string) (bool, error) {
 		return false, util.Errorf("%w", err)
 	}
 
-	r.meta.MD5Hash = md5Hash
-	if err := r.writebackMeta(root); err != nil {
+	meta := r.GetMeta()
+	meta.MD5Hash = md5Hash
+	if err := r.writebackMeta(root, meta); err != nil {
 		return false, util.Errorf("%w", err)
 	}
 	return true, nil
@@ -182,17 +184,18 @@ func (r *Source) UpdateComment(comment string) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	r.meta.Comment = comment
-	if err := r.writebackMeta(root); err != nil {
+	meta := r.GetMeta()
+	meta.Comment = comment
+	if err := r.writebackMeta(root, meta); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil
 }
 
-func (r *Source) writebackMeta(root fsutil.FS) error {
+func (r *Source) writebackMeta(root fsutil.FS, meta *SourceMeta) error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 
-	bs, err := json.Marshal(r.meta, jsonopt.Disk())
+	bs, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -202,6 +205,7 @@ func (r *Source) writebackMeta(root fsutil.FS) error {
 		return util.Errorf("%w", err)
 	}
 
+	r.meta = meta
 	return nil
 }
 
@@ -215,7 +219,7 @@ func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 
 	var meta SourceMeta
 	if err := json.UnmarshalRead(metaFile, &meta); err != nil {
-		return nil, util.Errorf("%w", MetadataReadError(metaPath, err))
+		return nil, util.Errorf("%w", NameMetadataDecodeError(metaPath, err))
 	}
 
 	return &Source{

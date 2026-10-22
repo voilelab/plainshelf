@@ -65,9 +65,7 @@ type Book struct {
 
 	metaMu   sync.RWMutex
 	meta     *BookMeta
-	metaStat FileStat
-
-	snapshot bool
+	metaStat *FileStat
 }
 
 type BookMeta struct {
@@ -104,7 +102,10 @@ type BookMeta struct {
 }
 
 func (b *Book) IsStale() bool {
-	if b.snapshot {
+	b.metaMu.RLock()
+	fromSnapshot := b.metaStat == nil
+	b.metaMu.RUnlock()
+	if fromSnapshot {
 		return false
 	}
 
@@ -118,7 +119,7 @@ func (b *Book) IsStale() bool {
 
 	b.metaMu.RLock()
 	defer b.metaMu.RUnlock()
-	return !currentMetaStat.Equal(&b.metaStat)
+	return !currentMetaStat.Equal(b.metaStat)
 }
 
 func (b *Book) ID() string {
@@ -219,13 +220,13 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 	}
 
 	if previousCover != "" && previousCover != coverFilename {
-		b.removeReplacedCover(root, previousCover)
+		b.removeCoverIfUnreferenced(root, previousCover)
 	}
 
 	return nil
 }
 
-func (b *Book) removeReplacedCover(root fsutil.FS, previousCover string) {
+func (b *Book) removeCoverIfUnreferenced(root fsutil.FS, previousCover string) {
 	persisted, err := readBookMeta(b.root, b.folderPath)
 	if err != nil {
 		b.logger.Warn("failed to re-read book meta before removing replaced cover", "cover", previousCover, "error", err)
@@ -289,9 +290,7 @@ func (b *Book) SetCurrentSource(sourceID string) error {
 
 	meta := b.GetMeta()
 	meta.CurrentSource = sourceID
-	if sourceFormat := source.GetMeta().Format; sourceFormat != "" {
-		meta.Format = sourceFormat
-	}
+	mirrorSourceFormatIntoBookMeta(meta, source)
 
 	err = b.setMeta(meta)
 	if err != nil {
@@ -304,6 +303,12 @@ func (b *Book) SetCurrentSource(sourceID string) error {
 	}
 
 	return nil
+}
+
+func mirrorSourceFormatIntoBookMeta(meta *BookMeta, source *Source) {
+	if sourceFormat := source.GetMeta().Format; sourceFormat != "" {
+		meta.Format = sourceFormat
+	}
 }
 
 func (b *Book) writeCurrentSourceHint(sourceID string) error {
@@ -409,7 +414,9 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	b.metaMu.Lock()
 	b.meta = cloneBookMeta(meta)
-	b.metaStat = *metaStat
+	if b.metaStat != nil {
+		b.metaStat = metaStat
+	}
 	b.metaMu.Unlock()
 
 	return nil
@@ -442,19 +449,11 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, options.Format)
 	}
 
-	baseSourceID := time.Now().Format("20060102-150405")
-	sourceID := baseSourceID
-	var sourcePath string
-	for i := 1; ; i++ {
-		sourcePath = path.Join(b.folderPath, SourcesFolder, sourceID)
-		if _, err := b.root.Stat(sourcePath); err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				break
-			}
-			return nil, util.Errorf("%w", err)
-		}
-		sourceID = fmt.Sprintf("%s-%d", baseSourceID, i)
+	sourceID, err := b.freeSourceID(time.Now().Format("20060102-150405"))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
 	}
+	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
 
 	tempSourcePath := path.Join(b.folderPath, SourcesFolder, fsutil.TempDirName(sourceID))
 	defer root.RemoveAll(tempSourcePath)
@@ -470,6 +469,20 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 	src.folderPath = sourcePath
 
 	return src, nil
+}
+
+func (b *Book) freeSourceID(base string) (string, error) {
+	sourceID := base
+	for i := 1; ; i++ {
+		sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
+		if _, err := b.root.Stat(sourcePath); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return sourceID, nil
+			}
+			return "", util.Errorf("%w", err)
+		}
+		sourceID = fmt.Sprintf("%s-%d", base, i)
+	}
 }
 
 func (b *Book) GetSource(sourceID string) (*Source, error) {
@@ -688,7 +701,7 @@ func Open(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, erro
 		meta:       meta,
 		logger:     logger,
 
-		metaStat: *metaStat,
+		metaStat: metaStat,
 	}, nil
 }
 
@@ -700,7 +713,6 @@ func FromSnapshot(rt fsutil.ReadFS, logger logutil.Logger, bookPath string, meta
 		folderPath: bookPath,
 		meta:       meta,
 		logger:     logger,
-		snapshot:   true,
 	}
 }
 
@@ -726,7 +738,7 @@ func readBookMeta(rt fsutil.ReadFS, bookPath string) (*BookMeta, error) {
 
 	var meta BookMeta
 	if err := json.UnmarshalRead(metaFile, &meta); err != nil {
-		return nil, util.Errorf("%w", MetadataReadError(metaPath, err))
+		return nil, util.Errorf("%w", NameMetadataDecodeError(metaPath, err))
 	}
 
 	return &meta, nil
@@ -772,6 +784,6 @@ func Create(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title string)
 		meta:       &meta,
 		logger:     logger,
 
-		metaStat: *metaStat,
+		metaStat: metaStat,
 	}, nil
 }

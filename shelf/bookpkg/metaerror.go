@@ -24,7 +24,7 @@ func (e *MalformedMetadataError) Unwrap() []error {
 	return []error{ErrMalformedMetadata, e.Err}
 }
 
-func MetadataReadError(file string, err error) error {
+func NameMetadataDecodeError(file string, err error) error {
 	if err == nil {
 		return nil
 	}

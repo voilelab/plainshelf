@@ -240,10 +240,13 @@ func TestSourceAssetETagTracksContent(t *testing.T) {
 	}
 }
 
-func TestIgnoredAssetNamesStayAssetErrors(t *testing.T) {
-	err := validateAssetName("@eaDir")
-	if !errors.Is(err, ErrInvalidAssetName) {
-		t.Fatalf("validateAssetName(@eaDir) = %v, want ErrInvalidAssetName", err)
+func TestValidateAssetNameReportsRejectionsAsErrInvalidAssetName(t *testing.T) {
+	for _, name := range []string{"@eaDir", "", ".hidden.png", ".hidden/nested.png", "nested/image.png", "image.txt"} {
+		t.Run(name, func(t *testing.T) {
+			if err := validateAssetName(name); !errors.Is(err, ErrInvalidAssetName) {
+				t.Fatalf("validateAssetName(%q) = %v, want ErrInvalidAssetName", name, err)
+			}
+		})
 	}
 }
 
