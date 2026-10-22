@@ -68,7 +68,8 @@ func detectEncoding(src io.Reader) ([]byte, chardet.Result, error) {
 		if err != nil && !eof {
 			return nil, chardet.Result{}, err
 		}
-		if !detector.Feed(chunk[:n]) || eof {
+		needsMore := detector.Feed(chunk[:n])
+		if !needsMore || eof {
 			break
 		}
 	}

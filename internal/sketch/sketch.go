@@ -28,7 +28,8 @@ func (s Sketch) complete() bool {
 func BuildDefault(normalized string) Sketch {
 	k := DefaultK
 	if size := utf8.RuneCountInString(normalized); size < ExactShingleLimit {
-		k = size + 1
+		keepAllShingles := size + 1
+		k = keepAllShingles
 	}
 
 	return Build(normalized, DefaultN, k)
@@ -42,8 +43,10 @@ func Build(normalized string, n, k int) Sketch {
 		k = DefaultK
 	}
 
+	const maxInitialHeapCap = 1024
+
 	seen := map[uint64]struct{}{}
-	bottom := container.HeapFrom(make([]uint64, 0, min(k, 1024)), container.Greater[uint64])
+	bottom := container.HeapFrom(make([]uint64, 0, min(k, maxInitialHeapCap)), container.Greater[uint64])
 
 	eachShingle(normalized, n, func(hash uint64) {
 		if _, duplicate := seen[hash]; duplicate {

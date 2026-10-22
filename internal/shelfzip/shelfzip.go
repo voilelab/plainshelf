@@ -107,7 +107,7 @@ func Import(r io.ReaderAt, size int64, libRoot string) error {
 		}
 	}
 	for _, e := range entries {
-		if err := extract(e.file, filepath.Join(staging, filepath.FromSlash(e.name))); err != nil {
+		if err := extract(e.file, filepath.Join(staging, filepath.FromSlash(e.shelfPath))); err != nil {
 			return util.Errorf("%w", err)
 		}
 	}
@@ -133,8 +133,8 @@ func Import(r io.ReaderAt, size int64, libRoot string) error {
 }
 
 type entry struct {
-	file *zip.File
-	name string
+	file      *zip.File
+	shelfPath string
 }
 
 func plan(files []*zip.File) ([]entry, error) {
@@ -168,14 +168,14 @@ func plan(files []*zip.File) ([]entry, error) {
 			if clean == top {
 				continue
 			}
-			out = append(out, entry{file: f, name: clean + "/"})
+			out = append(out, entry{file: f, shelfPath: clean + "/"})
 			continue
 		}
 		total += f.UncompressedSize64
 		if total > uint64(maxImportBytes) {
 			return nil, ErrTooLarge
 		}
-		out = append(out, entry{file: f, name: clean})
+		out = append(out, entry{file: f, shelfPath: clean})
 	}
 	if !hasBooks {
 		return nil, ErrNotShelf

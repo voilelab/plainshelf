@@ -7,18 +7,18 @@ func eachShingle(s string, n int, fn func(hash uint64)) {
 		return
 	}
 
-	starts := make([]int, n)
+	runeStartRing := make([]int, n)
 	count := 0
 
 	for offset := range s {
 		if count >= n {
-			fn(xxhash.Sum64String(s[starts[(count-n)%n]:offset]))
+			fn(xxhash.Sum64String(s[runeStartRing[(count-n)%n]:offset]))
 		}
-		starts[count%n] = offset
+		runeStartRing[count%n] = offset
 		count++
 	}
 
 	if count >= n {
-		fn(xxhash.Sum64String(s[starts[(count-n)%n]:]))
+		fn(xxhash.Sum64String(s[runeStartRing[(count-n)%n]:]))
 	}
 }

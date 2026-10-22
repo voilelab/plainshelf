@@ -7,13 +7,7 @@ func Jaccard(a, b Sketch) float64 {
 		return 0
 	}
 
-	limit := uint64(math.MaxUint64)
-	if !a.complete() {
-		limit = min(limit, a.Values[len(a.Values)-1])
-	}
-	if !b.complete() {
-		limit = min(limit, b.Values[len(b.Values)-1])
-	}
+	limit := exhaustiveLimit(a, b)
 
 	var union, intersection int
 	i, j := 0, 0
@@ -67,4 +61,16 @@ func MaxJaccard(na, nb int) float64 {
 
 func clamp01(value float64) float64 {
 	return min(max(value, 0), 1)
+}
+
+func exhaustiveLimit(a, b Sketch) uint64 {
+	limit := uint64(math.MaxUint64)
+	if !a.complete() {
+		limit = min(limit, a.Values[len(a.Values)-1])
+	}
+	if !b.complete() {
+		limit = min(limit, b.Values[len(b.Values)-1])
+	}
+
+	return limit
 }

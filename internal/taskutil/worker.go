@@ -97,9 +97,6 @@ func (c *TaskChain) attachContext(parent context.Context) context.Context {
 func (c *TaskChain) runContext() context.Context {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.ctx == nil {
-		return context.Background()
-	}
 	return c.ctx
 }
 
@@ -243,7 +240,7 @@ func runTask(ctx context.Context, chain *TaskChain, task Task) (err error) {
 	return task.Run(ctx)
 }
 
-func (w *Worker) Run(chain *TaskChain) error {
+func (w *Worker) TryEnqueue(chain *TaskChain) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 

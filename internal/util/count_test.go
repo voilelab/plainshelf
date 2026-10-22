@@ -55,41 +55,47 @@ func TestTextCounterChars(t *testing.T) {
 }
 
 func TestTextCounterMatchesWholeInputAcrossSplits(t *testing.T) {
-	inputs := []string{
-		"",
-		"a",
-		"\n",
-		"line1\nline2",
-		"一行文字 line\n第二行",
-		"\xe4\xb8",
-		"\xe4\xb8A\xff\n",
-		"\xf0\x9f\x98\x80",
-		"\x80\x80\x80\xe4\xb8\xad",
-		strings.Repeat("中a\n", 50) + "\xf0\x9f",
+	inputs := []struct {
+		name  string
+		input string
+	}{
+		{"empty input", ""},
+		{"single ASCII rune", "a"},
+		{"newline only", "\n"},
+		{"two lines without final newline", "line1\nline2"},
+		{"mixed CJK and ASCII lines", "一行文字 line\n第二行"},
+		{"truncated three-byte rune", "\xe4\xb8"},
+		{"truncated rune followed by ASCII and invalid byte", "\xe4\xb8A\xff\n"},
+		{"four-byte emoji", "\xf0\x9f\x98\x80"},
+		{"invalid continuation bytes before a valid rune", "\x80\x80\x80\xe4\xb8\xad"},
+		{"long mixed input ending in a truncated rune", strings.Repeat("中a\n", 50) + "\xf0\x9f"},
 	}
-	for _, in := range inputs {
-		wantLines := bytes.Count([]byte(in), []byte{'\n'})
-		if in != "" && !strings.HasSuffix(in, "\n") {
-			wantLines++
-		}
-		wantChars := scanRuneCount(in)
-		for split := range len(in) + 1 {
-			for step := 1; step <= 5; step++ {
-				var c TextCounter
-				_, _ = c.Write([]byte(in[:split]))
-				for i := split; i < len(in); i += step {
-					_, _ = c.Write([]byte(in[i:min(i+step, len(in))]))
-				}
-				if c.Lines() != wantLines || c.Chars() != wantChars {
-					t.Fatalf("%q split %d step %d: lines %d chars %d, want %d %d",
-						in, split, step, c.Lines(), c.Chars(), wantLines, wantChars)
+	for _, tc := range inputs {
+		t.Run(tc.name, func(t *testing.T) {
+			in := tc.input
+			wantLines := bytes.Count([]byte(in), []byte{'\n'})
+			if in != "" && !strings.HasSuffix(in, "\n") {
+				wantLines++
+			}
+			wantChars := wholeInputRuneCount(in)
+			for split := range len(in) + 1 {
+				for step := 1; step <= 5; step++ {
+					var c TextCounter
+					_, _ = c.Write([]byte(in[:split]))
+					for i := split; i < len(in); i += step {
+						_, _ = c.Write([]byte(in[i:min(i+step, len(in))]))
+					}
+					if c.Lines() != wantLines || c.Chars() != wantChars {
+						t.Fatalf("%q split %d step %d: lines %d chars %d, want %d %d",
+							in, split, step, c.Lines(), c.Chars(), wantLines, wantChars)
+					}
 				}
 			}
-		}
+		})
 	}
 }
 
-func scanRuneCount(s string) int {
+func wholeInputRuneCount(s string) int {
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	scanner.Split(bufio.ScanRunes)
 	n := 0

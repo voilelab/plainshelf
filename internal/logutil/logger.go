@@ -19,7 +19,7 @@ type LogConf struct {
 type Logger struct {
 	*slog.Logger
 
-	logFile *LogFile
+	ownedLogFile *LogFile
 }
 
 func NewLogger(conf *LogConf) (*Logger, error) {
@@ -49,7 +49,7 @@ func NewLogger(conf *LogConf) (*Logger, error) {
 		},
 	}
 
-	logFile, err := NewLogFile(conf.LogFile)
+	ownedLogFile, err := NewLogFile(conf.LogFile)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -57,16 +57,16 @@ func NewLogger(conf *LogConf) (*Logger, error) {
 	var h slog.Handler
 	switch conf.Format {
 	case "json", "":
-		h = slog.NewJSONHandler(logFile.writer, opts)
+		h = slog.NewJSONHandler(ownedLogFile.writer, opts)
 	case "text":
-		h = slog.NewTextHandler(logFile.writer, opts)
+		h = slog.NewTextHandler(ownedLogFile.writer, opts)
 	default:
 		return nil, util.Errorf("invalid log format: %s", conf.Format)
 	}
 
 	return &Logger{
-		Logger:  slog.New(h),
-		logFile: logFile,
+		Logger:       slog.New(h),
+		ownedLogFile: ownedLogFile,
 	}, nil
 }
 
@@ -78,11 +78,11 @@ func (l *Logger) With(args ...any) *Logger {
 }
 
 func (l *Logger) Close() error {
-	if l.logFile == nil {
+	if l.ownedLogFile == nil {
 		return nil
 	}
 
-	err := l.logFile.Close()
+	err := l.ownedLogFile.Close()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
