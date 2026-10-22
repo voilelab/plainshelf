@@ -5,8 +5,10 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -376,5 +378,84 @@ func TestCreateSourceWritesCommentLiterally(t *testing.T) {
 	}
 	if got := source.GetMeta().Comment; got != comment {
 		t.Errorf("Comment did not round-trip: got %q, want %q", got, comment)
+	}
+}
+
+type failSourceMetaRenameFS struct {
+	fsutil.FS
+	metaPath string
+}
+
+func (f failSourceMetaRenameFS) Rename(oldPath, newPath string) error {
+	if newPath == f.metaPath {
+		return errInjectedWrite
+	}
+	return f.FS.Rename(oldPath, newPath)
+}
+
+func TestSourcePublishesMetadataOnlyAfterPersistenceSucceeds(t *testing.T) {
+	for _, mutation := range []struct {
+		name string
+		run  func(*Source) error
+	}{
+		{"comment", func(s *Source) error { return s.UpdateComment("changed") }},
+		{"hash repair", func(s *Source) error { _, err := s.RepairContentHash("repaired"); return err }},
+		{"content statistics", func(s *Source) error { return s.RefreshContentMetadata() }},
+	} {
+		for _, failure := range []string{"write", "rename"} {
+			t.Run(mutation.name+"/"+failure, func(t *testing.T) {
+				book, root, _ := newTestBook(t, "metadata-write", "Metadata write")
+				source, err := book.NewSource(strings.NewReader("original"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				metaPath := path.Join(source.FolderPath(), SourceMetaFile)
+				before := source.GetMeta()
+				beforeDisk, err := fs.ReadFile(root, metaPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := root.WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("longer\ncontent")); err != nil {
+					t.Fatal(err)
+				}
+				if failure == "write" {
+					source.root = &failWriteFS{FS: root, failOn: func(name string) bool { return strings.HasPrefix(name, metaPath+".") }}
+				} else {
+					source.root = failSourceMetaRenameFS{FS: root, metaPath: metaPath}
+				}
+				if err := mutation.run(source); !errors.Is(err, errInjectedWrite) {
+					t.Fatalf("mutation error = %v, want injected failure", err)
+				}
+				if got := source.GetMeta(); !reflect.DeepEqual(got, before) {
+					t.Fatalf("failed write published metadata: got %+v, want %+v", got, before)
+				}
+				afterDisk, err := fs.ReadFile(root, metaPath)
+				if err != nil || !bytes.Equal(afterDisk, beforeDisk) {
+					t.Fatalf("failed write changed persisted metadata: %s, %v", afterDisk, err)
+				}
+				source.root = root
+				if err := mutation.run(source); err != nil {
+					t.Fatalf("retry mutation: %v", err)
+				}
+				if reflect.DeepEqual(source.GetMeta(), before) {
+					t.Fatal("successful retry did not publish metadata")
+				}
+				reopened, err := openSource(root, source.FolderPath())
+				if err != nil {
+					t.Fatal(err)
+				}
+				published, err := json.Marshal(source.GetMeta())
+				if err != nil {
+					t.Fatal(err)
+				}
+				persisted, err := json.Marshal(reopened.GetMeta())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(published, persisted) {
+					t.Fatalf("published metadata %s differs from persisted %s", published, persisted)
+				}
+			})
+		}
 	}
 }

@@ -631,6 +631,48 @@ func TestListSourceSkipsUnpublishedTemporaryDirectories(t *testing.T) {
 	}
 }
 
+func TestSnapshotNeverChecksStalenessEvenAfterMetadataWrite(t *testing.T) {
+	book, root, _ := newTestBook(t, "snapshot-book", "Snapshot book")
+	snapshot := FromSnapshot(root, newLoggerForTest(), book.PackagePath(), book.GetMeta())
+	if snapshot.IsStale() {
+		t.Fatal("snapshot must not be stale")
+	}
+	if err := snapshot.SetMeta(snapshot.GetMeta()); err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Remove(path.Join(book.PackagePath(), BookMetaFile)); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.IsStale() {
+		t.Fatal("snapshot must not stat missing metadata after a write")
+	}
+}
+
+func TestFreeSourceIDSkipsCollisionsAndKeepsStatErrors(t *testing.T) {
+	book, root, _ := newTestBook(t, "source-ids", "Source IDs")
+	const base = "20261022-120000"
+	for _, id := range []string{base, base + "-1"} {
+		if err := root.MkdirAll(path.Join(book.PackagePath(), SourcesFolder, id)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := book.freeSourceID(base); err != nil || got != base+"-2" {
+		t.Fatalf("freeSourceID = %q, %v; want %q", got, err, base+"-2")
+	}
+	book.root = sourceIDStatErrorFS{ReadFS: root}
+	if _, err := book.freeSourceID(base); !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("freeSourceID stat error = %v, want ErrPermission", err)
+	}
+}
+
+type sourceIDStatErrorFS struct {
+	fsutil.ReadFS
+}
+
+func (sourceIDStatErrorFS) Stat(string) (fs.FileInfo, error) {
+	return nil, fs.ErrPermission
+}
+
 func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	bookID := "test-book-a38j"
 	title := "Test Book"
