@@ -224,7 +224,7 @@ describe('EmbeddedPCloudReader', () => {
 });
 
 describe('Go offline downloads', () => {
-  it('uses the engine for capabilities, state, download, listing and removal, while keeping library writes disabled', async () => {
+  it('uses the read-only engine for shelf operations', async () => {
     const { setApiTransport } = await import('@/api/client');
     window.__PLAINSHELF_READ_ONLY__ = true;
     const { isWritableProvider } = await import('./index');

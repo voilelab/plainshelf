@@ -63,7 +63,7 @@ func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
 // the text, and come back through the asset route. This is the first test that
 // exercises storage, conversion and serving together; each side alone can pass
 // while the names they agree on have drifted apart.
-func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
+func TestAPIImportEPUBImageAssets(t *testing.T) {
 	env := apitest.New(t)
 	imported := apitest.ImportFileBook(t, env, "book.epub", "application/epub+zip",
 		string(testutil.BuildIllustratedTestEPUB(t)))

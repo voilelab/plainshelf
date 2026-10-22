@@ -81,7 +81,7 @@ func importBytes(b []byte, root string) error {
 	return Import(bytes.NewReader(b), int64(len(b)), root)
 }
 
-func TestRoundTripKeepsBooksTrashEmptyFoldersAndFolderJSON(t *testing.T) {
+func TestRoundTripShelfContents(t *testing.T) {
 	src := t.TempDir()
 	writeTree(t, src, map[string]string{
 		"shelf.json": `{"content":{"nsfw_folders":[{"path":"收藏"}]}}`,

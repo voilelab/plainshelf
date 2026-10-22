@@ -81,7 +81,7 @@ func TestProjectStoredReaderProgress_UnresolvedStays(t *testing.T) {
 	}
 }
 
-func TestWriteReadingProgress_DoesNotClobberNewerReaderEntry(t *testing.T) {
+func TestWriteProgressPreservesNewerEntry(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()

@@ -58,7 +58,7 @@ func folderID(t *testing.T, listing pcloudFolderListing, name string) int64 {
 	return 0
 }
 
-func TestListPCloudFolderMarksShelvesAndHidesBookPackages(t *testing.T) {
+func TestListPCloudFolderEntries(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 
 	root := listPCloudFolder(t, srv, 0)

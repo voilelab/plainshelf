@@ -224,7 +224,7 @@ func TestBookPackageCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestOpenBookPackageRefusesWritesToAFutureSchemaBook(t *testing.T) {
+func TestBookPackageFutureSchemaReadOnly(t *testing.T) {
 	dir := newBookPackageFixture(t)
 	future, err := os.ReadFile("testdata/schema/v2-future/book.json")
 	if err != nil {

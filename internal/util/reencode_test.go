@@ -239,7 +239,7 @@ func TestReEncodeToUTF8Big5BeyondThePrefix(t *testing.T) {
 	}
 }
 
-func TestReEncodeToUTF8EncodingPastThePrefixPassesThrough(t *testing.T) {
+func TestReEncodePastPrefix(t *testing.T) {
 	lateBig5, err := traditionalchinese.Big5.NewEncoder().String("第一章 這是一個關於修煉的故事，主角踏上了漫長的旅途。")
 	if err != nil {
 		t.Fatalf("failed to encode test input: %v", err)

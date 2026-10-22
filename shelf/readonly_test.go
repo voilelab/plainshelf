@@ -18,7 +18,7 @@ type readOnlyFS struct {
 	fsutil.ReadFS
 }
 
-func TestBookOnReadOnlyFSRefusesWritesAndLeavesTheFixtureUntouched(t *testing.T) {
+func TestReadOnlyBookRefusesWrites(t *testing.T) {
 	before := testutil.TreeSnapshot(t, "testdata")
 	root := readOnlyFS{testdataFS(t)}
 
@@ -157,7 +157,7 @@ func chmodTree(t *testing.T, root string, dirMode, fileMode fs.FileMode) {
 	}
 }
 
-func TestReadOnlyShelfOverridesFlockAndExportAndWritesNothing(t *testing.T) {
+func TestReadOnlyShelfWritesNothing(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
 

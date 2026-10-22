@@ -115,7 +115,7 @@ func TestKeepImagesStillCountsWhatItCannotStore(t *testing.T) {
 	}
 }
 
-func TestKeepImagesDisabledCountsEveryIllustrationAsDropped(t *testing.T) {
+func TestDisabledImagesCountAsDropped(t *testing.T) {
 	book := parseIllustrated(t, false)
 
 	if len(book.Images) != 0 {
@@ -163,7 +163,7 @@ func TestSanitizeImageAlt(t *testing.T) {
 	}
 }
 
-func TestIllustrationInsideConsumedHeadingCountsAsDropped(t *testing.T) {
+func TestHeadingImageCountsAsDropped(t *testing.T) {
 	entries := []zipEntry{
 		{"META-INF/container.xml", containerXML},
 		{"OEBPS/content.opf", `<package xmlns="http://www.idpf.org/2007/opf">

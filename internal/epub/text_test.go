@@ -2,7 +2,7 @@ package epub
 
 import "testing"
 
-func TestDocumentPreservesNBSPBetweenCJKButDropsLineWrap(t *testing.T) {
+func TestDocumentCJKWhitespace(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		html string

@@ -72,7 +72,7 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 //
 // The writer ID's other half — that it survives a restart at all — needs no
 // request and is pinned in server's own tests.
-func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
+func TestRuntimeShelfBookCacheWriterID(t *testing.T) {
 	env := apitest.New(t)
 
 	startupWriterID := readExportedBookCache(t, env.LibRoot).WriterID

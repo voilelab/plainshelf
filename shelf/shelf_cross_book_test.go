@@ -297,7 +297,7 @@ func TestShelfMoveBookFromRefusesReadOnlySource(t *testing.T) {
 	}
 }
 
-func TestShelfMoveBookFromDetectsUnscannedTargetConflict(t *testing.T) {
+func TestMoveBookUnscannedConflict(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 	original := seedBook(t, source, FolderPath{"fiction"}, "Racer")
 	id := original.ID()

@@ -32,7 +32,7 @@ func newBookWithRawMeta(t *testing.T, raw string) (fsutil.FS, string) {
 	return fsutil.NewRootFS(tmpRoot), bookFolder
 }
 
-func TestOpenBookRejectsDuplicateMemberAndNamesTheFileAndMember(t *testing.T) {
+func TestBookDuplicateMemberError(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t, `{
   "schema_version": 1,
   "id": "hand-edited",
@@ -102,7 +102,7 @@ func TestOpenBookDoesNotApplyACaseVariantMemberName(t *testing.T) {
 	}
 }
 
-func TestOpenSourceRejectsDuplicateMemberAndNamesTheFile(t *testing.T) {
+func TestSourceDuplicateMemberError(t *testing.T) {
 	tmpLib := t.TempDir()
 	const sourceFolder = "20260315-a1"
 	if err := os.MkdirAll(path.Join(tmpLib, sourceFolder), 0o755); err != nil {
@@ -156,7 +156,7 @@ type failingFile struct {
 
 func (f failingFile) Read([]byte) (int, error) { return 0, f.err }
 
-func TestOpenBookKeepsAnIOFailureOutOfTheMalformedReport(t *testing.T) {
+func TestBookIOErrorClassification(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t, `{"schema_version": 1, "id": "hand-edited"}`)
 
 	diskErr := errors.New("input/output error")

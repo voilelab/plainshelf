@@ -14,7 +14,7 @@ func serve(h http.Handler, method, url string, body []byte) int {
 	return rec.Code
 }
 
-func TestHandlerImportWaitsForInFlightRequestsThenGoesStale(t *testing.T) {
+func TestHandlerImportWaitsForRequests(t *testing.T) {
 	root := t.TempDir()
 	writeTree(t, root, map[string]string{"books/old.bookpkg/book.json": "old"})
 	entered := make(chan struct{})

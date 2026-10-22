@@ -50,7 +50,7 @@ func listedCharCount(t *testing.T, s *Shelf, bookID string) int {
 	return 0
 }
 
-func TestListBooksWithCharCountReportsTheCurrentSource(t *testing.T) {
+func TestListBooksCharCount(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	counted := newBookWithContent(t, s, "Counted", "abcde")
@@ -58,6 +58,12 @@ func TestListBooksWithCharCountReportsTheCurrentSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
+	unreadable := newBookWithContent(t, s, "Unreadable", "abc")
+	metaPath := path.Join(unreadable.PackagePath(), SourcesFolder, unreadable.CurrentSource(), "meta.json")
+	if err := writeRootForTest(t, s).Remove(metaPath); err != nil {
+		t.Fatal(err)
+	}
+	s.RefreshBookCharCount(unreadable.ID())
 
 	if got := listedCharCount(t, s, counted.ID()); got != 5 {
 		t.Errorf("char count of a book with content = %d, want 5", got)
@@ -65,9 +71,12 @@ func TestListBooksWithCharCountReportsTheCurrentSource(t *testing.T) {
 	if got := listedCharCount(t, s, sourceless.ID()); got != 0 {
 		t.Errorf("char count of a book without a current source = %d, want 0", got)
 	}
+	if got := listedCharCount(t, s, unreadable.ID()); got != 0 {
+		t.Errorf("char count of a book with unreadable source metadata = %d, want 0", got)
+	}
 }
 
-func TestRefreshBookCharCountFollowsASourceContentUpdate(t *testing.T) {
+func TestCharCountRefreshAfterContentUpdate(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	book := newBookWithContent(t, s, "Rewritten", "abcde")
@@ -91,7 +100,7 @@ func TestRefreshBookCharCountFollowsASourceContentUpdate(t *testing.T) {
 	}
 }
 
-func TestRefreshBookCharCountFollowsTheCurrentSourcePointer(t *testing.T) {
+func TestCharCountRefreshAfterSourceSwitch(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	book := newBookWithContent(t, s, "Two Sources", "abcde")
@@ -172,7 +181,7 @@ func TestRefreshBookCharCountAppliesToAReplacedEntry(t *testing.T) {
 
 	book := newBookWithContent(t, s, "Replaced", "abcde")
 
-	stale := newBookIDCacheEntry(bookFolderPath(book.PackagePath()), book.PackagePath(), book)
+	stale := readBookIDCacheEntry(bookFolderPath(book.PackagePath()), book.PackagePath(), book)
 
 	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {

@@ -16,7 +16,7 @@ import (
 
 const mutationBody = `true`
 
-func TestAPISecurityLocalTokenProtectsMutatingAPIContract(t *testing.T) {
+func TestAPIMutationsRequireLocalToken(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	if len(env.App.SecurityToken()) < 32 {

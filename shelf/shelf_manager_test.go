@@ -240,7 +240,7 @@ func TestShelfManagerUpdateShelfTogglesReadOnly(t *testing.T) {
 	}
 }
 
-func TestShelfManagerUpdateShelfRestoresShelfWhenReopenFails(t *testing.T) {
+func TestShelfManagerReopenRollback(t *testing.T) {
 	libRoot := t.TempDir()
 
 	sm := NewShelfManager()

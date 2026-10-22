@@ -55,7 +55,7 @@ func TestAPIPatchContentRefusesOversizedBody(t *testing.T) {
 
 // The size limit outranks the encoding: a body that chardet rejects from its
 // first chunk (a UTF-32 BOM) is still answered 413 when it is oversized.
-func TestAPIPatchContentRefusesOversizedBodyWithUnsupportedEncoding(t *testing.T) {
+func TestAPIPatchContentOversizeUnsupportedEncoding(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Oversized UTF-32", "", "big.txt", "original")
 	url := apitest.SourceURL(created.Meta.ID, created.Meta.CurrentSource, "content")

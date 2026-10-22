@@ -76,7 +76,7 @@ func TestAPIErrorEnvelopeIncidentIsTheRequestIDContract(t *testing.T) {
 
 // The point of the whole chain: the ID the user was shown finds the log line,
 // and that line answers what the response body deliberately withheld.
-func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
+func TestAPIUnknownErrorLogsIDAndRoute(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	libRoot := t.TempDir()
 
@@ -180,7 +180,7 @@ func TestAPIRequestLogLineCarriesTheRequestIDContract(t *testing.T) {
 // A background chain fails minutes after the response that gave the user their
 // number, so it logs under that same number rather than one of its own. Nothing
 // else could connect the two: the user never sees the chain ID.
-func TestAPIBackgroundTaskFailureLogsTheSubmittingRequestIDContract(t *testing.T) {
+func TestAPITaskFailureLogsRequestID(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	env := apitest.New(t, apitest.WithAppLogFile(appLogFile))
 

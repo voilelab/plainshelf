@@ -83,7 +83,7 @@ func staticSecret(s string) Secret {
 	return func(context.Context) (string, error) { return s, nil }
 }
 
-func TestTargetPreservesBaseEscapingAndEscapesEachFileSegment(t *testing.T) {
+func TestTargetPathEscaping(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		base    string

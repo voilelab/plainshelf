@@ -126,7 +126,7 @@ func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
 // the rescan rate limit governs: that budget belongs to the button a user
 // presses, and a run of transfers must not leave it answering 429 for something
 // the user never pressed.
-func TestAPIFolderTransferPreflightDoesNotSpendTheRescanRateLimitContract(t *testing.T) {
+func TestAPITransferPreflightPreservesRescanTokens(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Source", "fiction", "src.txt", "a")
 	apitest.AssertStatus(t, env.Post(apitest.ShelfIDURL(apitest.SecondShelfID, "folders", "taken"), nil), http.StatusNoContent)

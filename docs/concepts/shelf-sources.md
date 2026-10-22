@@ -213,8 +213,7 @@ so code past that point reads only `Source`.
 
 `ShelfConfWithID` gains `json:"id"` and `json:"name"` tags beside its YAML ones.
 The desktop and Android hosts pass shelf entries to Go as JSON, encoded through
-`internal/jsonopt` as everything on disk is
-([JSON encoding](../development/json-encoding.md)).
+`internal/jsonopt` as everything on disk is.
 
 ---
 

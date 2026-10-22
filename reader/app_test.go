@@ -16,7 +16,7 @@ const (
 	testSourceID = "20260315-a1"
 )
 
-func TestManualBookOpenDropsTheLaunchNamespaceAndChapter(t *testing.T) {
+func TestManualOpenClearsLaunchState(t *testing.T) {
 	app := newReaderAppWithBook(t, "launch-shelf")
 	app.launchSection = 3
 	const nextBook = "nextbook"

@@ -34,7 +34,7 @@ func TestProjectMapsReaderBookToRealShelf(t *testing.T) {
 	}
 }
 
-func TestProjectMapsToRealShelfWhoseKeyDiffersFromReaderShelf(t *testing.T) {
+func TestProjectDistinctShelfKeys(t *testing.T) {
 	doc := New()
 	doc.Shelves[ReaderShelfID] = map[string]Entry{"book-a": ent(5, 1000)}
 
@@ -105,7 +105,7 @@ func TestProjectIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestProjectFoldsBookOnceALaterImportMakesItResolvable(t *testing.T) {
+func TestProjectDeferredResolution(t *testing.T) {
 	doc := New()
 	doc.Shelves[ReaderShelfID] = map[string]Entry{"book-a": ent(55, 1000)}
 

@@ -48,7 +48,7 @@ func TestProgressAdvanceStopsAtTotal(t *testing.T) {
 	}
 }
 
-func TestProgressEmptyWorkloadIsCompleteOnlyWhenFinished(t *testing.T) {
+func TestEmptyProgressCompletion(t *testing.T) {
 	var p Progress
 	p.SetTotal(0)
 	p.SetStatus(StatusRunning)

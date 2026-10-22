@@ -188,7 +188,7 @@ func TestFingerprintSourcesTaskOnlyPaysForWhatChanged(t *testing.T) {
 	}
 }
 
-func TestFingerprintSourcesTaskForceRebuildsCachedSources(t *testing.T) {
+func TestFingerprintSourcesForceRebuild(t *testing.T) {
 	libRoot := t.TempDir()
 	testShelf := newFingerprintTestShelf(t, libRoot, false)
 
@@ -249,7 +249,7 @@ func TestFingerprintSourcesTaskSeesAnEditedSource(t *testing.T) {
 	}
 }
 
-func TestFingerprintSourcesTaskReportsOneUnreadableSource(t *testing.T) {
+func TestFingerprintSourcesUnreadableSource(t *testing.T) {
 	libRoot := t.TempDir()
 	testShelf := newFingerprintTestShelf(t, libRoot, false)
 

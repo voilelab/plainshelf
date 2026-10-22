@@ -29,7 +29,7 @@ func writeBookOnDisk(t *testing.T, libRoot, dirName, bookID, title string) {
 	}
 }
 
-func TestRescanFindsBooksAddedOnDiskWithinTheScanInterval(t *testing.T) {
+func TestRescanFindsNewBooks(t *testing.T) {
 	libRoot := t.TempDir()
 	s := newTestShelf(t, &ShelfConf{
 		LibRoot:      libRoot,
@@ -159,7 +159,7 @@ func TestRescanRefusesASecondWalkAndNamesTheRunningOne(t *testing.T) {
 	}
 }
 
-func TestRescanRefusesAConsecutiveLoopOnceTheBurstIsSpent(t *testing.T) {
+func TestRescanBurstLimit(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	for i := range rescanBurst {
@@ -286,7 +286,7 @@ func TestRescanConflictDoesNotSpendARateLimitToken(t *testing.T) {
 	}
 }
 
-func TestRescanUnthrottledNeitherSpendsNorIsRefusedByTheRateLimit(t *testing.T) {
+func TestRescanUnthrottledPreservesTokens(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	for i := range rescanBurst * 4 {

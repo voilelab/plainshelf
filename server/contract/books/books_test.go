@@ -89,7 +89,7 @@ func TestAPIGetBooksCharCountContract(t *testing.T) {
 // per request, so every route that changes what the current source holds has to
 // leave the cached count correct. A stale entry can only be seen from the
 // listing, which is what this reads back after each write.
-func TestAPIGetBooksCharCountFollowsSourceWritesContract(t *testing.T) {
+func TestAPIBookCharCountAfterSourceWrites(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Rewritten", "", "rewrite.txt", "alpha body")
 	bookID := created.Meta.ID

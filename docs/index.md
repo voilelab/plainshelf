@@ -51,7 +51,6 @@ app, with nothing to install and nothing uploaded.
 - [Local Development Setup](development/setup.md)
 - [Android Development](development/android.md)
 - [Docker](development/docker.md)
-- [JSON Encoding](development/json-encoding.md)
 - [Known issues](known-issue.md)
 
 ## Project boundaries

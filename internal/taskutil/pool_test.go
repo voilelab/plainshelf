@@ -162,7 +162,7 @@ func TestPoolEvictsOldestTerminalChainsOnly(t *testing.T) {
 	}
 }
 
-func TestPoolSubmitDoesNotRetainChainWhenWorkerRejectsIt(t *testing.T) {
+func TestPoolRejectedSubmitCleanup(t *testing.T) {
 	p := NewPool(newTestWorker(t, 1), 0)
 	t.Cleanup(func() { _ = p.Close() })
 
@@ -179,7 +179,7 @@ func TestPoolSubmitDoesNotRetainChainWhenWorkerRejectsIt(t *testing.T) {
 	}
 }
 
-func TestPoolSubmitRejectsDuplicateKeyWhileALaterTaskRemains(t *testing.T) {
+func TestPoolDuplicateKeyDuringLaterTask(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 
 	inFlight := &TaskChain{Key: "empty_trash:default", Tasks: []Task{

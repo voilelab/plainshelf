@@ -32,7 +32,7 @@ func (t *settlingTask) Result() any {
 	return []string{"missing-book"}
 }
 
-func TestTaskChainResponseNeverPairsTerminalStatusWithAnUnsettledResult(t *testing.T) {
+func TestTaskChainTerminalResponseIsSettled(t *testing.T) {
 	chain := &taskutil.TaskChain{
 		ID:    "chain-1",
 		Name:  "book_batch",

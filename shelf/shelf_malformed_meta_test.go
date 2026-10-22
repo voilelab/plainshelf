@@ -17,7 +17,7 @@ func breakFile(t *testing.T, filePath, raw string) {
 	}
 }
 
-func TestRescanSkipsABookWithMalformedMetaAndListsTheRest(t *testing.T) {
+func TestRescanSkipsMalformedBooks(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 

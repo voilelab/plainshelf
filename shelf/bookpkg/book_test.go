@@ -203,7 +203,7 @@ func TestSetCoverLeavesPreviousCoverIntactOnFailure(t *testing.T) {
 	testutil.AssertNoTempFiles(t, bookDir)
 }
 
-func TestSetCoverRemovesReplacedCoverWithDifferentExtension(t *testing.T) {
+func TestSetCoverRemovesOldExtension(t *testing.T) {
 	book, _, bookDir := newBookForCoverTest(t)
 
 	if err := book.SetCover([]byte("png data"), ".png"); err != nil {
@@ -247,7 +247,7 @@ func (f *afterRenameFS) Rename(oldPath, newPath string) error {
 	return err
 }
 
-func TestSetCoverKeepsReplacedCoverReclaimedByAnotherWriter(t *testing.T) {
+func TestSetCoverKeepsReclaimedCover(t *testing.T) {
 	book, _, bookDir := newBookForCoverTest(t)
 
 	if err := book.SetCover([]byte("original png"), ".png"); err != nil {
@@ -631,7 +631,7 @@ func TestListSourceSkipsUnpublishedTemporaryDirectories(t *testing.T) {
 	}
 }
 
-func TestSnapshotNeverChecksStalenessEvenAfterMetadataWrite(t *testing.T) {
+func TestSnapshotIgnoresStalenessAfterWrite(t *testing.T) {
 	book, root, _ := newTestBook(t, "snapshot-book", "Snapshot book")
 	snapshot := FromSnapshot(root, newLoggerForTest(), book.PackagePath(), book.GetMeta())
 	if snapshot.IsStale() {
@@ -1515,7 +1515,7 @@ func TestResolveCurrentSourceFallsBackToLatest(t *testing.T) {
 	}
 }
 
-func TestResolveCurrentSourceFallsBackOnUnreadableSource(t *testing.T) {
+func TestResolveCurrentSourceUnreadableFallback(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "corrupt-source-book", "Corrupt Source")
 
 	survivor, err := book.NewSource(bytes.NewBufferString("survivor body"))

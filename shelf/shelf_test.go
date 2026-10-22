@@ -580,7 +580,7 @@ func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 	}
 }
 
-func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testing.T) {
+func TestListBooksCacheRefresh(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "lib")
 
 	err := os.CopyFS(tmpLib, os.DirFS("testdata/lib"))

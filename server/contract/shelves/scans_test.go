@@ -81,7 +81,7 @@ func TestAPIRescanShelfIsAllowedInReadOnlyModeContract(t *testing.T) {
 // governs it rather than its method. Under the shipped defaults -- local_token
 // with protect_read off -- the docs promise reading needs no token, and the
 // "refresh the book list" button is a read the user can see.
-func TestAPIRescanShelfNeedsNoTokenWithoutProtectReadContract(t *testing.T) {
+func TestAPIRescanWithoutReadProtection(t *testing.T) {
 	env := apitest.New(t)
 
 	rec := env.DoRaw(httptest.NewRequest(http.MethodPost, apitest.ScansURL(), nil))
@@ -89,7 +89,7 @@ func TestAPIRescanShelfNeedsNoTokenWithoutProtectReadContract(t *testing.T) {
 }
 
 // With protect_read on, reads need a token and the rescan is one of them.
-func TestAPIRescanShelfRequiresTheTokenUnderProtectReadContract(t *testing.T) {
+func TestAPIRescanWithReadProtection(t *testing.T) {
 	security := apitest.LocalTokenSecurity()
 	security.ProtectRead = true
 	env := apitest.New(t, apitest.WithSecurity(security))
@@ -105,7 +105,7 @@ func TestAPIRescanShelfRequiresTheTokenUnderProtectReadContract(t *testing.T) {
 // documented as a CSRF boundary, so a rescan arriving from a page the operator
 // never listed is still refused. A request with no Origin at all is not a
 // browser -- the Android client's native HTTP bridge sends none.
-func TestAPIRescanShelfRefusesAnUnknownOriginWithoutATokenContract(t *testing.T) {
+func TestAPIRescanRejectsUnknownOrigin(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	req := httptest.NewRequest(http.MethodPost, apitest.ScansURL(), nil)
@@ -120,7 +120,7 @@ func TestAPIRescanShelfRefusesAnUnknownOriginWithoutATokenContract(t *testing.T)
 // Both exemptions - no token needed, allowed in read-only mode - are matched on
 // the same path helper, so neither may open a neighbouring route or a shelf-less
 // path that happens to end in /scans.
-func TestAPIScanExemptionsAreLimitedToTheScanRouteContract(t *testing.T) {
+func TestAPIScanRouteExemptions(t *testing.T) {
 	urls := []string{
 		apitest.ShelfURL("scans", "extra"),
 		apitest.ShelfURL("book-cache-exports"),

@@ -22,7 +22,7 @@ var nonMutatingMethods = []string{
 
 var methodGateTestPath = apitest.ShelfURL("folders", "blocked")
 
-func TestAPIReadOnlyModeRejectsExactlyTheMutatingMethodsContract(t *testing.T) {
+func TestAPIReadOnlyMethodGates(t *testing.T) {
 	env := apitest.New(t)
 	env.SetReadOnly(t, true)
 
@@ -47,7 +47,7 @@ func TestAPIReadOnlyModeRejectsExactlyTheMutatingMethodsContract(t *testing.T) {
 	}
 }
 
-func TestAPITokenIsRequiredForExactlyTheMutatingMethodsContract(t *testing.T) {
+func TestAPITokenMethodGates(t *testing.T) {
 	env := apitest.New(t)
 
 	for _, method := range mutatingMethods {

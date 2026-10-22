@@ -125,31 +125,11 @@ func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 		return
 	}
 
-	s.bookCache.Lock()
-	if s.bookCache.exporting {
-		s.bookCache.Unlock()
-		return
-	}
-	s.bookCache.exporting = true
-	s.bookCache.Unlock()
-
-	done := func() {
-		s.bookCache.Lock()
-		s.bookCache.exporting = false
-		s.bookCache.Unlock()
-	}
-
-	started := s.goBackground(func() {
-		defer done()
-
+	s.startBookCacheWork(&s.bookCache.exporting, func() {
 		if err := s.exportBookCache(false); err != nil {
 			s.Warn("failed to export the book cache", "error", err)
 		}
 	})
-
-	if !started {
-		done()
-	}
 }
 
 func (s *Shelf) ExportBookCache() (time.Time, error) {

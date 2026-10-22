@@ -171,7 +171,7 @@ func TestOpenShelfKeepsBothWhenLegacyTrashCollides(t *testing.T) {
 	}
 }
 
-func TestOpenShelfRenameCarriesUnknownLegacyTrashContent(t *testing.T) {
+func TestLegacyTrashRenamePreservesUnknownFiles(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	seedLegacyTrashedBook(t, tmpLib, "legacy-book", "Legacy")
 
@@ -331,7 +331,7 @@ func TestMoveBookToTrashWritesFolderNamesLiterally(t *testing.T) {
 	}
 }
 
-func TestTrashMetaWithoutSchemaVersionIsReadAsV1AndNotRewritten(t *testing.T) {
+func TestLegacyTrashMetaReadWithoutRewrite(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -407,7 +407,7 @@ func TestTrashOperationsRefuseNewerSchemaVersion(t *testing.T) {
 	}
 }
 
-func TestMoveBookToTrashRefusesNewerTrashMetaOnActiveBook(t *testing.T) {
+func TestMoveBookRefusesFutureTrashMeta(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 

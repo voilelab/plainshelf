@@ -425,7 +425,7 @@ func TestFolderTransferTaskCancelledMidMove(t *testing.T) {
 	}
 }
 
-func TestFolderTransferTaskFolderCreateFailureSettlesFailed(t *testing.T) {
+func TestFolderTransferCreateFailure(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	if err := source.NewFolder(shelf.FolderPath{}, "fiction"); err != nil {
 		t.Fatalf("NewFolder: %v", err)

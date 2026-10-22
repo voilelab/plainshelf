@@ -23,7 +23,7 @@ type bookIDCacheEntry struct {
 	charCountAt time.Time
 }
 
-func newBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCacheEntry {
+func readBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCacheEntry {
 	charCount, sourceMD5, charCountAt := readSourceStat(book)
 
 	return &bookIDCacheEntry{
@@ -144,7 +144,7 @@ func (s *Shelf) scanToBookCache() error {
 	}, func(folder FolderPath) {
 		metaFolders = append(metaFolders, folder)
 	}, func(b *Book) bool {
-		entry := newBookIDCacheEntry(bookFolderPath(b.PackagePath()), b.PackagePath(), b)
+		entry := readBookIDCacheEntry(bookFolderPath(b.PackagePath()), b.PackagePath(), b)
 		if s.offline != nil {
 			entry.book = bookpkg.FromSnapshot(s.dbRoot, s.Logger, b.PackagePath(), b.GetMeta())
 		}
@@ -190,7 +190,8 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 	snapshot := maps.Clone(s.bookCache.cache)
 	s.bookCache.RUnlock()
 
-	updated := make(map[string]*bookIDCacheEntry)
+	refreshed := make(map[string]*bookIDCacheEntry)
+	var removed []string
 
 	for bookID, cacheEntry := range snapshot {
 		if !cacheEntry.book.IsStale() {
@@ -200,26 +201,25 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 		book, err := bookpkg.Open(s.dbRoot, s.Logger, cacheEntry.path)
 		if err != nil {
 			s.Warn("Failed to refresh book cache entry, skipping", "bookID", cacheEntry.book.ID(), "error", err)
-			updated[bookID] = nil
+			removed = append(removed, bookID)
 			continue
 		}
 
 		if book.ID() != cacheEntry.book.ID() {
 			s.Warn("Book ID mismatch when refreshing book cache entry, skipping", "expectedBookID", cacheEntry.book.ID(), "actualBookID", book.ID())
-			updated[bookID] = nil
+			removed = append(removed, bookID)
 			continue
 		}
 
-		updated[bookID] = newBookIDCacheEntry(cacheEntry.folders, cacheEntry.path, book)
+		refreshed[bookID] = readBookIDCacheEntry(cacheEntry.folders, cacheEntry.path, book)
 	}
 
 	s.bookCache.Lock()
-	for bookID, entry := range updated {
-		if entry != nil {
-			s.bookCache.cache[bookID] = keepNewerCharCount(entry, s.bookCache.cache[bookID])
-		} else {
-			delete(s.bookCache.cache, bookID)
-		}
+	for bookID, entry := range refreshed {
+		s.bookCache.cache[bookID] = keepNewerCharCount(entry, s.bookCache.cache[bookID])
+	}
+	for _, bookID := range removed {
+		delete(s.bookCache.cache, bookID)
 	}
 	s.bookCache.lastBookCheck = time.Now()
 	s.bookCache.Unlock()
@@ -234,6 +234,7 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 	lastBookCheck := s.bookCache.lastBookCheck
 	refreshing := s.bookCache.refreshing
 	scanInterval := s.bookCache.scanInterval
+	bookCheckInterval := s.bookCache.bookCheckInterval
 	s.bookCache.RUnlock()
 
 	if s.remote {
@@ -248,27 +249,11 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 		return
 	}
 
-	if refreshing || time.Since(lastBookCheck) < s.bookCache.bookCheckInterval {
+	if refreshing || time.Since(lastBookCheck) < bookCheckInterval {
 		return
 	}
 
-	s.bookCache.Lock()
-	if s.bookCache.refreshing {
-		s.bookCache.Unlock()
-		return
-	}
-	s.bookCache.refreshing = true
-	s.bookCache.Unlock()
-
-	done := func() {
-		s.bookCache.Lock()
-		s.bookCache.refreshing = false
-		s.bookCache.Unlock()
-	}
-
-	started := s.goBackground(func() {
-		defer done()
-
+	s.startBookCacheWork(&s.bookCache.refreshing, func() {
 		if err := s.shelfLock.RLock(); err != nil {
 			s.Warn("background book check skipped: failed to acquire lock", "error", err)
 			return
@@ -277,8 +262,26 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 
 		s.onlyRefreshBooksInCache()
 	})
+}
 
-	if !started {
+func (s *Shelf) startBookCacheWork(inProgress *bool, work func()) {
+	s.bookCache.Lock()
+	if *inProgress {
+		s.bookCache.Unlock()
+		return
+	}
+	*inProgress = true
+	s.bookCache.Unlock()
+
+	done := func() {
+		s.bookCache.Lock()
+		*inProgress = false
+		s.bookCache.Unlock()
+	}
+	if !s.goBackground(func() {
+		defer done()
+		work()
+	}) {
 		done()
 	}
 }
@@ -416,7 +419,7 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, FolderPath, erro
 		book, err := bookpkg.Open(s.dbRoot, s.Logger, cacheEntry.path)
 		if err == nil {
 			s.bookCache.cache[bookID] = keepNewerCharCount(
-				newBookIDCacheEntry(cacheEntry.folders, cacheEntry.path, book),
+				readBookIDCacheEntry(cacheEntry.folders, cacheEntry.path, book),
 				s.bookCache.cache[bookID],
 			)
 			folders := slices.Clone(cacheEntry.folders)
@@ -444,7 +447,7 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, FolderPath, erro
 }
 
 func (s *Shelf) updateBookCacheEntry(folders FolderPath, path string, book *Book) {
-	entry := newBookIDCacheEntry(folders, path, book)
+	entry := readBookIDCacheEntry(folders, path, book)
 
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()

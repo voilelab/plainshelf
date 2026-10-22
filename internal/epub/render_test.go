@@ -161,7 +161,7 @@ func TestStrategyNormalizedFillsUnsetFields(t *testing.T) {
 	}
 }
 
-func TestStrategyNormalizedKeepsUnknownPresetForValidate(t *testing.T) {
+func TestNormalizeStrategyPreservesUnknownPreset(t *testing.T) {
 	got := (Strategy{Preset: "nonsense"}).Normalized()
 	if got.Preset != "nonsense" {
 		t.Errorf("Normalized preset = %q, want the unknown preset preserved", got.Preset)
