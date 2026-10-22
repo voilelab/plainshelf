@@ -164,7 +164,7 @@ func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 	}
 }
 
-func TestDefaultIgnoreRules(t *testing.T) {
+func TestDefaultIgnoreRulesSkipEachDefaultAndCarryItsRefusalReason(t *testing.T) {
 	rules := shelfutil.NewIgnoreRules(shelfutil.DefaultIgnoredDirs())
 
 	tests := []struct {

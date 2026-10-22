@@ -125,16 +125,23 @@ func TestShelfManagerLifecycle(t *testing.T) {
 		Name:              "Main Shelf",
 		LibRoot:           firstRoot,
 		LockMode:          "none",
-		ScanInterval:      "2m",
+		ScanInterval:      "7m",
 		BookCheckInterval: "not-a-duration",
 	}); err == nil {
 		t.Fatal("UpdateShelf accepted an invalid book check interval")
 	}
 	primary.bookCache.RLock()
+	interval = primary.bookCache.scanInterval
 	bookCheckInterval = primary.bookCache.bookCheckInterval
 	primary.bookCache.RUnlock()
+	if interval != 2*time.Minute {
+		t.Fatalf("scan interval after rejected update = %v, want %v", interval, 2*time.Minute)
+	}
 	if bookCheckInterval != 5*time.Minute {
 		t.Fatalf("book check interval after rejected update = %v, want %v", bookCheckInterval, 5*time.Minute)
+	}
+	if primary.conf.ScanInterval != "2m" || primary.conf.BookCheckInterval != "5m" || primary.Name != "Main Shelf" {
+		t.Fatalf("rejected update changed shelf configuration: %+v, name %q", primary.conf, primary.Name)
 	}
 
 	if err := sm.RemoveShelf("missing"); err == nil {

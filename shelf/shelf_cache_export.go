@@ -112,7 +112,7 @@ func (s *Shelf) bookCacheFileName() string {
 }
 
 func (s *Shelf) scheduleBookCacheExportIfNeeded() {
-	if s.bookCacheWriterID == "" {
+	if !s.exportEnabled() {
 		return
 	}
 
@@ -157,7 +157,7 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 		return time.Time{}, util.Errorf("%w", fsutil.ErrReadOnly)
 	}
 
-	if s.bookCacheWriterID == "" {
+	if !s.exportEnabled() {
 		return time.Time{}, util.NewError("book cache export is not configured for this shelf")
 	}
 
@@ -184,7 +184,7 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 }
 
 func (s *Shelf) exportBookCache(force bool) error {
-	if s.bookCacheWriterID == "" {
+	if !s.exportEnabled() {
 		return nil
 	}
 

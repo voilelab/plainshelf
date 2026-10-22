@@ -48,7 +48,7 @@ func TestShelfMakeStructure(t *testing.T) {
 	}
 }
 
-func TestShelfRuntimeStateAndScanInterval(t *testing.T) {
+func TestShelfRuntimeStateAndIntervals(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{
 		LibRoot:           t.TempDir(),
 		LockMode:          "none",
@@ -63,44 +63,31 @@ func TestShelfRuntimeStateAndScanInterval(t *testing.T) {
 		t.Fatalf("InitErr = %v, want nil", shelf.InitErr())
 	}
 
-	if err := shelf.SetScanInterval("invalid"); err == nil {
-		t.Fatal("SetScanInterval accepted an invalid duration")
-	}
-	if err := shelf.SetScanInterval(""); err != nil {
-		t.Fatalf("SetScanInterval(default): %v", err)
-	}
-	shelf.bookCache.RLock()
-	interval := shelf.bookCache.scanInterval
-	bookCheckInterval := shelf.bookCache.bookCheckInterval
-	shelf.bookCache.RUnlock()
-	if interval != time.Minute {
-		t.Fatalf("default scan interval = %v, want %v", interval, time.Minute)
-	}
-	if bookCheckInterval != 3*time.Minute {
-		t.Fatalf("book check interval = %v, want %v", bookCheckInterval, 3*time.Minute)
-	}
-
-	if err := shelf.SetBookCheckInterval("invalid"); err == nil {
-		t.Fatal("SetBookCheckInterval accepted an invalid duration")
-	}
-	if err := shelf.SetBookCheckInterval("5m"); err != nil {
-		t.Fatalf("SetBookCheckInterval(5m): %v", err)
-	}
-	shelf.bookCache.RLock()
-	bookCheckInterval = shelf.bookCache.bookCheckInterval
-	shelf.bookCache.RUnlock()
-	if bookCheckInterval != 5*time.Minute {
-		t.Fatalf("book check interval = %v, want %v", bookCheckInterval, 5*time.Minute)
-	}
-
-	if err := shelf.SetBookCheckInterval(""); err != nil {
-		t.Fatalf("SetBookCheckInterval(default): %v", err)
-	}
-	shelf.bookCache.RLock()
-	bookCheckInterval = shelf.bookCache.bookCheckInterval
-	shelf.bookCache.RUnlock()
-	if bookCheckInterval != time.Minute {
-		t.Fatalf("book check interval after default = %v, want %v", bookCheckInterval, time.Minute)
+	for _, tc := range []struct {
+		name, scan, check   string
+		wantScan, wantCheck time.Duration
+		wantError           bool
+	}{
+		{"invalid scan leaves both unchanged", "invalid", "5m", 2 * time.Minute, 3 * time.Minute, true},
+		{"explicit values", "4m", "5m", 4 * time.Minute, 5 * time.Minute, false},
+		{"invalid check leaves both unchanged", "7m", "invalid", 4 * time.Minute, 5 * time.Minute, true},
+		{"default check follows new scan", "2m", "", 2 * time.Minute, 2 * time.Minute, false},
+		{"default scan with explicit check", "", "3m", time.Minute, 3 * time.Minute, false},
+		{"both defaults", "", "", time.Minute, time.Minute, false},
+		{"zero and negative durations remain accepted", "0s", "-1s", 0, -time.Second, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := shelf.SetIntervals(tc.scan, tc.check)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("SetIntervals(%q, %q) = %v, want error %v", tc.scan, tc.check, err, tc.wantError)
+			}
+			shelf.bookCache.RLock()
+			scan, check := shelf.bookCache.scanInterval, shelf.bookCache.bookCheckInterval
+			shelf.bookCache.RUnlock()
+			if scan != tc.wantScan || check != tc.wantCheck {
+				t.Fatalf("intervals = %v, %v; want %v, %v", scan, check, tc.wantScan, tc.wantCheck)
+			}
+		})
 	}
 }
 

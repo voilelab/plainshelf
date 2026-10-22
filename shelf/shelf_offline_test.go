@@ -309,8 +309,8 @@ func TestOfflineShelfWithoutSnapshotFailsToOpen(t *testing.T) {
 func TestSourceGoingOfflineKeepsTheListing(t *testing.T) {
 	fixture := seedOfflineSource(t)
 	s, source, _ := openOffline(t, fixture.libRoot, t.TempDir(), false)
-	if err := s.SetScanInterval("1ms"); err != nil {
-		t.Fatalf("SetScanInterval: %v", err)
+	if err := s.SetIntervals("1ms", "1h"); err != nil {
+		t.Fatalf("SetIntervals: %v", err)
 	}
 
 	source.down.Store(true)

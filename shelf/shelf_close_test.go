@@ -11,24 +11,31 @@ import (
 
 const closeBackgroundRounds = 300
 
+func openShelfWithoutCleanup(t *testing.T, conf *ShelfConf) *Shelf {
+	t.Helper()
+	s, err := NewShelf(conf)
+	if err != nil {
+		t.Fatalf("NewShelf: %v", err)
+	}
+	if err := s.WaitReady(t.Context()); err != nil {
+		_ = s.Close()
+		t.Fatalf("WaitReady: %v", err)
+	}
+	return s
+}
+
 func TestCloseWaitsForBackgroundWork(t *testing.T) {
 	root := t.TempDir()
 
 	for round := range closeBackgroundRounds {
 		libRoot := filepath.Join(root, "shelf-"+strconv.Itoa(round))
 
-		s, err := NewShelf(&ShelfConf{
+		s := openShelfWithoutCleanup(t, &ShelfConf{
 			LibRoot:           libRoot,
 			BookCheckInterval: "0s",
 			BookCacheWriterID: "close-test",
 			BookCacheInterval: "0s",
 		})
-		if err != nil {
-			t.Fatalf("round %d: NewShelf: %v", round, err)
-		}
-		if err := s.WaitReady(t.Context()); err != nil {
-			t.Fatalf("round %d: WaitReady: %v", round, err)
-		}
 
 		if _, err := s.ListBooks(); err != nil {
 			t.Fatalf("round %d: ListBooks: %v", round, err)

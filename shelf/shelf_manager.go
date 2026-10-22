@@ -160,11 +160,7 @@ func (sm *ShelfManager) UpdateShelf(conf ShelfConfWithID) error {
 		return sm.reopenShelfLocked(s, conf)
 	}
 
-	if err := s.SetScanInterval(conf.ScanInterval); err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	if err := s.SetBookCheckInterval(conf.BookCheckInterval); err != nil {
+	if err := s.SetIntervals(conf.ScanInterval, conf.BookCheckInterval); err != nil {
 		return util.Errorf("%w", err)
 	}
 

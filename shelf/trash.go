@@ -68,7 +68,7 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	activePath := book.PackagePath()
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
 
-	if err := s.ensureTrashMetaWritable(activePath); err != nil {
+	if err := s.refuseIfTrashMetaTooNew(activePath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -278,7 +278,7 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	if err := s.ensureTrashMetaWritable(trashPath); err != nil {
+	if err := s.refuseIfTrashMetaTooNew(trashPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -361,7 +361,7 @@ func trashMetaWritable(meta *trashMeta) error {
 		ErrUnsupportedTrashSchemaVersion, meta.SchemaVersion, TrashMetaSchemaVersion)
 }
 
-func (s *Shelf) ensureTrashMetaWritable(bookPath string) error {
+func (s *Shelf) refuseIfTrashMetaTooNew(bookPath string) error {
 	return trashMetaWritable(s.readTrashMetaTolerant(bookPath))
 }
 
