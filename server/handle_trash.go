@@ -35,7 +35,7 @@ func (h *trashHandlers) trashBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := h.lookupBookListing(w, r, shelfData, bookID); !ok {
+	if _, ok := h.lookupVisibleBookListing(w, r, shelfData, bookID); !ok {
 		return
 	}
 

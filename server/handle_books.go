@@ -185,7 +185,7 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	listing, ok := h.lookupBookListing(w, r, shelfData, bookID)
+	listing, ok := h.lookupVisibleBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
@@ -229,7 +229,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	listing, ok := h.lookupBookListing(w, r, shelfData, bookID)
+	listing, ok := h.lookupVisibleBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}

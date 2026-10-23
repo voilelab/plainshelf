@@ -58,7 +58,7 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	listing, ok := h.lookupBookListing(w, r, sourceShelf, bookID)
+	listing, ok := h.lookupVisibleBookListing(w, r, sourceShelf, bookID)
 	if !ok {
 		return
 	}
