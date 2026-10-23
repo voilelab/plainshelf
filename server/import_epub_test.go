@@ -266,3 +266,36 @@ func TestImportEPUBPerRequestStrategyInheritsKeepImages(t *testing.T) {
 		t.Fatalf("fallback keep_images = %v, want false", got.KeepImages)
 	}
 }
+
+func TestEPUBImageFailuresKeepImport(t *testing.T) {
+	app := newTestApp(t)
+	shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
+	if !ok {
+		t.Fatal("default shelf missing")
+	}
+	parsed := &epub.Book{
+		Authors:  []string{"Author"},
+		Language: "en",
+		Cover:    []byte("invalid cover"), CoverExt: ".unsupported",
+		Images: []epub.Image{
+			{Name: "../invalid.png", Data: []byte("rejected")},
+			{Name: "valid.png", Data: testutil.OnePixelPNG()},
+		},
+	}
+	book, err := shelfData.NewBookWith(nil, "Book", app.handlers.imports.initEPUBBook(parsed, epub.Rendered{Text: "Body", Format: "md"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := book.GetSource(book.CurrentSource())
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, err := source.ListAssets()
+	if err != nil || len(assets) != 1 || assets[0] != "valid.png" {
+		t.Fatalf("assets = %v, %v; want the image after the failed write", assets, err)
+	}
+	meta := book.GetMeta()
+	if meta.Cover != "" || len(meta.Authors) != 1 || meta.Authors[0] != "Author" {
+		t.Fatalf("metadata after failed cover conversion = %+v", meta)
+	}
+}

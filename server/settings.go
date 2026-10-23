@@ -167,7 +167,7 @@ func (s *settings) coverToJPG() bool {
 }
 
 func (s *settings) epubImportStrategy() epub.Strategy {
-	if strategy, ok := readJSONSetting(s, settingKeyEPUBImportStrategy, validateNormalizedStrategy); ok {
+	if strategy, ok := readJSONSetting(s, settingKeyEPUBImportStrategy, validateStrategyWithDefaults); ok {
 		return strategy.Normalized()
 	}
 
@@ -181,11 +181,11 @@ func (s *settings) epubImportStrategy() epub.Strategy {
 	return epub.DefaultStrategy().Normalized()
 }
 
-func validateNormalizedStrategy(strategy epub.Strategy) error {
+func validateStrategyWithDefaults(strategy epub.Strategy) error {
 	return strategy.Normalized().Validate()
 }
 
-func (s *settings) showNSFW() bool {
+func (s *settings) readShowNSFW() bool {
 	bs, exists, err := s.db.GetSetting(settingKeyShowNSFW)
 	if err != nil {
 		s.Error("failed to read setting", "key", settingKeyShowNSFW, "err", err)

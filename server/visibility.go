@@ -17,7 +17,7 @@ func (c *apiCore) visibility(shelfData *shelf.ShelfData) bookVisibility {
 	if show, ok := c.showNSFWByShelf.Load(shelfData.ID); ok {
 		return bookVisibility{shelf: shelfData.Shelf, showNSFW: show.(bool)}
 	}
-	return bookVisibility{shelf: shelfData.Shelf, showNSFW: c.settings.showNSFW()}
+	return bookVisibility{shelf: shelfData.Shelf, showNSFW: c.settings.readShowNSFW()}
 }
 
 func (v bookVisibility) allows(folders shelf.FolderPath, meta *shelf.BookMeta) bool {
