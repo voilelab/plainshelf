@@ -232,7 +232,6 @@ func (env *Env) CurrentSourceID(t *testing.T, bookID string) string {
 	return metas[0].ID
 }
 
-// WriteSourceAsset writes fixture bytes directly to a source's assets/ directory.
 func (env *Env) WriteSourceAsset(t *testing.T, bookID, sourceID, name string, data []byte) {
 	t.Helper()
 
