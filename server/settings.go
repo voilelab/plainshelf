@@ -185,7 +185,7 @@ func validateStrategyWithDefaults(strategy epub.Strategy) error {
 	return strategy.Normalized().Validate()
 }
 
-func (s *settings) readShowNSFWFailClosed() bool {
+func (s *settings) readShowNSFW() bool {
 	bs, exists, err := s.db.GetSetting(settingKeyShowNSFW)
 	if err != nil {
 		s.Error("failed to read setting", "key", settingKeyShowNSFW, "err", err)

@@ -29,7 +29,7 @@ func TestShowNSFWFailsClosed(t *testing.T) {
 	if err := db.SetSetting(settingKeyShowNSFW, []byte("true")); err != nil {
 		t.Fatal(err)
 	}
-	if !settings.readShowNSFWFailClosed() {
+	if !settings.readShowNSFW() {
 		t.Fatal("stored true did not enable visibility")
 	}
 	if err := db.Close(); err != nil {
@@ -39,7 +39,7 @@ func TestShowNSFWFailsClosed(t *testing.T) {
 	if _, _, err := db.GetSetting(settingKeyShowNSFW); err == nil {
 		t.Skip("store backend does not fail reads after Close")
 	}
-	if settings.readShowNSFWFailClosed() {
+	if settings.readShowNSFW() {
 		t.Fatal("store read failure enabled visibility")
 	}
 }

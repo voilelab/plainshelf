@@ -51,7 +51,7 @@ func (h *settingHandlers) deleteCoverToJPG(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *settingHandlers) getShowNSFW(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.readShowNSFWFailClosed()})
+	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.readShowNSFW()})
 }
 
 func (h *settingHandlers) setShowNSFW(w http.ResponseWriter, r *http.Request) {
