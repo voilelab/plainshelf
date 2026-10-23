@@ -232,8 +232,6 @@ func (env *Env) CurrentSourceID(t *testing.T, bookID string) string {
 	return metas[0].ID
 }
 
-// WriteSourceAsset drops a file into a source's assets/ directory, which is how
-// an illustration gets there today: the API serves assets but cannot store them.
 func (env *Env) WriteSourceAsset(t *testing.T, bookID, sourceID, name string, data []byte) {
 	t.Helper()
 
