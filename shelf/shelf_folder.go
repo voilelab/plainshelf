@@ -2,9 +2,11 @@ package shelf
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -85,10 +87,8 @@ func (s *Shelf) deleteFolder(folder FolderPath, dropMeta func([]byte) bool) erro
 		return util.Errorf("%w", err)
 	}
 
-	for _, entry := range entries {
-		if entry.Name() != FolderMetaFile || entry.IsDir() {
-			return util.Errorf("cannot delete non-empty folder")
-		}
+	if !holdsOnlyFolderMeta(entries) {
+		return util.Errorf("cannot delete non-empty folder")
 	}
 	if len(entries) > 0 && dropMeta != nil {
 		data, err := readFolderMetaFile(s.dbRoot, path.Join(folderPath, FolderMetaFile))
@@ -97,12 +97,7 @@ func (s *Shelf) deleteFolder(folder FolderPath, dropMeta func([]byte) bool) erro
 		}
 	}
 
-	if len(entries) > 0 {
-		if err := root.Remove(path.Join(folderPath, FolderMetaFile)); err != nil {
-			return util.Errorf("%w", err)
-		}
-	}
-	if err := root.Remove(folderPath); err != nil {
+	if err := removeFolderNonRecursively(root, folderPath, len(entries) > 0); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -231,4 +226,22 @@ func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 	s.markBookCacheTreeDirty()
 
 	return nil
+}
+
+func holdsOnlyFolderMeta(entries []fs.DirEntry) bool {
+	for _, entry := range entries {
+		if entry.Name() != FolderMetaFile || entry.IsDir() {
+			return false
+		}
+	}
+	return true
+}
+
+func removeFolderNonRecursively(root fsutil.FS, folderPath string, hasMeta bool) error {
+	if hasMeta {
+		if err := root.Remove(path.Join(folderPath, FolderMetaFile)); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+	return root.Remove(folderPath)
 }
