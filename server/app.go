@@ -85,11 +85,7 @@ func NewApp(conf *AppConf) (*App, error) {
 	}()
 
 	for _, shelfEntry := range conf.Shelves {
-		shelfConf := applyAppReadOnly(*shelfEntry, conf.ReadOnly)
-
-		if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
-			shelfConf.BookCacheWriterID = writerID
-		}
+		shelfConf := applyBookCacheWriterID(applyAppReadOnly(*shelfEntry, conf.ReadOnly), writerID)
 		if err := addShelfEntry(shelfManager, shelfConf, conf.StorePath, conf.Credentials); err != nil {
 			return nil, util.Errorf("%w", err)
 		}
@@ -187,10 +183,7 @@ func (app *App) RemoveOfflineScope(scope string) error {
 }
 
 func (app *App) resolveShelfConf(conf shelf.ShelfConfWithID) shelf.ShelfConfWithID {
-	shelfConf := applyAppReadOnly(conf, app.conf.ReadOnly)
-	if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
-		shelfConf.BookCacheWriterID = app.bookCacheWriterID
-	}
+	shelfConf := applyBookCacheWriterID(applyAppReadOnly(conf, app.conf.ReadOnly), app.bookCacheWriterID)
 
 	shelfConf.Logger.LogFile.Retention = app.conf.Logger.LogFile.Retention
 	return shelfConf
@@ -305,4 +298,11 @@ func isShelfScanPath(urlPath string) bool {
 
 	shelfID, tail, ok := strings.Cut(rest, "/")
 	return ok && shelfID != "" && tail == "scans"
+}
+
+func applyBookCacheWriterID(conf shelf.ShelfConfWithID, writerID string) shelf.ShelfConfWithID {
+	if conf.BookCacheWriterID == "" && !conf.ReadOnly {
+		conf.BookCacheWriterID = writerID
+	}
+	return conf
 }

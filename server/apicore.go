@@ -52,8 +52,8 @@ func (c *apiCore) rejectReadOnlyShelf(w http.ResponseWriter, r *http.Request, sh
 	return true
 }
 
-func (c *apiCore) lookupBook(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
-	listing, ok := c.lookupBookListing(w, r, shelfData, bookID)
+func (c *apiCore) lookupVisibleBook(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
+	listing, ok := c.lookupVisibleBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return nil, false
 	}
@@ -61,7 +61,7 @@ func (c *apiCore) lookupBook(w http.ResponseWriter, r *http.Request, shelfData *
 	return listing.Book, true
 }
 
-func (c *apiCore) lookupBookListing(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (shelf.BookListing, bool) {
+func (c *apiCore) lookupVisibleBookListing(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (shelf.BookListing, bool) {
 	listing, err := shelfData.GetBookListing(bookID)
 	if err != nil {
 		c.writeErr(w, r, err, "failed to get book")
@@ -97,7 +97,7 @@ func (c *apiCore) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.Shelf
 		return nil, nil, false
 	}
 
-	book, ok := c.lookupBook(w, r, shelfData, bookID)
+	book, ok := c.lookupVisibleBook(w, r, shelfData, bookID)
 	if !ok {
 		return nil, nil, false
 	}
@@ -116,7 +116,7 @@ func (c *apiCore) loadBookListing(w http.ResponseWriter, r *http.Request) (*shel
 		return nil, shelf.BookListing{}, false
 	}
 
-	listing, ok := c.lookupBookListing(w, r, shelfData, bookID)
+	listing, ok := c.lookupVisibleBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return nil, shelf.BookListing{}, false
 	}
@@ -140,7 +140,7 @@ func (c *apiCore) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf
 		return nil, nil, nil, false
 	}
 
-	book, ok := c.lookupBook(w, r, shelfData, bookID)
+	book, ok := c.lookupVisibleBook(w, r, shelfData, bookID)
 	if !ok {
 		return nil, nil, nil, false
 	}
@@ -168,18 +168,24 @@ func (c *apiCore) streamTextFile(w http.ResponseWriter, file fs.File, failureMsg
 }
 
 func (c *apiCore) writeJSON(w http.ResponseWriter, status int, v any) {
-	bs, err := json.Marshal(v, jsonopt.API())
+	bs, err := marshalAPIResponse(v)
 	if err != nil {
 		c.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
 
-	bs = append(bs, '\n')
-
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	if _, err := w.Write(bs); err != nil {
 		c.Error("failed to write response", "error", err)
 	}
+}
+
+func marshalAPIResponse(v any) ([]byte, error) {
+	bs, err := json.Marshal(v, jsonopt.API())
+	if err != nil {
+		return nil, err
+	}
+	return append(bs, '\n'), nil
 }

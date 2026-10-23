@@ -164,7 +164,7 @@ func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, ok := h.lookupBook(w, r, shelfData, bookID)
+	book, ok := h.lookupVisibleBook(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
