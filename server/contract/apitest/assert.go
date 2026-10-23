@@ -145,9 +145,6 @@ type ErrorEnvelope struct {
 	} `json:"error"`
 }
 
-// AssertErrorEnvelope pins a refusal's status, content type, code and message
-// together, because the three travel as one contract: a client that switches on
-// the code needs the JSON body to have arrived at all.
 // AssertBookIDs compares two sets of book IDs, order-insensitively, which is how
 // every listing assertion reads: the endpoint's own order is pinned elsewhere.
 func AssertBookIDs(t *testing.T, got []string, want ...string) {
@@ -160,6 +157,8 @@ func AssertBookIDs(t *testing.T, got []string, want ...string) {
 	}
 }
 
+// AssertErrorEnvelope checks the refusal's HTTP status, JSON content type,
+// error code and message.
 func AssertErrorEnvelope(t *testing.T, rec *httptest.ResponseRecorder, status int, code, message string) {
 	t.Helper()
 

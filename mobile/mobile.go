@@ -5,8 +5,8 @@
 // the user runs it. Shelves are created, imported, exported and removed
 // through the functions below, never through an HTTP route.
 //
-// Every exported function recovers panics into an error, because a panic that
-// crosses into the JVM takes the whole app down.
+// Panic recovery is limited to individual entry points; not every exported
+// function converts panics into errors.
 package mobile
 
 import (
