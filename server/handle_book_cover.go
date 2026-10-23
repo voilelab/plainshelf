@@ -15,7 +15,7 @@ func (h *bookHandlers) getCover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.serveImageValidator(w, r, book.CoverETag(), cacheUntilChanged) {
+	if h.serveImageValidator(w, r, book.CoverETag(), cacheFreshForOneDay) {
 		return
 	}
 

@@ -109,15 +109,26 @@ func TestReadOnlySafeRequestMatchesOnlyItsRoutes(t *testing.T) {
 		{http.MethodPut, "/api/shelves/s/books/b/sources/x/download", false},
 		{http.MethodPut, "/api/shelves/s/folders/b/download", false},
 		{http.MethodPatch, "/api/shelves/s/books/b", false},
+		{http.MethodPost, "/api/shelves//scans", false},
+		{http.MethodPost, "/api/shelves/s/scans/", false},
+		{http.MethodPost, "/api/shelves/s/scans/nested", false},
+		{http.MethodPost, "/api/shelves/s//scans", false},
+		{http.MethodPut, "/api/shelves/s/books/b/download/", false},
+		{http.MethodPut, "/api/shelves/s/books/b/download/nested", false},
+		{http.MethodPut, "/api/shelves//books/b/download", false},
+		{http.MethodPut, "/api/shelves/s/books/b/../download", false},
+		{http.MethodGet, "/api/shelves/s/scans", false},
+		{http.MethodHead, "/api/shelves/s/books/b/download", false},
 	}
 	for _, c := range cases {
 		r := httptest.NewRequest(c.method, c.path, nil)
 		if got := isReadOnlySafeRequest(r); got != c.want {
 			t.Errorf("isReadOnlySafeRequest(%s %s) = %v, want %v", c.method, c.path, got, c.want)
 		}
+		wantScan := c.want && c.method == http.MethodPost
+		if got := isShelfScanRequest(r); got != wantScan {
+			t.Errorf("isShelfScanRequest(%s %s) = %v, want %v", c.method, c.path, got, wantScan)
+		}
 	}
 
-	if isShelfScanRequest(httptest.NewRequest(http.MethodPut, "/api/shelves/s/books/b/download", nil)) {
-		t.Error("a download counts as a scan for the token gate")
-	}
 }

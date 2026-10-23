@@ -22,7 +22,7 @@ func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.serveImageValidator(w, r, source.AssetETag(assetName), cacheRevalidateAlways) {
+	if h.serveImageValidator(w, r, source.AssetETag(assetName), cacheAlwaysRevalidate) {
 		return
 	}
 
