@@ -100,6 +100,26 @@ scheduled it.
     `200`, slowly, rather than `503`. Everything after that first gate is
     identical for both.
 
+### Metadata changes with unchanged timestamps
+
+The per-book check cannot detect an external edit that preserves both the size
+and modification time of `book.json`. An equal-length title edit can have this
+effect on a filesystem with coarse timestamps, or when a sync tool restores
+the previous timestamp. The cached metadata can stay unchanged across repeated
+per-book checks.
+
+A full scan of a local or mounted shelf reopens every `book.json`, even when
+its stat is unchanged. Use [Update book list](#rescanning-on-demand) to request
+that scan, or wait for `scan_interval`. Reducing `book_check_interval` does not
+help with a stat collision. Remote shelves use
+[exported book caches](#the-exported-book-cache) instead of this per-book check.
+
+Comparing file contents on every check would add a read per book, including
+unchanged books, on SMB and other network filesystems. A recent-timestamp rule
+would catch some collisions but would still miss an equal-length edit that
+restores an older timestamp. PlainShelf keeps the stat-only check and relies
+on full scans for these edits.
+
 ### Character counts
 
 A book's character count is not stored in `book.json` but in its current
