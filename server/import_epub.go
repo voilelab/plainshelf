@@ -40,21 +40,12 @@ func parseImportStrategy(raw string, fallback epub.Strategy) (epub.Strategy, str
 			util.Errorf("%w", err)
 	}
 
-	if strategy.KeepImages == nil {
-		strategy.KeepImages = fallback.KeepImages
-	}
-
-	return strategy, "", nil
+	return inheritOptionalImportFields(strategy, fallback), "", nil
 }
 
 func epubBookTitle(supplied, filename string, parsed *epub.Book) string {
 	supplied = strings.TrimSpace(supplied)
-	fromFilename := supplied == "" ||
-		strings.EqualFold(supplied, filename) ||
-		strings.EqualFold(supplied, strings.TrimSuffix(filename, ".epub")) ||
-		strings.EqualFold(supplied, strings.TrimSuffix(filename, ".EPUB"))
-
-	if !fromFilename {
+	if !titleLooksLikeFilename(supplied, filename) {
 		return supplied
 	}
 	if title := strings.TrimSpace(parsed.Title); title != "" {
@@ -73,7 +64,7 @@ func (h *importHandlers) initEPUBBook(parsed *epub.Book, rendered epub.Rendered)
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
-		h.writeEPUBImages(source, parsed)
+		h.writeEPUBImagesBestEffort(source, parsed)
 		if err := book.SetCurrentSource(source.ID()); err != nil {
 			return util.Errorf("%w", err)
 		}
@@ -83,7 +74,7 @@ func (h *importHandlers) initEPUBBook(parsed *epub.Book, rendered epub.Rendered)
 			}
 		}
 
-		h.setEPUBCover(book, parsed)
+		h.setEPUBCoverBestEffort(book, parsed)
 
 		meta := book.GetMeta()
 		meta.Format = rendered.Format
@@ -115,7 +106,7 @@ func epubImportComment(parsed *epub.Book) string {
 	}
 }
 
-func (h *importHandlers) writeEPUBImages(source *shelf.Source, parsed *epub.Book) {
+func (h *importHandlers) writeEPUBImagesBestEffort(source *shelf.Source, parsed *epub.Book) {
 	for _, image := range parsed.Images {
 		if err := source.WriteAsset(image.Name, image.Data); err != nil {
 			h.Error("failed to store epub illustration", "error", err, "asset", image.Name)
@@ -123,7 +114,7 @@ func (h *importHandlers) writeEPUBImages(source *shelf.Source, parsed *epub.Book
 	}
 }
 
-func (h *importHandlers) setEPUBCover(book *shelf.Book, parsed *epub.Book) {
+func (h *importHandlers) setEPUBCoverBestEffort(book *shelf.Book, parsed *epub.Book) {
 	if len(parsed.Cover) == 0 {
 		return
 	}
@@ -198,4 +189,18 @@ func (h *importHandlers) importEPUB(
 	}
 
 	return book, nil
+}
+
+func inheritOptionalImportFields(strategy, fallback epub.Strategy) epub.Strategy {
+	if strategy.KeepImages == nil {
+		strategy.KeepImages = fallback.KeepImages
+	}
+	return strategy
+}
+
+func titleLooksLikeFilename(title, filename string) bool {
+	return title == "" ||
+		strings.EqualFold(title, filename) ||
+		strings.EqualFold(title, strings.TrimSuffix(filename, ".epub")) ||
+		strings.EqualFold(title, strings.TrimSuffix(filename, ".EPUB"))
 }

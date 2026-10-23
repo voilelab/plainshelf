@@ -51,7 +51,7 @@ func (h *settingHandlers) deleteCoverToJPG(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *settingHandlers) getShowNSFW(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.showNSFW()})
+	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.readShowNSFWFailClosed()})
 }
 
 func (h *settingHandlers) setShowNSFW(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +62,7 @@ func (h *settingHandlers) deleteShowNSFW(w http.ResponseWriter, r *http.Request)
 	h.settings.deleteSetting(w, settingKeyShowNSFW)
 }
 
-func validateEPUBImportStrategy(strategy epub.Strategy) (string, error) {
+func validateAPIImportStrategy(strategy epub.Strategy) (string, error) {
 	if err := strategy.Validate(); err != nil {
 		return fmt.Sprintf("unsupported epub import preset: %q", strategy.Preset), util.Errorf("%w", err)
 	}
@@ -74,7 +74,7 @@ func (h *settingHandlers) getEPUBImportStrategy(w http.ResponseWriter, r *http.R
 }
 
 func (h *settingHandlers) setEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	setJSONSetting(h.settings, w, r, settingKeyEPUBImportStrategy, validateEPUBImportStrategy)
+	setJSONSetting(h.settings, w, r, settingKeyEPUBImportStrategy, validateAPIImportStrategy)
 }
 
 func (h *settingHandlers) deleteEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
