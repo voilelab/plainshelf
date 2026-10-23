@@ -318,8 +318,7 @@ func (d *davExport) authorized(r *http.Request) bool {
 	}
 	d.tokenErrLogged.Store(false)
 
-	gotSum, wantSum := sha256.Sum256([]byte(got)), sha256.Sum256([]byte(want))
-	return subtle.ConstantTimeCompare(gotSum[:], wantSum[:]) == 1
+	return constantTimeDAVTokenEqual(got, want)
 }
 
 func davPathSafe(p string) bool {
@@ -435,24 +434,11 @@ func (f *davFile) Stat() (fs.FileInfo, error) {
 func (f *davFile) Readdir(count int) ([]fs.FileInfo, error) {
 	if !f.listed {
 
-		dir, ok := f.File.(fs.ReadDirFile)
-		if !ok {
-			return nil, os.ErrNotExist
-		}
-		entries, err := dir.ReadDir(-1)
+		entries, err := readOpenedDAVDirectory(f.File, f.rel)
 		if err != nil {
-			return nil, davErr(err)
+			return nil, err
 		}
-		for _, e := range entries {
-			if e.Type()&fs.ModeSymlink != 0 || !shelf.IsShelfFile(path.Join(f.rel, e.Name())) {
-				continue
-			}
-			info, err := e.Info()
-			if err != nil {
-				continue
-			}
-			f.entries = append(f.entries, davFileInfo{info})
-		}
+		f.entries = entries
 		f.listed = true
 	}
 	if count <= 0 {
@@ -478,4 +464,32 @@ func (fi davFileInfo) ContentType(context.Context) (string, error) {
 		return ct, nil
 	}
 	return "application/octet-stream", nil
+}
+
+func constantTimeDAVTokenEqual(got, want string) bool {
+	gotSum, wantSum := sha256.Sum256([]byte(got)), sha256.Sum256([]byte(want))
+	return subtle.ConstantTimeCompare(gotSum[:], wantSum[:]) == 1
+}
+
+func readOpenedDAVDirectory(file fs.File, rel string) ([]fs.FileInfo, error) {
+	dir, ok := file.(fs.ReadDirFile)
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	entries, err := dir.ReadDir(-1)
+	if err != nil {
+		return nil, davErr(err)
+	}
+	var infos []fs.FileInfo
+	for _, entry := range entries {
+		if entry.Type()&fs.ModeSymlink != 0 || !shelf.IsShelfFile(path.Join(rel, entry.Name())) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		infos = append(infos, davFileInfo{info})
+	}
+	return infos, nil
 }

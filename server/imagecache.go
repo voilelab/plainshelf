@@ -25,27 +25,27 @@ func (c *apiCore) cacheVisibility(r *http.Request) string {
 	return "public"
 }
 
-type imageCacheFreshness string
+type imageCachePolicy string
 
 const (
-	cacheUntilChanged imageCacheFreshness = "max-age=86400"
+	cacheFreshForOneDay imageCachePolicy = "max-age=86400"
 
-	cacheRevalidateAlways imageCacheFreshness = "no-cache"
+	cacheAlwaysRevalidate imageCachePolicy = "no-cache"
 )
 
 func (c *apiCore) serveImageValidator(
 	w http.ResponseWriter,
 	r *http.Request,
 	etag string,
-	freshness imageCacheFreshness,
+	policy imageCachePolicy,
 ) bool {
 	if etag == "" {
 		return false
 	}
 
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", c.cacheVisibility(r)+", "+string(freshness))
-	if etagMatchesIfNoneMatch(r.Header.Get("If-None-Match"), etag) {
+	w.Header().Set("Cache-Control", c.cacheVisibility(r)+", "+string(policy))
+	if ifNoneMatchWeaklyMatches(r.Header.Get("If-None-Match"), etag) {
 		w.WriteHeader(http.StatusNotModified)
 		return true
 	}
@@ -53,12 +53,12 @@ func (c *apiCore) serveImageValidator(
 	return false
 }
 
-// etagMatchesIfNoneMatch follows RFC 9110, which allows a list of validators or
+// ifNoneMatchWeaklyMatches follows RFC 9110, which allows a list of validators or
 // "*" and requires the weak comparison for GET and HEAD. Plain string equality
 // answers a browser echoing one tag back but misses a client sending several,
 // and the cost of a miss is a full body, unbounded for an asset.
 
-func etagMatchesIfNoneMatch(header, etag string) bool {
+func ifNoneMatchWeaklyMatches(header, etag string) bool {
 	header = strings.TrimSpace(header)
 	if header == "" || etag == "" {
 		return false
@@ -67,9 +67,9 @@ func etagMatchesIfNoneMatch(header, etag string) bool {
 		return true
 	}
 
-	want := opaqueETag(etag)
+	want := etagWithoutWeakPrefix(etag)
 	for candidate := range strings.SplitSeq(header, ",") {
-		if opaqueETag(candidate) == want {
+		if etagWithoutWeakPrefix(candidate) == want {
 			return true
 		}
 	}
@@ -77,6 +77,6 @@ func etagMatchesIfNoneMatch(header, etag string) bool {
 	return false
 }
 
-func opaqueETag(tag string) string {
+func etagWithoutWeakPrefix(tag string) string {
 	return strings.TrimPrefix(strings.TrimSpace(tag), "W/")
 }

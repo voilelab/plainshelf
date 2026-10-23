@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -268,36 +267,6 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 
 	http.Error(w, "server is in read-only mode", http.StatusForbidden)
 	return true
-}
-
-func isReadOnlySafeRequest(r *http.Request) bool {
-	return isShelfScanRequest(r) || isDownloadRequest(r)
-}
-
-func isShelfScanRequest(r *http.Request) bool {
-	return r.Method == http.MethodPost && isShelfScanPath(r.URL.Path)
-}
-
-func isDownloadRequest(r *http.Request) bool {
-	if r.Method != http.MethodPut && r.Method != http.MethodDelete {
-		return false
-	}
-	rest, ok := strings.CutPrefix(r.URL.Path, "/api/shelves/")
-	if !ok {
-		return false
-	}
-	parts := strings.Split(rest, "/")
-	return len(parts) == 4 && parts[0] != "" && parts[1] == "books" && parts[2] != "" && parts[3] == "download"
-}
-
-func isShelfScanPath(urlPath string) bool {
-	rest, ok := strings.CutPrefix(urlPath, "/api/shelves/")
-	if !ok {
-		return false
-	}
-
-	shelfID, tail, ok := strings.Cut(rest, "/")
-	return ok && shelfID != "" && tail == "scans"
 }
 
 func applyBookCacheWriterID(conf shelf.ShelfConfWithID, writerID string) shelf.ShelfConfWithID {
