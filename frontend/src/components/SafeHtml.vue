@@ -1,5 +1,4 @@
 <template>
-  <!-- eslint-disable-next-line vue/no-v-html -->
   <div ref="root" v-html="sanitizedHtml" />
 </template>
 
