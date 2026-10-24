@@ -83,7 +83,7 @@ Read the relevant section before working in that area. Add entries according to
   content in an inner full-height wrapper.
 - **Stable object props:** hoist object/array props passed to Reka controls such
   as `hitAreaMargins`; new identities during a drag can re-register controls and
-  leave pointer events disabled. (`frontend/src/layouts/MainLayout.vue`)
+  leave pointer events disabled. (`frontend/src/composables/useSidebarLayout.ts`)
 - **Desktop zoom:** viewport-filling `vh`/`vw` values inside the zoomed app must
   account for `--app-zoom`; verify overflow and popper placement in
   `?desktop-shell-preview=1`. (`frontend/src/styles.css`)
@@ -113,11 +113,11 @@ Read the relevant section before working in that area. Add entries according to
   rename/merge edits all drifted on CRLF sources by one character per preceding
   line break, because the page indexes `content` as a plain string
   (`markdownChapters.ts`, shared with the reader's persisted progress) while
-  CodeMirror counts positions. The adapter contract is stated in source-text
-  offsets and `useSourceCodeMirror` converts at its own edge; never hand a
-  `markdownChapters` offset straight to a CodeMirror API, and cover a change
-  here with a CRLF case, because an LF-only test cannot see the difference.
-  (`frontend/src/features/sources/types/editorAdapter.ts`)
+  CodeMirror counts positions. Every `SourceEditorAdapter` offset is a
+  source-text offset and `useSourceCodeMirror` converts at its own edge; never
+  hand a `markdownChapters` offset straight to a CodeMirror API, and cover a
+  change here with a CRLF case, because an LF-only test cannot see the
+  difference. (`frontend/src/features/sources/composables/useSourceCodeMirror.test.ts`)
 - **Dimming under highlighting:** a `Decoration.mark` that dims by `color` is
   overridden wherever syntax highlighting paints a nested span. Dim with
   `opacity`, which applies to the whole subtree.

@@ -23,9 +23,11 @@ Only these survive. When you are unsure whether one applies, delete the comment.
    in one or two sentences and name its source (an issue, a spec, a version),
    and confirm it still holds on a live path before keeping it.
 4. **Public API contracts.** Doc comments on surfaces other programs consume:
-   the HTTP API in `server/contract/`, the gomobile-bound API in `mobile/`, and
-   the types that define the on-disk shelf format. Other exported Go identifiers
-   are internal to this repository and need no doc comment.
+   the gomobile-bound API in `mobile/` and the types that define the on-disk
+   shelf format. Other exported Go identifiers are internal to this repository
+   and need no doc comment. The HTTP API is pinned by the tests in
+   `server/contract/` and their names, not by comments; those tests and the
+   `apitest` helpers follow the same rules as any other test code.
 5. **Constraint links.** An issue or RFC link explaining a constraint that code
    cannot express.
 
