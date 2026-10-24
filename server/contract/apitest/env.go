@@ -11,36 +11,22 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// DefaultShelfID is the only shelf the contract tests configure, so its ID is
-// spelled once here and reused by the URL builders in url.go.
 const DefaultShelfID = "default_shelf"
 
-// MaxBinaryUploadSize is the body limit the cover and asset routes enforce. It
-// is restated here rather than exported from the server: the limit is part of
-// what these tests pin, so a change to it has to be a change to both.
 const MaxBinaryUploadSize = 20 << 20
 
-// MaxTextUploadSize is the body limit the import and source-content routes
-// enforce, restated for the same reason as MaxBinaryUploadSize.
 const MaxTextUploadSize = 100 << 20
 
-// MaxLogRetentionDays is the ceiling the log_retention_days setting enforces,
-// restated for the same reason as MaxBinaryUploadSize: the bound is part of
-// what these tests pin.
 const MaxLogRetentionDays = 3650
 
-// Option adjusts the configuration a contract-test app is built from.
 type Option func(*server.AppConf)
 
-// WithLibRoot pins the shelf root instead of taking a fresh temp directory, for
-// tests that need two apps to see the same shelf.
 func WithLibRoot(libRoot string) Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves[0].LibRoot = libRoot
 	}
 }
 
-// WithAppLogFile logs the app to a single named file.
 func WithAppLogFile(filename string) Option {
 	return func(conf *server.AppConf) {
 		conf.Logger = logutil.LogConf{
@@ -52,24 +38,18 @@ func WithAppLogFile(filename string) Option {
 	}
 }
 
-// WithAppLogDir logs the app to a rotating set of files under dir, which is the
-// shape the log API reports one entry per file for.
 func WithAppLogDir(dir, prefix string) Option {
 	return func(conf *server.AppConf) {
 		conf.Logger = rotatingLogConf(dir, prefix)
 	}
 }
 
-// WithShelfLogDir gives the shelf its own rotating log directory.
 func WithShelfLogDir(dir, prefix string) Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves[0].Logger = rotatingLogConf(dir, prefix)
 	}
 }
 
-// WithLogRetention pins how long rotated log files are kept. The log tests seed
-// files dated well in the past, which the default retention window would expire
-// on the first rotation the app's own logging triggers.
 func WithLogRetention(days int) Option {
 	return func(conf *server.AppConf) {
 		conf.Logger.LogFile.RetentionDays = &days
@@ -79,38 +59,24 @@ func WithLogRetention(days int) Option {
 	}
 }
 
-// WithReadOnlyShelf opens the shelf read-only, which is the per-shelf setting
-// rather than the app-wide read-only mode SetReadOnly toggles.
 func WithReadOnlyShelf() Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves[0].ReadOnly = true
 	}
 }
 
-// WithReadOnlyServer starts the whole app in read-only mode, which is the
-// app-wide setting an operator writes as `read_only` next to `shelves`. Unlike
-// SetReadOnly it is applied before the shelves are opened, so the shelf sees it
-// too rather than only the HTTP gate.
 func WithReadOnlyServer() Option {
 	return func(conf *server.AppConf) {
 		conf.ReadOnly = true
 	}
 }
 
-// WithBookCacheInterval overrides how often the shelf re-exports its book
-// cache, for the one kind of test that has to wait the interval out rather than
-// wait for a file: proving that a timer did NOT write. A non-event cannot be
-// polled for, so the wait is real, and a shorter interval is what makes it
-// short. Anything waiting for an export to land should poll for the file
-// instead — see internal/testutil.WaitForExportedBookCache.
 func WithBookCacheInterval(interval string) Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves[0].BookCacheInterval = interval
 	}
 }
 
-// WithSecurity pins the security configuration, which is what the local-token
-// and CORS gates are asserted against.
 func WithSecurity(security *server.SecurityConf) Option {
 	return func(conf *server.AppConf) {
 		conf.Security = security
@@ -127,10 +93,6 @@ func rotatingLogConf(dir, prefix string) logutil.LogConf {
 	}
 }
 
-// AppConf is the configuration every contract-test app starts from: one shelf
-// on a fresh temp root, a fresh store, and no cover conversion. The book cache
-// interval is short so tests that observe an exported cache do not wait an hour
-// for it.
 func AppConf(t *testing.T, opts ...Option) *server.AppConf {
 	t.Helper()
 
@@ -154,13 +116,9 @@ func AppConf(t *testing.T, opts ...Option) *server.AppConf {
 type Env struct {
 	App     *server.App
 	handler http.Handler
-	// LibRoot is the shelf's on-disk root, so tests can inspect or tamper with
-	// the files behind the API.
 	LibRoot string
 }
 
-// New builds a started app: the background worker is running and every
-// shelf has finished its initial scan, which is what an API contract test wants.
 func New(t *testing.T, opts ...Option) *Env {
 	t.Helper()
 
@@ -175,10 +133,6 @@ func New(t *testing.T, opts ...Option) *Env {
 	return env
 }
 
-// NewUnstarted builds the app and its handler without starting the
-// worker or waiting for the initial scan. Endpoints that never touch the shelf —
-// /api/logs above all — are tested against it, so starting a worker whose own
-// logging would add files to the directory under test is avoided.
 func NewUnstarted(t *testing.T, opts ...Option) *Env {
 	t.Helper()
 
@@ -206,8 +160,6 @@ func waitForInitialShelfScans(t *testing.T, app *server.App) {
 	}
 }
 
-// SetReadOnly flips read-only mode and restores the previous value when the test
-// ends, so a test that keeps making requests afterwards is not left in it.
 func (env *Env) SetReadOnly(t *testing.T, readOnly bool) {
 	t.Helper()
 
@@ -220,8 +172,6 @@ func (env *Env) Get(url string) *httptest.ResponseRecorder {
 	return env.Request(http.MethodGet, url, nil)
 }
 
-// GetIfNoneMatch issues a revalidating GET. An empty header sends no
-// If-None-Match at all, which is a distinct case from sending an empty one.
 func (env *Env) GetIfNoneMatch(url, ifNoneMatch string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	if ifNoneMatch != "" {
@@ -238,14 +188,10 @@ func (env *Env) Put(url string, body io.Reader) *httptest.ResponseRecorder {
 	return env.Request(http.MethodPut, url, body)
 }
 
-// PutContent uploads a body whose declared content type matters, which is how a
-// cover's stored image format is chosen.
 func (env *Env) PutContent(url, contentType string, body io.Reader) *httptest.ResponseRecorder {
 	return env.RequestTyped(http.MethodPut, url, contentType, body)
 }
 
-// PatchContent replaces text whose declared content type tells the server how to
-// decode it.
 func (env *Env) PatchContent(url, contentType string, body io.Reader) *httptest.ResponseRecorder {
 	return env.RequestTyped(http.MethodPatch, url, contentType, body)
 }
@@ -264,15 +210,10 @@ func (env *Env) Delete(url string) *httptest.ResponseRecorder {
 	return env.Request(http.MethodDelete, url, nil)
 }
 
-// request issues a request through the app's handler with the local token
-// attached when the method needs it. Tests that set their own headers build the
-// request themselves and call do.
 func (env *Env) Request(method, url string, body io.Reader) *httptest.ResponseRecorder {
 	return env.Do(httptest.NewRequest(method, url, body))
 }
 
-// do sends the request, filling in the local token so each test does not have
-// to. Use DoRaw to exercise the token gate itself.
 func (env *Env) Do(req *http.Request) *httptest.ResponseRecorder {
 	return env.DoRaw(env.withToken(req))
 }
@@ -291,20 +232,14 @@ func (env *Env) DoRaw(req *http.Request) *httptest.ResponseRecorder {
 	return rec
 }
 
-// GetWailsLike issues a GET through a recorder that behaves like the Wails asset
-// server's: it reports no status until the handler writes one.
 func (env *Env) GetWailsLike(url string) *wailsLikeRecorder {
 	rec := newWailsLikeRecorder()
 	env.handler.ServeHTTP(rec, env.withToken(httptest.NewRequest(http.MethodGet, url, nil)))
 	return rec
 }
 
-// SecondShelfID names the extra shelf WithSecondShelf adds alongside
-// DefaultShelfID. Only the cross-shelf transfer tests configure two shelves.
 const SecondShelfID = "second_shelf"
 
-// WithSecondShelf adds a writable second shelf on libRoot, the destination a
-// transfer copies or moves a book into.
 func WithSecondShelf(libRoot string) Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves = append(conf.Shelves, &shelf.ShelfConfWithID{
@@ -315,8 +250,6 @@ func WithSecondShelf(libRoot string) Option {
 	}
 }
 
-// WithReadOnlySecondShelf adds the second shelf opened read-only, so a transfer
-// into it is refused the same way any write to a read-only shelf is.
 func WithReadOnlySecondShelf(libRoot string) Option {
 	return func(conf *server.AppConf) {
 		conf.Shelves = append(conf.Shelves, &shelf.ShelfConfWithID{
@@ -328,8 +261,6 @@ func WithReadOnlySecondShelf(libRoot string) Option {
 	}
 }
 
-// LocalTokenSecurity is the configuration these tests share: the local-token
-// mode a desktop client runs under, with one allowed browser origin.
 func LocalTokenSecurity() *server.SecurityConf {
 	return &server.SecurityConf{
 		Mode:                        server.SecurityModeLocalToken,

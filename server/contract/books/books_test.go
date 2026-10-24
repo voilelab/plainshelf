@@ -85,10 +85,6 @@ func TestAPIGetBooksCharCountContract(t *testing.T) {
 	}
 }
 
-// char_count is answered from the book cache rather than by opening one source
-// per request, so every route that changes what the current source holds has to
-// leave the cached count correct. A stale entry can only be seen from the
-// listing, which is what this reads back after each write.
 func TestAPIBookCharCountAfterSourceWrites(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Rewritten", "", "rewrite.txt", "alpha body")
@@ -127,11 +123,6 @@ func TestAPIBookCharCountAfterSourceWrites(t *testing.T) {
 	}
 }
 
-// A description is Markdown, and for an EPUB import it is the HTML the OPF
-// carried over. The detail page sanitizes it at the moment it renders it, which
-// is the only place that may: the shelf keeps the source text, so book.json
-// stays a file its owner can edit by hand and read back unchanged, and nothing
-// on disk drifts from the EPUB it came from.
 func TestAPIBookCommentIsStoredVerbatimContract(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Described", "", "described.txt", "body")
@@ -190,9 +181,6 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	}
 }
 
-// The stored format decides whether the reader parses the text as Markdown, and
-// import can only guess it from a file extension. This is the correction path:
-// switching it is metadata-only, so the book's content is never rewritten.
 func TestAPIUpdateBookFormatContract(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Format Book", "", "format.txt", "# Notes\n\nhello")
@@ -280,10 +268,6 @@ func removeSourceFolder(t *testing.T, env *apitest.Env, bookID, sourceID string)
 	}
 }
 
-// TestAPIDanglingCurrentSourceFallsBackOnRead pins the read-path tolerance: a
-// book whose current_source names a source that no longer exists still serves
-// its text, from the newest source it does have. The reads must not repair
-// book.json, because the filesystem stays the source of truth.
 func TestAPIDanglingCurrentSourceFallsBackOnRead(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Dangling Current Source", "", "dangle.txt", "surviving body")
@@ -309,9 +293,6 @@ func TestAPIDanglingCurrentSourceFallsBackOnRead(t *testing.T) {
 	}
 }
 
-// TestAPIBookWithoutAnySourceReturns404 pins the other end of that tolerance: a
-// book with nothing to read is a missing source, not a server fault, so the
-// content routes answer 404 rather than 500.
 func TestAPIBookWithoutAnySourceReturns404(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Sourceless Book", "", "gone.txt", "body")

@@ -70,9 +70,6 @@ func assertTreeUnchanged(t *testing.T, before, after map[string]fileState) {
 	}
 }
 
-// The acceptance case: a read-only server serves a whole round of reads — list
-// the books, read a book's content, rescan — and leaves the shelf byte for byte
-// and mtime for mtime as it found it.
 func TestReadOnlyServerLeavesTheShelfUntouched(t *testing.T) {
 	libRoot := t.TempDir()
 
@@ -111,7 +108,6 @@ func TestReadOnlyServerLeavesTheShelfUntouched(t *testing.T) {
 	assertTreeUnchanged(t, before, snapshotTree(t, libRoot))
 }
 
-// A shelf opened with read_only serves reads normally.
 func TestAPIReadOnlyShelfServesReadsContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
@@ -122,9 +118,6 @@ func TestAPIReadOnlyShelfServesReadsContract(t *testing.T) {
 	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("scans"), nil), http.StatusOK)
 }
 
-// Every write against a read-only shelf is refused with 409, including the ones
-// that would otherwise queue a background chain and answer 202 — a caller that
-// got 202 would have to read a task report to learn the work never happened.
 func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyShelf())
 

@@ -11,10 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// The exported cache mirrors the shelf, not this machine's display setting. The
-// client reading it applies its own — the mark is in every entry for exactly
-// that reason — and a cache pruned here would quietly become that client's whole
-// library. See apitest.NewNSFWShelf for the shelf this runs against.
 func TestAPIBookCacheExportIncludesNSFW(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 

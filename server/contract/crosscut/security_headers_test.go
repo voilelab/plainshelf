@@ -27,10 +27,6 @@ func assertStaticSecurityHeaders(t *testing.T, rec *httptest.ResponseRecorder, w
 	}
 }
 
-// TestSecurityHeadersOnEveryResponseContract pins that the static hardening
-// headers ride on the SPA document, an API read, an API mutation, the health
-// check, and an unknown-API 404 alike -- the point of the header is that no
-// response is exempt.
 func TestSecurityHeadersOnEveryResponseContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
@@ -52,9 +48,6 @@ func TestSecurityHeadersOnEveryResponseContract(t *testing.T) {
 	}
 }
 
-// TestSecurityHeadersWithSecurityDisabledContract pins that the hardening
-// headers do not depend on the token gate: they are just as present when the
-// API security mode is none, because they defend the browser, not the API.
 func TestSecurityHeadersWithSecurityDisabledContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(&server.SecurityConf{Mode: server.SecurityModeNone}))
 
@@ -64,10 +57,6 @@ func TestSecurityHeadersWithSecurityDisabledContract(t *testing.T) {
 
 var cspScriptSrcRE = regexp.MustCompile(`script-src ([^;]*)`)
 
-// TestContentSecurityPolicyOnIndexContract pins the document CSP the ticket
-// requires: present on the SPA index, carrying the minimum directive set, and
-// keeping script-src free of 'unsafe-inline' by nonce-ing the one inline
-// bootstrap script instead.
 func TestContentSecurityPolicyOnIndexContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
@@ -107,10 +96,6 @@ var (
 	bootstrapNonceRE = regexp.MustCompile(`<script nonce="([^"]+)">window\.__PLAINSHELF_SECURITY__`)
 )
 
-// TestBootstrapScriptCarriesCSPNonceContract pins that the nonce announced in
-// the CSP header is the nonce written on the injected bootstrap <script>, so
-// the one inline script the app needs is exactly the one the policy admits.
-// A fresh request must mint a fresh nonce.
 func TestBootstrapScriptCarriesCSPNonceContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 

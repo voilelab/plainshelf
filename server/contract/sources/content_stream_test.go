@@ -10,10 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// An empty file is a legitimate state: a source can be cleared, and a log can be
-// rotated before anything is written to it. The Wails asset server reports
-// whatever status the handler wrote, so a handler that streams zero bytes without
-// writing a header would surface there as a failure rather than an empty body.
 func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Empty Stream Book", "", "empty.txt", "content")
@@ -34,8 +30,6 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 	apitest.AssertEmptyTextResponse(t, "log", logEnv.GetWailsLike(apitest.LogURL(emptyLog.ID, "content")))
 }
 
-// The body streams into the write rather than being read first, so the limit
-// trips mid-write; it must still answer 413 and leave the old content in place.
 func TestAPIPatchContentRefusesOversizedBody(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Oversized Patch", "", "big.txt", "original")
@@ -53,8 +47,6 @@ func TestAPIPatchContentRefusesOversizedBody(t *testing.T) {
 	}
 }
 
-// The size limit outranks the encoding: a body that chardet rejects from its
-// first chunk (a UTF-32 BOM) is still answered 413 when it is oversized.
 func TestAPIPatchContentOversizeUnsupportedEncoding(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Oversized UTF-32", "", "big.txt", "original")

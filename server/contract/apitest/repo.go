@@ -6,11 +6,6 @@ import (
 	"testing"
 )
 
-// RepoRoot returns the repository root, found by walking up from the test's
-// working directory until the root go.mod appears above the desktop module's.
-// A contract test that reads a file the repository ships — a packaged config,
-// say — addresses it from here rather than by counting ".." out of its own
-// package, so moving a test between packages cannot silently break the path.
 func RepoRoot(t *testing.T) string {
 	t.Helper()
 

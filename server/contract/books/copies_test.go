@@ -12,12 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// POST .../books/{id}/copies answers with the copy: a fresh id and the folder it
-// landed in. With no destination in the body the copy stays in the source book's
-// own folder, and both books are then listed - the outcome a hand-made cp -r
-// cannot reach, because two books sharing an id collapse to one. Every field of
-// the request is optional, so no body at all means the same thing as an empty
-// object.
 func TestAPIBookCopyInPlaceContract(t *testing.T) {
 	for name, body := range map[string]string{"empty object": "{}", "no body": ""} {
 		t.Run(name, func(t *testing.T) {
@@ -51,7 +45,6 @@ func TestAPIBookCopyInPlaceContract(t *testing.T) {
 	}
 }
 
-// A copy can name a destination folder in the body and lands there.
 func TestAPIBookCopyToFolderContract(t *testing.T) {
 	env := apitest.New(t)
 	original := apitest.ImportTextBook(t, env, "Relocate", "origin", "relocate.txt", "body")
@@ -68,7 +61,6 @@ func TestAPIBookCopyToFolderContract(t *testing.T) {
 	}
 }
 
-// Copying an unknown book is a 404, even with an otherwise valid body.
 func TestAPIBookCopyMissingContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -76,7 +68,6 @@ func TestAPIBookCopyMissingContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-// An invalid destination folder is rejected with 400 before anything is copied.
 func TestAPIBookCopyInvalidFolderContract(t *testing.T) {
 	env := apitest.New(t)
 	original := apitest.ImportTextBook(t, env, "Bad Target", "", "bad.txt", "body")

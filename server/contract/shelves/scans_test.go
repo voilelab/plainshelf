@@ -66,9 +66,6 @@ func TestAPIRescanShelfContract(t *testing.T) {
 	}
 }
 
-// A rescan reads the shelf and writes nothing to it, so read-only mode has no
-// reason to refuse it — unlike every other POST, which apitest.AssertMutationGated
-// pins as refused.
 func TestAPIRescanShelfIsAllowedInReadOnlyModeContract(t *testing.T) {
 	env := apitest.New(t)
 	env.SetReadOnly(t, true)
@@ -77,10 +74,6 @@ func TestAPIRescanShelfIsAllowedInReadOnlyModeContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusOK)
 }
 
-// The token gate draws the same exemption: a rescan is a read, so protect_read
-// governs it rather than its method. Under the shipped defaults -- local_token
-// with protect_read off -- the docs promise reading needs no token, and the
-// "refresh the book list" button is a read the user can see.
 func TestAPIRescanWithoutReadProtection(t *testing.T) {
 	env := apitest.New(t)
 
@@ -88,7 +81,6 @@ func TestAPIRescanWithoutReadProtection(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusOK)
 }
 
-// With protect_read on, reads need a token and the rescan is one of them.
 func TestAPIRescanWithReadProtection(t *testing.T) {
 	security := apitest.LocalTokenSecurity()
 	security.ProtectRead = true
@@ -101,10 +93,6 @@ func TestAPIRescanWithReadProtection(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusOK)
 }
 
-// Dropping the token requirement does not drop the CSRF one: local_token is
-// documented as a CSRF boundary, so a rescan arriving from a page the operator
-// never listed is still refused. A request with no Origin at all is not a
-// browser -- the Android client's native HTTP bridge sends none.
 func TestAPIRescanRejectsUnknownOrigin(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
@@ -117,9 +105,6 @@ func TestAPIRescanRejectsUnknownOrigin(t *testing.T) {
 	apitest.AssertStatus(t, env.DoRaw(req), http.StatusOK)
 }
 
-// Both exemptions - no token needed, allowed in read-only mode - are matched on
-// the same path helper, so neither may open a neighbouring route or a shelf-less
-// path that happens to end in /scans.
 func TestAPIScanRouteExemptions(t *testing.T) {
 	urls := []string{
 		apitest.ShelfURL("scans", "extra"),
@@ -152,9 +137,6 @@ func TestAPIScanRouteExemptions(t *testing.T) {
 	})
 }
 
-// A loop of rescans is answered 429 once the burst is spent, and 429 rather
-// than 409 so the client can tell "you are too fast" from "someone else is
-// walking this shelf right now".
 func TestAPIRescanShelfRateLimitContract(t *testing.T) {
 	env := apitest.New(t)
 

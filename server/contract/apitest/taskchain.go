@@ -14,16 +14,10 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// TaskChainSubmitResponse is the body every endpoint that starts background work
-// answers with: the chain the client should poll.
 type TaskChainSubmitResponse struct {
 	TaskChainID string `json:"taskchain_id"`
 }
 
-// SubmitTaskChain posts to an endpoint that starts background work and asserts
-// the status the caller expects. 202 and 409 both name a chain — a conflict
-// points at the one already running — so both are decoded and required to carry
-// an ID. Any other status is a rejected request with no chain to report.
 func SubmitTaskChain(t *testing.T, env *Env, url string, body []byte, wantStatus int) TaskChainSubmitResponse {
 	t.Helper()
 
@@ -46,8 +40,6 @@ func SubmitTaskChain(t *testing.T, env *Env, url string, body []byte, wantStatus
 	return resp
 }
 
-// WaitForTaskChain polls the task chain endpoint until the chain reaches a
-// terminal status, mirroring what the trash page does.
 func WaitForTaskChain(t *testing.T, env *Env, taskChainID string) server.TaskChain {
 	t.Helper()
 
@@ -67,12 +59,6 @@ func WaitForTaskChain(t *testing.T, env *Env, taskChainID string) server.TaskCha
 	}
 }
 
-// AssertDuplicateChainConflict pins the contract every endpoint that starts one
-// shelf-wide chain shares: while a chain is in flight a second request is
-// answered 409 naming that same chain instead of queueing a redundant one.
-// submit posts to the endpoint under test and asserts the status it is handed.
-// The chain is left finished, and its response returned, so a caller whose
-// endpoint can be asked again afterwards can assert it gets a fresh chain.
 func AssertDuplicateChainConflict(t *testing.T, env *Env, submit func(wantStatus int) TaskChainSubmitResponse) TaskChainSubmitResponse {
 	t.Helper()
 
@@ -88,9 +74,6 @@ func AssertDuplicateChainConflict(t *testing.T, env *Env, submit func(wantStatus
 	return first
 }
 
-// TaskResult decodes the single task's result through JSON, which is the shape a
-// client sees. Decoding into map[string]any therefore pins the wire field names,
-// while decoding into the task's own result type reads them back conveniently.
 func TaskResult[T any](t *testing.T, chain server.TaskChain) T {
 	t.Helper()
 

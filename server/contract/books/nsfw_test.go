@@ -9,12 +9,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// A batch takes book IDs from the client, so it is the one way to name a book
-// without going through a route that answers 404. It has to refuse a hidden ID
-// the way an unknown one is refused — a chain that moved or trashed it, and
-// named it back in succeeded_ids, would undo the whole filter.
-//
-// See apitest.NewNSFWShelf for the shelf this runs against.
 func TestAPINSFWBooksCannotBeReachedThroughABatch(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
@@ -57,11 +51,6 @@ func TestAPINSFWBooksCannotBeReachedThroughABatch(t *testing.T) {
 	}
 }
 
-// The metadata editor's checkbox: PATCH writes the book's own half of the mark,
-// and the book then falls under the same filter as one marked on disk. Without
-// an endpoint the only way to mark a book was to edit book.json by hand.
-//
-// See apitest.NewNSFWShelf for the shelf this runs against.
 func TestAPIBookNSFWIsWritableThroughPatch(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	apitest.SetShowNSFW(t, s.Env, true)
@@ -79,10 +68,6 @@ func TestAPIBookNSFWIsWritableThroughPatch(t *testing.T) {
 	apitest.AssertStatus(t, s.Env.Get(apitest.BookURL(s.Visible)), http.StatusNotFound)
 }
 
-// Clearing the checkbox takes back only the book's own half. The folder rule is
-// the shelf's, and a client that could clear it here would be offering a change
-// that silently does not happen — which is why the editor disables the control
-// and reports the rule instead.
 func TestAPIBookNSFWPatchCannotClearAFolderRule(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	apitest.SetShowNSFW(t, s.Env, true)
@@ -101,8 +86,6 @@ func TestAPIBookNSFWPatchCannotClearAFolderRule(t *testing.T) {
 	}
 }
 
-// A book response carries the folder rule marking it, so a client can tell a
-// mark it may edit from one it may not, and name where the second came from.
 func TestAPIBookReportsTheFolderRuleThatMarksIt(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	apitest.SetShowNSFW(t, s.Env, true)

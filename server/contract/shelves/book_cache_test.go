@@ -66,12 +66,6 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 	}
 }
 
-// A shelf opened after startup — the desktop "add shelf" flow — must get the
-// installation's writer ID too. Without it the new shelf exports nothing and
-// its manual export fails until the app is restarted.
-//
-// The writer ID's other half — that it survives a restart at all — needs no
-// request and is pinned in server's own tests.
 func TestRuntimeShelfBookCacheWriterID(t *testing.T) {
 	env := apitest.New(t)
 

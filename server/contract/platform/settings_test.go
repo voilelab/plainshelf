@@ -104,11 +104,6 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 	}
 }
 
-// TestAPISettingShowNSFWContract pins the switch that decides whether the books
-// a shelf marks as adult content are served at all. It defaults to hidden and
-// has no config-file key behind it: the store is the only source, so deleting
-// the stored value returns to hidden rather than to a configured value. What it
-// filters is pinned in server/contract/crosscut/nsfw_test.go.
 func TestAPISettingShowNSFWContract(t *testing.T) {
 	env := apitest.New(t)
 	const key = "show_nsfw"
@@ -133,9 +128,6 @@ func TestAPISettingShowNSFWContract(t *testing.T) {
 	}
 }
 
-// TestAPISettingLogRetentionDaysContract pins the control that makes log
-// deletion optional. It matters most on the desktop build, which has no config
-// file to edit: without this route a user has no way to turn deletion off.
 func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 	logDir := t.TempDir()
 	env := apitest.New(t, apitest.WithAppLogDir(logDir, "app"))
@@ -166,9 +158,6 @@ func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 	}
 }
 
-// TestAPISettingLogRetentionAppliesWithoutRestart covers the reason this is a
-// setting rather than configuration: a user who turns deletion off must not
-// have to restart the server before the running writers stop deleting.
 func TestAPISettingLogRetentionAppliesWithoutRestart(t *testing.T) {
 	logDir := t.TempDir()
 	env := apitest.New(t, apitest.WithAppLogDir(logDir, "app"))

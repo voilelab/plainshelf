@@ -12,18 +12,13 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// VirtualShelfID is the virtual shelf AddVirtualShelf opens.
 const VirtualShelfID = "virtual_shelf"
 
-// VirtualSource is the remote a virtual shelf reads: a local shelf directory,
-// which a test can take offline.
 type VirtualSource struct {
 	inner fsutil.ReadFS
 	down  atomic.Bool
 }
 
-// SetOffline makes every call fail with fsutil.ErrSourceUnavailable, the way a
-// remote source reports a lost connection.
 func (v *VirtualSource) SetOffline(offline bool) {
 	v.down.Store(offline)
 }
@@ -56,9 +51,6 @@ func (v *VirtualSource) Stat(name string) (fs.FileInfo, error) {
 	return v.inner.Stat(name)
 }
 
-// SeedVirtualSource writes a shelf holding one book per title, each with its
-// title plus " text" as content, exports its book cache the way a sharing
-// server would, and returns the root and each title's book ID.
 func SeedVirtualSource(t *testing.T, titles ...string) (string, map[string]string) {
 	t.Helper()
 
@@ -95,8 +87,6 @@ func SeedVirtualSource(t *testing.T, titles ...string) (string, map[string]strin
 	return libRoot, ids
 }
 
-// AddVirtualShelf opens libRoot as VirtualShelfID, reached through the
-// returned source, and waits for its listing.
 func (env *Env) AddVirtualShelf(t *testing.T, libRoot string) *VirtualSource {
 	t.Helper()
 

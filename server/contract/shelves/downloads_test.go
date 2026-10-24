@@ -22,8 +22,6 @@ func shelfInfoByID(t *testing.T, env *apitest.Env) map[string]server.ShelfInfo {
 	return infos
 }
 
-// GET /api/shelves reports what each shelf can do, the fields
-// docs/concepts/platform-capabilities.md fixes before 1.0.0-rc1.
 func TestAPIShelvesReportKindAndCapabilitiesContract(t *testing.T) {
 	env := apitest.New(t)
 	libRoot, _ := apitest.SeedVirtualSource(t, "Dune")
@@ -92,8 +90,6 @@ func TestAPIDownloadBookContract(t *testing.T) {
 	}
 }
 
-// A local shelf's books carry no download fields, so the response shape the
-// existing clients read is unchanged.
 func TestAPILocalShelfBooksCarryNoDownloadStateContract(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Dune", "", "dune.txt", "Dune text")
@@ -137,8 +133,6 @@ func TestAPIOfflineVirtualShelfContract(t *testing.T) {
 	apitest.AssertErrorEnvelope(t, rec, http.StatusServiceUnavailable, "SOURCE_UNAVAILABLE", "the shelf source is unavailable")
 }
 
-// A download writes this installation's store, not the shelf, so a read-only
-// server still allows it; every other write stays refused.
 func TestAPIDownloadUnderReadOnlyServerContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyServer())
 	libRoot, ids := apitest.SeedVirtualSource(t, "Dune")
@@ -150,8 +144,6 @@ func TestAPIDownloadUnderReadOnlyServerContract(t *testing.T) {
 	apitest.AssertStatus(t, env.Patch(apitest.VirtualBookURL(dune), strings.NewReader(`{"star": 3}`)), http.StatusForbidden)
 }
 
-// The read-only exemption is not a token exemption: a download writes to this
-// machine's disk, so it needs local_token like any other write.
 func TestAPIDownloadNeedsLocalTokenContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 	libRoot, ids := apitest.SeedVirtualSource(t, "Dune")
