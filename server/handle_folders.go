@@ -294,15 +294,9 @@ func (h *folderHandlers) setFolderMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sortKey float64
-	var icon string
-	if len(req.SortKey) > 0 {
-		if len(req.Icon) > 0 || strings.TrimSpace(string(req.SortKey)) == "null" || json.Unmarshal(req.SortKey, &sortKey) != nil {
-			http.Error(w, "send a finite sort_key alone; null and combined icon writes are not supported", http.StatusBadRequest)
-			return
-		}
-	} else if len(req.Icon) > 0 && json.Unmarshal(req.Icon, &icon) != nil {
-		http.Error(w, "invalid icon", http.StatusBadRequest)
+	edit, problem := decodeFolderMetaEdit(req)
+	if problem != "" {
+		http.Error(w, problem, http.StatusBadRequest)
 		return
 	}
 
@@ -323,10 +317,10 @@ func (h *folderHandlers) setFolderMeta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.SortKey) > 0 {
-		err = shelfData.SetFolderSortKey(folderParts, sortKey, req.Version)
+	if edit.sortKey != nil {
+		err = shelfData.SetFolderSortKey(folderParts, *edit.sortKey, req.Version)
 	} else {
-		err = shelfData.SetFolderIcon(folderParts, icon, req.Version)
+		err = shelfData.SetFolderIcon(folderParts, edit.icon, req.Version)
 	}
 	if err != nil {
 		h.writeErr(w, r, err, "failed to set folder metadata")
@@ -334,6 +328,26 @@ func (h *folderHandlers) setFolderMeta(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type folderMetaEdit struct {
+	sortKey *float64
+	icon    string
+}
+
+func decodeFolderMetaEdit(req setFolderMetaRequest) (folderMetaEdit, string) {
+	if len(req.SortKey) > 0 {
+		var sortKey float64
+		if len(req.Icon) > 0 || strings.TrimSpace(string(req.SortKey)) == "null" || json.Unmarshal(req.SortKey, &sortKey) != nil {
+			return folderMetaEdit{}, "send a finite sort_key alone; null and combined icon writes are not supported"
+		}
+		return folderMetaEdit{sortKey: &sortKey}, ""
+	}
+	var edit folderMetaEdit
+	if len(req.Icon) > 0 && json.Unmarshal(req.Icon, &edit.icon) != nil {
+		return folderMetaEdit{}, "invalid icon"
+	}
+	return edit, ""
 }
 
 func (h *folderHandlers) visibleFolders(shelfData *shelf.ShelfData) (map[string]bool, error) {
