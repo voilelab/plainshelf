@@ -205,7 +205,7 @@ func TestRemoveDeletesTheShelf(t *testing.T) {
 	}
 }
 
-func TestExportOpensAsNativeShelfAndImportsBack(t *testing.T) {
+func TestExportOpensNativeAndImportsBack(t *testing.T) {
 	dataDir := t.TempDir()
 	startT(t, dataDir)
 	id := createShelf(t, "Phone")

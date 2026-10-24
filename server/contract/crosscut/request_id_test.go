@@ -31,7 +31,7 @@ func assertRequestIDShape(t *testing.T, id string) {
 	}
 }
 
-func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
+func TestAPIResponsesCarryRequestID(t *testing.T) {
 	env := apitest.New(t)
 
 	seen := map[string]struct{}{}
@@ -51,7 +51,7 @@ func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
 	}
 }
 
-func TestAPIErrorEnvelopeIncidentIsTheRequestIDContract(t *testing.T) {
+func TestAPIErrorIncidentIsRequestID(t *testing.T) {
 	env := apitest.New(t)
 
 	rec := env.Request(http.MethodDelete, apitest.BookURL("no_such_book"), nil)
@@ -143,7 +143,7 @@ func findLogEntryByRequestID(t *testing.T, logFile, requestID, msg string) map[s
 	return nil
 }
 
-func TestAPIRequestLogLineCarriesTheRequestIDContract(t *testing.T) {
+func TestAPIRequestLogCarriesRequestID(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	env := apitest.New(t, apitest.WithAppLogFile(appLogFile))
 

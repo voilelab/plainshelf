@@ -36,7 +36,7 @@ func TestShelfRejectsUnsafeFolderSegments(t *testing.T) {
 	}
 }
 
-func TestMoveAndDeleteFolderRejectUnsafeSegments(t *testing.T) {
+func TestFolderMoveDeleteRejectUnsafeSegments(t *testing.T) {
 	tmpLib := filepath.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 

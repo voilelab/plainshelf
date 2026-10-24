@@ -40,7 +40,7 @@ func newReadOnlyTestApp(t *testing.T) *App {
 	return app
 }
 
-func TestReadOnlyServerOpensEveryShelfReadOnly(t *testing.T) {
+func TestReadOnlyServerOpensShelvesReadOnly(t *testing.T) {
 	app := newReadOnlyTestApp(t)
 
 	shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
@@ -95,7 +95,7 @@ func TestReadOnlyServerDoesNotCreateTheShelf(t *testing.T) {
 	}
 }
 
-func TestReadOnlySafeRequestMatchesOnlyItsRoutes(t *testing.T) {
+func TestReadOnlySafeRequestRoutes(t *testing.T) {
 	cases := []struct {
 		method, path string
 		want         bool

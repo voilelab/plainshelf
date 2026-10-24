@@ -43,7 +43,7 @@ func importText(t *testing.T, root, token string, shelves []lanshare.Shelf) stri
 	return string(b)
 }
 
-func TestLANImportValidatesAllBeforeSideEffects(t *testing.T) {
+func TestLANImportValidatesFirst(t *testing.T) {
 	secrets := newFakeSecrets()
 	a := desktopAppWithSecrets(t, secrets)
 	before, _ := os.ReadFile(a.shelvesConfigPath)

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestWebEmbedIncludesUnderscorePrefixedChunks(t *testing.T) {
+func TestWebEmbedIncludesUnderscoreChunks(t *testing.T) {
 	source, err := os.ReadFile("web.go")
 	if err != nil {
 		t.Fatal(err)

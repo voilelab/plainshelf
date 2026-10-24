@@ -22,7 +22,7 @@ func unsortedMap() map[string]int {
 	return m
 }
 
-func TestEveryOptionSetMarshalsMapsDeterministically(t *testing.T) {
+func TestOptionSetsSortMapKeys(t *testing.T) {
 	sets := map[string]json.Options{
 		"Disk":        jsonopt.Disk(),
 		"DiskCompact": jsonopt.DiskCompact(),
@@ -53,7 +53,7 @@ func TestEveryOptionSetMarshalsMapsDeterministically(t *testing.T) {
 	}
 }
 
-func TestDiskIndentsAndTheMachineOnlySetsDoNot(t *testing.T) {
+func TestOnlyDiskOptionsIndent(t *testing.T) {
 	indented, err := json.Marshal(unsortedMap(), jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("marshal with Disk: %v", err)

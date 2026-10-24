@@ -35,7 +35,7 @@ func bookPkgEntries(t *testing.T, dir string) []string {
 	return found
 }
 
-func TestShelfNewBookWithRollsBackOnInitFailure(t *testing.T) {
+func TestNewBookWithRollsBackOnInitError(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -135,7 +135,7 @@ func TestShelfNewBookWithPersistsInitWrites(t *testing.T) {
 	}
 }
 
-func TestShelfNewBookWithBookNotVisibleDuringInit(t *testing.T) {
+func TestNewBookWithHiddenDuringInit(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -157,7 +157,7 @@ func TestShelfNewBookWithBookNotVisibleDuringInit(t *testing.T) {
 	}
 }
 
-func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
+func TestBookSetMetaConcurrentWriters(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 

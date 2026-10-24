@@ -74,7 +74,7 @@ func TestProjectConflictTakesNewest(t *testing.T) {
 	}
 }
 
-func TestProjectUnresolvedStaysUnderReaderShelf(t *testing.T) {
+func TestProjectUnresolvedStaysUnderReader(t *testing.T) {
 	doc := New()
 	doc.Shelves[ReaderShelfID] = map[string]Entry{"book-loose": ent(77, 1000)}
 
@@ -168,7 +168,7 @@ func TestMergeNewestTombstoneWinsByRecency(t *testing.T) {
 	}
 }
 
-func TestMergeNewestOlderResetDoesNotUndoNewerAdvance(t *testing.T) {
+func TestMergeNewestOlderResetLoses(t *testing.T) {
 	advance := New()
 	advance.Shelves["shelf-real"] = map[string]Entry{"book-a": ent(120, 3000)}
 	oldReset := New()

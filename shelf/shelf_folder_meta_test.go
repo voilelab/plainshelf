@@ -198,7 +198,7 @@ func assertFolderMetaMembers(t *testing.T, libRoot string, want map[string]strin
 	}
 }
 
-func TestReadFolderMetaFallsBackOnUnusableFiles(t *testing.T) {
+func TestReadFolderMetaUnusableFile(t *testing.T) {
 	cases := []struct {
 		name     string
 		content  string
@@ -353,7 +353,7 @@ type failingRenameFS struct{ fsutil.FS }
 
 func (f failingRenameFS) Rename(string, string) error { return errors.New("rename refused") }
 
-func TestFailedFolderMetaWriteKeepsTheOriginal(t *testing.T) {
+func TestFailedFolderMetaWriteKeepsOriginal(t *testing.T) {
 	s, libRoot := newFolderMetaShelf(t, FolderPath{"Fiction"})
 	original := `{"icon":"book","keep":true}`
 	writeFolderMeta(t, libRoot, original, "Fiction")
@@ -375,7 +375,7 @@ func TestFailedFolderMetaWriteKeepsTheOriginal(t *testing.T) {
 	}
 }
 
-func TestReadOnlyShelfReadsFolderMetaAndRefusesWrites(t *testing.T) {
+func TestReadOnlyShelfFolderMeta(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 	if err := os.MkdirAll(filepath.Join(libRoot, booksFolder, "Fiction"), 0o750); err != nil {
 		t.Fatalf("MkdirAll: %v", err)

@@ -126,7 +126,7 @@ func TestBookBatchTaskCancelledBeforeStart(t *testing.T) {
 	}
 }
 
-func TestBookBatchTaskResultSnapshotsAreIndependent(t *testing.T) {
+func TestBookBatchResultSnapshots(t *testing.T) {
 	shelfDir := path.Join(t.TempDir(), "shelf")
 	newShelf, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: shelfDir})
 	if err != nil {

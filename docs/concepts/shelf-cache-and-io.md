@@ -480,7 +480,7 @@ costs; they are not measured SMB or pCloud latency.
 | Remote cold open from one export | Open `shelf.json`, list `app/`, open one export | Zero accesses under `books/` |
 | Remote export refresh | List `app/`, open one export | Zero accesses under `books/` |
 
-The tests are `TestFolderMetaScanReadsOnlyFoldersThatHaveIt` and
+The tests are `TestFolderMetaScanReadsOnlyItsFolders` and
 `TestFolderMetaRemoteListingIO` in `shelf/shelf_folder_meta_cache_test.go`.
 On SMB, each metadata open/read/stat may require network round trips depending
 on the OS and mount cache; five files do not imply exactly five wire requests.

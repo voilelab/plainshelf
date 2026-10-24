@@ -120,7 +120,7 @@ func TestCheckShelfSourceErrorTypes(t *testing.T) {
 	}
 }
 
-func TestAddVirtualShelfStoresSecretInKeychainOnly(t *testing.T) {
+func TestAddVirtualShelfSecretInKeychain(t *testing.T) {
 	url, token := davExport(t)
 	secrets := newFakeSecrets()
 	a := desktopAppWithSecrets(t, secrets)
@@ -196,7 +196,7 @@ func TestAddVirtualShelfStoresSecretInKeychainOnly(t *testing.T) {
 	}
 }
 
-func TestAddVirtualShelfRefusesWhatTheDesktopCannotOpen(t *testing.T) {
+func TestAddVirtualShelfRefusesUnopenable(t *testing.T) {
 	secrets := newFakeSecrets()
 	a := desktopAppWithSecrets(t, secrets)
 	for _, remote := range []ShelfSourceParams{
@@ -225,7 +225,7 @@ type legacyDesktopShelvesConfig struct {
 	} `json:"shelves"`
 }
 
-func TestShelvesWithVirtualEntryStillOpenInAnOlderBuild(t *testing.T) {
+func TestVirtualEntryOpensInOlderBuild(t *testing.T) {
 	url, token := davExport(t)
 	a := desktopAppWithSecrets(t, newFakeSecrets())
 	err := a.AddShelf(AddShelfParams{

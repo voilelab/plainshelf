@@ -12,7 +12,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
+func TestAPIImportEPUBDroppedImages(t *testing.T) {
 	tests := []struct {
 		name    string
 		archive []byte
@@ -90,7 +90,7 @@ func TestAPIImportEPUBImageAssets(t *testing.T) {
 	}
 }
 
-func TestAPIImportEPUBHonoursKeepImagesOffContract(t *testing.T) {
+func TestAPIImportEPUBKeepImagesOff(t *testing.T) {
 	env := apitest.New(t)
 
 	rec := env.Post("/api/setting/epub_import_strategy",

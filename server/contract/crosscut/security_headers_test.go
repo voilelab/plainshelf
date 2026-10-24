@@ -27,7 +27,7 @@ func assertStaticSecurityHeaders(t *testing.T, rec *httptest.ResponseRecorder, w
 	}
 }
 
-func TestSecurityHeadersOnEveryResponseContract(t *testing.T) {
+func TestSecurityHeadersOnEveryResponse(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	cases := []struct {
@@ -48,7 +48,7 @@ func TestSecurityHeadersOnEveryResponseContract(t *testing.T) {
 	}
 }
 
-func TestSecurityHeadersWithSecurityDisabledContract(t *testing.T) {
+func TestSecurityHeadersSecurityDisabled(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(&server.SecurityConf{Mode: server.SecurityModeNone}))
 
 	assertStaticSecurityHeaders(t, env.Get("/"), "spa index (security none)")
@@ -96,7 +96,7 @@ var (
 	bootstrapNonceRE = regexp.MustCompile(`<script nonce="([^"]+)">window\.__PLAINSHELF_SECURITY__`)
 )
 
-func TestBootstrapScriptCarriesCSPNonceContract(t *testing.T) {
+func TestBootstrapScriptCarriesCSPNonce(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	headerNonce := func() string {

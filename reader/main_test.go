@@ -99,7 +99,7 @@ func TestParseLaunchArgsInvalidFlags(t *testing.T) {
 	}
 }
 
-func TestMainRejectsInvalidLaunchArgumentsBeforeStartup(t *testing.T) {
+func TestMainRejectsBadLaunchArgs(t *testing.T) {
 	const child = "PLAINSHELF_READER_TEST_INVALID_ARGS"
 	if os.Getenv(child) == "1" {
 		os.Args = []string{"plainshelf-reader", "-section=chapter-one"}
@@ -108,7 +108,7 @@ func TestMainRejectsInvalidLaunchArgumentsBeforeStartup(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMainRejectsInvalidLaunchArgumentsBeforeStartup$")
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMainRejectsBadLaunchArgs$")
 	cmd.Env = append(os.Environ(), child+"=1")
 	output, err := cmd.CombinedOutput()
 	var exitErr *exec.ExitError

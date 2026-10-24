@@ -272,7 +272,7 @@ func TestImportRejectedKeepsShelfConfig(t *testing.T) {
 	}
 }
 
-func TestImportCountsShelfConfigTowardsTheLimit(t *testing.T) {
+func TestImportCountsShelfConfigInLimit(t *testing.T) {
 	withLimit(t, 8)
 	z := zipOf(t, map[string]string{"books/a/book.json": "1234", "shelf.json": "12345"})
 	if err := importBytes(z, t.TempDir()); !errors.Is(err, ErrTooLarge) {

@@ -188,7 +188,7 @@ func TestPCloudShelfReopensAndCloses(t *testing.T) {
 	}
 }
 
-func TestPCloudShelfFailedReplacementKeepsTheOldOne(t *testing.T) {
+func TestPCloudFailedReplaceKeepsOld(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 	dataDir := t.TempDir()
 	startT(t, dataDir)
@@ -227,7 +227,7 @@ func TestPCloudShelfFailedReplacementKeepsTheOldOne(t *testing.T) {
 	}
 }
 
-func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
+func TestPCloudReplaceAndCloseWaitForTasks(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 	startT(t, t.TempDir())
 	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
@@ -261,7 +261,7 @@ func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
 	}
 }
 
-func TestPCloudShelfFollowsTheDevicesAdultContentChoice(t *testing.T) {
+func TestPCloudShelfFollowsDeviceNSFW(t *testing.T) {
 	srv, _ := servePCloudShelf(t)
 	startT(t, t.TempDir())
 	if err := OpenPCloudShelf("pcloud-a", "Cloud", srv.Host(), pcloudtest.Token, pcloudFolder, "pcloud:scope-a", false); err != nil {
@@ -333,7 +333,7 @@ func TestPCloudShelfOfflineError(t *testing.T) {
 	}
 }
 
-func TestPCloudEntryRemovalCleansOnlyItsOfflineScope(t *testing.T) {
+func TestPCloudRemovalCleansOnlyItsScope(t *testing.T) {
 	srv, bookID := servePCloudShelf(t)
 	dataDir := t.TempDir()
 	startT(t, dataDir)

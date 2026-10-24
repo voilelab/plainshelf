@@ -74,7 +74,7 @@ func TestAndroidBackupRules(t *testing.T) {
 	}
 }
 
-func TestAndroidLocalShelvesDirMatchesBackupRule(t *testing.T) {
+func TestAndroidShelvesDirMatchesBackupRule(t *testing.T) {
 	src, err := os.ReadFile(filepath.Join(repoRoot(t),
 		"frontend/android/app/src/main/java/lab/voile/plainshelf/LocalShelf.java"))
 	if err != nil {

@@ -172,7 +172,7 @@ func newBookForCoverTest(t *testing.T) (*Book, string, string) {
 	return book, tmpLib, path.Join(tmpLib, bookID)
 }
 
-func TestSetCoverLeavesPreviousCoverIntactOnFailure(t *testing.T) {
+func TestSetCoverFailureKeepsPrevious(t *testing.T) {
 	book, _, bookDir := newBookForCoverTest(t)
 
 	original := []byte{0x89, 0x50, 0x4E, 0x47, 0x01, 0x02}
@@ -295,7 +295,7 @@ func TestSetCoverKeepsReclaimedCover(t *testing.T) {
 	}
 }
 
-func TestSetCoverKeepsFileWhenExtensionUnchanged(t *testing.T) {
+func TestSetCoverKeepsFileSameExtension(t *testing.T) {
 	book, _, bookDir := newBookForCoverTest(t)
 
 	if err := book.SetCover([]byte("first"), ".png"); err != nil {
@@ -600,7 +600,7 @@ func firstCJKRune(s string) (rune, bool) {
 	return 0, false
 }
 
-func TestListSourceSkipsUnpublishedTemporaryDirectories(t *testing.T) {
+func TestListSourceSkipsTempDirs(t *testing.T) {
 	book, _, tmpLib := newTestBook(t, "temp-source-book", "Temporary Source")
 	source, err := book.NewSource(bytes.NewBufferString("published"))
 	if err != nil {
@@ -648,7 +648,7 @@ func TestSnapshotIgnoresStalenessAfterWrite(t *testing.T) {
 	}
 }
 
-func TestFreeSourceIDSkipsCollisionsAndKeepsStatErrors(t *testing.T) {
+func TestFreeSourceIDSkipsCollisions(t *testing.T) {
 	book, root, _ := newTestBook(t, "source-ids", "Source IDs")
 	const base = "20261022-120000"
 	for _, id := range []string{base, base + "-1"} {
@@ -892,7 +892,7 @@ func newBookFromFixture(t *testing.T, fixture string) (fsutil.FS, string, string
 	return fsutil.NewRootFS(tmpRoot), bookFolder, metaPath
 }
 
-func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
+func TestOpenBookFillsMissingSchema(t *testing.T) {
 	fixturePath := path.Join("testdata", "schema", "v0-full", BookMetaFile)
 	before, err := os.ReadFile(fixturePath)
 	if err != nil {
@@ -920,7 +920,7 @@ func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
 	}
 }
 
-func TestOpenBookSparseLegacyBookHasSchemaVersion(t *testing.T) {
+func TestOpenBookSparseLegacyHasSchema(t *testing.T) {
 	book, err := Open(testdataFS(t), newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
@@ -938,7 +938,7 @@ func TestOpenBookSparseLegacyBookHasSchemaVersion(t *testing.T) {
 	}
 }
 
-func TestSetMetaStampsSchemaVersionOnLegacyBook(t *testing.T) {
+func TestSetMetaStampsSchemaOnLegacy(t *testing.T) {
 	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v0-full"))
 
 	book, err := Open(rootFS, newLoggerForTest(), bookFolder)
@@ -1008,7 +1008,7 @@ func TestCreateBookWritesSchemaVersion(t *testing.T) {
 	}
 }
 
-func TestOpenBookAcceptsFutureSchemaVersionAsReadOnly(t *testing.T) {
+func TestOpenBookFutureSchemaReadOnly(t *testing.T) {
 	book, err := Open(testdataFS(t), newLoggerForTest(), path.Join("schema", "v2-future"))
 	if err != nil {
 		t.Fatalf("Expected a future-version book to open, got error: %v", err)
@@ -1336,7 +1336,7 @@ func breakCurrentSource(t *testing.T, book *Book, rootFS fsutil.FS) string {
 	return danglingID
 }
 
-func TestDeleteCurrentSourcePromotesLatestSurvivor(t *testing.T) {
+func TestDeleteCurrentSourcePromotesLatest(t *testing.T) {
 	book, _, _ := newTestBook(t, "delete-current-book", "Delete Current")
 
 	var ids []string
@@ -1367,7 +1367,7 @@ func TestDeleteCurrentSourcePromotesLatestSurvivor(t *testing.T) {
 	}
 }
 
-func TestDeleteLastSourceCreatesEmptyReplacement(t *testing.T) {
+func TestDeleteLastSourceCreatesEmpty(t *testing.T) {
 	book, _, _ := newTestBook(t, "delete-last-book", "Delete Last")
 
 	source, err := book.NewSourceWithOptions(bytes.NewBufferString("# Only\n\n## One\nBody"),
@@ -1415,7 +1415,7 @@ func TestDeleteLastSourceCreatesEmptyReplacement(t *testing.T) {
 	}
 }
 
-func TestDeleteNonCurrentSourceLeavesBookMetaUntouched(t *testing.T) {
+func TestDeleteOtherSourceKeepsBookMeta(t *testing.T) {
 	book, _, tmpLib := newTestBook(t, "delete-other-book", "Delete Other")
 
 	keep, err := book.NewSource(bytes.NewBufferString("keep"))
@@ -1472,7 +1472,7 @@ func TestListSourceReturnsIDsInAscendingOrder(t *testing.T) {
 	}
 }
 
-func TestResolveCurrentSourceFallsBackToLatest(t *testing.T) {
+func TestCurrentSourceFallsBackToLatest(t *testing.T) {
 	book, rootFS, tmpLib := newTestBook(t, "dangling-book", "Dangling Pointer")
 
 	survivor, err := book.NewSource(bytes.NewBufferString("survivor body"))
@@ -1515,7 +1515,7 @@ func TestResolveCurrentSourceFallsBackToLatest(t *testing.T) {
 	}
 }
 
-func TestResolveCurrentSourceUnreadableFallback(t *testing.T) {
+func TestCurrentSourceUnreadableFallback(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "corrupt-source-book", "Corrupt Source")
 
 	survivor, err := book.NewSource(bytes.NewBufferString("survivor body"))

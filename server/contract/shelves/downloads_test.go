@@ -23,7 +23,7 @@ func shelfInfoByID(t *testing.T, env *apitest.Env) map[string]server.ShelfInfo {
 	return infos
 }
 
-func TestAPIShelvesReportKindAndCapabilitiesContract(t *testing.T) {
+func TestAPIShelvesReportCapabilities(t *testing.T) {
 	env := apitest.New(t)
 	libRoot, _ := apitest.SeedVirtualSource(t, "Dune")
 	env.AddVirtualShelf(t, libRoot)
@@ -118,7 +118,7 @@ func TestRemoveOfflineScopeInUse(t *testing.T) {
 	}
 }
 
-func TestAPILocalShelfBooksCarryNoDownloadStateContract(t *testing.T) {
+func TestAPILocalBooksHaveNoDownloadState(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Dune", "", "dune.txt", "Dune text")
 
@@ -161,7 +161,7 @@ func TestAPIOfflineVirtualShelfContract(t *testing.T) {
 	apitest.AssertErrorEnvelope(t, rec, http.StatusServiceUnavailable, "SOURCE_UNAVAILABLE", "the shelf source is unavailable")
 }
 
-func TestAPIDownloadUnderReadOnlyServerContract(t *testing.T) {
+func TestAPIDownloadUnderReadOnlyServer(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyServer())
 	libRoot, ids := apitest.SeedVirtualSource(t, "Dune")
 	env.AddVirtualShelf(t, libRoot)

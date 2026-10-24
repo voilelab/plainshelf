@@ -70,7 +70,7 @@ func TestRescanFindsNewBooks(t *testing.T) {
 	}
 }
 
-func TestRescanCountsFoldersIncludingEmptyOnes(t *testing.T) {
+func TestRescanCountsEmptyFolders(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	if err := s.NewFolder(FolderPath{"Fiction"}, "Classics"); err != nil {
@@ -134,7 +134,7 @@ func readBookCacheFileOrFail(t *testing.T, libRoot string) BookCacheFile {
 	return *cache
 }
 
-func TestRescanRefusesASecondWalkAndNamesTheRunningOne(t *testing.T) {
+func TestRescanRefusesSecondWalk(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	runningID := s.beginRescan(time.Now(), true).scanID
@@ -183,7 +183,7 @@ func TestRescanBurstLimit(t *testing.T) {
 	}
 }
 
-func TestRescanAllowsAHumanPacePressAfterPress(t *testing.T) {
+func TestRescanAllowsHumanPace(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	for i := range rescanBurst * 3 {
@@ -265,7 +265,7 @@ func TestRescanTokensRefillOverTime(t *testing.T) {
 	}
 }
 
-func TestRescanConflictDoesNotSpendARateLimitToken(t *testing.T) {
+func TestRescanConflictKeepsRateToken(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	runningID := s.beginRescan(time.Now(), true).scanID

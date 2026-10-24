@@ -72,7 +72,7 @@ func TestBackgroundPanicIsRecovered(t *testing.T) {
 	}
 }
 
-func TestBookCacheWorkDoesNotOverlapAndReleasesItsClaim(t *testing.T) {
+func TestBookCacheWorkDoesNotOverlap(t *testing.T) {
 	for _, slot := range []string{"refresh", "export"} {
 		t.Run(slot, func(t *testing.T) {
 			s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir()})

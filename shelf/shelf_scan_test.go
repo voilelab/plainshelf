@@ -61,7 +61,7 @@ func TestIterateShelfTreeFollowsSymlinks(t *testing.T) {
 	}
 }
 
-func TestIterateShelfTreeFollowsSymlinkedFolder(t *testing.T) {
+func TestShelfTreeFollowsSymlinkedFolder(t *testing.T) {
 	requireSymlinks(t)
 
 	tmpLib := path.Join(t.TempDir(), "shelf_test")

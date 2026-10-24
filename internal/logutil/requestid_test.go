@@ -8,7 +8,7 @@ import (
 
 const confusables = "0O1IL"
 
-func TestRequestIDAlphabetHasNoConfusableCharacters(t *testing.T) {
+func TestRequestIDAlphabetHasNoConfusables(t *testing.T) {
 	for _, c := range confusables {
 		if strings.ContainsRune(requestIDAlphabet, c) {
 			t.Errorf("alphabet %q contains %q, which a user cannot reliably tell from its twin", requestIDAlphabet, c)
@@ -28,7 +28,7 @@ func TestRequestIDAlphabetHasNoConfusableCharacters(t *testing.T) {
 	}
 }
 
-func TestNewRequestIDEmitsOnlyAlphabetCharacters(t *testing.T) {
+func TestRequestIDUsesOnlyAlphabet(t *testing.T) {
 	for range 2000 {
 		id := NewRequestID()
 

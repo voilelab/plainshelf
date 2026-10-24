@@ -83,7 +83,7 @@ func TestInjectSecurityBootstrap(t *testing.T) {
 	}
 }
 
-func TestInjectSecurityBootstrapEscapesScriptClose(t *testing.T) {
+func TestSecurityBootstrapEscapesScript(t *testing.T) {
 	const page = "<html><head></head><body></body></html>"
 
 	security, err := NewSecurity(&SecurityConf{

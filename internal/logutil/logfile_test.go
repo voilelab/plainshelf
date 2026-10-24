@@ -30,7 +30,7 @@ func TestNewLogFileRejectsRotateWithoutDir(t *testing.T) {
 	}
 }
 
-func TestNewLogFileRotateWithDirWritesAndLists(t *testing.T) {
+func TestLogFileRotateWithDirWritesAndLists(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "logs")
 	conf := LogFileConf{Type: LogFileTypeNameRotate, Dir: dir, Prefix: "app"}
 

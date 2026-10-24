@@ -115,7 +115,7 @@ func TestAPIBookBatchValidationContract(t *testing.T) {
 	}
 }
 
-func TestAPIBookBatchDuplicateRunningChainContract(t *testing.T) {
+func TestAPIBookBatchDuplicateChain(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Queued", "", "queued.txt", "body")
 

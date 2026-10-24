@@ -98,7 +98,7 @@ func TestPartialStrategyKeepsItsOtherFields(t *testing.T) {
 	})
 }
 
-func TestUnknownConfiguredPresetIsStillRejected(t *testing.T) {
+func TestUnknownConfiguredPresetRejected(t *testing.T) {
 	app := newTestApp(t)
 	keepImages := false
 	app.handlers.settings.conf.EPUBImportStrategy = &epub.Strategy{
@@ -118,7 +118,7 @@ func TestUnknownConfiguredPresetIsStillRejected(t *testing.T) {
 	}
 }
 
-func TestCompleteConfiguredStrategyIsUsedAsWritten(t *testing.T) {
+func TestCompleteStrategyUsedAsWritten(t *testing.T) {
 	app := newTestApp(t)
 	keepImages := false
 	app.handlers.settings.conf.EPUBImportStrategy = &epub.Strategy{

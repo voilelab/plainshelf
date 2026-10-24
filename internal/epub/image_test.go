@@ -58,7 +58,7 @@ func parseIllustrated(t *testing.T, keep bool) *Book {
 	return book
 }
 
-func TestKeepImagesStoresAndLinksIllustrations(t *testing.T) {
+func TestKeepImagesStoresAndLinks(t *testing.T) {
 	book := parseIllustrated(t, true)
 
 	if len(book.Images) != 1 {
@@ -101,7 +101,7 @@ func TestKeepImagesDeduplicatesAcrossChapters(t *testing.T) {
 	}
 }
 
-func TestKeepImagesStillCountsWhatItCannotStore(t *testing.T) {
+func TestKeepImagesCountsUnstored(t *testing.T) {
 	book := parseIllustrated(t, true)
 
 	if book.DroppedImages != 2 {

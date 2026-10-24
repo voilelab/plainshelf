@@ -20,7 +20,7 @@ func writeShelfAsset(t *testing.T, libRoot string, source *Source, name string, 
 	}
 }
 
-func TestSourceAssetsSurviveMoveAndTrashRestore(t *testing.T) {
+func TestSourceAssetsSurviveMoveAndRestore(t *testing.T) {
 	libRoot := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
 

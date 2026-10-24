@@ -85,7 +85,7 @@ func assertFolders(t *testing.T, got, want []string) {
 	}
 }
 
-func TestShelfConfigIgnoredDirsReplacesTheDefaults(t *testing.T) {
+func TestShelfConfigIgnoredDirsReplace(t *testing.T) {
 	s := openConfiguredShelf(t, `{
   "schema_version": 1,
   "scan": { "ignored_dirs": [{ "name": "@Snapshot" }] }
@@ -106,7 +106,7 @@ func TestShelfConfigIgnoredDirsReplacesTheDefaults(t *testing.T) {
 	}
 }
 
-func TestShelfConfigWithoutTheKeyKeepsTheDefaults(t *testing.T) {
+func TestShelfConfigWithoutKeyUsesDefaults(t *testing.T) {
 	for name, body := range map[string]string{
 		"no file":          "",
 		"no scan section":  `{"schema_version": 1}`,
@@ -126,7 +126,7 @@ func TestShelfConfigWithoutTheKeyKeepsTheDefaults(t *testing.T) {
 	}
 }
 
-func TestShelfConfigEmptyListSkipsOnlyHiddenDirectories(t *testing.T) {
+func TestShelfConfigEmptyListSkipsHidden(t *testing.T) {
 	libRoot := t.TempDir()
 	makeUserFolderTree(t, libRoot)
 	plantIgnoredDirs(t, libRoot)
@@ -149,7 +149,7 @@ func TestShelfConfigEmptyListSkipsOnlyHiddenDirectories(t *testing.T) {
 	}
 }
 
-func TestShelfConfigIgnoredDirsAreCaseInsensitive(t *testing.T) {
+func TestShelfConfigIgnoredDirsIgnoreCase(t *testing.T) {
 	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@snapshot"}]}}`)
 
 	for _, folder := range listedFolders(t, s) {
@@ -184,7 +184,7 @@ func TestShelfConfigSkipsUnusableEntries(t *testing.T) {
 	assertFolders(t, listedFolders(t, s), want)
 }
 
-func TestShelfConfigMalformedFallsBackToDefaults(t *testing.T) {
+func TestShelfConfigMalformedUsesDefaults(t *testing.T) {
 	for name, body := range map[string]string{
 		"not json":            "this is not json",
 		"wrong field type":    `{"scan": "everything"}`,
@@ -215,7 +215,7 @@ func TestShelfConfigTooLargeIsSkipped(t *testing.T) {
 	}
 }
 
-func TestShelfConfigNewerSchemaVersionStillApplies(t *testing.T) {
+func TestShelfConfigNewerSchemaApplies(t *testing.T) {
 	s := openConfiguredShelf(t, `{
   "schema_version": 99,
   "scan": { "ignored_dirs": [{"name": "@Snapshot"}], "something_later": true },
@@ -227,7 +227,7 @@ func TestShelfConfigNewerSchemaVersionStillApplies(t *testing.T) {
 	}
 }
 
-func TestValidateFolderPathRejectsConfiguredNames(t *testing.T) {
+func TestFolderPathRejectsConfiguredNames(t *testing.T) {
 	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}}`)
 
 	for _, folder := range []FolderPath{{snapshotDir}, {"Fiction", snapshotDir}, {"@snapshot"}} {

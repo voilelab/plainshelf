@@ -283,7 +283,7 @@ func TestFolderTransferTaskCarriesFolderMeta(t *testing.T) {
 	}
 }
 
-func TestFolderTransferTaskMoveKeepsUncarriedFolderMeta(t *testing.T) {
+func TestFolderMoveKeepsUncarriedMeta(t *testing.T) {
 	source, sourceRoot := newTransferTestShelfAt(t, "source")
 	target, targetRoot := newTransferTestShelfAt(t, "target")
 
@@ -329,7 +329,7 @@ func TestFolderTransferTaskMoveKeepsUncarriedFolderMeta(t *testing.T) {
 	}
 }
 
-func TestFolderTransferTaskCancelledBeforeStart(t *testing.T) {
+func TestFolderTransferCancelBeforeStart(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
 

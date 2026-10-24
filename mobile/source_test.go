@@ -67,7 +67,7 @@ func serveDAVShelf(t *testing.T) (url, token string) {
 	return srv.URL + "/dav/default_shelf/", strings.TrimSpace(string(bs))
 }
 
-func TestOpenSourceShelfResolvesHostCredential(t *testing.T) {
+func TestSourceShelfResolvesHostCredential(t *testing.T) {
 	url, token := serveDAVShelf(t)
 	setSecretsT(t, mapSecrets{"entry-1": token})
 	startT(t, t.TempDir())

@@ -141,7 +141,7 @@ func readCurrentText(t *testing.T, s *Shelf, bookID string) (string, error) {
 	return string(data), err
 }
 
-func TestDownloadMirrorsThePackageOutsideTheShelf(t *testing.T) {
+func TestDownloadMirrorsPackage(t *testing.T) {
 	fixture := seedOfflineSource(t)
 	offlineDir := t.TempDir()
 	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
@@ -191,7 +191,7 @@ func walkFiles(t *testing.T, root string, out *[]string) {
 	slices.Sort(*out)
 }
 
-func TestInterruptedDownloadLeavesNoPartialBook(t *testing.T) {
+func TestInterruptedDownloadLeavesNoBook(t *testing.T) {
 	fixture := seedOfflineSource(t)
 	offlineDir := t.TempDir()
 
@@ -285,7 +285,7 @@ func TestOfflineShelfListsFromSnapshot(t *testing.T) {
 	}
 }
 
-func TestOfflineShelfWithoutSnapshotFailsToOpen(t *testing.T) {
+func TestOfflineShelfNeedsSnapshot(t *testing.T) {
 	fixture := seedOfflineSource(t)
 
 	rt, err := os.OpenRoot(fixture.libRoot)
@@ -320,7 +320,7 @@ func TestSourceGoingOfflineKeepsTheListing(t *testing.T) {
 	}
 }
 
-func TestEditedSourceMarksTheCopyUpdateAvailable(t *testing.T) {
+func TestEditedSourceMarksUpdateAvailable(t *testing.T) {
 	fixture := seedOfflineSource(t)
 	s, _, _ := openOffline(t, fixture.libRoot, t.TempDir(), false)
 	dune := fixture.ids["Dune"]
@@ -373,7 +373,7 @@ func TestEditedSourceMarksTheCopyUpdateAvailable(t *testing.T) {
 	}
 }
 
-func TestUnchangedListingDoesNotRewriteTheSnapshot(t *testing.T) {
+func TestUnchangedListingKeepsSnapshot(t *testing.T) {
 	fixture := seedOfflineSource(t)
 	offlineDir := t.TempDir()
 	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
@@ -404,7 +404,7 @@ func TestUnchangedListingDoesNotRewriteTheSnapshot(t *testing.T) {
 	}
 }
 
-func TestRemovingADownloadTouchesOnlyTheOfflineStore(t *testing.T) {
+func TestRemoveDownloadTouchesOnlyStore(t *testing.T) {
 	fixture := seedOfflineSource(t)
 	offlineDir := t.TempDir()
 	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
@@ -541,7 +541,7 @@ func TestCopyIsNotReadForAnotherBookAtItsPath(t *testing.T) {
 	}
 }
 
-func TestRedownloadingAMovedBookDropsItsOldCopy(t *testing.T) {
+func TestRedownloadMovedBookDropsOldCopy(t *testing.T) {
 	fixture := seedOfflineSource(t)
 	offlineDir := t.TempDir()
 	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)
@@ -577,7 +577,7 @@ func TestRedownloadingAMovedBookDropsItsOldCopy(t *testing.T) {
 	}
 }
 
-func TestRescanReadsTheSourceAndSavesTheSnapshot(t *testing.T) {
+func TestRescanSavesSnapshot(t *testing.T) {
 	fixture := seedOfflineSource(t)
 	offlineDir := t.TempDir()
 	s, _, _ := openOffline(t, fixture.libRoot, offlineDir, false)

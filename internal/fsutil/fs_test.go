@@ -84,7 +84,7 @@ func TestWriteFileCreateAndTruncate(t *testing.T) {
 	}
 }
 
-func TestWritableNarrowsOnlyWritableImplementations(t *testing.T) {
+func TestWritableNarrowsOnlyWritable(t *testing.T) {
 	var writable ReadFS = newTestFS(t, t.TempDir())
 
 	if _, err := Writable(writable); err != nil {
@@ -96,7 +96,7 @@ func TestWritableNarrowsOnlyWritableImplementations(t *testing.T) {
 	}
 }
 
-func TestReadOnlyKeepsReadsAndRefusesNarrowing(t *testing.T) {
+func TestReadOnlyRefusesNarrowing(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "book.json"), []byte("{}"), 0644); err != nil {
 		t.Fatalf("WriteFile: %v", err)

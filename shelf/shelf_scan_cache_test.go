@@ -93,7 +93,7 @@ func TestScanCacheReusesUnchangedDirectories(t *testing.T) {
 	}
 }
 
-func TestScanCacheFindsFolderAddedAfterWarmScan(t *testing.T) {
+func TestScanCacheFindsFolderAfterWarmScan(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -230,7 +230,7 @@ func TestScanCacheLargeTreeMeasurement(t *testing.T) {
 	}
 }
 
-func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
+func TestScanCacheUnchangedShelfNotRewritten(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	conf := &ShelfConf{LibRoot: tmpLib}
 
@@ -264,7 +264,7 @@ func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
 	}
 }
 
-func TestScanCacheWithManyDirectoriesIsNotRewritten(t *testing.T) {
+func TestScanCacheManyDirsNotRewritten(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	conf := &ShelfConf{LibRoot: tmpLib}
 

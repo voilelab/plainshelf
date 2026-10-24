@@ -6,7 +6,7 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-func TestAPINSFWBooksAreAbsentFromSimilarityAndItsCount(t *testing.T) {
+func TestAPINSFWBooksAbsentFromSimilar(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	for _, bookID := range s.All() {
 		backdateSourcesForFingerprintCache(t, s.Env, bookID)

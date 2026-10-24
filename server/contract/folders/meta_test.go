@@ -109,7 +109,7 @@ func TestAPIFolderMetaWriteIsGatedContract(t *testing.T) {
 	apitest.AssertMutationGated(t, env, http.MethodPut, apitest.ShelfURL("folder-meta", "Fiction"), []byte(`{"icon":"book"}`))
 }
 
-func TestAPIFolderMetaOnAReadOnlyShelfContract(t *testing.T) {
+func TestAPIFolderMetaReadOnlyShelf(t *testing.T) {
 	libRoot := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(libRoot, "books", "Fiction"), 0o750); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
@@ -130,7 +130,7 @@ func TestAPIFolderMetaOnAReadOnlyShelfContract(t *testing.T) {
 	}
 }
 
-func TestAPIFolderMetaFollowsFolderVisibilityContract(t *testing.T) {
+func TestAPIFolderMetaFollowsVisibility(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	apitest.SetShowNSFW(t, s.Env, true)
 	for _, folder := range []string{"Fiction", apitest.NSFWMarkedFolder} {
@@ -150,7 +150,7 @@ func TestAPIFolderMetaFollowsFolderVisibilityContract(t *testing.T) {
 		"FOLDER_NOT_FOUND", "folder not found")
 }
 
-func TestAPIFolderMetaReadRespectsLocalTokenContract(t *testing.T) {
+func TestAPIFolderMetaReadNeedsToken(t *testing.T) {
 	security := apitest.LocalTokenSecurity()
 	security.ProtectRead = true
 	env := apitest.New(t, apitest.WithSecurity(security))

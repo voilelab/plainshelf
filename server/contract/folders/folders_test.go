@@ -37,7 +37,7 @@ func TestAPIFolderMoveAndRenameContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 
-func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
+func TestAPIInvalidFolderNameIs400(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Folder Book", "keep", "folder.txt", "body")
 
@@ -82,7 +82,7 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 	}
 }
 
-func TestAPIReservedFolderNameIsARequestErrorContract(t *testing.T) {
+func TestAPIReservedFolderNameIs400(t *testing.T) {
 	env := apitest.New(t)
 	if rec := env.Request(http.MethodPost, apitest.ShelfURL("folders", "alpha"), nil); rec.Code != http.StatusNoContent {
 		t.Fatalf("create alpha: %d %s", rec.Code, rec.Body.String())
@@ -107,7 +107,7 @@ func TestAPIReservedFolderNameIsARequestErrorContract(t *testing.T) {
 	}
 }
 
-func TestAPIFolderConflictsStillAnswerConflictContract(t *testing.T) {
+func TestAPIFolderConflictsAnswer409(t *testing.T) {
 	env := apitest.New(t)
 
 	for _, folder := range []string{"alpha", "beta"} {
@@ -126,7 +126,7 @@ func TestAPIFolderConflictsStillAnswerConflictContract(t *testing.T) {
 	})
 }
 
-func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
+func TestAPIImportRejectsBadFolderName(t *testing.T) {
 	env := apitest.New(t)
 
 	rec := apitest.PostBookImport(t, env,
@@ -136,7 +136,7 @@ func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
 		"INVALID_FOLDER", "invalid folder name")
 }
 
-func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
+func TestAPIIgnoredFolderNameRule(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Ignored Folder Book", "keep", "folder.txt", "body")
 

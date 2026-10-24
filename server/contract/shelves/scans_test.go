@@ -66,7 +66,7 @@ func TestAPIRescanShelfContract(t *testing.T) {
 	}
 }
 
-func TestAPIRescanShelfIsAllowedInReadOnlyModeContract(t *testing.T) {
+func TestAPIRescanAllowedReadOnly(t *testing.T) {
 	env := apitest.New(t)
 	env.SetReadOnly(t, true)
 

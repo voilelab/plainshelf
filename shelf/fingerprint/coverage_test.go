@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestLookupAnswersFromLoadedCacheWithoutStat(t *testing.T) {
+func TestLookupUsesLoadedCacheWithoutStat(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 
@@ -68,7 +68,7 @@ func TestCoverageForReadsNoSources(t *testing.T) {
 	}
 }
 
-func TestCoverageForUnderDifferentRulesCountsNothing(t *testing.T) {
+func TestCoverageForOtherRulesIsZero(t *testing.T) {
 	ts := newTestShelf(t)
 	dune := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 

@@ -147,7 +147,7 @@ func TestCacheRecognizesCopiedContent(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
+func TestCacheRepairsStaleSourceHash(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.PackagePath()
@@ -228,7 +228,7 @@ func TestCacheInvalidatedByAlgorithmChange(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
+func TestCacheMergesOtherWriterEntries(t *testing.T) {
 	ts := newTestShelf(t)
 	mine := ts.addBook("mine.bookpkg", "book-mine", "Mine", "a book only this machine has read", -time.Hour)
 	theirs := ts.addBook("theirs.bookpkg", "book-theirs", "Theirs", "a book only the other machine has read", -time.Hour)
@@ -353,7 +353,7 @@ func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 	}
 }
 
-func TestReadOnlyCacheResolvesButRejectsWrites(t *testing.T) {
+func TestReadOnlyCacheRejectsWrites(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.PackagePath()
@@ -451,7 +451,7 @@ func TestOpenRefusesAnIncompleteAlgorithm(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheIgnoresAnUnusableFile(t *testing.T) {
+func TestCacheIgnoresUnusableFile(t *testing.T) {
 	for _, testCase := range []struct {
 		name    string
 		content []byte
@@ -480,7 +480,7 @@ func TestFingerprintCacheIgnoresAnUnusableFile(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheRefusesAnEmptyFingerprint(t *testing.T) {
+func TestCacheRefusesEmptyFingerprint(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 
@@ -502,7 +502,7 @@ func TestFingerprintCacheRefusesAnEmptyFingerprint(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
+func TestCacheLeavesMissingHashAlone(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("legacy.bookpkg", "book-legacy", "Legacy", "imported before hashes were stored", -time.Hour)
 
@@ -579,7 +579,7 @@ func TestCacheKeepsUnindexedFingerprint(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
+func TestCacheKeepsJustObservedRecord(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.PackagePath()
@@ -626,7 +626,7 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	}
 }
 
-func TestFingerprintCacheWithManyEntriesIsByteStable(t *testing.T) {
+func TestCacheManyEntriesIsByteStable(t *testing.T) {
 	ts := newTestShelf(t)
 
 	counting := ts.countSourceReads()
@@ -707,7 +707,7 @@ func TestCacheDiscardsDuplicateMembers(t *testing.T) {
 	}
 }
 
-func TestCacheFileMarshalsSchemaVersionAsTheFirstKey(t *testing.T) {
+func TestCacheFileSchemaVersionFirst(t *testing.T) {
 	data, err := json.Marshal(cacheFile{SchemaVersion: schemaVersion}, jsonopt.DiskCompact())
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

@@ -40,7 +40,7 @@ func TestManualOpenClearsLaunchState(t *testing.T) {
 	}
 }
 
-func TestFailedManualBookOpenKeepsTheLaunchState(t *testing.T) {
+func TestFailedManualOpenKeepsLaunchState(t *testing.T) {
 	app := newReaderAppWithBook(t, "launch-shelf")
 	app.launchSection = 3
 	if _, err := app.openStandaloneBook(t.TempDir()); err == nil {
@@ -156,7 +156,7 @@ func TestReaderProgressUsesRealShelfID(t *testing.T) {
 	}
 }
 
-func TestReaderRealShelfWritePreservesOtherNamespaces(t *testing.T) {
+func TestRealShelfWriteKeepsOtherNamespaces(t *testing.T) {
 	const realShelf = "shelf-real"
 	app := newReaderAppWithBook(t, realShelf)
 
@@ -183,7 +183,7 @@ func TestReaderRealShelfWritePreservesOtherNamespaces(t *testing.T) {
 	}
 }
 
-func TestReaderProgressDefaultsToSyntheticShelf(t *testing.T) {
+func TestProgressDefaultsToSyntheticShelf(t *testing.T) {
 	app := newReaderAppWithBook(t, "")
 	if app.shelfID != readerapi.ShelfID {
 		t.Fatalf("default shelfID = %q, want %q", app.shelfID, readerapi.ShelfID)

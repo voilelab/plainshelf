@@ -102,7 +102,7 @@ func TestAPIFingerprintSourcesContract(t *testing.T) {
 	}
 }
 
-func TestAPIFingerprintSourcesForceRebuildsContract(t *testing.T) {
+func TestAPIFingerprintForceRebuilds(t *testing.T) {
 	env := apitest.New(t)
 
 	dune := apitest.ImportTextBook(t, env, "Dune", "", "dune.txt", "the spice must flow")
@@ -124,14 +124,14 @@ func TestAPIFingerprintSourcesForceRebuildsContract(t *testing.T) {
 	}
 }
 
-func TestAPIFingerprintSourcesRejectsBadForceContract(t *testing.T) {
+func TestAPIFingerprintRejectsBadForce(t *testing.T) {
 	env := apitest.New(t)
 
 	rec := env.Post(apitest.SourceFingerprintsURL()+"?force=maybe", nil)
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 
-func TestAPIFingerprintSourcesWithNothingToDoContract(t *testing.T) {
+func TestAPIFingerprintNoop(t *testing.T) {
 	env := apitest.New(t)
 
 	if result := runFingerprintSources(t, env); result.Books != 0 || result.Sources != 0 {
@@ -139,7 +139,7 @@ func TestAPIFingerprintSourcesWithNothingToDoContract(t *testing.T) {
 	}
 }
 
-func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
+func TestAPIFingerprintReportsFailures(t *testing.T) {
 	env := apitest.New(t)
 
 	broken := apitest.ImportTextBook(t, env, "Truncated", "", "truncated.txt", "gone by the time it is read")
@@ -182,7 +182,7 @@ func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
 	}
 }
 
-func TestAPIFingerprintSourcesRunningChainConflict(t *testing.T) {
+func TestAPIFingerprintRunningConflict(t *testing.T) {
 	env := apitest.New(t)
 
 	first := apitest.AssertDuplicateChainConflict(t, env, func(wantStatus int) apitest.TaskChainSubmitResponse {

@@ -92,7 +92,7 @@ func addSource(t *testing.T, libRoot string, book *shelf.Book, content string) {
 	backdateSources(t, libRoot, book)
 }
 
-func TestFingerprintSourcesTaskCoversEverySourceOfABook(t *testing.T) {
+func TestFingerprintCoversEverySource(t *testing.T) {
 	libRoot := t.TempDir()
 	testShelf := newFingerprintTestShelf(t, libRoot, false)
 
@@ -142,7 +142,7 @@ func fingerprintResult(t *testing.T, task *fingerprintSourcesTask) FingerprintSo
 	return result
 }
 
-func TestFingerprintSourcesTaskOnlyPaysForWhatChanged(t *testing.T) {
+func TestFingerprintPaysOnlyForChanges(t *testing.T) {
 	libRoot := t.TempDir()
 	testShelf := newFingerprintTestShelf(t, libRoot, false)
 
@@ -223,7 +223,7 @@ func TestFingerprintSourcesForceRebuild(t *testing.T) {
 	}
 }
 
-func TestFingerprintSourcesTaskSeesAnEditedSource(t *testing.T) {
+func TestFingerprintSeesEditedSource(t *testing.T) {
 	libRoot := t.TempDir()
 	testShelf := newFingerprintTestShelf(t, libRoot, false)
 
@@ -283,7 +283,7 @@ func TestFingerprintSourcesUnreadableSource(t *testing.T) {
 	}
 }
 
-func TestFingerprintSourcesTaskFailsOnAReadOnlyShelf(t *testing.T) {
+func TestFingerprintFailsOnReadOnlyShelf(t *testing.T) {
 	libRoot := t.TempDir()
 
 	writable := newFingerprintTestShelf(t, libRoot, false)
@@ -375,7 +375,7 @@ func TestFingerprintCancelKeepsWork(t *testing.T) {
 	}
 }
 
-func TestFingerprintSourcesChainKeyIgnoresForce(t *testing.T) {
+func TestFingerprintChainKeyIgnoresForce(t *testing.T) {
 	logger := newTaskTestLogger(t)
 	incremental := NewFingerprintSourcesChain("default_shelf", nil, false, logger, AllBooks())
 	forced := NewFingerprintSourcesChain("default_shelf", nil, true, logger, AllBooks())

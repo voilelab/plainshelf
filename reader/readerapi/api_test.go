@@ -254,7 +254,7 @@ func TestLibraryOpensAnotherBook(t *testing.T) {
 	}
 }
 
-func TestLibraryKeepsTheOpenBookWhenAnOpenFails(t *testing.T) {
+func TestLibraryKeepsBookWhenOpenFails(t *testing.T) {
 	library := newOpenLibrary(t)
 
 	if _, err := library.Open(t.TempDir()); err == nil {

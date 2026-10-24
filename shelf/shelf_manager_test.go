@@ -189,7 +189,7 @@ func TestShelfConfigurationValidation(t *testing.T) {
 	}
 }
 
-func TestShelfManagerUpdateShelfTogglesReadOnly(t *testing.T) {
+func TestUpdateShelfTogglesReadOnly(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
 

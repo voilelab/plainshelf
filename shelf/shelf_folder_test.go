@@ -53,7 +53,7 @@ func getFolderNames(t *testing.T, s *Shelf) []string {
 	return folderNames(folders)
 }
 
-func TestGetAllFoldersSkipsTreeWalkWithinScanInterval(t *testing.T) {
+func TestGetAllFoldersSkipsWalkInInterval(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
@@ -86,7 +86,7 @@ func TestGetAllFoldersSkipsTreeWalkWithinScanInterval(t *testing.T) {
 	}
 }
 
-func TestNewFolderIsListedImmediatelyWithinScanInterval(t *testing.T) {
+func TestNewFolderListedAtOnce(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
@@ -113,7 +113,7 @@ func TestNewFolderIsListedImmediatelyWithinScanInterval(t *testing.T) {
 	}
 }
 
-func TestDeleteFolderIsRemovedFromListingImmediately(t *testing.T) {
+func TestDeletedFolderLeavesListingAtOnce(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
@@ -129,7 +129,7 @@ func TestDeleteFolderIsRemovedFromListingImmediately(t *testing.T) {
 	}
 }
 
-func TestGetAllFoldersKeepsEmptyFolderAcrossFullScan(t *testing.T) {
+func TestGetAllFoldersKeepsEmptyFolder(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
@@ -173,7 +173,7 @@ func TestGetAllFoldersAfterRenameAndMove(t *testing.T) {
 	}
 }
 
-func TestRestoredBookFolderIsListedImmediately(t *testing.T) {
+func TestRestoredBookFolderListedAtOnce(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 

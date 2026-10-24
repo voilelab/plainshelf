@@ -158,7 +158,7 @@ func TestAPISettingLogRetentionDaysContract(t *testing.T) {
 	}
 }
 
-func TestAPISettingLogRetentionAppliesWithoutRestart(t *testing.T) {
+func TestAPILogRetentionAppliesLive(t *testing.T) {
 	logDir := t.TempDir()
 	env := apitest.New(t, apitest.WithAppLogDir(logDir, "app"))
 

@@ -83,7 +83,7 @@ func TestAPIBookTransferMoveContract(t *testing.T) {
 	}
 }
 
-func TestAPIBookTransferMoveIDConflictContract(t *testing.T) {
+func TestAPIBookTransferMoveIDConflict(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	original := apitest.ImportTextBook(t, env, "Twice", "fiction", "twice.txt", "body")
 	id := original.Meta.ID
@@ -133,7 +133,7 @@ func TestAPIBookTransferBadRequestContract(t *testing.T) {
 	apitest.AssertStatus(t, badMode, http.StatusBadRequest)
 }
 
-func TestAPIBookTransferReadOnlyTargetContract(t *testing.T) {
+func TestAPIBookTransferReadOnlyTarget(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlySecondShelf(t.TempDir()))
 	book := apitest.ImportTextBook(t, env, "No Room", "", "noroom.txt", "body")
 

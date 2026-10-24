@@ -29,7 +29,7 @@ func TestPersistOnClose_WritesStagedPosition(t *testing.T) {
 	}
 }
 
-func TestPersistOnClose_DoesNotClobberNewerEntry(t *testing.T) {
+func TestPersistOnCloseKeepsNewerEntry(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	if _, err := store.Mutate(func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()

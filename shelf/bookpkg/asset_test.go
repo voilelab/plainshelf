@@ -210,7 +210,7 @@ func TestSourceOpenAssetRejectsUnsafeNames(t *testing.T) {
 	}
 }
 
-func TestSourceAssetExtensionsAreCaseInsensitive(t *testing.T) {
+func TestAssetExtensionsIgnoreCase(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "Shouty Extension", "body")
 	writeAsset(t, libRoot, source, "img-0001.JPG", []byte("x"))
 

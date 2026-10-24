@@ -27,7 +27,7 @@ func trashBook(t *testing.T, s *Shelf, title string) string {
 	return book.ID()
 }
 
-func TestListTrashedBookIDsReturnsEmptyWhenTrashIsEmpty(t *testing.T) {
+func TestTrashedIDsEmptyTrash(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: path.Join(t.TempDir(), "shelf_test")})
 
 	ids, err := s.ListTrashedBookIDs()
@@ -39,7 +39,7 @@ func TestListTrashedBookIDsReturnsEmptyWhenTrashIsEmpty(t *testing.T) {
 	}
 }
 
-func TestListTrashedBookIDsReturnsEveryTrashedBook(t *testing.T) {
+func TestTrashedIDsListsEveryBook(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: path.Join(t.TempDir(), "shelf_test")})
 
 	want := []string{trashBook(t, s, "First"), trashBook(t, s, "Second")}
@@ -54,7 +54,7 @@ func TestListTrashedBookIDsReturnsEveryTrashedBook(t *testing.T) {
 	}
 }
 
-func TestListTrashedBookIDsIncludesUnreadableBooks(t *testing.T) {
+func TestTrashedIDsIncludeUnreadable(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -121,7 +121,7 @@ func TestOpenShelfRenamesLegacyTrash(t *testing.T) {
 	}
 }
 
-func TestOpenShelfMergesLegacyTrashIntoRenamedTrash(t *testing.T) {
+func TestLegacyTrashMergesIntoTrash(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -148,7 +148,7 @@ func TestOpenShelfMergesLegacyTrashIntoRenamedTrash(t *testing.T) {
 	}
 }
 
-func TestOpenShelfKeepsBothWhenLegacyTrashCollides(t *testing.T) {
+func TestLegacyTrashCollisionKeepsBoth(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -171,7 +171,7 @@ func TestOpenShelfKeepsBothWhenLegacyTrashCollides(t *testing.T) {
 	}
 }
 
-func TestLegacyTrashRenamePreservesUnknownFiles(t *testing.T) {
+func TestLegacyTrashRenameKeepsUnknownFiles(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	seedLegacyTrashedBook(t, tmpLib, "legacy-book", "Legacy")
 
@@ -186,7 +186,7 @@ func TestLegacyTrashRenamePreservesUnknownFiles(t *testing.T) {
 	}
 }
 
-func TestOpenShelfKeepsUnknownLegacyTrashContentOnMerge(t *testing.T) {
+func TestLegacyTrashMergeKeepsUnknown(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -297,7 +297,7 @@ func TestMoveBookToTrashStampsSchemaVersion(t *testing.T) {
 	}
 }
 
-func TestMoveBookToTrashWritesFolderNamesLiterally(t *testing.T) {
+func TestTrashWritesFolderNamesLiterally(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -368,7 +368,7 @@ func TestLegacyTrashMetaReadWithoutRewrite(t *testing.T) {
 	}
 }
 
-func TestTrashOperationsRefuseNewerSchemaVersion(t *testing.T) {
+func TestTrashRefusesNewerSchema(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 

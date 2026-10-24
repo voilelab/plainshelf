@@ -34,7 +34,7 @@ func (r *blockingRecorder) Write(data []byte) (int, error) {
 	return r.ResponseRecorder.Write(data)
 }
 
-func TestOpeningAnotherBookWaitsForInFlightReads(t *testing.T) {
+func TestOpenAnotherBookWaitsForReads(t *testing.T) {
 	library := newOpenLibrary(t)
 	handler := readerapi.NewHandler(library, "test")
 

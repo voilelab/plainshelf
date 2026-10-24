@@ -8,7 +8,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
+func TestBookCacheWriterIDIsStable(t *testing.T) {
 	storePath := t.TempDir()
 	libRoot := t.TempDir()
 

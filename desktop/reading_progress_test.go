@@ -24,7 +24,7 @@ func readerOffset(t *testing.T, store *readingprogress.Store, shelfKey, bookID s
 	return doc.Shelves[shelfKey][bookID].Offset
 }
 
-func TestProjectStoredReaderProgress_FoldsAndPersists(t *testing.T) {
+func TestProjectProgressFoldsAndPersists(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()
@@ -57,7 +57,7 @@ func TestProjectStoredReaderProgress_FoldsAndPersists(t *testing.T) {
 	}
 }
 
-func TestProjectStoredReaderProgress_UnresolvedStays(t *testing.T) {
+func TestProjectProgressUnresolvedStays(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()
@@ -108,7 +108,7 @@ func TestWriteProgressPreservesNewerEntry(t *testing.T) {
 	}
 }
 
-func TestGenerateDesktopShelfIDReservesReaderNamespace(t *testing.T) {
+func TestShelfIDReservesReaderNamespace(t *testing.T) {
 	if id := generateDesktopShelfID("book", map[string]bool{}); id == readingprogress.ReaderShelfID {
 		t.Fatalf("shelf id %q collides with the reader namespace", id)
 	}
@@ -121,7 +121,7 @@ func TestGenerateDesktopShelfIDReservesReaderNamespace(t *testing.T) {
 	}
 }
 
-func TestWriteReadingProgress_RejectsCorruptJSON(t *testing.T) {
+func TestWriteProgressRejectsCorruptJSON(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()
