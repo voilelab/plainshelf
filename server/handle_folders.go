@@ -148,12 +148,7 @@ func (h *folderHandlers) renameFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.rejectReadOnlyShelf(w, r, shelfData) {
-		return
-	}
-
-	h.refreshBeforeReveal(r, shelfData)
-	if h.refuseUnconfirmedReveal(w, r, shelfData, folderMovedTo(folderParts, renamed)) {
+	if h.refuseFolderRelocation(w, r, shelfData, folderParts, renamed) {
 		return
 	}
 
@@ -192,12 +187,7 @@ func (h *folderHandlers) moveFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.rejectReadOnlyShelf(w, r, shelfData) {
-		return
-	}
-
-	h.refreshBeforeReveal(r, shelfData)
-	if h.refuseUnconfirmedReveal(w, r, shelfData, folderMovedTo(req.Folder, moved)) {
+	if h.refuseFolderRelocation(w, r, shelfData, req.Folder, moved) {
 		return
 	}
 
@@ -361,4 +351,12 @@ func (h *folderHandlers) visibleFolders(shelfData *shelf.ShelfData) (map[string]
 		visible[folder.String()] = true
 	}
 	return visible, nil
+}
+
+func (h *folderHandlers) refuseFolderRelocation(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, from, to shelf.FolderPath) bool {
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
+		return true
+	}
+	h.refreshBeforeReveal(r, shelfData)
+	return h.refuseUnconfirmedReveal(w, r, shelfData, folderMovedTo(from, to))
 }
