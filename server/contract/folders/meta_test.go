@@ -130,8 +130,6 @@ func TestAPIFolderMetaOnAReadOnlyShelfContract(t *testing.T) {
 	}
 }
 
-// Metadata leaves the listing with its folder: an icon on a hidden folder would
-// name what the filter hides, and a write to one answers as if it did not exist.
 func TestAPIFolderMetaFollowsFolderVisibilityContract(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	apitest.SetShowNSFW(t, s.Env, true)

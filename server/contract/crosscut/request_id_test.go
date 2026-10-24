@@ -31,9 +31,6 @@ func assertRequestIDShape(t *testing.T, id string) {
 	}
 }
 
-// Every response carries the ID, not only the failures: a user reporting a
-// screen that looks wrong without erroring has something to quote too, which is
-// the whole reason the ID is per request rather than per error.
 func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -54,9 +51,6 @@ func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
 	}
 }
 
-// The number the user reads off the error and the number in the header are one
-// number. A second identifier for the same request would mean the developer has
-// to know which of the two the user copied.
 func TestAPIErrorEnvelopeIncidentIsTheRequestIDContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -74,8 +68,6 @@ func TestAPIErrorEnvelopeIncidentIsTheRequestIDContract(t *testing.T) {
 	assertRequestIDShape(t, got.Error.Incident)
 }
 
-// The point of the whole chain: the ID the user was shown finds the log line,
-// and that line answers what the response body deliberately withheld.
 func TestAPIUnknownErrorLogsIDAndRoute(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	libRoot := t.TempDir()
@@ -151,9 +143,6 @@ func findLogEntryByRequestID(t *testing.T, logFile, requestID, msg string) map[s
 	return nil
 }
 
-// The request log line is what a developer searches, so it has to carry the
-// reported number - and it has to keep the fields it already had, because an
-// operator's existing log tooling reads them by name.
 func TestAPIRequestLogLineCarriesTheRequestIDContract(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	env := apitest.New(t, apitest.WithAppLogFile(appLogFile))
@@ -177,9 +166,6 @@ func TestAPIRequestLogLineCarriesTheRequestIDContract(t *testing.T) {
 	}
 }
 
-// A background chain fails minutes after the response that gave the user their
-// number, so it logs under that same number rather than one of its own. Nothing
-// else could connect the two: the user never sees the chain ID.
 func TestAPITaskFailureLogsRequestID(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	env := apitest.New(t, apitest.WithAppLogFile(appLogFile))

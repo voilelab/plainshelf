@@ -15,9 +15,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// A folder goes out of the tree with its books, so a name that is usually the
-// whole disclosure cannot survive in a breadcrumb or in the destination list
-// when moving a book. See apitest.NewNSFWShelf for the shelf this runs against.
 func TestAPINSFWFoldersLeaveTheTreeWithTheirBooks(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
@@ -57,9 +54,6 @@ func trashAllOf(t *testing.T, s apitest.NSFWShelf, bookIDs ...string) {
 	apitest.SetShowNSFW(t, s.Env, false)
 }
 
-// The disclosure a trash listing carries is the book's title, its authors and
-// the folder it was deleted from, so the assertion is against the response body
-// rather than the decoded IDs alone.
 func TestAPINSFWBooksAreAbsentFromTheTrash(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	trashAllOf(t, s, s.Visible, s.FolderHidden, s.BookHidden)
@@ -88,10 +82,6 @@ func TestAPINSFWBooksAreAbsentFromTheTrash(t *testing.T) {
 	apitest.AssertBookIDs(t, trashedIDs(), s.Visible, s.FolderHidden, s.BookHidden)
 }
 
-// Emptying the trash is not filtered, so a client that quoted the listing's
-// length as what the sweep will erase would understate it — it is this header
-// that tells the client to warn instead of naming a number. The header says
-// only that something is missing, never what.
 func TestAPINSFWTrashListingMarksItselfPartial(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	partial := func() string {
@@ -119,8 +109,6 @@ func TestAPINSFWTrashListingMarksItselfPartial(t *testing.T) {
 	}
 }
 
-// Restoring or erasing a book the listing just withheld would confirm it is
-// there, so both answer with the envelope an ID that was never issued gets.
 func TestAPINSFWTrashedBooksNotFound(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	trashAllOf(t, s, s.FolderHidden, s.BookHidden)
@@ -149,10 +137,6 @@ func TestAPINSFWTrashedBooksNotFound(t *testing.T) {
 	}
 }
 
-// Emptying the trash is one command over the whole trash rather than a listing,
-// so it erases the marked books too. Leaving them behind would be worse than
-// the disclosure: they would reappear the next time the setting is turned on,
-// long after the user believed the trash was empty.
 func TestAPINSFWEmptyTrashStillErasesEverything(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	trashAllOf(t, s, s.Visible, s.FolderHidden, s.BookHidden)
@@ -204,9 +188,6 @@ func newNSFWShelfWithArchive(t *testing.T) apitest.NSFWShelf {
 	return s
 }
 
-// Moving Fiction under Archive would carry Fiction/Adult to Archive/Fiction/Adult,
-// which no rule names. Exactly one of the two hidden books comes out with it:
-// BookHidden is marked in its own book.json and stays marked wherever it goes.
 func TestAPINSFWFolderMoveAsksBeforeUnhiding(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 	moves := apitest.ShelfURL("folder-moves")
@@ -224,8 +205,6 @@ func TestAPINSFWFolderMoveAsksBeforeUnhiding(t *testing.T) {
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic, s.FolderHidden)
 }
 
-// With the setting on there is nothing to reveal, so neither route asks and both
-// behave as they did before this existed.
 func TestAPINSFWFolderMoveDoesNotAskWhileShowNSFWIsOn(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 	apitest.SetShowNSFW(t, s.Env, true)
@@ -235,10 +214,6 @@ func TestAPINSFWFolderMoveDoesNotAskWhileShowNSFWIsOn(t *testing.T) {
 		http.StatusNoContent)
 }
 
-// A move that carries no marked folder is not this rule's business, whichever
-// way the setting is set. Fiction/Flagged is the case worth pinning: it holds a
-// book the request cannot see, but the mark is the book's own and travels with
-// it, so nothing is revealed.
 func TestAPINSFWFolderMoveWithoutMarks(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 	moves := apitest.ShelfURL("folder-moves")
@@ -251,9 +226,6 @@ func TestAPINSFWFolderMoveWithoutMarks(t *testing.T) {
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
 }
 
-// A rename is the same disclosure by another route: the folder keeps its parent
-// and stops matching the rule. Both the marked folder itself and the ancestor
-// the user can actually see in the tree are held to it.
 func TestAPINSFWFolderRenameAsksBeforeUnhiding(t *testing.T) {
 	renames := map[string]string{
 		"the marked folder itself": apitest.NSFWMarkedFolder,
@@ -275,10 +247,6 @@ func TestAPINSFWFolderRenameAsksBeforeUnhiding(t *testing.T) {
 	}
 }
 
-// A folder renamed to a name no rule covers is a reveal even when it is empty:
-// the folder's own name is the disclosure, which is why it is dropped from the
-// tree whether or not it holds a book. hidden_books is 0 there, and a client
-// must not read that as "nothing would change".
 func TestAPINSFWFolderRenameAsksForAnEmptyMarkedFolder(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
@@ -291,13 +259,6 @@ func TestAPINSFWFolderRenameAsksForAnEmptyMarkedFolder(t *testing.T) {
 		strings.NewReader(`{"name":"General"}`)), 0)
 }
 
-/*
-A cross-shelf transfer is judged on the source alone. Only a book's own nsfw
-travels with it — that is written in its book.json — while shelf.json stays
-behind, so whether the target shelf happens to mark the same path is not this
-shelf's answer to give. A copy is asked the same question as a move: it leaves
-this shelf untouched but publishes the same titles on the other one.
-*/
 func TestAPINSFWFolderTransferAsksBeforeUnhiding(t *testing.T) {
 	for _, mode := range []string{"copy", "move"} {
 		t.Run(mode, func(t *testing.T) {
@@ -319,8 +280,6 @@ func TestAPINSFWFolderTransferAsksBeforeUnhiding(t *testing.T) {
 	}
 }
 
-// The reverse half of the transfer rule: a source folder holding no marked
-// folder transfers without a confirmation, exactly as it did before.
 func TestAPINSFWFolderTransferWithoutMarks(t *testing.T) {
 	s := apitest.NewNSFWShelf(t, apitest.WithSecondShelf(t.TempDir()))
 
@@ -332,11 +291,6 @@ func TestAPINSFWFolderTransferWithoutMarks(t *testing.T) {
 	}`), http.StatusAccepted)
 }
 
-// Losing the folder mark is not the same as becoming visible. filterFolders
-// already drops a folder whose books are all filtered out, so a marked folder
-// holding nothing but book-marked books stays out of the tree wherever it goes -
-// and a confirmation claiming otherwise would train the user to click through
-// the ones that mean something.
 func TestAPINSFWFolderMoveKeepsBooksHidden(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 
@@ -349,9 +303,6 @@ func TestAPINSFWFolderMoveKeepsBooksHidden(t *testing.T) {
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
 }
 
-// A change the shelf would refuse anyway must fail as itself. Asking the user to
-// approve a disclosure and then answering the confirmed retry with the real
-// conflict spends the one question this feature gets on nothing.
 func TestAPINSFWFolderRenameConflict(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 
@@ -359,14 +310,6 @@ func TestAPINSFWFolderRenameConflict(t *testing.T) {
 	apitest.AssertErrorEnvelope(t, rec, http.StatusConflict, "UNKNOWN", "failed to rename folder")
 }
 
-// The listings the check reads are answered from a throttled cache, so a marked
-// folder another writer added since the last scan would be missing from them -
-// and the move works on the real filesystem, which has it. The preflight forces
-// the scan first, the same way the cross-shelf transfer does before it plans.
-//
-// This builds its own shelf rather than using the shared fixture: the point is a
-// marked folder the cache has never seen, and the fixture's is scanned into the
-// cache when it is built.
 func TestAPINSFWFolderMoveWithUnscannedMark(t *testing.T) {
 	const marked = "Fiction/Secret"
 
@@ -388,15 +331,6 @@ func TestAPINSFWFolderMoveWithUnscannedMark(t *testing.T) {
 	assertRevealConflict(t, env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(nsfwMoveBody)), 0)
 }
 
-// A read-only shelf refuses every write, so a move or rename on one has nothing
-// to disclose. The disclosure is a question put to the user, and asking it ahead
-// of a refusal spends the one question this feature gets on a change that was
-// never going to happen.
-//
-// This shelf is laid out on disk rather than through the API, because the API
-// cannot write to it: shelf.json marks Fiction/Secret, and the marked folder
-// holds no book, so the move would otherwise be refused for the disclosure its
-// name alone carries.
 func TestAPINSFWFolderChangeReadOnly(t *testing.T) {
 	libRoot := t.TempDir()
 	shelfJSON := `{"schema_version":1,"content":{"nsfw_folders":[{"path":"Fiction/Secret"}]}}`

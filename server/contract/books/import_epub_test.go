@@ -12,10 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// TestAPIImportEPUBRecordsDroppedImagesContract pins the whole path: the
-// converter counts the illustrations, the importer writes the note onto the
-// source it created, and the sources endpoint hands it back for the book detail
-// view to show.
 func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -59,10 +55,6 @@ func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
 	}
 }
 
-// The illustrations an EPUB carried must land on the shelf, be referenced by
-// the text, and come back through the asset route. This is the first test that
-// exercises storage, conversion and serving together; each side alone can pass
-// while the names they agree on have drifted apart.
 func TestAPIImportEPUBImageAssets(t *testing.T) {
 	env := apitest.New(t)
 	imported := apitest.ImportFileBook(t, env, "book.epub", "application/epub+zip",
@@ -98,9 +90,6 @@ func TestAPIImportEPUBImageAssets(t *testing.T) {
 	}
 }
 
-// With the keep_images setting off, an import that submits a strategy of its
-// own must still store no illustrations. The unit-level half of this is
-// TestImportEPUBPerRequestStrategyInheritsKeepImages in package server.
 func TestAPIImportEPUBHonoursKeepImagesOffContract(t *testing.T) {
 	env := apitest.New(t)
 

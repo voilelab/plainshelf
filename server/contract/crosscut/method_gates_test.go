@@ -71,10 +71,6 @@ func TestAPITokenMethodGates(t *testing.T) {
 	}
 }
 
-// Every mutating route sits behind the same two gates, so they are enumerated
-// once here instead of once per endpoint file. A route missing from this table
-// is a route nobody proved is gated, which is easier to notice in one list than
-// in the absence of a test somewhere else.
 func TestAPIMutatingRoutesAreGatedContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	book := apitest.ImportTextBook(t, env, "Gated", "fiction", "gated.txt", "body")

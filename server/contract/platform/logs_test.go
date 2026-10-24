@@ -82,9 +82,6 @@ func TestAPIGetLogContentContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-// TestAPIGetLogContentTailContract pins the bound on the content route: a log
-// file grows without limit, so the default response is its end rather than all
-// of it, and the cut lands on a line boundary.
 func TestAPIGetLogContentTailContract(t *testing.T) {
 	logDir := t.TempDir()
 	env := apitest.NewUnstarted(t, apitest.WithAppLogDir(logDir, "app"), apitest.WithLogRetention(0))
@@ -112,9 +109,6 @@ func TestAPIGetLogContentTailContract(t *testing.T) {
 	}
 }
 
-// TestAPIGetLogContentDefaultsToABoundedTail keeps the unparameterized route
-// bounded: an existing caller that asks for nothing must not be handed a file
-// of unlimited size.
 func TestAPIGetLogContentDefaultsToABoundedTail(t *testing.T) {
 	logDir := t.TempDir()
 	env := apitest.NewUnstarted(t, apitest.WithAppLogDir(logDir, "app"), apitest.WithLogRetention(0))
@@ -144,9 +138,6 @@ func TestAPIGetLogContentDefaultsToABoundedTail(t *testing.T) {
 	}
 }
 
-// The log API stays behind the token whatever protect_read says: a log records
-// every request path, access time and remote address, which is the shelf's
-// structure and its usage rather than the books a reader came for.
 func TestAPILogsRequireTokenWithoutProtectReadContract(t *testing.T) {
 	logDir := t.TempDir()
 	security := apitest.LocalTokenSecurity()
@@ -173,8 +164,6 @@ func TestAPILogsRequireTokenWithoutProtectReadContract(t *testing.T) {
 	}
 }
 
-// Security mode "none" is an explicit "do not authenticate", so the exception
-// above does not reintroduce a gate the operator turned off.
 func TestAPILogsOpenUnderSecurityModeNoneContract(t *testing.T) {
 	logDir := t.TempDir()
 	env := apitest.NewUnstarted(t,

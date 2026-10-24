@@ -5,21 +5,16 @@ import (
 	"strings"
 )
 
-// SettingPath is a representative route for the gate tests: it needs no
-// imported book, since reading it answers 200 and updating it 204, so one path
-// exercises both sides of the token gate.
 const SettingPath = "/api/setting/cover_to_jpg"
 
 func ShelfIDURL(shelfID string, elem ...string) string {
 	return strings.Join(append([]string{"/api/shelves", shelfID}, elem...), "/")
 }
 
-// ShelfURL addresses the single shelf the contract tests configure.
 func ShelfURL(elem ...string) string {
 	return ShelfIDURL(DefaultShelfID, elem...)
 }
 
-// SecondShelfBooksURL lists the books on the shelf WithSecondShelf adds.
 func SecondShelfBooksURL() string {
 	return ShelfIDURL(SecondShelfID, "books")
 }
@@ -76,7 +71,6 @@ func BookDownloadURL(bookID string) string {
 	return ShelfIDURL(VirtualShelfID, "books", bookID, "download")
 }
 
-// VirtualBookURL addresses a book on the shelf AddVirtualShelf opens.
 func VirtualBookURL(bookID string, elem ...string) string {
 	return ShelfIDURL(VirtualShelfID, append([]string{"books", bookID}, elem...)...)
 }
@@ -85,16 +79,10 @@ func SourceURL(bookID, sourceID string, elem ...string) string {
 	return BookURL(bookID, append([]string{"sources", sourceID}, elem...)...)
 }
 
-// AssetURL addresses one file under a source's assets/ directory. The name is
-// used verbatim so a test can address an already-escaped or otherwise unusual
-// name and see what the route does with it.
 func AssetURL(bookID, sourceID, name string) string {
 	return SourceURL(bookID, sourceID, "assets") + "/" + name
 }
 
-// AssetsBundleURL addresses a source's batch assets.zip endpoint, naming the
-// files to pack with repeated `name` query parameters. With no names it packs
-// the whole assets/ directory.
 func AssetsBundleURL(bookID, sourceID string, names ...string) string {
 	base := SourceURL(bookID, sourceID, "assets.zip")
 	if len(names) == 0 {

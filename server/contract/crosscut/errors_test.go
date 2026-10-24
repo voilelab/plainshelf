@@ -11,9 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// Every refusal writeErr answers carries the same JSON envelope, so a client
-// can read one shape rather than parsing prose. The code is the stable half:
-// the message may be reworded, the code may not.
 func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Envelope Book", "", "envelope.txt", "body")
@@ -82,8 +79,6 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 	}
 }
 
-// A refusal the shelf itself raises keeps its Retry-After alongside the
-// envelope: the code says what happened, the header says when to come back.
 func TestAPIReadOnlyShelfRefusalCarriesItsCodeContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
@@ -93,10 +88,6 @@ func TestAPIReadOnlyShelfRefusalCarriesItsCodeContract(t *testing.T) {
 		"shelf is opened read-only; this PlainShelf instance cannot modify it")
 }
 
-// A 500 says only what the caller was trying to do. The cause names the shelf's
-// on-disk layout - the book's directory, the atomic write's temp file - and
-// that stays in the log, because a user pastes an error body into a bug report
-// without reading it first.
 func TestAPIInternalErrorBodyWithholdsTheCauseContract(t *testing.T) {
 
 	libRoot := filepath.Join(t.TempDir(), "secret-shelf-b7f2")

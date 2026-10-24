@@ -82,8 +82,6 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 	}
 }
 
-// folder.json is the name of a folder's metadata file, so a folder may not take
-// it - in any case - through any route that places a name.
 func TestAPIReservedFolderNameIsARequestErrorContract(t *testing.T) {
 	env := apitest.New(t)
 	if rec := env.Request(http.MethodPost, apitest.ShelfURL("folders", "alpha"), nil); rec.Code != http.StatusNoContent {
@@ -109,8 +107,6 @@ func TestAPIReservedFolderNameIsARequestErrorContract(t *testing.T) {
 	}
 }
 
-// The folder routes answer outcomes the error table cannot name as a conflict.
-// Routing them through the table must not turn those into 500s.
 func TestAPIFolderConflictsStillAnswerConflictContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -130,8 +126,6 @@ func TestAPIFolderConflictsStillAnswerConflictContract(t *testing.T) {
 	})
 }
 
-// Importing places the book in a folder as well, so a bad one must be refused
-// the same way rather than reported as an import failure.
 func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -142,10 +136,6 @@ func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
 		"INVALID_FOLDER", "invalid folder name")
 }
 
-// A folder named after a directory the scanners skip is refused for a reason the
-// user cannot guess from "invalid folder name": the folder would be created and
-// then never listed again. The shelf error already explains it, so the API must
-// carry that reason out instead of flattening every rejection into one message.
 func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Ignored Folder Book", "keep", "folder.txt", "body")
@@ -202,10 +192,6 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 	})
 }
 
-// A shelf that lists its own directories also says why it skips them, and that
-// reason is what the user needs: they wrote the rule and can take it back. The
-// message therefore carries the shelf's own words rather than the built-in
-// directory names, which on such a shelf are not the rule in force.
 func TestAPIIgnoredFolderReason(t *testing.T) {
 	libRoot := t.TempDir()
 	config := `{"schema_version":1,"scan":{"ignored_dirs":[{"name":"@Snapshot","reason":"Synology snapshot directory"}]}}`

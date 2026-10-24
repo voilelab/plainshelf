@@ -30,8 +30,6 @@ func bookMetaSchemaVersion(t *testing.T, book map[string]any) float64 {
 	return version
 }
 
-// TestAPIBookSchemaVersionContract asserts schema_version is present on the wire
-// in both the list and the single-book response.
 func TestAPIBookSchemaVersionContract(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Schema Version Book", "", "schema.txt", "body")
@@ -50,9 +48,6 @@ func TestAPIBookSchemaVersionContract(t *testing.T) {
 	}
 }
 
-// TestAPIUnsupportedSchemaVersionReturns409 verifies the end-to-end behavior for
-// a book written by a newer build: still readable over the API, but every
-// attempt to modify it fails with 409 and leaves the file untouched.
 func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Future Book", "", "future.txt", "body")
@@ -79,10 +74,6 @@ func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
 	}
 }
 
-// TestAPIUnsupportedSchemaVersionDoesNotMoveFolder verifies the schema guard runs
-// before the folder move. HandleAPIUpdateBook moves the book first, so a guard
-// that only ran at SetMeta would rename the folder on disk and then report 409,
-// leaving the client with a failed response for an applied mutation.
 func TestAPIUnsupportedSchemaVersionDoesNotMoveFolder(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Folder Guard", "origin/folder", "folder.txt", "body")
@@ -130,8 +121,6 @@ func bumpTrashSchemaVersion(t *testing.T, env *apitest.Env, bookID string) (meta
 	return metaPath, bumped
 }
 
-// TestAPITrashSchemaVersionContract asserts trashing a book stamps the version
-// this build writes into trash.json.
 func TestAPITrashSchemaVersionContract(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Trash Schema Version", "", "trash.txt", "body")
@@ -151,9 +140,6 @@ func TestAPITrashSchemaVersionContract(t *testing.T) {
 	}
 }
 
-// TestAPIUnsupportedTrashSchemaVersionReturns409 verifies the behavior for a
-// book trashed by a newer build: still listed in the trash, but restoring or
-// permanently deleting it fails with 409 and leaves the files alone.
 func TestAPIUnsupportedTrashSchemaVersionReturns409(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Future Trash", "origin/folder", "future.txt", "body")

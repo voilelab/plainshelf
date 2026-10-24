@@ -10,7 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// A marked book is in no listing, and neither is the fact that it has a twin.
 func TestAPINSFWBooksAreAbsentFromListings(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	duplicates := func() [][]string {
@@ -31,9 +30,6 @@ func TestAPINSFWBooksAreAbsentFromListings(t *testing.T) {
 	apitest.AssertBookIDs(t, groups[0], s.Visible, s.FolderHidden)
 }
 
-// Every route naming one book answers as though it were not there: 403 would
-// confirm it exists. An ID that was never issued is held to the same envelope,
-// which is the claim — the two answers are indistinguishable.
 func TestAPINSFWBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
@@ -75,8 +71,6 @@ func TestAPINSFWBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
 	}
 }
 
-// A shelf given its own answer keeps it whatever the setting says, in the
-// listing and the folder tree alike, and goes back to the setting when cleared.
 func TestAPINSFWShelfAnswerOverridesTheSetting(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	folders := func() []shelf.FolderPath {

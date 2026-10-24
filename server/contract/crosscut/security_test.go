@@ -87,15 +87,6 @@ func TestAPISecurityOriginAndCORSContract(t *testing.T) {
 	}
 }
 
-// TestAPISecurityContainerDefaultConfigContract mounts the shipped container
-// default on the real router: the image runs docker/config.yaml unmodified, so
-// its parsed security block is what a user who forgets a port mapping is
-// protected by, and the block is asserted here as configured rather than as a
-// synthetic one the test wrote itself.
-//
-// What that block has to say for itself — mode local_token, and a listen-addr
-// guard that passes — needs no request and is pinned in
-// server/conf_container_test.go.
 func TestAPISecurityContainerDefaultConfigContract(t *testing.T) {
 	confPath := filepath.Join(apitest.RepoRoot(t), "docker", "config.yaml")
 	bs, err := os.ReadFile(confPath)

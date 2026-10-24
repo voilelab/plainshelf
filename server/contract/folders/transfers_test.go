@@ -27,8 +27,6 @@ func booksUnderFolder(books []server.Book, folder shelf.FolderPath) []string {
 	return ids
 }
 
-// A copy transfer reproduces the source subtree on the target with fresh IDs and
-// leaves the source shelf untouched.
 func TestAPIFolderTransferCopyContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	top := apitest.ImportTextBook(t, env, "Top", "fiction", "top.txt", "a")
@@ -66,9 +64,6 @@ func TestAPIFolderTransferCopyContract(t *testing.T) {
 	}
 }
 
-// A move transfer keeps every book's ID, publishes the subtree on the target, and
-// clears the source folder. With no target_folder it lands under the source folder's
-// own name.
 func TestAPIFolderTransferMoveContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	top := apitest.ImportTextBook(t, env, "Top", "fiction", "top.txt", "a")
@@ -98,8 +93,6 @@ func TestAPIFolderTransferMoveContract(t *testing.T) {
 	}
 }
 
-// A transfer onto a folder the target shelf already holds is refused with a 409
-// that names the conflict, before any work is scheduled.
 func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Source", "fiction", "src.txt", "a")
@@ -122,10 +115,6 @@ func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
 	}
 }
 
-// The transfer preflight forces a walk of both shelves, but it is not the walk
-// the rescan rate limit governs: that budget belongs to the button a user
-// presses, and a run of transfers must not leave it answering 429 for something
-// the user never pressed.
 func TestAPITransferPreflightPreservesRescanTokens(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Source", "fiction", "src.txt", "a")
@@ -147,8 +136,6 @@ func TestAPITransferPreflightPreservesRescanTokens(t *testing.T) {
 	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
 }
 
-// A move whose books collide with IDs the target already holds is refused with a
-// 409 that lists every colliding ID, before any work is scheduled.
 func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	original := apitest.ImportTextBook(t, env, "Twice", "fiction", "twice.txt", "body")
@@ -182,8 +169,6 @@ func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
 	}
 }
 
-// Re-submitting a transfer already in flight is a 409 that points at the running
-// chain, so the client can attach to it instead of starting a second.
 func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Queued", "fiction", "queued.txt", "body")
@@ -199,8 +184,6 @@ func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
 	})
 }
 
-// A transfer into a read-only target shelf is refused with 409, the status every
-// write to a read-only shelf gets, and nothing is scheduled.
 func TestAPIFolderTransferReadOnlyTargetContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlySecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "No Room", "fiction", "noroom.txt", "body")
@@ -217,7 +200,6 @@ func TestAPIFolderTransferReadOnlyTargetContract(t *testing.T) {
 	}
 }
 
-// The endpoint rejects malformed requests before scheduling anything.
 func TestAPIFolderTransferBadRequestContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Present", "fiction", "present.txt", "body")

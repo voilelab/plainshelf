@@ -57,10 +57,6 @@ func TestAPISourceAssetContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	apitest.AssertContentType(t, rec, "image/webp")
 
-	// ServeMux has already unescaped the wildcard, so a name carrying a literal
-	// percent escape must survive addressing intact. Decoding it a second time
-	// would land on "chart one.png" instead, which exists here precisely so a
-	// regression serves the wrong bytes rather than merely 404ing.
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "chart%20one.png", []byte("percent name"))
 	env.WriteSourceAsset(t, created.Meta.ID, sourceID, "chart one.png", []byte("space name"))
 
@@ -142,9 +138,6 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-// A replaced illustration keeps its URL - the reader derives it from the file
-// name in the text, and nothing records a version to bust a cache with - so a
-// client that may reuse the old bytes would show the wrong picture.
 func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Replaced Art", "", "art.md", "body")
@@ -185,8 +178,6 @@ func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-// The asset route reaches the filesystem by name, so it gets its own traversal
-// cases rather than trusting the shelf-level test alone.
 func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Unsafe Assets", "", "art.md", "secret body")
@@ -261,8 +252,6 @@ func bundleEntryNames(entries map[string][]byte) []string {
 	return slices.Sorted(maps.Keys(entries))
 }
 
-// The batch endpoint packs a source's illustrations into one zip so a download
-// client pays a single round trip instead of one per figure.
 func TestAPISourceAssetsBundleContract(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Bundled Art", "", "art.md", "body")
@@ -308,8 +297,6 @@ func TestAPISourceAssetsBundleContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-// The batch read shares getAsset's security boundary: under protect_read it is
-// refused without the token and served with it.
 func TestAPISourceAssetsBundleFollowsTheTokenGate(t *testing.T) {
 	security := apitest.LocalTokenSecurity()
 	security.ProtectRead = true
@@ -332,9 +319,6 @@ func TestAPISourceAssetsBundleFollowsTheTokenGate(t *testing.T) {
 	}
 }
 
-// Each requested name is validated up front, the way getAsset validates its
-// path segment, so one unsafe name is a 400 for the whole request rather than a
-// truncated archive - and nothing on the shelf leaks on the way to that 400.
 func TestAPISourceAssetsBundleRejectsUnsafeNames(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Unsafe Bundle", "", "art.md", "secret body")
@@ -364,8 +348,6 @@ func TestAPISourceAssetsBundleRejectsUnsafeNames(t *testing.T) {
 	}
 }
 
-// If-None-Match is a list, may be "*", and is compared weakly for GET and HEAD.
-// A missed match costs a full body, which for an asset has no size bound.
 func TestIfNoneMatchHandlesListsAndWildcard(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Revalidate", "", "art.md", "body")

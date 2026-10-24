@@ -112,8 +112,6 @@ func TestAPIRefreshContentStatsContract(t *testing.T) {
 	}
 }
 
-// Nothing to recompute still completes, so the UI can report "up to date"
-// instead of an error.
 func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
 	env := apitest.New(t)
 	_ = apitest.ImportTextBook(t, env, "Already Counted", "", "counted.txt", "alpha body")
@@ -132,8 +130,6 @@ func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
 	}
 }
 
-// A second request while a sweep is still in flight must point the client at
-// the existing chain instead of queueing a redundant one.
 func TestAPIContentStatsRunningChainConflict(t *testing.T) {
 	env := apitest.New(t)
 

@@ -37,10 +37,6 @@ func TestAPIImportBookContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 
-// TestAPIImportUnsupportedEncodingContract pins that a .txt whose bytes decode to
-// an encoding the server has no decoder for is a client error (400), not a server
-// error (500), and that the detected encoding name reaches the client so the user
-// can tell why their file was refused.
 func TestAPIImportUnsupportedEncodingContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -57,10 +53,6 @@ func TestAPIImportUnsupportedEncodingContract(t *testing.T) {
 	}
 }
 
-// TestAPIImportStripsBOMContract pins the UTF-8-SIG behavior end to end: a leading
-// BOM must not survive into the stored source content, and it must not be counted
-// in char_count. apitest.ImportTextBook prepends a BOM to every upload, so this exercises
-// the common path.
 func TestAPIImportStripsBOMContract(t *testing.T) {
 	env := apitest.New(t)
 

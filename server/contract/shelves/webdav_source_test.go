@@ -90,8 +90,6 @@ func listBooks(t *testing.T, env *apitest.Env, shelfID string) map[string]string
 	return titles
 }
 
-// A shelf configured as a plainshelf source reads another PlainShelf's
-// export the same as that PlainShelf reads its own shelf, and writes nothing.
 func TestAPIPlainShelfSourceReadsTheExportContract(t *testing.T) {
 	exporter := newDAVExporter(t)
 	exporter.seed(t, "Dune", "Solaris")
@@ -130,8 +128,6 @@ func TestAPIPlainShelfSourceReadsTheExportContract(t *testing.T) {
 	}
 }
 
-// Opening a remote shelf that has an exported book cache costs the same
-// number of requests however many books it holds.
 func TestAPIPlainShelfSourceRequestCount(t *testing.T) {
 	counts := map[int][]string{}
 	for _, n := range []int{2, 12} {
@@ -154,8 +150,6 @@ func TestAPIPlainShelfSourceRequestCount(t *testing.T) {
 	}
 }
 
-// A refused token, an unreachable exporter and a shelf the exporter does not
-// share answer different codes, so the UI can say which one to fix.
 func TestAPIPlainShelfSourceErrorsContract(t *testing.T) {
 	exporter := newDAVExporter(t)
 	exporter.seed(t, "Dune")
@@ -195,8 +189,6 @@ func newFailingRemote(t *testing.T, src *shelf.SourceConf) *apitest.Env {
 	return env
 }
 
-// Every refusal below happens at startup, naming the shelf, rather than
-// opening something else.
 func TestAPISourceValidationAtStartup(t *testing.T) {
 	t.Setenv("PLAINSHELF_TEST_UNSET", "")
 	for name, src := range map[string]*shelf.SourceConf{
@@ -242,8 +234,6 @@ func TestAPILocalSourceOpensLikeLibRootContract(t *testing.T) {
 	}
 }
 
-// CheckSource tells a wrong token from no connection, so the add-shelf form
-// can say which before anything is saved.
 func TestCheckSourceContract(t *testing.T) {
 	exporter := newDAVExporter(t)
 	exporter.seed(t, "Dune", "Solaris")

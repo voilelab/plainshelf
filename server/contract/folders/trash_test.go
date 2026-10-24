@@ -87,8 +87,6 @@ func TestAPIEmptyTrashOnEmptyTrashContract(t *testing.T) {
 	}
 }
 
-// A second request while a sweep is still in flight must point the client at
-// the existing chain instead of queueing a redundant one.
 func TestAPIEmptyTrashRunningChainConflict(t *testing.T) {
 	env := apitest.New(t)
 
@@ -101,10 +99,6 @@ func TestAPIEmptyTrashRunningChainConflict(t *testing.T) {
 	}
 }
 
-// DELETE /books/{id} and POST /books/{id}/trash share one handler, and the two
-// below pin that they stay interchangeable. The lifecycle itself is covered by
-// TestAPITrashLifecycleContract. One env serves both routes: each trashes its
-// own book, so they never observe each other's effect.
 func TestAPIDeleteAndTrashRoutes(t *testing.T) {
 	env := apitest.New(t)
 

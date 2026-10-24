@@ -6,10 +6,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// The similarity endpoints and the sweep that feeds them cover only the books a
-// request may see. The coverage count matters as much as the results: a total
-// taken over the whole shelf reports that books exist even when the pairs beside
-// it are empty. See apitest.NewNSFWShelf for the shelf this runs against.
 func TestAPINSFWBooksAreAbsentFromSimilarityAndItsCount(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	for _, bookID := range s.All() {

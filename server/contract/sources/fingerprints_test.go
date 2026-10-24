@@ -102,10 +102,6 @@ func TestAPIFingerprintSourcesContract(t *testing.T) {
 	}
 }
 
-// force rebuilds every source even when the cache could answer from its index,
-// so a reader who suspects a stat comparison missed a content change can rebuild
-// the fingerprints without touching the files. Without force the same second run
-// reads nothing.
 func TestAPIFingerprintSourcesForceRebuildsContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -128,8 +124,6 @@ func TestAPIFingerprintSourcesForceRebuildsContract(t *testing.T) {
 	}
 }
 
-// A force value that is not a boolean is a bad request, not a silent incremental
-// run: the caller asked for a rebuild and has to be told the flag was not read.
 func TestAPIFingerprintSourcesRejectsBadForceContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -137,8 +131,6 @@ func TestAPIFingerprintSourcesRejectsBadForceContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 
-// An empty shelf still completes, so the UI can report "up to date" instead of
-// an error.
 func TestAPIFingerprintSourcesWithNothingToDoContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -147,8 +139,6 @@ func TestAPIFingerprintSourcesWithNothingToDoContract(t *testing.T) {
 	}
 }
 
-// One unreadable source is reported and skipped; the rest of the shelf is
-// still fingerprinted and the chain still finishes.
 func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -192,8 +182,6 @@ func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
 	}
 }
 
-// A second request while a sweep is still in flight must point the client at
-// the existing chain instead of queueing a redundant one.
 func TestAPIFingerprintSourcesRunningChainConflict(t *testing.T) {
 	env := apitest.New(t)
 

@@ -47,8 +47,6 @@ func sortedPair(a, b string) (string, string) {
 	return b, a
 }
 
-// Two books that share most of their text surface as one similar pair; a third,
-// unrelated book does not pair with either at the default floor.
 func TestAPISimilarBooksContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -86,8 +84,6 @@ func TestAPISimilarBooksContract(t *testing.T) {
 	}
 }
 
-// The result count only grows as the floor widens: a stricter floor is always a
-// subset of a looser one, which is what lets the page switch tiers in memory.
 func TestAPISimilarBooksFloorContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -111,8 +107,6 @@ func TestAPISimilarBooksFloorContract(t *testing.T) {
 	}
 }
 
-// Before anything is fingerprinted every book is missing; after the task runs,
-// none is. The endpoint reports the algorithm the count was taken under.
 func TestAPIFingerprintStatusContract(t *testing.T) {
 	env := apitest.New(t)
 

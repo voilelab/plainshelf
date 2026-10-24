@@ -8,11 +8,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// Every shelf-scoped route resolves its shelf through the same helper, so an
-// unknown ID must be one answer rather than one per endpoint. Reads and the
-// routes that would otherwise queue background work are listed together: a
-// caller that got 202 for a shelf that does not exist would poll a chain that
-// never ran.
 func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
 	env := apitest.New(t)
 

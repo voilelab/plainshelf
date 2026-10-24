@@ -135,9 +135,6 @@ func (t *cancelSignalTask) Status() taskutil.Status {
 	return t.status
 }
 
-// TestAPICancelTaskChainRequiresTokenContract keeps the cancel route behind the
-// same local_token boundary as every other mutating request: without a token it
-// is rejected before it can reach a chain.
 func TestAPICancelTaskChainRequiresTokenContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -145,9 +142,6 @@ func TestAPICancelTaskChainRequiresTokenContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusUnauthorized)
 }
 
-// TestAPICancelTaskChainReadOnlyContract pins the decision recorded on the
-// ticket: cancel is a mutating method and read-only mode refuses it, the same as
-// the transfer that would have started the chain.
 func TestAPICancelTaskChainReadOnlyContract(t *testing.T) {
 	env := apitest.New(t)
 	env.SetReadOnly(t, true)
@@ -191,9 +185,6 @@ func TestAPICancelTaskChainNotFoundContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-// TestAPICancelTaskChainTerminalIsNoOpContract cancels a chain that has already
-// finished: the endpoint answers 200 with the settled state rather than an error,
-// and the status is unchanged.
 func TestAPICancelTaskChainTerminalIsNoOpContract(t *testing.T) {
 	env := apitest.New(t)
 	chain := submitContractChain(t, env)
