@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestReaderUnsupportedPlatformCodeMatchesFrontend(t *testing.T) {
+func TestUnsupportedPlatformCodeMatchesUI(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join("..", "frontend", "src", "api", "desktop.ts"))
 	if err != nil {
 		t.Fatal(err)

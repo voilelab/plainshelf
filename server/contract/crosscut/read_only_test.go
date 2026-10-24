@@ -70,7 +70,7 @@ func assertTreeUnchanged(t *testing.T, before, after map[string]fileState) {
 	}
 }
 
-func TestReadOnlyServerLeavesTheShelfUntouched(t *testing.T) {
+func TestReadOnlyServerLeavesShelfAlone(t *testing.T) {
 	libRoot := t.TempDir()
 
 	t.Run("seed", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestAPIReadOnlyShelfServesReadsContract(t *testing.T) {
 	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("scans"), nil), http.StatusOK)
 }
 
-func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
+func TestAPIReadOnlyShelfRefusesWrites(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
 	tests := []struct {

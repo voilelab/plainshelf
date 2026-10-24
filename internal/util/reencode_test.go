@@ -32,7 +32,7 @@ func TestReEncodeToUTF8ASCII(t *testing.T) {
 	}
 }
 
-func TestReEncodeToUTF8GB18030UsesBufferedBytes(t *testing.T) {
+func TestReEncodeGB18030UsesBufferedBytes(t *testing.T) {
 	const src = "繁體中文 and 简体中文"
 
 	encoded, err := simplifiedchinese.GB18030.NewEncoder().String(src)
@@ -183,7 +183,7 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func TestReEncodeToUTF8ReadsOnlyThePrefixUpFront(t *testing.T) {
+func TestReEncodeReadsOnlyPrefixFirst(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		line string

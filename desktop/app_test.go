@@ -12,7 +12,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func TestStartServerUsesSharedReaderProgressPath(t *testing.T) {
+func TestStartServerSharesProgressPath(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("startup isolation uses XDG_CONFIG_HOME")
 	}
@@ -107,7 +107,7 @@ func startedDesktopAppWithShelves(t *testing.T, shelfIDs ...string) *DesktopApp 
 	return &DesktopApp{app: serverApp}
 }
 
-func TestImportBookFromLocalPathReturnsBookIDOnSuccess(t *testing.T) {
+func TestImportLocalPathReturnsBookID(t *testing.T) {
 	const shelfID = "default_shelf"
 	desktopApp := startedDesktopAppWithShelf(t, shelfID)
 
@@ -131,7 +131,7 @@ func TestImportBookFromLocalPathReturnsBookIDOnSuccess(t *testing.T) {
 	}
 }
 
-func TestImportBookFromLocalPathReportsFailureInResult(t *testing.T) {
+func TestImportLocalPathReportsFailure(t *testing.T) {
 	const shelfID = "default_shelf"
 	desktopApp := startedDesktopAppWithShelf(t, shelfID)
 
@@ -193,7 +193,7 @@ func TestSaveAndLoadDesktopShelves(t *testing.T) {
 	}
 }
 
-func TestDesktopShelfEntryIncludesScanInterval(t *testing.T) {
+func TestShelfEntryIncludesScanInterval(t *testing.T) {
 	entry := desktopShelfEntry{
 		ID:           "network-books",
 		Name:         "Network Books",
@@ -271,7 +271,7 @@ func TestModifyShelfTogglesReadOnlyBothWays(t *testing.T) {
 	}
 }
 
-func TestAddShelfReadOnlyWritesNothingToTheShelf(t *testing.T) {
+func TestAddShelfReadOnlyWritesNothing(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "shelves.json")
 	libRoot := filepath.Join(tempDir, "archive-shelf")
@@ -435,7 +435,7 @@ func TestGenerateDesktopShelfID(t *testing.T) {
 	}
 }
 
-func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
+func TestAddShelfFailedRegistration(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "shelves.json")
 	badShelfPath := filepath.Join(tempDir, "not-a-directory")
@@ -521,7 +521,7 @@ func TestResolveDesktopFolderPath(t *testing.T) {
 	}
 }
 
-func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
+func TestFolderPathRejectsTraversal(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
 	for _, parts := range [][]string{
@@ -534,7 +534,7 @@ func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
 	}
 }
 
-func TestOpenFolderDirectoryOpensFinderForFolderPath(t *testing.T) {
+func TestOpenFolderDirectoryOpensFinder(t *testing.T) {
 	tempDir := t.TempDir()
 	libRoot := filepath.Join(tempDir, "library")
 	folderDir := filepath.Join(libRoot, "books", "fiction", "sci-fi")
@@ -650,7 +650,7 @@ func TestPreviewShelfID(t *testing.T) {
 	}
 }
 
-func TestDefaultDesktopShelfDirAvoidsLegacyShelfDir(t *testing.T) {
+func TestDefaultShelfDirAvoidsLegacyDir(t *testing.T) {
 	dataRoot := t.TempDir()
 	configPath := filepath.Join(dataRoot, "shelves.json")
 
@@ -706,7 +706,7 @@ func deviceDocuments() []deviceDocument {
 	}
 }
 
-func TestDeviceDocumentReturnsEmptyWhenUnwritten(t *testing.T) {
+func TestDeviceDocumentEmptyWhenUnwritten(t *testing.T) {
 	for _, doc := range deviceDocuments() {
 		t.Run(doc.name, func(t *testing.T) {
 			app := doc.newApp(filepath.Join(t.TempDir(), doc.fileName))
@@ -762,7 +762,7 @@ func TestDeviceDocumentWriteAndReadRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDeviceDocumentWriteRejectsInvalidDocuments(t *testing.T) {
+func TestDeviceDocumentRejectsInvalid(t *testing.T) {
 	for _, doc := range deviceDocuments() {
 		t.Run(doc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), doc.fileName)
@@ -789,7 +789,7 @@ func TestDeviceDocumentWriteRejectsInvalidDocuments(t *testing.T) {
 	}
 }
 
-func TestDeviceDocumentFailsWithoutStoragePath(t *testing.T) {
+func TestDeviceDocumentNeedsStoragePath(t *testing.T) {
 	for _, doc := range deviceDocuments() {
 		t.Run(doc.name, func(t *testing.T) {
 			app := &DesktopApp{}

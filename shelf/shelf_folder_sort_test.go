@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestFolderSortKeyParsingAndPreservingMembers(t *testing.T) {
+func TestFolderSortKeyParsing(t *testing.T) {
 	for _, raw := range []string{`0`, `-2.5`, `4`} {
 		meta, err := folderMetaFromData([]byte(`{"sort_key":` + raw + `}`))
 		if err != nil || !meta.HasSortKey {
@@ -30,7 +30,7 @@ func TestFolderSortKeyParsingAndPreservingMembers(t *testing.T) {
 	}
 }
 
-func TestFolderSortPreservesSubtreesAndFallback(t *testing.T) {
+func TestFolderSortSubtreesAndFallback(t *testing.T) {
 	paths := []FolderPath{{}, {"a"}, {"a", "child"}, {"b"}, {"c"}, {"d"}}
 	original := slices.Clone(paths)
 	sortFolderSiblings(paths, nil)
@@ -47,7 +47,7 @@ func TestFolderSortPreservesSubtreesAndFallback(t *testing.T) {
 	}
 }
 
-func TestFolderSortKeySurvivesMoveAndCacheExport(t *testing.T) {
+func TestFolderSortKeySurvivesMoveAndExport(t *testing.T) {
 	s, root := newCachedFolderMetaShelf(t, ShelfConf{BookCacheWriterID: testWriterID}, FolderPath{"A"}, FolderPath{"B"})
 	if err := s.SetFolderSortKey(FolderPath{"A"}, -1, ""); err != nil {
 		t.Fatal(err)

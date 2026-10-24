@@ -135,7 +135,7 @@ func (t *cancelSignalTask) Status() taskutil.Status {
 	return t.status
 }
 
-func TestAPICancelTaskChainRequiresTokenContract(t *testing.T) {
+func TestAPICancelTaskChainNeedsToken(t *testing.T) {
 	env := apitest.New(t)
 
 	rec := env.DoRaw(httptest.NewRequest(http.MethodPost, apitest.TaskChainCancelURL("any-id"), nil))
@@ -150,7 +150,7 @@ func TestAPICancelTaskChainReadOnlyContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusForbidden)
 }
 
-func TestAPICancelTaskChainStopsRunningChainContract(t *testing.T) {
+func TestAPICancelTaskChainStopsChain(t *testing.T) {
 	env := apitest.New(t)
 
 	task := &cancelSignalTask{started: make(chan struct{})}
@@ -185,7 +185,7 @@ func TestAPICancelTaskChainNotFoundContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-func TestAPICancelTaskChainTerminalIsNoOpContract(t *testing.T) {
+func TestAPICancelTaskChainTerminalNoop(t *testing.T) {
 	env := apitest.New(t)
 	chain := submitContractChain(t, env)
 

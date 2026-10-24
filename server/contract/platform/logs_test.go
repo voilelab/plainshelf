@@ -109,7 +109,7 @@ func TestAPIGetLogContentTailContract(t *testing.T) {
 	}
 }
 
-func TestAPIGetLogContentDefaultsToABoundedTail(t *testing.T) {
+func TestAPILogContentDefaultsToTail(t *testing.T) {
 	logDir := t.TempDir()
 	env := apitest.NewUnstarted(t, apitest.WithAppLogDir(logDir, "app"), apitest.WithLogRetention(0))
 
@@ -138,7 +138,7 @@ func TestAPIGetLogContentDefaultsToABoundedTail(t *testing.T) {
 	}
 }
 
-func TestAPILogsRequireTokenWithoutProtectReadContract(t *testing.T) {
+func TestAPILogsNeedTokenWithoutProtect(t *testing.T) {
 	logDir := t.TempDir()
 	security := apitest.LocalTokenSecurity()
 	security.ProtectRead = false
@@ -164,7 +164,7 @@ func TestAPILogsRequireTokenWithoutProtectReadContract(t *testing.T) {
 	}
 }
 
-func TestAPILogsOpenUnderSecurityModeNoneContract(t *testing.T) {
+func TestAPILogsOpenWithSecurityNone(t *testing.T) {
 	logDir := t.TempDir()
 	env := apitest.NewUnstarted(t,
 		apitest.WithAppLogDir(logDir, "app"),

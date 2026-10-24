@@ -8,7 +8,7 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
+func TestAPIUnknownShelfRejected(t *testing.T) {
 	env := apitest.New(t)
 
 	requests := []struct {
@@ -41,7 +41,7 @@ func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
 	}
 }
 
-func TestAPIJSONResponsesShareOneShapeContract(t *testing.T) {
+func TestAPIJSONResponsesShareOneShape(t *testing.T) {
 	env := apitest.New(t)
 
 	paths := []string{

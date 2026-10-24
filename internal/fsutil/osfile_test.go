@@ -39,7 +39,7 @@ func TestWriteTextFileAtomicCreatesParentDir(t *testing.T) {
 	}
 }
 
-func TestWriteTextFileAtomicReplacesAndLeavesNoTemp(t *testing.T) {
+func TestWriteTextAtomicLeavesNoTemp(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.json")
 	if err := WriteTextFileAtomic(path, ".doc-*.json", "first"); err != nil {

@@ -53,7 +53,7 @@ func assertStagingClean(t *testing.T, lib string) {
 	}
 }
 
-func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
+func TestCopyBookFromGivesNewID(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 	original := seedBook(t, source, FolderPath{"fiction"}, "Cross Copy")
 	originalSourceID := original.CurrentSource()
@@ -134,7 +134,7 @@ func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 	assertStagingClean(t, targetLib)
 }
 
-func TestShelfMoveBookFromPreservesIDAndRemovesSource(t *testing.T) {
+func TestMoveBookFromKeepsID(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 	original := seedBook(t, source, FolderPath{"fiction"}, "Cross Move")
 	originalID := original.ID()
@@ -204,7 +204,7 @@ func TestShelfMoveBookFromRefusesIDConflict(t *testing.T) {
 	assertStagingClean(t, targetLib)
 }
 
-func TestShelfCopyBookFromRefusesReadOnlyTarget(t *testing.T) {
+func TestCopyBookFromReadOnlyTarget(t *testing.T) {
 	sourceLib := path.Join(t.TempDir(), "source")
 	targetLib := path.Join(t.TempDir(), "target")
 	source := newTestShelf(t, &ShelfConf{LibRoot: sourceLib})
@@ -262,7 +262,7 @@ func plantBookOnDisk(t *testing.T, lib string, folder FolderPath, bookID, title 
 	}
 }
 
-func TestShelfMoveBookFromRefusesReadOnlySource(t *testing.T) {
+func TestMoveBookFromReadOnlySource(t *testing.T) {
 	sourceLib := path.Join(t.TempDir(), "source")
 
 	seed, err := NewShelf(&ShelfConf{LibRoot: sourceLib})

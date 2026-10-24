@@ -112,7 +112,7 @@ func TestAPIRefreshContentStatsContract(t *testing.T) {
 	}
 }
 
-func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
+func TestAPIRefreshContentStatsNoop(t *testing.T) {
 	env := apitest.New(t)
 	_ = apitest.ImportTextBook(t, env, "Already Counted", "", "counted.txt", "alpha body")
 

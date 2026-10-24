@@ -38,7 +38,7 @@ func openPCloudShelfOffline(t *testing.T, libRoot string, conf ShelfConf, offlin
 	return s, srv
 }
 
-func TestPCloudShelfRequestsDoNotGrowWithBooks(t *testing.T) {
+func TestPCloudShelfRequestsStayFlat(t *testing.T) {
 	counts := map[int][]string{}
 	for _, n := range []int{2, 12} {
 		titles := make([]string, n)
@@ -89,7 +89,7 @@ func TestPCloudShelfReadsBookText(t *testing.T) {
 	}
 }
 
-func TestPCloudShelfReadsADownloadedBookOffline(t *testing.T) {
+func TestPCloudShelfReadsDownloadOffline(t *testing.T) {
 	libRoot, bookID := seedBookWithText(t)
 	s, srv := openPCloudShelfOffline(t, libRoot, ShelfConf{}, t.TempDir())
 	if _, err := s.DownloadBook(bookID); err != nil {

@@ -201,7 +201,7 @@ func TestBookCacheExportAfterInitialScan(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportDisabledWithoutWriterID(t *testing.T) {
+func TestBookCacheExportNeedsWriterID(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 
@@ -369,7 +369,7 @@ func TestBookCacheExportOnClose(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportPreservesNewerSchemaVersion(t *testing.T) {
+func TestBookCacheExportKeepsNewerSchema(t *testing.T) {
 	libRoot := t.TempDir()
 	bookDir := path.Join(libRoot, booksFolder, "from-the-future.bookpkg")
 	if err := os.MkdirAll(bookDir, 0755); err != nil {
@@ -453,7 +453,7 @@ func TestBookCachePrunesOnlyStaleForeignFiles(t *testing.T) {
 	}
 }
 
-func TestExportBookCachePicksUpBooksAddedOnDisk(t *testing.T) {
+func TestBookCacheExportSeesBooksOnDisk(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{
 		LibRoot:           libRoot,
@@ -512,7 +512,7 @@ func TestValidateBookCacheWriterID(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportPicksUpInPlaceMetadataEdits(t *testing.T) {
+func TestBookCacheExportSeesInPlaceEdits(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf, err := NewShelf(&ShelfConf{
 		LibRoot:           libRoot,
@@ -560,7 +560,7 @@ func TestBookCacheExportPicksUpInPlaceMetadataEdits(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportTimestampIsTheScanStart(t *testing.T) {
+func TestBookCacheExportTimestampIsScanStart(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{
 		LibRoot:           libRoot,
@@ -590,7 +590,7 @@ func TestBookCacheExportTimestampIsTheScanStart(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportCarriesCurrentSourceMD5(t *testing.T) {
+func TestBookCacheExportCarriesSourceMD5(t *testing.T) {
 	libRoot := t.TempDir()
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
 	book, err := s.NewBook(FolderPath{}, "Dune")

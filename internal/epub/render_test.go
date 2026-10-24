@@ -70,7 +70,7 @@ func TestRenderPlainPreset(t *testing.T) {
 	}
 }
 
-func TestRenderUntitledChapterGetsStableHeading(t *testing.T) {
+func TestUntitledChapterStableHeading(t *testing.T) {
 	book := sampleBook()
 	book.Chapters[1].Title = ""
 
@@ -161,7 +161,7 @@ func TestStrategyNormalizedFillsUnsetFields(t *testing.T) {
 	}
 }
 
-func TestNormalizeStrategyPreservesUnknownPreset(t *testing.T) {
+func TestNormalizeStrategyKeepsUnknownPreset(t *testing.T) {
 	got := (Strategy{Preset: "nonsense"}).Normalized()
 	if got.Preset != "nonsense" {
 		t.Errorf("Normalized preset = %q, want the unknown preset preserved", got.Preset)

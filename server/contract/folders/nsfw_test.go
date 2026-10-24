@@ -15,7 +15,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func TestAPINSFWFoldersLeaveTheTreeWithTheirBooks(t *testing.T) {
+func TestAPINSFWFoldersLeaveTree(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
 	folders := func() []string {
@@ -82,7 +82,7 @@ func TestAPINSFWBooksAreAbsentFromTheTrash(t *testing.T) {
 	apitest.AssertBookIDs(t, trashedIDs(), s.Visible, s.FolderHidden, s.BookHidden)
 }
 
-func TestAPINSFWTrashListingMarksItselfPartial(t *testing.T) {
+func TestAPINSFWTrashListingIsPartial(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	partial := func() string {
 		rec := s.Env.Get(apitest.TrashBooksURL())
@@ -137,7 +137,7 @@ func TestAPINSFWTrashedBooksNotFound(t *testing.T) {
 	}
 }
 
-func TestAPINSFWEmptyTrashStillErasesEverything(t *testing.T) {
+func TestAPINSFWEmptyTrashErasesAll(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	trashAllOf(t, s, s.Visible, s.FolderHidden, s.BookHidden)
 
@@ -205,7 +205,7 @@ func TestAPINSFWFolderMoveAsksBeforeUnhiding(t *testing.T) {
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic, s.FolderHidden)
 }
 
-func TestAPINSFWFolderMoveDoesNotAskWhileShowNSFWIsOn(t *testing.T) {
+func TestAPINSFWFolderMoveWithShowNSFW(t *testing.T) {
 	s := newNSFWShelfWithArchive(t)
 	apitest.SetShowNSFW(t, s.Env, true)
 
@@ -226,7 +226,7 @@ func TestAPINSFWFolderMoveWithoutMarks(t *testing.T) {
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
 }
 
-func TestAPINSFWFolderRenameAsksBeforeUnhiding(t *testing.T) {
+func TestAPINSFWFolderRenameAsks(t *testing.T) {
 	renames := map[string]string{
 		"the marked folder itself": apitest.NSFWMarkedFolder,
 		"an ancestor of it":        "Fiction",
@@ -247,7 +247,7 @@ func TestAPINSFWFolderRenameAsksBeforeUnhiding(t *testing.T) {
 	}
 }
 
-func TestAPINSFWFolderRenameAsksForAnEmptyMarkedFolder(t *testing.T) {
+func TestAPINSFWEmptyFolderRenameAsks(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
 	apitest.SetShowNSFW(t, s.Env, true)
@@ -259,7 +259,7 @@ func TestAPINSFWFolderRenameAsksForAnEmptyMarkedFolder(t *testing.T) {
 		strings.NewReader(`{"name":"General"}`)), 0)
 }
 
-func TestAPINSFWFolderTransferAsksBeforeUnhiding(t *testing.T) {
+func TestAPINSFWFolderTransferAsks(t *testing.T) {
 	for _, mode := range []string{"copy", "move"} {
 		t.Run(mode, func(t *testing.T) {
 			s := apitest.NewNSFWShelf(t, apitest.WithSecondShelf(t.TempDir()))

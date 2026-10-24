@@ -69,7 +69,7 @@ func TestDailyFileWriterDisabledRotation(t *testing.T) {
 	}
 }
 
-func TestDailyFileWriterRotateOnlyRemovesLogFiles(t *testing.T) {
+func TestDailyRotateRemovesOnlyLogs(t *testing.T) {
 	dir := t.TempDir()
 
 	target := seedLogFile(t, dir, "keep-me.txt")
@@ -112,7 +112,7 @@ func TestDailyFileWriterRotateOnlyRemovesLogFiles(t *testing.T) {
 	}
 }
 
-func TestDailyFileWriterRotateExpiresTheClosedFile(t *testing.T) {
+func TestDailyRotateExpiresClosedFile(t *testing.T) {
 	dir := t.TempDir()
 
 	w := newTestWriter(dir, "app", 1)
@@ -140,7 +140,7 @@ func newTestWriter(dir, prefix string, retentionDays int) *DailyFileWriter {
 	})
 }
 
-func TestDailyFileWriterRotateUsesTheRuntimeWindow(t *testing.T) {
+func TestDailyRotateUsesRuntimeWindow(t *testing.T) {
 	dir := t.TempDir()
 	seedLogFile(t, dir, "app-2024-01-01.log")
 
@@ -172,7 +172,7 @@ func TestDailyFileWriterRotateUsesTheRuntimeWindow(t *testing.T) {
 	}
 }
 
-func TestRetentionDaysFallsBackToTheConfiguredWindow(t *testing.T) {
+func TestRetentionDaysFallsBackToConfig(t *testing.T) {
 	var unset *Retention
 	if got := unset.Days(7); got != 7 {
 		t.Fatalf("nil Retention Days(7) = %d, want 7", got)

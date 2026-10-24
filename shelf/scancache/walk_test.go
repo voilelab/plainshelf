@@ -122,7 +122,7 @@ func walkTree(t *testing.T, cache *Cache, root fsutil.ReadFS, start string) (map
 	return found, w.Install()
 }
 
-func TestScanCacheFindsChildAddedUnderReusedParent(t *testing.T) {
+func TestScanCacheFindsChildOfReusedParent(t *testing.T) {
 	aged := time.Now().Add(-time.Minute)
 
 	f := newFakeFS()
@@ -262,7 +262,7 @@ func TestScanCacheRejectsRacyListing(t *testing.T) {
 	}
 }
 
-func TestScanCacheDoesNotReuseZeroDirectoryModTime(t *testing.T) {
+func TestScanCacheIgnoresZeroDirModTime(t *testing.T) {
 	f := newFakeFS()
 	f.mkdir("books", time.Time{})
 	cache := openCache(true)

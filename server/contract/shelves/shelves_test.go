@@ -9,7 +9,7 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-func TestAPIShelvesReportPerShelfReadOnlyContract(t *testing.T) {
+func TestAPIShelvesReportShelfReadOnly(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlySecondShelf(t.TempDir()))
 
 	rec := env.Get("/api/shelves")
@@ -33,7 +33,7 @@ func TestAPIShelvesReportPerShelfReadOnlyContract(t *testing.T) {
 	}
 }
 
-func TestAPIShelvesReportServerReadOnlyContract(t *testing.T) {
+func TestAPIShelvesReportServerReadOnly(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyServer())
 
 	rec := env.Get("/api/shelves")
@@ -50,7 +50,7 @@ func TestAPIShelvesReportServerReadOnlyContract(t *testing.T) {
 	}
 }
 
-func TestAPIReadOnlyShelfLeavesServerModeContract(t *testing.T) {
+func TestAPIReadOnlyShelfKeepsServerMode(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
 	mode := apitest.GetJSON[map[string]any](t, env, "/api/mode")

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxTestNameLen = 50
+	maxTestNameLen = 40
 	maxNameLen     = 28
 )
 

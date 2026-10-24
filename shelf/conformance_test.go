@@ -149,7 +149,7 @@ func TestBookPackageConformanceThroughWebDAV(t *testing.T) {
 	}
 }
 
-func TestBookPackageConformanceDatasetIsComplete(t *testing.T) {
+func TestConformanceDatasetIsComplete(t *testing.T) {
 	manifest := loadConformanceManifest(t)
 
 	listed := make([]string, 0, len(manifest.Cases))

@@ -120,7 +120,7 @@ func TestCharCountRefreshAfterSourceSwitch(t *testing.T) {
 	}
 }
 
-func TestRefreshBookCharCountIgnoresAnUncachedBook(t *testing.T) {
+func TestRefreshCharCountUncachedBook(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	book := newBookWithContent(t, s, "Deleted", "abcde")
@@ -155,7 +155,7 @@ func TestScanFillsCharCountsFromTheShelf(t *testing.T) {
 	}
 }
 
-func TestScanKeepsACharCountObservedAfterItsOwnRead(t *testing.T) {
+func TestScanKeepsLaterCharCount(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	book := newBookWithContent(t, s, "Raced", "abcde")
@@ -176,7 +176,7 @@ func TestScanKeepsACharCountObservedAfterItsOwnRead(t *testing.T) {
 	}
 }
 
-func TestRefreshBookCharCountAppliesToAReplacedEntry(t *testing.T) {
+func TestRefreshCharCountReplacedEntry(t *testing.T) {
 	s := newCountingTestShelf(t)
 
 	book := newBookWithContent(t, s, "Replaced", "abcde")

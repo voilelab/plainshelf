@@ -141,7 +141,7 @@ func TestWriteFileAtomicReplacesExistingFile(t *testing.T) {
 	}
 }
 
-func TestAtomicWriteFileFailurePreservesDestination(t *testing.T) {
+func TestAtomicWriteFailureKeepsDestination(t *testing.T) {
 	root := t.TempDir()
 	ffs := newTestFS(t, root)
 
@@ -164,7 +164,7 @@ func TestAtomicWriteFileFailurePreservesDestination(t *testing.T) {
 	}
 }
 
-func TestWriteFileAtomicRemovesTempOnRenameFailure(t *testing.T) {
+func TestWriteAtomicCleansTempOnRenameError(t *testing.T) {
 	root := t.TempDir()
 	faulty := &faultFS{FS: newTestFS(t, root), failRename: true}
 
@@ -204,7 +204,7 @@ func TestWriteAtomicStreamsReader(t *testing.T) {
 	}
 }
 
-func TestAtomicReadFailurePreservesDestination(t *testing.T) {
+func TestAtomicReadFailureKeepsDestination(t *testing.T) {
 	root := t.TempDir()
 	ffs := newTestFS(t, root)
 
@@ -230,7 +230,7 @@ func TestAtomicReadFailurePreservesDestination(t *testing.T) {
 	}
 }
 
-func TestWriteAtomicRemovesTempWhenOpenWriterFails(t *testing.T) {
+func TestWriteAtomicCleansTempOnOpenError(t *testing.T) {
 	root := t.TempDir()
 	faulty := &faultFS{FS: newTestFS(t, root), failOpenWriter: true}
 

@@ -188,7 +188,7 @@ func TestWorkerCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestWorkerRunReturnsErrWorkerBusyWhenQueueIsFull(t *testing.T) {
+func TestWorkerRunBusyWhenQueueFull(t *testing.T) {
 	w := newTestWorker(t, 1)
 
 	ran := []string{}

@@ -48,7 +48,7 @@ func TestCountBookPackagesTraversal(t *testing.T) {
 	}
 }
 
-func TestCountBookPackagesWithoutBooksIsNotAShelf(t *testing.T) {
+func TestCountBookPackagesWithoutBooks(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, booksFolder), nil, 0o644); err != nil {
 		t.Fatal(err)

@@ -123,7 +123,7 @@ func TestAPIBookCharCountAfterSourceWrites(t *testing.T) {
 	}
 }
 
-func TestAPIBookCommentIsStoredVerbatimContract(t *testing.T) {
+func TestAPIBookCommentStoredVerbatim(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Described", "", "described.txt", "body")
 
@@ -274,7 +274,7 @@ func removeSourceFolder(t *testing.T, env *apitest.Env, bookID, sourceID string)
 	}
 }
 
-func TestAPIDanglingCurrentSourceFallsBackOnRead(t *testing.T) {
+func TestAPIDanglingCurrentSourceFallback(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Dangling Current Source", "", "dangle.txt", "surviving body")
 	survivingID := created.Meta.CurrentSource

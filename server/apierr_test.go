@@ -176,7 +176,7 @@ func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
 	}
 }
 
-func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
+func TestWriteErrHidesUnknownError(t *testing.T) {
 	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
@@ -293,7 +293,7 @@ func TestAPIErrorCodesAreUniqueAndWellFormed(t *testing.T) {
 	}
 }
 
-func TestIgnoredFolderNameErrorKeepsTheTablesCode(t *testing.T) {
+func TestIgnoredFolderNameErrorCode(t *testing.T) {
 	tableEntry, ok := apiErrorFor(util.Errorf("%w", shelf.ErrIgnoredFolderName))
 	if !ok {
 		t.Fatal("apiErrorFor(ErrIgnoredFolderName) not found in table")
@@ -311,7 +311,7 @@ func TestIgnoredFolderNameErrorKeepsTheTablesCode(t *testing.T) {
 	}
 }
 
-func TestMalformedMetadataErrorKeepsTheTablesCode(t *testing.T) {
+func TestMalformedMetadataErrorCode(t *testing.T) {
 	tableEntry, ok := apiErrorFor(util.Errorf("%w", shelf.ErrMalformedMetadata))
 	if !ok {
 		t.Fatal("apiErrorFor(ErrMalformedMetadata) not found in table")
@@ -327,7 +327,7 @@ func TestMalformedMetadataErrorKeepsTheTablesCode(t *testing.T) {
 	}
 }
 
-func TestWriteErrStatusSeparatesUnknownFromInternal(t *testing.T) {
+func TestWriteErrStatusUnknownVsInternal(t *testing.T) {
 	app := newTestApp(t)
 
 	tests := []struct {

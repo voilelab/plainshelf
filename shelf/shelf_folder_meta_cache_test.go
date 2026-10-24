@@ -94,7 +94,7 @@ func TestFolderMetaCacheRefresh(t *testing.T) {
 	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction/Classics": "moon"})
 }
 
-func TestFolderMetaConflictRefreshesTheCachedVersion(t *testing.T) {
+func TestFolderMetaConflictRefreshesVersion(t *testing.T) {
 	s, libRoot := newCachedFolderMetaShelf(t, ShelfConf{}, FolderPath{"Fiction"})
 	if err := s.SetFolderIcon(FolderPath{"Fiction"}, "book", ""); err != nil {
 		t.Fatalf("SetFolderIcon: %v", err)
@@ -151,7 +151,7 @@ func (f *folderMetaOpens) Open(name string) (fs.File, error) {
 	return f.FS.Open(name)
 }
 
-func TestFolderMetaScanReadsOnlyFoldersThatHaveIt(t *testing.T) {
+func TestFolderMetaScanReadsOnlyItsFolders(t *testing.T) {
 	s, libRoot := newCachedFolderMetaShelf(t, ShelfConf{})
 	const folders, withMeta = 40, 5
 	for i := range folders {
@@ -225,7 +225,7 @@ func TestBookCacheExportCarriesFolderMeta(t *testing.T) {
 	}
 }
 
-func TestRemoteShelfListsFolderMetaFromTheExport(t *testing.T) {
+func TestRemoteShelfFolderMetaFromExport(t *testing.T) {
 	libRoot := seedExportedShelf(t, "One", "Two")
 	writeFolderMeta(t, libRoot, `{"icon":"rocket"}`, "Fiction")
 
@@ -304,7 +304,7 @@ func TestRemoteFolderMetaReexport(t *testing.T) {
 	}
 }
 
-func TestFolderMetaSurvivesOfflineSnapshotAndReconnect(t *testing.T) {
+func TestFolderMetaSurvivesOfflineSnapshot(t *testing.T) {
 	libRoot := seedExportedShelf(t, "One", "Two")
 	name := bookCacheFilePrefix + testWriterID + bookCacheFileSuffix
 	cache, err := readBookCacheFileAt(filepath.Join(libRoot, appFolder, name))

@@ -64,7 +64,7 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 	}
 }
 
-func TestAPIMultipartSourcePreservesCanonicalUTF8(t *testing.T) {
+func TestAPIMultipartSourceKeepsUTF8(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Unicode Source", "", "src.txt", "content")
 	for _, content := range []string{"🍥", "中文", "短い本文", "# One\nBody 🍥"} {

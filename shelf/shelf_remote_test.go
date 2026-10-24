@@ -155,7 +155,7 @@ func TestRemoteShelfListsWithoutBookReads(t *testing.T) {
 	}
 }
 
-func TestRemoteShelfRefreshRereadsOnlyTheExport(t *testing.T) {
+func TestRemoteShelfRefreshRereadsExport(t *testing.T) {
 	libRoot := seedExportedShelf(t, "Dune", "Solaris")
 	s, counter := openRemoteShelf(t, libRoot, ShelfConf{ScanInterval: "1ms", BookCheckInterval: "1ms"})
 	counter.take()
@@ -197,7 +197,7 @@ func TestRemoteShelfRefreshRereadsOnlyTheExport(t *testing.T) {
 	}
 }
 
-func TestRemoteShelfWithoutExportWalksOnlyOnOpen(t *testing.T) {
+func TestRemoteShelfWithoutExportWalksOnce(t *testing.T) {
 	libRoot := seedExportedShelf(t, "Dune", "Solaris")
 	if err := os.RemoveAll(path.Join(libRoot, appFolder)); err != nil {
 		t.Fatalf("remove app/: %v", err)
@@ -305,7 +305,7 @@ func TestRemoteShelfIsReadOnly(t *testing.T) {
 	}
 }
 
-func TestRemoteShelfPicksUpAReexportInTheSameSecond(t *testing.T) {
+func TestRemoteShelfSameSecondReexport(t *testing.T) {
 	libRoot := seedExportedShelf(t, "Dune", "Solaris")
 	cachePath := path.Join(libRoot, appFolder, bookCacheFilePrefix+testWriterID+bookCacheFileSuffix)
 	first, err := readBookCacheFileAt(cachePath)
@@ -386,7 +386,7 @@ func openGoneShelf(t *testing.T, libRoot string, gone bool) (*Shelf, *goneFS, er
 	return s, source, s.WaitReady(t.Context())
 }
 
-func TestRemoteShelfWithMissingRootIsNotAShelf(t *testing.T) {
+func TestRemoteShelfMissingRoot(t *testing.T) {
 	cases := map[string]struct {
 		libRoot string
 		gone    bool
@@ -436,7 +436,7 @@ func TestRemoteShelfWithEmptyBooksOpensEmpty(t *testing.T) {
 	}
 }
 
-func TestRemoteShelfKeepsListingWhenSourceDisappears(t *testing.T) {
+func TestRemoteShelfKeepsListingWhenGone(t *testing.T) {
 	libRoot := seedExportedShelf(t, "Dune", "Solaris")
 	s, source, err := openGoneShelf(t, libRoot, false)
 	if err != nil {

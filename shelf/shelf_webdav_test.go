@@ -59,7 +59,7 @@ func openWebDAVShelfRecorded(t *testing.T, libRoot string) (*Shelf, *davRecorder
 	return s, rec
 }
 
-func TestWebDAVShelfRequestsDoNotGrowWithBooks(t *testing.T) {
+func TestWebDAVShelfRequestsStayFlat(t *testing.T) {
 	counts := map[int]int{}
 	for _, n := range []int{2, 12} {
 		titles := make([]string, n)

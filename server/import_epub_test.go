@@ -75,7 +75,7 @@ func TestEPUBBookTitle(t *testing.T) {
 	}
 }
 
-func TestEPUBRenderUsesStableHeadingForUntitledChapter(t *testing.T) {
+func TestEPUBUntitledChapterHeading(t *testing.T) {
 	rendered := epub.Render(&epub.Book{
 		Title: "Untitled chapter",
 		Chapters: []epub.Chapter{
@@ -238,7 +238,7 @@ func TestEPUBImageNamingAgreesWithShelf(t *testing.T) {
 	}
 }
 
-func TestImportEPUBPerRequestStrategyInheritsKeepImages(t *testing.T) {
+func TestEPUBRequestInheritsKeepImages(t *testing.T) {
 	off := false
 	fallback := epub.Strategy{Preset: epub.PresetMarkdown, KeepImages: &off}
 

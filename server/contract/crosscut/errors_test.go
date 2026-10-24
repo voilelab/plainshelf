@@ -79,7 +79,7 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 	}
 }
 
-func TestAPIReadOnlyShelfRefusalCarriesItsCodeContract(t *testing.T) {
+func TestAPIReadOnlyShelfRefusalCode(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
 	rec := env.Post(apitest.ShelfURL("folders", "new-folder"), nil)
@@ -88,7 +88,7 @@ func TestAPIReadOnlyShelfRefusalCarriesItsCodeContract(t *testing.T) {
 		"shelf is opened read-only; this PlainShelf instance cannot modify it")
 }
 
-func TestAPIInternalErrorBodyWithholdsTheCauseContract(t *testing.T) {
+func TestAPIInternalErrorHidesCause(t *testing.T) {
 
 	libRoot := filepath.Join(t.TempDir(), "secret-shelf-b7f2")
 	if err := os.MkdirAll(libRoot, 0755); err != nil {

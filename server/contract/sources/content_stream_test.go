@@ -10,7 +10,7 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
+func TestAPIStreamEmptyFileInWails(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Empty Stream Book", "", "empty.txt", "content")
 	bookID := created.Meta.ID
@@ -47,7 +47,7 @@ func TestAPIPatchContentRefusesOversizedBody(t *testing.T) {
 	}
 }
 
-func TestAPIPatchContentOversizeUnsupportedEncoding(t *testing.T) {
+func TestAPIPatchContentOversizeEncoding(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Oversized UTF-32", "", "big.txt", "original")
 	url := apitest.SourceURL(created.Meta.ID, created.Meta.CurrentSource, "content")

@@ -56,7 +56,7 @@ func TestRescanSkipsMalformedBooks(t *testing.T) {
 	}
 }
 
-func TestTrashedBookWithMalformedBookMetaReportsTheFile(t *testing.T) {
+func TestTrashedBookMalformedMetaNamesFile(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 

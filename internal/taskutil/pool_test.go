@@ -86,7 +86,7 @@ func TestPoolGetReportsUnknownID(t *testing.T) {
 	}
 }
 
-func TestPoolSubmitRejectsDuplicateKeyWhileActive(t *testing.T) {
+func TestPoolSubmitRejectsActiveDuplicate(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 
 	running := &TaskChain{Key: "empty_trash:default", Tasks: []Task{&statusTask{status: StatusRunning}}}
@@ -124,7 +124,7 @@ func TestPoolSubmitAllowsSameKeyOnceTerminal(t *testing.T) {
 	}
 }
 
-func TestPoolSubmitAllowsConcurrentChainsWithoutKey(t *testing.T) {
+func TestPoolSubmitUnkeyedChainsRunTogether(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 
 	if _, err := p.Submit(chainWithStatus(StatusRunning)); err != nil {
@@ -200,7 +200,7 @@ func TestPoolDuplicateKeyDuringLaterTask(t *testing.T) {
 	}
 }
 
-func TestPoolSubmitRejectionDoesNotEvictRetainedChains(t *testing.T) {
+func TestPoolRejectionKeepsRetainedChains(t *testing.T) {
 	p := NewPool(newTestWorker(t, 1), 1)
 	t.Cleanup(func() { _ = p.Close() })
 

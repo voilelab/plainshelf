@@ -11,7 +11,7 @@ import (
 
 // Badger locks the store directory until the handle is closed, so a startup
 // that fails after opening it must still release the lock.
-func TestNewAppReleasesStoreWhenLaterStepFails(t *testing.T) {
+func TestNewAppReleasesStoreOnFailure(t *testing.T) {
 	storePath := filepath.Join(t.TempDir(), "store")
 
 	conf := &AppConf{

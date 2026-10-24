@@ -48,7 +48,7 @@ func TestAPIBookSchemaVersionContract(t *testing.T) {
 	}
 }
 
-func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
+func TestAPIUnsupportedSchemaReturns409(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Future Book", "", "future.txt", "body")
 
@@ -74,7 +74,7 @@ func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
 	}
 }
 
-func TestAPIUnsupportedSchemaVersionDoesNotMoveFolder(t *testing.T) {
+func TestAPIUnsupportedSchemaKeepsFolder(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Folder Guard", "origin/folder", "folder.txt", "body")
 
@@ -140,7 +140,7 @@ func TestAPITrashSchemaVersionContract(t *testing.T) {
 	}
 }
 
-func TestAPIUnsupportedTrashSchemaVersionReturns409(t *testing.T) {
+func TestAPIUnsupportedTrashSchema409(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Future Trash", "origin/folder", "future.txt", "body")
 

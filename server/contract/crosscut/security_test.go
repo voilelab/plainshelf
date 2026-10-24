@@ -87,7 +87,7 @@ func TestAPISecurityOriginAndCORSContract(t *testing.T) {
 	}
 }
 
-func TestAPISecurityContainerDefaultConfigContract(t *testing.T) {
+func TestAPISecurityContainerDefaults(t *testing.T) {
 	confPath := filepath.Join(apitest.RepoRoot(t), "docker", "config.yaml")
 	bs, err := os.ReadFile(confPath)
 	if err != nil {

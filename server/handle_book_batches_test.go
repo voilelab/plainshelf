@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestNormalizeBookBatchIDsPreservesFirstOccurrence(t *testing.T) {
+func TestBatchIDsKeepFirstOccurrence(t *testing.T) {
 	got, err := normalizeBookBatchIDs([]string{" b ", "a", "b"})
 	if err != nil {
 		t.Fatalf("normalize: %v", err)

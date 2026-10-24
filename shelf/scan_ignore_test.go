@@ -75,7 +75,7 @@ func folderStrings(folders []FolderPath) []string {
 	return out
 }
 
-func TestGetAllFoldersIgnoresSystemDirectories(t *testing.T) {
+func TestGetAllFoldersIgnoresSystemDirs(t *testing.T) {
 	cleanRoot := t.TempDir()
 	noisyRoot := t.TempDir()
 
@@ -133,7 +133,7 @@ func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
+func TestBookCacheExportOmitsIgnoredDirs(t *testing.T) {
 	libRoot := t.TempDir()
 	makeUserFolderTree(t, libRoot)
 	plantIgnoredDirs(t, libRoot)
@@ -209,7 +209,7 @@ func TestDefaultIgnoreRulesAndReasons(t *testing.T) {
 	}
 }
 
-func TestValidateFolderPathRejectsIgnoredNames(t *testing.T) {
+func TestFolderPathRejectsIgnoredNames(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	for _, name := range ignoredDirFixtures {

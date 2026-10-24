@@ -148,7 +148,7 @@ func TestNSFWFolderPathSpellings(t *testing.T) {
 	}
 }
 
-func TestNSFWTopLevelFolderMarksEverythingUnderIt(t *testing.T) {
+func TestNSFWTopLevelFolderMarksSubtree(t *testing.T) {
 	s := openNSFWShelf(t, `{
 		"content": {"nsfw_folders": [{"path": "Fiction"}]}
 	}`)
@@ -204,7 +204,7 @@ func quoteJSON(t *testing.T, value string) string {
 	return string(encoded)
 }
 
-func TestNSFWExportedCacheCarriesTheAssembledAnswer(t *testing.T) {
+func TestNSFWExportCarriesAssembledAnswer(t *testing.T) {
 	libRoot := t.TempDir()
 	for _, book := range nsfwFixtureBooks {
 		writeNSFWFixtureBook(t, libRoot, book.folderDir, book.bookID, book.nsfwField)
@@ -248,7 +248,7 @@ func TestNSFWExportedCacheCarriesTheAssembledAnswer(t *testing.T) {
 	}
 }
 
-func TestNSFWUnmarkedShelfExportsUnchangedBytes(t *testing.T) {
+func TestNSFWUnmarkedShelfExportUnchanged(t *testing.T) {
 	libRoot := t.TempDir()
 	writeNSFWFixtureBook(t, libRoot, "Fiction/Classics", "clean-0001", "")
 	newTestShelf(t, &ShelfConf{

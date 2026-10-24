@@ -115,7 +115,7 @@ func TestFSReadsFileContent(t *testing.T) {
 	}
 }
 
-func TestFSFallsBackWhenRecursiveListingIsRefused(t *testing.T) {
+func TestFSFallsBackWithoutRecursiveList(t *testing.T) {
 	srv := pcloudtest.New(t, seedTree(t, sampleTree), mount)
 	srv.RefuseRecursive()
 	f := newTestFS(t, srv, pcloudtest.Token)
@@ -183,7 +183,7 @@ func TestFSRelistsAStaleFolder(t *testing.T) {
 	}
 }
 
-func TestFSRelistingAParentKeepsWhatIsKnownBelowIt(t *testing.T) {
+func TestFSRelistParentKeepsChildren(t *testing.T) {
 	srv := pcloudtest.New(t, seedTree(t, sampleTree), mount)
 	f := newTestFS(t, srv, pcloudtest.Token)
 	now := time.Now()
@@ -231,7 +231,7 @@ func TestFSRetriesTransientFailures(t *testing.T) {
 	}
 }
 
-func TestFSRefusedTokenIsUnavailableAndNotRetried(t *testing.T) {
+func TestFSRefusedTokenIsNotRetried(t *testing.T) {
 	srv := pcloudtest.New(t, seedTree(t, sampleTree), mount)
 	f := newTestFS(t, srv, "wrong-token")
 

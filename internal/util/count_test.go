@@ -54,7 +54,7 @@ func TestTextCounterChars(t *testing.T) {
 	}
 }
 
-func TestTextCounterMatchesWholeInputAcrossSplits(t *testing.T) {
+func TestTextCounterSplitsMatchWhole(t *testing.T) {
 	inputs := []struct {
 		name  string
 		input string

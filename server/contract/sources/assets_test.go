@@ -138,7 +138,7 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
+func TestAssetRevalidationAfterReplace(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Replaced Art", "", "art.md", "body")
 	sourceID := env.CurrentSourceID(t, created.Meta.ID)
@@ -297,7 +297,7 @@ func TestAPISourceAssetsBundleContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-func TestAPISourceAssetsBundleFollowsTheTokenGate(t *testing.T) {
+func TestAPISourceAssetsBundleTokenGate(t *testing.T) {
 	security := apitest.LocalTokenSecurity()
 	security.ProtectRead = true
 	env := apitest.New(t, apitest.WithSecurity(security))
@@ -319,7 +319,7 @@ func TestAPISourceAssetsBundleFollowsTheTokenGate(t *testing.T) {
 	}
 }
 
-func TestAPISourceAssetsBundleRejectsUnsafeNames(t *testing.T) {
+func TestAPISourceAssetsBundleUnsafeNames(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Unsafe Bundle", "", "art.md", "secret body")
 	sourceID := env.CurrentSourceID(t, created.Meta.ID)

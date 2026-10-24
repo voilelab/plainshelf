@@ -68,7 +68,7 @@ func TestNormalizeIgnoresLayout(t *testing.T) {
 	}
 }
 
-func TestNormalizeIgnoresQuoteAndPunctuationStyle(t *testing.T) {
+func TestNormalizeIgnoresPunctuationStyle(t *testing.T) {
 	variants := []string{
 		"他說：「這是一本書。」",
 		"他說：“這是一本書。”",
@@ -245,7 +245,7 @@ func TestNormalizeVersionIsSet(t *testing.T) {
 	}
 }
 
-func TestNormalizeGoldenOutputsBelongToNormalizeVersion(t *testing.T) {
+func TestNormalizeGoldenMatchesVersion(t *testing.T) {
 	const goldenVersion = "nfkc-strip-space-punct-v2"
 	if NormalizeVersion != goldenVersion {
 		t.Fatalf("NormalizeVersion is %q but this table was recorded under %q; regenerate it for the new version", NormalizeVersion, goldenVersion)

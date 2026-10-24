@@ -64,7 +64,7 @@ func TestReadOnlyBookRefusesWrites(t *testing.T) {
 	}
 }
 
-func TestRefusedSourceWriteLeavesMetaUntouched(t *testing.T) {
+func TestRefusedSourceWriteKeepsMeta(t *testing.T) {
 	root := readOnlyFS{testdataFS(t)}
 
 	book, err := bookpkg.Open(root, newLoggerForTest(), "book-a82m")
@@ -312,7 +312,7 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 	}
 }
 
-func TestReadOnlyShelfWithoutRuntimeFoldersOpens(t *testing.T) {
+func TestReadOnlyShelfOpensWithoutRuntimeDirs(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
 

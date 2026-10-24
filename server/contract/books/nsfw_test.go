@@ -9,7 +9,7 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-func TestAPINSFWBooksCannotBeReachedThroughABatch(t *testing.T) {
+func TestAPINSFWBooksHiddenFromBatch(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
 	type batchFailure struct {
@@ -68,7 +68,7 @@ func TestAPIBookNSFWIsWritableThroughPatch(t *testing.T) {
 	apitest.AssertStatus(t, s.Env.Get(apitest.BookURL(s.Visible)), http.StatusNotFound)
 }
 
-func TestAPIBookNSFWPatchCannotClearAFolderRule(t *testing.T) {
+func TestAPIBookNSFWPatchKeepsFolderRule(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	apitest.SetShowNSFW(t, s.Env, true)
 
@@ -86,7 +86,7 @@ func TestAPIBookNSFWPatchCannotClearAFolderRule(t *testing.T) {
 	}
 }
 
-func TestAPIBookReportsTheFolderRuleThatMarksIt(t *testing.T) {
+func TestAPIBookReportsMarkingFolderRule(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	apitest.SetShowNSFW(t, s.Env, true)
 

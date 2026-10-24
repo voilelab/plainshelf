@@ -207,7 +207,7 @@ func TestCreateRootSource(t *testing.T) {
 	}
 }
 
-func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
+func TestLegacySourceSaveKeepsFormatOwner(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "legacy-book", "Legacy")
 	source, err := book.NewSource(bytes.NewBufferString("before"))
 	if err != nil {
@@ -253,7 +253,7 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 	}
 }
 
-func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
+func TestNewerSourceSchemaIsReadOnly(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "future-book", "Future source")
 	source, err := book.NewSource(bytes.NewBufferString("original"))
 	if err != nil {

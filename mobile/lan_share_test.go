@@ -281,7 +281,7 @@ func TestLANShareRotationRevokesAndPersists(t *testing.T) {
 	}
 }
 
-func TestLANShareQRUsesCurrentSelectionAndNames(t *testing.T) {
+func TestLANShareQRUsesCurrentSelection(t *testing.T) {
 	shareOnLoopback(t)
 	startT(t, t.TempDir())
 	a := createShelf(t, "Phone")

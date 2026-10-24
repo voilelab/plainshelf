@@ -93,7 +93,7 @@ func TestAPIFolderTransferMoveContract(t *testing.T) {
 	}
 }
 
-func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
+func TestAPIFolderTransferFolderConflict(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Source", "fiction", "src.txt", "a")
 
@@ -115,7 +115,7 @@ func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
 	}
 }
 
-func TestAPITransferPreflightPreservesRescanTokens(t *testing.T) {
+func TestAPITransferPreflightKeepsTokens(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Source", "fiction", "src.txt", "a")
 	apitest.AssertStatus(t, env.Post(apitest.ShelfIDURL(apitest.SecondShelfID, "folders", "taken"), nil), http.StatusNoContent)
@@ -136,7 +136,7 @@ func TestAPITransferPreflightPreservesRescanTokens(t *testing.T) {
 	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
 }
 
-func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
+func TestAPIFolderTransferBookIDConflict(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	original := apitest.ImportTextBook(t, env, "Twice", "fiction", "twice.txt", "body")
 	id := original.Meta.ID
@@ -169,7 +169,7 @@ func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
 	}
 }
 
-func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
+func TestAPIFolderTransferDuplicateChain(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Queued", "fiction", "queued.txt", "body")
 
@@ -184,7 +184,7 @@ func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
 	})
 }
 
-func TestAPIFolderTransferReadOnlyTargetContract(t *testing.T) {
+func TestAPIFolderTransferReadOnlyTarget(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlySecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "No Room", "fiction", "noroom.txt", "body")
 

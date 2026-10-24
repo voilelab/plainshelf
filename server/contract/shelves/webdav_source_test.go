@@ -90,7 +90,7 @@ func listBooks(t *testing.T, env *apitest.Env, shelfID string) map[string]string
 	return titles
 }
 
-func TestAPIPlainShelfSourceReadsTheExportContract(t *testing.T) {
+func TestAPIPlainShelfSourceReadsExport(t *testing.T) {
 	exporter := newDAVExporter(t)
 	exporter.seed(t, "Dune", "Solaris")
 
@@ -219,7 +219,7 @@ func TestAPISourceValidationAtStartup(t *testing.T) {
 	}
 }
 
-func TestAPILocalSourceOpensLikeLibRootContract(t *testing.T) {
+func TestAPILocalSourceOpensLikeLibRoot(t *testing.T) {
 	libRoot := t.TempDir()
 	env := apitest.New(t, func(conf *server.AppConf) {
 		conf.Shelves[0].LibRoot = ""

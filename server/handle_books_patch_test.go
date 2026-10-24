@@ -8,7 +8,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func TestApplyBookPatchLeavesOmittedFieldsAlone(t *testing.T) {
+func TestBookPatchKeepsOmittedFields(t *testing.T) {
 	before := shelf.BookMeta{
 		ID:       "book_1",
 		Title:    "Original",

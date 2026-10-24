@@ -30,7 +30,7 @@ func TestAPINSFWBooksAreAbsentFromListings(t *testing.T) {
 	apitest.AssertBookIDs(t, groups[0], s.Visible, s.FolderHidden)
 }
 
-func TestAPINSFWBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
+func TestAPINSFWBooksAnswerNotFound(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 
 	sourceID := apitest.CurrentSourceOf(t, s.Env, s.Visible)
@@ -71,7 +71,7 @@ func TestAPINSFWBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
 	}
 }
 
-func TestAPINSFWShelfAnswerOverridesTheSetting(t *testing.T) {
+func TestAPINSFWShelfOverridesSetting(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	folders := func() []shelf.FolderPath {
 		return apitest.GetJSON[[]shelf.FolderPath](t, s.Env, apitest.ShelfURL("folders"))

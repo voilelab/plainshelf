@@ -64,7 +64,7 @@ func TestBookDuplicateMemberError(t *testing.T) {
 	}
 }
 
-func TestOpenBookRejectsInvalidUTF8AndNamesTheFile(t *testing.T) {
+func TestOpenBookInvalidUTF8NamesFile(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t,
 		"{\"schema_version\": 1, \"id\": \"hand-edited\", \"comments\": \"\xff\xfe\"}")
 
@@ -89,7 +89,7 @@ func TestOpenBookRejectsTrailingData(t *testing.T) {
 	}
 }
 
-func TestOpenBookDoesNotApplyACaseVariantMemberName(t *testing.T) {
+func TestOpenBookIgnoresCaseVariantMember(t *testing.T) {
 	root, bookFolder := newBookWithRawMeta(t,
 		`{"schema_version": 1, "id": "hand-edited", "Title": "Capitalised"}`)
 

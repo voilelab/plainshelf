@@ -91,7 +91,7 @@ func TestShelfRuntimeStateAndIntervals(t *testing.T) {
 	}
 }
 
-func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
+func TestWaitReadyCancelAndInitReads(t *testing.T) {
 	shelf := &Shelf{readyCh: make(chan struct{})}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -311,7 +311,7 @@ func TestShelfTrashLifecycle(t *testing.T) {
 	}
 }
 
-func TestShelfRestoreTrashResolvesFolderCollision(t *testing.T) {
+func TestRestoreTrashFolderCollision(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	original, err := shelf.NewBook(FolderPath{"fiction"}, "Same Title")
@@ -427,7 +427,7 @@ func TestShelfRenameFolderNested(t *testing.T) {
 	}
 }
 
-func TestShelfRenameFolderStaysUnderSameParent(t *testing.T) {
+func TestRenameFolderStaysUnderParent(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
 
@@ -473,7 +473,7 @@ func TestShelfMoveFolderUnderExistingFolder(t *testing.T) {
 	}
 }
 
-func TestShelfMoveFolderRequiresExistingTarget(t *testing.T) {
+func TestMoveFolderRequiresTarget(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -531,7 +531,7 @@ func TestShelfRenameFolderRejectsBadArguments(t *testing.T) {
 	}
 }
 
-func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
+func TestGetBookRefreshesChangedMeta(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "lib")
 
 	err := os.CopyFS(tmpLib, os.DirFS("testdata/lib"))
@@ -656,7 +656,7 @@ func TestListBooksCacheRefresh(t *testing.T) {
 	}
 }
 
-func TestListBooksKeepsBookWithFutureSchemaVersion(t *testing.T) {
+func TestListBooksKeepsFutureSchema(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "lib")
 
 	if err := os.CopyFS(tmpLib, os.DirFS("testdata/lib")); err != nil {

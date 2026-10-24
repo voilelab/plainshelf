@@ -97,7 +97,7 @@ func TestInsecureNetworkExposure(t *testing.T) {
 	}
 }
 
-func TestLogAPIRequiresTokenRegardlessOfProtectRead(t *testing.T) {
+func TestLogAPIAlwaysNeedsToken(t *testing.T) {
 	localToken := func(protectRead bool) *SecurityConf {
 		return &SecurityConf{
 			Mode:                        SecurityModeLocalToken,
@@ -133,7 +133,7 @@ func TestLogAPIRequiresTokenRegardlessOfProtectRead(t *testing.T) {
 	}
 }
 
-func TestShelfScanFollowsProtectReadRatherThanItsMethod(t *testing.T) {
+func TestShelfScanFollowsProtectRead(t *testing.T) {
 	const scanPath = "/api/shelves/default_shelf/scans"
 
 	localToken := func(protectRead bool) *SecurityConf {
@@ -217,7 +217,7 @@ func TestTokenExemptScanStillChecksOrigin(t *testing.T) {
 	}
 }
 
-func TestLogAPIStaysGatedAlongsideTheScanExemption(t *testing.T) {
+func TestLogAPIGatedBesideScanExemption(t *testing.T) {
 	app := newTestAppWithSecurity(t, &SecurityConf{
 		Mode:                        SecurityModeLocalToken,
 		AllowMissingOriginWithToken: new(true),

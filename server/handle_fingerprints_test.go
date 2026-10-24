@@ -299,7 +299,7 @@ func TestFindSimilarBooksOverBudgetReturns200(t *testing.T) {
 	}
 }
 
-func TestFindSimilarBooksConfirmPreservesPairs(t *testing.T) {
+func TestFindSimilarConfirmKeepsPairs(t *testing.T) {
 	libRoot := t.TempDir()
 	app := fingerprintTestApp(t, libRoot)
 
@@ -378,7 +378,7 @@ func TestFindSimilarBooksSketchBudget(t *testing.T) {
 	}
 }
 
-func TestFindSimilarBooksSkipsUnfingerprintedBooks(t *testing.T) {
+func TestFindSimilarSkipsUnfingerprinted(t *testing.T) {
 	libRoot := t.TempDir()
 	app := fingerprintTestApp(t, libRoot)
 

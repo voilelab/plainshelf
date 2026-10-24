@@ -282,7 +282,7 @@ func TestLANShareRefusesForeignHost(t *testing.T) {
 	}
 }
 
-func TestLANShareStartSavedReportsMissingAddress(t *testing.T) {
+func TestLANShareSavedMissingAddress(t *testing.T) {
 	env := newLANShareEnv(t)
 	if _, err := env.share.apply(LANShareParams{Enabled: true}); err != nil {
 		t.Fatal(err)
@@ -475,7 +475,7 @@ func TestLANShareRotateToken(t *testing.T) {
 	}
 }
 
-func TestDetectLANAddressesExcludesLoopbackAndAny(t *testing.T) {
+func TestLANAddressesExcludeLoopback(t *testing.T) {
 	addrs, err := detectLANAddresses()
 	if err != nil {
 		t.Fatal(err)
