@@ -85,8 +85,9 @@ its interface rather than a list of internals. Drop the `export` when nothing
 needs it; when a unit test is the only reader and the seam is worth keeping,
 record it in the allowlist at the top of `frontend/scripts/check-exports.mjs`.
 
-`npm --prefix frontend run build` also writes `dist/licenses/third-party.txt`
-with `rollup-plugin-license`: the license text of every npm package the bundle
+Every frontend build, the Wasm demo's included, also emits
+`licenses/third-party.txt` into its output directory with
+`rollup-plugin-license`: the license text of every npm package the bundle
 actually contains, linked from Settings → About. It does not see inlined icons,
 fonts, Android native libraries or data a package licenses separately from its
 code, so those keep hand-maintained notices in `frontend/public/licenses/`.
