@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/server/task"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -54,21 +55,33 @@ func (v bookVisibility) keep(listings []shelf.BookListing) []shelf.BookListing {
 	return kept
 }
 
-func (v bookVisibility) visibleBookIDs() (map[string]bool, error) {
+func (v bookVisibility) visibleBooks() (task.VisibleBooks, error) {
 	if v.showNSFW {
-		return nil, nil
+		return task.AllBooks(), nil
 	}
 
 	listings, err := v.listBooks()
 	if err != nil {
-		return nil, util.Errorf("%w", err)
+		return task.VisibleBooks{}, util.Errorf("%w", err)
 	}
 
-	ids := make(map[string]bool, len(listings))
+	ids := make([]string, 0, len(listings))
 	for _, listing := range listings {
-		ids[listing.Book.ID()] = true
+		ids = append(ids, listing.Book.ID())
 	}
-	return ids, nil
+	return task.OnlyBooks(ids...), nil
+}
+
+type occupiedFolders map[string]bool
+
+func (o occupiedFolders) add(folders shelf.FolderPath) {
+	for depth := range len(folders) + 1 {
+		o[folders[:depth].String()] = true
+	}
+}
+
+func (o occupiedFolders) holds(folder shelf.FolderPath) bool {
+	return o[folder.String()]
 }
 
 func (v bookVisibility) filterFolders(folders []shelf.FolderPath) ([]shelf.FolderPath, error) {
@@ -81,17 +94,12 @@ func (v bookVisibility) filterFolders(folders []shelf.FolderPath) ([]shelf.Folde
 		return nil, util.Errorf("%w", err)
 	}
 
-	holdsBook := map[string]bool{}
-	holdsVisibleBook := map[string]bool{}
+	holdsBook := occupiedFolders{}
+	holdsVisibleBook := occupiedFolders{}
 	for _, listing := range listings {
-		allowed := v.allowsListing(listing)
-
-		for depth := range len(listing.Folders) + 1 {
-			key := listing.Folders[:depth].String()
-			holdsBook[key] = true
-			if allowed {
-				holdsVisibleBook[key] = true
-			}
+		holdsBook.add(listing.Folders)
+		if v.allowsListing(listing) {
+			holdsVisibleBook.add(listing.Folders)
 		}
 	}
 
@@ -100,7 +108,7 @@ func (v bookVisibility) filterFolders(folders []shelf.FolderPath) ([]shelf.Folde
 		if v.shelf.IsNSFWFolder(folder) {
 			continue
 		}
-		if key := folder.String(); holdsBook[key] && !holdsVisibleBook[key] {
+		if holdsBook.holds(folder) && !holdsVisibleBook.holds(folder) {
 			continue
 		}
 		kept = append(kept, folder)
@@ -116,8 +124,9 @@ type folderReveal struct {
 func (r folderReveal) any() bool { return r.Books > 0 || r.Folders > 0 }
 
 type folderChange struct {
-	From shelf.FolderPath
-	To   shelf.FolderPath
+	From        shelf.FolderPath
+	To          shelf.FolderPath
+	leavesShelf bool
 }
 
 func folderMovedTo(from, to shelf.FolderPath) folderChange {
@@ -125,12 +134,11 @@ func folderMovedTo(from, to shelf.FolderPath) folderChange {
 }
 
 func folderLeavingTheShelf(from shelf.FolderPath) folderChange {
-	return folderChange{From: from}
+	return folderChange{From: from, leavesShelf: true}
 }
 
 func (c folderChange) stillMarked(s *shelf.Shelf, folders shelf.FolderPath, meta *shelf.BookMeta) bool {
-	if c.To == nil {
-
+	if c.leavesShelf {
 		return meta != nil && meta.NSFW
 	}
 	moved := slices.Concat(c.To, folders[len(c.From):])
@@ -152,15 +160,12 @@ func (v bookVisibility) revealedBy(change folderChange) (folderReveal, error) {
 	}
 
 	var reveal folderReveal
-
-	holdsBook := map[string]bool{}
+	holdsBook := occupiedFolders{}
 	for _, listing := range listings {
 		if !listing.Folders.HasPrefix(change.From) {
 			continue
 		}
-		for depth := range len(listing.Folders) + 1 {
-			holdsBook[listing.Folders[:depth].String()] = true
-		}
+		holdsBook.add(listing.Folders)
 
 		meta := listing.Book.GetMeta()
 		if !v.allows(listing.Folders, meta) && !change.stillMarked(v.shelf, listing.Folders, meta) {
@@ -173,7 +178,7 @@ func (v bookVisibility) revealedBy(change folderChange) (folderReveal, error) {
 		return folderReveal{}, util.Errorf("%w", err)
 	}
 
-	if change.To != nil && slices.ContainsFunc(folders, change.To.Equal) {
+	if !change.leavesShelf && slices.ContainsFunc(folders, change.To.Equal) {
 		return folderReveal{}, nil
 	}
 
@@ -185,7 +190,7 @@ func (v bookVisibility) revealedBy(change folderChange) (folderReveal, error) {
 			continue
 		}
 
-		if !holdsBook[sub.String()] {
+		if !holdsBook.holds(sub) {
 			reveal.Folders++
 		}
 	}
