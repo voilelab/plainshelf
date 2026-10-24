@@ -368,10 +368,10 @@ func TestStaleInstanceAfterStop(t *testing.T) {
 	if err := Stop(); err != nil {
 		t.Fatal(err)
 	}
-	if err := rt.rlock(); !errors.Is(err, ErrNotStarted) {
+	if err := rt.rlockRunning(); !errors.Is(err, ErrNotStarted) {
 		t.Fatalf("rlock after Stop: %v", err)
 	}
-	if err := rt.lock(); !errors.Is(err, ErrNotStarted) {
+	if err := rt.lockRunning(); !errors.Is(err, ErrNotStarted) {
 		t.Fatalf("lock after Stop: %v", err)
 	}
 }
@@ -402,9 +402,9 @@ func TestExportImportAndRemoveWaitForTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := quiesceTimeout
-	quiesceTimeout = 50 * time.Millisecond
-	t.Cleanup(func() { quiesceTimeout = old })
+	old := acceptedTaskChainsTimeout
+	acceptedTaskChainsTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { acceptedTaskChainsTimeout = old })
 
 	task := &heldTask{release: make(chan struct{})}
 	release := sync.OnceFunc(func() { close(task.release) })
@@ -433,7 +433,7 @@ func TestExportImportAndRemoveWaitForTasks(t *testing.T) {
 		t.Fatalf("shelf directories while busy: %v %v", entries, err)
 	}
 
-	quiesceTimeout = 5 * time.Second
+	acceptedTaskChainsTimeout = 5 * time.Second
 	release()
 	if err := ExportShelf(id, zipPath); err != nil {
 		t.Fatalf("ExportShelf after the task: %v", err)

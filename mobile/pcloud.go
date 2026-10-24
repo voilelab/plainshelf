@@ -51,9 +51,26 @@ func OpenPCloudShelf(id, name, host, token, folder, scope string, showNSFW bool)
 	return rt.openVirtual(next, showNSFW)
 }
 
+func (rt *instance) closeVirtualForReplacement(id string) error {
+	if err := rt.waitForAcceptedTaskChains(); err != nil {
+		return err
+	}
+	if err := rt.app.RemoveShelf(id); err != nil {
+		return util.Errorf("%w", err)
+	}
+	delete(rt.virtual, id)
+	return nil
+}
+
+func (rt *instance) restoreVirtual(previous virtualShelf) {
+	if previous.open(rt.app) == nil {
+		rt.virtual[previous.conf.ID] = previous
+	}
+}
+
 func (rt *instance) openVirtual(next virtualShelf, showNSFW bool) error {
 	id := next.conf.ID
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return err
 	}
 	defer rt.mu.Unlock()
@@ -62,19 +79,13 @@ func (rt *instance) openVirtual(next virtualShelf, showNSFW bool) error {
 	}
 	previous, replacing := rt.virtual[id]
 	if replacing {
-
-		if err := rt.quiesce(); err != nil {
+		if err := rt.closeVirtualForReplacement(id); err != nil {
 			return err
 		}
-		if err := rt.app.RemoveShelf(id); err != nil {
-			return util.Errorf("%w", err)
-		}
-		delete(rt.virtual, id)
 	}
 	if err := next.open(rt.app); err != nil {
-
-		if replacing && previous.open(rt.app) == nil {
-			rt.virtual[id] = previous
+		if replacing {
+			rt.restoreVirtual(previous)
 		}
 		return util.Errorf("%w", err)
 	}
@@ -91,7 +102,7 @@ func SetShelfShowNSFW(id string, show bool) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := rt.rlock(); err != nil {
+	if err := rt.rlockRunning(); err != nil {
 		return err
 	}
 	defer rt.mu.RUnlock()
@@ -116,14 +127,14 @@ func CloseVirtualShelf(id string) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return err
 	}
 	defer rt.mu.Unlock()
 	if _, ok := rt.virtual[id]; !ok {
 		return util.Errorf("virtual shelf %q is not open", id)
 	}
-	if err := rt.quiesce(); err != nil {
+	if err := rt.waitForAcceptedTaskChains(); err != nil {
 		return err
 	}
 	if err := rt.app.RemoveShelf(id); err != nil {
@@ -155,7 +166,7 @@ func ShelfNSFWMarks(id string) (out string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if err := rt.rlock(); err != nil {
+	if err := rt.rlockRunning(); err != nil {
 		return "", err
 	}
 	defer rt.mu.RUnlock()
@@ -194,14 +205,14 @@ func RemoveVirtualShelfOffline(scope string) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return err
 	}
 	defer rt.mu.Unlock()
 	if scope == "" {
 		return util.NewError("virtual shelf scope cannot be empty")
 	}
-	if err := rt.quiesce(); err != nil {
+	if err := rt.waitForAcceptedTaskChains(); err != nil {
 		return err
 	}
 	for id, opened := range rt.virtual {

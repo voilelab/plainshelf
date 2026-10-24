@@ -237,9 +237,9 @@ func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := quiesceTimeout
-	quiesceTimeout = 50 * time.Millisecond
-	t.Cleanup(func() { quiesceTimeout = old })
+	old := acceptedTaskChainsTimeout
+	acceptedTaskChainsTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { acceptedTaskChainsTimeout = old })
 
 	task := &heldTask{release: make(chan struct{})}
 	release := sync.OnceFunc(func() { close(task.release) })
@@ -254,7 +254,7 @@ func TestPCloudShelfReplaceAndCloseWaitForTasks(t *testing.T) {
 		t.Errorf("closing during a task: %v", err)
 	}
 
-	quiesceTimeout = 5 * time.Second
+	acceptedTaskChainsTimeout = 5 * time.Second
 	release()
 	if err := CloseVirtualShelf("pcloud-a"); err != nil {
 		t.Errorf("closing after the task: %v", err)

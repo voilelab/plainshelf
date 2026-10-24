@@ -27,6 +27,12 @@ const lanShareTokenName = "lan_share.token"
 
 var lanSharePort = 20001
 
+const (
+	lanShareReadHeaderTimeout     = 10 * time.Second
+	lanShareReadTimeout           = 60 * time.Second
+	lanShareLargeBookWriteTimeout = 300 * time.Second
+)
+
 var lanHostAllowed = func(ip netip.Addr) bool {
 	return ip.Is4() && ip.IsGlobalUnicast()
 }
@@ -89,7 +95,7 @@ func StartLANShare(host, shelfIDsJSON string) (status string, err error) {
 		return "", util.Errorf("address %q is not a LAN address", host)
 	}
 
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return "", err
 	}
 	defer rt.mu.Unlock()
@@ -123,15 +129,13 @@ func StartLANShare(host, shelfIDsJSON string) (status string, err error) {
 	export := rt.app.DAVExportShelvesHandler(tokenFile, s.isShared)
 	s.srv = &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			aw := &activityWriter{ResponseWriter: w, share: s}
+			aw := &admittedActivityWriter{ResponseWriter: w, share: s}
 			export.ServeHTTP(aw, r)
-
-			aw.mark()
+			aw.markIfAdmitted()
 		}),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       60 * time.Second,
-
-		WriteTimeout: 300 * time.Second,
+		ReadHeaderTimeout: lanShareReadHeaderTimeout,
+		ReadTimeout:       lanShareReadTimeout,
+		WriteTimeout:      lanShareLargeBookWriteTimeout,
 	}
 	go func() {
 		if err := s.srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -150,7 +154,7 @@ func RotateLANShareToken() (status string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return "", err
 	}
 	defer rt.mu.Unlock()
@@ -170,7 +174,7 @@ func StopLANShare() (err error) {
 	if err != nil {
 		return err
 	}
-	if rt.lock() != nil {
+	if rt.lockRunning() != nil {
 		return nil
 	}
 	defer rt.mu.Unlock()
@@ -197,7 +201,7 @@ func LANShareStatus() (status string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if err := rt.rlock(); err != nil {
+	if err := rt.rlockRunning(); err != nil {
 		return "", err
 	}
 	defer rt.mu.RUnlock()
@@ -238,7 +242,7 @@ func LANShareIdleMillis() int64 {
 	if err != nil {
 		return -1
 	}
-	if rt.rlock() != nil {
+	if rt.rlockRunning() != nil {
 		return -1
 	}
 	defer rt.mu.RUnlock()
@@ -254,32 +258,32 @@ func (rt *instance) forgetShared(id string) {
 	}
 }
 
-type activityWriter struct {
+type admittedActivityWriter struct {
 	http.ResponseWriter
-	share       *lanShare
-	written, ok bool
+	share             *lanShare
+	written, admitted bool
 }
 
-func (w *activityWriter) WriteHeader(status int) {
+func (w *admittedActivityWriter) WriteHeader(status int) {
 	if !w.written {
 		w.written = true
-		w.ok = status < http.StatusBadRequest
-		w.mark()
+		w.admitted = status < http.StatusBadRequest
+		w.markIfAdmitted()
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
 
-func (w *activityWriter) mark() {
-	if w.ok {
+func (w *admittedActivityWriter) markIfAdmitted() {
+	if w.admitted {
 		w.share.lastActive.Store(time.Now().UnixNano())
 	}
 }
 
-func (w *activityWriter) Write(p []byte) (int, error) {
+func (w *admittedActivityWriter) Write(p []byte) (int, error) {
 	if !w.written {
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.ResponseWriter.Write(p)
 }
 
-func (w *activityWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *admittedActivityWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

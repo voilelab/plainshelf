@@ -72,7 +72,7 @@ type instance struct {
 
 	share *lanShare
 
-	closed bool
+	stopped bool
 }
 
 var (
@@ -160,7 +160,7 @@ func Stop() (err error) {
 	current = nil
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
-	rt.closed = true
+	rt.stopped = true
 	rt.closeLANShare()
 	return rt.app.Close()
 }
@@ -174,31 +174,31 @@ func running() (*instance, error) {
 	return current, nil
 }
 
-func (rt *instance) rlock() error {
+func (rt *instance) rlockRunning() error {
 	rt.mu.RLock()
-	if rt.closed {
+	if rt.stopped {
 		rt.mu.RUnlock()
 		return ErrNotStarted
 	}
 	return nil
 }
 
-func (rt *instance) lock() error {
+func (rt *instance) lockRunning() error {
 	rt.mu.Lock()
-	if rt.closed {
+	if rt.stopped {
 		rt.mu.Unlock()
 		return ErrNotStarted
 	}
 	return nil
 }
 
-var quiesceTimeout = 30 * time.Second
+var acceptedTaskChainsTimeout = 30 * time.Second
 
 // ErrBusy is returned when background tasks do not settle in time.
 var ErrBusy = errors.New("plainshelf: background tasks are still running")
 
-func (rt *instance) quiesce() error {
-	deadline := time.Now().Add(quiesceTimeout)
+func (rt *instance) waitForAcceptedTaskChains() error {
+	deadline := time.Now().Add(acceptedTaskChainsTimeout)
 	for rt.app.TaskChains().Busy() {
 		if time.Now().After(deadline) {
 			return ErrBusy
@@ -245,7 +245,7 @@ func Handle(method, url, headerJSON, bodyPath, outPath string) (res *Response, e
 	}
 	w := &fileResponseWriter{header: http.Header{}, out: bufio.NewWriter(out)}
 
-	if err := rt.rlock(); err != nil {
+	if err := rt.rlockRunning(); err != nil {
 		return nil, err
 	}
 	defer rt.mu.RUnlock()
@@ -307,7 +307,7 @@ func ListShelves() (out string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if err := rt.rlock(); err != nil {
+	if err := rt.rlockRunning(); err != nil {
 		return "", err
 	}
 	defer rt.mu.RUnlock()
@@ -325,7 +325,7 @@ func CreateShelf(name string) (id string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return "", err
 	}
 	defer rt.mu.Unlock()
@@ -341,11 +341,11 @@ func ImportShelf(name, zipPath string) (id string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return "", err
 	}
 	defer rt.mu.Unlock()
-	if err := rt.quiesce(); err != nil {
+	if err := rt.waitForAcceptedTaskChains(); err != nil {
 		return "", err
 	}
 	return rt.addShelf(name, func(libRoot string) error {
@@ -418,11 +418,11 @@ func RenameShelf(id, name string) (err error) {
 	if name == "" {
 		return util.Errorf("shelf name cannot be empty")
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return err
 	}
 	defer rt.mu.Unlock()
-	if err := rt.quiesce(); err != nil {
+	if err := rt.waitForAcceptedTaskChains(); err != nil {
 		return err
 	}
 	i, err := rt.find(id)
@@ -450,11 +450,11 @@ func RemoveShelf(id string) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return err
 	}
 	defer rt.mu.Unlock()
-	if err := rt.quiesce(); err != nil {
+	if err := rt.waitForAcceptedTaskChains(); err != nil {
 		return err
 	}
 	i, err := rt.find(id)
@@ -486,11 +486,11 @@ func ExportShelf(id, zipPath string) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return err
 	}
 	defer rt.mu.Unlock()
-	if err := rt.quiesce(); err != nil {
+	if err := rt.waitForAcceptedTaskChains(); err != nil {
 		return err
 	}
 	if _, err := rt.find(id); err != nil {
@@ -506,7 +506,7 @@ func MarkExported(id string) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := rt.lock(); err != nil {
+	if err := rt.lockRunning(); err != nil {
 		return err
 	}
 	defer rt.mu.Unlock()
