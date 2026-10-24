@@ -1,6 +1,8 @@
 package task
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path"
 	"strings"
@@ -64,14 +66,20 @@ func addFingerprintBook(t *testing.T, testShelf *shelf.Shelf, libRoot, title, co
 		t.Fatalf("NewBookWith(%q): %v", title, err)
 	}
 
+	backdateSourcesSoTheCacheIndexesThem(t, libRoot, book)
+
+	return book
+}
+
+func backdateSourcesSoTheCacheIndexesThem(t *testing.T, libRoot string, book *shelf.Book) {
+	t.Helper()
+
 	old := time.Now().Add(-time.Hour)
 	for _, sourcePath := range sourceFilePaths(t, libRoot, book) {
 		if err := os.Chtimes(sourcePath, old, old); err != nil {
 			t.Fatalf("backdating %s: %v", sourcePath, err)
 		}
 	}
-
-	return book
 }
 
 func addSource(t *testing.T, libRoot string, book *shelf.Book, content string) {
@@ -81,12 +89,7 @@ func addSource(t *testing.T, libRoot string, book *shelf.Book, content string) {
 		t.Fatalf("NewSource: %v", err)
 	}
 
-	old := time.Now().Add(-time.Hour)
-	for _, sourcePath := range sourceFilePaths(t, libRoot, book) {
-		if err := os.Chtimes(sourcePath, old, old); err != nil {
-			t.Fatalf("backdating %s: %v", sourcePath, err)
-		}
-	}
+	backdateSourcesSoTheCacheIndexesThem(t, libRoot, book)
 }
 
 func TestFingerprintSourcesTaskCoversEverySourceOfABook(t *testing.T) {
@@ -333,5 +336,50 @@ func TestBuildFingerprintDescribesTheContent(t *testing.T) {
 	}
 	if empty.Sketch == "" {
 		t.Error("an empty source produced no sketch")
+	}
+}
+
+type cancelAfterChecks struct {
+	context.Context
+	allowed int
+}
+
+func (c *cancelAfterChecks) Err() error {
+	if c.allowed > 0 {
+		c.allowed--
+		return nil
+	}
+	return context.Canceled
+}
+
+func TestFingerprintSourcesCancelledRunKeepsWhatItBuilt(t *testing.T) {
+	libRoot := t.TempDir()
+	testShelf := newFingerprintTestShelf(t, libRoot, false)
+	addFingerprintBook(t, testShelf, libRoot, "Dune", "the spice must flow")
+	addFingerprintBook(t, testShelf, libRoot, "Solaris", "the ocean thinks in shapes")
+
+	cancelled := newFingerprintSourcesTask("default_shelf", testShelf, false, newTaskTestLogger(t), AllBooks())
+	if err := cancelled.Run(&cancelAfterChecks{Context: t.Context(), allowed: 1}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run = %v, want context.Canceled", err)
+	}
+	if cancelled.Status() != taskutil.StatusPartiallyCompleted {
+		t.Fatalf("cancelled status = %v, want partially completed", cancelled.Status())
+	}
+
+	next, err := runFingerprintSources(t, testShelf)
+	if err != nil {
+		t.Fatalf("next run: %v", err)
+	}
+	if got := fingerprintResult(t, next); got.StatHits != 1 || got.Built != 1 {
+		t.Errorf("next run = %+v, want the book fingerprinted before the cancel answered from the saved cache", got)
+	}
+}
+
+func TestFingerprintSourcesChainKeyIgnoresForce(t *testing.T) {
+	logger := newTaskTestLogger(t)
+	incremental := NewFingerprintSourcesChain("default_shelf", nil, false, logger, AllBooks())
+	forced := NewFingerprintSourcesChain("default_shelf", nil, true, logger, AllBooks())
+	if incremental.Key != forced.Key {
+		t.Errorf("keys = %q and %q, want one key so a forced and an incremental sweep never run together", incremental.Key, forced.Key)
 	}
 }

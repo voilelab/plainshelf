@@ -111,7 +111,6 @@ func (t *refreshContentStatsTask) collectBookIDsNeedingContentStats(books []*she
 	for _, book := range books {
 		source, err := book.GetSource(book.CurrentSource())
 		if err != nil {
-
 			ids = append(ids, book.ID())
 			continue
 		}
@@ -179,15 +178,7 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 	t.mu.Lock()
 	failed := len(t.failures)
 	t.mu.Unlock()
-
-	if failed > 0 {
-
-		t.progress.SetStatus(taskutil.StatusPartiallyCompleted)
-		return nil
-	}
-
-	t.progress.SetStatus(taskutil.StatusCompleted)
-	return nil
+	return settleFinishedSweep(&t.progress, failed)
 }
 
 func NewRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, visible VisibleBooks) *taskutil.TaskChain {
