@@ -33,7 +33,8 @@ PY
 }
 tags=""
 for js in memfs opfs wasm_exec boot toolbar; do tags+="<script src=\"${base}wasm/$js.js\"></script>"; done
-inject "$out/index.html" "<head>" "$tags"
+insert_before_app_bundle() { inject "$1" "<head>" "$2"; }
+insert_before_app_bundle "$out/index.html" "$tags"
 
 if [[ $base != / ]]; then
   test -f "$site/404.html" || printf '<!doctype html>\n<html><head><title>Not found</title></head><body>Not found</body></html>\n' >"$site/404.html"

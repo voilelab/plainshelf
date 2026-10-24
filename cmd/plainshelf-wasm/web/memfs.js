@@ -21,6 +21,9 @@
     onChange();
   }
 
+  const pathDepth = (p) => (p === '/' ? 0 : p.split('/').length);
+  const parentsFirst = (entries) => entries.sort((a, b) => pathDepth(a.path) - pathDepth(b.path));
+
   const fsError = (code) => Object.assign(new Error(code), { code });
 
   function norm(p) {
@@ -245,7 +248,7 @@
       return nodes.get(norm(path))?.type;
     },
 
-    markDirty(path) {
+    requeueDirty(path) {
       const n = nodes.get(norm(path));
       if (n) dirty.add(n);
     },
@@ -253,15 +256,14 @@
       onChange = fn;
     },
 
-    takeDirty() {
+    takeDirtyParentsFirst() {
       const out = [];
       for (const [path, n] of nodes) {
         if (!dirty.has(n)) continue;
         out.push({ path, type: n.type, data: n.type === 'file' ? n.data.slice(0, n.size) : null });
       }
       dirty.clear();
-      const depth = (p) => (p === '/' ? 0 : p.split('/').length);
-      return out.sort((a, b) => depth(a.path) - depth(b.path));
+      return parentsFirst(out);
     },
   };
 
