@@ -326,3 +326,21 @@ func TestLANShareQRUsesCurrentSelectionAndNames(t *testing.T) {
 		t.Fatal("QR capacity error lost connection details")
 	}
 }
+
+func TestCloseLANShareClosesAListenerServeNeverReached(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	if err := ln.(*net.TCPListener).SetDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetDeadline: %v", err)
+	}
+
+	rt := &instance{share: &lanShare{srv: &http.Server{}, ln: ln}}
+	rt.closeLANShare()
+
+	if _, err := ln.Accept(); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("Accept after closeLANShare = %v, want net.ErrClosed", err)
+	}
+}

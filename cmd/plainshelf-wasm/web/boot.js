@@ -29,16 +29,28 @@
       const id = `${tabId}:${nextId++}`;
       const entry = { r, resolve, acked: false };
       pending.set(id, entry);
-      send(id, entry);
+      resendUntilAcked(id, entry);
     });
   }
 
-  function send(id, entry) {
+  function resendUntilAcked(id, entry) {
     clearTimeout(entry.timer);
     channel.postMessage({ type: 'request', id, r: entry.r });
     entry.timer = setTimeout(() => {
-      if (!entry.acked && pending.has(id) && !serving) send(id, entry);
+      if (!entry.acked && pending.has(id) && !serving) resendUntilAcked(id, entry);
     }, RESEND_MS);
+  }
+
+  function retryPendingWithNewServer() {
+    for (const [id, entry] of pending) resendUntilAcked(id, entry);
+  }
+
+  function servePendingLocally() {
+    for (const [id, entry] of pending) {
+      pending.delete(id);
+      clearTimeout(entry.timer);
+      callLocal(entry.r).then(entry.resolve);
+    }
   }
 
   channel.onmessage = async ({ data }) => {
@@ -72,8 +84,7 @@
     } else if (data.type === 'server-down') {
       for (const resolve of serverDownWaiters.splice(0)) resolve();
     } else if (data.type === 'server-up' && !serving) {
-
-      for (const [id, entry] of pending) send(id, entry);
+      retryPendingWithNewServer();
     }
   };
 
@@ -92,19 +103,14 @@
     serving = runServer();
     serving.then(() => {
       channel.postMessage({ type: 'server-up' });
-
-      for (const [id, entry] of pending) {
-        pending.delete(id);
-        clearTimeout(entry.timer);
-        callLocal(entry.r).then(entry.resolve);
-      }
+      servePendingLocally();
     }, (err) => console.error('plainshelf wasm failed to start', err));
     return serving;
   }
 
+  const holdUntilTabCloses = () => new Promise(() => {});
   if (navigator.locks) {
-
-    navigator.locks.request('plainshelf-demo-server', () => takeServerRole().then(() => new Promise(() => {})));
+    navigator.locks.request('plainshelf-demo-server', () => takeServerRole().then(holdUntilTabCloses));
   } else {
     takeServerRole();
   }
@@ -124,16 +130,19 @@
 
   window.plainshelfRequest = call;
 
+  const SERVER_DOWN_WAIT_MS = 5000;
   const serverDownWaiters = [];
+  const waitForServingTabShutdown = () => new Promise((resolve) => {
+    serverDownWaiters.push(resolve);
+    setTimeout(resolve, SERVER_DOWN_WAIT_MS);
+  });
+
   async function reloadSelf() {
     if (serving) {
       await window.plainshelfFlush().catch(() => {});
       channel.postMessage({ type: 'server-down' });
     } else {
-      await new Promise((resolve) => {
-        serverDownWaiters.push(resolve);
-        setTimeout(resolve, 5000);
-      });
+      await waitForServingTabShutdown();
     }
     location.reload();
   }

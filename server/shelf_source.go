@@ -51,7 +51,6 @@ func openSourceFS(conf *shelf.ShelfConf, resolver CredentialResolver) (root fsut
 	case shelf.SourceLocal:
 		return nil, "", nil
 	case shelf.SourcePCloud:
-
 		return nil, "", util.Errorf("source type %q is not available on this client", src.Type)
 	}
 
@@ -60,17 +59,24 @@ func openSourceFS(conf *shelf.ShelfConf, resolver CredentialResolver) (root fsut
 	}
 	opts := davfs.Options{Username: src.Username}
 	if src.Credential != "" {
-		ref := src.Credential
-		if _, err := resolver.Resolve(context.Background(), ref); err != nil {
+		secret, err := resolvableSecret(resolver, src.Credential)
+		if err != nil {
 			return nil, "", util.Errorf("%w", err)
 		}
-		opts.Secret = func(ctx context.Context) (string, error) { return resolver.Resolve(ctx, ref) }
+		opts.Secret = secret
 	}
 	dav, err := davfs.New(src.URL, opts)
 	if err != nil {
 		return nil, "", util.Errorf("%w", err)
 	}
 	return dav, src.Scope(), nil
+}
+
+func resolvableSecret(resolver CredentialResolver, ref string) (func(context.Context) (string, error), error) {
+	if _, err := resolver.Resolve(context.Background(), ref); err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context) (string, error) { return resolver.Resolve(ctx, ref) }, nil
 }
 
 func addShelfEntry(sm *shelf.ShelfManager, conf shelf.ShelfConfWithID, storePath string, resolver CredentialResolver) error {
@@ -93,17 +99,15 @@ const (
 	SourceCheckNotAShelf    = "NOT_A_SHELF"
 )
 
+const probeCredentialRef = "host:check"
+
 type SourceCheck struct {
 	Code  string `json:"code,omitzero"`
 	Books int    `json:"books"`
 }
 
 func CheckSource(sourceType, rawURL, username, secret string) (SourceCheck, error) {
-	src := shelf.SourceConf{Type: sourceType, URL: rawURL, Username: username}
-	if secret != "" {
-
-		src.Credential = "host:check"
-	}
+	src := probeSourceConf(sourceType, rawURL, username, secret != "")
 	if src.Type != shelf.SourcePlainShelf && src.Type != shelf.SourceWebDAV {
 		return SourceCheck{}, util.Errorf("source type %q cannot be checked here", src.Type)
 	}
@@ -130,4 +134,12 @@ func CheckSource(sourceType, rawURL, username, secret string) (SourceCheck, erro
 		return SourceCheck{Code: SourceCheckUnavailable}, nil
 	}
 	return SourceCheck{}, util.Errorf("%w", err)
+}
+
+func probeSourceConf(sourceType, rawURL, username string, hasSecret bool) shelf.SourceConf {
+	src := shelf.SourceConf{Type: sourceType, URL: rawURL, Username: username}
+	if hasSecret {
+		src.Credential = probeCredentialRef
+	}
+	return src
 }

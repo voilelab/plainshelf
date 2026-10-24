@@ -62,14 +62,20 @@
   }
 
   async function drain() {
-    for (const entry of memfs.takeDirty()) {
+    for (const entry of memfs.takeDirtyParentsFirst()) {
       try {
         await write(entry);
       } catch (err) {
         console.error('plainshelf: could not persist', entry.path, err);
-        memfs.markDirty(entry.path);
+        memfs.requeueDirty(entry.path);
       }
     }
+  }
+
+  const discardRestoredMarks = () => memfs.takeDirtyParentsFirst();
+
+  function scheduleWriteBehind() {
+    timer ??= setTimeout(flush, DEBOUNCE_MS);
   }
 
   function flush() {
@@ -94,12 +100,10 @@
         else pending?.resolve();
       };
       await restore(rootHandle, '');
-      memfs.takeDirty();
+      discardRestoredMarks();
       window.plainshelfStorage.persistent = true;
 
-      memfs.onChange(() => {
-        timer ??= setTimeout(flush, DEBOUNCE_MS);
-      });
+      memfs.onChange(scheduleWriteBehind);
       addEventListener('pagehide', flush);
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') flush();

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/voilelab/plainshelf/frontend"
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -28,9 +29,14 @@ type App struct {
 
 	bookCacheWriterID string
 
+	virtualScopesMu sync.Mutex
+	virtualScopes   map[string]string
+
 	conf     *AppConf
 	security *Security
 }
+
+var ErrOfflineScopeInUse = util.NewError("an open virtual shelf still uses this offline scope")
 
 func NewApp(conf *AppConf) (*App, error) {
 	if conf == nil {
@@ -117,6 +123,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		security:     security,
 
 		bookCacheWriterID: writerID,
+		virtualScopes:     map[string]string{},
 	}
 
 	app.handlers = newAPIHandlers(&app.Logger, shelfManager, security, storeDB, taskChains, frontend.WebFS, conf, settingsSvc)
@@ -158,7 +165,13 @@ func (app *App) AddVirtualShelf(conf shelf.ShelfConfWithID, root fsutil.ReadFS, 
 	}
 
 	conf.ReadOnly = true
-	return app.shelfManager.AddVirtualShelf(app.resolveShelfConf(conf), root, offlineDir(app.conf.StorePath, scope))
+	if err := app.shelfManager.AddVirtualShelf(app.resolveShelfConf(conf), root, offlineDir(app.conf.StorePath, scope)); err != nil {
+		return err
+	}
+	app.virtualScopesMu.Lock()
+	app.virtualScopes[conf.ID] = scope
+	app.virtualScopesMu.Unlock()
+	return nil
 }
 
 func (app *App) SetShelfShowNSFW(shelfID string, show bool) {
@@ -177,6 +190,13 @@ func offlineDir(storePath, scope string) string {
 func (app *App) RemoveOfflineScope(scope string) error {
 	if scope == "" {
 		return util.NewError("virtual shelf scope cannot be empty")
+	}
+	app.virtualScopesMu.Lock()
+	defer app.virtualScopesMu.Unlock()
+	for _, open := range app.virtualScopes {
+		if open == scope {
+			return util.Errorf("%w", ErrOfflineScopeInUse)
+		}
 	}
 	return os.RemoveAll(offlineDir(app.conf.StorePath, scope))
 }
@@ -200,7 +220,13 @@ func (app *App) UpdateShelf(conf shelf.ShelfConfWithID) error {
 }
 
 func (app *App) RemoveShelf(id string) error {
-	return app.shelfManager.RemoveShelf(id)
+	if err := app.shelfManager.RemoveShelf(id); err != nil {
+		return err
+	}
+	app.virtualScopesMu.Lock()
+	delete(app.virtualScopes, id)
+	app.virtualScopesMu.Unlock()
+	return nil
 }
 
 func (app *App) Close() error {

@@ -81,10 +81,7 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 	}
 
 	if operation == task.BookTransferOperationMove {
-		if _, err := targetShelf.GetBook(bookID); err == nil {
-			h.writeErr(w, r, shelf.ErrBookIDConflict, "failed to check the target shelf")
-			return
-		} else if !errors.Is(err, shelf.ErrBookNotFound) {
+		if err := targetLacksBook(targetShelf, bookID); err != nil {
 			h.writeErr(w, r, err, "failed to check the target shelf")
 			return
 		}
@@ -93,4 +90,15 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 	h.submitTaskChain(w, r,
 		task.NewBookTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.requestLogger(r), operation, bookID, targetFolder),
 		"failed to schedule book transfer task")
+}
+
+func targetLacksBook(target *shelf.ShelfData, bookID string) error {
+	_, err := target.GetBook(bookID)
+	switch {
+	case err == nil:
+		return shelf.ErrBookIDConflict
+	case errors.Is(err, shelf.ErrBookNotFound):
+		return nil
+	}
+	return err
 }

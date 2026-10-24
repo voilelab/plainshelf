@@ -166,34 +166,8 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	prints := make([]bookSketch, 0, len(books))
-	sumValues := 0
-	for _, listing := range books {
-		book := listing.Book
-		entry, ok := cache.LookupRecorded(book.ID(), book.CurrentSource())
-		if !ok {
-
-			continue
-		}
-
-		decoded, err := sketch.Decode(entry.Sketch)
-		if err != nil {
-
-			h.Warn("skipping a book whose stored sketch could not be decoded",
-				"shelf_id", shelfData.ID, "book_id", book.ID(), "error", err)
-			continue
-		}
-
-		sumValues += len(decoded.Values)
-		prints = append(prints, bookSketch{
-			bookID:    book.ID(),
-			normMD5:   entry.NormMD5,
-			normChars: entry.NormChars,
-			sketch:    decoded,
-		})
-	}
-
-	if work := (len(prints) - 1) * sumValues; work > similarWorkBudget && !confirmed {
+	prints := h.recordedSketches(shelfData, cache, books)
+	if work := pairwiseMergeWork(prints); work > similarWorkBudget && !confirmed {
 		h.writeJSON(w, http.StatusOK, similarTooLarge{
 			Status:        "too_large",
 			Total:         len(books),
@@ -236,4 +210,36 @@ func (h *fingerprintHandlers) getFingerprintStatus(w http.ResponseWriter, r *htt
 	}
 
 	h.writeJSON(w, http.StatusOK, status)
+}
+
+func (h *fingerprintHandlers) recordedSketches(shelfData *shelf.ShelfData, cache *shelf.FingerprintCache, books []shelf.BookListing) []bookSketch {
+	prints := make([]bookSketch, 0, len(books))
+	for _, listing := range books {
+		book := listing.Book
+		entry, ok := cache.LookupRecorded(book.ID(), book.CurrentSource())
+		if !ok {
+			continue
+		}
+		decoded, err := sketch.Decode(entry.Sketch)
+		if err != nil {
+			h.Warn("skipping a book whose stored sketch could not be decoded",
+				"shelf_id", shelfData.ID, "book_id", book.ID(), "error", err)
+			continue
+		}
+		prints = append(prints, bookSketch{
+			bookID:    book.ID(),
+			normMD5:   entry.NormMD5,
+			normChars: entry.NormChars,
+			sketch:    decoded,
+		})
+	}
+	return prints
+}
+
+func pairwiseMergeWork(prints []bookSketch) int {
+	values := 0
+	for _, p := range prints {
+		values += len(p.sketch.Values)
+	}
+	return (len(prints) - 1) * values
 }

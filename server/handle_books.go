@@ -106,24 +106,25 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	includeCharCount := false
-	for inc := range strings.SplitSeq(r.URL.Query().Get("include"), ",") {
-		if strings.TrimSpace(inc) == "char_count" {
-			includeCharCount = true
-			break
-		}
-	}
-
+	includeCharCount := requestsCharCount(r)
 	jsonBooks := make([]Book, len(books))
 	for i, b := range books {
 		jsonBooks[i] = newBookResponse(shelfData, b.Book.GetMeta(), b.Folders)
 		if includeCharCount {
-
 			jsonBooks[i].CharCount = b.CharCount
 		}
 	}
 
 	h.writeJSON(w, http.StatusOK, jsonBooks)
+}
+
+func requestsCharCount(r *http.Request) bool {
+	for inc := range strings.SplitSeq(r.URL.Query().Get("include"), ",") {
+		if strings.TrimSpace(inc) == "char_count" {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {

@@ -57,6 +57,10 @@ function check(name, ok, detail = '') {
   if (!ok) failed = true;
 }
 
+const settleStartupWrites = (tab) => tab.waitForTimeout(1000);
+const settleWriteBehind = (tab) => tab.waitForTimeout(500);
+const waitForImportRefusal = (tab) => tab.waitForTimeout(500);
+
 const expectMemory = process.env.SMOKE_EXPECT_MEMORY === '1';
 let persistent = true;
 function persisted(name, ok, detail = '') {
@@ -131,7 +135,7 @@ check(expectMemory ? 'runs in memory, as expected without OPFS' : 'persists to O
   `persistent=${persistent}`);
 const firstCover = await coverStatus();
 check('cover renders on first visit', /^[1-9]\d*x[1-9]/.test(firstCover), firstCover);
-await page.waitForTimeout(1000);
+await settleStartupWrites(page);
 
 const secondMs = await openApp(true);
 const second = await listBooks();
@@ -146,7 +150,6 @@ if (!persistent) {
 const secondCover = await coverStatus();
 check('cover renders after reload', /^[1-9]\d*x[1-9]/.test(secondCover), secondCover);
 if (engine === 'chromium') {
-
   const cdp = await context.newCDPSession(page);
   const loaded = page.waitForEvent('load');
   await cdp.send('Page.reload', { ignoreCache: true });
@@ -155,7 +158,7 @@ if (engine === 'chromium') {
   const hardCover = await coverStatus();
   check('cover renders after a hard reload', /^[1-9]\d*x[1-9]/.test(hardCover), hardCover);
 }
-await page.waitForTimeout(500);
+await settleWriteBehind(page);
 const caches = await bookCaches();
 check('one book cache across loads', caches.length === 1, caches.join(','));
 console.log('app text:', (await page.innerText('body')).replace(/\s+/g, ' ').slice(0, 200));
@@ -219,7 +222,7 @@ const seenA = await titles(tabA);
 const seenB = await titles(tabB);
 check('both tabs see both writes', fromA.status === 201 && fromB.status === 201 &&
   JSON.stringify(seenA) === JSON.stringify(seenB) && seenA.length === 3, seenB.join(','));
-await tabA.waitForTimeout(500);
+await settleWriteBehind(tabA);
 await tabA.close();
 await tabB.waitForFunction(() => typeof window.plainshelfFetch === 'function', null, { timeout: 30000 });
 check('the other tab takes over when it closes', true);
@@ -302,9 +305,8 @@ if (persistent) {
   check('import restores the exported shelf in every tab', extra.status === 201 &&
     JSON.stringify(importedTitles) === JSON.stringify(exportedTitles), importedTitles.join(','));
 } else {
-
   await chooser.setFiles({ name: 'shelf.zip', mimeType: 'application/zip', buffer: zipBytes });
-  await tabC.waitForTimeout(500);
+  await waitForImportRefusal(tabC);
   const after = await titles(tabC);
   check('without OPFS an import is refused, not lost', dialogs.some((m) => m.includes('cannot keep')) &&
     after.includes('匯入後應消失的書'), dialogs.join(' | '));

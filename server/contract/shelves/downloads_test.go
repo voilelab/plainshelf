@@ -2,6 +2,7 @@ package shelves_test
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -87,6 +88,33 @@ func TestAPIDownloadBookContract(t *testing.T) {
 	}
 	if list := apitest.GetJSON[server.DownloadsResponse](t, env, apitest.DownloadsURL()); len(list.Books) != 0 || list.TotalBytes != 0 {
 		t.Errorf("downloads after removal = %+v", list)
+	}
+}
+
+func TestRemoveOfflineScopeRefusesWhileAShelfUsesIt(t *testing.T) {
+	env := apitest.New(t)
+	libRoot, ids := apitest.SeedVirtualSource(t, "Dune")
+	env.AddVirtualShelf(t, libRoot)
+	scope := "test://" + libRoot
+
+	apitest.AssertStatus(t, env.Put(apitest.BookDownloadURL(ids["Dune"]), nil), http.StatusOK)
+
+	if err := env.App.RemoveOfflineScope(scope); !errors.Is(err, server.ErrOfflineScopeInUse) {
+		t.Fatalf("RemoveOfflineScope with the shelf open = %v, want %v", err, server.ErrOfflineScopeInUse)
+	}
+	if list := apitest.GetJSON[server.DownloadsResponse](t, env, apitest.DownloadsURL()); len(list.Books) != 1 {
+		t.Fatalf("downloads after a refused removal = %+v, want the copy kept", list)
+	}
+
+	if err := env.App.RemoveShelf(apitest.VirtualShelfID); err != nil {
+		t.Fatalf("RemoveShelf: %v", err)
+	}
+	if err := env.App.RemoveOfflineScope(scope); err != nil {
+		t.Fatalf("RemoveOfflineScope after closing the shelf: %v", err)
+	}
+	env.AddVirtualShelf(t, libRoot)
+	if list := apitest.GetJSON[server.DownloadsResponse](t, env, apitest.DownloadsURL()); len(list.Books) != 0 {
+		t.Errorf("downloads after removing the scope = %+v, want none", list)
 	}
 }
 

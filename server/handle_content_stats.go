@@ -15,7 +15,7 @@ func (h *batchHandlers) refreshContentStats(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	visible, err := h.visibility(shelfData).visibleBookIDs()
+	visible, err := h.visibility(shelfData).visibleBooks()
 	if err != nil {
 		h.writeErr(w, r, err, "failed to list books")
 		return

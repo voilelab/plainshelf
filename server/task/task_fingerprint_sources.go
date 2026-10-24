@@ -159,7 +159,7 @@ func (t *fingerprintSourcesTask) recordFailure(bookID, sourceID string, err erro
 		"shelf_id", t.shelfID, "book_id", bookID, "source_id", sourceID, "error", err)
 }
 
-func (t *fingerprintSourcesTask) sourceIDs(book *shelf.Book) ([]string, error) {
+func (t *fingerprintSourcesTask) sourceIDsToReopen(book *shelf.Book) ([]string, error) {
 	sources, err := book.ListSource()
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -179,7 +179,7 @@ func (t *fingerprintSourcesTask) fingerprintBook(cache *shelf.FingerprintCache, 
 		return
 	}
 
-	sourceIDs, err := t.sourceIDs(book)
+	sourceIDs, err := t.sourceIDsToReopen(book)
 	if err != nil {
 		t.recordFailure(bookID, "", err)
 		return
@@ -242,28 +242,14 @@ func (t *fingerprintSourcesTask) Run(ctx context.Context) error {
 		return util.Errorf("%w", err)
 	}
 
-	books = t.visible.Only(books)
-	bookIDs := make([]string, 0, len(books))
-	for _, book := range books {
-		bookIDs = append(bookIDs, book.ID())
-	}
-
+	bookIDs := snapshotBookIDs(t.visible.Only(books))
 	t.progress.SetTotal(len(bookIDs))
 
 	for _, bookID := range bookIDs {
 		if err := ctx.Err(); err != nil {
-
-			if saveErr := t.save(cache); saveErr != nil {
-				t.logger.Error("failed to save the fingerprint cache after cancellation",
-					"shelf_id", t.shelfID, "error", saveErr)
-			}
-			t.progress.SetStatus(taskutil.StatusPartiallyCompleted)
-			t.logger.Info("source fingerprinting cancelled", "shelf_id", t.shelfID, "book_id", bookID)
-			return util.Errorf("%w", err)
+			return t.cancelKeepingWork(cache, bookID, err)
 		}
-
 		t.fingerprintBook(cache, bookID)
-
 		t.progress.Advance()
 	}
 
@@ -276,26 +262,31 @@ func (t *fingerprintSourcesTask) Run(ctx context.Context) error {
 	t.mu.Lock()
 	failed := len(t.failures)
 	t.mu.Unlock()
+	return settleFinishedSweep(&t.progress, failed)
+}
 
-	if failed > 0 {
-
-		t.progress.SetStatus(taskutil.StatusPartiallyCompleted)
-		return nil
+func (t *fingerprintSourcesTask) cancelKeepingWork(cache *shelf.FingerprintCache, bookID string, cause error) error {
+	if err := t.save(cache); err != nil {
+		t.logger.Error("failed to save the fingerprint cache after cancellation",
+			"shelf_id", t.shelfID, "error", err)
 	}
+	t.progress.SetStatus(taskutil.StatusPartiallyCompleted)
+	t.logger.Info("source fingerprinting cancelled", "shelf_id", t.shelfID, "book_id", bookID)
+	return util.Errorf("%w", cause)
+}
 
-	t.progress.SetStatus(taskutil.StatusCompleted)
-	return nil
+func fingerprintSourcesChainKey(shelfID string) string {
+	return FingerprintSourcesTaskName + ":" + shelfID
 }
 
 func NewFingerprintSourcesChain(shelfID string, s *shelf.Shelf, force bool, logger *logutil.Logger, visible VisibleBooks) *taskutil.TaskChain {
-
 	description := "Fingerprint every source that has changed since the last run"
 	if force {
 		description = "Rebuild every source's fingerprint, ignoring the cache"
 	}
 
 	return &taskutil.TaskChain{
-		Key:         FingerprintSourcesTaskName + ":" + shelfID,
+		Key:         fingerprintSourcesChainKey(shelfID),
 		Name:        FingerprintSourcesTaskName,
 		Title:       "Build source fingerprints",
 		Description: description,

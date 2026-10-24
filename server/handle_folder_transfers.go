@@ -100,67 +100,24 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	bestEffortRescanForPreflight(sourceShelf)
 	bestEffortRescanForPreflight(targetShelf)
 
-	sourceFolders, err := sourceShelf.GetAllFolders()
+	subFolders, books, err := snapshotFolderTransfer(sourceShelf, sourceFolder)
 	if err != nil {
 		h.writeErr(w, r, err, "failed to read the source shelf")
 		return
 	}
-	subFolders := foldersUnder(sourceFolders, sourceFolder)
-
-	listings, err := sourceShelf.ListBooksWithCharCount()
-	if err != nil {
-		h.writeErr(w, r, err, "failed to read the source shelf")
-		return
-	}
-	var books []task.FolderTransferBook
-	for _, listing := range listings {
-		if listing.Folders.HasPrefix(sourceFolder) {
-			books = append(books, task.FolderTransferBook{
-				ID:           listing.Book.ID(),
-				SourceFolder: append(shelf.FolderPath(nil), listing.Folders...),
-			})
-		}
-	}
-
 	if len(subFolders) == 0 && len(books) == 0 {
 		http.Error(w, "source folder not found", http.StatusNotFound)
 		return
 	}
 
-	targetFolders, err := targetShelf.GetAllFolders()
+	conflict, err := folderTransferConflictAt(targetShelf, targetFolder, operation, books)
 	if err != nil {
 		h.writeErr(w, r, err, "failed to read the target shelf")
 		return
 	}
-	if len(foldersUnder(targetFolders, targetFolder)) > 0 {
-		h.writeJSON(w, http.StatusConflict, folderTransferConflict{
-			Error:   folderTransferConflictFolder,
-			Message: "the target shelf already holds a folder with this name",
-		})
+	if conflict != nil {
+		h.writeJSON(w, http.StatusConflict, *conflict)
 		return
-	}
-
-	if operation == task.BookTransferOperationMove {
-		existing, err := targetBookIDs(targetShelf)
-		if err != nil {
-			h.writeErr(w, r, err, "failed to read the target shelf")
-			return
-		}
-		var conflicts []string
-		for _, book := range books {
-			if existing[book.ID] {
-				conflicts = append(conflicts, book.ID)
-			}
-		}
-		if len(conflicts) > 0 {
-			slices.Sort(conflicts)
-			h.writeJSON(w, http.StatusConflict, folderTransferConflict{
-				Error:              folderTransferConflictBookID,
-				Message:            "the target shelf already holds books with these IDs; the move would overwrite them",
-				ConflictingBookIDs: conflicts,
-			})
-			return
-		}
 	}
 
 	if h.refuseUnconfirmedReveal(w, r, sourceShelf, folderLeavingTheShelf(sourceFolder)) {
@@ -206,4 +163,61 @@ func targetBookIDs(target *shelf.ShelfData) (map[string]bool, error) {
 	}
 
 	return ids, nil
+}
+
+func snapshotFolderTransfer(source *shelf.ShelfData, root shelf.FolderPath) ([]shelf.FolderPath, []task.FolderTransferBook, error) {
+	folders, err := source.GetAllFolders()
+	if err != nil {
+		return nil, nil, err
+	}
+	listings, err := source.ListBooksWithCharCount()
+	if err != nil {
+		return nil, nil, err
+	}
+	var books []task.FolderTransferBook
+	for _, listing := range listings {
+		if listing.Folders.HasPrefix(root) {
+			books = append(books, task.FolderTransferBook{
+				ID:           listing.Book.ID(),
+				SourceFolder: append(shelf.FolderPath(nil), listing.Folders...),
+			})
+		}
+	}
+	return foldersUnder(folders, root), books, nil
+}
+
+func folderTransferConflictAt(target *shelf.ShelfData, targetFolder shelf.FolderPath, operation string, books []task.FolderTransferBook) (*folderTransferConflict, error) {
+	targetFolders, err := target.GetAllFolders()
+	if err != nil {
+		return nil, err
+	}
+	if len(foldersUnder(targetFolders, targetFolder)) > 0 {
+		return &folderTransferConflict{
+			Error:   folderTransferConflictFolder,
+			Message: "the target shelf already holds a folder with this name",
+		}, nil
+	}
+	if operation != task.BookTransferOperationMove {
+		return nil, nil
+	}
+
+	existing, err := targetBookIDs(target)
+	if err != nil {
+		return nil, err
+	}
+	var conflicts []string
+	for _, book := range books {
+		if existing[book.ID] {
+			conflicts = append(conflicts, book.ID)
+		}
+	}
+	if len(conflicts) == 0 {
+		return nil, nil
+	}
+	slices.Sort(conflicts)
+	return &folderTransferConflict{
+		Error:              folderTransferConflictBookID,
+		Message:            "the target shelf already holds books with these IDs; the move would overwrite them",
+		ConflictingBookIDs: conflicts,
+	}, nil
 }

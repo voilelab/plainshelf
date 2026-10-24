@@ -59,7 +59,7 @@ type folderTransferTask struct {
 
 	createFolders []plannedFolder
 
-	carriedMeta map[string]string
+	carriedMeta carriedFolderMeta
 
 	books []plannedTransfer
 
@@ -93,7 +93,7 @@ func newFolderTransferTask(sourceShelfID string, source *shelf.Shelf, targetShel
 		operation:     operation,
 		sourceFolder:  sourceFolder,
 		createFolders: createFolders,
-		carriedMeta:   make(map[string]string, len(createFolders)),
+		carriedMeta:   make(carriedFolderMeta, len(createFolders)),
 		books:         planned,
 		result: FolderTransferResult{
 			Operation:    operation,
@@ -210,10 +210,26 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 	t.progress.SetStatus(taskutil.StatusRunning)
 
 	if err := ctx.Err(); err != nil {
-		t.progress.SetStatus(t.interruptedStatus())
-		return util.Errorf("%w", err)
+		return t.interrupt(err)
+	}
+	t.reproduceFolderTree()
+	if err := t.transferBooks(ctx); err != nil {
+		return t.interrupt(err)
+	}
+	if t.operation == BookTransferOperationMove {
+		t.pruneEmptiedSourceFolders()
 	}
 
+	t.progress.SetStatus(t.finishStatus())
+	return nil
+}
+
+func (t *folderTransferTask) interrupt(cause error) error {
+	t.progress.SetStatus(t.interruptedStatus())
+	return util.Errorf("%w", cause)
+}
+
+func (t *folderTransferTask) reproduceFolderTree() {
 	for _, folder := range t.createFolders {
 		if err := t.createFolder(folder); err != nil {
 			t.mu.Lock()
@@ -223,33 +239,20 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 				"target_shelf", t.result.TargetShelf, "folder", folder.target.String(), "error", err)
 		}
 	}
+}
 
+func (t *folderTransferTask) transferBooks(ctx context.Context) error {
 	for _, planned := range t.books {
-
 		if err := ctx.Err(); err != nil {
-			t.progress.SetStatus(t.interruptedStatus())
-			return util.Errorf("%w", err)
+			return err
 		}
-
-		var err error
-		if t.operation == BookTransferOperationMove {
-			_, err = t.target.MoveBookFrom(t.source, planned.id, planned.targetFolder)
-		} else {
-			_, err = t.target.CopyBookFrom(t.source, planned.id, planned.targetFolder, false)
-		}
-		if err != nil {
+		if _, err := transferAtomically(t.operation, t.source, t.target, planned.id, planned.targetFolder); err != nil {
 			t.recordFailure(planned.id, err)
 		} else {
 			t.recordSuccess(planned.id)
 		}
 		t.progress.Advance()
 	}
-
-	if t.operation == BookTransferOperationMove {
-		t.pruneSourceFolder()
-	}
-
-	t.progress.SetStatus(t.finishStatus())
 	return nil
 }
 
@@ -266,7 +269,19 @@ func (t *folderTransferTask) createFolder(folder plannedFolder) error {
 	return nil
 }
 
-func (t *folderTransferTask) pruneSourceFolder() {
+type carriedFolderMeta map[string]string
+
+func (c carriedFolderMeta) versionSafeToDrop(folder shelf.FolderPath) string {
+	return c[folder.String()]
+}
+
+func deepestFirst(folders []shelf.FolderPath) {
+	slices.SortFunc(folders, func(a, b shelf.FolderPath) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a.String(), b.String()))
+	})
+}
+
+func (t *folderTransferTask) pruneEmptiedSourceFolders() {
 	folders, err := t.source.GetAllFolders()
 	if err != nil {
 		t.logger.Error("folder transfer could not list source folders to prune",
@@ -281,13 +296,9 @@ func (t *folderTransferTask) pruneSourceFolder() {
 		}
 	}
 
-	slices.SortFunc(under, func(a, b shelf.FolderPath) int {
-		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a.String(), b.String()))
-	})
-
+	deepestFirst(under)
 	for _, l := range under {
-
-		_ = t.source.PruneFolder(l, t.carriedMeta[l.String()])
+		_ = t.source.PruneFolder(l, t.carriedMeta.versionSafeToDrop(l))
 	}
 }
 

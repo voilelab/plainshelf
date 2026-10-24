@@ -69,7 +69,7 @@
     try { localStorage.setItem(DISMISS_KEY, '1'); } catch {  }
   }
 
-  function show(el, visible) {
+  function setShown(el, visible) {
     el.style.display = visible ? 'flex' : 'none';
   }
 
@@ -78,15 +78,15 @@
       note.textContent = 'Not saved: this browser has no storage for the demo, so a reload starts over.';
       note.style.color = '#92400e';
       note.style.fontWeight = '600';
-      show(prompt, false);
+      setShown(prompt, false);
       return;
     }
     const kept = await demo.persisted();
     note.textContent = kept
       ? 'Kept in this browser, which has agreed not to clear it. Export to keep a copy elsewhere.'
       : 'Kept only in this browser, which may clear it. Export to keep a copy.';
-
-    if (kept || prompt.dataset.declined !== '1') show(prompt, !kept && demo.canPersist() && !dismissed());
+    const showsDeclineMessage = !kept && prompt.dataset.declined === '1';
+    if (!showsDeclineMessage) setShown(prompt, !kept && demo.canPersist() && !dismissed());
   }
 
   function persistPrompt(onDone) {
@@ -109,7 +109,7 @@
     });
     const later = button('Not now', () => {
       dismiss();
-      show(prompt, false);
+      setShown(prompt, false);
     });
     prompt.append(text, keep, later);
     return prompt;
