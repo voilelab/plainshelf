@@ -256,11 +256,7 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 	utf8Reader, _, err := util.ReEncodeToUTF8(r.Body)
 	if err != nil {
-
-		if _, drainErr := io.Copy(io.Discard, r.Body); isRequestBodyTooLarge(drainErr) {
-			err = drainErr
-		}
-		if isRequestBodyTooLarge(err) {
+		if bodyExceededLimit(r.Body, err) {
 			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -281,4 +277,12 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 	shelfData.RefreshBookCharCount(book.ID())
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func bodyExceededLimit(body io.Reader, readErr error) bool {
+	if isRequestBodyTooLarge(readErr) {
+		return true
+	}
+	_, drainErr := io.Copy(io.Discard, body)
+	return isRequestBodyTooLarge(drainErr)
 }
