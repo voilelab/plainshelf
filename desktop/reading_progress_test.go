@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -135,4 +136,44 @@ func TestWriteReadingProgress_RejectsCorruptJSON(t *testing.T) {
 	if v := readerOffset(t, store, "real-shelf", "book-a"); v != 50 {
 		t.Fatalf("stored progress must survive a rejected write, got %d", v)
 	}
+}
+
+func TestReadProgressSkipsRealReaderShelf(t *testing.T) {
+	desktopApp := startedDesktopAppWithShelves(t, readingprogress.ReaderShelfID, "other")
+	other, ok := desktopApp.app.ShelfManager().GetShelf("other")
+	if !ok {
+		t.Fatal("shelf other not found")
+	}
+	book, err := other.NewBook(nil, "Dune")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+
+	desktopApp.readingProgressPath = filepath.Join(t.TempDir(), "reading_progress.json")
+	desktopApp.readingProgressSync = readingprogress.NewStore(desktopApp.readingProgressPath)
+	seedStore(t, desktopApp.readingProgressSync, func(doc readingprogress.Document) readingprogress.Document {
+		out := doc.Clone()
+		out.Shelves[readingprogress.ReaderShelfID] = map[string]readingprogress.Entry{book.ID(): {Offset: 42, At: 1000}}
+		return out
+	})
+
+	text, err := desktopApp.ReadReadingProgress()
+	if err != nil {
+		t.Fatalf("ReadReadingProgress: %v", err)
+	}
+	if _, projected := readingprogress.Parse(text).Shelves["other"][book.ID()]; projected {
+		t.Errorf("progress under the real %q shelf was projected onto other: %s", readingprogress.ReaderShelfID, text)
+	}
+	if _, persisted := readingprogress.Parse(mustReadFile(t, desktopApp.readingProgressPath)).Shelves["other"][book.ID()]; persisted {
+		t.Error("the projection was written to disk")
+	}
+}
+
+func mustReadFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return string(data)
 }

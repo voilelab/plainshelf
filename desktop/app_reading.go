@@ -51,7 +51,7 @@ func (a *DesktopApp) ReadReadingProgress() (string, error) {
 	if a.readingProgressSync == nil || a.readerNamespaceIsRealShelf() {
 		return readDeviceDocument(a.readingProgressPath)
 	}
-	return projectStoredReaderProgress(a.readingProgressSync, a.resolveBookShelf)
+	return projectStoredReaderProgress(a.readingProgressSync, a.resolveUniqueBookShelf)
 }
 
 func projectStoredReaderProgress(store *readingprogress.Store, resolve readingprogress.ResolveShelf) (string, error) {
@@ -63,28 +63,38 @@ func projectStoredReaderProgress(store *readingprogress.Store, resolve readingpr
 		return raw, nil
 	}
 
-	projected := readingprogress.Project(doc, readingprogress.ReaderShelfID, resolve)
-	projectedText, err := readingprogress.Serialize(projected)
-	if err != nil {
+	projectedText, changed := projectionChanges(doc, resolve)
+	if !changed {
 		return raw, nil
+	}
+	return persistProjection(store, resolve, projectedText), nil
+}
+
+func projectionChanges(doc readingprogress.Document, resolve readingprogress.ResolveShelf) (string, bool) {
+	projectedText, err := readingprogress.Serialize(readingprogress.Project(doc, readingprogress.ReaderShelfID, resolve))
+	if err != nil {
+		return "", false
 	}
 	currentText, err := readingprogress.Serialize(doc)
 	if err != nil || projectedText == currentText {
-		return raw, nil
+		return "", false
 	}
+	return projectedText, true
+}
 
+func persistProjection(store *readingprogress.Store, resolve readingprogress.ResolveShelf, projectedText string) string {
 	final, err := store.Mutate(func(disk readingprogress.Document) readingprogress.Document {
 		return readingprogress.Project(disk, readingprogress.ReaderShelfID, resolve)
 	})
 	if err != nil {
 		log.Println("failed to persist projected reading progress:", err)
-		return projectedText, nil
+		return projectedText
 	}
 	finalText, err := readingprogress.Serialize(final)
 	if err != nil {
-		return projectedText, nil
+		return projectedText
 	}
-	return finalText, nil
+	return finalText
 }
 
 func (a *DesktopApp) WriteReadingProgress(doc string) error {
@@ -102,7 +112,7 @@ func (a *DesktopApp) WriteReadingProgress(doc string) error {
 	return err
 }
 
-func (a *DesktopApp) resolveBookShelf(bookID string) (string, bool) {
+func (a *DesktopApp) resolveUniqueBookShelf(bookID string) (string, bool) {
 	if a.app == nil {
 		return "", false
 	}
