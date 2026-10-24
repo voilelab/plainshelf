@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestWriteJSONAnswersAnUnencodableValueWithACleanError(t *testing.T) {
+func TestWriteJSONEncodeFailure(t *testing.T) {
 	h := &handlers{lib: NewLibrary(nil)}
 	rec := httptest.NewRecorder()
 

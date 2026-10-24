@@ -67,7 +67,7 @@ func projectStoredReaderProgress(store *readingprogress.Store, resolve readingpr
 	if !changed {
 		return raw, nil
 	}
-	return persistProjectionBestEffort(store, resolve, projectedText), nil
+	return persistProjection(store, resolve, projectedText), nil
 }
 
 func projectionChanges(doc readingprogress.Document, resolve readingprogress.ResolveShelf) (string, bool) {
@@ -82,7 +82,7 @@ func projectionChanges(doc readingprogress.Document, resolve readingprogress.Res
 	return projectedText, true
 }
 
-func persistProjectionBestEffort(store *readingprogress.Store, resolve readingprogress.ResolveShelf, projectedText string) string {
+func persistProjection(store *readingprogress.Store, resolve readingprogress.ResolveShelf, projectedText string) string {
 	final, err := store.Mutate(func(disk readingprogress.Document) readingprogress.Document {
 		return readingprogress.Project(disk, readingprogress.ReaderShelfID, resolve)
 	})

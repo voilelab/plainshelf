@@ -56,7 +56,7 @@ type ShelfIDPreview struct {
 	DefaultPath string `json:"defaultPath"`
 }
 
-const virtualShelfOpenFailedSummary = "The virtual shelf could not be opened. Check the connection and unlock the keychain, then retry."
+const shelfOpenFailedMsg = "The virtual shelf could not be opened. Check the connection and unlock the keychain, then retry."
 
 func (a *DesktopApp) PreviewShelfID(name string) (ShelfIDPreview, error) {
 	if strings.TrimSpace(name) == "" {
@@ -237,7 +237,7 @@ func (a *DesktopApp) shelfDetails(entry desktopShelfEntry) *DesktopShelfDetails 
 	if entry.Source != nil {
 		details.Source, details.URL, details.Username = entry.Source.Type, entry.Source.URL, entry.Source.Username
 		if _, open := a.app.ShelfManager().GetShelf(entry.ID); !open {
-			details.OpenError = virtualShelfOpenFailedSummary
+			details.OpenError = shelfOpenFailedMsg
 		}
 	}
 	return details
@@ -274,7 +274,7 @@ func (a *DesktopApp) RetryShelf(shelfID string) error {
 		return nil
 	}
 	if err := a.app.AddShelf(toShelfConfWithID(*entry)); err != nil {
-		return util.NewError(virtualShelfOpenFailedSummary)
+		return util.NewError(shelfOpenFailedMsg)
 	}
 	return nil
 }

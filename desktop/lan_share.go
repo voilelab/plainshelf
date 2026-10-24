@@ -29,9 +29,9 @@ const (
 	lanShareConfigName = "lan_share.json"
 	lanShareTokenName  = "lan_share.token"
 
-	lanShareReadHeaderTimeout     = 10 * time.Second
-	lanShareReadTimeout           = 60 * time.Second
-	lanShareLargeBookWriteTimeout = 300 * time.Second
+	lanShareReadHeaderTimeout = 10 * time.Second
+	lanShareReadTimeout       = 60 * time.Second
+	lanShareWriteTimeout      = 300 * time.Second
 )
 
 var lanShareDefaultPort = 20001
@@ -199,7 +199,7 @@ func (s *lanShare) listen(host string) error {
 		Handler:           s.app.DAVExportShelvesHandler(s.tokenFile, s.isShared),
 		ReadHeaderTimeout: lanShareReadHeaderTimeout,
 		ReadTimeout:       lanShareReadTimeout,
-		WriteTimeout:      lanShareLargeBookWriteTimeout,
+		WriteTimeout:      lanShareWriteTimeout,
 	}
 	go func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {

@@ -138,7 +138,7 @@ func TestWriteReadingProgress_RejectsCorruptJSON(t *testing.T) {
 	}
 }
 
-func TestReadReadingProgressLeavesARealReaderShelfUnprojected(t *testing.T) {
+func TestReadProgressSkipsRealReaderShelf(t *testing.T) {
 	desktopApp := startedDesktopAppWithShelves(t, readingprogress.ReaderShelfID, "other")
 	other, ok := desktopApp.app.ShelfManager().GetShelf("other")
 	if !ok {
