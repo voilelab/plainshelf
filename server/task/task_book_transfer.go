@@ -119,21 +119,12 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 		return err
 	}
 
-	var (
-		book *shelf.Book
-		err  error
-	)
-	if t.operation == BookTransferOperationMove {
-		book, err = t.target.MoveBookFrom(t.source, t.bookID, t.targetFolder)
-	} else {
-		book, err = t.target.CopyBookFrom(t.source, t.bookID, t.targetFolder, false)
-	}
+	book, err := transferAtomically(t.operation, t.source, t.target, t.bookID, t.targetFolder)
 
 	t.mu.Lock()
 	if err != nil {
 		t.result.FailureCode = failureCode(t.operation, err)
 	} else {
-
 		t.result.BookID = book.ID()
 		t.result.Folder = append(shelf.FolderPath(nil), t.targetFolder...)
 	}
@@ -168,4 +159,11 @@ func NewBookTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelf
 		Description: "Transfer a book to another shelf",
 		Tasks:       []taskutil.Task{task},
 	}
+}
+
+func transferAtomically(operation string, source, target *shelf.Shelf, bookID string, targetFolder shelf.FolderPath) (*shelf.Book, error) {
+	if operation == BookTransferOperationMove {
+		return target.MoveBookFrom(source, bookID, targetFolder)
+	}
+	return target.CopyBookFrom(source, bookID, targetFolder, false)
 }

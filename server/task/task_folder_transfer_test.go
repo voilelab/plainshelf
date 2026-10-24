@@ -389,6 +389,9 @@ func TestFolderTransferTaskCancelledMidMove(t *testing.T) {
 	if err := source.SetFolderIcon(shelf.FolderPath{"fiction"}, "moon", ""); err != nil {
 		t.Fatalf("SetFolderIcon: %v", err)
 	}
+	if err := source.NewFolder(shelf.FolderPath{"fiction"}, "empty"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
+	}
 
 	books, subfolders := folderTransferPlan(t, source, shelf.FolderPath{"fiction"})
 	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
@@ -422,6 +425,9 @@ func TestFolderTransferTaskCancelledMidMove(t *testing.T) {
 
 	if meta, err := source.ReadFolderMeta(shelf.FolderPath{"fiction"}); err != nil || meta.Icon != "moon" {
 		t.Errorf("source folder.json after the cancel = %+v, %v", meta, err)
+	}
+	if folders, err := source.GetAllFolders(); err != nil || !hasFolder(folders, shelf.FolderPath{"fiction", "empty"}) {
+		t.Errorf("a cancelled move pruned an emptied source folder: %v, %v", folders, err)
 	}
 }
 
