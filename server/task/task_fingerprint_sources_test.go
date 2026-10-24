@@ -66,12 +66,12 @@ func addFingerprintBook(t *testing.T, testShelf *shelf.Shelf, libRoot, title, co
 		t.Fatalf("NewBookWith(%q): %v", title, err)
 	}
 
-	backdateSourcesSoTheCacheIndexesThem(t, libRoot, book)
+	backdateSources(t, libRoot, book)
 
 	return book
 }
 
-func backdateSourcesSoTheCacheIndexesThem(t *testing.T, libRoot string, book *shelf.Book) {
+func backdateSources(t *testing.T, libRoot string, book *shelf.Book) {
 	t.Helper()
 
 	old := time.Now().Add(-time.Hour)
@@ -89,7 +89,7 @@ func addSource(t *testing.T, libRoot string, book *shelf.Book, content string) {
 		t.Fatalf("NewSource: %v", err)
 	}
 
-	backdateSourcesSoTheCacheIndexesThem(t, libRoot, book)
+	backdateSources(t, libRoot, book)
 }
 
 func TestFingerprintSourcesTaskCoversEverySourceOfABook(t *testing.T) {
@@ -352,7 +352,7 @@ func (c *cancelAfterChecks) Err() error {
 	return context.Canceled
 }
 
-func TestFingerprintSourcesCancelledRunKeepsWhatItBuilt(t *testing.T) {
+func TestFingerprintCancelKeepsWork(t *testing.T) {
 	libRoot := t.TempDir()
 	testShelf := newFingerprintTestShelf(t, libRoot, false)
 	addFingerprintBook(t, testShelf, libRoot, "Dune", "the spice must flow")

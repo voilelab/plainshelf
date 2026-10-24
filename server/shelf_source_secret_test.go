@@ -20,13 +20,13 @@ func (r *rotatingResolver) Resolve(context.Context, string) (string, error) {
 	return value, nil
 }
 
-func TestResolvableSecretRefusesAnUnresolvableRef(t *testing.T) {
+func TestResolvableSecretBadRef(t *testing.T) {
 	if _, err := resolvableSecret(&rotatingResolver{}, "env:MISSING"); err == nil {
 		t.Fatal("resolvableSecret accepted a reference that does not resolve")
 	}
 }
 
-func TestResolvableSecretResolvesAgainOnEveryCall(t *testing.T) {
+func TestResolvableSecretReresolves(t *testing.T) {
 	resolver := &rotatingResolver{values: []string{"first", "second", "third"}}
 	secret, err := resolvableSecret(resolver, "env:TOKEN")
 	if err != nil {

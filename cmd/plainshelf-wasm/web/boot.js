@@ -41,7 +41,7 @@
     }, RESEND_MS);
   }
 
-  function retryPendingWithNewServer() {
+  function resendPending() {
     for (const [id, entry] of pending) resendUntilAcked(id, entry);
   }
 
@@ -84,7 +84,7 @@
     } else if (data.type === 'server-down') {
       for (const resolve of serverDownWaiters.splice(0)) resolve();
     } else if (data.type === 'server-up' && !serving) {
-      retryPendingWithNewServer();
+      resendPending();
     }
   };
 
@@ -132,7 +132,7 @@
 
   const SERVER_DOWN_WAIT_MS = 5000;
   const serverDownWaiters = [];
-  const waitForServingTabShutdown = () => new Promise((resolve) => {
+  const waitForServerDown = () => new Promise((resolve) => {
     serverDownWaiters.push(resolve);
     setTimeout(resolve, SERVER_DOWN_WAIT_MS);
   });
@@ -142,7 +142,7 @@
       await window.plainshelfFlush().catch(() => {});
       channel.postMessage({ type: 'server-down' });
     } else {
-      await waitForServingTabShutdown();
+      await waitForServerDown();
     }
     location.reload();
   }

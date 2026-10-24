@@ -217,7 +217,7 @@ func (t *folderTransferTask) Run(ctx context.Context) error {
 		return t.interrupt(err)
 	}
 	if t.operation == BookTransferOperationMove {
-		t.pruneEmptiedSourceFolders()
+		t.pruneEmptiedSource()
 	}
 
 	t.progress.SetStatus(t.finishStatus())
@@ -281,7 +281,7 @@ func deepestFirst(folders []shelf.FolderPath) {
 	})
 }
 
-func (t *folderTransferTask) pruneEmptiedSourceFolders() {
+func (t *folderTransferTask) pruneEmptiedSource() {
 	folders, err := t.source.GetAllFolders()
 	if err != nil {
 		t.logger.Error("folder transfer could not list source folders to prune",

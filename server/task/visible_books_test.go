@@ -2,7 +2,7 @@ package task
 
 import "testing"
 
-func TestVisibleBooksAllowsOnlySelectedBooksUnlessAll(t *testing.T) {
+func TestVisibleBooksAllows(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
 		visibility VisibleBooks

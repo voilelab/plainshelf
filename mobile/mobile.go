@@ -192,13 +192,13 @@ func (rt *instance) lockRunning() error {
 	return nil
 }
 
-var acceptedTaskChainsTimeout = 30 * time.Second
+var taskWaitTimeout = 30 * time.Second
 
 // ErrBusy is returned when background tasks do not settle in time.
 var ErrBusy = errors.New("plainshelf: background tasks are still running")
 
-func (rt *instance) waitForAcceptedTaskChains() error {
-	deadline := time.Now().Add(acceptedTaskChainsTimeout)
+func (rt *instance) waitForTasks() error {
+	deadline := time.Now().Add(taskWaitTimeout)
 	for rt.app.TaskChains().Busy() {
 		if time.Now().After(deadline) {
 			return ErrBusy
@@ -345,7 +345,7 @@ func ImportShelf(name, zipPath string) (id string, err error) {
 		return "", err
 	}
 	defer rt.mu.Unlock()
-	if err := rt.waitForAcceptedTaskChains(); err != nil {
+	if err := rt.waitForTasks(); err != nil {
 		return "", err
 	}
 	return rt.addShelf(name, func(libRoot string) error {
@@ -422,7 +422,7 @@ func RenameShelf(id, name string) (err error) {
 		return err
 	}
 	defer rt.mu.Unlock()
-	if err := rt.waitForAcceptedTaskChains(); err != nil {
+	if err := rt.waitForTasks(); err != nil {
 		return err
 	}
 	i, err := rt.find(id)
@@ -454,7 +454,7 @@ func RemoveShelf(id string) (err error) {
 		return err
 	}
 	defer rt.mu.Unlock()
-	if err := rt.waitForAcceptedTaskChains(); err != nil {
+	if err := rt.waitForTasks(); err != nil {
 		return err
 	}
 	i, err := rt.find(id)
@@ -490,7 +490,7 @@ func ExportShelf(id, zipPath string) (err error) {
 		return err
 	}
 	defer rt.mu.Unlock()
-	if err := rt.waitForAcceptedTaskChains(); err != nil {
+	if err := rt.waitForTasks(); err != nil {
 		return err
 	}
 	if _, err := rt.find(id); err != nil {

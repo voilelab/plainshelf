@@ -51,8 +51,8 @@ func OpenPCloudShelf(id, name, host, token, folder, scope string, showNSFW bool)
 	return rt.openVirtual(next, showNSFW)
 }
 
-func (rt *instance) closeVirtualForReplacement(id string) error {
-	if err := rt.waitForAcceptedTaskChains(); err != nil {
+func (rt *instance) closeReplacedVirtual(id string) error {
+	if err := rt.waitForTasks(); err != nil {
 		return err
 	}
 	if err := rt.app.RemoveShelf(id); err != nil {
@@ -79,7 +79,7 @@ func (rt *instance) openVirtual(next virtualShelf, showNSFW bool) error {
 	}
 	previous, replacing := rt.virtual[id]
 	if replacing {
-		if err := rt.closeVirtualForReplacement(id); err != nil {
+		if err := rt.closeReplacedVirtual(id); err != nil {
 			return err
 		}
 	}
@@ -134,7 +134,7 @@ func CloseVirtualShelf(id string) (err error) {
 	if _, ok := rt.virtual[id]; !ok {
 		return util.Errorf("virtual shelf %q is not open", id)
 	}
-	if err := rt.waitForAcceptedTaskChains(); err != nil {
+	if err := rt.waitForTasks(); err != nil {
 		return err
 	}
 	if err := rt.app.RemoveShelf(id); err != nil {
@@ -212,7 +212,7 @@ func RemoveVirtualShelfOffline(scope string) (err error) {
 	if scope == "" {
 		return util.NewError("virtual shelf scope cannot be empty")
 	}
-	if err := rt.waitForAcceptedTaskChains(); err != nil {
+	if err := rt.waitForTasks(); err != nil {
 		return err
 	}
 	for id, opened := range rt.virtual {

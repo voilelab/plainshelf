@@ -28,9 +28,9 @@ const lanShareTokenName = "lan_share.token"
 var lanSharePort = 20001
 
 const (
-	lanShareReadHeaderTimeout     = 10 * time.Second
-	lanShareReadTimeout           = 60 * time.Second
-	lanShareLargeBookWriteTimeout = 300 * time.Second
+	lanShareReadHeaderTimeout = 10 * time.Second
+	lanShareReadTimeout       = 60 * time.Second
+	lanShareWriteTimeout      = 300 * time.Second
 )
 
 var lanHostAllowed = func(ip netip.Addr) bool {
@@ -135,7 +135,7 @@ func StartLANShare(host, shelfIDsJSON string) (status string, err error) {
 		}),
 		ReadHeaderTimeout: lanShareReadHeaderTimeout,
 		ReadTimeout:       lanShareReadTimeout,
-		WriteTimeout:      lanShareLargeBookWriteTimeout,
+		WriteTimeout:      lanShareWriteTimeout,
 	}
 	go func() {
 		if err := s.srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {

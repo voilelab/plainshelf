@@ -181,7 +181,7 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	}
 }
 
-func TestAPIUpdateBookReportsAMalformedBodyBeforeAMissingBook(t *testing.T) {
+func TestAPIUpdateBookBadBodyBeforeNotFound(t *testing.T) {
 	env := apitest.New(t)
 	apitest.PatchBook(t, env, "book-missing", `{"unexpected":true}`, http.StatusBadRequest)
 	apitest.PatchBook(t, env, "book-missing", `{"title":"Fine"}`, http.StatusNotFound)
