@@ -327,7 +327,7 @@ func TestLANShareQRUsesCurrentSelectionAndNames(t *testing.T) {
 	}
 }
 
-func TestCloseLANShareClosesAListenerServeNeverReached(t *testing.T) {
+func TestCloseLANShareBeforeServe(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)

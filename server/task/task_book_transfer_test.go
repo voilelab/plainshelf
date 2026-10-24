@@ -9,7 +9,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func TestBookTransferTaskRefusesOnlyBeforeItStarts(t *testing.T) {
+func TestBookTransferCancelBeforeStart(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
 	bookID := seedTransferBook(t, source, shelf.FolderPath{"fiction"}, "Only")

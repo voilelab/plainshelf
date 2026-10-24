@@ -12,7 +12,7 @@ import (
 
 const fingerprintAlgoOwner = "server/task/task_fingerprint_sources.go"
 
-func TestOnlyTheFingerprintTaskBuildsAFingerprintAlgo(t *testing.T) {
+func TestFingerprintAlgoHasOneOwner(t *testing.T) {
 	root := repoRoot(t)
 
 	fset := token.NewFileSet()

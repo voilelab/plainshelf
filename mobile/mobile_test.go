@@ -402,9 +402,9 @@ func TestExportImportAndRemoveWaitForTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := acceptedTaskChainsTimeout
-	acceptedTaskChainsTimeout = 50 * time.Millisecond
-	t.Cleanup(func() { acceptedTaskChainsTimeout = old })
+	old := taskWaitTimeout
+	taskWaitTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { taskWaitTimeout = old })
 
 	task := &heldTask{release: make(chan struct{})}
 	release := sync.OnceFunc(func() { close(task.release) })
@@ -433,7 +433,7 @@ func TestExportImportAndRemoveWaitForTasks(t *testing.T) {
 		t.Fatalf("shelf directories while busy: %v %v", entries, err)
 	}
 
-	acceptedTaskChainsTimeout = 5 * time.Second
+	taskWaitTimeout = 5 * time.Second
 	release()
 	if err := ExportShelf(id, zipPath); err != nil {
 		t.Fatalf("ExportShelf after the task: %v", err)

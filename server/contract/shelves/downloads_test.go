@@ -91,7 +91,7 @@ func TestAPIDownloadBookContract(t *testing.T) {
 	}
 }
 
-func TestRemoveOfflineScopeRefusesWhileAShelfUsesIt(t *testing.T) {
+func TestRemoveOfflineScopeInUse(t *testing.T) {
 	env := apitest.New(t)
 	libRoot, ids := apitest.SeedVirtualSource(t, "Dune")
 	env.AddVirtualShelf(t, libRoot)
