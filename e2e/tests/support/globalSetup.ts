@@ -10,7 +10,6 @@ export const serverBinaryEnvVar = 'PLAINSHELF_E2E_SERVER_BIN';
 export default async function globalSetup(): Promise<(() => Promise<void>) | void> {
   const suppliedServerBinary = process.env[serverBinaryEnvVar];
   if (suppliedServerBinary) {
-    // eslint-disable-next-line no-console
     console.log(`Reusing E2E server binary: ${suppliedServerBinary}`);
     return;
   }
@@ -31,7 +30,6 @@ export default async function globalSetup(): Promise<(() => Promise<void>) | voi
   }
 
   process.env[serverBinaryEnvVar] = binaryPath;
-  // eslint-disable-next-line no-console
   console.log(`Built E2E server binary in ${((Date.now() - buildStartedAt) / 1000).toFixed(1)}s: ${binaryPath}`);
 
   return async () => {
