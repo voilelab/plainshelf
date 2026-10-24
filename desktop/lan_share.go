@@ -28,6 +28,10 @@ import (
 const (
 	lanShareConfigName = "lan_share.json"
 	lanShareTokenName  = "lan_share.token"
+
+	lanShareReadHeaderTimeout     = 10 * time.Second
+	lanShareReadTimeout           = 60 * time.Second
+	lanShareLargeBookWriteTimeout = 300 * time.Second
 )
 
 var lanShareDefaultPort = 20001
@@ -193,10 +197,9 @@ func (s *lanShare) listen(host string) error {
 	}
 	srv := &http.Server{
 		Handler:           s.app.DAVExportShelvesHandler(s.tokenFile, s.isShared),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       60 * time.Second,
-
-		WriteTimeout: 300 * time.Second,
+		ReadHeaderTimeout: lanShareReadHeaderTimeout,
+		ReadTimeout:       lanShareReadTimeout,
+		WriteTimeout:      lanShareLargeBookWriteTimeout,
 	}
 	go func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -254,19 +257,14 @@ func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
 
 	var listenErr error
 	if next.Enabled {
-
 		if next.Host == s.conf.Host {
 			next.Host = currentLANHost(next.Host)
 		}
-
-		if widens(s.conf, next) {
-			if err := saveLANShare(s.configPath, next); err != nil {
-				return s.statusLocked(shelves), util.Errorf("saving LAN share config: %w", err)
-			}
+		if err := s.saveBeforeWidening(next); err != nil {
+			return s.statusLocked(shelves), err
 		}
 		listenErr = s.listen(next.Host)
 		if listenErr != nil {
-
 			next.Enabled = false
 			s.close()
 		}
@@ -274,10 +272,7 @@ func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
 		s.close()
 	}
 
-	s.setShared(next.ShelfIDs)
-	s.conf = next
-	s.startErr = ""
-	if err := s.saveApplied(); err != nil {
+	if err := s.applyThenSave(next); err != nil {
 		return s.statusLocked(shelves), err
 	}
 	if listenErr != nil {
@@ -309,7 +304,6 @@ func (s *lanShare) statusLocked(shelves *desktopShelvesConfig) LANShareStatus {
 		st.Addresses = addrs
 	}
 	if !st.Running {
-
 		st.Host = currentLANHost(st.Host)
 	}
 	for _, e := range shelves.Shelves {
@@ -356,6 +350,23 @@ func (s *lanShare) forgetShelf(shelfID string) error {
 	}
 	s.conf.ShelfIDs = slices.DeleteFunc(slices.Clone(s.conf.ShelfIDs), func(id string) bool { return id == shelfID })
 	s.setShared(s.conf.ShelfIDs)
+	return s.saveApplied()
+}
+
+func (s *lanShare) saveBeforeWidening(next lanShareConfig) error {
+	if !widens(s.conf, next) {
+		return nil
+	}
+	if err := saveLANShare(s.configPath, next); err != nil {
+		return util.Errorf("saving LAN share config: %w", err)
+	}
+	return nil
+}
+
+func (s *lanShare) applyThenSave(next lanShareConfig) error {
+	s.setShared(next.ShelfIDs)
+	s.conf = next
+	s.startErr = ""
 	return s.saveApplied()
 }
 

@@ -56,6 +56,10 @@ func (c *desktopShelvesConfig) find(id string) *desktopShelfEntry {
 	return nil
 }
 
+func (c *desktopShelvesConfig) nextShelfID(name string) string {
+	return generateDesktopShelfID(name, c.existingIDs())
+}
+
 func (c *desktopShelvesConfig) existingIDs() map[string]bool {
 	ids := map[string]bool{}
 	for _, entry := range c.all() {

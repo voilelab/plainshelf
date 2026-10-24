@@ -56,6 +56,8 @@ type ShelfIDPreview struct {
 	DefaultPath string `json:"defaultPath"`
 }
 
+const virtualShelfOpenFailedSummary = "The virtual shelf could not be opened. Check the connection and unlock the keychain, then retry."
+
 func (a *DesktopApp) PreviewShelfID(name string) (ShelfIDPreview, error) {
 	if strings.TrimSpace(name) == "" {
 		return ShelfIDPreview{}, nil
@@ -66,11 +68,11 @@ func (a *DesktopApp) PreviewShelfID(name string) (ShelfIDPreview, error) {
 		return ShelfIDPreview{}, util.Errorf("loading shelf config: %w", err)
 	}
 
-	id := generateDesktopShelfID(name, conf.existingIDs())
-	return ShelfIDPreview{
-		ID:          id,
-		DefaultPath: defaultDesktopShelfDir(a.shelvesConfigPath, id),
-	}, nil
+	return a.previewFor(conf.nextShelfID(name)), nil
+}
+
+func (a *DesktopApp) previewFor(id string) ShelfIDPreview {
+	return ShelfIDPreview{ID: id, DefaultPath: defaultDesktopShelfDir(a.shelvesConfigPath, id)}
 }
 
 func (a *DesktopApp) AddShelf(params AddShelfParams) error {
@@ -99,7 +101,7 @@ func (a *DesktopApp) AddShelf(params AddShelfParams) error {
 		return util.Errorf("loading shelf config: %w", err)
 	}
 
-	id := generateDesktopShelfID(name, conf.existingIDs())
+	id := conf.nextShelfID(name)
 
 	entry := desktopShelfEntry{
 		ID:                id,
@@ -131,7 +133,7 @@ func (a *DesktopApp) addVirtualShelf(name string, params AddShelfParams) error {
 	if err != nil {
 		return util.Errorf("loading shelf config: %w", err)
 	}
-	id := generateDesktopShelfID(name, conf.existingIDs())
+	id := conf.nextShelfID(name)
 
 	remote := params.Remote
 	src := &shelf.SourceConf{
@@ -235,7 +237,7 @@ func (a *DesktopApp) shelfDetails(entry desktopShelfEntry) *DesktopShelfDetails 
 	if entry.Source != nil {
 		details.Source, details.URL, details.Username = entry.Source.Type, entry.Source.URL, entry.Source.Username
 		if _, open := a.app.ShelfManager().GetShelf(entry.ID); !open {
-			details.OpenError = "The virtual shelf could not be opened. Check the connection and unlock the keychain, then retry."
+			details.OpenError = virtualShelfOpenFailedSummary
 		}
 	}
 	return details
@@ -272,7 +274,7 @@ func (a *DesktopApp) RetryShelf(shelfID string) error {
 		return nil
 	}
 	if err := a.app.AddShelf(toShelfConfWithID(*entry)); err != nil {
-		return util.NewError("The virtual shelf could not be opened. Check the connection and unlock the keychain, then retry.")
+		return util.NewError(virtualShelfOpenFailedSummary)
 	}
 	return nil
 }
@@ -330,6 +332,16 @@ func (a *DesktopApp) ModifyShelf(params ModifyShelfParams) error {
 	return nil
 }
 
+func (a *DesktopApp) deleteShelfCredential(source *shelf.SourceConf) error {
+	if source == nil || !strings.HasPrefix(source.Credential, hostCredentialPrefix) {
+		return nil
+	}
+	if err := a.secretStore().Delete(strings.TrimPrefix(source.Credential, hostCredentialPrefix)); err != nil {
+		return util.Errorf("removing the shelf's secret from the keychain: %w", err)
+	}
+	return nil
+}
+
 func (a *DesktopApp) RemoveShelf(shelfID string) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
@@ -349,13 +361,9 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 	if removed == nil {
 		return util.Errorf("shelf with ID %q not found in config", shelfID)
 	}
-	// slices.DeleteFunc overwrites the slots that removed points into.
 	source := removed.Source
-
-	if source != nil && strings.HasPrefix(source.Credential, hostCredentialPrefix) {
-		if err := a.secretStore().Delete(strings.TrimPrefix(source.Credential, hostCredentialPrefix)); err != nil {
-			return util.Errorf("removing the shelf's secret from the keychain: %w", err)
-		}
+	if err := a.deleteShelfCredential(source); err != nil {
+		return err
 	}
 
 	isShelf := func(entry desktopShelfEntry) bool { return entry.ID == shelfID }

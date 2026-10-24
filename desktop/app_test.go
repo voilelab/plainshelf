@@ -71,14 +71,18 @@ func TestNormalizeFolderParts(t *testing.T) {
 
 func startedDesktopAppWithShelf(t *testing.T, shelfID string) *DesktopApp {
 	t.Helper()
+	return startedDesktopAppWithShelves(t, shelfID)
+}
 
+func startedDesktopAppWithShelves(t *testing.T, shelfIDs ...string) *DesktopApp {
+	t.Helper()
+
+	confs := make([]*shelf.ShelfConfWithID, 0, len(shelfIDs))
+	for _, id := range shelfIDs {
+		confs = append(confs, &shelf.ShelfConfWithID{ID: id, LibRoot: t.TempDir()})
+	}
 	serverApp, err := server.NewApp(&server.AppConf{
-		Shelves: []*shelf.ShelfConfWithID{
-			{
-				ID:      shelfID,
-				LibRoot: t.TempDir(),
-			},
-		},
+		Shelves:   confs,
 		StorePath: t.TempDir(),
 		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
 	})
