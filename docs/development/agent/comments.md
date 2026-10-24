@@ -57,6 +57,12 @@ the rule first. Keep the suppression only when the rule is wrong for that line
 or is style-only. When the rule catches real bugs or protects correctness or
 safety, fix the code and remove the suppression.
 
+A suppression the linter configuration already makes redundant goes without a
+code change: the function is in an exclusion list, the path is exempt, or the
+linter is not enabled. For Go, prove it by removing the suppression and running
+`golangci-lint`; if it then reports, the suppression was live and the rule above
+decides. The repository runs no ESLint, so every `eslint-disable` is redundant.
+
 ## Where a deleted fact goes
 
 A fact that still matters moves to the place that enforces or records it: a
