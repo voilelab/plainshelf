@@ -71,6 +71,12 @@ check, `docs/concepts/` for design, [lessons](lessons.md) for agent traps, or
 the pull request body for history. When `lessons.md` or a doc cites a file for
 the detail, move the detail before deleting the comment.
 
+A name that replaces a comment names the subject and the case, not the reason
+or the outcome: the outcome belongs in the assertion message, the reason in the
+test that pins it. Go test functions stay within 50 characters and other
+declared Go names within 28. `internal/repocheck/name_length_test.go` enforces
+both; its list of older long names only shrinks.
+
 ## Applying it
 
 New and edited code follows this policy now. Existing code is cleaned in
