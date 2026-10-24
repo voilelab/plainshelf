@@ -73,25 +73,30 @@ func (h *handlers) source(w http.ResponseWriter, r *http.Request, book *bookpkg.
 	return source, true
 }
 
-func writeJSON(w http.ResponseWriter, value any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if err := json.MarshalWrite(w, value, jsonopt.API()); err != nil {
-
+func (h *handlers) writeJSON(w http.ResponseWriter, value any) {
+	body, err := json.Marshal(value, jsonopt.API())
+	if err != nil {
+		h.lib.warn("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if _, err := w.Write(body); err != nil {
+		h.lib.warn("failed to write response", "error", err)
 	}
 }
 
 func (h *handlers) getMode(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, map[string]bool{"read_only": true})
+	h.writeJSON(w, map[string]bool{"read_only": true})
 }
 
 func (h *handlers) getVersion(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, map[string]string{"version": h.version})
+	h.writeJSON(w, map[string]string{"version": h.version})
 }
 
 func (h *handlers) getBook(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
-		writeJSON(w, struct {
+		h.writeJSON(w, struct {
 			Meta   *bookpkg.BookMeta `json:"meta"`
 			Folder []string          `json:"folder"`
 		}{Meta: book.GetMeta(), Folder: []string{}})
@@ -104,7 +109,7 @@ func (h *handlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		h.streamSource(w, source)
+		h.streamSource(w, book, source)
 	})
 }
 
@@ -125,7 +130,7 @@ func (h *handlers) writeSourceList(w http.ResponseWriter, book *bookpkg.Book) {
 	for _, source := range sources {
 		metas = append(metas, source.GetMeta())
 	}
-	writeJSON(w, metas)
+	h.writeJSON(w, metas)
 }
 
 func (h *handlers) getSource(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +139,7 @@ func (h *handlers) getSource(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		writeJSON(w, source.GetMeta())
+		h.writeJSON(w, source.GetMeta())
 	})
 }
 
@@ -144,11 +149,11 @@ func (h *handlers) getSourceContent(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		h.streamSource(w, source)
+		h.streamSource(w, book, source)
 	})
 }
 
-func (h *handlers) streamSource(w http.ResponseWriter, source *bookpkg.Source) {
+func (h *handlers) streamSource(w http.ResponseWriter, book *bookpkg.Book, source *bookpkg.Source) {
 	content, err := source.Open()
 	if err != nil {
 		http.Error(w, "failed to open the source", http.StatusInternalServerError)
@@ -158,8 +163,7 @@ func (h *handlers) streamSource(w http.ResponseWriter, source *bookpkg.Source) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if _, err := io.Copy(w, content); err != nil {
-
-		return
+		h.lib.warn("source stream ended early", "book_id", book.ID(), "source_id", source.ID(), "error", err)
 	}
 }
 

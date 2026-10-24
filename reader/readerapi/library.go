@@ -50,9 +50,7 @@ func (l *Library) closeLocked() error {
 		return nil
 	}
 	if err := pkg.Close(); err != nil {
-		if l.logger != nil {
-			l.logger.Warn("failed to close a book package", "error", err)
-		}
+		l.warn("failed to close a book package", "error", err)
 		return util.Errorf("%w", err)
 	}
 	return nil
@@ -74,4 +72,10 @@ func (l *Library) withBook(read func(*bookpkg.Book)) bool {
 
 	read(l.pkg.Book())
 	return true
+}
+
+func (l *Library) warn(msg string, args ...any) {
+	if l.logger != nil {
+		l.logger.Warn(msg, args...)
+	}
 }
