@@ -77,4 +77,19 @@ describe('bookMatchesSearch', () => {
     expect(books.filter((book) => bookMatchesSearch(book, 'no comment')).map((b) => b.id)).toEqual(['1']);
     expect(books.filter((book) => bookMatchesSearch(book, 'nonexistent'))).toEqual([]);
   });
+
+  it('matches across Traditional and Simplified Chinese in both directions', () => {
+    const books = [
+      makeBook({ id: '1', title: '紅樓夢' }),
+      makeBook({ id: '2', authors: ['鲁迅'] })
+    ];
+    expect(books.filter((book) => bookMatchesSearch(book, '红楼')).map((b) => b.id)).toEqual(['1']);
+    expect(books.filter((book) => bookMatchesSearch(book, '魯迅')).map((b) => b.id)).toEqual(['2']);
+  });
+
+  it('matches regardless of accents and width', () => {
+    const books = [makeBook({ id: '1', title: 'Jane Eyre', authors: ['Charlotte Brontë'] })];
+    expect(books.filter((book) => bookMatchesSearch(book, 'bronte')).map((b) => b.id)).toEqual(['1']);
+    expect(books.filter((book) => bookMatchesSearch(book, 'ＥＹＲＥ')).map((b) => b.id)).toEqual(['1']);
+  });
 });
