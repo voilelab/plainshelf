@@ -2,9 +2,18 @@ import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
 import Icons from 'unplugin-icons/vite';
+import license from 'rollup-plugin-license';
 
 export default defineConfig({
-  plugins: [vue(), Icons({ compiler: 'vue3', scale: 1 })],
+  plugins: [
+    vue(),
+    Icons({ compiler: 'vue3', scale: 1 }),
+    license({
+      thirdParty: {
+        output: { file: fileURLToPath(new URL('./dist/licenses/third-party.txt', import.meta.url)) }
+      }
+    })
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

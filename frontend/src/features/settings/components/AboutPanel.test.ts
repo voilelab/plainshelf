@@ -82,3 +82,17 @@ describe('AboutPanel font licences', () => {
     expect(opened.urls).toEqual(['https://fontsource.org/fonts/noto-serif-tc']);
   });
 });
+
+describe('AboutPanel third-party notices', () => {
+  it('opens the generated third-party notice in-app', async () => {
+    const host = await mountPanel();
+    const link = host.querySelector<HTMLAnchorElement>('a[href="/licenses/third-party.txt"]');
+    expect(link).not.toBeNull();
+
+    link?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await nextTick();
+
+    expect(host.querySelector('.font-license-modal')?.textContent).toBe('Third-party software licenses');
+    expect(opened.urls).toEqual([]);
+  });
+});

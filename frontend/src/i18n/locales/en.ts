@@ -406,6 +406,7 @@ const en = {
       version: 'Version',
       repository: 'Repository',
       thirdPartyFonts: 'Third-party font licenses',
+      thirdPartySoftware: 'Third-party software licenses',
       fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · package version 5.3.0',
       source: 'Source',
       license: 'Full license text',
