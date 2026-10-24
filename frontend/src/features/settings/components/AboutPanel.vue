@@ -1,7 +1,7 @@
 <template>
   <FontLicenseModal
     :open="selectedFontLicense !== null"
-    :title="t('settings.about.licenseTitle', { font: selectedFontLicense?.name ?? '' })"
+    :title="selectedFontLicense?.title ?? ''"
     :text="fontLicenseText"
     :loading="fontLicenseLoading"
     :error="fontLicenseError"
@@ -25,6 +25,14 @@
       </div>
       <a class="setting-link" :href="githubRepoUrl" target="_blank" rel="noreferrer" @click="onRepositoryLinkClick">
         {{ githubRepoUrl }}
+      </a>
+    </div>
+    <div class="setting-item">
+      <div>
+        <div class="setting-label">{{ t('settings.about.thirdPartySoftware') }}</div>
+      </div>
+      <a class="setting-link" :href="thirdPartyNoticePath" @click.prevent="openThirdPartyNotice">
+        {{ t('settings.about.license') }}
       </a>
     </div>
     <div class="font-license-section">
@@ -64,10 +72,16 @@ interface BundledFont {
   license: string;
 }
 
+interface LicenseNotice {
+  title: string;
+  license: string;
+}
+
 const { t } = useI18n();
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
 const licenseDir = `${import.meta.env.BASE_URL}licenses/`;
+const thirdPartyNoticePath = licenseDir + 'third-party.txt';
 
 const bundledFonts: BundledFont[] = [
   {
@@ -91,7 +105,7 @@ const bundledFonts: BundledFont[] = [
     license: licenseDir + 'noto-sans-sc-OFL-1.1.txt'
   }
 ];
-const selectedFontLicense = ref<BundledFont | null>(null);
+const selectedFontLicense = ref<LicenseNotice | null>(null);
 const fontLicenseText = ref('');
 const fontLicenseLoading = ref(false);
 const fontLicenseError = ref('');
@@ -108,11 +122,22 @@ function onBundledFontSourceClick(event: MouseEvent, url: string): void {
   void openExternalURL(url);
 }
 
-async function openFontLicense(font: BundledFont): Promise<void> {
-  selectedFontLicense.value = font;
+function openFontLicense(font: BundledFont): Promise<void> {
+  return openLicense({
+    title: t('settings.about.licenseTitle', { font: font.name }),
+    license: font.license
+  });
+}
+
+function openThirdPartyNotice(): Promise<void> {
+  return openLicense({ title: t('settings.about.thirdPartySoftware'), license: thirdPartyNoticePath });
+}
+
+async function openLicense(notice: LicenseNotice): Promise<void> {
+  selectedFontLicense.value = notice;
   fontLicenseError.value = '';
 
-  const cachedText = fontLicenseCache.get(font.license);
+  const cachedText = fontLicenseCache.get(notice.license);
   if (cachedText !== undefined) {
     fontLicenseText.value = cachedText;
     fontLicenseLoading.value = false;
@@ -124,13 +149,13 @@ async function openFontLicense(font: BundledFont): Promise<void> {
   fontLicenseLoading.value = true;
 
   try {
-    const response = await fetch(font.license);
+    const response = await fetch(notice.license);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     const text = await response.text();
-    fontLicenseCache.set(font.license, text);
+    fontLicenseCache.set(notice.license, text);
     if (request === fontLicenseRequest) {
       fontLicenseText.value = text;
     }

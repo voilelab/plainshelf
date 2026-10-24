@@ -392,6 +392,7 @@ const zhHant = {
       version: '版本',
       repository: '程式碼倉庫',
       thirdPartyFonts: '第三方字型授權',
+      thirdPartySoftware: '第三方軟體授權',
       fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · 套件版本 5.3.0',
       source: '來源',
       license: '完整授權條款',
