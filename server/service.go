@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/httputil"
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -109,42 +110,34 @@ func MainService(confPath string) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+	serveErr := make(chan error, 2)
 	go func() {
 		rootLogger.Info("Starting http server on", "addr", conf.ServerConf.Addr)
-		serveErr := server.Serve(ln)
-		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			rootLogger.Error("http server error", "error", serveErr)
-		}
+		serveErr <- serveUntilClosed(server, ln)
 	}()
 
-	defer func() {
-		rootLogger.Info("shutting down http server")
-		err = server.Shutdown(context.TODO())
-		if err != nil {
-			rootLogger.Error("failed to shutdown http server", "error", err)
-		}
-	}()
+	defer shutdownWithin(server, "http server", rootLogger, shutdownTimeout)
 
 	if conf.DAVExport != nil {
-		davServer, err := startDAVExport(conf.DAVExport, app, rootLogger)
+		davServer, err := startDAVExport(conf.DAVExport, app, rootLogger, serveErr)
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
-		defer func() {
-			if err := davServer.Shutdown(context.TODO()); err != nil {
-				rootLogger.Error("failed to shutdown dav export server", "error", err)
-			}
-		}()
+		defer shutdownWithin(davServer, "dav export server", rootLogger, shutdownTimeout)
 	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
+	select {
+	case <-sigCh:
+	case err := <-serveErr:
+		return util.Errorf("%w", err)
+	}
 
 	return nil
 }
 
-func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger) (*http.Server, error) {
+func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger, serveErr chan<- error) (*http.Server, error) {
 	if err := EnsureDAVExportToken(conf.TokenFile); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -170,12 +163,29 @@ func startDAVExport(conf *DAVExportConf, app *App, logger *logutil.Logger) (*htt
 	}
 	logger.Info("Starting dav export server on", "addr", conf.Addr, "token_file", conf.TokenFile)
 	go func() {
-		serveErr := server.Serve(ln)
-		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			logger.Error("dav export server error", "error", serveErr)
-		}
+		serveErr <- serveUntilClosed(server, ln)
 	}()
 	return server, nil
+}
+
+func serveUntilClosed(server *http.Server, ln net.Listener) error {
+	err := server.Serve(ln)
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+const shutdownTimeout = 10 * time.Second
+
+func shutdownWithin(server *http.Server, name string, logger *logutil.Logger, timeout time.Duration) {
+	logger.Info("shutting down " + name)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		logger.Error("failed to shutdown "+name, "error", err)
+		_ = server.Close()
+	}
 }
 
 func RotateDAVExportTokenForConf(confPath string) (token, tokenFile string, err error) {

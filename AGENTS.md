@@ -54,8 +54,8 @@ The Go build embeds `frontend/dist`; build the frontend before Go builds or test
 | Wasm demo smoke | `just test-wasm-demo` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
 
-The boundary, export, license, version-resolver, and wasm demo smoke checks are
-pull-request gates in `.github/workflows/ci.yml`; its Android build and Android
+The boundary, export, license, version-resolver, docs build (`mkdocs build
+--strict`), and wasm demo smoke checks are pull-request gates in `.github/workflows/ci.yml`; its Android build and Android
 Go library jobs are not gates yet.
 
 `just` uses `zsh`. If either is unavailable, run the underlying commands from

@@ -349,6 +349,7 @@ parallel behind it.
 | Go tests | 0:28 | 0:36 | 0:35 | **0:35** | 5 |
 | Frontend E2E | 3:34 | 6:27 | 3:22 | **3:34** | 10 † |
 | Wasm demo smoke | — | — | — | — | 10 ‡ |
+| Docs build | — | — | — | — | 5 ¶ |
 | Android build | 1:29 | 1:24 | 1:05 | **1:24** | 5 |
 | Android Go library | — | — | — | — | 10 § |
 | Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
@@ -374,6 +375,10 @@ runs the smoke again there. The cap is provisional on the same terms as E2E's.
 for `android/arm64` with the runner's NDK; the cap is provisional on the same
 terms as E2E's.
 
+¶ Added after this measurement, with no baseline. It installs
+`requirements.txt` and runs `mkdocs build --strict`, which took about 1s in the
+cloud container; unlike the others it does not wait on `frontend`.
+
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a
 runner. The pull request that added these caps ran for 10:00, the budget's whole
@@ -381,7 +386,7 @@ limit, with its `frontend` job executing for 1:23, five minutes of the rest
 being queue. A run near the budget therefore says nothing about how close a job
 is to its cap.
 
-`frontend` is the `needs` of every other job, so its time is on the critical
+`frontend` is the `needs` of every other job but `docs`, so its time is on the critical
 path twice over — once as itself, once as the delay before anything else starts.
 The cumulative time from the run starting to the E2E job starting was 1:35 /
 1:25 / 2:06; to the E2E *tests* starting, 2:20 / 4:54 / 2:43.

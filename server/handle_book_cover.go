@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -74,6 +76,10 @@ func (h *bookHandlers) updateCover(w http.ResponseWriter, r *http.Request) {
 
 	if coverToJPG {
 		data, err = imgutil.AnyToJPG(data)
+		if errors.Is(err, imgutil.ErrTooManyPixels) {
+			http.Error(w, fmt.Sprintf("image too large (max %d megapixels)", imgutil.MaxPixels/1_000_000), http.StatusRequestEntityTooLarge)
+			return
+		}
 		if err != nil {
 			h.Error("failed to convert image to JPEG", "error", err)
 			http.Error(w, "failed to convert image to JPEG", http.StatusInternalServerError)

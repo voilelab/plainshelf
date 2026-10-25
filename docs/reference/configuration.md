@@ -60,6 +60,10 @@ error, not a default, and the server refuses to start.
 
 Durations use Go syntax: `60s`, `5m`, `1h30m`.
 
+On SIGINT or SIGTERM the server stops accepting connections and gives requests
+still in flight 10 seconds to finish, then closes them. The same applies to the
+`dav_export` listener.
+
 `addr` is also read by the security check: it must be a loopback address unless
 `app_conf.security.mode` is set explicitly. See
 [Deployment and threat model](../deployment-and-threat-model.md).
@@ -204,6 +208,9 @@ content are shown. It is not the book store: the shelf on disk is. See
 `cover_to_jpg` is one of the three settings that have both a key here and a
 runtime value. A value saved from the settings page wins over the config file;
 deleting it reverts to the config file, and then to `false`.
+
+A cover is converted only up to 40 megapixels. A larger upload is refused with
+413, and a larger EPUB cover is skipped, leaving the book without one.
 
 `show_nsfw` has no key here at all: it lives only in the store, defaults to
 hidden, and is changed from **Settings → Adult content** or through
