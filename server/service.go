@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -116,14 +117,15 @@ func MainService(confPath string) error {
 		serveErr <- serveUntilClosed(server, ln)
 	}()
 
-	defer shutdownWithin(server, "http server", rootLogger, shutdownTimeout)
+	servers := []namedServer{{"http server", server}}
+	defer func() { shutdownAll(rootLogger, shutdownTimeout, servers...) }()
 
 	if conf.DAVExport != nil {
 		davServer, err := startDAVExport(conf.DAVExport, app, rootLogger, serveErr)
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
-		defer shutdownWithin(davServer, "dav export server", rootLogger, shutdownTimeout)
+		servers = append(servers, namedServer{"dav export server", davServer})
 	}
 
 	sigCh := make(chan os.Signal, 1)
@@ -178,14 +180,25 @@ func serveUntilClosed(server *http.Server, ln net.Listener) error {
 
 const shutdownTimeout = 10 * time.Second
 
-func shutdownWithin(server *http.Server, name string, logger *logutil.Logger, timeout time.Duration) {
-	logger.Info("shutting down " + name)
+type namedServer struct {
+	name   string
+	server *http.Server
+}
+
+func shutdownAll(logger *logutil.Logger, timeout time.Duration, servers ...namedServer) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Error("failed to shutdown "+name, "error", err)
-		_ = server.Close()
+	var wg sync.WaitGroup
+	for _, s := range servers {
+		wg.Go(func() {
+			logger.Info("shutting down " + s.name)
+			if err := s.server.Shutdown(ctx); err != nil {
+				logger.Error("failed to shutdown "+s.name, "error", err)
+				_ = s.server.Close()
+			}
+		})
 	}
+	wg.Wait()
 }
 
 func RotateDAVExportTokenForConf(confPath string) (token, tokenFile string, err error) {

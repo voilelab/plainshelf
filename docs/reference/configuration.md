@@ -61,8 +61,8 @@ error, not a default, and the server refuses to start.
 Durations use Go syntax: `60s`, `5m`, `1h30m`.
 
 On SIGINT or SIGTERM the server stops accepting connections and gives requests
-still in flight 10 seconds to finish, then closes them. The same applies to the
-`dav_export` listener.
+still in flight 10 seconds to finish, then closes them. The `dav_export`
+listener shuts down at the same time, within the same 10 seconds.
 
 `addr` is also read by the security check: it must be a loopback address unless
 `app_conf.security.mode` is set explicitly. See
