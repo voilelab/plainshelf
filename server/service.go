@@ -178,7 +178,7 @@ func serveUntilClosed(server *http.Server, ln net.Listener) error {
 	return err
 }
 
-const shutdownTimeout = 10 * time.Second
+const shutdownTimeout = 5 * time.Second
 
 type namedServer struct {
 	name   string

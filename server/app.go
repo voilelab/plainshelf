@@ -230,10 +230,10 @@ func (app *App) RemoveShelf(id string) error {
 }
 
 func (app *App) Close() error {
-	err1 := app.storeDB.Close()
+	err1 := app.taskChains.Close()
 	err2 := app.shelfManager.Close()
-	err3 := app.Logger.Close()
-	err4 := app.taskChains.Close()
+	err3 := app.storeDB.Close()
+	err4 := app.Logger.Close()
 
 	err := errors.Join(err1, err2, err3, err4)
 	if err != nil {
