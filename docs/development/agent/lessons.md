@@ -222,8 +222,8 @@ Read the relevant section before working in that area. Add entries according to
 
 - **Section inserted by text replacement:** replacing an existing heading with
   "new section + that heading" has dropped the heading twice. Only
-  `configuration.md` has a test that notices (`server/conf_docs_test.go`), and
-  no PR gate builds the docs (`docs.yml` runs at release). Run `mkdocs build
-  --strict`, which fails on a broken in-page anchor since `validation.anchors:
-  warn`, and read every removed line with `git diff origin/dev -- docs | grep
+  `configuration.md` has a test that notices (`server/conf_docs_test.go`).
+  `ci.yml`'s docs job runs `mkdocs build --strict`, which fails on a broken
+  in-page anchor since `validation.anchors: warn`, but a dropped heading that
+  nothing links to still passes, so read every removed line with `git diff origin/dev -- docs | grep
   '^-[^-]'`. (`mkdocs.yml`)

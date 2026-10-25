@@ -182,6 +182,13 @@ docker run --rm \
     origin in `app_conf.security.allowed_origins` too, or the Origin check
     rejects writes; the [Docker](development/docker.md) page has both settings.
 
+!!! tip "Stop timeout on a network shelf"
+    `docker stop` and Compose wait 10 seconds before killing the container. A
+    killed server loses its unsaved shelf caches and rescans on the next start,
+    which is slow over SMB. With a network shelf, allow more time:
+    `docker stop -t 30 plainshelf`, or `stop_grace_period: 30s` in Compose. See
+    [`server_conf`](reference/configuration.md#server_conf) for what shutdown does.
+
 For custom configuration and the bundled defaults, see the
 [Docker](development/docker.md) page.
 

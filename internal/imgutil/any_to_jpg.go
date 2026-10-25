@@ -5,6 +5,7 @@ import (
 	_ "image/png"
 
 	"bytes"
+	"errors"
 	"image"
 	"image/jpeg"
 
@@ -13,7 +14,19 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
+const MaxPixels = 40_000_000
+
+var ErrTooManyPixels = errors.New("image exceeds the pixel limit")
+
 func AnyToJPG(bs []byte) ([]byte, error) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(bs))
+	if err != nil {
+		return nil, err
+	}
+	if int64(cfg.Width)*int64(cfg.Height) > MaxPixels {
+		return nil, ErrTooManyPixels
+	}
+
 	img, format, err := image.Decode(bytes.NewReader(bs))
 	if err != nil {
 		return nil, err
