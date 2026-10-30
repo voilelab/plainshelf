@@ -97,7 +97,7 @@
     >
       <template #title-meta>
         <template v-if="isRootFolderSelected">
-          {{ ROOT_FOLDER_LABEL }}
+          <button type="button" class="breadcrumb-link" @click="onSelectAllBooks">{{ t('library.allBooks') }}</button>
         </template>
         <template v-else-if="selectedFolderSegments.length > 0">
           <button type="button" class="breadcrumb-link" @click="onSelectAllBooks">{{ t('library.allBooks') }}</button>
@@ -280,7 +280,7 @@ import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort } from '@/features/library/composables/useBooksSort';
 import { useContentStatsRefresh } from '@/features/library/composables/useContentStatsRefresh';
 import { useLibraryImport } from '@/features/library/composables/useLibraryImport';
-import { ROOT_FOLDER_LABEL, useLibraryNavigation } from '@/features/library/composables/useLibraryNavigation';
+import { useLibraryNavigation } from '@/features/library/composables/useLibraryNavigation';
 import { useLibrarySelection } from '@/features/library/composables/useLibrarySelection';
 import { useMetadataEditorModal } from '@/features/library/composables/useMetadataEditorModal';
 import {
@@ -461,9 +461,8 @@ const pageTitleSegments = computed(() => {
     return [t('library.titleSearch'), query, t('app.name')] as const;
   }
 
-  const folderName = selectedFolder.value?.trim();
-  if (folderName && folderName !== ROOT_FOLDER_LABEL) {
-    return [t('library.titleFolder'), folderName, t('app.name')] as const;
+  if (selectedFolder.value) {
+    return [t('library.titleFolder'), selectedFolderTitle.value, t('app.name')] as const;
   }
 
   return [t('app.name')] as const;

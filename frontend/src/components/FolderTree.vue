@@ -39,6 +39,17 @@
         </ContextMenuContent>
       </ContextMenuPortal>
     </ContextMenuRoot>
+    <div
+      v-if="topLevelBookCount > 0 || selected === ROOT_FOLDER_FILTER"
+      class="sidebar-nav-item"
+      :class="{ active: selected === ROOT_FOLDER_FILTER }"
+    >
+      <span class="tree-toggle-placeholder" aria-hidden="true"></span>
+      <button type="button" class="sidebar-nav-item-label" @click="emit('select', ROOT_FOLDER_FILTER)">
+        {{ t('bookCollection.noFolder') }}
+      </button>
+      <span class="sidebar-nav-count">{{ topLevelBookCount }}</span>
+    </div>
 
     <TreeRoot
       v-slot="{ flattenItems }"
@@ -58,7 +69,7 @@
             class="sidebar-nav-item folder-node"
             :class="{ active: isSelected(item.value), 'drop-target': dropTargetPath === item.value.path }"
             :style="{ paddingLeft: `calc(8px + ${(item.level - 1) * 14}px)` }"
-            :draggable="canDragFolder(item.value)"
+            :draggable="canDragFolder()"
             @dragstart="(event: DragEvent) => onDragStart(event, item.value)"
             @drag="onDrag"
             @dragend="() => onDragEnd(item.value)"
@@ -88,7 +99,7 @@
               {{ item.value.name }}
             </button>
             <span class="sidebar-nav-count">{{ folderBookCount(item.value) }}</span>
-            <template v-if="sorting && canManageFolder(item.value)">
+            <template v-if="sorting">
               <button
                 type="button"
                 class="tree-toggle folder-order-step"
@@ -124,17 +135,17 @@
               {{ t('layout.createFolder.add') }}
             </ContextMenuItem>
             <ContextMenuItem
-              v-if="props.canOpenFolder && canManageFolder(item.value)"
+              v-if="props.canOpenFolder"
               class="reka-menu-item"
               @select="emit('open-folder', item.value.path)"
             >{{ t('layout.openFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
-              v-if="props.canTransferFolder && canManageFolder(item.value)"
+              v-if="props.canTransferFolder"
               class="reka-menu-item"
               @select="emit('transfer-folder', item.value.path)"
             >{{ t('layout.transferFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
-              v-if="canManageFolder(item.value) && !readOnly"
+              v-if="!readOnly"
               class="reka-menu-item"
               @select="emit('rename-folder', item.value.path)"
             >{{ t('layout.renameFolder.shortAction') }}</ContextMenuItem>
@@ -180,7 +191,7 @@ import FolderIcon from './FolderIcon.vue';
 import type { FolderMeta } from '@/api/folders';
 import { useBookStore } from '@/composables/useBookStore';
 import { useI18n } from '@/i18n';
-import { getFolderPath } from '@/utils/folders';
+import { getFolderPath, ROOT_FOLDER_FILTER } from '@/utils/folders';
 import { planFolderOrder } from '@/utils/folderOrder';
 import { setFolderSortKey } from '@/api/folders';
 import { getActiveShelfID } from '@/api/client';
@@ -225,7 +236,7 @@ function siblingsOf(path: string): string[] {
   const nodes = parent
     ? (findNodeByPath(props.nodes, parent)?.children ?? [])
     : props.nodes;
-  return nodes.filter((node) => node.path !== '/').map((node) => node.path);
+  return nodes.map((node) => node.path);
 }
 function orderNeighbor(path: string, direction: number): string | undefined {
   const siblings = siblingsOf(path);
@@ -275,6 +286,7 @@ watch(
 const { books } = useBookStore();
 
 const totalBookCount = computed(() => books.value.length);
+const topLevelBookCount = computed(() => bookCountByFolder.value.get('') ?? 0);
 
 const bookCountByFolder = computed(() => {
   const counts = new Map<string, number>();
@@ -319,24 +331,20 @@ function folderBookCount(node: FolderNode): number {
   return bookCountByFolder.value.get(node.path) ?? 0;
 }
 
-function canManageFolder(node: FolderNode): boolean {
-  return node.path !== '/';
-}
-
 function folderIcon(node: FolderNode): string {
   return props.folderMeta?.[node.path]?.icon ?? '';
 }
 
 function canChangeIcon(node: FolderNode): boolean {
-  return canManageFolder(node) && !props.readOnly && !props.folderMeta?.[node.path]?.readOnly;
+  return !props.readOnly && !props.folderMeta?.[node.path]?.readOnly;
 }
 
 function showDeleteButton(node: FolderNode): boolean {
-  return canManageFolder(node) && !props.readOnly && folderBookCount(node) === 0;
+  return !props.readOnly && folderBookCount(node) === 0;
 }
 
-function canDragFolder(node: FolderNode): boolean {
-  return canManageFolder(node) && !props.readOnly && !savingOrder.value;
+function canDragFolder(): boolean {
+  return !props.readOnly && !savingOrder.value;
 }
 
 function isDeleting(node: FolderNode): boolean {
@@ -385,7 +393,7 @@ function onDrag(event: DragEvent): void {
 }
 
 function onDragStart(event: DragEvent, node: FolderNode): void {
-  if (!canDragFolder(node)) {
+  if (!canDragFolder()) {
     event.preventDefault();
     return;
   }

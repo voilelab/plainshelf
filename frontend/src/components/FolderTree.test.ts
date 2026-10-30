@@ -6,10 +6,17 @@ import { setLocale } from '@/i18n';
 
 vi.mock('@/composables/useBookStore', async () => {
   const { ref } = await import('vue');
-  return { useBookStore: () => ({ books: ref([]) }) };
+  const books = ref([]);
+  return { useBookStore: () => ({ books }) };
 });
 
 const { default: FolderTree } = await import('./FolderTree.vue');
+const { useBookStore } = await import('@/composables/useBookStore');
+const { books } = useBookStore();
+
+function inFolder(...folders: string[]) {
+  return { id: folders.join('/'), title: '', authors: [], tags: [], folders };
+}
 
 const nodes = [
   { name: 'Fiction', path: 'Fiction', children: [] },
@@ -22,11 +29,22 @@ function mount(props: Record<string, unknown>) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const changed: string[] = [];
+  const selected: string[] = [];
   app = createApp({
-    render: () => h(FolderTree, { nodes, selected: undefined, ...props, onChangeIcon: (path: string) => changed.push(path) })
+    render: () => h(FolderTree, {
+      nodes,
+      selected: undefined,
+      ...props,
+      onChangeIcon: (path: string) => changed.push(path),
+      onSelect: (path: string) => selected.push(path)
+    })
   });
   app.mount(host);
-  return { host, changed };
+  return { host, changed, selected };
+}
+
+function labels(host: HTMLElement): string[] {
+  return [...host.querySelectorAll('.sidebar-nav-item-label')].map((el) => el.textContent?.trim() ?? '');
 }
 
 function row(host: HTMLElement, name: string): HTMLElement {
@@ -48,6 +66,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  books.value = [];
   app?.unmount();
   app = null;
   document.body.innerHTML = '';
@@ -82,5 +101,30 @@ describe('FolderTree folder icons', () => {
   it('does not offer Change icon for a folder.json the server will not rewrite', async () => {
     const { host } = mount({ folderMeta: { Broken: { icon: '', version: 'v1', readOnly: true } } });
     expect(await openMenu(row(host, 'Broken'))).not.toContain('Change icon');
+  });
+});
+
+describe('FolderTree No folder row', () => {
+  it('is hidden while every book is in a folder', () => {
+    books.value = [inFolder('Fiction')];
+    expect(labels(mount({}).host)).toEqual(['All books', 'Fiction', 'Broken']);
+  });
+
+  it('counts top-level books and selects the top level', async () => {
+    books.value = [inFolder(), inFolder(), inFolder('Fiction')];
+    const { host, selected } = mount({});
+    expect(labels(host)).toEqual(['All books', 'No folder', 'Fiction', 'Broken']);
+
+    const label = [...host.querySelectorAll<HTMLElement>('.sidebar-nav-item-label')].find(
+      (el) => el.textContent?.trim() === 'No folder'
+    );
+    expect(label?.parentElement?.querySelector('.sidebar-nav-count')?.textContent).toBe('2');
+    label?.click();
+    await nextTick();
+    expect(selected).toEqual(['/']);
+  });
+
+  it('stays while selected after its last book moves', () => {
+    expect(labels(mount({ selected: '/' }).host)).toContain('No folder');
   });
 });

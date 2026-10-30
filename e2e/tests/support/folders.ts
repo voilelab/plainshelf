@@ -22,9 +22,13 @@ export function folderRow(page: Page, name: string): Locator {
     .filter({ has: page.getByRole('button', { name, exact: true }) });
 }
 
-export async function openCreateFolderDialog(page: Page, parentName: string): Promise<Locator> {
+export async function openCreateFolderDialog(page: Page, parentName: string | undefined): Promise<Locator> {
   await expandFoldersSection(page);
-  await openFolderContextMenu(page, parentName);
+  if (parentName === undefined) {
+    await allBooksRow(page).click({ button: 'right' });
+  } else {
+    await openFolderContextMenu(page, parentName);
+  }
   await page.getByRole('menuitem', { name: 'Add folder', exact: true }).click();
 
   const dialog = page.getByRole('dialog', { name: 'New folder' });
@@ -32,7 +36,7 @@ export async function openCreateFolderDialog(page: Page, parentName: string): Pr
   return dialog;
 }
 
-async function createFolder(page: Page, name: string, parentName: string): Promise<void> {
+async function createFolder(page: Page, name: string, parentName: string | undefined): Promise<void> {
   const dialog = await openCreateFolderDialog(page, parentName);
 
   await dialog.getByLabel('Folder name').fill(name);
@@ -46,7 +50,7 @@ export async function addFolder(page: Page, path: string): Promise<void> {
   let parent = '';
 
   for (const name of segments) {
-    const parentName = parent === '' ? '/' : parent.split('/').at(-1) ?? '/';
+    const parentName = parent === '' ? undefined : parent.split('/').at(-1);
     await createFolder(page, name, parentName);
     parent = parent === '' ? name : `${parent}/${name}`;
     await expect(page).toHaveURL(foldersQueryRegex(parent));
@@ -61,8 +65,18 @@ export async function openFolderContextMenu(page: Page, name: string): Promise<v
   await folderRow(page, name).click({ button: 'right' });
 }
 
+function allBooksRow(page: Page): Locator {
+  return foldersNav(page)
+    .locator('.sidebar-nav-item')
+    .filter({ has: page.getByRole('button', { name: 'All books', exact: true }) });
+}
+
 export async function selectAllBooks(page: Page): Promise<void> {
   await foldersNav(page).getByRole('button', { name: 'All books', exact: true }).click();
+}
+
+export async function selectNoFolder(page: Page): Promise<void> {
+  await foldersNav(page).getByRole('button', { name: 'No folder', exact: true }).click();
 }
 
 export async function switchToCardView(page: Page): Promise<void> {
