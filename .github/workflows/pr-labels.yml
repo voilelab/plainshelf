@@ -13,12 +13,16 @@ jobs:
     name: Release notes label
     runs-on: ubuntu-24.04
     timeout-minutes: 1
+    permissions:
+      pull-requests: read
     steps:
       - name: Require a category label
         env:
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           set -euo pipefail
+          LABELS=$(gh pr view "$PR_URL" --json labels --jq '[.labels[].name]')
           if ! jq -e 'any(.[]; IN("breaking", "security", "feature", "fix", "dependencies", "internal"))' \
             <<< "$LABELS" >/dev/null; then
             echo "::error::label this PR breaking, security, feature, fix, dependencies or internal; see docs/development/releasing.md"
