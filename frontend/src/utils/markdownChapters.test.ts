@@ -55,8 +55,6 @@ describe('buildMarkdownH2Sections', () => {
     expect(content.slice(sections[1].startOffset)).toBe('## 第二章\r\nText');
   });
 
-  // The visible title is what the chapter list shows, so inline markup has to
-  // be resolved to its text rather than shown as source or dropped entirely.
   it('shows heading markup as its rendered text', () => {
     const sections = buildMarkdownH2Sections('## **Bold** and `code` and *italic*\nBody');
     expect(sections[0].title).toBe('Bold and code and italic');
@@ -70,9 +68,6 @@ describe('buildMarkdownH2Sections', () => {
     expect(buildMarkdownH2Sections('## `  code  `\nBody')[0].title).toBe('code');
   });
 
-  // The editor replaces a heading through this range, so it has to cover the
-  // whole heading line, including the last line of a document that ends
-  // without a newline.
   it('reports the heading line range including an unterminated last line', () => {
     const content = '## One\nBody\n## Last';
     expect(scanMarkdownH2Headings(content)).toEqual([
@@ -85,8 +80,6 @@ describe('buildMarkdownH2Sections', () => {
     expect(buildMarkdownH2Sections('# Title')[0].title).toBe('Title');
   });
 
-  // Reading progress is stored as an offset into the whole document, so a
-  // chapter range that is short by even one code unit resumes on the wrong line.
   it('keeps chapter ranges exact when a fenced block precedes the heading', () => {
     const content = '```md\n## Not a chapter\n```\n## Real\nBody';
     const sections = buildMarkdownH2Sections(content);
@@ -107,7 +100,6 @@ describe('buildMarkdownH2Sections', () => {
     ]);
   });
 
-  // "Part 1" is the last resort for a document that names itself nowhere.
   it('names a document that has neither an H2 nor an H1', () => {
     expect(buildMarkdownH2Sections('Just prose')).toEqual([
       { index: 0, startOffset: 0, endOffset: 10, title: 'Part 1', text: 'Just prose' }
@@ -115,8 +107,6 @@ describe('buildMarkdownH2Sections', () => {
     expect(buildMarkdownEditorSections('Just prose')[0]).toMatchObject({ kind: 'opening' });
   });
 
-  // The opening section is the text before the first chapter. Only an H1 in
-  // that range names it, and blank lines alone are not an opening at all.
   it('takes the opening title from an H1 that precedes the first chapter', () => {
     const later = buildMarkdownEditorSections('## Chapter\nBody\n# Late title\nMore');
     expect(later.map(({ kind, title }) => ({ kind, title })))
@@ -125,8 +115,6 @@ describe('buildMarkdownH2Sections', () => {
     const fenced = buildMarkdownEditorSections('```md\n# Fake title\n```\n## Chapter\nBody');
     expect(fenced[0]).toMatchObject({ kind: 'opening', title: 'Opening' });
 
-    // Same rule, with an opening section that exists and a fenced block in it:
-    // the H1 after the chapter is still not the opening's title.
     const afterFence = buildMarkdownEditorSections(
       'Preface\n\n```markdown\ncode\n```\n\n## Chapter\nBody\n# Late title\nMore'
     );
@@ -168,9 +156,6 @@ describe('buildMarkdownH2Sections', () => {
     expect(findMarkdownEditorSection(sections, content.length, 'forward')?.title).toBe('Two');
   });
 
-  // With only two chapters, "fall through to the last section" is
-  // indistinguishable from "find the right one"; a middle chapter tells them
-  // apart, and the editor selects the wrong chapter when they differ.
   it('resolves a cursor inside and at the start of a middle chapter', () => {
     const content = '## One\nBody\n## Two\nBody\n## Three\nBody';
     const sections = buildMarkdownEditorSections(content);
@@ -181,8 +166,6 @@ describe('buildMarkdownH2Sections', () => {
     expect(findMarkdownEditorSection(sections, secondStart, 'backward')?.title).toBe('One');
   });
 
-  // Offset zero is where a freshly opened document parks its caret, and an
-  // offset past the end arrives from stale reading progress.
   it('resolves the document boundaries without falling off either end', () => {
     const content = '## One\nBody\n## Two\nMore';
     const sections = buildMarkdownEditorSections(content);
@@ -196,8 +179,6 @@ describe('buildMarkdownH2Sections', () => {
 });
 
 describe('buildMarkdownChapterList', () => {
-  // The detail page's list is a deep link into the reader, so an index that
-  // does not name the same section the reader would open is a wrong jump.
   it('numbers chapters exactly as the reader sections do', () => {
     const content = '# Book\nPreface\n\n## One\nBody\n## Two\nMore';
     expect(buildMarkdownChapterList(content)).toEqual(
@@ -213,8 +194,6 @@ describe('buildMarkdownChapterList', () => {
     ]);
   });
 
-  // Text with nothing to jump to must yield no list rather than a one-item one:
-  // the detail page hides the whole card on an empty result.
   it('returns nothing when the text has no H2 to navigate to', () => {
     expect(buildMarkdownChapterList('Just prose, no headings at all.')).toEqual([]);
     expect(buildMarkdownChapterList('# Title\nBody\n### Detail\nMore')).toEqual([]);

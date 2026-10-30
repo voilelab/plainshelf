@@ -2,9 +2,6 @@
 import { nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The composable resolves the shelf-ID preview and the reveal-in-Finder action
-// through the active bookshelf provider; hold a swappable provider so each case
-// controls what those bindings do (or whether they exist at all).
 const provider = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock('@/providers', () => ({ getBookshelfProvider: () => provider.value }));
 
@@ -69,9 +66,6 @@ describe('useShelfManagement default shelf directory', () => {
     return vi.fn(() => Promise.resolve({ id: 'novels', defaultPath }));
   }
 
-  // The point of the default: a shelf can be created from a name alone, and the
-  // path the dialog showed is the path that is written — the backend does not
-  // derive it a second time.
   it('submits the previewed default path when the user picks no directory', async () => {
     const addDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
@@ -124,8 +118,6 @@ describe('useShelfManagement default shelf directory', () => {
     );
   });
 
-  // The default path shares the preview's latest-wins token, so a slow response
-  // cannot repopulate the directory of a form that has since been cleared.
   it('drops a late default path after the form is reset', async () => {
     let resolveLate: ((value: { id: string; defaultPath: string }) => void) | undefined;
     provider.value = {
@@ -150,9 +142,6 @@ describe('useShelfManagement default shelf directory', () => {
     expect(newShelfEffectiveDirectory.value).toBe('');
   });
 
-  // The default belongs to the name it was derived from. Holding the previous
-  // answer across the next lookup would let a submit in that window create a
-  // shelf named for the new name under the old name's directory.
   it('drops the previous default while the next name is being previewed', async () => {
     let pending: ((value: { id: string; defaultPath: string }) => void) | undefined;
     provider.value = {
@@ -183,10 +172,6 @@ describe('useShelfManagement default shelf directory', () => {
     await vi.waitFor(() => expect(newShelfEffectiveDirectory.value).toBe('/shelves/poetry'));
   });
 
-  // shelf.NewShelf refuses to create lib_root for a read-only shelf, and the
-  // default names a directory that does not exist yet. The branch is what keeps
-  // the two apart now: read-only is only reachable where the user supplies a
-  // directory that already exists.
   it('never pairs the default directory with read-only', async () => {
     provider.value = {
       previewDesktopShelfID: previewing('/config/PlainShelf/shelves/novels'),
@@ -207,7 +192,6 @@ describe('useShelfManagement default shelf directory', () => {
     await nextTick();
     expect(newShelfEffectiveDirectory.value).toBe('/mnt/archive');
 
-    // Going back to the default branch drops the read-only choice with it.
     newShelfLocationMode.value = 'new';
     await nextTick();
     expect(newShelfReadOnly.value).toBe(false);
@@ -226,8 +210,6 @@ describe('useShelfManagement default shelf directory', () => {
     expect(canSubmitAddShelf.value).toBe(false);
   });
 
-  // Neither interval is asked for while creating a shelf; both keep the backend
-  // default and stay adjustable in the modify dialog.
   it('creates a shelf on the default branch with no intervals and read-only off', async () => {
     const addDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
@@ -273,8 +255,6 @@ describe('useShelfManagement default shelf directory', () => {
     );
   });
 
-  // Without this the submit reaches Go and comes back as
-  // `shelf directory must be an absolute path` (desktop/shelves.go).
   it('refuses a relative folder before it reaches the backend', async () => {
     const addDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
@@ -375,10 +355,6 @@ describe('useShelfManagement read-only shelves', () => {
     expect(newShelfReadOnly.value).toBe(false);
   });
 
-  // Loading the stored value is what keeps read-only reversible from the UI: a
-  // form that always opened unchecked would silently turn the shelf writable on
-  // an unrelated save, and one that could not send `false` would be a one-way
-  // door. Both directions have to reach the backend.
   it('loads a shelf read-only state into the modify form and sends the change back', async () => {
     const modifyDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
@@ -403,8 +379,6 @@ describe('useShelfManagement read-only shelves', () => {
 
     await requestModifyShelf({ id: 'archive', name: 'Archive' });
     expect(modifyShelfReadOnly.value).toBe(true);
-    // book_check_interval is loaded from the stored details so it round-trips
-    // rather than resetting to the default on an unrelated save.
     expect(modifyShelfBookCheckInterval.value).toBe('5m');
 
     modifyShelfReadOnly.value = false;
@@ -417,5 +391,222 @@ describe('useShelfManagement read-only shelves', () => {
       bookCheckInterval: '5m',
       readOnly: false
     });
+  });
+});
+
+describe('useShelfManagement remote shelves', () => {
+  async function fillRemote(m: ReturnType<typeof useShelfManagement>, secret: string) {
+    m.newShelfName.value = 'Living room';
+    m.newShelfLocationMode.value = 'remote';
+    m.newShelfSourceURL.value = ' http://192.168.1.20:20001/dav/default_shelf/ ';
+    m.newShelfSourceSecret.value = secret;
+    await nextTick();
+  }
+
+  it('checks the source with the typed token, then adds it as a virtual shelf', async () => {
+    const checkDesktopShelfSource = vi.fn(() => Promise.resolve({ books: 4 }));
+    const addDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = { checkDesktopShelfSource, addDesktopShelf };
+    const m = useShelfManagement();
+    await fillRemote(m, 'tok');
+    expect(m.canSubmitAddShelf.value).toBe(true);
+
+    await m.onSubmitAddShelf();
+
+    const remote = {
+      source: 'plainshelf',
+      url: 'http://192.168.1.20:20001/dav/default_shelf/',
+      username: '',
+      secret: 'tok'
+    };
+    expect(checkDesktopShelfSource).toHaveBeenCalledWith(remote);
+    expect(addDesktopShelf).toHaveBeenCalledWith({
+      name: 'Living room',
+      libRoot: '',
+      scanInterval: '',
+      bookCheckInterval: '',
+      readOnly: true,
+      remote
+    });
+    expect(m.showAddShelfModal.value).toBe(false);
+    expect(m.newShelfSourceSecret.value).toBe('');
+  });
+
+  it.each([
+    ['SOURCE_UNAUTHORIZED', 'Wrong token: the source refused it.'],
+    ['SOURCE_UNAVAILABLE', 'Cannot connect to the source.']
+  ])('reports %s without adding the shelf', async (code, message) => {
+    const addDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = {
+      checkDesktopShelfSource: vi.fn(() => Promise.resolve({ code, books: 0 })),
+      addDesktopShelf
+    };
+    const m = useShelfManagement();
+    m.showAddShelfModal.value = true;
+    await fillRemote(m, 'tok');
+
+    await m.onSubmitAddShelf();
+
+    expect(m.addShelfError.value).toBe(message);
+    expect(addDesktopShelf).not.toHaveBeenCalled();
+    expect(m.showAddShelfModal.value).toBe(true);
+  });
+
+  it('needs a token for a PlainShelf export but not for WebDAV', async () => {
+    provider.value = {};
+    const m = useShelfManagement();
+    await fillRemote(m, '');
+    expect(m.canSubmitAddShelf.value).toBe(false);
+
+    m.newShelfSourceKind.value = 'webdav';
+    await nextTick();
+    expect(m.canSubmitAddShelf.value).toBe(true);
+
+    m.newShelfSourceUsername.value = 'reader';
+    await nextTick();
+    expect(m.canSubmitAddShelf.value).toBe(false);
+  });
+
+  it('sends a username only for WebDAV', async () => {
+    const checkDesktopShelfSource = vi.fn(() => Promise.resolve({ books: 0 }));
+    provider.value = { checkDesktopShelfSource, addDesktopShelf: vi.fn(() => Promise.resolve()) };
+    const m = useShelfManagement();
+    await fillRemote(m, 'pw');
+    m.newShelfSourceUsername.value = 'reader';
+
+    await m.onSubmitAddShelf();
+    expect(checkDesktopShelfSource).toHaveBeenLastCalledWith(expect.objectContaining({ username: '' }));
+
+    await fillRemote(m, 'pw');
+    m.newShelfSourceKind.value = 'webdav';
+    m.newShelfSourceUsername.value = 'reader';
+    await m.onSubmitAddShelf();
+    expect(checkDesktopShelfSource).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: 'webdav', username: 'reader' })
+    );
+  });
+
+  it('shows a virtual shelf by its address and locks its read-only toggle', async () => {
+    provider.value = {
+      getDesktopShelfDetails: vi.fn(() =>
+        Promise.resolve({
+          id: 'nas',
+          name: 'NAS',
+          path: '',
+          scan_interval: '',
+          book_check_interval: '',
+          read_only: true,
+          source: 'webdav',
+          url: 'https://nas.example/dav/books/',
+          username: 'reader'
+        })
+      )
+    };
+    const m = useShelfManagement();
+    await m.requestModifyShelf({ id: 'nas', name: 'NAS' });
+    expect(m.modifyShelfPath.value).toBe('https://nas.example/dav/books/');
+    expect(m.modifyShelfIsVirtual.value).toBe(true);
+  });
+});
+
+vi.mock('@/providers/platformCapabilities', () => ({
+  getPlatformCapabilities: () => ({
+    shelves: {
+      previewLANShareQR: provider.value.previewLANShareQR,
+      importLANShareQR: provider.value.importLANShareQR,
+      listShelfDetails: provider.value.listShelfDetails,
+      retryShelf: provider.value.retryShelf,
+      previewShelfID: provider.value.previewDesktopShelfID,
+      addShelf: provider.value.addDesktopShelf,
+      checkShelfSource: provider.value.checkDesktopShelfSource,
+      getShelfDetails: provider.value.getDesktopShelfDetails,
+      modifyShelf: provider.value.modifyDesktopShelf,
+      removeShelf: provider.value.removeDesktopShelf
+    },
+    openShelfFolder: provider.value.openDesktopShelfFolder,
+    chooseShelfDirectory: provider.value.openDesktopShelfDirectory
+  })
+}));
+
+it('loads configured failed virtual shelves and refreshes runtime shelves after retry', async () => {
+  const remote = {
+    id: 'failed',
+    name: 'Remote',
+    source: 'webdav',
+    url: 'https://example.test/',
+    read_only: true,
+    open_error: 'unavailable'
+  };
+  const listShelfDetails = vi.fn().mockResolvedValue([remote]);
+  const retryShelf = vi.fn().mockImplementation(async () => {
+    listShelfDetails.mockResolvedValue([{ ...remote, open_error: '' }]);
+  });
+  provider.value = { listShelfDetails, retryShelf };
+  const m = useShelfManagement();
+  await m.ensureShelvesLoaded();
+  expect(m.shelves.value[0]).toMatchObject({
+    id: 'failed',
+    source: 'webdav',
+    open_error: 'unavailable'
+  });
+  await m.retryShelf('failed');
+  expect(retryShelf).toHaveBeenCalledWith('failed');
+  expect(m.shelves.value[0]?.open_error).toBe('');
+  expect(m.retryingShelfIDs.value.size).toBe(0);
+  retryShelf.mockRejectedValue(new Error('secret must never be displayed'));
+  await m.retryShelf('failed');
+  expect(m.shelfOpError.value).toContain('Could not open this virtual shelf');
+  expect(m.shelfOpError.value).not.toContain('secret');
+});
+
+
+
+describe('LAN QR import', () => {
+  const listed = [{ id: 'one', name: 'One', url: 'http://lan/dav/one/' }];
+  it('previews without importing, requires confirmation, and clears secret text after results', async () => {
+    const previewLANShareQR = vi.fn().mockResolvedValue(listed);
+    const importLANShareQR = vi.fn().mockResolvedValue([{ name: 'One', url: listed[0].url, status: 'added' }]);
+    provider.value = { previewLANShareQR, importLANShareQR };
+    const form = useShelfManagement();
+    form.openAddShelfModal();
+    form.newShelfLocationMode.value = 'qr';
+    form.qrText.value = 'secret JSON';
+    expect(form.canSubmitAddShelf.value).toBe(false);
+    await form.previewQR();
+    expect(importLANShareQR).not.toHaveBeenCalled();
+    expect(form.qrShelves.value).toEqual(listed);
+    expect(form.canSubmitAddShelf.value).toBe(true);
+    await form.onSubmitAddShelf();
+    expect(importLANShareQR).toHaveBeenCalledWith('secret JSON');
+    expect(form.qrText.value).toBe('');
+    expect(form.qrResults.value[0].status).toBe('added');
+    expect(form.showAddShelfModal.value).toBe(true);
+    form.closeAddShelfModal();
+    expect(form.qrResults.value).toEqual([]);
+  });
+  it('invalidates the preview on edits and ignores a stale async response', async () => {
+    let resolve!: (value: typeof listed) => void;
+    provider.value = { previewLANShareQR: vi.fn(() => new Promise((r) => { resolve = r; })) };
+    const form = useShelfManagement();
+    form.newShelfLocationMode.value = 'qr';
+    form.qrText.value = 'first';
+    const pending = form.previewQR();
+    form.qrText.value = 'second';
+    resolve(listed);
+    await pending;
+    expect(form.qrShelves.value).toEqual([]);
+    expect(form.canSubmitAddShelf.value).toBe(false);
+  });
+  it('surfaces parser rejection and clears pasted secrets when cancelled', async () => {
+    provider.value = { previewLANShareQR: vi.fn().mockRejectedValue(new Error('unsupported QR version')) };
+    const form = useShelfManagement();
+    form.openAddShelfModal();
+    form.newShelfLocationMode.value = 'qr';
+    form.qrText.value = 'secret JSON';
+    await form.previewQR();
+    expect(form.addShelfError.value).toBe('unsupported QR version');
+    expect(form.canSubmitAddShelf.value).toBe(false);
+    form.closeAddShelfModal();
+    expect(form.qrText.value).toBe('');
   });
 });

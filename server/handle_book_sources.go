@@ -12,8 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// sourceHandlers serves the source routes: the alternative texts a book can
-// hold, their content, and the illustrations stored beside them.
 type sourceHandlers struct {
 	*apiCore
 }
@@ -25,7 +23,6 @@ type createSourceJSONRequest struct {
 	SetCurrent bool   `json:"set_current"`
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources
 func (h *sourceHandlers) listSources(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)
 	if !ok {
@@ -47,7 +44,6 @@ func (h *sourceHandlers) listSources(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, sourceMetas)
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}
 func (h *sourceHandlers) getSource(w http.ResponseWriter, r *http.Request) {
 	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -57,7 +53,6 @@ func (h *sourceHandlers) getSource(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, source.GetMeta())
 }
 
-// POST /api/shelves/{shelf_id}/books/{book_id}/sources
 func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 	shelfData, book, ok := h.loadBook(w, r)
 	if !ok {
@@ -85,16 +80,17 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if r.MultipartForm != nil {
-			defer r.MultipartForm.RemoveAll() //nolint:errcheck // request temp cleanup
+			defer func() {
+				if err := r.MultipartForm.RemoveAll(); err != nil {
+					h.Warn("failed to remove multipart temporary files", "error", err)
+				}
+			}()
 		}
 
 		file, _, err := r.FormFile("content")
 		if err == nil {
 			defer file.Close()
-			// The derived-source API receives the editor's canonical UTF-8 draft.
-			// Do not run heuristic encoding detection here: short Unicode content
-			// can be misidentified, and unlike file import there is no unknown
-			// external encoding to recover.
+
 			content = file
 		} else if errors.Is(err, multipart.ErrMessageTooLarge) {
 			http.Error(w, "source content too large", http.StatusRequestEntityTooLarge)
@@ -152,7 +148,6 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, sourceMeta.GetMeta())
 }
 
-// DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}
 func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
@@ -169,32 +164,21 @@ func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, ok := h.lookupBook(w, r, shelfData, bookID)
+	book, ok := h.lookupVisibleBook(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
 
-	// DeleteSource reports a missing source itself, so the source is not
-	// loaded up front here.
 	if err := book.DeleteSource(sourceID); err != nil {
 		h.writeErr(w, r, err, "failed to delete book source")
 		return
 	}
 
-	// Deleting the current source hands the pointer to another one, so the
-	// cached character count is now somebody else's.
 	shelfData.RefreshBookCharCount(book.ID())
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/comment
-//
-// Clears the source's comment. The note is written by an import or a conversion
-// to record where this text came from, never by the user, so the only thing a
-// client can do to it is remove one it no longer wants on the book page. There
-// is deliberately no way to rewrite it: an editable note would no longer be a
-// record of what actually happened.
 func (h *sourceHandlers) deleteSourceComment(w http.ResponseWriter, r *http.Request) {
 	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -209,14 +193,12 @@ func (h *sourceHandlers) deleteSourceComment(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current
 func (h *sourceHandlers) setCurrentSource(w http.ResponseWriter, r *http.Request) {
 	shelfData, book, _, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}
 
-	// loadBookSource has already rejected an unknown source_id.
 	sourceID, ok := resolveSourceID(w, r)
 	if !ok {
 		return
@@ -232,7 +214,6 @@ func (h *sourceHandlers) setCurrentSource(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (h *sourceHandlers) getSourceContent(w http.ResponseWriter, r *http.Request) {
 	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -250,7 +231,6 @@ func (h *sourceHandlers) getSourceContent(w http.ResponseWriter, r *http.Request
 	h.streamTextFile(w, src, "failed to write book source content")
 }
 
-// POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh
 func (h *sourceHandlers) refreshSourceMeta(w http.ResponseWriter, r *http.Request) {
 	shelfData, book, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -262,15 +242,11 @@ func (h *sourceHandlers) refreshSourceMeta(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Recomputed unconditionally rather than only for the current source: one
-	// meta.json read is cheaper than deciding, and a listing that reports a
-	// count this request just changed must not report the previous one.
 	shelfData.RefreshBookCharCount(book.ID())
 
 	h.writeJSON(w, http.StatusOK, source.GetMeta())
 }
 
-// PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Request) {
 	shelfData, book, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -280,7 +256,7 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 	utf8Reader, _, err := util.ReEncodeToUTF8(r.Body)
 	if err != nil {
-		if isRequestBodyTooLarge(err) {
+		if bodyExceededLimit(r.Body, err) {
 			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -290,6 +266,10 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := source.UpdateContent(utf8Reader); err != nil {
+		if isRequestBodyTooLarge(err) {
+			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
 		h.writeErr(w, r, err, "failed to update book source content")
 		return
 	}
@@ -297,4 +277,12 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 	shelfData.RefreshBookCharCount(book.ID())
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func bodyExceededLimit(body io.Reader, readErr error) bool {
+	if isRequestBodyTooLarge(readErr) {
+		return true
+	}
+	_, drainErr := io.Copy(io.Discard, body)
+	return isRequestBodyTooLarge(drainErr)
 }

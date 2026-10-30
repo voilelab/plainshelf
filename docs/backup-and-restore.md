@@ -1,11 +1,11 @@
-# Backup and Restore
+# Backup and restore
 
 PlainShelf tells you to back up before upgrading. This page is the part that
 makes that instruction usable: **what to copy, and how to put it back.**
 
-For what those files actually are, see [Data Model](concepts/data-model.md); for
+For what those files actually are, see [Data model](concepts/data-model.md); for
 what an upgrade does to their format, see
-[Data Format Versioning](concepts/data-format-versioning.md). This page does not
+[Data format versioning](concepts/data-format-versioning.md). This page does not
 repeat either — it assumes you want a working library back, not an explanation
 of the layout.
 
@@ -95,9 +95,9 @@ formality:
 - **The shelf lock does not help you.** `app/library.lock` coordinates
   PlainShelf's own writers against each other. It does not stop `cp` or `rsync`
   from reading a file, and it is not a snapshot mechanism. What it *does* give
-  you is that each individual file is written atomically — a temp file renamed
-  over its destination — so a copy never catches a half-written `book.json`.
-  See [Write safety](concepts/shelf-cache-and-io.md#write-safety).
+  you is that each individual file is written atomically (a temp file renamed
+  over its destination), so a copy never catches a half-written `book.json`. See
+  [Write safety](concepts/shelf-cache-and-io.md#write-safety).
 
 So the risk of copying a running shelf is not a torn file; it is a torn
 *library*: a book copied before an edit and its source copied after, or a book
@@ -106,9 +106,9 @@ window is empty and a running copy is usually fine. Before an upgrade, when the
 backup is the thing you are relying on, take the ten seconds and stop the
 process.
 
-If you cannot stop it — a shared server, a scheduled job — use a filesystem
-snapshot (LVM, ZFS, APFS, a NAS snapshot) and copy from the snapshot. That gives
-you the point-in-time consistency the copy itself cannot.
+If you cannot stop it, as with a shared server or a scheduled job, use a
+filesystem snapshot (LVM, ZFS, APFS, a NAS snapshot) and copy from the snapshot.
+That gives you the point-in-time consistency the copy itself cannot.
 
 ### Server (binary or built from source)
 
@@ -130,7 +130,7 @@ rsync -a --delete /path/to/store/ /path/to/backup/store/
 `lib_root` and `app_conf.store_path` in your config file are the two paths to
 substitute. See [Local Shelf File Source](configuring-local-shelf.md).
 
-You may exclude `app/` — it is rebuilt on the next start — but excluding it
+You may exclude `app/`, since it is rebuilt on the next start, but excluding it
 saves little and risks a filter that also drops `trash/`. Copying it is simpler
 and safe.
 
@@ -184,7 +184,9 @@ shelf:
 ```
 
 The shelf directories themselves are wherever you pointed the app; `shelves.json`
-lists them.
+lists them. The token of a shelf read from another device is in the system
+keychain, not in this directory, so a restored copy asks for it again: remove
+that shelf and add it back.
 
 ```sh
 # Quit PlainShelf.app first.
@@ -197,11 +199,38 @@ Unlike the server and Docker cases, this one **does** capture your reading
 progress: the desktop app stores those three documents as JSON files in that
 directory rather than in the WebView's storage, precisely so they survive.
 
+### Android local shelf
+
+A local shelf lives in the app's private storage, so uninstalling the app
+deletes it unless you keep the app's data when Android 10 or later asks. Back
+it up from the app: **Settings → Shelves → Export** on the
+shelf. The app writes a zip and asks where to save it; the shelf list then shows
+when it was last exported. Cancelling, or a failed save, leaves no file and
+keeps the old time.
+
+The zip holds `books/`, `trash/` and, when the shelf has one, the
+[`shelf.json`](concepts/data-model.md#shelfjson) at its root, so unzipped it is
+a `lib_root` the desktop app or a server opens as is, with the same ignored
+directories and adult-content folders. It does not carry `app/` (rebuildable
+cache) or reading progress, which stay on the device.
+
+Android's own backup does not replace this. Google cloud backup leaves local
+shelves out, so restoring a phone from it brings none back. Moving to a new
+phone with a cable or Wi-Fi transfer (Android 12 and later) does copy them,
+but the export zip is the only backup PlainShelf guarantees.
+
+If transferred local shelf directories return without their connection entries,
+the app recreates those entries on first launch when the entry list is empty.
+
+If background work such as a cover conversion or an import is still running, the
+export waits up to 30 seconds and then asks you to try again later rather than
+write an incomplete backup.
+
 ### Git does not back up empty folders
 
 Git tracks files, not directories, so a [folder](concepts/folders.md) that holds
-no book — one you created ahead of time, or one whose books you have since moved
-out — is not in the commit and is not there after a checkout. Books themselves
+no book (one you created ahead of time, or one whose books you have since moved
+out) is not in the commit and is not there after a checkout. Books themselves
 are directories full of files and come back intact; what a Git backup loses is
 the shape of the shelf around them.
 
@@ -299,6 +328,21 @@ more folders shallower. Compare the folder list in the app (or
 gone. No book can go missing this way: a folder that still holds a book holds
 files, so Git kept it.
 
+### Restoring into the Android app
+
+After a reinstall, the app offers **Restore from a backup zip** on first launch
+when it has no shelf yet; it imports the zip as below and opens it.
+
+**Settings → Shelves → Import from zip** takes a zip exported above, or a
+desktop or server `lib_root` zipped from a file manager (one wrapping folder is
+fine), and always makes a **new** local shelf named after the file; the shelf in
+use is not touched or switched. A zip is refused, with the reason, and nothing
+is created when it has no `books/` folder, has a path that would land outside
+the shelf, or is larger than 512 MiB or unpacks to more. The app stops reading
+a picked file at that size rather than copy all of it first. A larger shelf
+still exports, and its zip opens on the desktop or a server, but the app cannot
+import it back.
+
 ### Restoring reading progress
 
 Reading progress is not in the shelf backup, so it is restored separately and
@@ -324,8 +368,8 @@ Error starting plainshelf-srv: … store.New: Cannot acquire directory lock on
 "/path/to/store". Another process is using this Badger database.
 ```
 
-That is the correct behavior, not a corrupted backup. Stop the other process —
-including a container you thought you had stopped — and start again.
+That is the correct behavior, not a corrupted backup. Stop the other process,
+including a container you thought you had stopped, and start again.
 
 !!! danger "The lock does not catch the move-aside case"
     Both locks are held on an open file. If you followed the steps above and
@@ -351,8 +395,8 @@ app_conf:
   store_path: /tmp/plainshelf-backup-check-store
 ```
 
-`read_only` turns off every write a shelf normally takes at startup — the lock
-file, the scan cache, the exported book cache, the legacy trash migration — so
+`read_only` turns off every write a shelf normally takes at startup (the lock
+file, the scan cache, the exported book cache, the legacy trash migration), so
 the backup is read exactly as it was found and comes out byte-identical. Give it
 a throwaway `store_path` so you do not open your real store at the same time.
 Then check the books, the folder tree, and the trash before you rely on the
@@ -379,8 +423,8 @@ What follows from that:
   origin the UI was served from, and PlainShelf keys each record by the shelf
   within it. Move the server to a different port or hostname and the browser
   sees a different origin: the library is unchanged, and that browser's reading
-  positions start from zero. Nothing was lost — they are still under the old
-  origin — but nothing follows you either.
+  positions start from zero. Nothing was lost, because they are still under the
+  old origin, but nothing follows you either.
 - **Backing up a browser profile is the only way to back up web reading
   progress.** PlainShelf has no export for these records today.
 
@@ -417,7 +461,7 @@ staying on the newer release and recovering one book it will not touch.
 See [When PlainShelf refuses to
 write](concepts/data-format-versioning.md#when-plainshelf-refuses-to-write) for
 what the refusal looks like, and
-[Data Format Versioning](concepts/data-format-versioning.md) for which formats
+[Data format versioning](concepts/data-format-versioning.md) for which formats
 have changed.
 
 ---

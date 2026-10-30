@@ -5,13 +5,11 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 )
 
-// fakeTask appends its name to a shared record when it runs, and optionally fails.
-// Tasks only run on the single worker goroutine, and Close synchronizes with it,
-// so the record needs no extra locking.
 type fakeTask struct {
 	name   string
 	err    error
@@ -29,8 +27,6 @@ func (t *fakeTask) Description() string { return t.name }
 func (t *fakeTask) Percentage() float64 { return 0 }
 func (t *fakeTask) Status() Status      { return StatusPending }
 
-// blockingTask reports when it starts, then waits for the worker context to be
-// cancelled and publishes the error it observed.
 type blockingTask struct {
 	started  chan struct{}
 	observed chan error
@@ -73,11 +69,10 @@ func TestWorkerRunsChainInOrder(t *testing.T) {
 		&fakeTask{name: "third", record: &ran},
 	}}
 
-	if err := w.Run(chain); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(chain); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 
-	// Close waits for the worker goroutine to drain the queue.
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close returned an error: %v", err)
 	}
@@ -99,8 +94,8 @@ func TestWorkerStopsChainAfterFailure(t *testing.T) {
 		&fakeTask{name: "skipped", record: &ran},
 	}}
 
-	if err := w.Run(chain); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(chain); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close returned an error: %v", err)
@@ -120,8 +115,8 @@ func TestWorkerCancelsRunningTaskOnClose(t *testing.T) {
 	observed := make(chan error, 1)
 	chain := &TaskChain{Tasks: []Task{&blockingTask{started: started, observed: observed}}}
 
-	if err := w.Run(chain); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(chain); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 
 	<-started
@@ -142,21 +137,19 @@ func TestWorkerCancelStopsOnlyThatChain(t *testing.T) {
 	observed := make(chan error, 1)
 	cancelled := &TaskChain{Tasks: []Task{&blockingTask{started: started, observed: observed}}}
 
-	if err := w.Run(cancelled); err != nil {
-		t.Fatalf("Run returned an error: %v", err)
+	if err := w.TryEnqueue(cancelled); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
 	}
 
 	<-started
-	// Cancelling one chain must stop its task without taking the worker down.
 	cancelled.Cancel()
 	if err := <-observed; !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled task observed %v, want context.Canceled", err)
 	}
 
-	// The worker is still alive: a chain submitted after the cancel runs to the end.
 	ran := []string{}
 	next := &TaskChain{Tasks: []Task{&fakeTask{name: "after", record: &ran}}}
-	if err := w.Run(next); err != nil {
+	if err := w.TryEnqueue(next); err != nil {
 		t.Fatalf("Run after cancel returned an error: %v", err)
 	}
 	if err := w.Close(); err != nil {
@@ -177,7 +170,7 @@ func TestWorkerRunAfterCloseReturnsError(t *testing.T) {
 	}
 
 	ran := []string{}
-	err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "late", record: &ran}}})
+	err := w.TryEnqueue(&TaskChain{Tasks: []Task{&fakeTask{name: "late", record: &ran}}})
 	if !errors.Is(err, ErrWorkerClosed) {
 		t.Errorf("Expected ErrWorkerClosed, got %v", err)
 	}
@@ -195,16 +188,15 @@ func TestWorkerCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestWorkerRunReturnsErrWorkerBusyWhenQueueIsFull(t *testing.T) {
-	// The worker is not started, so nothing drains the queue.
+func TestWorkerRunBusyWhenQueueFull(t *testing.T) {
 	w := newTestWorker(t, 1)
 
 	ran := []string{}
-	if err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "queued", record: &ran}}}); err != nil {
+	if err := w.TryEnqueue(&TaskChain{Tasks: []Task{&fakeTask{name: "queued", record: &ran}}}); err != nil {
 		t.Fatalf("Run returned an error for the first chain: %v", err)
 	}
 
-	err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "rejected", record: &ran}}})
+	err := w.TryEnqueue(&TaskChain{Tasks: []Task{&fakeTask{name: "rejected", record: &ran}}})
 	if !errors.Is(err, ErrWorkerBusy) {
 		t.Errorf("Expected ErrWorkerBusy, got %v", err)
 	}
@@ -214,5 +206,63 @@ func TestWorkerRunReturnsErrWorkerBusyWhenQueueIsFull(t *testing.T) {
 	}
 	if len(ran) != 0 {
 		t.Errorf("Expected no task to run, got %v", ran)
+	}
+}
+
+type panickingTask struct{ fakeTask }
+
+func (t *panickingTask) Run(ctx context.Context) error {
+	_ = t.fakeTask.Run(ctx)
+	panic("boom")
+}
+
+func TestWorkerSurvivesPanickingTask(t *testing.T) {
+	w := newTestWorker(t, 2)
+	w.Start()
+
+	ran := []string{}
+	if err := w.TryEnqueue(&TaskChain{Tasks: []Task{
+		&panickingTask{fakeTask{name: "panicking", record: &ran}},
+		&fakeTask{name: "skipped", record: &ran},
+	}}); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
+	}
+	if err := w.TryEnqueue(&TaskChain{Tasks: []Task{&fakeTask{name: "next", record: &ran}}}); err != nil {
+		t.Fatalf("TryEnqueue returned an error: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close returned an error: %v", err)
+	}
+
+	want := []string{"panicking", "next"}
+	if !slices.Equal(ran, want) {
+		t.Errorf("Expected tasks %v to run, got %v", want, ran)
+	}
+}
+
+func TestPanickedChainFailsAndReleasesItsKey(t *testing.T) {
+	pool := NewPool(newTestWorker(t, 2), 0)
+	pool.Start()
+	t.Cleanup(func() { _ = pool.Close() })
+
+	ran := []string{}
+	chain, err := pool.Submit(&TaskChain{Key: "k", Tasks: []Task{
+		&panickingTask{fakeTask{name: "panicking", record: &ran}},
+	}})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for pool.Busy() {
+		if time.Now().After(deadline) {
+			t.Fatalf("chain never settled: %v", chain.Status())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if got := chain.Status(); got != StatusFailed {
+		t.Fatalf("Status = %v, want StatusFailed", got)
+	}
+	if _, err := pool.Submit(&TaskChain{Key: "k"}); err != nil {
+		t.Fatalf("resubmitting the key: %v", err)
 	}
 }

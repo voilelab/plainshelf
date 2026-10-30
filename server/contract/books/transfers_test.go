@@ -11,8 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// A copy transfer lands a fresh-ID copy on the target shelf and leaves the
-// original on the source shelf.
 func TestAPIBookTransferCopyContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	original := apitest.ImportTextBook(t, env, "Cross Copy", "fiction", "crosscopy.txt", "body")
@@ -36,13 +34,11 @@ func TestAPIBookTransferCopyContract(t *testing.T) {
 		t.Fatalf("transferred book_id = %q, want a fresh id distinct from %q", newID, original.Meta.ID)
 	}
 
-	// The original stays on the source shelf.
 	sourceBooks := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL())
 	if len(sourceBooks) != 1 || sourceBooks[0].Meta.ID != original.Meta.ID {
 		t.Errorf("source books = %#v, want just the original", sourceBooks)
 	}
 
-	// The copy is on the target shelf, in the requested folder.
 	targetBooks := apitest.GetJSON[[]server.Book](t, env, apitest.SecondShelfBooksURL())
 	if len(targetBooks) != 1 || targetBooks[0].Meta.ID != newID {
 		t.Fatalf("target books = %#v, want the copy %q", targetBooks, newID)
@@ -55,8 +51,6 @@ func TestAPIBookTransferCopyContract(t *testing.T) {
 	}
 }
 
-// A move transfer keeps the book's ID, publishes it on the target, and removes it
-// from the source.
 func TestAPIBookTransferMoveContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	original := apitest.ImportTextBook(t, env, "Cross Move", "fiction", "crossmove.txt", "body")
@@ -75,14 +69,11 @@ func TestAPIBookTransferMoveContract(t *testing.T) {
 		t.Errorf("result = %#v, want a move preserving id %q", result, original.Meta.ID)
 	}
 
-	// The source shelf no longer lists it.
 	sourceBooks := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL())
 	if len(sourceBooks) != 0 {
 		t.Errorf("source books = %#v, want none after a move", sourceBooks)
 	}
 
-	// The target shelf lists it under the original ID, in the source book's folder
-	// (no target_folder was given).
 	targetBooks := apitest.GetJSON[[]server.Book](t, env, apitest.SecondShelfBooksURL())
 	if len(targetBooks) != 1 || targetBooks[0].Meta.ID != original.Meta.ID {
 		t.Fatalf("target books = %#v, want the moved book %q", targetBooks, original.Meta.ID)
@@ -92,10 +83,7 @@ func TestAPIBookTransferMoveContract(t *testing.T) {
 	}
 }
 
-// A move onto a target shelf that already holds the book's ID is refused with 409
-// before any work is scheduled. The collision is built by moving the book across
-// and then restoring the source's trashed copy, so both shelves hold the ID.
-func TestAPIBookTransferMoveIDConflictContract(t *testing.T) {
+func TestAPIBookTransferMoveIDConflict(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	original := apitest.ImportTextBook(t, env, "Twice", "fiction", "twice.txt", "body")
 	id := original.Meta.ID
@@ -108,7 +96,6 @@ func TestAPIBookTransferMoveIDConflictContract(t *testing.T) {
 		t.Fatalf("first move chain = %+v, want completed", chain)
 	}
 
-	// Restore the source's trashed copy so the ID lives on both shelves.
 	apitest.AssertStatus(t, env.Post(apitest.ShelfURL("trash", "books", id, "restore"), nil), http.StatusNoContent)
 
 	rec := env.Post(apitest.BookTransfersURL(id), strings.NewReader(`{
@@ -118,8 +105,6 @@ func TestAPIBookTransferMoveIDConflictContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusConflict)
 }
 
-// Naming the source shelf as the target is a 400 that points at the same-shelf
-// endpoints, before anything is scheduled.
 func TestAPIBookTransferSameShelfContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	book := apitest.ImportTextBook(t, env, "Here", "", "here.txt", "body")
@@ -131,7 +116,6 @@ func TestAPIBookTransferSameShelfContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 
-// A missing target shelf is a 404, and an unknown mode is a 400.
 func TestAPIBookTransferBadRequestContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	book := apitest.ImportTextBook(t, env, "Bad", "", "bad.txt", "body")
@@ -149,9 +133,7 @@ func TestAPIBookTransferBadRequestContract(t *testing.T) {
 	apitest.AssertStatus(t, badMode, http.StatusBadRequest)
 }
 
-// A transfer into a read-only target shelf is refused with 409, the same status
-// every write to a read-only shelf gets, and nothing is scheduled.
-func TestAPIBookTransferReadOnlyTargetContract(t *testing.T) {
+func TestAPIBookTransferReadOnlyTarget(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlySecondShelf(t.TempDir()))
 	book := apitest.ImportTextBook(t, env, "No Room", "", "noroom.txt", "body")
 

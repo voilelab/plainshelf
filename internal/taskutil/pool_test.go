@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// statusTask reports a status and percentage chosen by the test. It never runs
-// on a worker goroutine in these tests, so it needs no locking.
 type statusTask struct {
 	status     Status
 	percentage float64
@@ -88,7 +86,7 @@ func TestPoolGetReportsUnknownID(t *testing.T) {
 	}
 }
 
-func TestPoolSubmitRejectsDuplicateKeyWhileActive(t *testing.T) {
+func TestPoolSubmitRejectsActiveDuplicate(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 
 	running := &TaskChain{Key: "empty_trash:default", Tasks: []Task{&statusTask{status: StatusRunning}}}
@@ -126,7 +124,7 @@ func TestPoolSubmitAllowsSameKeyOnceTerminal(t *testing.T) {
 	}
 }
 
-func TestPoolSubmitAllowsConcurrentChainsWithoutKey(t *testing.T) {
+func TestPoolSubmitUnkeyedChainsRunTogether(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 
 	if _, err := p.Submit(chainWithStatus(StatusRunning)); err != nil {
@@ -164,8 +162,7 @@ func TestPoolEvictsOldestTerminalChainsOnly(t *testing.T) {
 	}
 }
 
-func TestPoolSubmitDoesNotRetainChainWhenWorkerRejectsIt(t *testing.T) {
-	// The worker is never started, so the queue of one fills immediately.
+func TestPoolRejectedSubmitCleanup(t *testing.T) {
 	p := NewPool(newTestWorker(t, 1), 0)
 	t.Cleanup(func() { _ = p.Close() })
 
@@ -182,9 +179,7 @@ func TestPoolSubmitDoesNotRetainChainWhenWorkerRejectsIt(t *testing.T) {
 	}
 }
 
-// A chain whose first task ended partially completed is still being processed
-// while later tasks remain, so its key must stay reserved.
-func TestPoolSubmitRejectsDuplicateKeyWhileALaterTaskRemains(t *testing.T) {
+func TestPoolDuplicateKeyDuringLaterTask(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 
 	inFlight := &TaskChain{Key: "empty_trash:default", Tasks: []Task{
@@ -205,11 +200,7 @@ func TestPoolSubmitRejectsDuplicateKeyWhileALaterTaskRemains(t *testing.T) {
 	}
 }
 
-// A submission the worker rejects must leave the pool untouched, including the
-// results it was already retaining.
-func TestPoolSubmitRejectionDoesNotEvictRetainedChains(t *testing.T) {
-	// Queue depth of 1 and retention of 1: the second submission is rejected
-	// while the pool is already at its budget.
+func TestPoolRejectionKeepsRetainedChains(t *testing.T) {
 	p := NewPool(newTestWorker(t, 1), 1)
 	t.Cleanup(func() { _ = p.Close() })
 

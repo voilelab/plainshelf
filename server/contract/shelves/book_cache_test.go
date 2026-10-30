@@ -14,10 +14,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// readExportedBookCache returns the single book cache file the app wrote into
-// the shelf's app folder, waiting for it to appear. Its name carries the
-// installation's writer ID, which is generated on first start and is therefore
-// not predictable from a test.
 func readExportedBookCache(t *testing.T, libRoot string) shelf.BookCacheFile {
 	t.Helper()
 
@@ -56,8 +52,7 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 	if !ok {
 		t.Fatalf("imported book %q missing from the exported cache: %v", book.Meta.ID, cache.Books)
 	}
-	// The path is what lets a client match a package it found on the remote
-	// storage against this entry, so it has to be the real package location.
+
 	if !strings.HasPrefix(entry.Path, "books/Fiction/") {
 		t.Errorf("path = %q, want the package under books/Fiction/", entry.Path)
 	}
@@ -71,17 +66,9 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 	}
 }
 
-// A shelf opened after startup — the desktop "add shelf" flow — must get the
-// installation's writer ID too. Without it the new shelf exports nothing and
-// its manual export fails until the app is restarted.
-//
-// The writer ID's other half — that it survives a restart at all — needs no
-// request and is pinned in server's own tests.
-func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
+func TestRuntimeShelfBookCacheWriterID(t *testing.T) {
 	env := apitest.New(t)
 
-	// The startup export runs on a timer, so wait for the file rather than for
-	// the interval.
 	startupWriterID := readExportedBookCache(t, env.LibRoot).WriterID
 
 	addedRoot := t.TempDir()

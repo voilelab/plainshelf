@@ -8,16 +8,11 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// The encoded form is a version byte, the shingle width, the exact distinct
-// shingle count, the number of retained hashes, and then the hashes themselves,
-// all little-endian.
 const (
 	codecVersion = 1
 	headerLen    = 17
 )
 
-// Encode serializes the sketch as base64, for storing it next to the document
-// it fingerprints.
 func (s Sketch) Encode() string {
 	raw := make([]byte, headerLen, headerLen+len(s.Values)*8)
 	raw[0] = codecVersion
@@ -32,8 +27,6 @@ func (s Sketch) Encode() string {
 	return base64.StdEncoding.EncodeToString(raw)
 }
 
-// Decode parses a sketch produced by Encode, rejecting anything that would not
-// compare correctly rather than returning a silently wrong sketch.
 func Decode(encoded string) (Sketch, error) {
 	raw, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {

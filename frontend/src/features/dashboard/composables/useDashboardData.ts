@@ -1,9 +1,4 @@
 import { computed, getCurrentInstance, onUnmounted, ref } from 'vue';
-// Books come through the provider so the dashboard works on every backend —
-// including a pCloud connection, which has no HTTP API to call. char_count is
-// opt-in on the provider interface, which is what this page needs from it.
-// Reading activity does not go through the provider by design: it is
-// device-local and never involves the server.
 import { getBookshelfProvider } from '@/providers';
 import { createShelfInitRetry, isShelfInitializing } from '@/composables/shelfInitRetry';
 import { getReadingActivityRange } from '@/storage/readingStats';
@@ -17,9 +12,6 @@ const READING_ACTIVITY_RANGE_DAYS = 365;
 const RECENT_READING_LIMIT = 6;
 const RECENTLY_ADDED_LIMIT = 6;
 
-// created_at is an ISO timestamp string, but optional and occasionally legacy;
-// a missing or unparseable value sorts as 0 (oldest) rather than throwing, the
-// same forgiving contract the library's sort uses.
 function createdAtValue(book: Book): number {
   const parsed = book.created_at ? Date.parse(book.created_at) : NaN;
   return Number.isNaN(parsed) ? 0 : parsed;
@@ -27,28 +19,11 @@ function createdAtValue(book: Book): number {
 
 export interface RecentReadingItem {
   book: Book;
-  /** 0–100, or null when there is no progress entry or no known char_count. */
   percent: number | null;
-  /** Epoch ms of the last read, or null when unknown (e.g. the mobile shell). */
   lastReadAt: number | null;
 }
 
-/**
- * The home-page progress percentage is `offset / char_count`, a lightweight
- * approximation that avoids reloading each book's content the way the reader does.
- * It is null — so the card renders without a progress bar — whenever char_count is
- * missing or non-positive, so a missing count never shows as NaN or a false 0%.
- *
- * The two values use different units: `offset` is a UTF-16 index (what the reader
- * advances), while the server's `char_count` is a rune count (len([]rune)). They
- * agree for BMP text, including most CJK, but a supplementary-plane character — an
- * emoji, a CJK Extension B glyph — adds two to `offset` and one to `char_count`, so
- * an emoji-heavy book overshoots. The clamp to [0, 100] keeps the worst case an
- * early 100% rather than NaN or an out-of-range bar. A unit-exact figure would need
- * each book's loaded content, which this list avoids by design; the reader itself
- * still shows the precise percentage.
- */
-function computeReadingPercent(offset: number, charCount: number | undefined): number | null {
+function estimateReadingPercent(offset: number, charCount: number | undefined): number | null {
   if (typeof charCount !== 'number' || !Number.isFinite(charCount) || charCount <= 0) {
     return null;
   }
@@ -89,14 +64,6 @@ export function useDashboardData() {
 
   const totalBooks = computed(() => books.value.length);
 
-  // Books that have been opened (a progress entry with a positive offset) but are
-  // not finished yet. Reuses the same device-local reading-progress store the
-  // recent-reading list reads from. A zero-offset entry is a reset tombstone, not
-  // progress. Completion is tested unrounded — the saved offset reaching the
-  // book's length — rather than through computeReadingPercent, whose rounding
-  // would report 199/200 as 100% and drop a book that is still short of the end.
-  // A positive offset with an unknown or invalid char_count has demonstrable
-  // progress but no provable end, so it stays counted.
   const inProgress = computed<number>(() => {
     let count = 0;
     for (const book of books.value) {
@@ -163,21 +130,12 @@ export function useDashboardData() {
 
   const heatmapData = computed<Record<string, number>>(() => readingActivity.value);
 
-  // The six most recently added books, newest first, drawn from the already
-  // loaded listing so the home page's "recently added" row costs no extra
-  // request. sort() is stable, so books that share (or lack) a created_at keep
-  // the listing's own order.
   const recentlyAdded = computed<Book[]>(() =>
     [...books.value]
       .sort((a, b) => createdAtValue(b) - createdAtValue(a))
       .slice(0, RECENTLY_ADDED_LIMIT)
   );
 
-  // Ids of books the reader has actually opened (a progress entry past the
-  // start). The random pick prefers books absent from this set so it surfaces
-  // something unread; a reset tombstone (offset 0) is not "started". Empty on
-  // the mobile shell, whose progress lives outside getLocalReadingEntries, so
-  // there the pick simply draws from everything.
   const startedBookIds = computed<Set<string>>(() => {
     const ids = new Set<string>();
     for (const [id, entry] of Object.entries(readingProgress.value)) {
@@ -188,10 +146,6 @@ export function useDashboardData() {
     return ids;
   });
 
-  // Consecutive days (ending today) with total_seconds > 0. If today has no
-  // recorded reading yet (the common case — the day isn't over), the streak
-  // is counted starting from yesterday instead, so an ongoing streak doesn't
-  // appear to reset to 0 first thing in the morning.
   const currentStreak = computed<number>(() => {
     const cursor = new Date();
     cursor.setHours(0, 0, 0, 0);
@@ -212,12 +166,6 @@ export function useDashboardData() {
     return streak;
   });
 
-  // The recent-reading list reuses the books already loaded above (which carry
-  // char_count), ordered by the device's read history and capped to the newest
-  // few, so it needs no second listing. Progress and last-read time come from the
-  // local reading-progress store per book; the mobile shell keeps progress
-  // elsewhere, so there getLocalReadingEntry returns null and the card shows
-  // without a progress bar.
   async function loadRecentReading(all: Book[]): Promise<RecentReadingItem[]> {
     const historyIDs = await getReadHistoryIDs();
     if (historyIDs.length === 0) {
@@ -235,7 +183,7 @@ export function useDashboardData() {
         const entry = await getLocalReadingEntry(book.id);
         return {
           book,
-          percent: entry ? computeReadingPercent(entry.offset, book.char_count) : null,
+          percent: entry ? estimateReadingPercent(entry.offset, book.char_count) : null,
           lastReadAt: entry?.at ?? null
         };
       })
@@ -262,9 +210,6 @@ export function useDashboardData() {
       ]);
       books.value = data.items;
       readingActivity.value = activity;
-      // Recent-reading and the in-progress count are convenience state read from
-      // device-local history and progress; a failure in either must not blank the
-      // dashboard that just loaded, and one failing must not discard the other.
       try {
         recentReading.value = await loadRecentReading(data.items);
       } catch {
@@ -278,15 +223,9 @@ export function useDashboardData() {
       shelfInitializing.value = false;
       initRetry.reset();
     } catch (err) {
-      // The page can go away while the request is in flight, and cancelling on
-      // unmount only reaches a timer that already exists. Scheduling a retry
-      // from here would outlive the page and keep polling for the rest of the
-      // budget, alongside whatever a freshly mounted dashboard is requesting.
       if (disposed) {
         return;
       }
-      // Wait out the initial scan rather than putting an error in the middle of
-      // the home page while the sidebar beside it recovers. See `shelfInitRetry`.
       if (isShelfInitializing(err)) {
         if (initRetry.schedule(() => void run(true), err)) {
           shelfInitializing.value = true;
@@ -299,22 +238,16 @@ export function useDashboardData() {
         error.value = err instanceof Error ? err.message : t('dashboard.loadFailed');
       }
     } finally {
-      // A pending retry keeps the page in its loading state rather than
-      // flashing an error between attempts.
       if (!initRetry.pending) {
         loading.value = false;
       }
     }
   }
 
-  // Takes no arguments on purpose: it is bound straight to a template click
-  // handler, which would otherwise pass the event in as the retry flag.
   async function fetchDashboardData(): Promise<void> {
     await run(false);
   }
 
-  // These refs are page-scoped, so neither a pending retry nor a request that
-  // is still in flight may outlive the page.
   if (getCurrentInstance()) {
     onUnmounted(() => {
       disposed = true;

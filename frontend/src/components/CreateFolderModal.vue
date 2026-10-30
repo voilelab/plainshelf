@@ -28,6 +28,11 @@
         >
       </div>
 
+      <div class="create-folder-field">
+        <span class="create-folder-label">{{ t('layout.createFolder.iconLabel') }}</span>
+        <FolderIconPicker v-model="draftIcon" :disabled="busy" />
+      </div>
+
       <p v-if="displayError" class="create-folder-error" role="alert">{{ displayError }}</p>
     </form>
   </ConfirmModal>
@@ -36,6 +41,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from 'vue';
 import ConfirmModal from './ConfirmModal.vue';
+import FolderIconPicker from './FolderIconPicker.vue';
 import { useI18n } from '@/i18n';
 
 const props = withDefaults(
@@ -52,11 +58,12 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   cancel: [];
-  submit: [payload: { name: string }];
+  submit: [payload: { name: string; icon: string }];
 }>();
 
 const { t } = useI18n();
 const draftName = ref('');
+const draftIcon = ref('');
 const nameInput = ref<HTMLInputElement | null>(null);
 const nameInputId = `create-folder-name-${useId()}`;
 
@@ -70,8 +77,6 @@ const displayError = computed(() =>
 );
 
 async function focusNameInput(): Promise<void> {
-  // ConfirmModal focuses its confirm button one tick after `open` flips, so wait
-  // a second tick to land after it. Same approach as RenameFolderModal.
   await nextTick();
   await nextTick();
   nameInput.value?.focus();
@@ -82,7 +87,7 @@ function submitCreate(): void {
     return;
   }
 
-  emit('submit', { name: trimmedDraftName.value });
+  emit('submit', { name: trimmedDraftName.value, icon: draftIcon.value });
 }
 
 watch(
@@ -93,6 +98,7 @@ watch(
     }
 
     draftName.value = '';
+    draftIcon.value = '';
     void focusNameInput();
   }
 );

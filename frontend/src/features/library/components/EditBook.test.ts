@@ -2,8 +2,6 @@
 import { createApp, h, nextTick, type App } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// BookDetail is mounted here only to compare its rendered description against
-// the preview; its breadcrumb needs a router that neither component is about.
 vi.mock('./FolderBreadcrumb.vue', () => ({
   default: { setup: () => () => h('nav') }
 }));
@@ -74,14 +72,11 @@ function toggle(host: HTMLElement): HTMLButtonElement {
   return button;
 }
 
-// The panel wrapper is always mounted; it counts as shown only when the
-// Collapsible has revealed it (no `hidden` attribute) and its content exists.
 function previewOpen(host: HTMLElement): boolean {
   const panel = host.querySelector<HTMLElement>('.comment-preview');
   return Boolean(panel) && !panel!.hasAttribute('hidden') && panel!.children.length > 0;
 }
 
-/** Types into the comment field the way v-model reads it. */
 async function type(host: HTMLElement, value: string): Promise<void> {
   const textarea = commentField(host);
   textarea.value = value;
@@ -91,9 +86,7 @@ async function type(host: HTMLElement, value: string): Promise<void> {
 
 async function openPreview(host: HTMLElement): Promise<void> {
   toggle(host).click();
-  // reka's Collapsible mounts (and unmounts) its content one tick after the
-  // open state flips — Presence awaits a tick before dispatching MOUNT — so
-  // flush past that extra tick before reading the panel.
+  // Reka UI 2.10.5 Presence awaits nextTick before entering its mounted state.
   await nextTick();
   await nextTick();
 }
@@ -110,9 +103,6 @@ describe('EditBook comment preview', () => {
   it('stays closed until it is asked for, and closes again', async () => {
     const { host } = mount('簡介');
 
-    // reka's Collapsible keeps the panel wrapper mounted and marks it hidden
-    // while closed, unmounting only its content — so "closed" is a hidden,
-    // empty panel rather than an absent element.
     expect(previewOpen(host)).toBe(false);
     expect(toggle(host).getAttribute('aria-expanded')).toBe('false');
 
@@ -139,8 +129,6 @@ describe('EditBook comment preview', () => {
     expect(host.querySelectorAll('.description-body li').length).toBe(2);
   });
 
-  // The point of the preview is that it is not a second renderer. A separate
-  // one would drift, and whoever is writing the description believes this one.
   it('produces exactly what the detail page renders from the same source', async () => {
     const source = '<p>EPUB 的段落</p>\n\n**粗體**\n\n- 項目一\n- 項目二\n\n> 引文';
     const { host } = mount(source);
@@ -209,10 +197,6 @@ describe('EditBook embedded mode', () => {
 });
 
 describe('EditBook language validation', () => {
-  // The message is derived from a flag rather than stored as text, so a locale
-  // switch while it is on screen has to re-render it. The e2e suite cannot
-  // reach this: the editor is a modal dialog, which leaves the topbar language
-  // switcher aria-hidden for as long as the error is visible.
   it('renders the invalid-tag error in the current locale and follows a switch', async () => {
     const { host, submitted } = mount('', { language: 'not a tag' });
 
@@ -292,14 +276,11 @@ describe('EditBook adult-content mark', () => {
     });
 
     const control = nsfwSwitch(withReason.host);
-    // On despite the book's own nsfw being false: the two halves add, so the
-    // book is marked and a switch reading "off" would be a lie.
     expect(control.getAttribute('aria-checked')).toBe('true');
     expect(control.disabled).toBe(true);
     expect(withReason.host.querySelector('.nsfw-row .field-help')?.textContent)
       .toContain('kept apart');
 
-    // A rule with no reason falls back to naming the path alone.
     const noReason = mountBook({ nsfw: false, nsfw_folder: { path: 'Fiction/Adult' } });
     const help = noReason.host.querySelector('.nsfw-row .field-help')?.textContent ?? '';
     expect(help).toContain('Fiction/Adult');
@@ -316,8 +297,6 @@ describe('EditBook adult-content mark', () => {
     submit(host);
     await nextTick();
 
-    // The switch reads on, but the book's own nsfw is still false: writing true
-    // here would leave the book marked after the folder rule is removed.
     expect(submitted[0].nsfw).toBe(false);
   });
 });

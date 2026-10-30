@@ -4,9 +4,14 @@
         <!-- CapacitorStorage may contain a legacy plaintext token until migration runs. -->
         <exclude domain="sharedpref" path="CapacitorStorage.xml" />
         <exclude domain="sharedpref" path="plainshelf_secure_storage.xml" />
+        <!-- Local shelves stay out of Google's cloud: no cloud sync, and a large shelf would hit the 25 MB quota. -->
+        <exclude domain="file" path="local-shelves/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="CapacitorStorage.xml" />
         <exclude domain="sharedpref" path="plainshelf_secure_storage.xml" />
+        <!-- local-shelves/ is kept: device to device, 2 GB limit; the shelf list re-adds its entries. -->
+        <!-- The LAN share's token; the new device makes its own. -->
+        <exclude domain="file" path="local-shelves/lan_share.token" />
     </device-transfer>
 </data-extraction-rules>

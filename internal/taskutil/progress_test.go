@@ -2,7 +2,7 @@ package taskutil
 
 import "testing"
 
-func TestProgressPercentageIsZeroBeforeTotalIsKnown(t *testing.T) {
+func TestProgressPercentageZeroWithoutTotal(t *testing.T) {
 	var p Progress
 	p.SetStatus(StatusRunning)
 
@@ -11,7 +11,7 @@ func TestProgressPercentageIsZeroBeforeTotalIsKnown(t *testing.T) {
 	}
 }
 
-func TestProgressPercentageTracksProcessedUnits(t *testing.T) {
+func TestProgressPercentageTracksUnits(t *testing.T) {
 	var p Progress
 	p.SetTotal(4)
 
@@ -48,7 +48,7 @@ func TestProgressAdvanceStopsAtTotal(t *testing.T) {
 	}
 }
 
-func TestProgressEmptyWorkloadIsCompleteOnlyWhenFinished(t *testing.T) {
+func TestEmptyProgressCompletion(t *testing.T) {
 	var p Progress
 	p.SetTotal(0)
 	p.SetStatus(StatusRunning)

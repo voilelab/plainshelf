@@ -1,7 +1,4 @@
 <template>
-  <!-- Mirrors DashboardPage's grid regions so swapping in the real content on
-       load does not shift the layout. Decorative only: hidden from assistive
-       tech, which hears the polite loading status instead. -->
   <div class="dashboard-skeleton dashboard-grid" aria-hidden="true">
     <div class="skeleton-cell skeleton-recent dashboard-cell-recent"></div>
     <div class="skeleton-cell skeleton-stats dashboard-cell-stats"></div>

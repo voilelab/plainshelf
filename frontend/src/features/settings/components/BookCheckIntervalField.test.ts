@@ -10,9 +10,6 @@ beforeEach(() => {
 });
 
 describe('BookCheckIntervalField', () => {
-  // The wrapper is only a set of copy keys over ScanIntervalField, so every
-  // label it does not delegate announces the per-book control as the separate
-  // shelf-wide scan setting.
   it('names the per-book interval on the amount box and its steppers', () => {
     const { host } = mount(BookCheckIntervalField, { props: { modelValue: '10m' } });
 

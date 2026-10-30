@@ -39,10 +39,7 @@ func TestJSONDateUnmarshalRFC3339Compat(t *testing.T) {
 	}
 }
 
-// The date must be taken in the timestamp's own offset, not after converting
-// to UTC. "2026-03-16T00:30:00+09:00" is 2026-03-15T15:30:00Z, so a UTC-first
-// reading would wrongly yield 2026-03-15. Lock in 2026-03-16.
-func TestJSONDateUnmarshalRFC3339OffsetBoundary(t *testing.T) {
+func TestJSONDateUsesRFC3339Offset(t *testing.T) {
 	var d JSONDate
 	if err := json.Unmarshal([]byte(`"2026-03-16T00:30:00+09:00"`), &d); err != nil {
 		t.Fatalf("Failed to unmarshal RFC3339 with offset: %v", err)

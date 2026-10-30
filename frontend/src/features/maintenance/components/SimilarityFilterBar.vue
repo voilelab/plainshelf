@@ -41,9 +41,7 @@
         <SliderTrack class="slider-track">
           <SliderRange class="slider-range" />
         </SliderTrack>
-        <!-- The thumb is the focusable control, so it carries the id and is
-             named by the label beside it. A `<label for>` cannot reach it:
-             reka renders a `<span role="slider">`, which is not labelable. -->
+        <!-- Reka UI 2.10.5 SliderThumb defaults to a span with role=slider; HTML spans are not labelable elements. -->
         <SliderThumb
           :id="SLIDER_ID"
           class="slider-thumb"
@@ -99,19 +97,12 @@ import '@/styles/toolbar-controls.css';
 
 const SLIDER_ID = 'similarity-threshold-slider';
 const SLIDER_LABEL_ID = 'similarity-threshold-label';
-// A non-matching sentinel for "no tier pressed" (while the advanced slider
-// owns the selection). It must not be `undefined`: reka latches the toggle
-// group into uncontrolled mode when the initial model-value is `undefined`
-// (passive === modelValue === undefined), after which the parent's `tier`
-// would stop driving it. `null` keeps the group controlled and matches no
-// tier, so every segment reads unpressed.
+// Reka UI 2.10.5 single-value ToggleGroup selects passive mode from an initially undefined model; VueUse 14.3.0 still watches incoming props.
 const SEGMENT_NONE = null;
 
 const props = defineProps<{
-  /** Selected tier, meaningful only while the advanced slider is closed. */
   tier: SimilarityTierKey;
   advancedOpen: boolean;
-  /** Active Jaccard floor the slider edits. */
   threshold: number;
   subsetOnly: boolean;
 }>();
@@ -130,10 +121,7 @@ const tiers = SIMILARITY_TIERS;
 const thresholdPercent = computed(() => Math.round(props.threshold * 100));
 const diffPer100 = computed(() => approxDiffPer100Chars(props.threshold));
 
-// The segmented control is a single-select ToggleGroup. reka emits `undefined`
-// when the active segment is re-clicked (its built-in deselect) or while the
-// advanced slider owns the selection and nothing is pressed; in both cases the
-// tier must stay put, so only a real pick reaches onSelectTier.
+// Reka UI 2.10.5 single-value ToggleGroup deselects an active item by emitting undefined.
 function onSelectTierModel(value: AcceptableValue): void {
   if (value == null) {
     return;
@@ -141,8 +129,6 @@ function onSelectTierModel(value: AcceptableValue): void {
   onSelectTier(value as SimilarityTierKey);
 }
 
-// Picking a tier closes the advanced slider so the tier drives again, and
-// aligns the slider's stored value with that tier for when it is reopened.
 function onSelectTier(key: SimilarityTierKey): void {
   emit('update:tier', key);
   if (props.advancedOpen) {
@@ -151,8 +137,6 @@ function onSelectTier(key: SimilarityTierKey): void {
   emit('update:threshold', tierThreshold(key));
 }
 
-// reka reports the whole thumb array; this slider has exactly one thumb, and
-// an empty array is not reachable because the model is always `[threshold]`.
 function onSlider(value: number[] | undefined): void {
   const next = value?.[0];
   if (next === undefined) {

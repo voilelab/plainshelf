@@ -11,37 +11,21 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// RequestIDHeader carries each request's ID back to the client. It is the
-// header form of the error envelope's incident field, so a user can quote a
-// number for a request that did not fail at all.
 const RequestIDHeader = "X-Request-Id"
 
 type apiError struct {
 	status  int
 	message string
 
-	// code is this error's stable public identifier, quoted verbatim in bug
-	// reports. It is part of the API: renaming one is a breaking change, and
-	// TestAPIErrorCodeListIsPinned holds the whole list so a rename cannot pass
-	// unseen.
 	code string
 
-	// retryAfter, when set, is sent as the Retry-After header in seconds.
 	retryAfter string
 }
 
-// codeIgnoredFolderName is spelled once because two paths answer with it: the
-// table entry, and the errors.As branch in apiErrorFor that replaces only the
-// message. They are the same refusal, so a client must not have to switch on
-// two codes for it.
 const codeIgnoredFolderName = "IGNORED_FOLDER_NAME"
 
-// codeMalformedMetadata is spelled once for the same reason: the table entry
-// and the errors.As branch below are one refusal, and only the message differs.
 const codeMalformedMetadata = "MALFORMED_METADATA"
 
-// apiErrorTable is consulted in order, so a more specific sentinel must come
-// before any general one it could also match.
 var apiErrorTable = []struct {
 	sentinel error
 	response apiError
@@ -75,6 +59,26 @@ var apiErrorTable = []struct {
 		code:    "INVALID_FOLDER",
 		status:  http.StatusBadRequest,
 		message: "invalid folder name",
+	}},
+	{shelf.ErrFolderNotFound, apiError{
+		code:    "FOLDER_NOT_FOUND",
+		status:  http.StatusNotFound,
+		message: "folder not found",
+	}},
+	{shelf.ErrInvalidFolderIcon, apiError{
+		code:    "INVALID_FOLDER_ICON",
+		status:  http.StatusBadRequest,
+		message: "folder icon is not one this server offers; see icons in GET .../folder-meta",
+	}},
+	{shelf.ErrFolderMetaConflict, apiError{
+		code:    "FOLDER_META_CONFLICT",
+		status:  http.StatusConflict,
+		message: "folder.json changed since it was read; read it again and retry",
+	}},
+	{shelf.ErrFolderMetaNotWritable, apiError{
+		code:    "FOLDER_META_NOT_WRITABLE",
+		status:  http.StatusConflict,
+		message: "folder.json cannot be read safely by this server, so it was left unchanged; repair or remove the file",
 	}},
 	{shelf.ErrShelfInitializing, apiError{
 		code:       "SHELF_INITIALIZING",
@@ -118,6 +122,34 @@ var apiErrorTable = []struct {
 		status:  http.StatusNotFound,
 		message: "asset not found",
 	}},
+
+	{fsutil.ErrSourceUnauthorized, apiError{
+		code:    "SOURCE_UNAUTHORIZED",
+		status:  http.StatusServiceUnavailable,
+		message: "the shelf source refused the credential",
+	}},
+
+	{shelf.ErrNotAShelf, apiError{
+		code:    SourceCheckNotAShelf,
+		status:  http.StatusServiceUnavailable,
+		message: "the shelf source is not a shelf: it has no books/ directory",
+	}},
+
+	{shelf.ErrBookNotDownloaded, apiError{
+		code:    "BOOK_NOT_DOWNLOADED",
+		status:  http.StatusServiceUnavailable,
+		message: "the shelf source is unavailable and this book has not been downloaded",
+	}},
+	{fsutil.ErrSourceUnavailable, apiError{
+		code:    "SOURCE_UNAVAILABLE",
+		status:  http.StatusServiceUnavailable,
+		message: "the shelf source is unavailable",
+	}},
+	{shelf.ErrDownloadUnsupported, apiError{
+		code:    "DOWNLOAD_UNSUPPORTED",
+		status:  http.StatusConflict,
+		message: "this shelf is already local; only a virtual shelf keeps offline copies",
+	}},
 	{fsutil.ErrReadOnly, apiError{
 		code:    "SHELF_READ_ONLY",
 		status:  http.StatusConflict,
@@ -151,22 +183,11 @@ var apiErrorTable = []struct {
 	}},
 }
 
-// The two codes no sentinel owns; both say only "the table does not name this
-// failure".
-//
-//   - codeInternal accompanies a 5xx, whose cause was logged and withheld.
-//   - codeUnknown accompanies writeErrStatus's caller-chosen non-5xx statuses,
-//     where the request is at fault but the table cannot say how. Calling those
-//     INTERNAL would send a reporter after a server bug that is not there.
 const (
 	codeInternal = "INTERNAL"
 	codeUnknown  = "UNKNOWN"
 )
 
-// apiErrorBody is the JSON envelope writeErr answers with. It is nested under a
-// single "error" key so a client can tell an error body from a successful one
-// by shape alone, and so later fields land inside the envelope rather than
-// colliding with a payload's own field names.
 type apiErrorBody struct {
 	Error apiErrorDetail `json:"error"`
 }
@@ -175,22 +196,11 @@ type apiErrorDetail struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 
-	// Incident is the request's ID, not a second number minted for the failure,
-	// so a user reporting a refusal they understand has something to quote and
-	// quotes the same string X-Request-Id carries.
-	//
-	// omitempty for the responses no middleware saw: the desktop client reaches
-	// some handlers directly, and those have no request to take an ID from.
 	Incident string `json:"incident,omitempty"`
 }
 
-// taskutil.ErrTaskChainRunning is deliberately absent from the table: it
-// answers with a JSON body carrying the running chain's ID, so the task
-// handlers match it themselves.
 func apiErrorFor(err error) (apiError, bool) {
-	// Which directories a shelf skips is that shelf's own setting, so naming the
-	// built-in ones here would send a user whose shelf.json lists its own after
-	// a rule that does not apply. The shelf carries the reason out instead.
+
 	if ignored, ok := errors.AsType[*shelf.IgnoredFolderNameError](err); ok {
 		return apiError{
 			code:    codeIgnoredFolderName,
@@ -199,9 +209,6 @@ func apiErrorFor(err error) (apiError, bool) {
 		}, true
 	}
 
-	// Which file is broken, and where, is the whole content of this refusal: a
-	// user who hand-edited a book.json cannot act on "some file is invalid", so
-	// the path and the decoder's own message travel out with the error.
 	if malformed, ok := errors.AsType[*shelf.MalformedMetadataError](err); ok {
 		return apiError{
 			code:    codeMalformedMetadata,
@@ -219,7 +226,6 @@ func apiErrorFor(err error) (apiError, bool) {
 	return apiError{}, false
 }
 
-// ignoredFolderMessage explains a refused folder name in the shelf's own terms.
 func ignoredFolderMessage(err *shelf.IgnoredFolderNameError) string {
 	const consequence = ", so a folder named this way would not stay visible"
 	if err.Reason == "" {
@@ -228,22 +234,14 @@ func ignoredFolderMessage(err *shelf.IgnoredFolderNameError) string {
 	return fmt.Sprintf("invalid folder name: this shelf skips %q while scanning (%s)%s", err.Folder, err.Reason, consequence)
 }
 
-// malformedMetadataMessage names the file that could not be read and quotes the
-// decoder on why, which is where the offending member name comes from.
 func malformedMetadataMessage(err *shelf.MalformedMetadataError) string {
 	return fmt.Sprintf("%s is not valid JSON: %v; repair the file and try again", err.File, err.Err)
 }
 
-// writeErr answers a known error from the table, and anything else with 500 and
-// fallback. The body is the JSON envelope either way; err.Error() reaches the
-// log, not the client.
 func (c *apiCore) writeErr(w http.ResponseWriter, r *http.Request, err error, fallback string) {
 	c.writeErrStatus(w, r, err, fallback, http.StatusInternalServerError)
 }
 
-// writeErrStatus is writeErr with a caller-chosen status for unknown errors.
-// The folder routes answer a family of outcomes the table cannot yet name with
-// a single status, and 500 would be wrong for those.
 func (c *apiCore) writeErrStatus(w http.ResponseWriter, r *http.Request, err error, fallback string, fallbackStatus int) {
 	incident := logutil.RequestIDFrom(r.Context())
 
@@ -260,9 +258,6 @@ func (c *apiCore) writeErrStatus(w http.ResponseWriter, r *http.Request, err err
 		code = codeInternal
 	}
 
-	// The body deliberately withholds the cause, so this line has to answer
-	// every question it cannot: which request, what it asked for, which shelf,
-	// and the whole error chain.
 	c.Error(fallback,
 		"request_id", incident,
 		"code", code,
@@ -275,8 +270,6 @@ func (c *apiCore) writeErrStatus(w http.ResponseWriter, r *http.Request, err err
 	c.writeErrBody(w, fallbackStatus, code, fallback, incident)
 }
 
-// writeErrBody sends the error envelope. It shares writeJSON so error and
-// success bodies cannot drift apart on content type or trailing newline.
 func (c *apiCore) writeErrBody(w http.ResponseWriter, status int, code, message, incident string) {
 	c.writeJSON(w, status, apiErrorBody{Error: apiErrorDetail{Code: code, Message: message, Incident: incident}})
 }

@@ -11,31 +11,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ciJobNames pins the `name:` of every job in .github/workflows/ci.yml. Branch
-// protection binds required checks by name, so renaming a job silently drops
-// its protection instead of failing anything. Changing this list is allowed;
-// doing it without updating the branch protection rule for `dev` is the bug.
 var ciJobNames = map[string]string{
-	"frontend":  "Frontend build",
-	"lint":      "Go lint",
-	"go":        "Go tests",
-	"e2e":       "Frontend E2E",
-	"wasm-demo": "Wasm demo smoke",
-	"android":   "Android build",
-	"vulncheck": "Go vulnerability scan",
+	"frontend":    "Frontend build",
+	"lint":        "Go lint",
+	"go":          "Go tests",
+	"e2e":         "Frontend E2E",
+	"wasm-demo":   "Wasm demo smoke",
+	"docs":        "Docs build",
+	"android":     "Android build",
+	"android-lib": "Android Go library",
+	"vulncheck":   "Go vulnerability scan",
 }
 
-// blockingCIJobs records, per job, whether a failure blocks the merge — the
-// gate-or-informational decision SECURITY.md describes. A job flipped from one
-// to the other without touching this map is a change nobody reviewed.
 var blockingCIJobs = map[string]bool{
-	"frontend":  true,
-	"lint":      true,
-	"go":        true,
-	"e2e":       true,
-	"wasm-demo": true,
-	"android":   false,
-	"vulncheck": true,
+	"frontend":    true,
+	"lint":        true,
+	"go":          true,
+	"e2e":         true,
+	"wasm-demo":   true,
+	"docs":        true,
+	"android":     false,
+	"android-lib": false,
+	"vulncheck":   true,
 }
 
 // versionUpdatedEcosystem keeps Dependabot version updates: security updates
@@ -65,10 +62,6 @@ type ciWorkflow struct {
 	} `yaml:"jobs"`
 }
 
-// TestDependabotCoversEveryManifest is the check that keeps SECURITY.md honest
-// as the repository grows: a fourth Go module or a third lockfile added without
-// a Dependabot entry would go unwatched, and nothing else would notice. It also
-// pins version updates off outside versionUpdatedEcosystem.
 func TestDependabotCoversEveryManifest(t *testing.T) {
 	root := repoRoot(t)
 
@@ -92,15 +85,13 @@ func TestDependabotCoversEveryManifest(t *testing.T) {
 	}
 
 	for _, want := range discoverManifests(t, root) {
-		if !covered[want.ecosystem+" "+want.directory] {
+		if !covered[want.dependabotEcosystem+" "+want.dependabotDirectory] {
 			t.Errorf("%s is not covered by .github/dependabot.yml; add a %q entry for %q",
-				want.source, want.ecosystem, want.directory)
+				want.sourcePath, want.dependabotEcosystem, want.dependabotDirectory)
 		}
 	}
 }
 
-// TestCIJobNamesAreStable guards the required-check names, and with them the
-// gate-or-informational decision each job carries.
 func TestCIJobNamesAreStable(t *testing.T) {
 	jobs := readCIWorkflow(t, repoRoot(t)).Jobs
 
@@ -132,9 +123,6 @@ func TestCIJobNamesAreStable(t *testing.T) {
 // as, so scanning only one of them leaves the other's shipped binaries unread.
 var releasedGOOS = []string{"linux", "darwin"}
 
-// TestVulnerabilityScanCoversEveryGoModule keeps the scan job in step with the
-// module layout, which the lint and test jobs already have to track by hand,
-// and with the platforms the release actually ships.
 func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 	root := repoRoot(t)
 
@@ -156,13 +144,13 @@ func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 	}
 
 	for _, want := range discoverManifests(t, root) {
-		if want.ecosystem != "gomod" {
+		if want.dependabotEcosystem != "gomod" {
 			continue
 		}
 		for _, goos := range releasedGOOS {
-			if !scanned[want.directory+" "+goos] {
+			if !scanned[want.dependabotDirectory+" "+goos] {
 				t.Errorf("ci.yml's vulncheck job does not scan %q (from %s) as GOOS=%s",
-					want.directory, want.source, goos)
+					want.dependabotDirectory, want.sourcePath, goos)
 			}
 		}
 	}
@@ -196,19 +184,17 @@ func TestScanStepsSurviveAnEarlierFailure(t *testing.T) {
 }
 
 type manifest struct {
-	source    string // repo-relative path, for the failure message
-	ecosystem string // Dependabot package-ecosystem
-	directory string // Dependabot directory, slash-prefixed
+	sourcePath          string
+	dependabotEcosystem string
+	dependabotDirectory string
 }
 
-// discoverManifests finds every dependency manifest a Dependabot entry should
-// exist for, so the checks describe the repository rather than a fixed list.
 func discoverManifests(t *testing.T, root string) []manifest {
 	t.Helper()
 
 	var found []manifest
 	add := func(rel, ecosystem, dir string) {
-		found = append(found, manifest{source: rel, ecosystem: ecosystem, directory: dir})
+		found = append(found, manifest{sourcePath: rel, dependabotEcosystem: ecosystem, dependabotDirectory: dir})
 	}
 
 	err := filepath.WalkDir(root, func(pth string, d fs.DirEntry, err error) error {
@@ -246,7 +232,7 @@ func discoverManifests(t *testing.T, root string) []manifest {
 		t.Fatalf("Failed to walk the repository: %v", err)
 	}
 
-	sort.Slice(found, func(i, j int) bool { return found[i].source < found[j].source })
+	sort.Slice(found, func(i, j int) bool { return found[i].sourcePath < found[j].sourcePath })
 	return found
 }
 

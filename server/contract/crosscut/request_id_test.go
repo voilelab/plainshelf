@@ -13,14 +13,8 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// requestIDConfusables are the characters a request ID must never contain. The
-// ID exists to be read aloud and copied by hand off a screen into a bug report,
-// so 0 against O and 1 against I or L would each cost a lookup that fails for a
-// reason the user cannot see.
 const requestIDConfusables = "0O1IL"
 
-// assertRequestIDShape pins what a user has to be able to transcribe: eight
-// characters, no pair anyone confuses.
 func assertRequestIDShape(t *testing.T, id string) {
 	t.Helper()
 
@@ -37,10 +31,7 @@ func assertRequestIDShape(t *testing.T, id string) {
 	}
 }
 
-// Every response carries the ID, not only the failures: a user reporting a
-// screen that looks wrong without erroring has something to quote too, which is
-// the whole reason the ID is per request rather than per error.
-func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
+func TestAPIResponsesCarryRequestID(t *testing.T) {
 	env := apitest.New(t)
 
 	seen := map[string]struct{}{}
@@ -60,14 +51,9 @@ func TestAPIEveryResponseCarriesARequestIDContract(t *testing.T) {
 	}
 }
 
-// The number the user reads off the error and the number in the header are one
-// number. A second identifier for the same request would mean the developer has
-// to know which of the two the user copied.
-func TestAPIErrorEnvelopeIncidentIsTheRequestIDContract(t *testing.T) {
+func TestAPIErrorIncidentIsRequestID(t *testing.T) {
 	env := apitest.New(t)
 
-	// A refusal the table names, which is the case a per-error incident ID
-	// would have left without a number to quote.
 	rec := env.Request(http.MethodDelete, apitest.BookURL("no_such_book"), nil)
 	apitest.AssertErrorEnvelope(t, rec, http.StatusNotFound, "BOOK_NOT_FOUND", "book not found")
 
@@ -82,9 +68,7 @@ func TestAPIErrorEnvelopeIncidentIsTheRequestIDContract(t *testing.T) {
 	assertRequestIDShape(t, got.Error.Incident)
 }
 
-// The point of the whole chain: the ID the user was shown finds the log line,
-// and that line answers what the response body deliberately withheld.
-func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
+func TestAPIUnknownErrorLogsIDAndRoute(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	libRoot := t.TempDir()
 
@@ -98,9 +82,6 @@ func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
 		t.Fatalf("sources = %d, want 1", len(sources))
 	}
 
-	// Replacing the source file with a directory makes the atomic rename fail.
-	// That is an error the table cannot name, which is the fallback path this
-	// test is about.
 	sourceFile := findSourceFile(t, libRoot)
 	if err := os.Remove(sourceFile); err != nil {
 		t.Fatalf("remove source file: %v", err)
@@ -134,8 +115,6 @@ func TestAPIUnknownErrorLogsTheReportedIDWithItsRouteContract(t *testing.T) {
 	}
 }
 
-// findLogEntryByRequestID does what a developer holding a reported number does:
-// search the log for it and read the line back.
 func findLogEntryByRequestID(t *testing.T, logFile, requestID, msg string) map[string]any {
 	t.Helper()
 
@@ -164,10 +143,7 @@ func findLogEntryByRequestID(t *testing.T, logFile, requestID, msg string) map[s
 	return nil
 }
 
-// The request log line is what a developer searches, so it has to carry the
-// reported number - and it has to keep the fields it already had, because an
-// operator's existing log tooling reads them by name.
-func TestAPIRequestLogLineCarriesTheRequestIDContract(t *testing.T) {
+func TestAPIRequestLogCarriesRequestID(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	env := apitest.New(t, apitest.WithAppLogFile(appLogFile))
 
@@ -190,10 +166,7 @@ func TestAPIRequestLogLineCarriesTheRequestIDContract(t *testing.T) {
 	}
 }
 
-// A background chain fails minutes after the response that gave the user their
-// number, so it logs under that same number rather than one of its own. Nothing
-// else could connect the two: the user never sees the chain ID.
-func TestAPIBackgroundTaskFailureLogsTheSubmittingRequestIDContract(t *testing.T) {
+func TestAPITaskFailureLogsRequestID(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	env := apitest.New(t, apitest.WithAppLogFile(appLogFile))
 

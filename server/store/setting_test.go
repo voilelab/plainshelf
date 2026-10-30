@@ -31,8 +31,6 @@ func TestSetSetting(t *testing.T) {
 		t.Fatalf("expected %q, got %q", "dark", val)
 	}
 
-	// Changing a setting the user already saved must replace the stored value,
-	// not leave the original in place.
 	if err := db.SetSetting("theme", []byte("light")); err != nil {
 		t.Fatalf("SetSetting (overwrite): %v", err)
 	}
@@ -70,7 +68,6 @@ func TestDeleteSetting_NotFound(t *testing.T) {
 	}
 }
 
-// Settings outlive the process: the browser build reopens its store on every page load.
 func TestSettingsSurviveReopen(t *testing.T) {
 	dir := t.TempDir()
 	db, err := New(dir)

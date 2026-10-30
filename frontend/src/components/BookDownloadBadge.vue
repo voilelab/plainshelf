@@ -15,11 +15,6 @@ import { computed } from 'vue';
 import type { DownloadState } from '@/types/book';
 import { useI18n } from '@/i18n';
 
-// Rendered only when the book actually carries a download state. A server or
-// desktop listing has no download concept and omits `download_state`, so those
-// clients keep the row they had instead of gaining an empty marker; the mobile
-// provider annotates every book (mobileBookshelfProvider.annotateDownloadState),
-// so on the device every row is labelled.
 const props = defineProps<{ state?: DownloadState }>();
 
 const { t } = useI18n();

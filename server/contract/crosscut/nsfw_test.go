@@ -7,25 +7,9 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/server/contract/apitest"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
-/*
-show_nsfw decides whether this server serves the books its shelves mark as adult
-content, and defaults to off. The filtering is server-side: a title or a cover
-that reached the browser to be hidden there has already been in the network
-trace and the cache.
-
-What is asserted here is the part every route owes whatever else it does — the
-listing and the answer to a book named directly. The rest of the surface is
-pinned in its own area against the same fixture (apitest.NewNSFWShelf): folders
-in folders/, similarity and its coverage count in sources/, batches in books/,
-the exported cache in shelves/, and the setting's own shape in platform/.
-
-Every test carries its reverse half: with the setting on, the same requests
-answer exactly as they did before the setting existed.
-*/
-
-// A marked book is in no listing, and neither is the fact that it has a twin.
 func TestAPINSFWBooksAreAbsentFromListings(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
 	duplicates := func() [][]string {
@@ -46,13 +30,9 @@ func TestAPINSFWBooksAreAbsentFromListings(t *testing.T) {
 	apitest.AssertBookIDs(t, groups[0], s.Visible, s.FolderHidden)
 }
 
-// Every route naming one book answers as though it were not there: 403 would
-// confirm it exists. An ID that was never issued is held to the same envelope,
-// which is the claim — the two answers are indistinguishable.
-func TestAPINSFWBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
+func TestAPINSFWBooksAnswerNotFound(t *testing.T) {
 	s := apitest.NewNSFWShelf(t)
-	// A book is refused before its source is looked for, so this real ID from
-	// another book is enough to address the source route.
+
 	sourceID := apitest.CurrentSourceOf(t, s.Env, s.Visible)
 
 	routes := []struct {
@@ -83,12 +63,31 @@ func TestAPINSFWBooksAnswerNotFoundWhereverTheyAreNamed(t *testing.T) {
 		})
 	}
 
-	// Nothing above deleted anything: the refusals were the filter, and the same
-	// books answer normally once they may be seen.
 	apitest.SetShowNSFW(t, s.Env, true)
 	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.All()...)
 	for _, bookID := range s.Hidden() {
 		apitest.AssertStatus(t, s.Env.Get(apitest.BookURL(bookID)), http.StatusOK)
 		apitest.AssertStatus(t, s.Env.Get(apitest.BookURL(bookID, "content")), http.StatusOK)
 	}
+}
+
+func TestAPINSFWShelfOverridesSetting(t *testing.T) {
+	s := apitest.NewNSFWShelf(t)
+	folders := func() []shelf.FolderPath {
+		return apitest.GetJSON[[]shelf.FolderPath](t, s.Env, apitest.ShelfURL("folders"))
+	}
+	hiddenFolders := folders()
+
+	s.Env.App.SetShelfShowNSFW(apitest.DefaultShelfID, true)
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.All()...)
+	if got := folders(); len(got) <= len(hiddenFolders) {
+		t.Errorf("folders with the shelf shown = %v, want more than %v", got, hiddenFolders)
+	}
+
+	apitest.SetShowNSFW(t, s.Env, true)
+	s.Env.App.SetShelfShowNSFW(apitest.DefaultShelfID, false)
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.Visible, s.Classic)
+
+	s.Env.App.ClearShelfShowNSFW(apitest.DefaultShelfID)
+	apitest.AssertBookIDs(t, apitest.ListedBookIDs(t, s.Env), s.All()...)
 }

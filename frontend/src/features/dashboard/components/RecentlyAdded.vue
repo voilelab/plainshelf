@@ -35,9 +35,6 @@ defineProps<{
 
 const { t } = useI18n();
 
-// "View all" lands on the library sorted by newest first — the same ordering the
-// row shows — rather than a dedicated route. sort/order are the library's own
-// query keys (useBooksRouteQuery), so no filter is applied.
 const viewAllTo: RouteLocationRaw = {
   path: '/books',
   query: { sort: 'created_at', order: 'desc' }

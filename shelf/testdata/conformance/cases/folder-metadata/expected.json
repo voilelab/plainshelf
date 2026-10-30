@@ -1,0 +1,133 @@
+{
+  "folders": [
+    "/",
+    "Broken",
+    "Future",
+    "Iconic",
+    "Nested",
+    "Nested/Deep",
+    "Newer",
+    "Plain"
+  ],
+  "folder_meta": {
+    "Broken": {
+      "icon": "",
+      "icon_on_disk": "",
+      "read_only": true
+    },
+    "Future": {
+      "icon": "",
+      "icon_on_disk": "icon-from-a-newer-build",
+      "read_only": false,
+      "sort_key": -2.5
+    },
+    "Iconic": {
+      "icon": "rocket",
+      "icon_on_disk": "rocket",
+      "read_only": false,
+      "sort_key": -1
+    },
+    "Nested/Deep": {
+      "icon": "moon",
+      "icon_on_disk": "moon",
+      "read_only": false,
+      "sort_key": 0
+    },
+    "Newer": {
+      "icon": "",
+      "icon_on_disk": "",
+      "read_only": true
+    }
+  },
+  "books": [
+    {
+      "path": "books/Iconic/one.bookpkg",
+      "folders": [
+        "Iconic"
+      ],
+      "id": "f1m9td3kq7xw2nab",
+      "title": "One",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
+      "star": 0,
+      "created_at": "2026-04-01T09:00:00Z",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    },
+    {
+      "path": "books/Newer/two.bookpkg",
+      "folders": [
+        "Newer"
+      ],
+      "id": "f2p4rz8hc6vy3mde",
+      "title": "Two",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
+      "star": 0,
+      "created_at": "2026-04-01T09:00:00Z",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    },
+    {
+      "path": "books/Plain/three.bookpkg",
+      "folders": [
+        "Plain"
+      ],
+      "id": "f3s7jw5ub2qn8kfg",
+      "title": "Three",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
+      "star": 0,
+      "created_at": "2026-04-01T09:00:00Z",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    }
+  ],
+  "book_caches": [
+    {
+      "name": "book-cache-foldermeta.json",
+      "usable": true,
+      "book_ids": [
+        "f1m9td3kq7xw2nab",
+        "f2p4rz8hc6vy3mde",
+        "f3s7jw5ub2qn8kfg"
+      ]
+    }
+  ]
+}

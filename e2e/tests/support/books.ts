@@ -24,10 +24,6 @@ export const safeHtmlMarkdownFixturePath = path.resolve(
 export const tinyPngBase64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9s3FoXcAAAAASUVORK5CYII=';
 
-/**
- * Opens the import modal, uploads the given file, waits for import to finish,
- * then closes the modal. Makes no assertions about book count or list state.
- */
 export async function importBookFromPath(page: Page, filePath: string): Promise<void> {
   const filename = path.basename(filePath);
 
@@ -47,10 +43,6 @@ export async function importBookFromPath(page: Page, filePath: string): Promise<
   await expect(dialog).not.toBeVisible();
 }
 
-/**
- * Imports hello.txt assuming the library starts empty. Asserts the initial
- * empty state and verifies the book appears in the list after import.
- */
 export async function importHelloBook(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
   await expect(page.getByText('No books yet.')).toBeVisible();
@@ -63,14 +55,6 @@ export async function importHelloBook(page: Page): Promise<void> {
   ).toBeVisible();
 }
 
-/**
- * Imports a fixture under a caller-chosen book title, then waits for that row
- * to appear. The book title is derived from the uploaded filename, so this
- * uploads a temp copy renamed to `${title}${ext}`. Use it in a shared-server
- * spec where every test must pick a unique name instead of colliding on a fixed
- * one like "hello", and where the shelf is not empty so a "1 books" count
- * assertion would be meaningless. Returns the title for convenience.
- */
 export async function importBookAs(
   page: Page,
   fixturePath: string,

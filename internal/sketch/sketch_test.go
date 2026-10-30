@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// deterministicRNG is a xorshift64 generator, so that every fixture in this
-// package is reproducible independently of the standard library's generators.
 type deterministicRNG struct {
 	state uint64
 }
@@ -32,7 +30,6 @@ func (r *deterministicRNG) intn(n int) int {
 	return int(r.next() % uint64(n))
 }
 
-// randomWords builds a reproducible document of space-separated pseudo-words.
 func randomWords(r *deterministicRNG, count int) []string {
 	words := make([]string, count)
 	for i := range words {
@@ -46,8 +43,6 @@ func randomWords(r *deterministicRNG, count int) []string {
 	return words
 }
 
-// replaceWords returns a copy of words with the given fraction replaced, which
-// is how the fixtures below reach a known, tunable amount of overlap.
 func replaceWords(r *deterministicRNG, words []string, fraction float64) []string {
 	changed := slices.Clone(words)
 	for i := range changed {
@@ -59,14 +54,10 @@ func replaceWords(r *deterministicRNG, words []string, fraction float64) []strin
 	return changed
 }
 
-// exactSketch retains every shingle, so comparisons between exact sketches are
-// set operations rather than estimates.
 func exactSketch(text string) Sketch {
 	return Build(text, DefaultN, len(text)+1)
 }
 
-// referenceSketch is the obvious implementation the streaming one must match:
-// collect every shingle hash, sort, deduplicate, keep the k smallest.
 func referenceSketch(text string, n, k int) Sketch {
 	var all []uint64
 	eachShingle(text, n, func(hash uint64) {
@@ -84,8 +75,6 @@ func referenceSketch(text string, n, k int) Sketch {
 }
 
 func TestEachShingle(t *testing.T) {
-	// collect lists the n-rune windows of text the obvious way, by materializing
-	// the runes, which is what the streaming ring buffer must reproduce.
 	collect := func(text string, n int) []string {
 		var windows []string
 		runes := []rune(text)
@@ -237,8 +226,6 @@ func TestBuildDefaultKeepsShortDocumentsExact(t *testing.T) {
 	}
 }
 
-// BenchmarkBuild covers the scan the whole package is paced by: one
-// book-length document, at the defaults a real import uses.
 func BenchmarkBuild(b *testing.B) {
 	document := strings.Join(randomWords(newRNG(20260912), 60000), " ")
 

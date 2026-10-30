@@ -116,11 +116,6 @@ describe('reader font settings', () => {
   });
 });
 
-// The end-to-end case that used to read `font-family` off the rendered reader
-// is gone; what it proved beyond the storage round-trip above was that each id
-// maps to its own stack and that code text opts out of the reading font. The
-// first is pinned here. The second cannot be — jsdom resolves no `var()` — so
-// it is a style contract instead: scripts/check-style-contracts.mjs.
 describe('reader font reaches the rendered text', () => {
   it('gives each font id its own family stack', () => {
     expect(getReaderFontFamily('system')).toMatch(/^Georgia,/);

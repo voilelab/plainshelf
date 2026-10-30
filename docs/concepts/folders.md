@@ -18,6 +18,14 @@ They are real directories, so they survive a server restart and can be browsed
 in any file manager. The `books/` root is itself the top-level group: a book
 sitting directly under it is in no folder.
 
+In the sidebar, **All books** lists every book on the shelf, including those in
+folders, and selecting a folder lists only the books directly inside it, not
+those in its subfolders. Books in no folder are listed under **No folder**, just
+below **All books**; that entry appears only while at least one such book
+exists. To create a top-level folder, right-click **All books** and choose
+**Add folder**; dropping a book or a folder on **All books** moves it to the top
+level.
+
 Create folders, move books between them, and delete empty ones from the web
 interface — none of it needs the filesystem touched by hand. A folder change you
 make in PlainShelf appears in the very next listing; one made outside PlainShelf
@@ -27,11 +35,94 @@ appears after the next shelf scan. See
 ## Rules
 
 - A folder cannot be deleted while it still holds books. Move or delete the
-  books first.
+  books first. A folder holding nothing but its `folder.json` counts as empty,
+  and the file is deleted with it.
+- No folder may be named `folder.json`, in any letter case: that name belongs
+  to the folder metadata file below.
 - A book belongs to exactly one folder, because it lives in exactly one
   directory.
 - Moving a book between folders does not change its ID, so reading progress and
   bookmarks follow it.
+
+## Folder metadata
+
+A folder may keep its own settings in a `folder.json` inside its directory —
+an icon and an optional sibling sort key:
+
+```json
+{
+  "icon": "rocket",
+  "schema_version": 1
+}
+```
+
+The file lives in the folder it describes, so it goes wherever the folder goes:
+renaming or moving the folder in PlainShelf, or with `mv` outside it, keeps the
+setting with no list to update. Copying or moving a folder to another shelf
+copies every `folder.json` in the folder and its subfolders byte for byte, even
+one this build cannot read, and adds none where there was none. A file that
+cannot be copied, for example because the destination folder already has one,
+leaves the transfer partially completed, and a move keeps that source folder,
+its `folder.json` and the folders above it rather than delete a setting it did
+not take along. A cancelled move removes no source folder or `folder.json`. The
+shelf root has no `folder.json` of its own.
+
+Every folder in the sidebar and in a book's folder path shows its icon, or the
+plain folder icon when it has none. To choose one, right-click the folder in the
+sidebar and pick **Change icon**, or choose an icon while creating the folder;
+picking **Default** clears it. The choice is saved to that folder's
+`folder.json`, so it is the same on every client reading the shelf. The entry is
+not offered on a read-only shelf, nor for a folder whose `folder.json` PlainShelf
+cannot read safely.
+
+The file can also be written by hand. A hand edit shows after the next shelf
+scan, as described in [Shelf cache and disk
+I/O](shelf-cache-and-io.md#folder-listing); clients reach it through `GET` and
+`PUT /api/shelves/{shelf_id}/folder-meta`. The icon names it accepts, and
+exactly what happens to a file it cannot read, are in [`folder.json` schema
+v1](data-format-versioning.md#folderjson-schema-v1). In short: a broken or
+unrecognized file never hides the folder (it reads as "no settings"), and
+PlainShelf will not overwrite a file it cannot read.
+
+## Custom sibling order
+
+Choose **Reorder folders** in the sidebar. Drag a folder onto a sibling to place
+it before that sibling, or use the labelled up/down buttons with the keyboard.
+Choose **Finish reordering** to return to normal folder moves. Sorting never
+changes directory locations, and a cross-parent sorting drop does nothing.
+Read-only shelves show the saved order without offering sorting controls.
+Breadcrumb ancestors keep their path order.
+
+Folders with a finite `sort_key` appear first, in ascending order. Equal keys
+and folders without keys retain each interface's existing name/path order.
+The sidebar and destination pickers use the same sibling priority. New folders
+do not get a key until reordered. Moving within a shelf keeps the folder's own
+key; it is compared against the new parent's siblings. Cross-shelf copies and
+moves also carry the file unchanged and compare its key under the destination
+parent. To put a folder last, use its down button; a drag always inserts before
+the target sibling.
+
+A drop or keyboard action saves immediately. If every sibling already has a
+strictly increasing key, only the moved folder gets a key between its neighbours
+(or 1024 beyond an end). Otherwise, including the first reorder of an unkeyed
+group, every sibling gets a key in steps of 1024. This creates one `folder.json`
+per previously unconfigured sibling and costs one write per sibling; duplicate
+keys or an exhausted numeric gap also cause this full normalization. Icons and
+unknown metadata survive. Each write checks the metadata version.
+These are separate atomic file writes, **not** a transaction across files. On a
+failure, saving stops and the actual persisted order is reloaded; repeat the
+move against that order to retry. Cancelling a drag writes nothing. Controls
+stay disabled during a save; leaving the mode does not cancel accepted writes.
+If reloading fails, an error asks you to reload folders before retrying.
+
+`GET .../folder-meta` and exported `folder_meta` include optional `sort_key`.
+`PUT .../folder-meta/{path}` with `sort_key` and `version` changes only that key;
+null sort keys and requests containing both icon and sort_key are rejected with
+400 before writing. Clearing sort_key through this endpoint is not supported;
+the existing icon-only request remains unchanged. External edits and remote
+shelves
+use the same scan, export, startup and offline cache model as icons, without
+per-folder remote reads.
 
 ## Ignored directories
 
@@ -58,8 +149,8 @@ for a name that is malformed.
 ### Choosing the list for one shelf
 
 The four names above are defaults, not a fixed list. A shelf can name its own
-directories: create a [`shelf.json`](data-model.md#shelfjson) at the shelf root —
-beside `books/`, not inside it — and list what it should skip.
+directories: create a [`shelf.json`](data-model.md#shelfjson) at the shelf root,
+beside `books/` and not inside it, and list what it should skip.
 
 ```json
 {
@@ -104,9 +195,13 @@ settings page for it yet; it is a file you write by hand.
 
 ## Marking a folder as adult content
 
-A folder has no settings file of its own — it is a directory, and nothing else —
-so a mark that applies to a whole folder lives in
-[`shelf.json`](data-model.md#shelfjson), under `content.nsfw_folders`:
+A mark that applies to a whole folder lives in
+[`shelf.json`](data-model.md#shelfjson), under `content.nsfw_folders`, not in
+that folder's [`folder.json`](#folder-metadata). The difference is deliberate:
+an icon should follow its folder when the folder moves, while an adult-content
+mark belongs to a place in the shelf, so moving a folder out of a marked path is
+a visible change (see [Moving a marked folder](#moving-a-marked-folder)) rather
+than a mark that silently travels or stays behind:
 
 ```json
 {
@@ -153,22 +248,22 @@ setting, `show_nsfw`. It is off by default, so a freshly marked book disappears
 from the library as soon as the shelf is reopened.
 
 The filtering happens on the server, not in the browser: with `show_nsfw` off, a
-marked book is absent from the library listing, from the duplicate and similarity
-pages and from the dashboard's totals, and every address that names it — the
-book, its cover, its content, its sources — answers **404**, exactly as a book
-that is not on the shelf does. Naming it some other way does not get round that:
-a batch move or trash refuses the ID the same way, and the background sweeps
-(content statistics, source fingerprints) and the fingerprint coverage count
-leave it out too, so none of their totals can report that it exists. A folder
-disappears with its books: a marked
-folder is not listed, and neither is one left with nothing but marked books, so
-it cannot show up in a breadcrumb or in the destination list when moving a book.
+marked book is absent from the library listing, from the duplicate and
+similarity pages and from the dashboard's totals, and every address that names
+it (the book, its cover, its content, its sources) answers **404**, exactly as a
+book that is not on the shelf does. Naming it some other way does not get round
+that: a batch move or trash refuses the ID the same way, and the background
+sweeps (content statistics, source fingerprints) and the fingerprint coverage
+count leave it out too, so none of their totals can report that it exists. A
+folder disappears with its books: a marked folder is not listed, and neither is
+one left with nothing but marked books, so it cannot show up in a breadcrumb or
+in the destination list when moving a book.
 
 Deleting a book does not take it out of the setting's reach. The trash page
-leaves out a marked book — its title, its authors and the folder it was deleted
-from are all withheld — and restoring or permanently deleting it answers **404**,
-the same as an ID that was never issued. The folder rule still applies there:
-the trash remembers where each book was deleted from, so a book deleted out of a
+leaves out a marked book, withholding its title, its authors and the folder it
+was deleted from, and restoring or permanently deleting it answers **404**, the
+same as an ID that was never issued. The folder rule still applies there: the
+trash remembers where each book was deleted from, so a book deleted out of a
 marked folder stays marked while it sits in the trash.
 
 ### Moving a marked folder
@@ -192,7 +287,7 @@ subtree is refused with **409** and this body, and nothing happens:
 ```
 
 `hidden_books` counts the books that would become visible. It is `0` when the
-whole disclosure is a folder name — an empty marked folder is hidden too — so it
+whole disclosure is a folder name (an empty marked folder is hidden too), so it
 does not mean "nothing would change". Repeat the same request with `?confirm=1`
 to go ahead:
 
@@ -270,16 +365,16 @@ offers a **Show adult content on this device** switch, off by default and stored
 only on that device.
 
 It hides the same things the server setting hides, computed from the same two
-marks the shelf carries — the book's own `nsfw` and the `content.nsfw_folders`
+marks the shelf carries: the book's own `nsfw` and the `content.nsfw_folders`
 rules, which the app reads out of `shelf.json` itself rather than trusting the
 exported book cache's precomputed answer. A marked book is absent from the
 library listing, its address answers "not found", a marked folder and one left
 holding nothing but marked books drop out of the folder tree, and a book already
-downloaded for offline reading is withheld by the offline cache itself — its
-entry, its text, its cover, its sources and its illustrations — so it is gone
-from **Downloaded books** and unreadable even in flight mode. Being on the device
-is not a way past the switch; the stored copy is kept, because the switch hides
-books rather than deleting downloads.
+downloaded for offline reading is withheld by the offline cache itself (its
+entry, its text, its cover, its sources and its illustrations), so it is gone
+from **Downloaded books** and unreadable even in flight mode. Being on the
+device is not a way past the switch; the stored copy is kept, because the switch
+hides books rather than deleting downloads.
 
 The two settings are deliberately **not** synchronised. They are separate
 machines' decisions, and syncing them would turn "not on this phone" into "on no

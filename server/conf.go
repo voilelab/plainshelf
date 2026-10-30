@@ -10,8 +10,6 @@ type WorkerConf struct {
 	Logger logutil.LogConf `yaml:"logger"`
 	MaxLen int             `yaml:"max_len"`
 
-	// MaxKeep bounds how many finished task chains stay queryable through the
-	// task chain API. Zero selects the package default.
 	MaxKeep int `yaml:"max_keep"`
 }
 
@@ -24,4 +22,6 @@ type AppConf struct {
 	EPUBImportStrategy *epub.Strategy           `yaml:"epub_import_strategy"`
 	ReadOnly           bool                     `yaml:"read_only"`
 	Security           *SecurityConf            `yaml:"security"`
+
+	Credentials CredentialResolver `yaml:"-"`
 }

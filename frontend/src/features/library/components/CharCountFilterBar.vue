@@ -50,10 +50,6 @@
       <span v-if="unknownCount > 0" class="toolbar-label char-count-unknown">
         {{ t('library.charCount.unknownNote', { count: unknownCount }) }}
       </span>
-      <!-- The sweep it kicks off is tracked on the always-mounted library page
-           (useContentStatsRefresh), so this control only starts it and renders
-           the progress the page hands back; closing the panel does not abandon
-           an in-flight sweep. -->
       <button
         v-if="!readOnly && unknownCount > 0"
         type="button"
@@ -93,18 +89,12 @@ const MAX_INPUT_ID = 'books-char-count-max';
 
 const props = defineProps<{
   range: CharCountRange;
-  /** Books in the current result set whose character count could not be read. */
   unknownCount: number;
   readOnly: boolean;
-  /** Hide the built-in "Characters" label when a surrounding heading supplies it. */
   hideLabel?: boolean;
-  /** Whether a recompute sweep is currently in flight (tracked by the page). */
   refreshRunning: boolean;
-  /** The recompute button's current label ("Update statistics…" / "Updating…"). */
   refreshLabel: string;
-  /** The settled outcome message, empty while running or before a first run. */
   refreshOutcome: string;
-  /** A start/poll error from the sweep, empty when there is none. */
   refreshError: string;
 }>();
 
@@ -116,9 +106,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const active = computed(() => isCharCountRangeActive(props.range));
-// `null`, not `undefined`, for an unset bound: reka latches a NumberField into
-// uncontrolled mode when its *initial* model-value is `undefined`, after which
-// the parent's range would stop driving it.
+// Reka UI 2.10.5 NumberField selects passive mode once from an initially undefined model; VueUse 14.3.0 still watches incoming props in passive mode.
 const minValue = computed(() => props.range.min ?? null);
 const maxValue = computed(() => props.range.max ?? null);
 
@@ -126,12 +114,7 @@ function asRaw(value: number | null): string {
   return value === null ? '' : String(value);
 }
 
-// Committed on blur, Enter and the steppers rather than on every keystroke, so
-// a partially typed number never filters the list or fills up history. That is
-// also what makes parseCharCountRange's swap of reversed bounds safe. An
-// emptied box arrives as `undefined`, which it reads as "no bound".
-// `step-snapping` is off so only the steppers move in CHAR_COUNT_STEP: snapping
-// would round a search for 74 characters up to 100.
+// Reka UI 2.10.5 NumberField snaps committed input unless stepSnapping is false.
 function commit(minRaw: string, maxRaw: string): void {
   emit('update:range', parseCharCountRange(minRaw, maxRaw));
 }

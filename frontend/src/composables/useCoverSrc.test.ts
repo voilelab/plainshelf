@@ -8,15 +8,9 @@ const { getBookCoverMock, getBookCoverUrlMock, coversMustBeFetchedAsBlobMock, ca
     getBookCoverMock: vi.fn(),
     getBookCoverUrlMock: vi.fn(),
     coversMustBeFetchedAsBlobMock: vi.fn(),
-    // Whether the mocked provider declares the capability at all. Server and
-    // desktop providers do not define the method, so "absent" has to be a
-    // missing property rather than a function returning undefined — otherwise
-    // dropping the `?.` in production code would still pass here.
     capability: { declared: true }
   }));
 
-// The composable asks the provider what its cover URL is good for, so the test
-// describes a provider rather than a runtime.
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => {
     const provider: Record<string, unknown> = {
@@ -149,8 +143,6 @@ describe('useCoverSrc', () => {
 
     expect(resultA.src.value.startsWith('blob:')).toBe(true);
     expect(resultB.src.value).toBe(resultA.src.value);
-    // Same key: the second consumer must reuse the in-flight/resolved fetch,
-    // not trigger a second network call.
     expect(getBookCoverMock).toHaveBeenCalledTimes(1);
 
     scopeA.stop();
@@ -205,8 +197,6 @@ describe('useCoverSrc', () => {
   });
 
   it('passes the URL through when the provider does not declare the capability', async () => {
-    // Absent, not false: server and desktop providers never define the method,
-    // and the composable reaches it as an optional call.
     capability.declared = false;
     getBookCoverUrlMock.mockReturnValue('http://localhost:20000/api/shelves/s/books/b/cover');
 
@@ -227,3 +217,5 @@ describe('useCoverSrc', () => {
     scope.stop();
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ coversMustBeFetchedAsBlob: capability.declared ? coversMustBeFetchedAsBlobMock() : undefined }) }));

@@ -44,8 +44,6 @@ describe('createMobileDeviceDocumentStorage', () => {
     expect(await createMobileDeviceDocumentStorage(PATH).load()).toBeNull();
   });
 
-  // Reporting a failed read as "nothing stored" would let the next write
-  // replace a document that was never read, wiping every shelf's data.
   it('propagates a read failure that is not a missing file', async () => {
     readFileMock.mockRejectedValue(new Error('EACCES: permission denied'));
 

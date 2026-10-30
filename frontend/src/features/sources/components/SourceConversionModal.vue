@@ -112,8 +112,6 @@ const emit = defineEmits<{
 }>();
 
 const pattern = ref(DEFAULT_CHAPTER_PATTERN);
-// `undefined` once the box is emptied, which the preview reports as an invalid
-// line count rather than silently converting with a default.
 const lineCount = ref<number | undefined>(DEFAULT_LINE_COUNT);
 const setCurrent = ref(true);
 const patternInput = ref<HTMLInputElement | null>(null);
@@ -126,8 +124,6 @@ const increaseLineCountLabel = computed(() =>
   t('common.increase', { label: t('sources.conversion.lineCountLabel') })
 );
 
-// Reka's NumberFieldInput is a component, so its element comes from `$el`
-// rather than the ref itself; the two branches are mutually exclusive.
 function primaryInputElement(): HTMLInputElement | null {
   return patternInput.value ?? (lineCountInput.value?.$el as HTMLInputElement | undefined) ?? null;
 }
@@ -158,8 +154,6 @@ type ConversionPreview = {
   summary: string;
   excerpt: string;
   error: string;
-  // A neutral note (e.g. "no lines matched, try another pattern") shown instead
-  // of the red error when the conversion simply has nothing to preview yet.
   hint: string;
 };
 
@@ -194,8 +188,6 @@ const preview = computed<ConversionPreview>(() => {
         }
         const converted = textToMarkdownByRegex(props.content, pattern.value);
         if (converted.chapters === 0) {
-          // Zero matches is an ordinary "keep tweaking the pattern" state, not a
-          // failure — a red alert here reads as if the user did something wrong.
           return emptyPreview('md', t('sources.conversion.hints.noMatches'));
         }
         nextContent = converted.content;
@@ -205,7 +197,6 @@ const preview = computed<ConversionPreview>(() => {
       }
       case 'line-count-md': {
         const size = Number(lineCount.value);
-        // `Number(undefined)` is NaN, so an emptied box lands here too.
         if (!Number.isFinite(size) || size < 1) {
           throw new Error(t('sources.conversion.errors.invalidLineCount'));
         }

@@ -17,8 +17,6 @@ function notice(host: HTMLElement): HTMLElement | null {
   return host.querySelector('.error-incident');
 }
 
-// The copy handler awaits the clipboard write before flipping the label, so one
-// tick lands before the promise it is waiting on has settled.
 async function flush(): Promise<void> {
   await Promise.resolve();
   await nextTick();
@@ -34,8 +32,6 @@ afterEach(() => {
 });
 
 describe('ErrorIncidentNotice', () => {
-  // "No incident, no change to the layout": nothing is rendered at all, so the
-  // notice cannot reserve space on a page that has no reference to show.
   it('renders nothing without a reference', () => {
     expect(notice(mountNotice())).toBeNull();
   });

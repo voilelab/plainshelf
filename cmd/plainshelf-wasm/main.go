@@ -1,7 +1,5 @@
 //go:build js && wasm
 
-// Command plainshelf-wasm runs the server inside a browser. There is no
-// listener: requests arrive through a JS function wrapping App.Handler.
 package main
 
 import (
@@ -11,8 +9,8 @@ import (
 	"os"
 	"syscall/js"
 
-	"github.com/voilelab/plainshelf/cmd/plainshelf-wasm/shelfzip"
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/shelfzip"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -47,7 +45,6 @@ func main() {
 	}
 	handler := shelfzip.Handler(libRoot, app.Handler())
 
-	// plainshelfFetch(method, url, headers, body?: Uint8Array) -> Promise<{status, headers, body: Uint8Array}>
 	js.Global().Set("plainshelfFetch", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		method, url, hdrs := args[0].String(), args[1].String(), args[2]
 		var body []byte
@@ -83,7 +80,8 @@ func main() {
 	select {}
 }
 
-// newPromise runs fn off the JS event loop; blocking a js.FuncOf callback deadlocks.
+// syscall/js.FuncOf callbacks must return to the JS event loop before an async
+// operation can complete; newPromise runs fn in a goroutine.
 func newPromise(fn func() (any, error)) js.Value {
 	executor := js.FuncOf(func(_ js.Value, args []js.Value) any {
 		resolve, reject := args[0], args[1]
@@ -97,7 +95,8 @@ func newPromise(fn func() (any, error)) js.Value {
 		}()
 		return nil
 	})
-	// The Promise constructor calls the executor synchronously, so it can go now.
+	// ECMAScript's Promise constructor calls the executor synchronously, so the
+	// syscall/js.Func can be released when the constructor returns.
 	defer executor.Release()
 	return js.Global().Get("Promise").New(executor)
 }

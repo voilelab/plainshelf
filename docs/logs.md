@@ -27,16 +27,16 @@ characters people mix up when reading a number aloud — no `0`, `O`, `1`, `I` o
 Include that number in a bug report. Searching a log file for it finds the line
 for that request, and for a failure the server did not expect that line also
 carries the route, the shelf, and the underlying error the response itself
-withholds. Background work — a batch move, emptying the trash, fingerprinting —
-is logged under the number of the request that started it, so one number covers
-the whole operation.
+withholds. Background work (a batch move, emptying the trash, fingerprinting) is
+logged under the number of the request that started it, so one number covers the
+whole operation.
 
 When something fails, the number is on screen: a small **Error reference**
 notice appears in the corner of the window with a **Copy** button, so a report
 can quote it without opening developer tools. A failure the interface raised on
-its own — a bug in a page, or a pCloud shelf read, where there is no server to
-ask — is given a number of the same shape with a `c-` prefix. Nothing in a
-server log matches one of those, and the prefix is there to say so.
+its own, such as a bug in a page or a pCloud shelf read, where there is no
+server to ask, is given a number of the same shape with a `c-` prefix. Nothing
+in a server log matches one of those, and the prefix is there to say so.
 
 Numbers are also only useful while the log that holds them still exists, so
 report a problem before the retention window below expires, or copy the log
@@ -53,16 +53,16 @@ The default window is **30 days**. Change it in **Settings → Logs**:
 - A number of days: files older than that are deleted.
 - `0`: no log file is ever deleted.
 
-Deletion happens when the log rotates — the first time the application writes a
-log line on a new day — so an application that is not running deletes nothing,
+Deletion happens when the log rotates, the first time the application writes a
+log line on a new day, so an application that is not running deletes nothing,
 and one that has been idle for a while cleans up when it next writes. A change
 saved from the settings page applies to the next rotation; there is no need to
 restart.
 
 Only files the log page itself lists can be deleted: a file is a log file when
 it sits directly in the log directory and its name is the configured prefix, a
-`YYYY-MM-DD` date and `.log`. Anything else in that directory — including
-subdirectories and symbolic links — is left alone.
+`YYYY-MM-DD` date and `.log`. Anything else in that directory, including
+subdirectories and symbolic links, is left alone.
 
 A server can seed the window from its config file:
 

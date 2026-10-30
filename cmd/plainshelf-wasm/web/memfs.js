@@ -1,6 +1,6 @@
 // In-memory stand-in for the Node `fs` callback API that Go's js/wasm
 // syscall layer calls (GOROOT/src/syscall/fs_js.go). Load before wasm_exec.js.
-// globalThis.memfs lets a persistence layer (opfs.js) restore and drain changes.
+
 (() => {
   const S_IFDIR = 0o040000;
   const S_IFREG = 0o100000;
@@ -10,17 +10,19 @@
   };
 
   let nextIno = 1;
-  const nodes = new Map(); // normalized path -> node
-  const fds = new Map(); // fd -> { node, flags }
+  const nodes = new Map();
+  const fds = new Map();
   let nextFd = 3;
 
-  // Nodes whose content or children changed since the last takeDirty().
   const dirty = new Set();
   let onChange = () => {};
   function touch(...changed) {
     for (const n of changed) if (n) dirty.add(n);
     onChange();
   }
+
+  const pathDepth = (p) => (p === '/' ? 0 : p.split('/').length);
+  const parentsFirst = (entries) => entries.sort((a, b) => pathDepth(a.path) - pathDepth(b.path));
 
   const fsError = (code) => Object.assign(new Error(code), { code });
 
@@ -88,7 +90,6 @@
     return e;
   }
 
-  // Each call runs synchronously and reports through the Node-style callback.
   const wrap = (fn) => (...args) => {
     const cb = args.pop();
     let result;
@@ -107,7 +108,7 @@
 
   globalThis.fs = {
     constants,
-    // Go writes stdout/stderr through writeSync; forward complete lines to the console.
+
     writeSync(fd, buf) {
       if (fd === 1 || fd === 2) {
         outBuf[fd] += decoder.decode(buf);
@@ -246,28 +247,26 @@
     kindOf(path) {
       return nodes.get(norm(path))?.type;
     },
-    // Queues a path again without signalling a change.
-    markDirty(path) {
+
+    requeueDirty(path) {
       const n = nodes.get(norm(path));
       if (n) dirty.add(n);
     },
     onChange(fn) {
       onChange = fn;
     },
-    // Changed paths, parents before children, with a copy of each file's bytes.
-    takeDirty() {
+
+    takeDirtyParentsFirst() {
       const out = [];
       for (const [path, n] of nodes) {
         if (!dirty.has(n)) continue;
         out.push({ path, type: n.type, data: n.type === 'file' ? n.data.slice(0, n.size) : null });
       }
       dirty.clear();
-      const depth = (p) => (p === '/' ? 0 : p.split('/').length);
-      return out.sort((a, b) => depth(a.path) - depth(b.path));
+      return parentsFirst(out);
     },
   };
 
-  // Go's syscall layer calls process.cwd(); the shim has no working directory but root.
   globalThis.process ??= {
     getuid: () => -1, getgid: () => -1, geteuid: () => -1, getegid: () => -1,
     getgroups: () => { throw fsError('ENOSYS'); },

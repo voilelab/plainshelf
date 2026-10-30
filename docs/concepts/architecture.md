@@ -1,38 +1,45 @@
 # Architecture
 
-PlainShelf is one Go binary with an embedded Vue frontend. The same frontend is
-served three ways — over HTTP to a browser, inside a Wails desktop window, and
-inside a Capacitor WebView on Android — and every one of them is a client of the
-same API surface.
+PlainShelf uses a Go server and a shared Vue frontend. The server binary embeds
+the frontend for browsers; the Wails desktop app and Capacitor Android app each
+package it with an embedded Go server. Every client uses the same API surface.
 
 ---
 
 ## System shape
 
-![Architecture diagram: web, desktop and Android clients reach a local Go server
-behind a local-token boundary, where a shelf manager keeps an in-memory book
-cache over the shelf filesystem that holds the library. A separate key-value
-store holds application settings, and the Android client can also read a
-pCloud-hosted shelf directly as a read-only
-backend.](../assets/plainshelf-architecture.svg)
+![Architecture diagram: browsers use HTTP and desktop and Android clients can
+reach an embedded Go server in-process. The HTTP API has a local-token boundary.
+A shelf manager keeps an in-memory book cache over the shelf filesystem that
+holds the library. A separate key-value
+store holds application settings. The Go engine also opens read-only virtual
+shelves over WebDAV or, on Android, pCloud.](../assets/plainshelf-architecture.svg)
 
 Three things in that picture are load-bearing.
 
 **The shelf filesystem is the source of truth.** `ShelfManager` holds an
 in-memory book cache, but the cache is only an accelerator — it is rebuilt from
 `books/` and never becomes the authority. See
-[Data Model](data-model.md) for the on-disk layout and
-[Shelf Cache and Disk I/O](shelf-cache-and-io.md) for how the cache stays fresh.
+[Data model](data-model.md) for the on-disk layout and
+[Shelf cache and disk I/O](shelf-cache-and-io.md) for how the cache stays fresh.
 
 **The desktop client does not speak HTTP.** Wails serves the embedded frontend
 and routes any request whose path starts with `/api/` straight into the server's
-handler in the same process. There is no listening socket, which is why the
-desktop app needs no port and no token.
+handler in the same process. By default there is no listening socket, so the
+desktop UI needs no port and no token. **Share on local network** opens a
+separate listener for the selected shelves' read-only WebDAV export, protected
+by its own token; it exposes neither the API nor the web UI. See
+[the read-only WebDAV export](../deployment-and-threat-model.md#the-read-only-webdav-export).
 
-**The Android client has two independent paths.** It can talk to a PlainShelf
-server over HTTP like any other client, or it can read a shelf held on pCloud
-directly, bypassing the server entirely. The second path is a read-only storage
-backend, not synchronisation: nothing is ever written back to pCloud.
+**The Android app embeds the Go server.** Local shelves, pCloud shelves and
+WebDAV sources (including another PlainShelf's LAN share) are all read through
+that server, reached in-process through the native bridge and WebView request
+interception, without a UI listener. The Go engine opens each source; virtual
+shelves are read-only storage backends, and nothing is written back to them.
+The app also retains a mode that connects to an external PlainShelf server's
+full API over HTTP. Like the desktop app, Android can explicitly open a
+separate read-only LAN share for selected local shelves; see
+[Android development](../development/android.md).
 
 ### The security boundary
 
@@ -46,6 +53,12 @@ treats as a read: it walks the shelf and rebuilds the cache without writing, so
 `protect_read` governs it, and read-only mode accepts it for the same reason.
 The origin check still applies, so it is exempt from the token but not from
 CSRF.
+
+Downloading a book from a virtual shelf
+(`PUT`/`DELETE /api/shelves/{id}/books/{book_id}/download`) is the other way
+round: read-only mode accepts it, because it writes only this installation's
+[offline copies](shelf-sources.md#offline-copies) and never the shelf, but it
+still needs the token, because it writes to this machine's disk.
 
 The log API (`/api/logs`) is the one read that always needs the token, whatever
 `protect_read` says. Logs are server internals rather than shelf content: they
@@ -64,8 +77,8 @@ Reading progress, read history and reading statistics are **device-local**. They
 are not stored in the shelf, so they are not carried by a backup of `books/`,
 and two devices pointed at the same shelf keep their own.
 
-![Architecture diagram: three feature documents — reading progress, read history
-and reading stats — all mutate through one queued device document store, which
+![Architecture diagram: three feature documents (reading progress, read history
+and reading stats) all mutate through one queued device document store, which
 narrows to a single format-blind interface that only loads and saves a plain
 string. Four platform backends implement it: browser localStorage, Capacitor
 Filesystem in app-private storage on Android, a JSON file beside shelves.json on
@@ -99,6 +112,16 @@ own localStorage, but when the desktop shells out to it the launching side
 own `readHistory` after the launch succeeds, so the desktop app's "recent
 reading" sees a book read this way.
 
+The frontend autosaves reading progress every 10 seconds. To narrow what closing
+a Wails window between two saves can lose, the frontend also stages its latest
+position in Go memory, and `OnBeforeClose` waits for it to be written
+(`internal/readingclose`); a flush request over an async event proved unreliable
+during window teardown. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
+seconds) and best-effort: if the cross-process file lock is held longer, or the
+write fails, the window closes anyway and that position can still be lost. The
+staged write merges newest-wins, so it never overwrites a newer entry from the
+other process.
+
 `readingProgress` has no Android-specific path today: it stays on the WebView's
 localStorage there, while read history and reading stats do not. That matters,
 because the Capacitor backend was chosen precisely to escape WebView storage —
@@ -119,13 +142,13 @@ book's progress depends on how it was launched:
 - **Launched from the desktop app** (macOS), reading a book shells out to the
   installed `PlainShelfReader` with the book's `.bookpkg` path (`-book`) and its
   real shelf id (`-shelf <realShelfID>`). The reader reports that real shelf as
-  its active shelf, so it opens at — and writes back to — the same
+  its active shelf, so it opens at, and writes back to, the same
   `shelves.<realShelfID>.<bookID>` position the desktop library already holds,
-  whichever source last recorded it (the reader, the in-app reader, or an import).
-  Both sides read and write the same key, so no projection is involved. A chapter
-  "read" action adds `-section <index>` (the reader's own section index, matching
-  the `?section=` deep link), so the reader opens on that chapter instead of the
-  restored progress; a default read omits it.
+  whichever source last recorded it (the reader, the in-app reader, or an
+  import). Both sides read and write the same key, so no projection is involved.
+  A chapter "read" action adds `-section <index>` (the reader's own section
+  index, matching the `?section=` deep link), so the reader opens on that
+  chapter instead of the restored progress; a default read omits it.
 - **Run standalone** (opened directly, no `-shelf`), the reader has no real shelf,
   so it keys every book's progress under one synthetic shelf id, `book`, which the
   desktop app projects onto the real shelves later (below).
@@ -155,20 +178,20 @@ was written and all reconciliation is **newest-wins per book**:
   identifies exactly one book), taking the newer entry. The projection runs
   whenever the desktop reads progress, so a book read in the reader shows its new
   position the next time the library or that book is opened.
-- An entry the desktop cannot place — a book that has been removed, or a loose
-  book opened in the reader from outside every shelf — is left under `book`
-  untouched, never guessed onto the wrong shelf, and folded in later if that book
-  is imported.
+- An entry the desktop cannot place (a book that has been removed, or a loose
+  book opened in the reader from outside every shelf) is left under `book`
+  untouched, never guessed onto the wrong shelf, and folded in later if that
+  book is imported.
 - Writers coordinate through a lock on the file, and each read-modify-write
   re-reads under it, so a write only ever replaces entries older than itself.
 
 A book opened **through the desktop app** is therefore fully two-way: the reader
 starts at the desktop library's stored position and writes back to the same
-real-shelf key, and a later position from either side — forward or a reset — wins
-by recency. Only a reader opened **directly** stays one-way, its `book` namespace
-folded in by projection; progress recorded in the desktop app does not appear
-there because it never carried that book's real shelf id. Nothing here is written
-into the shelf; reading progress stays device-local convenience state.
+real-shelf key, and a later position from either side, forward or a reset, wins
+by recency. Only a reader opened **directly** stays one-way, its `book`
+namespace folded in by projection; progress recorded in the desktop app does not
+appear there because it never carried that book's real shelf id. Nothing here is
+written into the shelf; reading progress stays device-local convenience state.
 
 The diagram cannot show either of these:
 

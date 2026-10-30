@@ -5,15 +5,96 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
 const testWriterID = "testwriter01"
 
-// waitForBookCacheExport polls for the exported cache file, which the initial
-// scan writes after the shelf reports ready so that readiness is never blocked
-// on a write (see initCache).
+func TestBookCacheExportDuringBookWrites(t *testing.T) {
+	libRoot := t.TempDir()
+	s := newTestShelf(t, &ShelfConf{
+		LibRoot: libRoot, LockMode: "none", BookCacheWriterID: testWriterID,
+	})
+	book, err := s.NewBook(nil, "Concurrent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bookID := book.ID()
+	loaded, err := s.GetBook(bookID)
+	if err != nil || loaded != book {
+		t.Fatalf("GetBook must return the cached Book: %p, %v", loaded, err)
+	}
+	source, err := book.NewSource(strings.NewReader("Source text"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta := book.GetMeta()
+	meta.Tags = []string{"Concurrent"}
+	meta.Authors = []string{"Concurrent"}
+	meta.Identifiers = map[string]string{"test": "Concurrent"}
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	workers.Go(func() {
+		<-start
+		for i := range 32 {
+			meta := book.GetMeta()
+			meta.Title = fmt.Sprintf("Revision %d", i)
+			meta.Tags[0] = meta.Title
+			meta.Authors[0] = meta.Title
+			meta.Identifiers["test"] = meta.Title
+			if err := book.SetMeta(meta); err != nil {
+				t.Error(err)
+				return
+			}
+			meta.Title = "Unpublished"
+			meta.Tags[0] = "Unpublished"
+			meta.Authors[0] = "Unpublished"
+			meta.Identifiers["test"] = "Unpublished"
+			if err := book.SetCurrentSource(source.ID()); err != nil {
+				t.Error(err)
+				return
+			}
+			if err := book.SetCover([]byte("cover"), ".png"); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	})
+	workers.Go(func() {
+		<-start
+		for range 32 {
+			if err := s.exportBookCache(false); err != nil {
+				t.Error(err)
+				return
+			}
+			meta := s.collectExportSnapshot(testWriterID).Books[bookID].Meta
+			if meta.Title != meta.Tags[0] || meta.Title != meta.Authors[0] || meta.Title != meta.Identifiers["test"] {
+				t.Errorf("inconsistent metadata snapshot: %+v", meta)
+			}
+		}
+	})
+	close(start)
+	workers.Wait()
+
+	if err := s.exportBookCache(false); err != nil {
+		t.Fatal(err)
+	}
+	cache := waitForBookCacheExport(t, libRoot, testWriterID)
+	got := cache.Books[bookID].Meta
+	if got.Title != "Revision 31" || got.CurrentSource != source.ID() || got.Cover != "cover.png" {
+		t.Fatalf("export missed the final write: %+v", got)
+	}
+}
+
 func waitForBookCacheExport(t *testing.T, libRoot, writerID string) BookCacheFile {
 	t.Helper()
 
@@ -68,8 +149,6 @@ func TestBookCacheExportAfterInitialScan(t *testing.T) {
 	if err := shelf.NewFolder(FolderPath{"Fiction"}, "Classics"); err != nil {
 		t.Fatalf("NewFolder: %v", err)
 	}
-	// An empty folder is the case a per-book listing cannot reconstruct, which is
-	// why the file records folders separately.
 	if err := shelf.NewFolder(FolderPath{}, "Empty"); err != nil {
 		t.Fatalf("NewFolder: %v", err)
 	}
@@ -107,7 +186,6 @@ func TestBookCacheExportAfterInitialScan(t *testing.T) {
 		t.Errorf("exported meta = %+v, want the book.json of Dune", entry.Meta)
 	}
 
-	// "/" for the top level matches what the API and the pCloud client use.
 	want := map[string]bool{"/": true, "Fiction": true, "Fiction/Classics": true, "Empty": true}
 	got := map[string]bool{}
 	for _, folder := range cache.Folders {
@@ -123,7 +201,7 @@ func TestBookCacheExportAfterInitialScan(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportDisabledWithoutWriterID(t *testing.T) {
+func TestBookCacheExportNeedsWriterID(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 
@@ -147,8 +225,6 @@ func TestBookCacheExportDisabledWithoutWriterID(t *testing.T) {
 		}
 	}
 
-	// ExportBookCache is also refused rather than silently doing nothing, so the
-	// API can tell the user why no file appeared.
 	if _, err := shelf.ExportBookCache(); err == nil {
 		t.Fatal("ExportBookCache succeeded without a writer ID")
 	}
@@ -174,10 +250,8 @@ func TestBookCacheExportSkipsUnchangedContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat: %v", err)
 	}
-	// Backdate so a rewrite is unmistakable even at one-second granularity.
 	shiftModTime(t, filePath, -time.Hour)
 
-	// Not forced: the shelf has not changed, so nothing should reach the disk.
 	if err := shelf.exportBookCache(false); err != nil {
 		t.Fatalf("exportBookCache: %v", err)
 	}
@@ -189,7 +263,6 @@ func TestBookCacheExportSkipsUnchangedContent(t *testing.T) {
 		t.Error("unchanged shelf rewrote the exported cache")
 	}
 
-	// A real change must still get through.
 	if _, err := shelf.NewBook(nil, "Added Later"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -205,15 +278,7 @@ func TestBookCacheExportSkipsUnchangedContent(t *testing.T) {
 	}
 }
 
-// TestBookCacheExportOfManyBooksSkipsUnchangedContent is the same claim as the
-// test above with enough books for it to mean something. The export is skipped
-// when bookCacheDigest matches the last one, and that digest hashes a payload
-// holding map[string]BookCacheEntry — so the skip only holds while the encoder
-// sorts map keys, which json/v2 does not do unless jsonopt says so. One book
-// has no order to vary and passes either way; twelve do not. What a missing
-// Deterministic costs is not a wrong answer but a re-upload of an unchanged
-// listing on every scan, on a shelf its owner keeps on pCloud or SMB.
-func TestBookCacheExportOfManyBooksSkipsUnchangedContent(t *testing.T) {
+func TestBookCacheExportStableAcrossMapOrder(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{
 		LibRoot:           libRoot,
@@ -236,8 +301,6 @@ func TestBookCacheExportOfManyBooksSkipsUnchangedContent(t *testing.T) {
 		t.Fatalf("ReadFile: %v", err)
 	}
 
-	// Repeated because a random map order agrees with the previous one now and
-	// then; eight rounds of twelve books do not agree by luck.
 	for round := range 8 {
 		shiftModTime(t, filePath, -time.Hour)
 		before, err := os.Stat(filePath)
@@ -265,8 +328,6 @@ func TestBookCacheExportOfManyBooksSkipsUnchangedContent(t *testing.T) {
 		}
 	}
 
-	// Forcing an export re-encodes the same content, which is where an
-	// unstable encoder would show up in the bytes rather than in a mtime.
 	if err := shelf.exportBookCache(true); err != nil {
 		t.Fatalf("exportBookCache(force): %v", err)
 	}
@@ -285,7 +346,6 @@ func TestBookCacheExportOnClose(t *testing.T) {
 		LibRoot:           libRoot,
 		LockMode:          "none",
 		BookCacheWriterID: testWriterID,
-		// Long enough that only Close can produce the second export.
 		BookCacheInterval: "24h",
 	})
 	if err != nil {
@@ -309,7 +369,7 @@ func TestBookCacheExportOnClose(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportPreservesNewerSchemaVersion(t *testing.T) {
+func TestBookCacheExportKeepsNewerSchema(t *testing.T) {
 	libRoot := t.TempDir()
 	bookDir := path.Join(libRoot, booksFolder, "from-the-future.bookpkg")
 	if err := os.MkdirAll(bookDir, 0755); err != nil {
@@ -342,8 +402,6 @@ func TestBookCacheExportPreservesNewerSchemaVersion(t *testing.T) {
 	if !ok {
 		t.Fatalf("too-new book missing from the exported cache: %v", cache.Books)
 	}
-	// A reader must be able to tell this book is not fully understood here, so
-	// the version has to survive the round trip rather than be normalized down.
 	if entry.Meta.SchemaVersion != BookMetaSchemaVersion+98 {
 		t.Errorf("schema_version = %d, want %d", entry.Meta.SchemaVersion, BookMetaSchemaVersion+98)
 	}
@@ -370,13 +428,10 @@ func TestBookCachePrunesOnlyStaleForeignFiles(t *testing.T) {
 		WriterID:      "otherlaptop",
 		Timestamp:     fresh,
 	})
-	// Old, but from an unrecognized format: deleting a file we cannot read is a
-	// worse failure than keeping a stale one.
 	unreadable := path.Join(libRoot, appFolder, bookCacheFilePrefix+"mystery"+bookCacheFileSuffix)
 	if err := os.WriteFile(unreadable, []byte("{not json"), 0644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	// Same shape but a future schema version: also unrecognized, also kept.
 	futureFormat := writeRawBookCache(t, libRoot, bookCacheFilePrefix+"newbuild"+bookCacheFileSuffix, map[string]any{
 		"schema_version": BookCacheSchemaVersion + 1,
 		"writer_id":      "newbuild",
@@ -398,14 +453,13 @@ func TestBookCachePrunesOnlyStaleForeignFiles(t *testing.T) {
 	}
 }
 
-func TestExportBookCachePicksUpBooksAddedOnDisk(t *testing.T) {
+func TestBookCacheExportSeesBooksOnDisk(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{
 		LibRoot:           libRoot,
 		LockMode:          "none",
 		BookCacheWriterID: testWriterID,
-		// Without a forced rescan the shelf would not look at the tree again.
-		ScanInterval: "24h",
+		ScanInterval:      "24h",
 	})
 	waitForBookCacheExport(t, libRoot, testWriterID)
 
@@ -433,8 +487,6 @@ func TestExportBookCachePicksUpBooksAddedOnDisk(t *testing.T) {
 	if _, ok := cache.Books["onda1skb"]; !ok {
 		t.Fatalf("manual export did not rescan; books = %v", cache.Books)
 	}
-	// The timestamp reports the walk, not the write, so a reader can compare it
-	// against each book.json's modification time.
 	if cache.Timestamp != scannedAt.Unix() {
 		t.Errorf("timestamp = %d, want the scan time %d", cache.Timestamp, scannedAt.Unix())
 	}
@@ -448,8 +500,6 @@ func TestValidateBookCacheWriterID(t *testing.T) {
 		}
 	}
 
-	// The ID becomes part of a file name under app/, so separators and dots must
-	// not be able to move the write somewhere else.
 	invalid := []string{"../escape", "with/slash", "with\\slash", "with.dot", "with space", "üñïçø∂é"}
 	for _, writerID := range invalid {
 		if err := validateBookCacheWriterID(writerID); err == nil {
@@ -462,17 +512,12 @@ func TestValidateBookCacheWriterID(t *testing.T) {
 	}
 }
 
-// An edit made through *Book changes the cached book in place, without going
-// anywhere near the export bookkeeping. Nothing marks it, so the export has to
-// notice by comparing content — which is why there is no dirty flag.
-func TestBookCacheExportPicksUpInPlaceMetadataEdits(t *testing.T) {
+func TestBookCacheExportSeesInPlaceEdits(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf, err := NewShelf(&ShelfConf{
 		LibRoot:           libRoot,
 		LockMode:          "none",
 		BookCacheWriterID: testWriterID,
-		// Long enough that only Close can produce the second export, and long
-		// enough that no rescan can quietly do the job for it.
 		BookCacheInterval: "24h",
 		ScanInterval:      "24h",
 	})
@@ -491,8 +536,6 @@ func TestBookCacheExportPicksUpInPlaceMetadataEdits(t *testing.T) {
 		t.Fatalf("ExportBookCache: %v", err)
 	}
 
-	// Through GetBook, which is how the API reaches a book: it hands back the
-	// instance the cache holds, so SetMeta edits the cached book in place.
 	book, err := shelf.GetBook(created.ID())
 	if err != nil {
 		t.Fatalf("GetBook: %v", err)
@@ -517,9 +560,7 @@ func TestBookCacheExportPicksUpInPlaceMetadataEdits(t *testing.T) {
 	}
 }
 
-// Timestamp must be the moment the walk started. Stamping the end would cover
-// a book edited while the walk was still running, after it had been read.
-func TestBookCacheExportTimestampIsTheScanStart(t *testing.T) {
+func TestBookCacheExportTimestampIsScanStart(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{
 		LibRoot:           libRoot,
@@ -546,5 +587,51 @@ func TestBookCacheExportTimestampIsTheScanStart(t *testing.T) {
 	cache := waitForBookCacheExport(t, libRoot, testWriterID)
 	if cache.Timestamp != scanStart.Unix() {
 		t.Errorf("timestamp = %d, want the scan start %d", cache.Timestamp, scanStart.Unix())
+	}
+}
+
+func TestBookCacheExportCarriesSourceMD5(t *testing.T) {
+	libRoot := t.TempDir()
+	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none", BookCacheWriterID: testWriterID})
+	book, err := s.NewBook(FolderPath{}, "Dune")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	source, err := book.NewSource(strings.NewReader("Dune text"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	if err := book.SetCurrentSource(source.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+	want := source.GetMeta().MD5Hash
+	if want == "" {
+		t.Fatal("source meta carries no MD5 to compare against")
+	}
+
+	if _, err := s.ExportBookCache(); err != nil {
+		t.Fatalf("ExportBookCache: %v", err)
+	}
+	cache := readBookCacheFileOrFail(t, libRoot)
+	if got := cache.Books[book.ID()].CurrentSourceMD5; got != want {
+		t.Errorf("current_source_md5 = %q, want %q", got, want)
+	}
+
+	if err := source.UpdateContent(strings.NewReader("Dune, revised")); err != nil {
+		t.Fatalf("UpdateContent: %v", err)
+	}
+	s.RefreshBookCharCount(book.ID())
+	if got := s.collectExportSnapshot(testWriterID).Books[book.ID()].CurrentSourceMD5; got == want || got == "" {
+		t.Errorf("current_source_md5 after an edit = %q, want a new hash", got)
+	}
+}
+
+func TestBookCacheSchemaVersionFirst(t *testing.T) {
+	data, err := json.Marshal(BookCacheFile{SchemaVersion: BookCacheSchemaVersion}, jsonopt.Disk())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.HasPrefix(string(data), "{\n  \"schema_version\":") {
+		t.Errorf("schema_version is not the first key: %s", data)
 	}
 }

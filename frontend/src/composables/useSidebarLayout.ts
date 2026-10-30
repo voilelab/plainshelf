@@ -11,33 +11,19 @@ import {
   type SidebarMode
 } from '@/utils/sidebarMode';
 
-// Stable reference: an inline object literal in the template would be recreated on
-// every MainLayout re-render, and reka-ui's SplitterResizeHandle re-registers itself
-// with the group whenever its `hitAreaMargins` prop identity changes. Re-registering
-// mid-drag replaces the handle's internal registry entry, so the `mouseup` handler's
-// reference-based lookup misses and `stopDragging()` never fires — leaving
-// `pointer-events: none` stuck on every panel. A module-level constant keeps the prop
-// identity stable across renders and avoids the mid-drag re-registration entirely.
+// Reka UI 2.10.5 SplitterResizeHandle watches hitAreaMargins and re-registers the handle when its identity changes, including during a drag.
 export const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 export const RAIL_SIDEBAR_WIDTH = 48;
 const DEFAULT_EXPANDED_SIDEBAR_WIDTH = 240;
 const SIDEBAR_SECTION_KEYS = ['folders', 'reading', 'maintenance', 'admin'] as const;
 type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number];
 
-/**
- * Sidebar chrome for MainLayout: rail/expanded mode with its persisted width, the
- * narrow-viewport drawer, and per-section collapse. Owns no data — folders, books
- * and shelves stay with their own stores.
- */
 export function useSidebarLayout() {
   const route = useRoute();
 
   const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
   const sidebarMode = ref<SidebarMode>(getStoredSidebarMode());
   const isRailSidebar = computed(() => sidebarMode.value === 'rail');
-  // Rail mode resizes the panel to 48px, which overwrites the splitter's
-  // auto-saved layout, so the expanded width has to be persisted separately to
-  // survive a reload while railed.
   const lastExpandedSidebarWidth = ref<number | null>(getStoredSidebarExpandedWidth());
   const collapsedSidebarSections = reactive<Record<SidebarSectionKey, boolean>>({
     folders: false,
@@ -46,9 +32,6 @@ export function useSidebarLayout() {
     admin: false
   });
 
-  // Narrow-viewport (mobile) drawer state. Every sidebar action ends in a
-  // router.push, so watching fullPath closes the drawer after nav links and
-  // folder selection alike.
   const isNarrowViewport = useIsNarrowViewport();
   const showRailNav = computed(() => isRailSidebar.value && !isNarrowViewport.value);
   const drawerOpen = ref(false);
@@ -74,8 +57,10 @@ export function useSidebarLayout() {
     }
     setStoredSidebarMode(sidebarMode.value);
 
-    // Constraint props alone should re-clamp the panel, but nudge explicitly so
-    // the width is deterministic even if reka's px re-validation misses a beat.
+    await applySidebarModeSize();
+  }
+
+  async function applySidebarModeSize(): Promise<void> {
     await nextTick();
     const panel = sidebarPanelRef.value;
     if (!panel) {
@@ -86,9 +71,7 @@ export function useSidebarLayout() {
       return;
     }
 
-    // Our stored width wins over whatever the splitter restores for the expanded
-    // constraint set: a drag followed immediately by railing never reaches reka's
-    // debounced auto-save, so it would otherwise fall back to the default width.
+    // Reka UI 2.10.5 SplitterGroup debounces autosave by 100 ms.
     const expandedWidth = lastExpandedSidebarWidth.value;
     if (expandedWidth !== null) {
       panel.resize(expandedWidth);

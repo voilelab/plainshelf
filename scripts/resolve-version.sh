@@ -84,8 +84,7 @@ is_release_tag() {
   split_version "$1"
 }
 
-# Highest by SemVer precedence; git's version sort ranks some prereleases
-# differently (v1.0.0-2 above v1.0.0-1a).
+# Git version sort does not implement SemVer 2.0.0 prerelease precedence (versionsort.suffix; SemVer section 11).
 latest_release_tag() {
   latest=
   for tag in $(git tag --list 'v[0-9]*' 2>/dev/null); do
@@ -96,7 +95,6 @@ latest_release_tag() {
   [ -z "$latest" ] || printf '%s\n' "$latest"
 }
 
-# Succeeds when SemVer identifier $1 sorts after $2.
 identifier_gt() {
   if is_numeric_identifier "$1" && is_numeric_identifier "$2"; then
     [ "$1" -gt "$2" ]
@@ -110,7 +108,6 @@ identifier_gt() {
   fi
 }
 
-# Succeeds when version $1 has higher SemVer precedence than $2.
 version_gt() {
   split_version "$1" || return 1
   a_core=$core_version a_pre=$version_suffix a_has_pre=$has_version_suffix
@@ -126,7 +123,6 @@ version_gt() {
     case "$a_core" in *.*) a_core=${a_core#*.} b_core=${b_core#*.} ;; *) a_core= ;; esac
   done
 
-  # Equal cores: a release outranks any of its prereleases.
   [ "$a_has_pre" = "$b_has_pre" ] || { [ "$b_has_pre" = true ]; return; }
   [ "$a_has_pre" = true ] || return 1
 
@@ -205,7 +201,6 @@ case "$mode" in
     latest_release_tag
     ;;
   previous-tag)
-    # Highest release tag below the version, whether or not its own tag exists.
     previous=
     for tag in $(git tag --list 'v[0-9]*' 2>/dev/null); do
       if is_release_tag "$tag" && version_gt "$raw_version" "$tag" &&

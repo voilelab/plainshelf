@@ -4,8 +4,6 @@ import zhHant from './locales/zh-Hant';
 
 type Messages = { [key: string]: string | Messages };
 
-// Values that are intentionally identical in every locale: product and brand
-// names, language endonyms, and example values shown inside placeholders.
 const SHARED_VALUE_KEYS = new Set([
   'app.name',
   'language.en',
@@ -18,7 +16,10 @@ const SHARED_VALUE_KEYS = new Set([
   'mobileConnect.modePCloud',
   'mobileConnect.pcloud.picker.rootLabel',
   'mobileConnect.pcloud.shelfRootPlaceholder',
-  'mobileConnect.serverUrlPlaceholder'
+  'mobileConnect.serverUrlPlaceholder',
+  'shelfSource.webdav',
+  'shelfSource.tokenLabel',
+  'shelfSource.urlPlaceholder'
 ]);
 
 function flatten(messages: Messages, prefix = ''): Record<string, string> {

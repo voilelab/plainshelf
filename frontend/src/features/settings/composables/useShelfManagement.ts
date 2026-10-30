@@ -1,30 +1,83 @@
+import type { DesktopQRShelf, DesktopQRResult } from '@/api/desktop';
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
+import type { DesktopShelfDetails } from '@/api/desktop';
 import { computed, ref, watch } from 'vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
-import { getBookshelfProvider } from '@/providers';
 import { useI18n } from '@/i18n';
 import { isAbsoluteShelfPath } from '@/features/settings/utils/shelfPath';
+import {
+  shelfSourceCheckMessageKey,
+  shelfSourceNeedsSecret,
+  type ShelfSourceKind
+} from '@/utils/shelfSourceCheck';
 
 interface ShelfRef {
   id: string;
   name: string;
 }
 
-/** Where a new shelf's folder comes from: created by PlainShelf, or adopted. */
-type ShelfLocationMode = 'new' | 'existing';
+type ShelfLocationMode = 'new' | 'existing' | 'remote' | 'qr';
 
-/**
- * The settings page's shelf table: adding, modifying and removing a shelf, plus
- * the form and busy/error state each of those modals reads. Shelf data itself
- * still comes from the shared shelves store, so a change here is reflected
- * anywhere else that store is mounted.
- *
- * Every operation goes through the bookshelf provider and is a no-op when the
- * running shell does not expose it, which is how the server build keeps its
- * shelves read-only.
- */
 export function useShelfManagement() {
   const { t } = useI18n();
-  const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves, ensureShelvesLoaded } = useShelvesStore();
+  const store = useShelvesStore();
+  const managementDetails = ref<DesktopShelfDetails[] | null>(null);
+  const shelvesLoading = ref(false);
+  const shelvesError = ref('');
+  const shelves = computed(() =>
+    managementDetails.value
+      ? managementDetails.value.map((detail) => ({
+          ...detail,
+          readOnly: detail.read_only
+        }))
+      : store.shelves.value.map((shelf) => ({
+          ...shelf,
+          source: '',
+          url: '',
+          open_error: ''
+        }))
+  );
+
+  async function loadManagementDetails(): Promise<void> {
+    const list = getPlatformCapabilities().shelves?.listShelfDetails;
+    if (list) managementDetails.value = await list();
+  }
+
+  async function refreshShelves(ensure: boolean): Promise<void> {
+    shelvesLoading.value = true;
+    shelvesError.value = '';
+    try {
+      await (ensure ? store.ensureShelvesLoaded() : store.fetchShelves());
+      await loadManagementDetails();
+      shelvesError.value = store.error.value;
+    } catch (err) {
+      shelvesError.value = err instanceof Error ? err.message : t('settings.shelves.loadFailed');
+    } finally {
+      shelvesLoading.value = false;
+    }
+  }
+
+  const fetchShelves = () => refreshShelves(false);
+  const ensureShelvesLoaded = () => refreshShelves(true);
+  const retryingShelfIDs = ref(new Set<string>());
+
+  async function retryShelf(id: string): Promise<void> {
+    const retry = getPlatformCapabilities().shelves?.retryShelf;
+    if (!retry || retryingShelfIDs.value.has(id)) return;
+    retryingShelfIDs.value = new Set([...retryingShelfIDs.value, id]);
+    shelfOpError.value = '';
+    try {
+      await retry(id);
+      await fetchShelves();
+    } catch {
+      shelfOpError.value = t('settings.shelves.virtualOpenFailed');
+      await fetchShelves();
+    } finally {
+      const next = new Set(retryingShelfIDs.value);
+      next.delete(id);
+      retryingShelfIDs.value = next;
+    }
+  }
 
   const shelfOpError = ref('');
 
@@ -34,52 +87,62 @@ export function useShelfManagement() {
 
   const showAddShelfModal = ref(false);
   const newShelfName = ref('');
-  // Which of the two ways to place a new shelf the user has chosen. The default
-  // branch creates a folder PlainShelf owns and needs nothing but a name; the
-  // other one adopts a folder the user already has. They share this one set of
-  // refs rather than two parallel forms, so there is a single place to reset.
   const newShelfLocationMode = ref<ShelfLocationMode>('new');
   const newShelfDirectory = ref('');
   const newShelfReadOnly = ref(false);
+  const newShelfSourceKind = ref<ShelfSourceKind>('plainshelf');
+  const newShelfSourceURL = ref('');
+  const newShelfSourceUsername = ref('');
+  const newShelfSourceSecret = ref('');
   const addingShelf = ref(false);
+  const qrText = ref('');
+  const qrShelves = ref<DesktopQRShelf[]>([]);
+  const qrResults = ref<DesktopQRResult[]>([]);
+  let qrPreviewToken = 0;
+  watch(qrText, () => {
+    qrPreviewToken++;
+    qrShelves.value = [];
+    qrResults.value = [];
+  }, { flush: 'sync' });
+
+  async function previewQR(): Promise<void> {
+    const text = qrText.value;
+    const token = ++qrPreviewToken;
+    addShelfError.value = '';
+    try {
+      const shelves = await getPlatformCapabilities().shelves!.previewLANShareQR!(text);
+      if (token === qrPreviewToken) qrShelves.value = shelves;
+    } catch (err) {
+      if (token === qrPreviewToken) addShelfError.value = err instanceof Error ? err.message : t('settings.shelves.qrFailed');
+    }
+  }
+
+  function qrStatus(status: string): string {
+    if (status === 'added') return t('settings.shelves.qrAdded');
+    if (status === 'exists') return t('settings.shelves.qrExists');
+    if (status === 'failed') return t('settings.shelves.qrFailed');
+    const key = shelfSourceCheckMessageKey({ code: status, books: 0 });
+    return key ? t(key) : t('settings.shelves.qrFailed');
+  }
+  const sourceUsername = () =>
+    newShelfSourceKind.value === 'webdav' ? newShelfSourceUsername.value.trim() : '';
   const addShelfError = ref('');
 
-  // Read-only is a property of a folder that already exists — a read-only shelf
-  // is never created (shelf.NewShelf), which is the whole of the default
-  // branch — so leaving the existing-folder branch has to put it back, not just
-  // stop showing it.
   watch(newShelfLocationMode, (mode) => {
-    if (mode === 'new') {
+    if (mode !== 'existing') {
       newShelfReadOnly.value = false;
     }
   });
-  // The shelf id the backend would assign to the typed name, shown live so a
-  // name that slugifies to nothing (e.g. a purely non-ASCII "小說") visibly
-  // becomes "shelf" before the id is created and frozen as the reading-progress
-  // key. Empty when there is no preview: off the desktop, or for an empty name.
   const newShelfIDPreview = ref('');
-  // The directory the backend suggests for that id. It is only a default: the
-  // form submits it as lib_root when the user never picks a directory, which is
-  // what lets a shelf be created from a name alone.
   const newShelfDefaultDirectory = ref('');
-  // Latest-wins guard: the async preview lags keystrokes, so a slow earlier
-  // response must not overwrite a newer one (or a reset).
   let shelfIDPreviewToken = 0;
 
-  // What the form will actually create, and what the dialog previews — so what
-  // it shows is what lands in shelves.json. The branch decides which of the two
-  // directories that is; they are never blended, which is what the single path
-  // box used to do silently.
   const newShelfEffectiveDirectory = computed(() =>
     newShelfLocationMode.value === 'new'
       ? newShelfDefaultDirectory.value
       : newShelfDirectory.value.trim()
   );
 
-  // A relative path is refused here rather than by Go, which would only answer
-  // the finished submit with `shelf directory must be an absolute path`
-  // (desktop/shelves.go). Blank while the field is untouched, so an empty form
-  // is not an error.
   const newShelfDirectoryError = computed(() => {
     if (newShelfLocationMode.value !== 'existing') {
       return '';
@@ -92,8 +155,16 @@ export function useShelfManagement() {
   });
 
   const canSubmitAddShelf = computed(() => {
+    if (newShelfLocationMode.value === 'qr') return qrShelves.value.length > 0;
     if (newShelfName.value.trim().length === 0) {
       return false;
+    }
+    if (newShelfLocationMode.value === 'remote') {
+      return (
+        newShelfSourceURL.value.trim().length > 0 &&
+        (!shelfSourceNeedsSecret(newShelfSourceKind.value, sourceUsername()) ||
+          newShelfSourceSecret.value.trim().length > 0)
+      );
     }
     const dir = newShelfEffectiveDirectory.value;
     return dir.length > 0 && isAbsoluteShelfPath(dir);
@@ -101,23 +172,19 @@ export function useShelfManagement() {
 
   async function refreshShelfIDPreview(name: string): Promise<void> {
     const token = ++shelfIDPreviewToken;
-    // Drop the previous name's answer before asking for this one. Both fields
-    // are derived from the name, so keeping them across the await would show —
-    // and, for the directory, submit — the old name's shelf under the new name.
     newShelfIDPreview.value = '';
     newShelfDefaultDirectory.value = '';
-    const provider = getBookshelfProvider();
-    if (!provider.previewDesktopShelfID || name.trim().length === 0) {
+    const platform = getPlatformCapabilities();
+    if (!platform.shelves?.previewShelfID || name.trim().length === 0) {
       return;
     }
     try {
-      const preview = await provider.previewDesktopShelfID(name.trim());
+      const preview = await platform.shelves!.previewShelfID(name.trim());
       if (token === shelfIDPreviewToken) {
         newShelfIDPreview.value = preview.id;
         newShelfDefaultDirectory.value = preview.defaultPath;
       }
     } catch {
-      // The fields were already cleared above; a failed preview leaves them so.
     }
   }
 
@@ -132,6 +199,7 @@ export function useShelfManagement() {
   const modifyShelfBookCheckInterval = ref('');
   const modifyShelfReadOnly = ref(false);
   const modifyShelfPath = ref('');
+  const modifyShelfIsVirtual = ref(false);
   const modifyingShelf = ref(false);
   const modifyShelfError = ref('');
   const canSubmitModifyShelf = computed(() => modifyShelfName.value.trim().length > 0);
@@ -157,8 +225,8 @@ export function useShelfManagement() {
     if (!shelf) {
       return;
     }
-    const provider = getBookshelfProvider();
-    if (!provider.removeDesktopShelf) {
+    const platform = getPlatformCapabilities();
+    if (!platform.shelves?.removeShelf) {
       return;
     }
 
@@ -166,7 +234,7 @@ export function useShelfManagement() {
 
     shelfOpError.value = '';
     try {
-      await provider.removeDesktopShelf(shelf.id);
+      await platform.shelves!.removeShelf(shelf.id);
       await fetchShelves();
     } catch (err) {
       shelfOpError.value = err instanceof Error ? err.message : t('settings.shelves.removeFailed');
@@ -184,28 +252,31 @@ export function useShelfManagement() {
   }
 
   function resetAddShelfForm(): void {
+    qrText.value = '';
+    qrShelves.value = [];
+    qrResults.value = [];
     newShelfName.value = '';
     newShelfLocationMode.value = 'new';
     newShelfDirectory.value = '';
     newShelfReadOnly.value = false;
+    newShelfSourceKind.value = 'plainshelf';
+    newShelfSourceURL.value = '';
+    newShelfSourceUsername.value = '';
+    newShelfSourceSecret.value = '';
     addShelfError.value = '';
-    // Invalidate any in-flight preview so its late response cannot repopulate
-    // the field after the form is cleared.
     shelfIDPreviewToken++;
     newShelfIDPreview.value = '';
     newShelfDefaultDirectory.value = '';
   }
 
-  // Reveals a shelf's lib_root in the host file explorer (desktop only); a
-  // no-op elsewhere. Errors surface on the panel like the other shelf ops.
   async function openShelfFolder(shelfID: string): Promise<void> {
-    const provider = getBookshelfProvider();
-    if (!provider.openDesktopShelfFolder) {
+    const platform = getPlatformCapabilities();
+    if (!platform.openShelfFolder) {
       return;
     }
     shelfOpError.value = '';
     try {
-      await provider.openDesktopShelfFolder(shelfID);
+      await platform.openShelfFolder(shelfID);
     } catch (err) {
       shelfOpError.value =
         err instanceof Error ? err.message : t('settings.shelves.openFolderFailed');
@@ -227,11 +298,11 @@ export function useShelfManagement() {
   }
 
   async function onBrowseShelfDirectory(): Promise<void> {
-    const provider = getBookshelfProvider();
-    if (!provider.openDesktopShelfDirectory) {
+    const platform = getPlatformCapabilities();
+    if (!platform.chooseShelfDirectory) {
       return;
     }
-    const dir = await provider.openDesktopShelfDirectory();
+    const dir = await platform.chooseShelfDirectory();
     if (dir) {
       newShelfDirectory.value = dir;
     }
@@ -248,11 +319,20 @@ export function useShelfManagement() {
     addShelfError.value = '';
 
     try {
-      const provider = getBookshelfProvider();
-      // Neither interval is part of creating a shelf: both keep the backend
-      // default and stay adjustable in the modify dialog. Read-only likewise
-      // only ever comes from the existing-folder branch.
-      await provider.addDesktopShelf!({
+      const platform = getPlatformCapabilities();
+      if (newShelfLocationMode.value === 'qr') {
+        const results = await platform.shelves!.importLANShareQR!(qrText.value);
+        qrText.value = '';
+        qrShelves.value = [];
+        qrResults.value = results;
+        await fetchShelves();
+        return;
+      }
+      if (newShelfLocationMode.value === 'remote') {
+        await addRemoteShelf(name);
+        return;
+      }
+      await platform.shelves!.addShelf!({
         name,
         libRoot: dir,
         scanInterval: '',
@@ -270,18 +350,46 @@ export function useShelfManagement() {
     }
   }
 
+  async function addRemoteShelf(name: string): Promise<void> {
+    const platform = getPlatformCapabilities();
+    const remote = {
+      source: newShelfSourceKind.value,
+      url: newShelfSourceURL.value.trim(),
+      username: sourceUsername(),
+      secret: newShelfSourceSecret.value.trim()
+    };
+    const check = await platform.shelves!.checkShelfSource!(remote);
+    const messageKey = shelfSourceCheckMessageKey(check);
+    if (messageKey) {
+      addShelfError.value = t(messageKey);
+      return;
+    }
+    await platform.shelves!.addShelf!({
+      name,
+      libRoot: '',
+      scanInterval: '',
+      bookCheckInterval: '',
+      readOnly: true,
+      remote
+    });
+    await fetchShelves();
+    showAddShelfModal.value = false;
+    resetAddShelfForm();
+  }
+
   function resetModifyShelfForm(): void {
     modifyShelfName.value = '';
     modifyShelfScanInterval.value = '';
     modifyShelfBookCheckInterval.value = '';
     modifyShelfReadOnly.value = false;
     modifyShelfPath.value = '';
+    modifyShelfIsVirtual.value = false;
     modifyShelfError.value = '';
   }
 
   async function requestModifyShelf(shelf: ShelfRef): Promise<void> {
-    const provider = getBookshelfProvider();
-    if (!provider.getDesktopShelfDetails) {
+    const platform = getPlatformCapabilities();
+    if (!platform.shelves?.getShelfDetails) {
       return;
     }
 
@@ -289,13 +397,14 @@ export function useShelfManagement() {
     resetModifyShelfForm();
 
     try {
-      const details = await provider.getDesktopShelfDetails(shelf.id);
+      const details = await platform.shelves!.getShelfDetails(shelf.id);
       pendingModifyShelf.value = shelf;
       modifyShelfName.value = details.name;
       modifyShelfScanInterval.value = details.scan_interval;
       modifyShelfBookCheckInterval.value = details.book_check_interval;
       modifyShelfReadOnly.value = details.read_only;
-      modifyShelfPath.value = details.path;
+      modifyShelfIsVirtual.value = Boolean(details.source);
+      modifyShelfPath.value = details.source ? details.url : details.path;
       showModifyShelfModal.value = true;
     } catch (err) {
       shelfOpError.value =
@@ -326,8 +435,8 @@ export function useShelfManagement() {
       return;
     }
 
-    const provider = getBookshelfProvider();
-    if (!provider.modifyDesktopShelf) {
+    const platform = getPlatformCapabilities();
+    if (!platform.shelves?.modifyShelf) {
       return;
     }
 
@@ -335,7 +444,7 @@ export function useShelfManagement() {
     modifyShelfError.value = '';
 
     try {
-      await provider.modifyDesktopShelf({
+      await platform.shelves!.modifyShelf({
         shelfID: shelf.id,
         name,
         scanInterval,
@@ -356,6 +465,8 @@ export function useShelfManagement() {
 
   return {
     shelves,
+    retryShelf,
+    retryingShelfIDs,
     shelvesLoading,
     shelvesError,
     fetchShelves,
@@ -367,12 +478,21 @@ export function useShelfManagement() {
     requestRemoveShelf,
     cancelRemoveShelf,
     confirmRemoveShelf,
+    qrText,
+    qrShelves,
+    qrResults,
+    previewQR,
+    qrStatus,
     showAddShelfModal,
     newShelfName,
     newShelfLocationMode,
     newShelfDirectory,
     newShelfDirectoryError,
     newShelfReadOnly,
+    newShelfSourceKind,
+    newShelfSourceURL,
+    newShelfSourceUsername,
+    newShelfSourceSecret,
     newShelfIDPreview,
     newShelfEffectiveDirectory,
     addingShelf,
@@ -390,6 +510,7 @@ export function useShelfManagement() {
     modifyShelfBookCheckInterval,
     modifyShelfReadOnly,
     modifyShelfPath,
+    modifyShelfIsVirtual,
     modifyingShelf,
     modifyShelfError,
     canSubmitModifyShelf,

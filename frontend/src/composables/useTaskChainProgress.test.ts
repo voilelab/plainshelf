@@ -7,8 +7,6 @@ const { getTaskChainMock } = vi.hoisted(() => ({
   getTaskChainMock: vi.fn()
 }));
 
-// A task chain id only ever comes from a write (startBookBatch, emptyTrash),
-// so polling it goes through the writer accessor.
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
     getTaskChain: getTaskChainMock
@@ -31,7 +29,6 @@ function chain(status: TaskStatus, percentage: number): TaskChain {
   };
 }
 
-// flush lets pending promise callbacks run between fake-timer ticks.
 function flush(): Promise<void> {
   return Promise.resolve().then(() => undefined);
 }
@@ -81,7 +78,6 @@ describe('useTaskChainProgress', () => {
     expect(progress.running.value).toBe(false);
     expect(settled).toEqual(['completed']);
 
-    // No further polling once the chain has settled.
     await vi.advanceTimersByTimeAsync(100);
     expect(getTaskChainMock).toHaveBeenCalledTimes(2);
 
@@ -139,9 +135,6 @@ describe('useTaskChainProgress', () => {
     scope.stop();
   });
 
-  // The work is already under way while the submission is in flight, so a
-  // caller gating a modal on `running` must not be able to dismiss it or fire a
-  // second submission during that window.
   it('reports itself running while the submission is still in flight', async () => {
     let resolveBegin: (id: string) => void = () => {};
     const begin = new Promise<string>((resolve) => {
@@ -158,7 +151,6 @@ describe('useTaskChainProgress', () => {
     expect(progress.running.value).toBe(true);
     expect(progress.finished.value).toBe(false);
 
-    // A second start during the window is refused.
     const secondBegin = vi.fn(async () => 'chain-2');
     await progress.start(secondBegin);
     expect(secondBegin).not.toHaveBeenCalled();
@@ -193,7 +185,6 @@ describe('useTaskChainProgress', () => {
     expect(progress.started.value).toBe(false);
     expect(progress.running.value).toBe(false);
 
-    // No hidden polling for a chain the caller is no longer displaying.
     await vi.advanceTimersByTimeAsync(100);
     expect(getTaskChainMock).not.toHaveBeenCalled();
 

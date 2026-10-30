@@ -134,9 +134,6 @@ const selectedName = ref('');
 const selectedDate = ref('');
 const activeLogRequest = ref(0);
 
-// How far back into the selected file the page is currently reading. A log file
-// has no useful size limit, so the page opens on its end and only reaches
-// further back when asked to.
 const tailBytes = ref(DEFAULT_LOG_TAIL_BYTES);
 
 useDocumentTitle(() => [t('adminLogs.title'), t('app.name')]);
@@ -205,9 +202,6 @@ const selectedDateWithoutLog = computed(
   () => Boolean(selectedDate.value) && !selectedLog.value
 );
 
-// The file size comes from the listing rather than from the body: what was
-// returned is cut back to a line boundary, so it is a little short of the
-// window even when there is more to read.
 const truncated = computed(() => {
   const log = selectedLog.value;
   return log !== undefined && log.size > tailBytes.value;
@@ -283,8 +277,6 @@ watch([nameOptions, dateOptions], syncSelection, { immediate: true });
 watch(
   selectedLog,
   (log, previous) => {
-    // A different file is read from its end again; a reload of the same one
-    // keeps however far back the reader had already asked to go.
     if (log?.id !== previous?.id) {
       tailBytes.value = DEFAULT_LOG_TAIL_BYTES;
     }

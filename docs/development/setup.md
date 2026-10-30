@@ -7,7 +7,7 @@ installation, see [Installation](../installation.md).
 
 | Tool | Version | Purpose |
 |---|---:|---|
-| Go | 1.27.2 or newer | server, core library, desktop backend |
+| Go | 1.27.3 or newer | server, core library, desktop backend |
 | Node.js | 22.18 to 23 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
@@ -85,11 +85,17 @@ its interface rather than a list of internals. Drop the `export` when nothing
 needs it; when a unit test is the only reader and the seam is worth keeping,
 record it in the allowlist at the top of `frontend/scripts/check-exports.mjs`.
 
-The book package format has two independent readers — the Go shelf and the
-pCloud client the Android app reads a shelf with — so both run the shared
-fixtures in `shelf/testdata/conformance/`. A change to how a shelf is read
-belongs in that dataset, and the frontend unit tests are where the pCloud side
-of it fails. The dataset's own README explains the contract.
+Every frontend build, the Wasm demo's included, also emits
+`licenses/third-party.txt` into its output directory with
+`rollup-plugin-license`: the license text of every npm package the bundle
+actually contains, linked from Settings → About. It does not see inlined icons,
+fonts, Android native libraries or data a package licenses separately from its
+code, so those keep hand-maintained notices in `frontend/public/licenses/`.
+
+The Go shelf is the only reader of the book package format, the Android app's
+pCloud shelf included, and `shelf/testdata/conformance/` pins what it reads. A
+change to how a shelf is read belongs in that dataset; the dataset's own README
+explains the contract.
 
 [Mutation testing](mutation-testing.md) is available for the reader's helpers and
 the shared Markdown modules as an on-demand check of how much the unit tests
@@ -141,6 +147,11 @@ precedence. Because the dev and brew readers share a bundle id, keep only the on
 you want registered with LaunchServices if `open -a` activates the wrong copy.
 
 Create a release-style desktop build with `just build-desktop`.
+
+The standalone reader accepts `-book`, `-shelf`, and `-section` using Go's flag
+syntax. String flags consume the next argument as their value, even if it begins
+with `-`. Parsing errors stop startup before the window opens. Omit `-section` or
+use a negative value to resume saved progress; `-section 0` opens the first section.
 
 ## Android app
 

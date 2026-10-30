@@ -51,8 +51,6 @@ describe('useCharCountIndex', () => {
     expect(listBooks).toHaveBeenCalledWith(1, Number.MAX_SAFE_INTEGER, { includeCharCount: true });
     expect(counts.value.get('b1')).toBe(12);
     expect(counts.value.get('b2')).toBe(0);
-    // Present in the listing but without a count: distinguishable from a book
-    // that is not in the index at all.
     expect(counts.value.has('b3')).toBe(true);
     expect(counts.value.get('b3')).toBeUndefined();
     expect(ready.value).toBe(true);
@@ -94,8 +92,6 @@ describe('useCharCountIndex', () => {
     await index.load();
 
     const refreshing = index.refresh();
-    // The previous counts stay usable for the duration of the request, so a
-    // caller gated on `ready` does not collapse into a loading state.
     expect(index.ready.value).toBe(true);
     expect(index.counts.value.get('b1')).toBe(1);
 

@@ -29,8 +29,6 @@ func serveSPA(t *testing.T, boot readerapi.BootConfig, path string) *httptest.Re
 	return recorder
 }
 
-// The open book reaches the frontend through index.html rather than a request,
-// so the shell can route straight to the reader on its first paint.
 func TestSPAInjectsTheOpenBook(t *testing.T) {
 	boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID}
 
@@ -50,16 +48,11 @@ func TestSPAInjectsTheOpenBook(t *testing.T) {
 		t.Error("expected the shelf id in the boot config")
 	}
 
-	// Ahead of the app's own scripts, which read the flag as they start.
 	if strings.Index(body, "window.__PLAINSHELF_READER__") > strings.Index(body, "</head>") {
 		t.Error("expected the boot config before </head>")
 	}
 }
 
-// A reader launched for a specific chapter carries that section into index.html
-// as the `?section=` deep link, and section 0 (the first chapter) is a real
-// request that must survive the injection rather than being dropped as a zero
-// value.
 func TestSPAInjectsTheLaunchSection(t *testing.T) {
 	for _, section := range []int{0, 5} {
 		boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID, Section: &section}
@@ -71,8 +64,6 @@ func TestSPAInjectsTheLaunchSection(t *testing.T) {
 	}
 }
 
-// With no launch chapter the section is omitted entirely, so the frontend sees no
-// deep link and opens the book at its restored progress.
 func TestSPAOmitsAnAbsentSection(t *testing.T) {
 	boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID}
 
@@ -81,8 +72,6 @@ func TestSPAOmitsAnAbsentSection(t *testing.T) {
 	}
 }
 
-// The window reloads itself at /reader/{id} when a book is opened, and that is
-// a Vue route rather than a file on disk.
 func TestSPAServesInAppRoutes(t *testing.T) {
 	boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID}
 
@@ -95,8 +84,6 @@ func TestSPAServesInAppRoutes(t *testing.T) {
 	}
 }
 
-// A real asset is served as itself: injecting into a JavaScript bundle would
-// corrupt it.
 func TestSPAServesAssetsUntouched(t *testing.T) {
 	response := serveSPA(t, readerapi.BootConfig{}, "/assets/app.js")
 	if response.Code != http.StatusOK {
@@ -107,8 +94,6 @@ func TestSPAServesAssetsUntouched(t *testing.T) {
 	}
 }
 
-// Before the user has picked a folder there is no book, and the shell has to be
-// able to tell that apart from a book it failed to load.
 func TestSPAMarksTheReaderRuntimeWithNoBook(t *testing.T) {
 	response := serveSPA(t, readerapi.BootConfig{ShelfID: readerapi.ShelfID}, "/")
 
@@ -121,10 +106,6 @@ func TestSPAMarksTheReaderRuntimeWithNoBook(t *testing.T) {
 	}
 }
 
-// The boot config is marshalled with encoding/json/v2, which - unlike v1 -
-// writes "<" as itself, so the injector's own escaping is what keeps a book ID
-// from closing the inline <script>. A book ID is the directory name on disk,
-// which the user chooses.
 func TestSPAEscapesScriptCloseInTheBootConfig(t *testing.T) {
 	boot := readerapi.BootConfig{
 		ShelfID: readerapi.ShelfID,

@@ -4,16 +4,6 @@ import { ApiError } from '@/api/client';
 import { createShelfInitRetry, isShelfInitializing } from './shelfInitRetry';
 import { t } from '@/i18n';
 
-// A lazily loaded book ID -> char_count map for the pages that filter on it.
-//
-// char_count makes the backend open every book's current source, so it is kept
-// off the shared useBookStore listing and only requested once a char-count
-// filter is actually in use. Only the counts are kept here: the book list
-// itself stays on the shared store, so enabling the filter never forks the
-// data every other action on the page reads from.
-//
-// Each call returns its own refs, so mounting a page that filters on character
-// counts never changes what other pages fetch.
 export function useCharCountIndex() {
   const counts = ref<Map<string, number | undefined>>(new Map());
   const ready = ref(false);
@@ -21,11 +11,8 @@ export function useCharCountIndex() {
   const error = ref('');
 
   const initRetry = createShelfInitRetry();
-  // Bumped by every load()/invalidate() so a response from a superseded
-  // request cannot overwrite fresher counts.
   let generation = 0;
 
-  /** Drops the cached counts and cancels any in-flight load. */
   function invalidate(): void {
     generation++;
     initRetry.cancel();
@@ -35,11 +22,6 @@ export function useCharCountIndex() {
     error.value = '';
   }
 
-  /**
-   * Refetches the counts without dropping the cached ones first, so a caller
-   * that renders while `ready` can keep showing the previous counts instead of
-   * collapsing into a loading state for the duration of the request.
-   */
   async function refresh(): Promise<void> {
     generation++;
     await run(generation, false);
@@ -67,8 +49,6 @@ export function useCharCountIndex() {
       if (token !== generation) {
         return;
       }
-      // Wait out the initial scan rather than stranding the filter on an error
-      // the shelf resolves on its own. See `shelfInitRetry`.
       if (isShelfInitializing(err)) {
         if (initRetry.schedule(() => void run(token, true), err)) {
           return;
@@ -86,7 +66,6 @@ export function useCharCountIndex() {
     }
   }
 
-  /** Loads the counts unless they are already loaded or a load is in flight. */
   async function load(): Promise<void> {
     if (ready.value || loading.value) {
       return;
@@ -94,7 +73,6 @@ export function useCharCountIndex() {
     await refresh();
   }
 
-  // These refs are page-scoped, so a pending retry must not outlive the page.
   if (getCurrentInstance()) {
     onUnmounted(initRetry.cancel);
   }

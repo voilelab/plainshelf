@@ -2,9 +2,6 @@
 import { defineComponent, h } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The gate under test is `writesEnabled`. Hold the ref in a hoisted box so each
-// case can flip it before mounting; the real composable asks the active
-// provider and server mode, which this component does not need to exercise.
 const state = vi.hoisted(() => ({
   writesEnabled: null as { value: boolean } | null,
   selectedShelfID: null as { value: string } | null,
@@ -29,8 +26,6 @@ import EmptyShelf from './EmptyShelf.vue';
 import { mount } from '#testing/mount';
 import { setLocale } from '@/i18n';
 
-// RouterLink is registered globally by the app; stub it so the import CTA is
-// present and inspectable without standing up a router.
 const RouterLinkStub = defineComponent({
   props: { to: { type: [String, Object], default: '' } },
   setup(props, { slots }) {
@@ -68,13 +63,10 @@ describe('EmptyShelf', () => {
   });
 
   it('hides the import action and reads as read-only when writes are unavailable', () => {
-    // A read-only mobile/pCloud client or a read-only server: the import query
-    // would be stripped or the modal suppressed, so the CTA must not appear.
     state.writesEnabled!.value = false;
     const { host } = mountShelf();
 
     expect(host.querySelector('.empty-shelf-import')).toBeNull();
-    // The docs link stays; only the write action is gated.
     expect(host.querySelector('.empty-shelf-docs')).not.toBeNull();
     expect(host.querySelector('.empty-shelf-description')?.textContent).toContain(
       'no books yet'
@@ -102,8 +94,6 @@ describe('EmptyShelf', () => {
   });
 
   it('omits the folder path off the desktop', async () => {
-    // The web/server provider exposes no getDesktopShelfDetails, so there is no
-    // local path to show.
     state.selectedShelfID!.value = 'my-books';
     state.provider = {};
     const { host } = mountShelf();
@@ -112,3 +102,5 @@ describe('EmptyShelf', () => {
     expect(host.querySelector('.empty-shelf-path')).toBeNull();
   });
 });
+
+vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ shelves: { getShelfDetails: state.provider.getDesktopShelfDetails }, openShelfFolder: state.provider.openDesktopShelfFolder }) }));

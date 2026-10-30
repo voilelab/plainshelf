@@ -22,8 +22,8 @@ shelf `lib_root` at the mounted directory.
 
 An SMB or NAS shelf is a local filesystem shelf whose files happen to sit on a
 network mount. PlainShelf reads and writes it exactly as it does a local shelf,
-so everything the on-disk format guarantees still holds — see [Data Format
-Versioning](concepts/data-format-versioning.md) for what the format promises
+so everything the on-disk format guarantees still holds — see [Data format
+versioning](concepts/data-format-versioning.md) for what the format promises
 across upgrades. What a network mount does *not* add is any coordination or
 change notification on top of that filesystem, so four things are not
 guaranteed, whatever you set the intervals to:
@@ -36,8 +36,8 @@ guaranteed, whatever you set the intervals to:
   which is lost without warning. See [Concurrent change
   handling](known-issue.md#concurrent-change-handling).
 - **How soon an external change is seen.** A book added, moved, or removed on
-  the share by anything other than this PlainShelf — another machine, a file
-  manager, a sync client — appears on a timer, not at once, because a network
+  the share by anything other than this PlainShelf (another machine, a file
+  manager, a sync client) appears on a timer, not at once, because a network
   mount sends no change notification PlainShelf could wait on. **Update book
   list** on the library toolbar is what forces a walk now; shortening the
   intervals below only narrows the window, it does not close it. See [Rescanning
@@ -121,7 +121,7 @@ app_conf:
       lock_timeout: 30s
 ```
 
-For the cache behavior behind these settings, see [Shelf Cache and Disk
+For the cache behavior behind these settings, see [Shelf cache and disk
 I/O](concepts/shelf-cache-and-io.md).
 
 Every shelf key, with its type and default, is in the
@@ -203,15 +203,15 @@ looked yet.
 If they still do not appear, and appear only after restarting the server, the
 share may not be updating directory modification times — some gateways do not.
 Set `scan_cache: off` on the shelf and delete `app/scan-cache.json`. See [Shelf
-Cache and Disk I/O](concepts/shelf-cache-and-io.md#scan_cache).
+cache and disk I/O](concepts/shelf-cache-and-io.md#scan_cache).
 
 ### The book list shows directories the NAS created
 
 Directories such as `@eaDir`, `#recycle`, `$RECYCLE.BIN` and `lost+found` are
 skipped by default, together with anything whose name starts with a dot. If your
-share carries another one — a snapshot directory, a thumbnail cache — list it in
-`shelf.json` at the shelf root and restart. The list replaces the defaults, so
-keep the ones you still need:
+share carries another one, such as a snapshot directory or a thumbnail cache,
+list it in `shelf.json` at the shelf root and restart. The list replaces the
+defaults, so keep the ones you still need:
 
 ```json
 {

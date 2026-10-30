@@ -19,6 +19,7 @@ const MOBILE_READER = 'src/features/reader/components/MobileReaderView.vue';
 /** A tree that honours every contract, for a test to break one field of. */
 function healthyTree() {
   return {
+    'src/styles.css': '.reka-toast-danger { border-color: var(--danger); }',
     [SETTINGS_PAGE]: `<template>
   <TabsContent class="settings-tab-content">{{ label }}</TabsContent>
 </template>
@@ -94,6 +95,12 @@ afterEach(async () => {
 });
 
 describe('findViolations', () => {
+  it('rejects removal of the dynamically selected danger toast style', async () => {
+    const found = await check({ 'src/styles.css': '.reka-toast { color: black; }' });
+    expect(found['danger toasts retain their variant styling']).toEqual([
+      'src/styles.css: no rule selects .reka-toast-danger'
+    ]);
+  });
   it('reports nothing when every contract is honoured', async () => {
     expect(Object.values(await check()).flat()).toEqual([]);
   });

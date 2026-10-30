@@ -76,9 +76,6 @@ func assertWailsLikeStatus(t *testing.T, rec *wailsLikeRecorder, want int) {
 	}
 }
 
-// AssertEmptyTextResponse asserts a streamed text response carried the plain
-// text content type and an empty body, which is what an empty file must look
-// like rather than an error.
 func AssertEmptyTextResponse(t *testing.T, what string, rec *wailsLikeRecorder) {
 	t.Helper()
 
@@ -100,8 +97,6 @@ func DecodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	return out
 }
 
-// GetJSON reads a JSON endpoint that must answer 200 and decodes its body.
-// Tests that also pin the response's content type issue the request themselves.
 func GetJSON[T any](t *testing.T, env *Env, url string) T {
 	t.Helper()
 
@@ -110,10 +105,6 @@ func GetJSON[T any](t *testing.T, env *Env, url string) T {
 	return DecodeJSON[T](t, rec)
 }
 
-// AssertMutationGated asserts a mutating route stays behind both write gates:
-// the request is refused without the local token, and refused again in read-only
-// mode even with it. Every mutating endpoint shares this contract, so the pair
-// lives here rather than being restated per endpoint.
 func AssertMutationGated(t *testing.T, env *Env, method, url string, body []byte) {
 	t.Helper()
 
@@ -124,12 +115,9 @@ func AssertMutationGated(t *testing.T, env *Env, method, url string, body []byte
 		return bytes.NewReader(body)
 	}
 
-	// DoRaw omits the token Do() would attach.
 	rec := env.DoRaw(httptest.NewRequest(method, url, newBody()))
 	AssertStatus(t, rec, http.StatusUnauthorized)
 
-	// Read-only mode is restored right away, so each gate is exercised on its own
-	// and a caller can keep making requests afterwards.
 	previous := env.App.Conf().ReadOnly
 	env.App.Conf().ReadOnly = true
 	rec = env.Do(httptest.NewRequest(method, url, newBody()))
@@ -137,9 +125,6 @@ func AssertMutationGated(t *testing.T, env *Env, method, url string, body []byte
 	AssertStatus(t, rec, http.StatusForbidden)
 }
 
-// ErrorEnvelope is the body shape every writeErr refusal carries. Tests
-// assert against the decoded envelope rather than the raw text so a message
-// reworded inside it does not read as a change of error identity.
 type ErrorEnvelope struct {
 	Error struct {
 		Code     string `json:"code"`
@@ -148,11 +133,6 @@ type ErrorEnvelope struct {
 	} `json:"error"`
 }
 
-// AssertErrorEnvelope pins a refusal's status, content type, code and message
-// together, because the three travel as one contract: a client that switches on
-// the code needs the JSON body to have arrived at all.
-// AssertBookIDs compares two sets of book IDs, order-insensitively, which is how
-// every listing assertion reads: the endpoint's own order is pinned elsewhere.
 func AssertBookIDs(t *testing.T, got []string, want ...string) {
 	t.Helper()
 

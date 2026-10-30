@@ -16,10 +16,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// bookMetaSchemaVersion reads the schema_version the API reports for a book. It
-// decodes into map[string]any rather than the Book struct on purpose: asserting
-// through the Go type would pass tautologically even if the field never reached
-// the JSON response.
 func bookMetaSchemaVersion(t *testing.T, book map[string]any) float64 {
 	t.Helper()
 
@@ -34,8 +30,6 @@ func bookMetaSchemaVersion(t *testing.T, book map[string]any) float64 {
 	return version
 }
 
-// TestAPIBookSchemaVersionContract asserts schema_version is present on the wire
-// in both the list and the single-book response.
 func TestAPIBookSchemaVersionContract(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Schema Version Book", "", "schema.txt", "body")
@@ -54,26 +48,18 @@ func TestAPIBookSchemaVersionContract(t *testing.T) {
 	}
 }
 
-// TestAPIUnsupportedSchemaVersionReturns409 verifies the end-to-end behavior for
-// a book written by a newer build: still readable over the API, but every
-// attempt to modify it fails with 409 and leaves the file untouched.
-func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
+func TestAPIUnsupportedSchemaReturns409(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Future Book", "", "future.txt", "body")
 
-	// The unknown key is written alongside the bumped version so a refused write
-	// can be shown to have preserved it.
 	metaPath, bumped := apitest.BumpBookSchemaVersion(t, env, created.Meta.ID,
 		map[string]any{"reading_direction": "vertical-rl"})
 
-	// The book stays readable and reports its real (newer) version, so a client
-	// can tell the user this book needs a newer PlainShelf.
 	book := apitest.GetJSON[map[string]any](t, env, apitest.BookURL(created.Meta.ID))
 	if got := bookMetaSchemaVersion(t, book); got != float64(shelf.BookMetaSchemaVersion+1) {
 		t.Fatalf("schema_version = %v, want %d", got, shelf.BookMetaSchemaVersion+1)
 	}
 
-	// Writing is refused.
 	apitest.PatchBook(t, env, created.Meta.ID, `{"title":"Clobbered"}`, http.StatusConflict)
 
 	after, err := os.ReadFile(metaPath)
@@ -88,11 +74,7 @@ func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
 	}
 }
 
-// TestAPIUnsupportedSchemaVersionDoesNotMoveFolder verifies the schema guard runs
-// before the folder move. HandleAPIUpdateBook moves the book first, so a guard
-// that only ran at SetMeta would rename the folder on disk and then report 409,
-// leaving the client with a failed response for an applied mutation.
-func TestAPIUnsupportedSchemaVersionDoesNotMoveFolder(t *testing.T) {
+func TestAPIUnsupportedSchemaKeepsFolder(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Folder Guard", "origin/folder", "folder.txt", "body")
 
@@ -100,7 +82,6 @@ func TestAPIUnsupportedSchemaVersionDoesNotMoveFolder(t *testing.T) {
 
 	apitest.PatchBook(t, env, created.Meta.ID, `{"folder":["moved","elsewhere"]}`, http.StatusConflict)
 
-	// The book must still be in its original folder, and still on disk there.
 	book := apitest.GetJSON[server.Book](t, env, apitest.BookURL(created.Meta.ID))
 	if got := strings.Join(book.Folder, "/"); got != "origin/folder" {
 		t.Fatalf("folder = %q, want origin/folder — the refused request moved the book", got)
@@ -110,17 +91,10 @@ func TestAPIUnsupportedSchemaVersionDoesNotMoveFolder(t *testing.T) {
 	}
 }
 
-// trashMetaPath returns the on-disk path of a trashed book's trash.json. The
-// layout is spelled out rather than derived from the shelf package's unexported
-// constants: a contract test asserting on disk should notice if it moves.
 func trashMetaPath(env *apitest.Env, bookID string) string {
 	return filepath.Join(env.LibRoot, "trash", "books", bookID+".bookpkg", "trash.json")
 }
 
-// bumpTrashSchemaVersion rewrites a trashed book's trash.json with a schema
-// version this build does not support, reproducing a book trashed by a newer
-// PlainShelf. It returns the bytes now on disk so a caller can prove a refused
-// operation left them alone.
 func bumpTrashSchemaVersion(t *testing.T, env *apitest.Env, bookID string) (metaPath string, onDisk []byte) {
 	t.Helper()
 
@@ -147,8 +121,6 @@ func bumpTrashSchemaVersion(t *testing.T, env *apitest.Env, bookID string) (meta
 	return metaPath, bumped
 }
 
-// TestAPITrashSchemaVersionContract asserts trashing a book stamps the version
-// this build writes into trash.json.
 func TestAPITrashSchemaVersionContract(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Trash Schema Version", "", "trash.txt", "body")
@@ -168,18 +140,13 @@ func TestAPITrashSchemaVersionContract(t *testing.T) {
 	}
 }
 
-// TestAPIUnsupportedTrashSchemaVersionReturns409 verifies the behavior for a
-// book trashed by a newer build: still listed in the trash, but restoring or
-// permanently deleting it fails with 409 and leaves the files alone.
-func TestAPIUnsupportedTrashSchemaVersionReturns409(t *testing.T) {
+func TestAPIUnsupportedTrashSchema409(t *testing.T) {
 	env := apitest.New(t)
 	created := apitest.ImportTextBook(t, env, "Future Trash", "origin/folder", "future.txt", "body")
 
 	apitest.AssertStatus(t, env.Post(apitest.BookURL(created.Meta.ID, "trash"), nil), http.StatusNoContent)
 	metaPath, bumped := bumpTrashSchemaVersion(t, env, created.Meta.ID)
 
-	// The book stays visible in the trash, so a client can tell the user it
-	// needs a newer PlainShelf instead of finding it simply gone.
 	trashed := apitest.GetJSON[[]map[string]any](t, env, apitest.TrashBooksURL())
 	if len(trashed) != 1 {
 		t.Fatalf("trashed books = %d, want 1", len(trashed))
@@ -191,8 +158,6 @@ func TestAPIUnsupportedTrashSchemaVersionReturns409(t *testing.T) {
 	apitest.AssertStatus(t, env.Post(apitest.TrashBooksURL(created.Meta.ID, "restore"), nil), http.StatusConflict)
 	apitest.AssertStatus(t, env.Delete(apitest.TrashBooksURL(created.Meta.ID)), http.StatusConflict)
 
-	// Emptying the trash is background work, so the refusal cannot be a status
-	// code: the sweep reports a partial result and the book stays.
 	accepted := apitest.EmptyTrash(t, env, http.StatusAccepted)
 	chain := apitest.WaitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "partially_completed" {

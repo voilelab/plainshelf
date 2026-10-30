@@ -2,6 +2,8 @@ package books_test
 
 import (
 	"bytes"
+	"encoding/binary"
+	"hash/crc32"
 	"net/http"
 	"strings"
 	"testing"
@@ -17,16 +19,12 @@ func TestAPICoverContract(t *testing.T) {
 	rec := env.Get(url)
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 
-	// The stored image format comes from the declared content type, so a body
-	// that is not an image at all is refused.
 	rec = env.PutContent(url, "text/plain", strings.NewReader("not image"))
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 
 	rec = env.PutContent(url, "image/png", bytes.NewReader(bytes.Repeat([]byte{'x'}, apitest.MaxBinaryUploadSize+1)))
 	apitest.AssertStatus(t, rec, http.StatusRequestEntityTooLarge)
 
-	// Each accepted image type is stored and served back byte for byte under its
-	// own content type, and the latest upload replaces the previous one.
 	for _, tc := range []struct{ contentType, body string }{
 		{"image/png", "fake png bytes"},
 		{"image/webp", "fake webp bytes"},
@@ -44,6 +42,37 @@ func TestAPICoverContract(t *testing.T) {
 
 	rec = env.Delete(url)
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
+	rec = env.Get(url)
+	apitest.AssertStatus(t, rec, http.StatusNotFound)
+}
+
+func pngHeader(width, height uint32) []byte {
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:], width)
+	binary.BigEndian.PutUint32(ihdr[4:], height)
+	ihdr[8] = 8
+	ihdr[9] = 6
+
+	var buf bytes.Buffer
+	buf.WriteString("\x89PNG\r\n\x1a\n")
+	_ = binary.Write(&buf, binary.BigEndian, uint32(len(ihdr)))
+	chunk := append([]byte("IHDR"), ihdr...)
+	buf.Write(chunk)
+	_ = binary.Write(&buf, binary.BigEndian, crc32.ChecksumIEEE(chunk))
+	return buf.Bytes()
+}
+
+func TestAPICoverJPGPixelLimit(t *testing.T) {
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Huge Cover", "", "huge.txt", "body")
+	url := apitest.BookURL(created.Meta.ID, "cover")
+
+	rec := env.Post(apitest.SettingURL("cover_to_jpg"), strings.NewReader("true"))
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.PutContent(url, "image/png", bytes.NewReader(pngHeader(20_000, 20_000)))
+	apitest.AssertStatus(t, rec, http.StatusRequestEntityTooLarge)
+
 	rec = env.Get(url)
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }

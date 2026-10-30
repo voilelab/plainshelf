@@ -15,8 +15,6 @@ interface Harness {
 
 const mounted: Harness[] = [];
 
-// The bar is controlled: mirror each emit back into the prop so the fields show
-// what a real parent would render on the next tick.
 function mount(range: CharCountRange = {}): Harness {
   const host = document.createElement('div');
   document.body.append(host);
@@ -54,8 +52,7 @@ function bound(host: HTMLElement, which: 'min' | 'max'): HTMLInputElement {
   return input;
 }
 
-// Reka's steppers act on pointerdown (so a press-and-hold repeats), not click.
-// Every stepper matches pointerup by pointerId, so the events need a real one.
+// Reka UI 2.10.5 NumberField steppers handle pointerdown and match pointerup by pointerId.
 const POINTER = { bubbles: true, button: 0, pointerId: 1, pointerType: 'mouse' };
 function press(host: HTMLElement, which: 'min' | 'max', direction: 'increase' | 'decrease'): void {
   const buttons = host.querySelectorAll<HTMLButtonElement>('.number-field-step');
@@ -97,16 +94,12 @@ describe('CharCountFilterBar bounds', () => {
     await nextTick();
 
     expect(ranges).toEqual([{ min: undefined, max: 5000 }]);
-    // Rendered without a thousands separator, which is also what the URL and
-    // the e2e suite read back.
     expect(bound(host, 'max').value).toBe('5000');
   });
 
   it('keeps a bound that is not a multiple of the stepper increment', async () => {
     const { host, ranges } = mount({});
 
-    // 74 characters is a real book length; snapping it onto the 100-character
-    // step grid would silently search for something else.
     commit(bound(host, 'max'), '74');
     await nextTick();
 

@@ -43,8 +43,6 @@ export class ReadingProgressStore extends DeviceDocumentStore<ReadingProgressDoc
 
   async save(shelfKey: string, bookID: string, progress: BookmarkPayload): Promise<void> {
     await this.mutate((doc) =>
-      // progress.at is the time the position changed; withBookReadingOffset
-      // falls back to now when it is absent.
       withBookReadingOffset(doc, shelfKey, bookID, progress.char_offset, progress.at)
     );
   }
@@ -57,9 +55,6 @@ function createMockReadingProgressStorage(): ReadingProgressStorage {
     async load(): Promise<string | null> {
       if (!seeded) {
         seeded = true;
-        // Seed lazily so bootstrap has selected the active shelf. Small,
-        // deterministic offsets keep the mock detail view populated while the
-        // real percentage is derived from the mock content's UTF-16 length.
         const shelfKey = buildDeviceDocumentKey(getApiBase(), getActiveShelfID());
         let doc = createReadingProgressDocument();
         doc = withBookReadingOffset(doc, shelfKey, 'book-1', 17);
@@ -78,7 +73,6 @@ function createReadingProgressStorage(): ReadingProgressStorage {
     return createMockReadingProgressStorage();
   }
 
-  // A desktop-shell preview in an ordinary browser has no Wails bindings.
   if (isWailsRuntime() && hasDesktopReadingProgressBinding()) {
     return createDesktopReadingProgressStorage();
   }
@@ -109,24 +103,10 @@ export function getLocalReadingProgress(bookID: string): Promise<ReadingProgress
   return getReadingProgressStore().get(requireProgressKey(), bookID);
 }
 
-/**
- * The book's stored progress entry (offset plus last-write time), or null when it
- * has none. Read-only: it surfaces `ProgressEntry.at` for callers that show when a
- * book was last read, without changing the document schema. The mobile shell keeps
- * progress in its own per-book files, so there this reads the empty web/desktop
- * store and returns null — callers degrade to showing no progress.
- */
 export function getLocalReadingEntry(bookID: string): Promise<ProgressEntry | null> {
   return getReadingProgressStore().getEntry(requireProgressKey(), bookID);
 }
 
-/**
- * Every stored progress entry for the active shelf, keyed by book id. Read-only,
- * for callers that need to survey progress across the whole shelf (the dashboard
- * "in progress" count) rather than one book at a time. On the mobile shell, whose
- * progress lives elsewhere, this reads the empty web/desktop store and returns an
- * empty map — the same degradation getLocalReadingEntry makes.
- */
 export function getLocalReadingEntries(): Promise<Record<string, ProgressEntry>> {
   return getReadingProgressStore().getEntries(requireProgressKey());
 }

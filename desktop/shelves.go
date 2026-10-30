@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
@@ -16,19 +17,13 @@ import (
 type desktopShelfEntry struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
-	LibRoot      string `json:"lib_root"`
+	LibRoot      string `json:"lib_root,omitzero"`
 	ScanInterval string `json:"scan_interval,omitempty"`
 
-	// BookCheckInterval controls how often per-book staleness checks run; see
-	// shelf.ShelfConf. Empty means "same as scan_interval" (the default), so it is
-	// omitted from shelves.json until the user sets it.
+	Source *shelf.SourceConf `json:"source,omitzero"`
+
 	BookCheckInterval string `json:"book_check_interval,omitempty"`
 
-	// ReadOnly opens the shelf without writing to it; see shelf.ShelfConf.
-	//
-	// This file is not inside any shelf, so a shelf being read-only never makes
-	// its own entry here unwritable: a shelf that was opened read-only can
-	// always be edited back. See DesktopApp.ModifyShelf.
 	ReadOnly bool `json:"read_only,omitzero"`
 }
 
@@ -37,15 +32,40 @@ const (
 	desktopLegacyDefaultShelfName = "Default Shelf"
 	desktopLegacyShelfDirName     = "shelf"
 
-	// desktopShelvesDirName holds the shelves the user creates from the add-shelf
-	// form without choosing a directory. It is a level below the data root rather
-	// than beside it, so a shelf whose name slugifies to "shelf" cannot land on
-	// the legacy default shelf's own directory (desktopLegacyShelfDirName).
 	desktopShelvesDirName = "shelves"
 )
 
 type desktopShelvesConfig struct {
 	Shelves []desktopShelfEntry `json:"shelves"`
+
+	VirtualShelves []desktopShelfEntry `json:"virtual_shelves,omitzero"`
+}
+
+func (c *desktopShelvesConfig) all() []desktopShelfEntry {
+	return slices.Concat(c.Shelves, c.VirtualShelves)
+}
+
+func (c *desktopShelvesConfig) find(id string) *desktopShelfEntry {
+	for _, list := range [][]desktopShelfEntry{c.Shelves, c.VirtualShelves} {
+		for i := range list {
+			if list[i].ID == id {
+				return &list[i]
+			}
+		}
+	}
+	return nil
+}
+
+func (c *desktopShelvesConfig) nextShelfID(name string) string {
+	return generateDesktopShelfID(name, c.existingIDs())
+}
+
+func (c *desktopShelvesConfig) existingIDs() map[string]bool {
+	ids := map[string]bool{}
+	for _, entry := range c.all() {
+		ids[entry.ID] = true
+	}
+	return ids
 }
 
 func loadDesktopShelves(configPath string) (*desktopShelvesConfig, error) {
@@ -114,13 +134,10 @@ func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 		ScanInterval:      entry.ScanInterval,
 		BookCheckInterval: entry.BookCheckInterval,
 		ReadOnly:          entry.ReadOnly,
+		Source:            entry.Source,
 	}
 }
 
-// defaultDesktopShelfDir is where a shelf with the given id is created when the
-// user does not pick a directory. shelves.json sits directly in the desktop data
-// root (see startServer), which is what makes that root recoverable from the
-// config path alone instead of being threaded through as a second field.
 func defaultDesktopShelfDir(shelvesConfigPath, shelfID string) string {
 	return filepath.Join(filepath.Dir(shelvesConfigPath), desktopShelvesDirName, shelfID)
 }
@@ -156,9 +173,7 @@ func slugifyShelfID(name string) string {
 }
 
 func generateDesktopShelfID(name string, existingIDs map[string]bool) string {
-	// The standalone reader stores progress under this id as a synthetic shelf
-	// key; a real shelf that took it would share (and break) that namespace, so
-	// it is never handed out here.
+
 	reserved := func(id string) bool { return existingIDs[id] || id == readingprogress.ReaderShelfID }
 
 	base := slugifyShelfID(name)

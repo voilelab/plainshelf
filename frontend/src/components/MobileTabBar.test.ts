@@ -6,9 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MobileTabBar from './MobileTabBar.vue';
 import { setLocale } from '@/i18n';
 
-// Mirror the sibling shape of the real router (router.ts): `library` and
-// `book-detail` are separate records, not nested, which is exactly why the
-// Library tab cannot rely on RouterLink's record-based active matching.
 const routes = [
   { path: '/', redirect: '/books' },
   { path: '/books', name: 'library', component: { template: '<div />' } },
@@ -71,8 +68,6 @@ describe('MobileTabBar', () => {
 
   it('keeps the Library tab active on the list, a book, and a filtered view', async () => {
     expect(activeTargets(await mountAt('/books'))).toEqual(['/books']);
-    // The sibling book-detail record is the case the stubbed test missed and
-    // the Codex review caught: the Library tab must still light up here.
     expect(activeTargets(await mountAt('/books/abc123'))).toEqual(['/books']);
     expect(activeTargets(await mountAt('/books?author=none'))).toEqual(['/books']);
   });
@@ -81,7 +76,6 @@ describe('MobileTabBar', () => {
     expect(activeTargets(await mountAt('/read-history'))).toEqual(['/read-history']);
     expect(activeTargets(await mountAt('/downloads'))).toEqual(['/downloads']);
     expect(activeTargets(await mountAt('/settings'))).toEqual(['/settings']);
-    // A book route must not light Recently read / Downloads / Settings.
     expect(activeTargets(await mountAt('/books/abc123'))).toEqual(['/books']);
   });
 });

@@ -30,8 +30,7 @@ func TestEPUBBookTitle(t *testing.T) {
 			want:     "星塵集",
 		},
 		{
-			// Clients derive a title from the filename when the user typed none,
-			// and the book knows its own name better than the file does.
+
 			name:     "filename-derived title loses to the epub title",
 			supplied: "three-body",
 			filename: "three-body.epub",
@@ -76,7 +75,7 @@ func TestEPUBBookTitle(t *testing.T) {
 	}
 }
 
-func TestEPUBRenderUsesStableHeadingForUntitledChapter(t *testing.T) {
+func TestEPUBUntitledChapterHeading(t *testing.T) {
 	rendered := epub.Render(&epub.Book{
 		Title: "Untitled chapter",
 		Chapters: []epub.Chapter{
@@ -150,9 +149,7 @@ func TestParseImportStrategy(t *testing.T) {
 		{name: "missing preset is rejected", raw: `{"include_description":true}`, wantErr: true},
 		{name: "unknown field is rejected", raw: `{"preset":"plain","template":"x"}`, wantErr: true},
 		{name: "malformed json is rejected", raw: `{`, wantErr: true},
-		// The field now decodes through decodeRequestJSON, so it is refused on
-		// the same terms as a request body: v2's strict member matching and
-		// duplicate rejection, and no data after the value.
+
 		{name: "wrong-case field is rejected", raw: `{"Preset":"plain"}`, wantErr: true},
 		{name: "duplicate field is rejected", raw: `{"preset":"plain","preset":"markdown"}`, wantErr: true},
 		{name: "trailing data is rejected", raw: `{"preset":"plain"} {}`, wantErr: true},
@@ -165,8 +162,7 @@ func TestParseImportStrategy(t *testing.T) {
 				if err == nil {
 					t.Fatalf("parseImportStrategy(%q) error = nil, want an error", tt.raw)
 				}
-				// The message is what the client sees; the error is logged and
-				// carries the util.Errorf prefix, which must not leak into it.
+
 				if message == "" {
 					t.Fatalf("parseImportStrategy(%q) returned no client message", tt.raw)
 				}
@@ -195,8 +191,7 @@ func TestEPUBImportComment(t *testing.T) {
 		want string
 	}{
 		{
-			// An import that lost nothing leaves no note behind, so the comment
-			// stays available for anything else and book.json stays quiet.
+
 			name: "nothing dropped leaves no comment",
 			book: &epub.Book{},
 			want: "",
@@ -222,10 +217,6 @@ func TestEPUBImportComment(t *testing.T) {
 	}
 }
 
-// epub names its stored images without importing shelf, so the two have to be
-// checked against each other: a name shelf refuses would be referenced by the
-// text and never load, and an image written outside SourceAssetsFolder would
-// not be found at all.
 func TestEPUBImageNamingAgreesWithShelf(t *testing.T) {
 	if epub.ImageFolder != shelf.SourceAssetsFolder {
 		t.Fatalf("epub.ImageFolder = %q, shelf.SourceAssetsFolder = %q", epub.ImageFolder, shelf.SourceAssetsFolder)
@@ -247,11 +238,7 @@ func TestEPUBImageNamingAgreesWithShelf(t *testing.T) {
 	}
 }
 
-// A client written before keep_images existed submits a strategy without it.
-// The import dialog does exactly that on every EPUB upload, so reading the
-// absent field as "use the built-in default" would make the configured setting
-// unreachable from the browser.
-func TestImportEPUBPerRequestStrategyInheritsKeepImages(t *testing.T) {
+func TestEPUBRequestInheritsKeepImages(t *testing.T) {
 	off := false
 	fallback := epub.Strategy{Preset: epub.PresetMarkdown, KeepImages: &off}
 
@@ -263,7 +250,6 @@ func TestImportEPUBPerRequestStrategyInheritsKeepImages(t *testing.T) {
 		t.Fatalf("keep_images = %v, want the configured false", got.KeepImages)
 	}
 
-	// An explicit value still wins over the fallback.
 	got, _, err = parseImportStrategy(`{"preset":"markdown","keep_images":true}`, fallback)
 	if err != nil {
 		t.Fatalf("parseImportStrategy with explicit keep_images: %v", err)
@@ -272,12 +258,44 @@ func TestImportEPUBPerRequestStrategyInheritsKeepImages(t *testing.T) {
 		t.Fatalf("explicit keep_images = %v, want true", got.KeepImages)
 	}
 
-	// An empty strategy field means "use fallback" and always did.
 	got, _, err = parseImportStrategy("", fallback)
 	if err != nil {
 		t.Fatalf("parseImportStrategy with no strategy: %v", err)
 	}
 	if got.KeepImages == nil || *got.KeepImages {
 		t.Fatalf("fallback keep_images = %v, want false", got.KeepImages)
+	}
+}
+
+func TestEPUBImageFailuresKeepImport(t *testing.T) {
+	app := newTestApp(t)
+	shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
+	if !ok {
+		t.Fatal("default shelf missing")
+	}
+	parsed := &epub.Book{
+		Authors:  []string{"Author"},
+		Language: "en",
+		Cover:    []byte("invalid cover"), CoverExt: ".unsupported",
+		Images: []epub.Image{
+			{Name: "../invalid.png", Data: []byte("rejected")},
+			{Name: "valid.png", Data: testutil.OnePixelPNG()},
+		},
+	}
+	book, err := shelfData.NewBookWith(nil, "Book", app.handlers.imports.initEPUBBook(parsed, epub.Rendered{Text: "Body", Format: "md"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := book.GetSource(book.CurrentSource())
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, err := source.ListAssets()
+	if err != nil || len(assets) != 1 || assets[0] != "valid.png" {
+		t.Fatalf("assets = %v, %v; want the image after the failed write", assets, err)
+	}
+	meta := book.GetMeta()
+	if meta.Cover != "" || len(meta.Authors) != 1 || meta.Authors[0] != "Author" {
+		t.Fatalf("metadata after failed cover conversion = %+v", meta)
 	}
 }

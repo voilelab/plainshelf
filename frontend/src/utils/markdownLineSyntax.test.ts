@@ -30,7 +30,6 @@ describe('assetNameFromSrc', () => {
     }
   });
 
-  // A book's text must not be able to make the reader fetch from the network.
   it('refuses external and inline targets', () => {
     for (const src of [
       'http://example.com/x.png',
@@ -48,9 +47,6 @@ describe('assetNameFromSrc', () => {
     }
   });
 
-  // The supported extension has to end the name and the name has to end the
-  // path; otherwise "assets/x.png.txt" and "assets/x.png/passwd" both read as
-  // an image and the reader opens whatever they really point at.
   it('anchors both the assets/ path and the extension at the end', () => {
     for (const src of [
       'assets/img-0001.png/nested.txt',
@@ -62,23 +58,17 @@ describe('assetNameFromSrc', () => {
     }
   });
 
-  // CommonMark allows padding around a destination and inside its angle
-  // brackets; a file named in either spelling is the same file.
   it('ignores the whitespace CommonMark allows around a destination', () => {
     expect(assetNameFromSrc('  assets/img-0001.png  ')).toBe('img-0001.png');
     expect(assetNameFromSrc('< assets/img-0001.png >')).toBe('img-0001.png');
   });
 
-  // A file named "A Map.JPEG" is ordinary on a shelf edited by hand, so every
-  // spelling that names it has to arrive at the same file name.
   it('accepts every spelling of a name containing a space', () => {
     for (const src of ['assets/A Map.JPEG', 'assets/A%20Map.JPEG', '<assets/A Map.JPEG>']) {
       expect(assetNameFromSrc(src), src).toBe('A Map.JPEG');
     }
   });
 
-  // Decoding runs before validation, so an escaped separator must not slip a
-  // path segment past the checks.
   it('validates after decoding, not before', () => {
     for (const src of [
       'assets/%2e%2e%2fsource.txt',
@@ -124,16 +114,12 @@ describe('assetImageFromMarkdownLine', () => {
     });
   });
 
-  // An unloadable target is not an illustration: the caller leaves the line as
-  // text so it stays visible instead of disappearing.
   it('refuses a target that is not a source asset', () => {
     for (const line of ['![A map](https://example.com/x.png)', '![A map](assets/../source.txt)']) {
       expect(assetImageFromMarkdownLine(line), line).toBeNull();
     }
   });
 
-  // Only a line that is nothing but an image becomes an illustration, so an
-  // image with prose on either side has to stay in its sentence.
   it('refuses an image that shares its line with prose', () => {
     for (const line of [
       'see ![A map](assets/img-0001.png) here',
@@ -145,9 +131,6 @@ describe('assetImageFromMarkdownLine', () => {
   });
 });
 
-// An offline download uses this to decide what to fetch, so it has to agree
-// exactly with what the reader renders: a link left as text must not be
-// downloaded, and a rendered one must not be missed.
 describe('referencedAssetNames', () => {
   it('lists rendered illustrations once, in first-use order', () => {
     const names = referencedAssetNames(
@@ -186,9 +169,6 @@ describe('referencedAssetNames', () => {
   });
 });
 
-// These two helpers are the shared line-level syntax: the chapter scanner, the
-// reader's renderer, and the source converter all read a document through them,
-// so a disagreement here shows up as three different bugs.
 describe('parseMarkdownHeadingLine', () => {
   it('reads the level and the title of an ATX heading', () => {
     expect(parseMarkdownHeadingLine('## Part 1')).toEqual({ level: 2, title: 'Part 1' });
@@ -219,15 +199,11 @@ describe('updateMarkdownFenceState', () => {
     expect(open('Body')).toEqual({ state: null, boundary: false });
   });
 
-  // A backtick inside the info string is not a fence in CommonMark. Reading it
-  // as one would swallow the rest of the document as code.
   it('does not open a backtick fence whose info string contains a backtick', () => {
     expect(open('```a`b')).toEqual({ state: null, boundary: false });
     expect(open('~~~a`b')).toEqual({ state: { marker: '~', length: 3 }, boundary: true });
   });
 
-  // A run appearing after text on the line is inline code. Opening a fence
-  // there would read the rest of the document as one code block.
   it('does not open a fence on a run that follows text', () => {
     expect(open('text ```js')).toEqual({ state: null, boundary: false });
     expect(open('    ```js')).toEqual({ state: null, boundary: false });
@@ -241,8 +217,6 @@ describe('updateMarkdownFenceState', () => {
     expect(inside('~~~', '`', 3)).toEqual({ state: { marker: '`', length: 3 }, boundary: false });
   });
 
-  // The closing line may carry trailing whitespace and nothing else, and it
-  // has to start the line: a fence run appearing after code text is code.
   it('reads a closing line strictly', () => {
     expect(inside('```  ', '`', 3)).toEqual({ state: null, boundary: true });
     expect(inside('   ```\t', '`', 3)).toEqual({ state: null, boundary: true });
@@ -253,8 +227,6 @@ describe('updateMarkdownFenceState', () => {
 });
 
 describe('rewriteMarkdownAssetImages', () => {
-  // Offline collection calls this without a rewrite to read the image list off
-  // an unchanged document; a default that edited the text would corrupt it.
   it('returns the text unchanged when no rewrite is given', () => {
     const text = '![a](assets/b.png)\n\nprose\n\n![c](assets/d.jpg)';
     expect(rewriteMarkdownAssetImages(text)).toEqual({

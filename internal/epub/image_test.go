@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// illustratedEntries is an EPUB whose chapters carry artwork: one plate used in
-// both chapters, one SVG-wrapped image, and one format the shelf cannot serve.
 func illustratedEntries() []zipEntry {
 	return []zipEntry{
 		{"mimetype", "application/epub+zip"},
@@ -60,7 +58,7 @@ func parseIllustrated(t *testing.T, keep bool) *Book {
 	return book
 }
 
-func TestKeepImagesStoresAndLinksIllustrations(t *testing.T) {
+func TestKeepImagesStoresAndLinks(t *testing.T) {
 	book := parseIllustrated(t, true)
 
 	if len(book.Images) != 1 {
@@ -73,8 +71,6 @@ func TestKeepImagesStoresAndLinksIllustrations(t *testing.T) {
 		t.Errorf("image data = %q, want plate-bytes", got)
 	}
 
-	// The link sits on its own line, which is what the reader turns into a
-	// figure, and the prose around it is untouched.
 	want := "![A map of the province](assets/img-0001.png)"
 	lines := strings.Split(book.Chapters[0].Text, "\n")
 	var found bool
@@ -92,7 +88,6 @@ func TestKeepImagesStoresAndLinksIllustrations(t *testing.T) {
 	}
 }
 
-// The same file used twice is stored once and both chapters point at it.
 func TestKeepImagesDeduplicatesAcrossChapters(t *testing.T) {
 	book := parseIllustrated(t, true)
 
@@ -106,13 +101,9 @@ func TestKeepImagesDeduplicatesAcrossChapters(t *testing.T) {
 	}
 }
 
-// Artwork that cannot be kept still has to be reported, or the note the import
-// leaves behind would understate the loss.
-func TestKeepImagesStillCountsWhatItCannotStore(t *testing.T) {
+func TestKeepImagesCountsUnstored(t *testing.T) {
 	book := parseIllustrated(t, true)
 
-	// The unsupported .tiff and the SVG-wrapped image; the cover is stored as
-	// the cover and the plate was kept, so neither counts.
 	if book.DroppedImages != 2 {
 		t.Fatalf("DroppedImages = %d, want 2", book.DroppedImages)
 	}
@@ -124,13 +115,12 @@ func TestKeepImagesStillCountsWhatItCannotStore(t *testing.T) {
 	}
 }
 
-func TestKeepImagesDisabledLeavesTheOldBehaviour(t *testing.T) {
+func TestDisabledImagesCountAsDropped(t *testing.T) {
 	book := parseIllustrated(t, false)
 
 	if len(book.Images) != 0 {
 		t.Fatalf("stored %d images with KeepImages off, want 0", len(book.Images))
 	}
-	// Every distinct illustration is a loss again: plate, tiff and svg.
 	if book.DroppedImages != 3 {
 		t.Fatalf("DroppedImages = %d, want 3", book.DroppedImages)
 	}
@@ -140,9 +130,6 @@ func TestKeepImagesDisabledLeavesTheOldBehaviour(t *testing.T) {
 		}
 	}
 }
-
-// Strategy.ParseOptions() derivations, including the keep_images defaulting,
-// live in TestStrategyDerivedValues (render_test.go).
 
 func TestKeepImagesRespectsThePerImageBudget(t *testing.T) {
 	entries := illustratedEntries()
@@ -160,8 +147,6 @@ func TestKeepImagesRespectsThePerImageBudget(t *testing.T) {
 	if len(book.Images) != 0 {
 		t.Fatalf("stored %d oversized images, want 0", len(book.Images))
 	}
-	// An oversized image is a loss like any other, and the text must not point
-	// at a file that was never written.
 	if book.DroppedImages != 3 {
 		t.Fatalf("DroppedImages = %d, want 3", book.DroppedImages)
 	}
@@ -173,9 +158,29 @@ func TestKeepImagesRespectsThePerImageBudget(t *testing.T) {
 }
 
 func TestSanitizeImageAlt(t *testing.T) {
-	// Brackets would leave the reader unable to parse the line, and a newline
-	// would break the one-image-per-line shape it requires.
 	if got := sanitizeImageAlt("a [bracketed] alt\nsecond line"); got != "a bracketed alt second line" {
 		t.Fatalf("sanitizeImageAlt = %q", got)
+	}
+}
+
+func TestHeadingImageCountsAsDropped(t *testing.T) {
+	entries := []zipEntry{
+		{"META-INF/container.xml", containerXML},
+		{"OEBPS/content.opf", `<package xmlns="http://www.idpf.org/2007/opf">
+  <manifest><item id="c1" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>`},
+		{"OEBPS/chapter.xhtml", `<html><body><h1>Chapter<img src="heading.png"/></h1><p>Body.</p></body></html>`},
+		{"OEBPS/heading.png", "heading-artwork"},
+	}
+	book, err := parseArchive(t, buildArchive(t, entries), Options{MarkdownInline: true, KeepImages: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(book.Chapters) != 1 || book.Chapters[0].Title != "Chapter" || book.Chapters[0].Text != "Body." {
+		t.Fatalf("Chapters = %+v, want the heading consumed and the body preserved", book.Chapters)
+	}
+	if len(book.Images) != 0 || book.DroppedImages != 1 {
+		t.Errorf("kept %d images, dropped %d, want the consumed heading's image counted once as dropped", len(book.Images), book.DroppedImages)
 	}
 }

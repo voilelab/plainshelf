@@ -4,7 +4,7 @@
       <template v-if="bookFormat === 'md'">
         <ReaderBlockWindow
           v-if="markdownBlocks.length > 0"
-          :key="windowKey"
+          :key="blockWindowResetKey"
           :items="markdownBlocks"
           :estimate="estimateMarkdownBlockHeight"
         >
@@ -23,7 +23,7 @@
       <template v-else>
         <ReaderBlockWindow
           v-if="sectionBlocks.length > 0"
-          :key="windowKey"
+          :key="blockWindowResetKey"
           :items="sectionBlocks"
           :estimate="estimateTextBlockHeight"
         >
@@ -72,9 +72,7 @@ const contentRef = ref<HTMLDivElement | null>(null);
 const sectionBlocks = computed(() => parseReaderBlocks(props.section?.text ?? ''));
 const markdownBlocks = computed(() => renderMarkdownBlocks(props.section?.text ?? ''));
 
-// Remount the window when the shown source or section changes so its observer
-// and placeholder heights start clean for the new block list.
-const windowKey = computed(() => `${props.bookId}::${props.sourceId}::${props.section?.index ?? 0}`);
+const blockWindowResetKey = computed(() => `${props.bookId}::${props.sourceId}::${props.section?.index ?? 0}`);
 
 onMounted(() => emit('ready', contentRef.value));
 onBeforeUnmount(() => emit('ready', null));

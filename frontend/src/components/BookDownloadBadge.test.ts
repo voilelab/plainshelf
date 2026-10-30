@@ -11,8 +11,6 @@ function mountBadge(state?: DownloadState): HTMLElement {
 
 describe('BookDownloadBadge', () => {
   it('renders nothing when the book carries no download state', () => {
-    // A server or desktop listing has no download concept; it must not gain an
-    // empty marker.
     expect(mountBadge(undefined).querySelector('.book-download-badge')).toBeNull();
   });
 

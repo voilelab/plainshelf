@@ -15,7 +15,7 @@ vi.mock('./client', async () => {
 });
 
 const { ApiError } = await import('./client');
-const { createFolder, moveFolder, renameFolder, transferFolder } = await import('./folders');
+const { createFolder, getFolderMeta, moveFolder, renameFolder, setFolderIcon, transferFolder } = await import('./folders');
 
 describe('transferFolder', () => {
   it('posts the source and target folders as segment arrays and returns the chain id', async () => {
@@ -42,8 +42,6 @@ describe('transferFolder', () => {
     await expect(transferFolder('Fiction', 'shelf-b', 'Fiction', 'copy')).resolves.toBe('chain-running');
   });
 
-  // A folder conflict collides on no book, so the server sends an empty list
-  // rather than omitting the field.
   it('raises a typed conflict when the target already holds a folder with this name', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError(
@@ -94,8 +92,6 @@ describe('transferFolder', () => {
 });
 
 describe('createFolder', () => {
-  // The server refuses a name the shelf scanner would skip with an explanation
-  // the user needs; replacing every 400 with one fixed sentence hid it.
   it('surfaces the reason the server gave for a rejected name', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError('invalid folder name: hidden and system directory names are skipped', { status: 400 })
@@ -113,12 +109,6 @@ describe('createFolder', () => {
   });
 });
 
-/*
-Moving or renaming a folder out of a subtree shelf.json marks as adult content
-unmarks everything below it, so the server refuses the change with its own 409
-body until the caller confirms. All three routes carry the flag as ?confirm=1
-because the rename's body has room for a folder name and nothing else.
-*/
 describe('folder changes that would unhide marked content', () => {
   const refusal = () =>
     new ApiError(
@@ -157,8 +147,6 @@ describe('folder changes that would unhide marked content', () => {
     });
   }
 
-  // hidden_books is 0 when the whole disclosure is a folder name, and a client
-  // that read that as "nothing would change" would skip the question entirely.
   it('keeps a count of zero rather than falling back to the generic 409 path', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError(
@@ -176,4 +164,70 @@ describe('folder changes that would unhide marked content', () => {
       hiddenBooks: 0
     });
   });
+});
+
+describe('getFolderMeta', () => {
+  it('reads the icons and each folder\'s metadata, normalizing the paths', async () => {
+    fetchJsonMock.mockResolvedValueOnce({
+      icons: ['book', 'rocket', 7],
+      folders: {
+        'Fiction/Classics': { icon: 'book', version: 'abc', read_only: false },
+        Broken: { icon: '', version: '', read_only: true },
+        Odd: 'not an object'
+      }
+    });
+
+    await expect(getFolderMeta()).resolves.toEqual({
+      icons: ['book', 'rocket'],
+      folders: {
+        'Fiction/Classics': { icon: 'book', version: 'abc', readOnly: false },
+        Broken: { icon: '', version: '', readOnly: true }
+      }
+    });
+    expect(fetchJsonMock.mock.calls.at(-1)?.[0]).toBe('/folder-meta');
+  });
+});
+
+describe('setFolderIcon', () => {
+  it('puts the icon and the version it was read at to the folder\'s path', async () => {
+    fetchJsonMock.mockResolvedValueOnce(undefined);
+
+    await setFolderIcon('Fiction/Sci Fi', 'rocket', 'abc');
+
+    const [path, init] = fetchJsonMock.mock.calls.at(-1) ?? [];
+    expect(path).toBe('/folder-meta/Fiction/Sci%20Fi');
+    expect((init as RequestInit).method).toBe('PUT');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ icon: 'rocket', version: 'abc' });
+  });
+
+  it('raises a typed conflict when folder.json changed since it was read', async () => {
+    const conflict = new ApiError('folder.json changed since it was read', { status: 409 });
+    conflict.code = 'FOLDER_META_CONFLICT';
+    fetchJsonMock.mockRejectedValueOnce(conflict);
+
+    await expect(setFolderIcon('Fiction', 'star', 'stale')).rejects.toMatchObject({ name: 'FolderMetaConflictError' });
+  });
+
+  it('passes any other refusal through with the server\'s message', async () => {
+    const refusal = new ApiError('folder.json cannot be read safely', { status: 409 });
+    refusal.code = 'FOLDER_META_NOT_WRITABLE';
+    fetchJsonMock.mockRejectedValueOnce(refusal);
+
+    await expect(setFolderIcon('Fiction', 'star', 'v')).rejects.toBe(refusal);
+  });
+});
+
+describe('folder path listing', () => {
+ it('does not request optional metadata or fail when it is unavailable', async () => {
+  const { getFolders } = await import('./folders');
+  fetchJsonMock.mockReset();
+  const paths = ['Z','a','A','á','中','a/z','a/m'];
+  fetchJsonMock.mockImplementation(async (path: string) => {
+    if (path !== '/folders') throw new ApiError('metadata not supported', {status:404});
+    return paths.map(path => path.split('/'));
+  });
+  expect(await getFolders()).toEqual([...paths].sort((a,b)=>a.localeCompare(b)));
+  expect(fetchJsonMock).toHaveBeenCalledTimes(1);
+  fetchJsonMock.mockReset();
+ });
 });

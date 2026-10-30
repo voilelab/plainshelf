@@ -5,33 +5,12 @@ import path from 'node:path';
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
-/**
- * Environment variable through which globalSetup hands the compiled server
- * binary to every worker's `startServer()`. When it is set, the server is
- * spawned directly from the executable; when it is absent (e.g. a spec run
- * without this globalSetup), `startServer()` falls back to `go run`.
- */
 export const serverBinaryEnvVar = 'PLAINSHELF_E2E_SERVER_BIN';
 
-/**
- * Compiles the server once, before any spec runs, so every spec file spawns a
- * ready-made executable instead of paying for a `go run` cold compile on every
- * server start. The binary path is published through {@link serverBinaryEnvVar}
- * for `startServer()` to pick up.
- *
- * Returns a teardown callback that removes the temp directory the binary was
- * built into, so a bare `npm --prefix e2e test` does not leave a ~35 MB
- * executable under the OS temp dir after every run. When an externally built
- * binary is reused, nothing is created and nothing is removed.
- */
 export default async function globalSetup(): Promise<(() => Promise<void>) | void> {
-  // Honour a binary the caller already built (e.g. the justfile's `test-e2e`, or
-  // a developer iterating on one spec) so the suite compiles the server at most
-  // once regardless of how it was launched. It is the caller's to clean up.
-  const preBuilt = process.env[serverBinaryEnvVar];
-  if (preBuilt) {
-    // eslint-disable-next-line no-console
-    console.log(`Reusing E2E server binary: ${preBuilt}`);
+  const suppliedServerBinary = process.env[serverBinaryEnvVar];
+  if (suppliedServerBinary) {
+    console.log(`Reusing E2E server binary: ${suppliedServerBinary}`);
     return;
   }
 
@@ -39,7 +18,7 @@ export default async function globalSetup(): Promise<(() => Promise<void>) | voi
   const binaryName = process.platform === 'win32' ? 'plainshelf-srv.exe' : 'plainshelf-srv';
   const binaryPath = path.join(binDir, binaryName);
 
-  const started = Date.now();
+  const buildStartedAt = Date.now();
   const result = spawnSync('go', ['build', '-o', binaryPath, './cmd/plainshelf-srv/main.go'], {
     cwd: repoRoot,
     stdio: ['ignore', 'inherit', 'inherit']
@@ -51,8 +30,7 @@ export default async function globalSetup(): Promise<(() => Promise<void>) | voi
   }
 
   process.env[serverBinaryEnvVar] = binaryPath;
-  // eslint-disable-next-line no-console
-  console.log(`Built E2E server binary in ${((Date.now() - started) / 1000).toFixed(1)}s: ${binaryPath}`);
+  console.log(`Built E2E server binary in ${((Date.now() - buildStartedAt) / 1000).toFixed(1)}s: ${binaryPath}`);
 
   return async () => {
     await fs.rm(binDir, { recursive: true, force: true });

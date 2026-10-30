@@ -46,9 +46,6 @@ function parseZoomLevel(rawValue: string | null): number {
   return clampZoomLevel(parsed);
 }
 
-// Module-level state, mirroring useReaderSettings.ts: a single shared zoom
-// level for the whole app rather than per-component state, since zoom is a
-// desktop-shell-wide concern driven by the native menu, not a Vue component.
 const appZoom = ref(DEFAULT_ZOOM);
 
 if (typeof window !== 'undefined') {
@@ -101,8 +98,6 @@ export function initAppZoom(): void {
     return;
   }
 
-  // Apply the stored zoom immediately; the watcher above only fires on
-  // subsequent changes, not for the initial value read above.
   applyZoom(appZoom.value);
 
   window.__plainshelfZoom = (action: 'in' | 'out' | 'reset') => {

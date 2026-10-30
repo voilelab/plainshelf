@@ -17,11 +17,8 @@ import (
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
-// appDir is where the cache file lives, standing in for the shelf's app/.
 const appDir = "app"
 
-// testAlgo is what a fingerprint task would pass in. The values are opaque to
-// the cache, which is the point: it stores answers, it does not compute them.
 var testAlgo = Algo{
 	Normalize: "nfkc-strip-space-punct-v1",
 	Shingle:   "char-5gram",
@@ -39,15 +36,10 @@ func newLoggerForTest() logutil.Logger {
 	return *logger
 }
 
-// repairSourceHash is the hook the shelf facade uses: it delegates the write to
-// the source, so a read-only source reports fsutil.ErrReadOnly.
 func repairSourceHash(source *bookpkg.Source, contentMD5 string) (bool, error) {
 	return source.RepairContentHash(contentMD5)
 }
 
-// testShelf is everything the cache needs from a shelf and nothing it does not:
-// an app/ dir, books created directly through bookpkg, and a live-book set the
-// test controls. No scan, no lock, no *Shelf.
 type testShelf struct {
 	t       *testing.T
 	libRoot string
@@ -63,7 +55,11 @@ func newTestShelf(t *testing.T) *testShelf {
 	if err != nil {
 		t.Fatalf("OpenRoot(%q): %v", libRoot, err)
 	}
-	t.Cleanup(func() { osRoot.Close() }) //nolint:errcheck // best-effort test cleanup
+	t.Cleanup(func() {
+		if err := osRoot.Close(); err != nil {
+			t.Errorf("closing shelf root: %v", err)
+		}
+	})
 
 	base := fsutil.NewRootFS(osRoot)
 	if err := base.MkdirAll(appDir); err != nil {
@@ -73,18 +69,11 @@ func newTestShelf(t *testing.T) *testShelf {
 	return &testShelf{t: t, libRoot: libRoot, base: base, live: map[string]struct{}{}}
 }
 
-// liveBooks is the LiveBooks hook: the cache prunes against whatever set the
-// test has declared live, and the test drops a book from it to model a delete.
 func (ts *testShelf) liveBooks() (map[string]struct{}, bool) {
 	return ts.live, true
 }
 
-// addBook backdates the new source's modification time by age, which is not
-// cosmetic: a source written moments ago is deliberately left out of the index,
-// because a coarse filesystem clock cannot tell a second write inside the same
-// tick from no write at all (see fsutil.RacyWindow). A book fingerprinted in the
-// real world is older than that. Pass age 0 to leave one racily fresh.
-func (ts *testShelf) addBook(dir, id, title, content string, age time.Duration) *bookpkg.Book {
+func (ts *testShelf) addBook(dir, id, title, content string, modTimeOffset time.Duration) *bookpkg.Book {
 	t := ts.t
 	t.Helper()
 
@@ -102,21 +91,16 @@ func (ts *testShelf) addBook(dir, id, title, content string, age time.Duration) 
 
 	ts.live[id] = struct{}{}
 
-	if age != 0 {
-		shiftModTime(t, ts.sourceFilePath(book), age)
+	if modTimeOffset != 0 {
+		shiftModTime(t, ts.sourceFilePath(book), modTimeOffset)
 	}
 	return book
 }
 
-// countSourceReads returns a filesystem the cache and the reopened books read
-// through. Books are created on the plain base handle first, so only the I/O a
-// test causes past this point is counted.
 func (ts *testShelf) countSourceReads() *countingFS {
 	return &countingFS{FS: ts.base}
 }
 
-// sourceFilePath is where a book's only source.txt really lives on disk, for the
-// tests that reach past PlainShelf and edit the shelf the way a user would.
 func (ts *testShelf) sourceFilePath(book *bookpkg.Book) string {
 	t := ts.t
 	t.Helper()
@@ -131,12 +115,10 @@ func (ts *testShelf) sourceFilePath(book *bookpkg.Book) string {
 	return path.Join(ts.libRoot, sources[0].FolderPath(), bookpkg.SourceFile)
 }
 
-// countingFS counts how often a source.txt is opened, which is the cost this
-// cache exists to avoid. meta.json, book.json and the cache file are not
-// counted: opening a book costs those either way.
 type countingFS struct {
 	fsutil.FS
 	opens atomic.Int64
+	stats atomic.Int64
 }
 
 func (f *countingFS) Open(name string) (fs.File, error) {
@@ -146,9 +128,11 @@ func (f *countingFS) Open(name string) (fs.File, error) {
 	return f.FS.Open(name)
 }
 
-// fakeFingerprint counts its calls, which is how the tests tell a cache hit from
-// a recomputation, and derives every field from the content so that two copies
-// of one book produce one entry.
+func (f *countingFS) Stat(name string) (fs.FileInfo, error) {
+	f.stats.Add(1)
+	return f.FS.Stat(name)
+}
+
 type fakeFingerprint struct {
 	label string
 	calls atomic.Int64
@@ -174,8 +158,6 @@ func normalizeForTest(s string) string {
 	return strings.ReplaceAll(s, " ", "")
 }
 
-// openCache opens a cache over root, wired to the test shelf the way the shelf
-// facade wires it to a real one.
 func openCache(t *testing.T, ts *testShelf, root fsutil.ReadFS, algo Algo) *Cache {
 	t.Helper()
 
@@ -200,8 +182,6 @@ func saveCache(t *testing.T, cache *Cache) {
 	}
 }
 
-// reopen stands in for the next run of a fingerprint task: nothing is carried
-// over in memory, so every read the cache avoids really did not happen.
 func reopen(t *testing.T, root fsutil.ReadFS, bookPath string) (*bookpkg.Book, *bookpkg.Source) {
 	t.Helper()
 
@@ -221,8 +201,6 @@ func reopen(t *testing.T, root fsutil.ReadFS, bookPath string) (*bookpkg.Book, *
 	return book, sources[0]
 }
 
-// resolveFingerprint opens the book fresh for the call, the way a new run
-// would see it.
 func resolveFingerprint(t *testing.T, cache *Cache, root fsutil.ReadFS, bookPath string, builder *fakeFingerprint) Entry {
 	t.Helper()
 
@@ -244,8 +222,6 @@ func shiftModTime(t *testing.T, filePath string, offset time.Duration) {
 	}
 }
 
-// shiftedModTime backdates a file and reports the time it was given, so a test
-// can tell "not rewritten" from "rewritten with the same bytes".
 func shiftedModTime(t *testing.T, filePath string, offset time.Duration) time.Time {
 	t.Helper()
 
@@ -285,9 +261,6 @@ func writeCacheAt(t *testing.T, libRoot string, stored cacheFile) {
 	}
 }
 
-// metaMatchesContent reports whether a source's stored md5_hash agrees with the
-// bytes on disk. Production never asks: a caller that has just read the file
-// already knows.
 func metaMatchesContent(t *testing.T, source *bookpkg.Source) bool {
 	t.Helper()
 	f, err := source.Open()
@@ -300,4 +273,33 @@ func metaMatchesContent(t *testing.T, source *bookpkg.Source) bool {
 		t.Fatalf("MD5Hash: %v", err)
 	}
 	return sum == source.GetMeta().MD5Hash
+}
+
+type rewriteAfterReadFS struct {
+	fsutil.FS
+	rewrite func()
+	done    atomic.Bool
+}
+
+func (f *rewriteAfterReadFS) Open(name string) (fs.File, error) {
+	file, err := f.FS.Open(name)
+	if err != nil || path.Base(name) != bookpkg.SourceFile {
+		return file, err
+	}
+	return closeHookFile{File: file, onClose: func() {
+		if f.done.CompareAndSwap(false, true) {
+			f.rewrite()
+		}
+	}}, nil
+}
+
+type closeHookFile struct {
+	fs.File
+	onClose func()
+}
+
+func (c closeHookFile) Close() error {
+	err := c.File.Close()
+	c.onClose()
+	return err
 }

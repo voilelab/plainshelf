@@ -1,8 +1,6 @@
 <template>
   <section class="panel settings-group">
     <h3>{{ t('settings.nsfw.title') }}</h3>
-    <!-- Same row-as-label shape as CoverPanel: the switch is a <button>, so
-         `for` is what makes a click on the description toggle it too. -->
     <label class="setting-item" :for="switchId">
       <div>
         <span :id="labelId" class="setting-label">

@@ -37,8 +37,6 @@ describe('reading-progress binding resolution', () => {
         WriteReadingProgress: async () => undefined
       }
     });
-    // Without this, the reader falls back to localStorage and its progress never
-    // reaches the shared reading_progress.json.
     expect(hasDesktopReadingProgressBinding()).toBe(true);
   });
 
@@ -82,7 +80,6 @@ describe('stageDesktopReadingProgress', () => {
     stageDesktopReadingProgress('book-a', 120, 2000);
 
     expect(stage).toHaveBeenCalledOnce();
-    // shelfID (from the active client shelf), bookID, offset, at.
     expect(stage).toHaveBeenCalledWith(expect.any(String), 'book-a', 120, 2000);
   });
 });

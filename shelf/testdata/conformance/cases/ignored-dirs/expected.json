@@ -3,6 +3,7 @@
     "/",
     "Poetry"
   ],
+  "folder_meta": {},
   "books": [
     {
       "path": "books/Poetry/haiku.bookpkg",

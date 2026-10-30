@@ -6,21 +6,15 @@ import (
 	"testing"
 )
 
-// confusables are the characters a request ID must never contain, because it is
-// read aloud and copied by hand: 0 against O, and 1 against I and L. Crockford
-// base32 already drops I, L and O; the digits are this package's own exclusion,
-// and losing either half of a pair puts the ambiguity straight back.
 const confusables = "0O1IL"
 
-func TestRequestIDAlphabetHasNoConfusableCharacters(t *testing.T) {
+func TestRequestIDAlphabetHasNoConfusables(t *testing.T) {
 	for _, c := range confusables {
 		if strings.ContainsRune(requestIDAlphabet, c) {
 			t.Errorf("alphabet %q contains %q, which a user cannot reliably tell from its twin", requestIDAlphabet, c)
 		}
 	}
 
-	// U is Crockford's own exclusion, kept because an accidental obscenity in a
-	// number the user has to read out is worse than the entropy it costs.
 	if strings.ContainsRune(requestIDAlphabet, 'U') {
 		t.Errorf("alphabet %q contains U, which Crockford base32 excludes", requestIDAlphabet)
 	}
@@ -34,9 +28,7 @@ func TestRequestIDAlphabetHasNoConfusableCharacters(t *testing.T) {
 	}
 }
 
-// The alphabet is only half the promise: the generator has to be the thing that
-// never emits a confusable, whatever it draws from the random source.
-func TestNewRequestIDEmitsOnlyAlphabetCharacters(t *testing.T) {
+func TestRequestIDUsesOnlyAlphabet(t *testing.T) {
 	for range 2000 {
 		id := NewRequestID()
 
@@ -54,9 +46,6 @@ func TestNewRequestIDEmitsOnlyAlphabetCharacters(t *testing.T) {
 	}
 }
 
-// Two requests must not answer with the same number, or a bug report points at
-// the wrong log line. Repeats within a small sample mean the generator is not
-// drawing from the whole alphabet.
 func TestNewRequestIDDoesNotRepeat(t *testing.T) {
 	const draws = 5000
 
@@ -70,8 +59,6 @@ func TestNewRequestIDDoesNotRepeat(t *testing.T) {
 	}
 }
 
-// Every symbol has to be reachable: an off-by-one in the rejection bound would
-// silently shrink the alphabet and the entropy with it.
 func TestNewRequestIDReachesEverySymbol(t *testing.T) {
 	seen := map[rune]bool{}
 	for range 20000 {
@@ -94,8 +81,6 @@ func TestRequestIDRoundTripsThroughContext(t *testing.T) {
 		t.Errorf("RequestIDFrom = %q, want %q", got, id)
 	}
 
-	// A context that never met the middleware - a background job, or a handler
-	// the desktop client calls directly - has no ID rather than a wrong one.
 	if got := RequestIDFrom(context.Background()); got != "" {
 		t.Errorf("RequestIDFrom(plain context) = %q, want empty", got)
 	}

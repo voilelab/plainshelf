@@ -1,5 +1,5 @@
 <template>
-  <!-- Keep one component root so parent reader scoped styles are inherited. -->
+  <!-- Vue 3.5.43 propagates parent scope IDs through component root subtrees (runtime-core setScopeId; cddcf736). -->
   <div class="reader-safe-html">
     <SafeHtml ref="safeHtml" class="reader-safe-html-content" :html="html" profile="reader" />
     <Teleport v-for="slot in imageSlots" :key="slot.image.token" :to="slot.target">
@@ -26,8 +26,6 @@ const props = defineProps<{
   sourceId: string;
 }>();
 
-// Local illustrations stay reader-owned: the shared sink renders inert slots,
-// and only this wrapper knows they stand for a book's asset directory.
 const safeHtml = ref<InstanceType<typeof SafeHtml> | null>(null);
 const imageSlots = shallowRef<Array<{ image: ReaderMarkdownAsset; target: HTMLSpanElement }>>([]);
 
@@ -43,8 +41,6 @@ async function refreshImageSlots(): Promise<void> {
   imageSlots.value = props.images.flatMap((image) => {
     const target = candidates.find((candidate) => candidate.title === image.token);
     if (!target) return [];
-    // The title is a renderer-only locator. Remove it before mounting so the
-    // opaque token never appears as a tooltip or an exposed reader attribute.
     target.removeAttribute('title');
     return [{ image, target }];
   });

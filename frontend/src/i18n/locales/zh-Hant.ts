@@ -1,4 +1,11 @@
 const zhHant = {
+  mobileQR: {
+    scan: '掃描區網分享 QR code',
+    open: '開啟匯入的書庫',
+    unavailable: '此裝置無法掃描 QR code，請手動輸入網址與 token。',
+    failed: '掃描失敗。請允許相機權限、檢查相機後重試，或手動輸入網址與 token。',
+    invalid: '無效的區網分享 QR 內容。'
+  },
   app: {
     name: 'PlainShelf',
     mockModeBadge: '模擬 API 模式',
@@ -32,8 +39,6 @@ const zhHant = {
     label: '語言',
     en: 'English',
     zhHant: '繁體中文',
-    // 書籍本身的語言，與上面兩個 key 不同：那兩個指的是介面語言，
-    // 且無論介面切到哪一種都維持各自的母語寫法。
     book: {
       unspecified: '未指定',
       zhHant: '中文（繁體）',
@@ -85,6 +90,15 @@ const zhHant = {
       maintenance: '切換側欄維護區塊',
       admin: '切換側欄管理區塊'
     },
+    folderOrder: {
+      action: '調整資料夾順序',
+      done: '完成排序',
+      hint: '拖曳到同層資料夾前方，或使用上下按鈕；資料夾位置不變。',
+      up: '將 {name} 往上排序',
+      down: '將 {name} 往下排序',
+      failed: '未能儲存完整順序。已重新讀取儲存結果，請重試排序。',
+      reloadFailed: '未能重新讀取儲存結果。請重新載入資料夾後再試。'
+    },
     createFolder: {
       add: '新增資料夾',
       title: '新增資料夾',
@@ -94,7 +108,20 @@ const zhHant = {
       invalidName: '資料夾名稱不得為空，也不能包含 /。',
       creating: '建立中...',
       create: '建立',
-      loadingFolders: '載入資料夾中...'
+      loadingFolders: '載入資料夾中...',
+      iconLabel: '圖示',
+      iconFailed: '資料夾已建立，但圖示無法儲存：{message}'
+    },
+    folderIcon: {
+      shortAction: '更換圖示',
+      title: '「{name}」的圖示',
+      label: '資料夾圖示',
+      default: '預設',
+      save: '儲存',
+      saving: '儲存中...',
+      closeLabel: '關閉資料夾圖示對話框',
+      conflict: '這個資料夾的設定已在別處變更，已重新載入。請再選一次圖示。',
+      failed: '資料夾圖示儲存失敗'
     },
     deleteFolder: {
       title: '刪除資料夾',
@@ -297,6 +324,21 @@ const zhHant = {
     readHistory: {
       title: '閱讀紀錄'
     },
+    lanShare: {
+      title: '分享到區網',
+      label: '以唯讀分享選定的書庫',
+      description:
+        '開啟一個唯讀匯出，同一個網路上的其他裝置可以用下方的網址和 token 把它當書庫開啟，無法經由它修改任何東西。關閉時這個 App 不開任何網路連接埠。',
+      addressLabel: '網路位址',
+      noAddress: '找不到區網位址。請連上網路後再試一次。',
+      shelvesLabel: '要分享的書庫',
+      noneShared: '尚未勾選任何書庫，目前沒有分享任何內容。',
+      urlLabel: '網址',
+      tokenLabel: '存取權杖',
+      qrAlt: '含網址和 token 的 QR code',
+      rotate: '更換 token',
+      firewall: '第一次開啟分享時，作業系統可能會詢問是否允許 PlainShelf 接受連入連線。請只在私人網路上允許。'
+    },
     readerLaunch: {
       title: '閱讀開啟方式',
       label: '按下「閱讀」時',
@@ -350,6 +392,7 @@ const zhHant = {
       version: '版本',
       repository: '程式碼倉庫',
       thirdPartyFonts: '第三方字型授權',
+      thirdPartySoftware: '第三方軟體授權',
       fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · 套件版本 5.3.0',
       source: '來源',
       license: '完整授權條款',
@@ -406,9 +449,20 @@ const zhHant = {
       addShelfLocationNewHelp: 'PlainShelf 會在自己的書架目錄下建立資料夾，不會動到硬碟上的其他東西。',
       addShelfLocationExisting: '使用我已經有的資料夾',
       addShelfLocationExistingHelp: '讓 PlainShelf 指向你自己選定的資料夾，硬碟上任何位置都可以，直接照原樣開啟。',
+      qrConfirm: '匯入書架',
+      qrTitle: '貼上區網分享 QR 內容',
+      qrPaste: 'QR JSON 內容',
+      qrPreview: '預覽書架',
+      qrHelp: '先預覽，再確認新增所有列出的唯讀 PlainShelf 來源。失敗項目不儲存；已存在的來源與 token 保持原樣。',
+      qrAdded: '已新增',
+      qrExists: '已存在，已略過',
+      qrFailed: '無法匯入此書架',
+      addShelfLocationRemote: '讀取其他裝置上的書架',
+      addShelfLocationRemoteHelp: '另一台 PlainShelf 的區網分享，或 NAS 這類 WebDAV 伺服器。以唯讀方式開啟；token 存在系統鑰匙圈。',
       addShelfDefaultPath: '將建立的資料夾：',
       addShelfDirectoryNotAbsolute: '請輸入從磁碟根目錄開始的完整路徑。',
       removeConfirmYes: '刪除書架',
+      virtualOpenFailed: '無法開啟此虛擬書架。請確認連線並解鎖鑰匙圈後重試。',
       openFolder: '開啟資料夾',
       openFolderFailed: '無法開啟書架資料夾',
       modify: '修改',
@@ -664,7 +718,6 @@ const zhHant = {
     folderPath: '書籍所在資料夾',
     ratingLabel: '評分 {rating} 顆星',
     emptyDetails: '這本書目前沒有其他詳細資料。',
-    newerSchemaNotice: '這本書是由較新版本的 PlainShelf 寫成的，這個版本讀不到的部分不會顯示在這裡。',
     sections: {
       publication: '出版資訊',
       content: '內容資訊',
@@ -1058,12 +1111,36 @@ const zhHant = {
       lastSection: '已是最後一章'
     }
   },
+  shelfSource: {
+    kindLabel: '來源',
+    plainshelf: '另一台 PlainShelf',
+    webdav: 'WebDAV',
+    urlLabel: '書架網址',
+    urlPlaceholder: 'http://192.168.1.20:20001/dav/default_shelf/',
+    urlHint: '書架資料夾的網址，也就是含有 books/ 的那一層。另一台 PlainShelf 的區網分享會顯示這個網址。',
+    tokenLabel: 'Token',
+    usernameLabel: '帳號（選填）',
+    passwordLabel: '密碼或 token（選填）',
+    secretHint: '存在這台裝置的安全儲存區，不會寫進書架清單。',
+    check: '檢查書架',
+    checking: '檢查中…',
+    shelfFound: '找到 {count} 本書。',
+    unauthorized: 'token 錯誤：來源拒絕了這組憑證。',
+    unavailable: '連不上這個來源。',
+    notAShelf: '這個網址沒有 books/ 資料夾，不是 PlainShelf 書架。',
+    checkRequired: '請先檢查書架再儲存。',
+    readOnlyHint: '以唯讀方式開啟。可以把書下載到這台裝置離線閱讀。'
+  },
   mobileConnect: {
     title: '連線到 PlainShelf',
-    description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。本 App 為唯讀，不會變更你的書庫。',
+    description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。App 不會變更伺服器或 pCloud 上的書庫；本機書庫存在這台裝置上，可以編輯。',
     modeLabel: '書庫來源',
     modeServer: 'PlainShelf 伺服器',
     modePCloud: 'pCloud',
+    modeLocal: '本機書庫',
+    modeRemote: '其他裝置',
+    localHint: '存在這個 App 自己的儲存空間，離線也能用。解除安裝 App 或移除書庫時，裡面的書會一起刪除。',
+    localNameRequired: '請先為書庫命名。',
     pcloud: {
       clientIdLabel: 'pCloud 應用程式金鑰',
       clientIdPlaceholder: '你的 app key',
@@ -1129,8 +1206,39 @@ const zhHant = {
     use: '改用這個書架',
     removeTitle: '要移除「{name}」嗎？',
     removeDescription: '從這個書架下載的書會從裝置上刪除。閱讀進度與紀錄會保留，日後重新加入時可以接續。',
+    removeLocalDescription: '這個書庫裡的所有書都會從裝置上永久刪除，無法復原。',
+    localDetail: '存在這台裝置上',
+    export: '匯出',
+    exported: '已匯出。解壓縮後，桌面版或 server 可以直接當書庫開啟。',
+    lastExport: '上次匯出：{time}',
+    neverExported: '尚未備份',
+    localUninstallWarning: '本機書庫會跟著 App 一起刪除。解除安裝前請先匯出成 zip，或在系統詢問時選擇保留 App 資料。',
+    restoreTitle: '要從備份還原嗎？',
+    restoreDescription: '如果你之前把本機書庫匯出成 zip，可以把它還原到這台裝置。',
+    restoreZip: '從備份 zip 還原',
+    restoreSkip: '略過',
+    importZip: '從 zip 匯入',
+    imported: '已匯入成新的書庫「{name}」。',
+    importedName: '匯入的書庫',
+    errorBusy: '背景還有工作在進行，請稍後再試。',
+    errorNotShelf: '這個 zip 不是 PlainShelf 書庫：裡面沒有 books/ 資料夾。',
+    errorUnsafePath: '這個 zip 含有指向書庫外的路徑，所以沒有匯入。',
+    errorTooLarge: '這個 zip 本身或解開後超過 512 MiB 的匯入上限。',
+    errorNotZip: '這個檔案不是 zip。',
     removeConfirm: '移除',
-    removeCancel: '先留著'
+    removeCancel: '先留著',
+    lanShare: {
+      title: '區網分享',
+      description:
+        '讓同一個 Wi-Fi 上的其他裝置用下方的網址和存取權杖唯讀讀取勾選的書庫。分享期間通知列會一直顯示；{minutes} 分鐘沒有讀取或網路變更時會自動停止。關閉時 App 不開任何網路連接埠。',
+      shelvesLabel: '要分享的書庫',
+      start: '開始分享',
+      stop: '停止分享',
+      urlLabel: '網址',
+      tokenLabel: '存取權杖',
+      ended: '分享已停止：{reason}',
+      noWifi: '請先連上 Wi-Fi：只能在區網內分享。'
+    }
   },
   libraryForms: {
     editBook: {
@@ -1261,8 +1369,6 @@ const zhHant = {
       delete: '刪除',
       deleteLabel: '刪除來源 {id}'
     },
-    // 沒有記錄格式的來源屬於 source format 出現之前的舊資料。
-    // 其他情況徽章直接顯示大寫的格式名，不需要字典條目。
     format: {
       legacy: '舊格式'
     },
@@ -1300,14 +1406,12 @@ const zhHant = {
         noMatches: '沒有符合的結果。',
         matchOrdinal: '第 {ordinal} 個，共 {total} 個。',
         matchCount: '共 {total} 個符合。',
-        // 中文沒有單複數變化，兩個形式的譯文相同；分成兩個 key 是為了英文。
         replacedOne: '已取代 1 處。',
         replacedMany: '已取代 {count} 處。',
         replacedOneNoneRemain: '已取代 1 處，沒有其他符合的結果。',
         replacedOneThenMatch: '已取代 1 處。第 {ordinal} 個，共 {total} 個。',
         replacedOneThenCount: '已取代 1 處。共 {total} 個符合。',
         invalidRegexp: '這個正規表示式不合法。',
-        // 由編輯器自己的 live region 唸出，與上方看得見的狀態列各自獨立。
         announce: {
           currentMatch: '目前的符合項目',
           onLine: '位於行號',

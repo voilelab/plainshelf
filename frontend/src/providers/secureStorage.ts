@@ -37,12 +37,6 @@ const webSecureStorage: SecureStoragePlugin = {
   }
 };
 
-/**
- * Android resolves the native plugin, whose values are encrypted with a
- * non-exportable Keystore key. The Preferences-backed web implementation is
- * only for the browser mobile-preview harness; its separate key namespace
- * keeps secure-storage emulation distinct from legacy-token migration data.
- */
 export const SecureStorage = registerPlugin<SecureStoragePlugin>('PlainShelfSecureStorage', {
   web: webSecureStorage
 });

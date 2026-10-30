@@ -1,14 +1,7 @@
 name: Nightly
 
-# PSW-77: the second tier of the E2E split. `ci.yml` runs the `@smoke` subset on
-# every pull request, so merging is not gated on the whole suite; the whole
-# suite runs here instead, once a day on `dev`. What it gates is the release,
-# not the merge — a red night is a bug to fix before the next tag, and it opens
-# an issue rather than blocking someone's pull request.
 on:
   schedule:
-    # 03:00 UTC, i.e. 11:00 in the maintainer's timezone: a failure is waiting
-    # at the start of the day rather than discovered by the next pull request.
     - cron: '0 3 * * *'
   workflow_dispatch:
 
@@ -20,22 +13,21 @@ concurrency:
   group: nightly
   cancel-in-progress: false
 
+env:
+  NPM_CONFIG_PREFER_OFFLINE: "true"
+  NPM_CONFIG_FETCH_TIMEOUT: "30000"
+  NPM_CONFIG_FETCH_RETRIES: "2"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "10000"
+  NPM_CONFIG_LOGLEVEL: http
+
 jobs:
   e2e-full:
     name: Full E2E suite
-    runs-on: ubuntu-latest
-    # A fork's schedule would run against its own dev and open issues there.
+    runs-on: ubuntu-24.04
     if: github.repository == 'voilelab/plainshelf'
-    # No measured baseline for this shape yet: the whole suite took 2:02 / 2:04
-    # / 2:03 on a 4-core container at 2 workers, and the rest is the frontend
-    # build plus a possible browser-cache miss. Re-measure over three nights and
-    # tighten this the way docs/development/testing-levels.md describes.
     timeout-minutes: 25
     steps:
-      # A schedule always tests `dev`. A manual dispatch tests the ref it was
-      # dispatched from, so a change to the suite itself — a browser added, a
-      # spec moved between tiers — can be run once before it lands on `dev`
-      # instead of being discovered by the night after the merge.
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -46,7 +38,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
 
       - name: Setup Go
         uses: actions/setup-go@v7
@@ -54,10 +48,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # Nothing to download from `ci.yml` here: this workflow does not run
-      # behind it, so it builds the bundle the Go server embeds itself.
       - name: Install frontend dependencies
         working-directory: frontend
+        timeout-minutes: 3
         run: npm ci
 
       - name: Build frontend
@@ -66,12 +59,9 @@ jobs:
 
       - name: Install E2E dependencies
         working-directory: e2e
+        timeout-minutes: 3
         run: npm ci
 
-      # PSW-111: chromium is what ships on Windows and Android; webkit is the
-      # closest runnable stand-in for the WKWebView inside the macOS cask. The
-      # pull request gate still installs chromium alone — see
-      # `e2e/playwright.config.ts` for why firefox is not here.
       - name: Install Playwright browsers
         working-directory: e2e
         run: npx playwright install --with-deps chromium webkit
@@ -91,10 +81,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      # One issue, reopened by comment rather than duplicated: a suite that
-      # stays red for a week should be one thread, not seven.
-      # Only the scheduled run files an issue: a manual dispatch has someone
-      # watching it, and on a branch the issue's own title would be wrong.
       - name: Report the failure
         if: failure() && github.event_name == 'schedule'
         env:
@@ -103,10 +89,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          # Not `github.sha`: on a manual dispatch that is the ref it was
-          # dispatched from, and on a schedule it is the default branch as of
-          # the trigger rather than the checkout. The suite ran against what
-          # `Checkout dev` actually got, so report that.
+          # GitHub Actions github.sha describes the triggering event; actions/checkout@v7 can check out a different ref (Events that trigger workflows; checkout README).
           commit_sha=$(git rev-parse HEAD)
           title='Nightly E2E suite is failing on dev'
           body=$(printf '%s\n' \
@@ -126,23 +109,16 @@ jobs:
             gh issue create --title "$title" --body "$body"
           fi
 
-  # The public wasm demo runs in its visitors' browsers, so unlike the app's
-  # E2E matrix this one includes firefox. Chromium is already the PR gate in
-  # ci.yml; here are the other two engines a visitor is likely to bring.
   wasm-demo-browsers:
     name: Wasm demo in ${{ matrix.browser }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.repository == 'voilelab/plainshelf'
-    # Provisional, with no measured nights: a frontend build, a browser install
-    # and a smoke run that takes about 10s on chromium.
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         browser: [firefox, webkit]
         include:
-          # Playwright's Linux WebKit has no OPFS (Safari does), so there the
-          # demo runs in memory; smoke.mjs checks that fallback instead.
           - browser: webkit
             expect-memory: '1'
     steps:
@@ -168,6 +144,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
+        timeout-minutes: 3
         run: npm ci
 
       - name: Build frontend
@@ -176,6 +153,7 @@ jobs:
 
       - name: Install E2E dependencies
         working-directory: e2e
+        timeout-minutes: 3
         run: npm ci
 
       - name: Install Playwright browser
@@ -200,7 +178,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      # One issue per browser, reopened by comment, as for the E2E suite above.
       - name: Report the failure
         if: failure() && github.event_name == 'schedule'
         env:

@@ -44,11 +44,6 @@ import {
 } from 'reka-ui';
 import { useI18n } from '@/i18n';
 
-// The UI locale is a device-local i18n singleton, not a server setting, so this
-// panel talks to useI18n directly rather than routing through the settings form
-// the other panels share. That is also why it stays outside EDITABLE_TABS: it
-// must remain reachable on the read-only mobile shell, which is now the only
-// place a mobile user can change the language after it left the top bar.
 const { locale, setLocale, supportedLocales, t } = useI18n();
 
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
@@ -56,9 +51,7 @@ const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en'
   'zh-Hant': 'language.zhHant'
 };
 
-// Rendered into the SelectValue slot so the closed trigger follows a locale
-// change: reka-ui snapshots each SelectItemText at mount and does not refresh
-// the trigger label on a runtime i18n switch.
+// Reka UI 2.10.5 SelectItemText registers textContent on mount without refreshing the registry when locale text changes.
 const currentLabel = computed(() => t(localeLabelKeyMap[locale.value]));
 
 function onSelect(value: AcceptableValue): void {

@@ -10,9 +10,6 @@ const loaded = ref(false);
 const error = ref('');
 const selectedShelfID = ref('');
 
-// Deliberately not the shared `shelfInitRetry` budget: this is a fast startup
-// poll for the shelf list, not a wait for the shelf's initial scan, and
-// borrowing that budget would stall the sidebar's first paint.
 const STARTUP_MAX_RETRIES = 20;
 const STARTUP_RETRY_DELAY_MS = 300;
 
@@ -41,11 +38,6 @@ async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Pro
     selectedShelfID.value = ensureActiveShelf(nextShelves);
     loaded.value = true;
   } catch (err) {
-    // A backend whose shelf choice is device-local already knows which one it is
-    // pointed at, so fall back to it and keep offline-cached books reachable.
-    // The connect page opts out: while validating a newly typed server, a failed
-    // fetch must not resurrect the previous server's shelf — and asking for the
-    // provider is what creates it on first use.
     const persistedShelfID = allowPersistedFallback
       ? (getBookshelfProvider().getPersistedShelfID?.() ?? '')
       : '';
@@ -63,15 +55,6 @@ async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Pro
 
 let pendingLoad: Promise<void> | null = null;
 
-/**
- * Loads the shelf list once for the page. Two independent places want it on a
- * settings load, and a child's onMounted runs before its parent's, so whether
- * the second saw `loaded` set came down to which round-trip finished first.
- * Sharing the in-flight promise settles it.
- *
- * fetchShelves stays the explicit refresh, for when a shelf was just added or
- * removed and the caller needs the new list rather than the one already loading.
- */
 async function ensureShelvesLoaded(): Promise<void> {
   if (loaded.value) {
     return;
@@ -82,25 +65,10 @@ async function ensureShelvesLoaded(): Promise<void> {
   return pendingLoad;
 }
 
-/**
- * Derived from the list rather than fetched per shelf: `GET /api/shelves`
- * already reports every shelf's state, so switching needs no request and the
- * answer is never a round-trip behind the selection.
- *
- * False until the list loads, and false for a shelf it does not contain. The UI
- * then offers writes and the server still answers 409, which is the safe way
- * round: a shelf wrongly treated as read-only would hide controls that work.
- */
 const selectedShelfReadOnly = computed(
   () => shelves.value.find((shelf) => shelf.id === selectedShelfID.value)?.readOnly === true
 );
 
-/**
- * The shelves a cross-shelf transfer may land in. The selected one is out
- * because the server rejects one shelf as both ends; a read-only one is out
- * because the transfer writes its target whichever mode was picked. The source
- * being read-only is `selectedShelfReadOnly` above.
- */
 const transferDestinationShelves = computed(() =>
   shelves.value.filter((shelf) => shelf.id !== selectedShelfID.value && !shelf.readOnly)
 );
@@ -118,6 +86,7 @@ export function useShelvesStore() {
     error,
     selectedShelfID,
     selectedShelfReadOnly,
+    selectedShelf: computed(() => shelves.value.find((shelf) => shelf.id === selectedShelfID.value)),
     transferDestinationShelves,
     fetchShelves,
     ensureShelvesLoaded,

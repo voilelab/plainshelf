@@ -13,11 +13,8 @@ type DailyFileWriter struct {
 	dir    string
 	prefix string
 
-	// retentionDays is the age past which a rotated file is removed, and
-	// retention is the runtime value that overrides it when one is shared with
-	// this writer. Zero keeps every file.
-	retentionDays int
-	retention     *Retention
+	configuredRetentionDays int
+	runtimeRetention        *Retention
 
 	curDate string
 	file    *os.File
@@ -32,10 +29,10 @@ func NewDailyFileWriter(conf LogFileConf) *DailyFileWriter {
 	retentionDays := max(conf.ResolvedRetentionDays(), 0)
 
 	return &DailyFileWriter{
-		dir:           conf.Dir,
-		prefix:        prefix,
-		retentionDays: retentionDays,
-		retention:     conf.Retention,
+		dir:                     conf.Dir,
+		prefix:                  prefix,
+		configuredRetentionDays: retentionDays,
+		runtimeRetention:        conf.Retention,
 	}
 }
 
@@ -74,23 +71,13 @@ func (w *DailyFileWriter) rotate(date string) error {
 		_ = oldFile.Close()
 	}
 
-	// Expiring on rotation rather than on a timer keeps disk activity at zero
-	// while nobody is using the server, and the first Write after a restart
-	// rotates, so a long-idle instance still cleans up when it wakes.
-	w.removeExpired(date)
+	w.removeExpiredLocked(date)
 
 	return nil
 }
 
-// removeExpired deletes rotated files older than the retention window.
-//
-// It is best-effort and reports nothing: this writer is the sink the logger
-// itself writes to, so a failure here has nowhere to be logged. A file that
-// cannot be removed is simply retried on the next rotation.
-func (w *DailyFileWriter) removeExpired(date string) {
-	// Read while holding the writer lock, which is why Retention holds a value
-	// rather than calling back: anything that logged here would re-enter Write.
-	retentionDays := w.retention.Days(w.retentionDays)
+func (w *DailyFileWriter) removeExpiredLocked(date string) {
+	retentionDays := w.runtimeRetention.Days(w.configuredRetentionDays)
 	if retentionDays <= 0 {
 		return
 	}
@@ -101,9 +88,6 @@ func (w *DailyFileWriter) removeExpired(date string) {
 	}
 	cutoff := today.AddDate(0, 0, -retentionDays)
 
-	// Listing through listRotatedLogFiles is deliberate: deletion has to agree
-	// with what the log API calls a log file, or a hand-rolled match here could
-	// delete something the server never listed.
 	entries, err := listRotatedLogFiles("", LogFileConf{
 		Type:   LogFileTypeNameRotate,
 		Dir:    w.dir,

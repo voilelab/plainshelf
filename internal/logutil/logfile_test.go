@@ -19,13 +19,10 @@ func TestNewLogFileRejectsRotateWithoutDir(t *testing.T) {
 				lf.Close()
 				t.Fatal("NewLogFile: expected an error for filename_rotate without dir")
 			}
-			// The operator has to be able to tell which field is wrong.
 			if !strings.Contains(err.Error(), "dir") {
 				t.Fatalf("NewLogFile error = %q, want it to name dir", err)
 			}
 
-			// The same error has to reach startup, which builds its loggers
-			// through NewLogger and aborts on its error.
 			if _, err := NewLogger(&LogConf{LogFile: LogFileConf{Type: LogFileTypeNameRotate, Dir: dir}}); err == nil {
 				t.Fatal("NewLogger: expected an error for filename_rotate without dir")
 			}
@@ -33,7 +30,7 @@ func TestNewLogFileRejectsRotateWithoutDir(t *testing.T) {
 	}
 }
 
-func TestNewLogFileRotateWithDirWritesAndLists(t *testing.T) {
+func TestLogFileRotateWithDirWritesAndLists(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "logs")
 	conf := LogFileConf{Type: LogFileTypeNameRotate, Dir: dir, Prefix: "app"}
 
@@ -46,7 +43,6 @@ func TestNewLogFileRotateWithDirWritesAndLists(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	// The directory is created on demand and the file carries today's stamp.
 	want := "app-" + time.Now().Format(logDateLayout) + ".log"
 	if _, err := os.Stat(filepath.Join(dir, want)); err != nil {
 		t.Fatalf("stat %s: %v", want, err)
@@ -61,8 +57,6 @@ func TestNewLogFileRotateWithDirWritesAndLists(t *testing.T) {
 	}
 }
 
-// TestNewLogFileLeavesOtherTypesAlone pins the reverse condition: only
-// filename_rotate gained a guard.
 func TestNewLogFileLeavesOtherTypesAlone(t *testing.T) {
 	for _, typ := range []LogFileType{LogFileTypeDefault, LogFileTypeStderr, LogFileTypeStdout, LogFileTypeNone} {
 		lf, err := NewLogFile(LogFileConf{Type: typ})
@@ -74,7 +68,6 @@ func TestNewLogFileLeavesOtherTypesAlone(t *testing.T) {
 		}
 	}
 
-	// filename with an empty filename still lists nothing rather than failing.
 	entries, err := listLogFilesForSource("app", LogFileConf{Type: LogFileTypeName})
 	if err != nil {
 		t.Fatalf("listLogFilesForSource: %v", err)

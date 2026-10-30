@@ -5,8 +5,10 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -88,7 +90,7 @@ func TestUpdateSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a4", srcFile, BookFormatText, "")
+	source, err := createSource(rootFS, "test-source", "20260315-a4", srcFile, BookFormatText, "")
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
@@ -182,7 +184,7 @@ func TestCreateRootSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a3", srcFile, BookFormatText, "")
+	source, err := createSource(rootFS, "test-source", "20260315-a3", srcFile, BookFormatText, "")
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
@@ -205,16 +207,13 @@ func TestCreateRootSource(t *testing.T) {
 	}
 }
 
-func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
+func TestLegacySourceSaveKeepsFormatOwner(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "legacy-book", "Legacy")
 	source, err := book.NewSource(bytes.NewBufferString("before"))
 	if err != nil {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
-	// Opening a pre-schema-version source decodes only the fields this build
-	// models, so a rewrite neither resurrects the unknown ones nor upgrades the
-	// source by adding format/schema_version.
 	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","legacy_extra":"ignored"}`
 	if err := rootFS.WriteFile(metaPath, []byte(legacy)); err != nil {
 		t.Fatalf("write legacy meta: %v", err)
@@ -254,7 +253,7 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 	}
 }
 
-func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
+func TestNewerSourceSchemaIsReadOnly(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "future-book", "Future source")
 	source, err := book.NewSource(bytes.NewBufferString("original"))
 	if err != nil {
@@ -300,7 +299,6 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 		t.Fatal("a new source was written without an md5_hash")
 	}
 
-	// Edited outside PlainShelf: the content moves, meta.json does not.
 	if err := rootFS.WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("changed\n")); err != nil {
 		t.Fatalf("replace source content: %v", err)
 	}
@@ -323,7 +321,6 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 		t.Fatalf("md5_hash = %q after repair, want %q", got, edited)
 	}
 
-	// The write reached meta.json, not just the in-memory source.
 	reopened, err := book.GetSource(source.GetMeta().ID)
 	if err != nil {
 		t.Fatalf("GetSource: %v", err)
@@ -332,7 +329,6 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 		t.Fatalf("md5_hash = %q after reopening, want the persisted %q", got, edited)
 	}
 
-	// Agreeing hashes are a no-op rather than a second write.
 	again, err := reopened.RepairContentHash(edited)
 	if err != nil {
 		t.Fatalf("RepairContentHash (agreeing): %v", err)
@@ -342,7 +338,6 @@ func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 	}
 }
 
-// contentMD5 is the hash meta.json should be carrying for a source.
 func contentMD5(t *testing.T, source *Source) string {
 	t.Helper()
 	f, err := source.Open()
@@ -357,8 +352,6 @@ func contentMD5(t *testing.T, source *Source) string {
 	return sum
 }
 
-// json/v2 leaves &, < and > alone where v1 escaped them, in a file whose point
-// is that a text editor shows what you typed.
 func TestCreateSourceWritesCommentLiterally(t *testing.T) {
 	const comment = `imported from "A & B" <draft>`
 
@@ -370,7 +363,7 @@ func TestCreateSourceWritesCommentLiterally(t *testing.T) {
 	defer tmpRoot.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, newLoggerForTest(), "commented-source", "20260315-a5",
+	source, err := createSource(rootFS, "commented-source", "20260315-a5",
 		bytes.NewBufferString("body"), BookFormatText, comment)
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
@@ -385,5 +378,84 @@ func TestCreateSourceWritesCommentLiterally(t *testing.T) {
 	}
 	if got := source.GetMeta().Comment; got != comment {
 		t.Errorf("Comment did not round-trip: got %q, want %q", got, comment)
+	}
+}
+
+type failSourceMetaRenameFS struct {
+	fsutil.FS
+	metaPath string
+}
+
+func (f failSourceMetaRenameFS) Rename(oldPath, newPath string) error {
+	if newPath == f.metaPath {
+		return errInjectedWrite
+	}
+	return f.FS.Rename(oldPath, newPath)
+}
+
+func TestSourceMetadataWriteFailure(t *testing.T) {
+	for _, mutation := range []struct {
+		name string
+		run  func(*Source) error
+	}{
+		{"comment", func(s *Source) error { return s.UpdateComment("changed") }},
+		{"hash repair", func(s *Source) error { _, err := s.RepairContentHash("repaired"); return err }},
+		{"content statistics", func(s *Source) error { return s.RefreshContentMetadata() }},
+	} {
+		for _, failure := range []string{"write", "rename"} {
+			t.Run(mutation.name+"/"+failure, func(t *testing.T) {
+				book, root, _ := newTestBook(t, "metadata-write", "Metadata write")
+				source, err := book.NewSource(strings.NewReader("original"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				metaPath := path.Join(source.FolderPath(), SourceMetaFile)
+				before := source.GetMeta()
+				beforeDisk, err := fs.ReadFile(root, metaPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := root.WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("longer\ncontent")); err != nil {
+					t.Fatal(err)
+				}
+				if failure == "write" {
+					source.root = &failWriteFS{FS: root, failOn: func(name string) bool { return strings.HasPrefix(name, metaPath+".") }}
+				} else {
+					source.root = failSourceMetaRenameFS{FS: root, metaPath: metaPath}
+				}
+				if err := mutation.run(source); !errors.Is(err, errInjectedWrite) {
+					t.Fatalf("mutation error = %v, want injected failure", err)
+				}
+				if got := source.GetMeta(); !reflect.DeepEqual(got, before) {
+					t.Fatalf("failed write published metadata: got %+v, want %+v", got, before)
+				}
+				afterDisk, err := fs.ReadFile(root, metaPath)
+				if err != nil || !bytes.Equal(afterDisk, beforeDisk) {
+					t.Fatalf("failed write changed persisted metadata: %s, %v", afterDisk, err)
+				}
+				source.root = root
+				if err := mutation.run(source); err != nil {
+					t.Fatalf("retry mutation: %v", err)
+				}
+				if reflect.DeepEqual(source.GetMeta(), before) {
+					t.Fatal("successful retry did not publish metadata")
+				}
+				reopened, err := openSource(root, source.FolderPath())
+				if err != nil {
+					t.Fatal(err)
+				}
+				published, err := json.Marshal(source.GetMeta())
+				if err != nil {
+					t.Fatal(err)
+				}
+				persisted, err := json.Marshal(reopened.GetMeta())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(published, persisted) {
+					t.Fatalf("published metadata %s differs from persisted %s", published, persisted)
+				}
+			})
+		}
 	}
 }

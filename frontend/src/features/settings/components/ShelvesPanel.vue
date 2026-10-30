@@ -49,7 +49,11 @@
         />
       </div>
       <ScanIntervalField v-model="modifyShelfScanInterval" :disabled="modifyingShelf" />
-      <ShelfReadOnlyField v-model="modifyShelfReadOnly" :disabled="modifyingShelf" />
+      <ShelfReadOnlyField
+        v-if="!modifyShelfIsVirtual"
+        v-model="modifyShelfReadOnly"
+        :disabled="modifyingShelf || modifyShelfIsVirtual"
+      />
       <details class="shelf-advanced">
         <summary class="shelf-advanced-summary">
           {{ t('settings.shelves.advancedSettings') }}
@@ -70,7 +74,7 @@
   <ConfirmModal
     :open="showAddShelfModal"
     :title="t('settings.shelves.addShelfTitle')"
-    :confirm-text="t('settings.shelves.addShelfSubmit')"
+    :confirm-text="newShelfLocationMode === 'qr' ? t('settings.shelves.qrConfirm') : t('settings.shelves.addShelfSubmit')"
     :cancel-text="t('common.cancel')"
     :busy-text="t('settings.shelves.addShelfAdding')"
     :busy="addingShelf"
@@ -81,7 +85,7 @@
     @confirm="onSubmitAddShelf"
   >
     <form class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
-      <div class="shelf-field">
+      <div v-if="newShelfLocationMode !== 'qr'" class="shelf-field">
         <label class="shelf-field-label" :for="addShelfNameId">
           {{ t('settings.shelves.addShelfNameLabel') }}
         </label>
@@ -95,10 +99,6 @@
           :disabled="addingShelf"
         />
       </div>
-      <!-- The two ways to place a shelf answer the question the single path box
-           left the user to guess: whether PlainShelf is about to create a folder
-           on their disk or open one they already have. Only the second branch
-           can be read-only, so the toggle lives inside it. -->
       <RadioGroupRoot
         v-model="newShelfLocationMode"
         class="shelf-location-modes"
@@ -125,7 +125,115 @@
             }}</span>
           </span>
         </RadioGroupItem>
+        <RadioGroupItem class="shelf-location-mode" value="remote" data-testid="shelf-location-remote">
+          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
+          <span class="shelf-location-copy">
+            <strong>{{ t('settings.shelves.addShelfLocationRemote') }}</strong>
+            <span class="shelf-add-help">{{ t('settings.shelves.addShelfLocationRemoteHelp') }}</span>
+          </span>
+        </RadioGroupItem>
+        <RadioGroupItem
+          v-if="getPlatformCapabilities().shelves?.previewLANShareQR"
+          class="shelf-location-mode"
+          value="qr"
+          data-testid="shelf-location-qr"
+        >
+          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
+          <span class="shelf-location-copy"><strong>{{ t('settings.shelves.qrTitle') }}</strong></span>
+        </RadioGroupItem>
       </RadioGroupRoot>
+      <template v-if="newShelfLocationMode === 'qr'">
+        <label class="shelf-field-label" :for="addShelfQRId">{{ t('settings.shelves.qrPaste') }}</label>
+        <textarea
+          :id="addShelfQRId"
+          v-model="qrText"
+          class="shelf-add-input"
+          :disabled="addingShelf"
+          spellcheck="false"
+          autocomplete="off"
+          data-testid="shelf-qr-json"
+        />
+        <button
+          type="button"
+          class="shelf-browse-btn"
+          :disabled="addingShelf || !qrText.trim()"
+          @click="previewQR"
+        >
+          {{ t('settings.shelves.qrPreview') }}
+        </button>
+        <p class="shelf-add-help">{{ t('settings.shelves.qrHelp') }}</p>
+        <ul v-if="qrShelves.length" data-testid="shelf-qr-preview">
+          <li v-for="shelf in qrShelves" :key="shelf.id">{{ shelf.name }} — {{ shelf.url }}</li>
+        </ul>
+        <ul v-if="qrResults.length" role="status" data-testid="shelf-qr-results">
+          <li v-for="(result, index) in qrResults" :key="index">{{ result.name }} — {{ qrStatus(result.status) }}</li>
+        </ul>
+      </template>
+
+      <template v-if="newShelfLocationMode === 'remote'">
+        <div class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfSourceKindId">
+            {{ t('shelfSource.kindLabel') }}
+          </label>
+          <select
+            :id="addShelfSourceKindId"
+            v-model="newShelfSourceKind"
+            class="shelf-add-input"
+            :disabled="addingShelf"
+            data-testid="shelf-source-kind"
+          >
+            <option value="plainshelf">{{ t('shelfSource.plainshelf') }}</option>
+            <option value="webdav">{{ t('shelfSource.webdav') }}</option>
+          </select>
+        </div>
+        <div class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfSourceURLId">
+            {{ t('shelfSource.urlLabel') }}
+          </label>
+          <input
+            :id="addShelfSourceURLId"
+            v-model="newShelfSourceURL"
+            class="shelf-add-input"
+            type="url"
+            spellcheck="false"
+            :placeholder="t('shelfSource.urlPlaceholder')"
+            :disabled="addingShelf"
+            data-testid="shelf-source-url"
+          />
+          <span class="shelf-add-help">{{ t('shelfSource.urlHint') }}</span>
+        </div>
+        <div v-if="newShelfSourceKind === 'webdav'" class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfSourceUsernameId">
+            {{ t('shelfSource.usernameLabel') }}
+          </label>
+          <input
+            :id="addShelfSourceUsernameId"
+            v-model="newShelfSourceUsername"
+            class="shelf-add-input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            :disabled="addingShelf"
+          />
+        </div>
+        <div class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfSourceSecretId">
+            {{
+              newShelfSourceKind === 'webdav' ? t('shelfSource.passwordLabel') : t('shelfSource.tokenLabel')
+            }}
+          </label>
+          <input
+            :id="addShelfSourceSecretId"
+            v-model="newShelfSourceSecret"
+            class="shelf-add-input"
+            type="password"
+            autocomplete="off"
+            :disabled="addingShelf"
+            data-testid="shelf-source-secret"
+          />
+          <span class="shelf-add-help">{{ t('shelfSource.secretHint') }}</span>
+        </div>
+      </template>
 
       <template v-if="newShelfLocationMode === 'existing'">
         <div class="shelf-field">
@@ -163,10 +271,7 @@
         <ShelfReadOnlyField v-model="newShelfReadOnly" :disabled="addingShelf" />
       </template>
 
-      <!-- Previews what submitting would create: on the default branch the
-           folder that is actually sent as lib_root, and either way the id it
-           would be frozen with. -->
-      <p v-if="newShelfIDPreview" class="shelf-add-help shelf-id-preview">
+      <p v-if="newShelfLocationMode !== 'qr' && newShelfIDPreview" class="shelf-add-help shelf-id-preview">
         <span
           v-if="newShelfLocationMode === 'new' && newShelfEffectiveDirectory"
           class="shelf-preview-line"
@@ -215,9 +320,6 @@
 
     <div v-if="shelvesLoading" class="setting-description">{{ t('layout.shelf.loading') }}</div>
     <template v-else>
-      <!-- With no shelf yet, creating one is the only thing this section can
-           do, so it is the section's primary button rather than a secondary
-           toggle under a table that is not there. -->
       <div v-if="shelves.length === 0" class="shelf-empty">
         <p class="setting-description">{{ t('settings.shelves.empty') }}</p>
         <button
@@ -240,21 +342,44 @@
         </thead>
         <tbody>
           <tr v-for="shelf in shelves" :key="shelf.id">
-            <td>{{ shelf.name }}</td>
+            <td>
+              {{ shelf.name }}
+              <template v-if="shelf.source">
+                <p class="setting-description">{{ shelf.source }} · {{ shelf.url }}</p>
+                <p
+                  v-if="shelf.open_error"
+                  class="settings-message settings-message-error"
+                  role="alert"
+                >
+                  {{ t('settings.shelves.virtualOpenFailed') }}
+                </p>
+              </template>
+            </td>
             <td class="shelf-id-cell">{{ shelf.id }}</td>
             <td v-if="isDesktopEnv" class="shelf-action-cell">
               <button
                 type="button"
                 class="shelf-modify-btn"
-                :disabled="removingShelfIDs.has(shelf.id)"
+                :disabled="removingShelfIDs.has(shelf.id) || retryingShelfIDs.has(shelf.id)"
+                v-if="!shelf.source"
                 @click="openShelfFolder(shelf.id)"
               >
                 {{ t('settings.shelves.openFolder') }}
               </button>
               <button
+                v-if="shelf.open_error"
                 type="button"
                 class="shelf-modify-btn"
-                :disabled="removingShelfIDs.has(shelf.id)"
+                :disabled="removingShelfIDs.has(shelf.id) || retryingShelfIDs.has(shelf.id)"
+                @click="retryShelf(shelf.id)"
+              >
+                {{ t('common.retry') }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="shelf-modify-btn"
+                :disabled="removingShelfIDs.has(shelf.id) || retryingShelfIDs.has(shelf.id)"
                 @click="requestModifyShelf(shelf)"
               >
                 {{ t('settings.shelves.modify') }}
@@ -262,7 +387,7 @@
               <button
                 type="button"
                 class="shelf-remove-btn"
-                :disabled="removingShelfIDs.has(shelf.id)"
+                :disabled="removingShelfIDs.has(shelf.id) || retryingShelfIDs.has(shelf.id)"
                 @click="requestRemoveShelf(shelf)"
               >
                 {{ t('settings.shelves.remove') }}
@@ -285,12 +410,6 @@
     </div>
   </section>
 
-  <!-- The export is written by whatever serves these shelves, so the panel
-       belongs to the server and desktop shells and not to the mobile one,
-       which is the client that reads the file. serverSettingsEditable is that
-       platform question already: it is false on the mobile shell. It is
-       deliberately not the server's own read_only mode, which leaves these
-       panels rendered and disabled rather than dropping them. -->
   <section v-if="serverSettingsEditable" class="panel settings-group">
     <h3>{{ t('settings.bookCache.title') }}</h3>
     <p class="setting-description">{{ t('settings.bookCache.description') }}</p>
@@ -326,18 +445,22 @@ import ShelfReadOnlyField from '@/features/settings/components/ShelfReadOnlyFiel
 import { exportShelfBookCache } from '@/api/shelves';
 import { useI18n } from '@/i18n';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { isMobileRuntime, isWailsRuntime } from '@/providers';
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
+import { isMobileRuntime } from '@/providers';
 import { useShelfManagement } from '@/features/settings/composables/useShelfManagement';
 
 const { t } = useI18n();
 const { serverSettingsEditable } = useWriteAccess();
-const isDesktopEnv = computed(() => isWailsRuntime());
+const isDesktopEnv = computed(() => Boolean(getPlatformCapabilities().shelves));
 const isMobileEnv = computed(() => isMobileRuntime());
 
-// ConfirmModal resolves `initial-focus` as a selector inside its own panel, so
-// the field ids serve both the <label for> and the caret placement.
+const addShelfQRId = `shelf-add-qr-${useId()}`;
 const addShelfNameId = `shelf-add-name-${useId()}`;
 const addShelfDirectoryId = `shelf-add-directory-${useId()}`;
+const addShelfSourceKindId = `shelf-add-source-kind-${useId()}`;
+const addShelfSourceURLId = `shelf-add-source-url-${useId()}`;
+const addShelfSourceUsernameId = `shelf-add-source-username-${useId()}`;
+const addShelfSourceSecretId = `shelf-add-source-secret-${useId()}`;
 const modifyShelfNameId = `shelf-modify-name-${useId()}`;
 
 const bookCacheExporting = ref(false);
@@ -346,6 +469,8 @@ const bookCacheError = ref('');
 
 const {
   shelves,
+  retryShelf,
+  retryingShelfIDs,
   shelvesLoading,
   shelvesError,
   ensureShelvesLoaded,
@@ -356,12 +481,21 @@ const {
   requestRemoveShelf,
   cancelRemoveShelf,
   confirmRemoveShelf,
+  qrText,
+  qrShelves,
+  qrResults,
+  previewQR,
+  qrStatus,
   showAddShelfModal,
   newShelfName,
   newShelfLocationMode,
   newShelfDirectory,
   newShelfDirectoryError,
   newShelfReadOnly,
+  newShelfSourceKind,
+  newShelfSourceURL,
+  newShelfSourceUsername,
+  newShelfSourceSecret,
   newShelfIDPreview,
   newShelfEffectiveDirectory,
   addingShelf,
@@ -379,6 +513,7 @@ const {
   modifyShelfBookCheckInterval,
   modifyShelfReadOnly,
   modifyShelfPath,
+  modifyShelfIsVirtual,
   modifyingShelf,
   modifyShelfError,
   canSubmitModifyShelf,
@@ -387,22 +522,8 @@ const {
   onSubmitModifyShelf
 } = useShelfManagement();
 
-/**
- * The shelves this export can write to.
- *
- * A read-only shelf is skipped rather than attempted: the server never writes
- * its cache file on its own account either, so the request is refused with 409
- * and — the loop being sequential — would abandon the shelves after it.
- */
 const exportableShelves = computed(() => shelves.value.filter((shelf) => !shelf.readOnly));
 
-/**
- * Rewrites every writable shelf's exported book cache.
- *
- * Sequential rather than concurrent: each call makes the server walk a shelf,
- * and on a network shelf several walks at once is exactly the load this cache
- * exists to avoid.
- */
 async function onExportBookCache(): Promise<void> {
   bookCacheError.value = '';
   bookCacheExported.value = false;

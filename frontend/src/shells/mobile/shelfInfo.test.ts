@@ -48,11 +48,6 @@ describe('activeMobileShelfInfo', () => {
   it('names a pCloud shelf after the last segment of the folder path', () => {
     getActiveShelfEntryMock.mockReturnValue(pcloudEntry());
 
-    // The id is the full path, matching the active shelf id mobileConfig sets,
-    // so the device-local cache scope agrees with the picker.
-    // readOnly stays false even here: a pCloud entry cannot be written, but
-    // that is the provider's own missing write surface rather than a shelf
-    // setting, and useWriteAccess already reports it as the platform reason.
     expect(activeMobileShelfInfo()).toEqual({
       id: '/PlainShelf/default-shelf',
       name: 'default-shelf',

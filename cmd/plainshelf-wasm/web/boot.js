@@ -1,27 +1,16 @@
-// Answers the page's /api and /health requests, plus those sw.js relays from
-// elements that bypass fetch, with plainshelf.wasm. One tab per origin runs the
-// server, chosen by a Web Lock; the others forward their requests to it over a
-// BroadcastChannel, so tabs share one shelf instead of writing over each other.
-// When the serving tab closes, a waiting tab takes the lock and restores from OPFS.
-// Load after memfs.js, opfs.js and wasm_exec.js, before the app bundle. An optional
-// window.plainshelfSeed(serve) runs in the serving tab before it answers anyone.
 (() => {
   const base = document.currentScript.src.replace(/[^/]*$/, '');
-  // A deep link that reached the host's 404 page comes back as ?demo-route=
-  // (deep-link.js); restore it before the router reads the URL.
+
   const route = new URLSearchParams(location.search).get('demo-route');
   if (route !== null) history.replaceState(null, '', new URL('..', base).pathname + route);
   const RESEND_MS = 1000;
   const channel = new BroadcastChannel('plainshelf-demo');
   const tabId = crypto.randomUUID();
 
-  // Go calls plainshelfReady once it has registered plainshelfFetch.
   const started = new Promise((resolve) => { window.plainshelfReady = resolve; });
-  // Writes changes to storage now instead of after the debounce.
+
   window.plainshelfFlush = () => window.plainshelfStorage?.flush() ?? Promise.resolve();
 
-  // A request is { method, url, headers, body? } and a response { status, headers, body }.
-  // /_demo/storage reports whether the serving tab persists, which only it knows.
   const callLocal = (r) => (r.url === '/_demo/storage'
     ? Promise.resolve({
       status: 200,
@@ -30,8 +19,8 @@
     })
     : window.plainshelfFetch(r.method, r.url, r.headers, r.body));
 
-  let serving = null; // set when this tab takes the server role; resolves once it answers
-  const pending = new Map(); // id -> { r, resolve, acked, timer }, requests sent to the serving tab
+  let serving = null;
+  const pending = new Map();
   let nextId = 0;
 
   function call(r) {
@@ -40,17 +29,28 @@
       const id = `${tabId}:${nextId++}`;
       const entry = { r, resolve, acked: false };
       pending.set(id, entry);
-      send(id, entry);
+      resendUntilAcked(id, entry);
     });
   }
 
-  // Resent until a serving tab acknowledges it, which also covers the startup race.
-  function send(id, entry) {
+  function resendUntilAcked(id, entry) {
     clearTimeout(entry.timer);
     channel.postMessage({ type: 'request', id, r: entry.r });
     entry.timer = setTimeout(() => {
-      if (!entry.acked && pending.has(id) && !serving) send(id, entry);
+      if (!entry.acked && pending.has(id) && !serving) resendUntilAcked(id, entry);
     }, RESEND_MS);
+  }
+
+  function resendPending() {
+    for (const [id, entry] of pending) resendUntilAcked(id, entry);
+  }
+
+  function servePendingLocally() {
+    for (const [id, entry] of pending) {
+      pending.delete(id);
+      clearTimeout(entry.timer);
+      callLocal(entry.r).then(entry.resolve);
+    }
   }
 
   channel.onmessage = async ({ data }) => {
@@ -84,15 +84,14 @@
     } else if (data.type === 'server-down') {
       for (const resolve of serverDownWaiters.splice(0)) resolve();
     } else if (data.type === 'server-up' && !serving) {
-      // A new serving tab: whatever the last one acknowledged but never answered goes again.
-      for (const [id, entry] of pending) send(id, entry);
+      resendPending();
     }
   };
 
   async function runServer() {
     const go = new Go();
     const wasm = fetch(base + 'plainshelf.wasm');
-    // Restore the persisted shelf before Go reads it; on failure run in memory.
+
     await window.plainshelfStorage?.load().catch((err) => console.error('plainshelf: restore failed', err));
     const { instance } = await WebAssembly.instantiate(await (await wasm).arrayBuffer(), go.importObject);
     go.run(instance);
@@ -104,19 +103,14 @@
     serving = runServer();
     serving.then(() => {
       channel.postMessage({ type: 'server-up' });
-      // Requests this tab forwarded before it took over are now its own.
-      for (const [id, entry] of pending) {
-        pending.delete(id);
-        clearTimeout(entry.timer);
-        callLocal(entry.r).then(entry.resolve);
-      }
+      servePendingLocally();
     }, (err) => console.error('plainshelf wasm failed to start', err));
     return serving;
   }
 
+  const holdUntilTabCloses = () => new Promise(() => {});
   if (navigator.locks) {
-    // Held until the tab goes away; a failed start releases it for the next tab.
-    navigator.locks.request('plainshelf-demo-server', () => takeServerRole().then(() => new Promise(() => {})));
+    navigator.locks.request('plainshelf-demo-server', () => takeServerRole().then(holdUntilTabCloses));
   } else {
     takeServerRole();
   }
@@ -134,38 +128,34 @@
     return new Response(hasNullBody(res, r.method) ? null : res.body, { status: res.status, headers: res.headers });
   };
 
-  // For pages and tests that talk to the server without going through fetch.
   window.plainshelfRequest = call;
 
-  // The serving tab writes its changes out, then says it is going; the others
-  // wait for that, or they would reload into the old server and its stale view.
+  const SERVER_DOWN_WAIT_MS = 5000;
   const serverDownWaiters = [];
+  const waitForServerDown = () => new Promise((resolve) => {
+    serverDownWaiters.push(resolve);
+    setTimeout(resolve, SERVER_DOWN_WAIT_MS);
+  });
+
   async function reloadSelf() {
     if (serving) {
       await window.plainshelfFlush().catch(() => {});
       channel.postMessage({ type: 'server-down' });
     } else {
-      await new Promise((resolve) => {
-        serverDownWaiters.push(resolve);
-        setTimeout(resolve, 5000);
-      });
+      await waitForServerDown();
     }
     location.reload();
   }
-  // Reloads every tab of the demo, after a change the running server should not
-  // reconcile in memory (an imported shelf).
+
   window.plainshelfReloadAll = () => {
     channel.postMessage({ type: 'reload' });
     return reloadSelf();
   };
 
-  // OPFS is best-effort storage, which the browser may clear when space runs
-  // low. The Demo bar and the app's settings ask to keep it through this, and
-  // both refresh on the event.
   const PERSIST_EVENT = 'plainshelf-demo-persist';
   window.plainshelfDemo = {
     persistEvent: PERSIST_EVENT,
-    // Whether the serving tab keeps the shelf at all, rather than in memory.
+
     async hasStorage() {
       const res = await call({ method: 'GET', url: '/_demo/storage', headers: {} });
       return JSON.parse(new TextDecoder().decode(res.body)).persistent === true;
@@ -174,7 +164,7 @@
     persisted: async () => (await navigator.storage?.persisted?.()) === true,
     async persist() {
       const granted = (await navigator.storage.persist()) === true;
-      // Persistence is per origin, so every open tab refreshes.
+
       channel.postMessage({ type: 'persist' });
       dispatchEvent(new CustomEvent(PERSIST_EVENT));
       return granted;
@@ -189,11 +179,10 @@
     if (url.origin !== location.origin || !/^\/(api\/|health$)/.test(url.pathname)) {
       return nativeFetch(input, init);
     }
-    await relayReady; // so the covers of the first render reach the relay too
+    await relayReady;
     return fetchViaServer(input, init);
   };
 
-  // Covers and assets load through <img src>, not fetch; sw.js relays those requests here.
   async function registerRelay() {
     const sw = navigator.serviceWorker;
     if (!sw) return;
@@ -218,13 +207,13 @@
       return;
     }
     if (sw.controller) return;
-    // sw.js claims open pages when it activates. A page loaded past an already
-    // active worker, as a hard reload is, has to ask; either way give it a
-    // moment before the app renders.
+
     const taken = new Promise((resolve) => {
       sw.addEventListener('controllerchange', resolve, { once: true });
       setTimeout(resolve, 3000);
     });
+    // Firefox can bypass an active worker on hard reload; explicitly request
+    // clients.claim() (https://github.com/voilelab/plainshelf/pull/700).
     (await sw.ready).active?.postMessage({ type: 'plainshelf-claim' });
     await taken;
   }

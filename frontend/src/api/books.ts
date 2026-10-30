@@ -39,14 +39,9 @@ import {
 } from './mocks/books';
 
 interface BackendBookMeta {
-  // On-disk format version of book.json, managed by the server. Documented here
-  // for reference; the UI does not consume it yet.
   schema_version?: number;
   id: string;
   title: string;
-  // authors carries no omitempty, so it always arrives - as [] when there are
-  // none. tags and identifiers do carry it, so an empty one is absent instead,
-  // which is why those two still need a fallback below.
   authors: string[];
   language: string;
   format: string;
@@ -60,22 +55,15 @@ interface BackendBookMeta {
   current_source?: string;
   star?: number;
   identifiers?: Record<string, string>;
-  // Absent rather than false when the book is not marked: the server omits a
-  // zero `nsfw` so a shelf that marks nothing writes the book.json it always did.
   nsfw?: boolean;
 }
 
 interface BackendBook {
+  download_state?: Book['download_state'];
+  downloaded_at?: Book['downloaded_at'];
   meta: BackendBookMeta;
-  // Never absent and never null: the server's Book.Folder carries no omitempty,
-  // and json/v2 writes a book at the shelf root as [].
   folder: string[];
-  // Sibling of `meta`, not nested inside it — matches server/handle_books.go's
-  // `Book` struct, which only populates this when the request was made with
-  // `include=char_count` (see ListBooksOptions.includeCharCount below).
   char_count?: number;
-  // Sibling of `meta` because it comes from shelf.json rather than book.json:
-  // the folder rule that marks this book, when one does.
   nsfw_folder?: NsfwFolderRule;
 }
 
@@ -89,9 +77,6 @@ interface BackendTrashedBook {
 }
 
 async function uploadBookCoverInternal(bookID: string, file: File): Promise<void> {
-  // In Wails/WebView runtime, passing `File` directly as fetch body can result in
-  // an empty request body (0 bytes) for same-origin custom protocol requests.
-  // Sending a concrete byte payload avoids that runtime-specific body stream issue.
   const payload = new Uint8Array(await file.arrayBuffer());
   const contentType = resolveCoverUploadContentType(file);
 
@@ -161,6 +146,8 @@ function transformBook(b: BackendBook): Book {
     identifiers: b.meta.identifiers,
     char_count: b.char_count,
     nsfw: b.meta.nsfw ?? false,
+    download_state: b.download_state,
+    downloaded_at: b.downloaded_at,
     nsfw_folder: b.nsfw_folder
   };
 }
@@ -168,9 +155,6 @@ function transformBook(b: BackendBook): Book {
 const PAGE_SIZE_DEFAULT = 8;
 
 export interface ListBooksOptions {
-  /** Ask the backend to also compute/return each book's char_count. Opt-in
-   *  because the backend may need to do extra work to produce it; omit for
-   *  call sites (library grid, folder tree, etc.) that don't display it. */
   includeCharCount?: boolean;
 }
 
@@ -203,17 +187,12 @@ export async function getDuplicateBookGroups(): Promise<string[][]> {
   return await fetchJson<string[][]>(buildShelfApiPath('/books/duplicate'));
 }
 
-/** How two sources are alike, as classified by the server so every client
- *  reads the same vocabulary. `subset` is one book edited down from the other;
- *  `identical_after_normalize` matches after layout is stripped. */
 export type SimilarRelation =
   | 'identical_after_normalize'
   | 'subset'
   | 'near_identical'
   | 'same_source';
 
-/** One similar-but-not-identical pair. `a` and `b` are book IDs in a stable
- *  order, and `containment_a` is how much of `a` lies inside `b`. */
 export interface SimilarBookPair {
   a: string;
   b: string;
@@ -225,8 +204,6 @@ export interface SimilarBookPair {
   relation: SimilarRelation;
 }
 
-/** Coverage of the fingerprint cache, for the status bar that offers to build
- *  what is missing. `algo` names the ruleset the count was taken under. */
 export interface FingerprintStatus {
   total: number;
   fingerprinted: number;
@@ -239,10 +216,6 @@ export interface FingerprintStatus {
   };
 }
 
-/** The body a shelf too costly for the synchronous comparison answers with,
- *  instead of the pair array. `work` is the estimated merge steps the sweep
- *  would spend and `budget` the cap it exceeded — both step counts, not books,
- *  because the cost is the summed sketch length, not the book count. */
 interface SimilarTooLarge {
   status: 'too_large';
   total: number;
@@ -253,13 +226,6 @@ interface SimilarTooLarge {
   budget: number;
 }
 
-/**
- * Thrown by {@link getSimilarBookPairs} when the shelf's fingerprints would cost
- * more than the server's work budget and it answers {@link SimilarTooLarge}
- * rather than the pair array. A distinct type — not a bare Error — so the page
- * can explain that the shelf is past the single-pass budget instead of treating
- * it as a failure to load.
- */
 export class SimilarTooLargeError extends Error {
   constructor(
     readonly work: number,
@@ -274,13 +240,6 @@ export class SimilarTooLargeError extends Error {
   }
 }
 
-/**
- * Thrown by {@link startFingerprintSources} when a forced rebuild is refused
- * with 409 because a fingerprint sweep already holds the shelf's single
- * fingerprint chain. The forced request cannot adopt that chain — it may be an
- * incremental sweep that never bypasses the cache — so the caller surfaces this
- * and lets the user retry once the running sweep finishes.
- */
 export class FingerprintSweepBusyError extends Error {
   constructor() {
     super('a fingerprint sweep is already running');
@@ -288,18 +247,6 @@ export class FingerprintSweepBusyError extends Error {
   }
 }
 
-/**
- * Similar book pairs scored by the server in a single pass. `floor` is the
- * lowest Jaccard the server returns; the page filters upward from there in
- * memory rather than re-requesting, so this is called once per visit with the
- * widest floor the UI offers.
- *
- * A shelf whose fingerprints exceed the server's work budget answers 200 with a
- * {@link SimilarTooLarge} body rather than a pair array; that is surfaced as a
- * thrown error so a caller never iterates a non-array as if it were the list.
- * Passing `confirm` retries past that gate and gives the comparison a five-minute
- * timeout instead of the normal metadata-request deadline.
- */
 const SIMILAR_COMPARISON_TIMEOUT_MS = 300_000;
 
 export async function getSimilarBookPairs(floor?: number, confirm = false): Promise<SimilarBookPair[]> {
@@ -333,11 +280,6 @@ export async function getSimilarBookPairs(floor?: number, confirm = false): Prom
   return result;
 }
 
-/**
- * How many books already have a fingerprint on record. A pure cache read on the
- * server: it never opens a source file, so it is cheap enough to call on every
- * visit to the similarity page.
- */
 export async function getFingerprintStatus(): Promise<FingerprintStatus> {
   if (isMockApiMode()) {
     return delay({ total: 0, fingerprinted: 0, missing: 0, algo: { normalize: '', shingle: '', hash: '', k: 0 } });
@@ -383,13 +325,6 @@ export async function updateBookFolder(bookId: string, folder: string): Promise<
   });
 }
 
-/**
- * Duplicates a book into `folder` and returns the copy, which the server gives a
- * fresh id so it coexists with the original. Copying into the book's own folder
- * is allowed - it is how "duplicate here" works - so unlike updateBookFolder this
- * never treats the current folder as a no-op. An empty `folder` lands the copy at
- * the shelf root.
- */
 export async function copyBook(bookId: string, folder: string): Promise<Book> {
   const normalized = folder
     .split('/')
@@ -412,18 +347,8 @@ export async function copyBook(bookId: string, folder: string): Promise<Book> {
   return transformBook(b);
 }
 
-/** Which side of a cross-shelf transfer the caller wants: `copy` leaves the
- *  source in place and gives the new book a fresh id; `move` keeps the id (and
- *  therefore the reader's saved progress and any external references) and drops
- *  the source once the copy is published on the target. */
 export type BookTransferMode = 'copy' | 'move';
 
-/**
- * Reads the running chain's id out of the JSON body the server answers 409 with
- * when the same transfer is already in flight. Every other 409 (target already
- * holds this id, target/source read-only) is a plain-text error, so a parse
- * failure means "not the already-running case" rather than a malformed reply.
- */
 function runningTaskChainID(body: string): string | null {
   try {
     const parsed = JSON.parse(body) as { taskchain_id?: unknown };
@@ -434,18 +359,6 @@ function runningTaskChainID(body: string): string | null {
   }
 }
 
-/**
- * Copies or moves a book from the active shelf to `targetShelfId`, returning the
- * id of the background task chain to poll. The work is asynchronous because the
- * copy can be large and either shelf may be a network mount, so the request must
- * not block on it.
- *
- * `targetFolder` is a '/'-joined path; '' lands the book at the target shelf
- * root. When the same transfer is already running the server answers 409 with
- * that chain's id, which is returned here so the caller attaches to the in-flight
- * work instead of failing. Any other 409 — the target already holds this id, or
- * the target/source is read-only — propagates with the server's message.
- */
 export async function transferBook(
   bookId: string,
   targetShelfId: string,
@@ -572,8 +485,6 @@ export async function deleteBook(id: string): Promise<void> {
   });
 }
 
-// The server marks a listing it filtered with this header; see
-// TrashListingPartialHeader in server/handle_trash.go.
 const TRASH_PARTIAL_HEADER = 'X-PlainShelf-Trash-Partial';
 
 export async function listTrashedBooks(): Promise<TrashedBookListing> {
@@ -632,13 +543,6 @@ interface BackendTaskChainSubmitResponse {
   taskchain_id: string;
 }
 
-/**
- * emptyTrash schedules the background sweep that permanently deletes every
- * trashed book, returning the ID of the task chain to poll for progress.
- *
- * A 409 means a sweep is already in flight for this shelf; the server reports
- * its ID so the caller attaches to the existing progress instead of failing.
- */
 export async function emptyTrash(): Promise<string> {
   if (isMockApiMode()) {
     return mockEmptyTrash();
@@ -652,14 +556,6 @@ export async function emptyTrash(): Promise<string> {
   return res.taskchain_id;
 }
 
-/**
- * refreshContentStats schedules the background sweep that recomputes the
- * content statistics of every book whose character count is unknown, returning
- * the ID of the task chain to poll for progress.
- *
- * A 409 means a sweep is already in flight for this shelf; the server reports
- * its ID so the caller attaches to the existing progress instead of failing.
- */
 export async function refreshContentStats(): Promise<string> {
   if (isMockApiMode()) {
     return mockRefreshContentStats();
@@ -673,28 +569,6 @@ export async function refreshContentStats(): Promise<string> {
   return res.taskchain_id;
 }
 
-/**
- * startFingerprintSources schedules the background sweep that builds a
- * similarity fingerprint for every source that lacks an up-to-date one,
- * returning the ID of the task chain to poll for progress. This is what the
- * similar-content page's "build fingerprints" button triggers.
- *
- * Passing `force` adds the `force` query flag, which makes the sweep ignore the
- * fingerprint cache and rebuild every source's fingerprint — for a reader who
- * suspects a stat comparison has missed a content change. Without it the sweep
- * stays incremental and skips whatever the cache can already answer.
- *
- * An incremental sweep already in flight answers 409 with that chain's ID,
- * accepted here so the caller attaches to the existing progress instead of
- * failing. A forced request does NOT adopt a 409: the shelf runs a single
- * fingerprint chain (`NewFingerprintSourcesChain` shares its key across modes),
- * so a 409 on force may name an *incremental* sweep, and attaching to it would
- * report a rebuild that never bypassed the cache. It is surfaced as a
- * `FingerprintSweepBusyError` for the caller to show and let the user retry.
- * A read-only shelf also refuses with 409 (from `rejectReadOnlyShelf`, without
- * an ID), but the page hides both buttons in that mode, so this is not reached
- * then.
- */
 export async function startFingerprintSources(force = false): Promise<string> {
   if (isMockApiMode()) {
     return mockStartFingerprintSources(force);
@@ -728,4 +602,20 @@ export function getBookCoverUrl(id: string, cacheKey?: number): string {
     return buildApiUrl(buildShelfApiPath(`/books/${encodedId}/cover`));
   }
   return buildApiUrl(`${buildShelfApiPath(`/books/${encodedId}/cover`)}?t=${encodeURIComponent(String(cacheKey))}`);
+}
+
+export async function downloadOfflineBook(id: string): Promise<void> {
+  await fetchJson(buildShelfApiPath(`/books/${encodeURIComponent(id)}/download`),
+    { method: 'PUT' }, { readOnlySafe: true, timeoutMs: 300_000 });
+}
+
+export async function removeOfflineBook(id: string): Promise<void> {
+  await fetchJson(buildShelfApiPath(`/books/${encodeURIComponent(id)}/download`),
+    { method: 'DELETE' }, { readOnlySafe: true });
+}
+
+export async function listOfflineBooks(): Promise<Array<{ book: Book; sizeBytes: number; downloadedAt: string }>> {
+  const result = await fetchJson<{ books: Array<{ book: BackendBook; size_bytes: number; downloaded_at: string }> }>(
+    buildShelfApiPath('/downloads'));
+  return result.books.map((entry) => ({ book: transformBook(entry.book), sizeBytes: entry.size_bytes, downloadedAt: entry.downloaded_at }));
 }

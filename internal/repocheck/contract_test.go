@@ -10,17 +10,6 @@ import (
 	"testing"
 )
 
-// The API contract harness is package server/contract/apitest rather than a set
-// of _test.go files, so the contract packages can share it. That costs one
-// check: staticcheck's `unused` does not report an exported identifier, so a
-// harness function every contract package has stopped calling would sit there
-// indefinitely — which is not true of the unexported helpers it replaced.
-//
-// This restores the floor for functions, which is where the helpers are. Types,
-// constants and methods are left out on purpose: a type is used through the
-// signatures it appears in and a method may exist to satisfy an interface, so
-// counting references to those would need an allowlist, and an allowlist is how
-// a check stops being believed.
 func TestEveryAPITestHelperHasACaller(t *testing.T) {
 	root := repoRoot(t)
 	harness := filepath.Join(root, "server", "contract", "apitest")
@@ -68,9 +57,6 @@ func TestEveryAPITestHelperHasACaller(t *testing.T) {
 			if !ok {
 				return true
 			}
-			// A reference inside the file that declares the function is the
-			// declaration itself or a call the harness makes to its own helper;
-			// neither proves a contract test still needs it.
 			if declaredIn[ident.Name] != name {
 				callers[ident.Name] = true
 			}

@@ -8,12 +8,7 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// Every shelf-scoped route resolves its shelf through the same helper, so an
-// unknown ID must be one answer rather than one per endpoint. Reads and the
-// routes that would otherwise queue background work are listed together: a
-// caller that got 202 for a shelf that does not exist would poll a chain that
-// never ran.
-func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
+func TestAPIUnknownShelfRejected(t *testing.T) {
 	env := apitest.New(t)
 
 	requests := []struct {
@@ -46,7 +41,7 @@ func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
 	}
 }
 
-func TestAPIJSONResponsesShareOneShapeContract(t *testing.T) {
+func TestAPIJSONResponsesShareOneShape(t *testing.T) {
 	env := apitest.New(t)
 
 	paths := []string{
@@ -64,7 +59,6 @@ func TestAPIJSONResponsesShareOneShapeContract(t *testing.T) {
 			apitest.AssertStatus(t, rec, http.StatusOK)
 			apitest.AssertJSONContentType(t, rec)
 
-			// A client reading the body line-wise would block without the newline.
 			if body := rec.Body.String(); !strings.HasSuffix(body, "\n") {
 				t.Fatalf("body = %q, want a trailing newline", body)
 			}

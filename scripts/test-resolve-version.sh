@@ -90,7 +90,6 @@ for stale in v0.8.0 v0.7.0 v0.8.0-beta.2 v0.7.9 dev; do
   fi
 done
 
-# SemVer 11.4: numeric < alphanumeric, shorter < longer, numbers compare numerically.
 git -C "$temp_repo" tag v1.0.0-rc.2
 for next in v1.0.0-rc.10 v1.0.0-rc.2.1 v1.0.0-rcx v1.0.0; do
   if ! (cd "$temp_repo" && "$resolver" validate-next "$next" >/dev/null 2>&1); then
@@ -105,7 +104,6 @@ for stale in v1.0.0-rc.1 v1.0.0-rc v1.0.0-beta.9 v1.0.0-1 v0.9.9; do
   fi
 done
 
-# Git's version sort puts v1.0.0-2 above v1.0.0-1a; SemVer does not.
 git -C "$temp_repo" tag -d v1.0.0-rc.2 >/dev/null
 git -C "$temp_repo" tag v1.0.0-2
 git -C "$temp_repo" tag v1.0.0-1a
@@ -119,7 +117,6 @@ if (cd "$temp_repo" && "$resolver" validate-next v1.0.0-3 >/dev/null 2>&1); then
   exit 1
 fi
 
-# previous-tag: highest release tag below the version, tagged or not.
 for pair in v1.0.0-1a:v1.0.0-2 v1.0.0:v1.0.0-1a v0.9.0:v0.8.0 v0.8.0:v0.8.0-beta.1 v0.7.0:; do
   actual=$(cd "$temp_repo" && "$resolver" previous-tag "${pair%%:*}")
   if [ "$actual" != "${pair#*:}" ]; then

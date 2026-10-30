@@ -17,8 +17,6 @@ func TestReadTextFileMissingIsEmpty(t *testing.T) {
 }
 
 func TestWriteTextFileAtomicCreatesParentDir(t *testing.T) {
-	// The desktop app used to skip this and relied on startup having made the
-	// data root first; a write into a fresh directory must now succeed on its own.
 	path := filepath.Join(t.TempDir(), "nested", "deeper", "doc.json")
 	if err := WriteTextFileAtomic(path, ".doc-*.json", `{"v":1}`); err != nil {
 		t.Fatalf("WriteTextFileAtomic: %v", err)
@@ -41,7 +39,7 @@ func TestWriteTextFileAtomicCreatesParentDir(t *testing.T) {
 	}
 }
 
-func TestWriteTextFileAtomicReplacesAndLeavesNoTemp(t *testing.T) {
+func TestWriteTextAtomicLeavesNoTemp(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.json")
 	if err := WriteTextFileAtomic(path, ".doc-*.json", "first"); err != nil {

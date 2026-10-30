@@ -1,3 +1,4 @@
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { onScopeDispose, ref, watch, type Ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { acquireObjectUrl, releaseObjectUrl } from '@/composables/objectUrlCache';
@@ -16,23 +17,7 @@ function isShelfCoverApiUrl(url: string): boolean {
   return url.includes('/api/shelves/') && url.includes('/books/') && url.includes('/cover');
 }
 
-/**
- * Resolves the `src` to feed a book cover `<img>`.
- *
- * Desktop/web: passthrough of `coverUrl`, exactly as components rendered it
- * before this composable existed. When the URL already looks like the shelf
- * cover API URL it is rewritten through `getBookCoverUrl(bookId, cacheKey)`
- * (same string when `cacheKey` is unset — this only matters for adding
- * cache-busting after a cover upload, see BookCover.vue).
- *
- * A provider that reports coversMustBeFetchedAsBlob(): the cover is fetched
- * through the provider and exposed as a `blob:` object URL instead. That is
- * the mobile shell, where a plain `<img src="http://...">` is issued by the
- * WebView directly and bypasses CapacitorHttp — tripping mixed-content
- * blocking against the `https://localhost` origin — and pCloud, whose cover
- * URL is an internal reference rather than a fetchable address. Going through
- * the provider also reuses the offline cover cache for a downloaded book.
- */
+// Capacitor Android 8.5.2 patches fetch and XMLHttpRequest for native HTTP, but WebView image loads still use WebViewLocalServer and its network policy.
 export function useCoverSrc(
   bookId: () => string,
   coverUrl: () => string | undefined,
@@ -62,7 +47,7 @@ export function useCoverSrc(
     }
 
     const provider = getBookshelfProvider();
-    if (!provider.coversMustBeFetchedAsBlob?.()) {
+    if (!getPlatformCapabilities().coversMustBeFetchedAsBlob) {
       src.value = isShelfCoverApiUrl(url)
         ? provider.getBookCoverUrl(bookId(), cacheKeyGetter())
         : url;
@@ -72,8 +57,6 @@ export function useCoverSrc(
     const key = objectUrlCacheKey(bookId(), cacheKeyGetter());
     activeKey = key;
 
-    // The provider resolved above, not a fresh lookup: the fetch has to come
-    // from the same one whose capability decided this path.
     acquireObjectUrl(key, () => provider.getBookCover(bookId()))
       .then((objectUrl) => {
         if (token === requestToken) {

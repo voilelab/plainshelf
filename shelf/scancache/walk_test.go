@@ -6,21 +6,13 @@ import (
 	"path"
 	"slices"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// These tests exercise the mtime trust chain against a fake ReadFS, with no
-// shelf, no lock and no book packages. The integration cases that need a real
-// shelf - a snapshot surviving a reopen, and the large-tree measurement - stay
-// in package shelf.
-
-// fakeFS is an in-memory tree of directories only, which is all the walk reads.
-// A path exists iff it has an mtime, and mtimes are set explicitly so a test can
-// put a directory inside or outside fsutil.RacyWindow, or hand a replacement the
-// mtime of what it replaced.
 type fakeFS struct {
 	mod map[string]time.Time
 }
@@ -29,14 +21,10 @@ func newFakeFS() *fakeFS {
 	return &fakeFS{mod: map[string]time.Time{}}
 }
 
-// mkdir does not create parents implicitly: a test builds the tree top down,
-// the way it reasons about it.
 func (f *fakeFS) mkdir(pth string, mod time.Time) {
 	f.mod[pth] = mod
 }
 
-// touch changes a directory's modification time, standing in for a child being
-// added, removed or renamed under it.
 func (f *fakeFS) touch(pth string, mod time.Time) {
 	f.mod[pth] = mod
 }
@@ -72,7 +60,6 @@ func (f *fakeFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-// Open is never called by the walk; the walk descends through Stat and ReadDir.
 func (f *fakeFS) Open(string) (fs.File, error) {
 	return nil, util.Errorf("%w", fs.ErrNotExist)
 }
@@ -98,8 +85,6 @@ func (fakeDirEntry) IsDir() bool                  { return true }
 func (fakeDirEntry) Type() fs.FileMode            { return fs.ModeDir }
 func (e fakeDirEntry) Info() (fs.FileInfo, error) { return fakeInfo{name: e.name}, nil }
 
-// nullStore has no file behind it: loading always misses and writes are
-// discarded. The reopen case that does persist lives in package shelf.
 type nullStore struct{}
 
 func (nullStore) ReadFile(string) ([]byte, error)      { return nil, util.NewError("empty") }
@@ -110,24 +95,21 @@ func openCache(enabled bool) *Cache {
 	return Open(Config{Store: nullStore{}, Enabled: enabled})
 }
 
-// walkTree runs one complete walk the way the shelf's iterateShelfTree does,
-// but for the directory layer alone. childrenTrusted is threaded down exactly as
-// the real walk threads it, which is what puts the trust chain under test.
 func walkTree(t *testing.T, cache *Cache, root fsutil.ReadFS, start string) (map[string]bool, Stats) {
 	t.Helper()
 
 	w := cache.NewWalk()
 	found := map[string]bool{}
 
-	var dfs func(pth string, child *DirChild, trusted bool)
-	dfs = func(pth string, child *DirChild, trusted bool) {
+	var dfs func(pth string, child *DirChild, parentListingReused bool)
+	dfs = func(pth string, child *DirChild, parentListingReused bool) {
 		isDir, err := ChildIsDir(root, pth, child)
 		if err != nil || !isDir {
 			return
 		}
 		found[pth] = true
 
-		children, childrenTrusted, err := w.ReadDir(root, pth, trusted)
+		children, childrenTrusted, err := w.ReadDir(root, pth, parentListingReused)
 		if err != nil {
 			t.Fatalf("ReadDir(%q): %v", pth, err)
 		}
@@ -137,13 +119,10 @@ func walkTree(t *testing.T, cache *Cache, root fsutil.ReadFS, start string) (map
 	}
 
 	dfs(start, nil, true)
-	return found, w.Install(true)
+	return found, w.Install()
 }
 
-// A directory's mtime only reports on its direct children, so the cache has to
-// be consulted per directory rather than per subtree: a child added deep in the
-// tree must still be found while every directory above it is reused.
-func TestScanCacheFindsChildAddedUnderReusedParent(t *testing.T) {
+func TestScanCacheFindsChildOfReusedParent(t *testing.T) {
 	aged := time.Now().Add(-time.Minute)
 
 	f := newFakeFS()
@@ -154,13 +133,11 @@ func TestScanCacheFindsChildAddedUnderReusedParent(t *testing.T) {
 
 	cache := openCache(true)
 
-	// Cold walk records the snapshot; warm walk proves it is fully reusable.
 	walkTree(t, cache, f, "books")
 	if _, stats := walkTree(t, cache, f, "books"); stats.ReusedDirs != stats.Dirs {
 		t.Fatalf("warm walk reused %d of %d directories, want all", stats.ReusedDirs, stats.Dirs)
 	}
 
-	// Add a directory under Classics, which changes only Classics' mtime.
 	f.mkdir("books/Fiction/Classics/beta", aged)
 	f.touch("books/Fiction/Classics", time.Now().Add(-30*time.Second))
 
@@ -177,12 +154,8 @@ func TestScanCacheFindsChildAddedUnderReusedParent(t *testing.T) {
 	}
 }
 
-// Timestamps are coarse. A directory modified in the same tick the walk read it
-// would keep that mtime, so remembering it would hide every later change to it
-// forever. Such a directory must simply not enter the snapshot.
 func TestScanCacheRefusesRacyDirectories(t *testing.T) {
 	f := newFakeFS()
-	// No ageing: every directory was modified moments ago, inside RacyWindow.
 	f.mkdir("books", time.Now())
 	f.mkdir("books/Fiction", time.Now())
 
@@ -194,7 +167,6 @@ func TestScanCacheRefusesRacyDirectories(t *testing.T) {
 		t.Errorf("walk reused %d directories modified inside the racy window, want 0", warm.ReusedDirs)
 	}
 
-	// And the change that trusting a racy directory would have hidden is found.
 	f.mkdir("books/Fiction/Poetry", time.Now())
 	found, _ := walkTree(t, cache, f, "books")
 	if !found["books/Fiction/Poetry"] {
@@ -202,11 +174,6 @@ func TestScanCacheRefusesRacyDirectories(t *testing.T) {
 	}
 }
 
-// A directory's mtime identifies its content, not the directory: coarse
-// timestamps and timestamp-preserving copies both let a replacement carry the
-// mtime of what it replaced, and matching the mtime alone would serve the old
-// children forever. The rename changes the parent's mtime, so the parent is
-// relisted and distrusted, and the distrust cascades to the child.
 func TestScanCacheDistrustsAReplacedDirectory(t *testing.T) {
 	aged := time.Now().Add(-time.Minute)
 
@@ -217,14 +184,11 @@ func TestScanCacheDistrustsAReplacedDirectory(t *testing.T) {
 
 	cache := openCache(true)
 
-	// Cold then warm, so the snapshot is populated and proven reusable.
 	walkTree(t, cache, f, "books")
 	walkTree(t, cache, f, "books")
 
 	ficModTime := f.mod["books/Fiction"]
 
-	// Replace Fiction's content wholesale but give the replacement the exact
-	// mtime the walk remembered; the rename bumps the parent's mtime.
 	f.rmdir("books/Fiction")
 	f.mkdir("books/Fiction", ficModTime)
 	f.mkdir("books/Fiction/brought-in", aged)
@@ -236,5 +200,104 @@ func TestScanCacheDistrustsAReplacedDirectory(t *testing.T) {
 	}
 	if found["books/Fiction/kept"] {
 		t.Errorf("walk still reports the replaced directory's child")
+	}
+}
+
+func TestDirChildrenListsOnlyKeptFiles(t *testing.T) {
+	fsys := fstest.MapFS{
+		"d/folder.json":         {Data: []byte("{}")},
+		"d/notes.txt":           {Data: []byte("x")},
+		"d/Sub/folder.json/x":   {Data: []byte("x")},
+		"d/book.bookpkg/x.json": {Data: []byte("x")},
+	}
+	entries, err := fsys.ReadDir("d")
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+
+	got := dirChildren(entries, []string{"folder.json"})
+	want := []DirChild{{Name: "Sub"}, {Name: "book.bookpkg"}, {Name: "folder.json", File: true}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("dirChildren = %+v, want %+v", got, want)
+	}
+
+	sub, err := fsys.ReadDir("d/Sub")
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if got := dirChildren(sub, []string{"folder.json"}); !slices.Equal(got, []DirChild{{Name: "folder.json"}}) {
+		t.Fatalf("a directory named folder.json = %+v, want it listed as a directory", got)
+	}
+}
+
+type addChildAfterListingFS struct {
+	*fakeFS
+	dir   string
+	added bool
+}
+
+func (f *addChildAfterListingFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	entries, err := f.fakeFS.ReadDir(name)
+	if name == f.dir && !f.added {
+		f.added = true
+		f.mkdir(path.Join(name, "Poetry"), time.Now().Add(-time.Minute))
+		f.touch(name, time.Now().Add(-30*time.Second))
+	}
+	return entries, err
+}
+
+func TestScanCacheRejectsRacyListing(t *testing.T) {
+	aged := time.Now().Add(-time.Minute)
+
+	f := &addChildAfterListingFS{fakeFS: newFakeFS(), dir: "books/Fiction"}
+	f.mkdir("books", aged)
+	f.mkdir("books/Fiction", aged)
+
+	cache := openCache(true)
+
+	walkTree(t, cache, f, "books")
+	found, _ := walkTree(t, cache, f, "books")
+	if !found["books/Fiction/Poetry"] {
+		t.Errorf("a child added between Stat and ReadDir was not found by the next walk")
+	}
+}
+
+func TestScanCacheIgnoresZeroDirModTime(t *testing.T) {
+	f := newFakeFS()
+	f.mkdir("books", time.Time{})
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+	if _, stats := walkTree(t, cache, f, "books"); stats.ReadDirs != 1 || stats.ReusedDirs != 0 {
+		t.Errorf("zero mtime walk = %+v, want one listing and no reuse", stats)
+	}
+}
+
+func TestAbandonPreservesSnapshotAndStats(t *testing.T) {
+	originalModTime := time.Now().Add(-time.Minute)
+	f := newFakeFS()
+	f.mkdir("books", originalModTime)
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+
+	f.mkdir("books/new", time.Now().Add(-time.Minute))
+	f.touch("books", time.Now().Add(-30*time.Second))
+	w := cache.NewWalk()
+	children, reused, err := w.ReadDir(f, "books", true)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(children) != 1 || reused {
+		t.Fatalf("ReadDir = %+v, reused %v, want the changed listing", children, reused)
+	}
+	stats := w.Abandon()
+	if stats.Dirs != 1 || stats.ReadDirs != 1 || stats.Duration <= 0 || cache.LastStats() != stats {
+		t.Errorf("Abandon stats = %+v, last stats = %+v", stats, cache.LastStats())
+	}
+	if got := cache.dirs["books"]; len(got.Children) != 0 || !got.ModTime.Equal(originalModTime) {
+		t.Errorf("abandoned walk replaced the previous snapshot: %+v", got)
+	}
+
+	if found, stats := walkTree(t, cache, f, "books"); !found["books/new"] || stats.ReadDirs == 0 {
+		t.Errorf("walk after abandonment = %v, stats = %+v, want the new directory found by listing", found, stats)
 	}
 }

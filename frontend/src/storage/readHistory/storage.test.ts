@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The backend itself is covered by shells/mobile/deviceDocumentStorage.test.ts.
-// What this file pins is the read-history wiring on top of them: the
-// app-private path, and that a failed read never lets a write through.
 
 const { readFileMock, writeFileMock } = vi.hoisted(() => ({
   readFileMock: vi.fn(),
@@ -19,7 +16,6 @@ const { ReadHistoryStore } = await import('./index');
 const { MOBILE_READ_HISTORY_PATH } = await import('./storage');
 const { createMobileDeviceDocumentStorage } = await import('@/shells/mobile/deviceDocumentStorage');
 
-/** What the mobile shell builds for this document. */
 const createFilesystemReadHistoryStorage = () =>
   createMobileDeviceDocumentStorage(MOBILE_READ_HISTORY_PATH);
 
@@ -46,8 +42,6 @@ describe('read history on the mobile shell backend', () => {
     );
   });
 
-  // Reporting a failed read as "no history" would let the next write replace a
-  // document that was never read, wiping every shelf's history.
   it('does not overwrite the stored document when the read fails', async () => {
     readFileMock.mockRejectedValue(new Error('EACCES: permission denied'));
     const store = new ReadHistoryStore(createFilesystemReadHistoryStorage());

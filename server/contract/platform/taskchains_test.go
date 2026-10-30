@@ -13,8 +13,6 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// contractTask reports fixed values so the endpoint's output does not depend on
-// when the worker happens to run it.
 type contractTask struct{}
 
 func (t *contractTask) Run(ctx context.Context) error { return nil }
@@ -70,8 +68,6 @@ func TestAPIGetTaskChainContract(t *testing.T) {
 		t.Errorf("unexpected task payload: %+v", resp.Tasks[0])
 	}
 
-	// The same response decoded as a map pins the wire field names. Decoding
-	// into the Go struct alone would pass no matter how the JSON tags change.
 	t.Run("schema", func(t *testing.T) {
 		payload := apitest.DecodeJSON[map[string]any](t, rec)
 		for _, key := range []string{"id", "name", "title", "description", "status", "percentage", "created_at", "tasks"} {
@@ -80,7 +76,6 @@ func TestAPIGetTaskChainContract(t *testing.T) {
 			}
 		}
 
-		// status must be the readable name, not the underlying enum integer.
 		if status, ok := payload["status"].(string); !ok || status != "running" {
 			t.Errorf("status = %v, want the string \"running\"", payload["status"])
 		}
@@ -108,9 +103,6 @@ func TestAPIGetTaskChainNotFoundContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-// cancelSignalTask runs until its context is cancelled, then settles failed. It
-// signals once it is running so a test can cancel it deterministically without a
-// timer, mirroring how a real transfer stops between books once its context ends.
 type cancelSignalTask struct {
 	started chan struct{}
 	once    sync.Once
@@ -143,20 +135,13 @@ func (t *cancelSignalTask) Status() taskutil.Status {
 	return t.status
 }
 
-// TestAPICancelTaskChainRequiresTokenContract keeps the cancel route behind the
-// same local_token boundary as every other mutating request: without a token it
-// is rejected before it can reach a chain.
-func TestAPICancelTaskChainRequiresTokenContract(t *testing.T) {
+func TestAPICancelTaskChainNeedsToken(t *testing.T) {
 	env := apitest.New(t)
 
-	// DoRaw sends the request without the token Do() would attach.
 	rec := env.DoRaw(httptest.NewRequest(http.MethodPost, apitest.TaskChainCancelURL("any-id"), nil))
 	apitest.AssertStatus(t, rec, http.StatusUnauthorized)
 }
 
-// TestAPICancelTaskChainReadOnlyContract pins the decision recorded on the
-// ticket: cancel is a mutating method and read-only mode refuses it, the same as
-// the transfer that would have started the chain.
 func TestAPICancelTaskChainReadOnlyContract(t *testing.T) {
 	env := apitest.New(t)
 	env.SetReadOnly(t, true)
@@ -165,7 +150,7 @@ func TestAPICancelTaskChainReadOnlyContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusForbidden)
 }
 
-func TestAPICancelTaskChainStopsRunningChainContract(t *testing.T) {
+func TestAPICancelTaskChainStopsChain(t *testing.T) {
 	env := apitest.New(t)
 
 	task := &cancelSignalTask{started: make(chan struct{})}
@@ -187,7 +172,6 @@ func TestAPICancelTaskChainStopsRunningChainContract(t *testing.T) {
 		t.Errorf("id = %q, want %q", resp.ID, chain.ID)
 	}
 
-	// The chain settles into a terminal status once the cancel reaches the task.
 	settled := apitest.WaitForTaskChain(t, env, chain.ID)
 	if settled.Status != "failed" {
 		t.Errorf("status after cancel = %q, want failed", settled.Status)
@@ -201,15 +185,10 @@ func TestAPICancelTaskChainNotFoundContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusNotFound)
 }
 
-// TestAPICancelTaskChainTerminalIsNoOpContract cancels a chain that has already
-// finished: the endpoint answers 200 with the settled state rather than an error,
-// and the status is unchanged.
-func TestAPICancelTaskChainTerminalIsNoOpContract(t *testing.T) {
+func TestAPICancelTaskChainTerminalNoop(t *testing.T) {
 	env := apitest.New(t)
 	chain := submitContractChain(t, env)
 
-	// submitContractChain's task reports running forever, so drive a terminal
-	// chain through the real worker instead: a chain of a task that just returns.
 	done, err := env.App.TaskChains().Submit(&taskutil.TaskChain{
 		Name:  "done_chain",
 		Tasks: []taskutil.Task{&doneTask{}},
@@ -229,14 +208,11 @@ func TestAPICancelTaskChainTerminalIsNoOpContract(t *testing.T) {
 		t.Errorf("status after cancelling a finished chain = %q, want completed", resp.Status)
 	}
 
-	// The unrelated running chain is untouched by the terminal cancel above.
 	if _, ok := env.App.TaskChains().Get(chain.ID); !ok {
 		t.Errorf("cancelling a terminal chain disturbed an unrelated chain")
 	}
 }
 
-// doneTask runs to completion immediately, so a chain of it settles as soon as
-// the worker picks it up.
 type doneTask struct{}
 
 func (t *doneTask) Run(ctx context.Context) error { return nil }

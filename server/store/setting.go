@@ -1,4 +1,4 @@
-//go:build !(js && wasm)
+//go:build !(js && wasm) && !android && !jsonstore
 
 package store
 
@@ -12,8 +12,6 @@ import (
 
 var settingKey = "setting"
 
-// GetSetting retrieves a setting value by key. It returns the value, a boolean indicating if the key exists,
-// and an error if any.
 func (db *DB) GetSetting(key string) ([]byte, bool, error) {
 	var value []byte
 	err := db.db.View(func(txn *badger.Txn) error {

@@ -8,9 +8,6 @@ vi.mock('@/providers/runtime', () => ({
   isMobileRuntime: isMobileRuntimeMock
 }));
 
-// The suite runs in the default node environment, but client.ts reads
-// window.plainshelf / window.__PLAINSHELF_SECURITY__ while building headers.
-// A minimal stub is enough; no DOM behavior is exercised here.
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, 'window', {
   configurable: true,
@@ -24,7 +21,7 @@ Object.defineProperty(globalThis, 'window', {
   }
 });
 
-const { ApiError, fetchJson, setActiveShelfID } = await import('./client');
+const { ApiError, fetchJson, setActiveShelfID, setApiTransport } = await import('./client');
 const { useErrorIncident } = await import('@/composables/useErrorIncident');
 const { incident: shownIncident, dismissIncident } = useErrorIncident();
 
@@ -72,12 +69,36 @@ describe('assertWritableRequest', () => {
       ['empty trash', `/api/shelves/${SHELF}/trash/empty`, 'POST'],
       ['batch operation', `/api/shelves/${SHELF}/book-batches`, 'POST'],
       ['server setting', '/api/setting/cover_to_jpg', 'POST'],
-      // Reading time used to be the one write the mobile shell was allowed to
-      // make; it is recorded on the device now, so no write is exempt.
       ['reading activity', `/api/shelves/${SHELF}/reading_activity`, 'POST']
     ])('rejects %s', async (_label, path, method) => {
       await expect(fetchJson(path, { method })).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('in the mobile shell on a local shelf', () => {
+    const transport = vi.fn();
+
+    beforeEach(() => {
+      isMobileRuntimeMock.mockReturnValue(true);
+      transport.mockReset().mockResolvedValue(okResponse());
+      setApiTransport({ fetch: transport, allowMobileWrites: true });
+    });
+
+    afterEach(() => {
+      setApiTransport({ fetch: (...args) => fetch(...args), allowMobileWrites: false });
+    });
+
+    it('sends writes through the local transport', async () => {
+      await fetchJson(`/api/shelves/${SHELF}/books/abc`, { method: 'PATCH' });
+      expect(transport).toHaveBeenCalledOnce();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('still honours a read-only server flag', async () => {
+      (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = true;
+      await expect(fetchJson(`/api/shelves/${SHELF}/books/abc`, { method: 'PATCH' })).rejects.toThrow(ApiError);
+      expect(transport).not.toHaveBeenCalled();
     });
   });
 
@@ -97,9 +118,6 @@ describe('assertWritableRequest', () => {
     });
   });
 
-  // Both gates exist to stop writes, and a rescan is not one: it walks the
-  // shelf and changes nothing on it. The server draws the same exception for
-  // the same route (isReadOnlySafeRequest in server/app.go).
   describe('a POST that writes nothing', () => {
     it('is allowed against a read-only server', async () => {
       (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = true;
@@ -115,8 +133,6 @@ describe('assertWritableRequest', () => {
       expect(fetchMock).toHaveBeenCalledOnce();
     });
 
-    // The exemption is opt-in per request, so it cannot leak to the write next
-    // to it on the same route prefix.
     it('does not exempt a request that omits the flag', async () => {
       (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = true;
 
@@ -176,14 +192,11 @@ describe('error responses', () => {
       )
     );
 
-    // The user must never be shown the raw JSON.
     expect(err.message).toBe('book not found');
     expect(err.code).toBe('BOOK_NOT_FOUND');
     expect(err.status).toBe(404);
   });
 
-  // Most routes still answer http.Error plain text, and so does the standalone
-  // reader app, so the old path has to keep working unchanged.
   it('falls back to the raw text for a plain-text refusal', async () => {
     const err = await failedRequest(errorResponse('shelf not found', 'text/plain; charset=utf-8'));
 
@@ -207,8 +220,6 @@ describe('error responses', () => {
     expect(err.code).toBeUndefined();
   });
 
-  // The 46 display sites read err.message and nothing else. Whatever shape the
-  // body takes, that one field has to stay the human sentence they can print.
   it('keeps message human for every body shape', async () => {
     const bodies = [
       ['{"error":{"code":"BOOK_NOT_FOUND","message":"book not found"}}', 'book not found'],
@@ -235,8 +246,6 @@ describe('error responses', () => {
     expect(shownIncident.value).toBe('K7MQ4XZB');
   });
 
-  // The routes that still answer plain text carry no envelope, but they do pass
-  // the request-ID middleware, so the header is the reference for them.
   it('falls back to the request-ID header for a plain-text refusal', async () => {
     const err = await failedRequest(
       errorResponse('shelf not found', 'text/plain; charset=utf-8', 404, {
@@ -256,9 +265,6 @@ describe('error responses', () => {
     expect(shownIncident.value).toBe('');
   });
 
-  // A shelf still scanning answers 503 with Retry-After, the caller waits it out
-  // (composables/shelfInitRetry.ts) and the read usually succeeds. Showing a
-  // reference for each attempt would put a number next to a page that loaded.
   it('does not raise a reference for a refusal the server calls transient', async () => {
     const err = await failedRequest(
       errorResponse(
@@ -289,9 +295,6 @@ describe('error responses', () => {
   });
 });
 
-// A 409 on the task-chain endpoints means either "a sweep is already running,
-// here is its ID" or "this shelf is read-only". acceptStatuses cannot tell them
-// apart by status, so the envelope has to be rejected on its own shape.
 describe('accepted non-2xx statuses', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -328,8 +331,6 @@ describe('accepted non-2xx statuses', () => {
     expect(res.taskchain_id).toBe('chain-1');
   });
 
-  // Without this the caller reads taskchain_id off a refusal, gets undefined,
-  // and polls it instead of reporting that the shelf is read-only.
   it('rejects an error envelope arriving at an accepted status', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(
@@ -354,7 +355,6 @@ describe('accepted non-2xx statuses', () => {
   });
 
   it('leaves a 2xx envelope-shaped payload alone', async () => {
-    // A successful response is never a refusal, whatever its field names.
     fetchMock.mockResolvedValue(jsonResponse('{"error":{"code":"X","message":"y"}}', 200));
 
     const res = await fetchJson<{ error: { code: string } }>(`/api/shelves/${SHELF}/books`);

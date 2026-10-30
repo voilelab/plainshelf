@@ -9,10 +9,7 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// GET /api/shelves reports each shelf's read-only state, so the UI can drop the
-// write affordances a read-only shelf has no use for rather than offering them
-// and answering 409 when one is pressed.
-func TestAPIShelvesReportPerShelfReadOnlyContract(t *testing.T) {
+func TestAPIShelvesReportShelfReadOnly(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlySecondShelf(t.TempDir()))
 
 	rec := env.Get("/api/shelves")
@@ -36,10 +33,7 @@ func TestAPIShelvesReportPerShelfReadOnlyContract(t *testing.T) {
 	}
 }
 
-// A server-wide read_only reaches the shelves themselves (applyAppReadOnly), so
-// every listed shelf reports it. The client needs that: the two settings differ
-// in scope, not in what they forbid on the shelf they cover.
-func TestAPIShelvesReportServerReadOnlyContract(t *testing.T) {
+func TestAPIShelvesReportServerReadOnly(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyServer())
 
 	rec := env.Get("/api/shelves")
@@ -56,10 +50,7 @@ func TestAPIShelvesReportServerReadOnlyContract(t *testing.T) {
 	}
 }
 
-// The two settings stay separate in the other direction too: a shelf opened
-// read-only does not make the server read-only, so /api/mode still answers for
-// the app as a whole.
-func TestAPIReadOnlyShelfLeavesServerModeContract(t *testing.T) {
+func TestAPIReadOnlyShelfKeepsServerMode(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
 	mode := apitest.GetJSON[map[string]any](t, env, "/api/mode")

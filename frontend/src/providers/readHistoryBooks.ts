@@ -1,14 +1,6 @@
 import { getReadHistoryIDs } from '@/storage/readHistory';
 import type { Book, PaginatedBooks } from '@/types/book';
 
-/**
- * Hydrates the locally stored reading-history ids into books, in history order.
- *
- * The ids come from the device; the books come from whichever listing the
- * calling provider uses, so the mobile provider automatically resolves them
- * from its offline cache when the server is unreachable. Ids with no matching
- * book (deleted since it was read) are dropped.
- */
 export async function collectReadHistoryBooks(
   listBooks: (page: number, pageSize: number) => Promise<PaginatedBooks>
 ): Promise<Book[]> {

@@ -10,10 +10,6 @@ afterEach(() => {
 
 describe('runtime shell registry', () => {
   it('falls back to the server provider when no shell is installed', () => {
-    // The order hazard this pins: api/client, providers/cacheScope and
-    // api/shelves are reachable before main.ts installs a shell. Asking for a
-    // provider in that window must produce a working server client, not throw
-    // and take the app down before the setup form can render.
     expect(getShell()).toBeNull();
 
     expect(createBookshelfProvider()).toBeInstanceOf(ServerBookshelfProvider);

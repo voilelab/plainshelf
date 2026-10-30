@@ -2,9 +2,6 @@
 import { defineComponent, h, nextTick } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// The bundled fonts ship under the OFL, so the licence text has to be reachable
-// from the app itself. The end-to-end reader-font case used to check this list
-// on its way past Settings; it is a static render, so it belongs here.
 
 vi.mock('@/api/version', () => ({ getServerVersion: () => Promise.resolve('1.2.3') }));
 
@@ -50,8 +47,6 @@ describe('AboutPanel font licences', () => {
       'Noto Sans SC'
     ]);
 
-    // One licence per font, not one shared file: the faces are separate
-    // downloads with separate copyright lines.
     const licences = items.map(
       (item) => item.querySelectorAll<HTMLAnchorElement>('a.setting-link')[1]?.getAttribute('href')
     );
@@ -74,8 +69,6 @@ describe('AboutPanel font licences', () => {
     await nextTick();
 
     expect(host.querySelector('.font-license-modal')).not.toBeNull();
-    // The href stays a real path for copy-link and no-JS reachability, but the
-    // click is handled here, so nothing is handed to the shell's browser.
     expect(opened.urls).toEqual([]);
   });
 
@@ -87,5 +80,19 @@ describe('AboutPanel font licences', () => {
     await nextTick();
 
     expect(opened.urls).toEqual(['https://fontsource.org/fonts/noto-serif-tc']);
+  });
+});
+
+describe('AboutPanel third-party notices', () => {
+  it('opens the generated third-party notice in-app', async () => {
+    const host = await mountPanel();
+    const link = host.querySelector<HTMLAnchorElement>('a[href="/licenses/third-party.txt"]');
+    expect(link).not.toBeNull();
+
+    link?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await nextTick();
+
+    expect(host.querySelector('.font-license-modal')?.textContent).toBe('Third-party software licenses');
+    expect(opened.urls).toEqual([]);
   });
 });

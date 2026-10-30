@@ -1,26 +1,11 @@
-import {
-  PCLOUD_RESULT_RECURSIVE_LISTING_UNSUPPORTED,
-  PCloudError,
-  isRetryablePCloudError
-} from './errors';
-import type {
-  PCloudApiHost,
-  PCloudGetFileLinkResult,
-  PCloudGetZipLinkResult,
-  PCloudItem,
-  PCloudListFolderResult,
-  PCloudUserInfoResult
-} from './types';
+import { PCloudError, isRetryablePCloudError } from './errors';
+import type { PCloudApiHost, PCloudItem, PCloudListFolderResult, PCloudUserInfoResult } from './types';
 
-// Mirrors the two budgets in api/client.ts: metadata calls should fail fast,
-// while a book's text or cover may take much longer on a slow connection.
 const REQUEST_TIMEOUT_MS = 30_000;
-const DOWNLOAD_TIMEOUT_MS = 300_000;
 
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
 
-/** The account's top-level folder. */
 export const ROOT_FOLDER_ID = 0;
 
 type PCloudParams = Record<string, string | number | boolean | undefined>;
@@ -28,9 +13,7 @@ type PCloudParams = Record<string, string | number | boolean | undefined>;
 interface PCloudClientOptions {
   host: PCloudApiHost | string;
   accessToken: string;
-  /** Injectable for tests; defaults to the global fetch. */
   fetchImpl?: typeof fetch;
-  /** Injectable for tests so retry backoff does not slow the suite down. */
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
@@ -38,8 +21,6 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** How much of an unexpected reply to quote back. Enough to recognise, short
- *  enough to read on a phone. */
 const MAX_EXCERPT_LENGTH = 200;
 
 function excerpt(value: unknown): string {
@@ -52,7 +33,6 @@ function excerpt(value: unknown): string {
   return text.length > MAX_EXCERPT_LENGTH ? `${text.slice(0, MAX_EXCERPT_LENGTH)}…` : text;
 }
 
-/** Names of the folders at a level, for an error that has to be actionable. */
 const MAX_LISTED_FOLDERS = 10;
 
 function describeFolders(folders: PCloudItem[]): string {
@@ -67,13 +47,6 @@ function describeFolders(folders: PCloudItem[]): string {
   return remaining > 0 ? `It contains ${shown} and ${remaining} more.` : `It contains ${shown}.`;
 }
 
-/**
- * A thin, read-only pCloud API client.
- *
- * Auth travels as a Bearer header rather than an `access_token` query
- * parameter: both are accepted by pCloud, but only the header keeps the token
- * out of URLs, which end up in logs and in error messages.
- */
 export class PCloudClient {
   private readonly host: string;
   private readonly accessToken: string;
@@ -104,13 +77,6 @@ export class PCloudClient {
     return url.toString();
   }
 
-  /**
-   * Issues one API call and unwraps the `result` envelope.
-   *
-   * Retries only failures classified as transient, so a bad token or a
-   * permanent restriction surfaces on the first attempt instead of after three
-   * rounds of backoff.
-   */
   async call<T>(method: string, params: PCloudParams = {}, signal?: AbortSignal): Promise<T> {
     let lastError: unknown;
 
@@ -145,10 +111,6 @@ export class PCloudClient {
 
         const payload = (await res.json()) as { result?: unknown; error?: unknown };
 
-        // Every pCloud reply carries `result`. Treating its absence as success
-        // would let a reply from somewhere else — a proxy, an interception
-        // folder, an error page that happens to be JSON — flow on as an empty
-        // listing, and surface much later as a confusing "folder not found".
         if (typeof payload?.result !== 'number') {
           throw new PCloudError(
             `pCloud ${method} returned a reply that did not come from the pCloud API: ${excerpt(payload)}`
@@ -167,16 +129,6 @@ export class PCloudClient {
     );
   }
 
-  /**
-   * Runs one request and hands the response to `handle` while the time budget
-   * and the caller's cancellation are still in force.
-   *
-   * `fetch` resolves as soon as the response headers arrive, so a helper that
-   * merely returned the Response would tear down its timer and abort listener
-   * before the body — the slow part for a book's text or a cover — had been
-   * read. Consuming inside this scope keeps a stalled transfer bounded and
-   * keeps cancellation effective for the whole download.
-   */
   private async withRequest<T>(
     url: string,
     init: RequestInit,
@@ -186,8 +138,7 @@ export class PCloudClient {
     handle: (res: Response) => Promise<T>
   ): Promise<T> {
     const controller = new AbortController();
-    // addEventListener never replays an abort that already happened, so a
-    // signal cancelled before this call would otherwise be ignored entirely.
+    // DOM Standard AbortSignal does not replay an abort event to listeners registered after abortion.
     if (signal?.aborted) {
       controller.abort();
     }
@@ -199,8 +150,6 @@ export class PCloudClient {
       const res = await this.fetchImpl(url, { ...init, signal: controller.signal });
       return await handle(res);
     } catch (cause) {
-      // The caller cancelled: surface that as-is so it is never mistaken for a
-      // transient failure and retried.
       if (signal?.aborted) {
         throw cause;
       }
@@ -210,7 +159,6 @@ export class PCloudClient {
       if (cause instanceof PCloudError) {
         throw cause;
       }
-      // A dropped connection or an unreadable body. Worth another attempt.
       throw new PCloudError(`pCloud ${label} failed: ${(cause as Error)?.message ?? 'network error'}`, {
         cause,
         retryable: true
@@ -221,17 +169,8 @@ export class PCloudClient {
     }
   }
 
-  /** Lists one folder by id. */
-  async listFolder(
-    folderid: number,
-    options?: { recursive?: boolean; signal?: AbortSignal }
-  ): Promise<PCloudItem> {
-    const params: PCloudParams = { folderid };
-    if (options?.recursive) {
-      params.recursive = 1;
-    }
-
-    const res = await this.call<PCloudListFolderResult>('listfolder', params, options?.signal);
+  async listFolder(folderid: number, options?: { signal?: AbortSignal }): Promise<PCloudItem> {
+    const res = await this.call<PCloudListFolderResult>('listfolder', { folderid }, options?.signal);
     if (!res.metadata?.isfolder) {
       throw new PCloudError(
         `pCloud reported success for folder ${folderid} but returned no folder: ${excerpt(res)}`
@@ -241,7 +180,6 @@ export class PCloudClient {
     return res.metadata;
   }
 
-  /** Returns the identity of the account authorized by this client. */
   async getUserInfo(signal?: AbortSignal): Promise<PCloudUserInfoResult> {
     const info = await this.call<PCloudUserInfoResult>('userinfo', {}, signal);
     if (!info.email && info.userid === undefined) {
@@ -250,32 +188,6 @@ export class PCloudClient {
     return info;
   }
 
-  /**
-   * Resolves a slash-separated folder path to its pCloud folder id.
-   *
-   * Walks one segment at a time from the account root instead of handing the
-   * whole path to the API. `listfolder` is addressed by folder id — the
-   * reference implementation (rclone's pCloud backend) never sends a path and
-   * resolves every one this way — and a path-based listing answers "Directory
-   * does not exist" even for a folder that plainly exists.
-   *
-   * Naming the segment that failed matters here: this runs while the user is
-   * typing a folder into the connection form, and a bare "directory does not
-   * exist" for a path they can see in pCloud is no help at all.
-   */
-  async resolveFolderID(path: string, signal?: AbortSignal): Promise<number> {
-    const trail = await this.resolveFolderTrail(path, signal);
-    return trail.length > 0 ? trail[trail.length - 1].folderid : ROOT_FOLDER_ID;
-  }
-
-  /**
-   * Resolves a path to one entry per segment, outermost first.
-   *
-   * The same walk as `resolveFolderID`, keeping what that walk already learned
-   * on the way down: the folder picker needs every ancestor's id to offer a
-   * breadcrumb that can jump back to any level without listing the path again.
-   * The account root is not included — it is implicit, and has no name.
-   */
   async resolveFolderTrail(
     path: string,
     signal?: AbortSignal
@@ -293,9 +205,6 @@ export class PCloudClient {
       const match = folders.find((item) => item.name === segment);
 
       if (!match || match.folderid === undefined) {
-        // Naming what is there turns "we disagree about your account" into
-        // something the user can act on — a typo, or the wrong pCloud account
-        // signed in on this device.
         throw new PCloudError(
           `pCloud has no folder named "${segment}" in ${walked === '' ? 'your account root' : `"${walked}"`}. ` +
             describeFolders(folders)
@@ -308,133 +217,5 @@ export class PCloudClient {
     }
 
     return trail;
-  }
-
-  /**
-   * Lists a folder and everything beneath it.
-   *
-   * One request normally covers the whole tree once the folder id is known.
-   * If an API variant refuses recursion, the same tree is expanded manually so
-   * the parsing folder remains unaware of which path was taken.
-   */
-  async listFolderRecursive(
-    target: { path: string } | { folderid: number },
-    signal?: AbortSignal
-  ): Promise<PCloudItem> {
-    const folderid = 'path' in target ? await this.resolveFolderID(target.path, signal) : target.folderid;
-
-    try {
-      return await this.listFolder(folderid, { recursive: true, signal });
-    } catch (err) {
-      // Some accounts or API variants may refuse recursive traversal. Preserve
-      // the manual walk as a compatibility fallback, including for folder 0.
-      if (!(err instanceof PCloudError) || err.result !== PCLOUD_RESULT_RECURSIVE_LISTING_UNSUPPORTED) {
-        throw err;
-      }
-    }
-
-    const root = await this.listFolder(folderid, { signal });
-    return { ...root, contents: await this.expandChildren(root.contents ?? [], signal) };
-  }
-
-  private async expandChildren(items: PCloudItem[], signal?: AbortSignal): Promise<PCloudItem[]> {
-    const expanded: PCloudItem[] = [];
-
-    for (const item of items) {
-      if (!item.isfolder || item.folderid === undefined) {
-        expanded.push(item);
-        continue;
-      }
-      const child = await this.listFolderRecursive({ folderid: item.folderid }, signal);
-      expanded.push({ ...item, contents: child.contents ?? [] });
-    }
-
-    return expanded;
-  }
-
-  /**
-   * Resolves a file's download URL. The link expires, so it is fetched per
-   * download and never cached alongside file metadata.
-   */
-  async getFileLink(fileid: number, signal?: AbortSignal): Promise<string> {
-    const res = await this.call<PCloudGetFileLinkResult>('getfilelink', { fileid }, signal);
-    const host = res.hosts?.[0];
-
-    if (!host || !res.path) {
-      throw new PCloudError('pCloud getfilelink returned no usable download host.');
-    }
-
-    return `https://${host}${res.path}`;
-  }
-
-  /**
-   * Resolves a per-download link to a pCloud-built zip of the given files.
-   *
-   * `getziplink`, not `savezip`: it builds and serves the archive without
-   * writing into the account, which keeps this client read-only. `fileids` packs
-   * the files under their flat names, matching the server's assets.zip so one
-   * unzip path serves both backends.
-   */
-  async getZipLink(fileids: number[], signal?: AbortSignal): Promise<string> {
-    const res = await this.call<PCloudGetZipLinkResult>(
-      'getziplink',
-      { fileids: fileids.join(',') },
-      signal
-    );
-    const host = res.hosts?.[0];
-
-    if (!host || !res.path) {
-      throw new PCloudError('pCloud getziplink returned no usable download host.');
-    }
-
-    return `https://${host}${res.path}`;
-  }
-
-  /**
-   * Downloads a set of files as one zip. Same two-step shape as `download`: the
-   * link call goes through `call` (timeout, retry, result codes), the transfer
-   * through `withRequest` (download budget, cancellable). Needs at least one id.
-   */
-  async downloadZip(fileids: number[], signal?: AbortSignal): Promise<Blob> {
-    const url = await this.getZipLink(fileids, signal);
-
-    // No Authorization header, as in `download`: the content host honours the
-    // link's own credentials and the API token has no business there.
-    return await this.withRequest(url, {}, DOWNLOAD_TIMEOUT_MS, signal, 'zip download', async (res) => {
-      if (!res.ok) {
-        throw new PCloudError(`pCloud zip download failed: HTTP ${res.status} ${res.statusText}`, {
-          status: res.status
-        });
-      }
-      return await res.blob();
-    });
-  }
-
-  async downloadBlob(fileid: number, signal?: AbortSignal): Promise<Blob> {
-    return await this.download(fileid, signal, (res) => res.blob());
-  }
-
-  async downloadText(fileid: number, signal?: AbortSignal): Promise<string> {
-    return await this.download(fileid, signal, (res) => res.text());
-  }
-
-  private async download<T>(
-    fileid: number,
-    signal: AbortSignal | undefined,
-    consume: (res: Response) => Promise<T>
-  ): Promise<T> {
-    const url = await this.getFileLink(fileid, signal);
-
-    // No Authorization header: the download host honours the link's own
-    // credentials, so sending the API token would expose it to a different host
-    // for no benefit.
-    return await this.withRequest(url, {}, DOWNLOAD_TIMEOUT_MS, signal, 'download', async (res) => {
-      if (!res.ok) {
-        throw new PCloudError(`pCloud download failed: HTTP ${res.status} ${res.statusText}`, {
-          status: res.status
-        });
-      }
-      return await consume(res);
-    });
   }
 }

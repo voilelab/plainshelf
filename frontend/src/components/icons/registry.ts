@@ -1,11 +1,3 @@
-/**
- * Every UI icon the app renders, resolved from Tabler Icons (MIT) at build time
- * by unplugin-icons. `~icons/tabler/*` compiles to a plain inline SVG component,
- * so nothing from Iconify reaches the bundle at runtime.
- *
- * Adding an icon means adding an import and a `ICONS` entry here; call sites
- * only ever name a key, which keeps swapping the icon set to an import rewrite.
- */
 import IconBaselineDensityMedium from '~icons/tabler/baseline-density-medium';
 import IconBooks from '~icons/tabler/books';
 import IconCopy from '~icons/tabler/copy';

@@ -1,22 +1,21 @@
 # Deployment and threat model
 
 PlainShelf is local-first and single-user. Where you bind the server and which
-security mode you choose decide what it defends against — and, just as
-important, what it does not. This page names three deployment tiers, gives the
-configuration each one wants, and states plainly what protects access in each —
-then does the same for the desktop and reader apps, which are neither.
+security mode you choose decide what it defends against and what it does not.
+This page names three deployment tiers, gives the configuration each one wants,
+and states what protects access in each. It then does the same for the desktop
+and reader apps, which are neither.
 
 For the type and default of each `security` key on its own, see the
 [Configuration reference](reference/configuration.md#app_confsecurity); this
 page is about which combinations to choose.
 
-It also records two standing non-goals that hold at every tier:
+Two boundaries apply at every tier:
 
-- **No PlainShelf server holds your credentials, and none are baked into its
-  binaries.** The credentials that are persisted — a pCloud token you grant, and
-  the access token for a PlainShelf server you add on Android — are stored on
-  your own device by the Android app, never by a server. See
-  [Where credentials live](#where-credentials-live).
+- **PlainShelf operates no service that holds your data or credentials.** Your
+  own server or device does read the secrets needed for configured remote
+  sources, and may persist export tokens. No confidential app secret is baked
+  into the binaries. See [Where credentials live](#where-credentials-live).
 - **`local_token` is a CSRF boundary, not access control.** See
   [What `local_token` actually protects](#what-local_token-actually-protects).
 
@@ -78,13 +77,14 @@ app_conf:
 Two things to get right on this tier:
 
 - **`allowed_origins` replaces the defaults, it does not extend them.**
-  PlainShelf applies its four loopback defaults — `http://127.0.0.1:20000`,
-  `http://localhost:20000`, and the same two on the Vite dev port `5173` — *only
-  while the list is empty* (`server/security.go`). Set it, and those defaults are
-  gone: a browser opened on the NAS itself at `http://127.0.0.1:20000` then gets
-  `403 forbidden origin` on every write. So the list has to name every origin you
-  use, loopback included, with the exact scheme and port — each LAN hostname,
-  each LAN IP, each VPN address, and the local ones you would otherwise lose.
+  PlainShelf applies its four loopback defaults (`http://127.0.0.1:20000`,
+  `http://localhost:20000`, and the same two on the Vite dev port `5173`) *only
+  while the list is empty* (`server/security.go`). Set it, and those defaults
+  are gone: a browser opened on the NAS itself at `http://127.0.0.1:20000` then
+  gets `403 forbidden origin` on every write. So the list has to name every
+  origin you use, loopback included, with the exact scheme and port: each LAN
+  hostname, each LAN IP, each VPN address, and the local ones you would
+  otherwise lose.
 - **`protect_read: true` is defence in depth, not a login.** It makes even read
   requests carry the token, so a bare API scrape that never loads a page gets
   `401`. It does *not* keep anyone out who opens the Web UI: the token is handed
@@ -107,18 +107,19 @@ proxy in front does not change this: `local_token` hands its token to every
 page load, so the first visitor to reach the proxy can read and write your
 shelf.
 
-A real answer is planned. `security.mode` reserves two values —
-`password` and `external` — for authenticated deployments; setting either today
-fails at startup with "reserved but not implemented yet". A public tier waits on
-that work landing. Until then, keep an internet-facing deployment behind a VPN
-and treat it as Tier B.
+A real answer is planned. `security.mode` reserves two values, `password` and
+`external`, for authenticated deployments; setting either today fails at startup
+with "reserved but not implemented yet". A public tier waits on that work
+landing. Until then, keep an internet-facing deployment behind a VPN and treat
+it as Tier B.
 
 ### The desktop and standalone reader apps
 
 Neither app is a row on that table. Both embed their API in the Wails window and
-open **no network port** — neither calls `ListenAndServe`, so there is nothing
-for another machine to connect to, and the tiers' question of who can reach the
-port does not arise. What they are not is `local_token`:
+open **no network port** for it — neither serves the API with `ListenAndServe`,
+so there is nothing for another machine to connect to, and the tiers' question
+of who can reach the port does not arise. The desktop's optional LAN share is
+not the API; see [the read-only WebDAV export](#the-read-only-webdav-export). What they are not is `local_token`:
 
 - The **desktop app** runs the same server in-process with `security.mode: none`
   hard-coded (`desktop/app.go`). Under `none` the middleware returns before the
@@ -144,6 +145,87 @@ already running as you can read the shelf files directly, with or without
 PlainShelf, and anything that can inject script into the app's own webview is
 inside the boundary already — under `local_token` too, since the token is written
 into the page (`server/spa.go`) where same-origin script can simply read it.
+
+### The read-only WebDAV export
+
+`dav_export` (off by default) opens a **second** listener that serves every local
+shelf's files read-only, for another PlainShelf to open as a virtual shelf. It
+sits outside the `local_token` boundary on purpose, and is gated by its own token
+instead:
+
+- Every request needs `Authorization: Bearer <token>`, compared in constant
+  time; the token lives in `token_file` (mode `0600`) and is replaced with
+  `plainshelf-srv -rotate-dav-token`, which takes effect on the next request.
+- No method that writes is answered, with or without the token, and the
+  listener has no `/api/` route, no web UI and no shelf management.
+- Only shelf files are served: lock files, the scan cache and `app/tmp/` are not.
+- Over plain HTTP the token and the files cross the network unencrypted, so the
+  export belongs on Tier B's trusted network only. See
+  [`dav_export`](reference/configuration.md#dav_export).
+
+The desktop app's **Share on local network** switch opens the same listener,
+limited to the shelves ticked on the settings page. It is turned on only through
+a Wails binding, never an HTTP route, so nothing on the network can switch it
+on; it binds one detected LAN address rather than `0.0.0.0`, and off it opens no
+port. See
+[Share shelves on your local network](configuring-local-shelf.md#share-shelves-on-your-local-network-desktop-app).
+
+The Android app's **Share on local network** opens it the same way for ticked
+local shelves, through a Capacitor plugin rather than an HTTP route. It runs only
+while a foreground service shows a notification, binds the phone's Wi-Fi IPv4
+address, and closes itself after 30 minutes without a request the token admitted
+or when that network changes. See
+[Share local shelves on the local network](development/android.md#share-local-shelves-on-the-local-network).
+
+### Desktop LAN sharing decision record
+
+**Recorded retrospectively on 2026-10-20 (Asia/Taipei).** This is the date this
+record was written, not the original decision date, which has not been
+established. The implementation is traceable to
+[the separate WebDAV export (#741)](https://github.com/voilelab/plainshelf/pull/741)
+and [the desktop sharing switch (#745)](https://github.com/voilelab/plainshelf/pull/745),
+both committed on 2026-10-17, followed by
+[per-shelf QR URLs (#757)](https://github.com/voilelab/plainshelf/pull/757)
+on 2026-10-18.
+
+The requirement is to let another trusted device read selected local shelves
+while their owner uses the desktop app, without a second server installation
+or remote control of the desktop. The alternatives were:
+
+| Option | Benefit | Cost and decision |
+|---|---|---|
+| No desktop sharing; run a separate server or Docker | Keeps the desktop entirely in-process and offers an independently managed service. | Requires separate setup and shelf configuration for a simple device-to-device read. Still available for NAS or always-on use, but not the chosen desktop experience. |
+| Expose the complete desktop API on the network | Reuses the UI API and its management operations. | Exposes writes and management beyond the reading requirement. The desktop's hard-coded `SecurityModeNone` relies on its process boundary and cannot secure a network listener. Rejected. |
+| Separate, read-only WebDAV listener | Reuses the shelf-file export, restricts the shared shelves, and gives remote readers only the access they need. | Adds listener lifecycle and bearer-token handling; HTTP provides no transport confidentiality. Chosen within the trusted-network boundary. |
+
+The decision applies to the desktop's optional shelf-file export, not to its
+complete UI API, which remains inside Wails. The export has its own bearer
+token; it neither inherits `SecurityModeNone` as network protection nor uses
+`local_token` as access control. A token holder can read the selected shelf
+files but cannot write, manage shelves, or call the desktop API.
+
+The deployment tiers above remain the framework: the desktop API stays
+in-process; an enabled export belongs only on **Tier B**, a trusted LAN or VPN.
+Its single local IPv4 bind is not a guarantee that the network is trusted;
+choose the interface and firewall rules accordingly. HTTP transmits both token
+and content in cleartext. This decision adds no TLS, login, write access or
+**Tier C** public deployment support, and preserves single-user operation on
+trusted devices.
+
+The operational contract is documented in
+[Share shelves on your local network](configuring-local-shelf.md#share-shelves-on-your-local-network-desktop-app):
+sharing starts disabled with no selected shelves; an enabled share binds one
+local LAN IPv4 address (never `0.0.0.0`), defaults to port `20001`, and exposes
+only the selected local shelves. The settings page reports errors and shows
+the URL, token and QR while running. Turning sharing off closes the listener,
+including active transfers. Saved settings and the token survive restarts;
+replacing the token revokes the old token for subsequent requests.
+
+This record documents the implemented boundary. It does not establish that
+native Wails interaction, firewall prompts, cross-device reading, or port
+release after switching off have been verified on a physical desktop. Those
+remain separate device-validation work. Broader source-credential storage is
+covered by [Shelf sources and credentials](concepts/shelf-sources.md).
 
 ## What `local_token` actually protects
 
@@ -211,43 +293,81 @@ same reason a safe default is not a choice worth offering.
 
 ## Where credentials live
 
-PlainShelf runs no server of its own, so **no PlainShelf-operated service holds
-your accounts, your library, or your credentials**, and **nothing confidential is
-baked into its binaries** for an attacker to lift from the server or the APK.
-What keeps it true:
+PlainShelf operates no hosted service that holds your accounts, library,
+reading records or credentials. This is a statement about the project, not a
+claim that a server you run never handles secrets. A server or device opening a
+remote shelf must resolve its credential and use it to authenticate to that
+source. A saved reference keeps the secret out of the shelf configuration; it
+does not keep the plaintext secret out of the running process.
 
-- **The server has no config field for a secret.** `app_conf` carries shelf
-  paths, a store path, import and logging settings, and the `security` block —
-  and nothing that reads a password, token, or API key for any external service.
-  The one token PlainShelf handles on the server, the `local_token`, is generated
-  fresh at each startup and never persisted.
-- **SMB credentials are the operating system's, not PlainShelf's.** PlainShelf
-  reads an SMB/NAS shelf only through a path the OS has already mounted; it does
-  not accept `smb://` URLs and never sees the share's username or password. See
-  [Configure an SMB shelf file source](configuring-smb-shelf.md).
-- **No pCloud secret is baked into the Android app.** pCloud access uses the
-  `poll_token` OAuth flow, which needs no app secret and no redirect URL, so
-  there is nothing confidential shipped inside the APK.
+### Remote source credentials
 
-Two credentials are nevertheless persisted, both by the Android app and both on
-the device itself. They are worth stating plainly rather than rounding off to
-"none":
+| Client / connection | Secret and purpose | Persistent location | Sent to |
+|---|---|---|---|
+| Server / Docker → WebDAV source | WebDAV password with `username`, or bearer token without it | Operator-provided environment variable (`env:NAME`) or file (`file:/path`) | The configured WebDAV source, as HTTP Basic or `Authorization: Bearer` |
+| Server / Docker → PlainShelf export | Export bearer token granting read access to the remote shelf files | Operator-provided environment variable or file, referenced by `source.credential` | The configured export URL, as `Authorization: Bearer` |
+| Desktop → WebDAV or PlainShelf export | WebDAV password / bearer token, or PlainShelf export bearer token | OS keychain: macOS Keychain, Windows Credential Manager or Linux Secret Service; `shelves.json` stores a `host:` reference | The configured source URL, using the same Basic / bearer rules |
+| Android → WebDAV or PlainShelf export | WebDAV password / bearer token, or PlainShelf export bearer token | Keystore-backed secure storage, per shelf entry | The configured source URL, using the same Basic / bearer rules |
+| Android → pCloud | OAuth access token granting access to the user's pCloud account | Keystore-backed secure storage, per shelf entry | The authorized regional pCloud API (`api.pcloud.com` or `eapi.pcloud.com`) over HTTPS, as a bearer header; never to a PlainShelf server |
+| Android → full PlainShelf UI API (`server` entry) | That server's `local_token`; needed for reads when `protect_read: true` | Keystore-backed secure storage, per shelf entry | The configured server API, in the token header (default `X-PlainShelf-Token`); this is not an export connection |
 
-- **The access token of a PlainShelf server you add on Android is stored on the
-  device.** A shelf entry that points at a server keeps that server's token in
-  the same Android Keystore-backed secure storage as the pCloud token below, one
-  secret per shelf entry (`frontend/src/providers/mobileConfig.ts`); the
-  non-secret part of the entry, such as the server address, goes to Capacitor
-  Preferences, and no token is ever written there. It is the `local_token` of a
-  server you run, entered by hand, and it is needed only to read from a server
-  that sets `protect_read: true`. It leaves the device only as a header to that
-  server.
-- **A pCloud OAuth token you grant is stored on your own device.** If you connect
-  an Android pCloud shelf, the access token you approve is saved in the device's
-  Keystore-backed secure storage
-  (`frontend/src/providers/mobileConfig.ts`), encrypted at rest. It is scoped to
-  your own pCloud account, it is never sent to any PlainShelf server, and it is
-  the only third-party credential the app keeps. The boundary to be clear on: the
-  app can decrypt the token in order to use it, so an attacker who compromises
-  both the device and the app could read it. If a device is lost, revoke the
-  grant from your pCloud account settings.
+The server's `DefaultCredentialResolver` reads `env:` and `file:` references.
+The desktop resolves `host:` through the OS keychain; Android uses its native
+secure-storage resolver. The source client holds the resolved value to make
+requests. Source credentials are configured through the server's local config
+or host bindings, not through a route that accepts or returns secrets on the UI
+HTTP API. See [Shelf sources and credentials](concepts/shelf-sources.md#credentials)
+and the [source configuration reference](reference/configuration.md#shelvessource).
+
+On Android, secure storage encrypts values in private SharedPreferences with an
+AES-GCM key held in Android Keystore. Non-secret shelf settings live separately
+in Capacitor Preferences; per-entry secrets use
+`plainshelf.mobile.secret.<entryID>`. The app can decrypt them to use them, so
+storage encryption does not protect against an attacker controlling the app and
+device. pCloud's `poll_token` authorization needs no app secret or redirect URI;
+no confidential pCloud app secret ships in the APK. If the device is lost,
+revoke its pCloud grant from the account settings.
+
+HTTP Basic encodes credentials; it does not encrypt them. A WebDAV source may
+use HTTPS, but PlainShelf's own LAN export currently speaks plain HTTP: its
+token and shelf contents are visible to anyone able to observe that traffic.
+Keep it on Tier B's trusted LAN / VPN, never the public internet. The same
+transport concern applies to a full-API token sent over HTTP; a token is not a
+substitute for transport protection or a user login.
+
+### Locally generated tokens
+
+These have different purposes from remote-source passwords and OAuth tokens:
+
+- **UI API `local_token`:** generated afresh at server startup, not persisted by
+  the server, and delivered to its web UI on page load. Android may save a copy
+  for a full-API connection. It is the [CSRF boundary](#what-local_token-actually-protects),
+  not user authentication or the LAN export's bearer token.
+- **Server WebDAV export token:** generated into `dav_export.token_file` with
+  mode `0600`, persists across restarts, and is checked on export requests.
+  The operator supplies a copy to reading clients; the file must not be in the
+  exported tree. See [Token file location](reference/configuration.md#token-file-location).
+- **Desktop LAN share token:** generated into `lan_share.token` in the desktop
+  data root, outside shelves. It persists independently of imported source
+  credentials in the keychain. The running share displays it and includes it in
+  the QR payload; replacing it invalidates the old token on subsequent requests.
+- **Android LAN share token:** generated into `lan_share.token` in the embedded
+  runtime's private data directory. This publisher token is a local file, not a
+  source credential in Keystore-backed storage. It persists and can be rotated;
+  the running share exposes it to the user through its connection details / QR.
+
+Export tokens authorize read access to the files the listener exports. They do
+not enable writes, shelf management, or access to the desktop's in-process UI
+API. `SecurityModeNone` still relies on the Wails process boundary; neither this
+credential model nor the export changes `allowed_origins` replacement semantics.
+
+SMB remains an OS-mounted filesystem: PlainShelf receives a mount path and does
+not handle the SMB account or password. See
+[Configure an SMB shelf file source](configuring-smb-shelf.md).
+
+Shelf files, host configuration, secret stores and export-token files are
+separate storage. Copying a shelf or a `host:` reference does not copy its
+keychain / Keystore credential, while copying an export-token file does copy a
+read-access secret. Consult [Backup and restore](backup-and-restore.md) for the
+existing host procedures; protect any credential files you back up and plan to
+reconnect sources whose secret store was not restored.

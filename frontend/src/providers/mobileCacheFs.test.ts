@@ -30,9 +30,6 @@ describe('removeCacheScope', () => {
     });
   });
 
-  // scopeDir maps an empty key to the shared pre-scope directory, so removing
-  // a corrupt entry that derives no identity would take unrelated downloads
-  // with it.
   it('refuses an empty scope key rather than wiping the unscoped directory', async () => {
     await removeCacheScope('');
 
@@ -41,12 +38,6 @@ describe('removeCacheScope', () => {
   });
 });
 
-// The web fallback creates a missing parent directory by checking whether it
-// exists and then creating it, in separate IndexedDB round trips. Two writes
-// into the same new directory - a book's manifest and its cover, or a book and
-// the shelf snapshot above it - therefore both see it missing, both create it,
-// and the loser fails. Downloading a book must not fall over because another
-// write got there first.
 describe('writing through the plugin', () => {
   const collision = new Error('Current directory does already exist.');
 
@@ -86,8 +77,6 @@ describe('writing through the plugin', () => {
     expect(writeFileMock).toHaveBeenCalledTimes(1);
   });
 
-  // Writes report failure to their caller by design: a caller that must know
-  // whether it committed still can. Only the directory collision is absorbed.
   it('propagates any other write failure', async () => {
     writeFileMock.mockRejectedValueOnce(new Error('Quota exceeded'));
 
@@ -97,8 +86,6 @@ describe('writing through the plugin', () => {
     expect(writeFileMock).toHaveBeenCalledTimes(1);
   });
 
-  // A retry that collides again would mean the directory vanished between the
-  // two attempts, which nothing here does; failing loudly beats looping.
   it('does not retry twice', async () => {
     writeFileMock.mockRejectedValueOnce(collision).mockRejectedValueOnce(collision);
 

@@ -68,9 +68,6 @@
         </div>
       </header>
 
-      <!-- Active-condition chips sit above the list, between the header and the
-           results, so what is narrowing the list is visible without opening the
-           panel. Empty when nothing is active. -->
       <slot name="filters" />
 
       <div v-if="books.length === 0" class="panel empty-state">
@@ -130,9 +127,6 @@
         </button>
       </div>
 
-      <!-- `total` is the post-filter count, so 0 means there is nothing to page
-           through: without this the empty state is followed by a "Page 1 / 0"
-           control row. -->
       <Pagination
         v-if="total > 0"
         :page="page"
@@ -424,9 +418,6 @@ onMounted(() => {
 }
 </style>
 
-<!-- Unscoped: DropdownMenuContent/Item are portalled outside this
-     component's DOM subtree, so this component's scope attribute never
-     lands on them. Style portalled popper content with plain CSS. -->
 <style>
 /* 16px, matching the sidebar: these are now the same 24-grid stroke icons, and
    the old 14px was sized for the denser 16-grid solid glyphs they replaced. */

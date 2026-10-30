@@ -6,51 +6,38 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
-// closeBackgroundRounds is chosen to make an unwaited goroutine visible rather
-// than to be exhaustive: the window between Close returning and the shelf
-// directory being deleted is short, so a single round catches the race only
-// sometimes. Each round opens an empty shelf, so the whole test stays fast.
 const closeBackgroundRounds = 300
 
-// A read schedules background work — the per-book staleness check and the
-// exported book cache — and both write under app/: the check takes the shelf
-// lock, and flock creates app/library.lock when it is missing. A goroutine that
-// outlives Close therefore writes into a shelf its owner has already closed,
-// after Close released the lock that would have made the write safe to share.
-//
-// This is asserted the way the damage shows up: the caller deletes the shelf
-// directory once Close has returned, and a straggler puts a file back under it.
-// Every t.TempDir shelf in this package is that caller, which is why the
-// package used to fail in cleanup with "directory not empty" on a different
-// test each run.
-//
-// The shelves are opened without newTestShelf on purpose: its cleanup would
-// close each of them a second time, after this test has already deleted the
-// directory it was reading.
+func openShelfWithoutCleanup(t *testing.T, conf *ShelfConf) *Shelf {
+	t.Helper()
+	s, err := NewShelf(conf)
+	if err != nil {
+		t.Fatalf("NewShelf: %v", err)
+	}
+	if err := s.WaitReady(t.Context()); err != nil {
+		_ = s.Close()
+		t.Fatalf("WaitReady: %v", err)
+	}
+	return s
+}
+
 func TestCloseWaitsForBackgroundWork(t *testing.T) {
 	root := t.TempDir()
 
 	for round := range closeBackgroundRounds {
 		libRoot := filepath.Join(root, "shelf-"+strconv.Itoa(round))
 
-		// Both intervals elapse immediately, so every read schedules both kinds
-		// of background work instead of leaving them to a timer this test would
-		// have to wait out.
-		s, err := NewShelf(&ShelfConf{
+		s := openShelfWithoutCleanup(t, &ShelfConf{
 			LibRoot:           libRoot,
 			BookCheckInterval: "0s",
 			BookCacheWriterID: "close-test",
 			BookCacheInterval: "0s",
 		})
-		if err != nil {
-			t.Fatalf("round %d: NewShelf: %v", round, err)
-		}
-		if err := s.WaitReady(t.Context()); err != nil {
-			t.Fatalf("round %d: WaitReady: %v", round, err)
-		}
 
 		if _, err := s.ListBooks(); err != nil {
 			t.Fatalf("round %d: ListBooks: %v", round, err)
@@ -65,6 +52,79 @@ func TestCloseWaitsForBackgroundWork(t *testing.T) {
 		}
 		if _, err := os.Stat(libRoot); !errors.Is(err, fs.ErrNotExist) {
 			t.Fatalf("round %d: the shelf directory came back after Close: %v", round, err)
+		}
+	}
+}
+
+func TestBackgroundPanicIsRecovered(t *testing.T) {
+	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir()})
+
+	ran := make(chan struct{})
+	if !s.goBackground(func() {
+		close(ran)
+		panic("boom")
+	}) {
+		t.Fatal("goBackground refused to start on an open shelf")
+	}
+	<-ran
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
+
+func TestBookCacheWorkDoesNotOverlap(t *testing.T) {
+	for _, slot := range []string{"refresh", "export"} {
+		t.Run(slot, func(t *testing.T) {
+			s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir()})
+			inProgress := &s.bookCache.refreshing
+			if slot == "export" {
+				inProgress = &s.bookCache.exporting
+			}
+			var calls atomic.Int32
+			started, finish := make(chan struct{}), make(chan struct{})
+			s.startBookCacheWork(inProgress, func() {
+				calls.Add(1)
+				close(started)
+				<-finish
+			})
+			select {
+			case <-started:
+			case <-time.After(5 * time.Second):
+				close(finish)
+				t.Fatal("cache work did not start")
+			}
+			s.startBookCacheWork(inProgress, func() { calls.Add(1) })
+			close(finish)
+			s.stopBackground()
+			if calls.Load() != 1 || *inProgress {
+				t.Fatalf("work calls = %d, claim = %v; want one call and a released claim", calls.Load(), *inProgress)
+			}
+		})
+	}
+}
+
+func TestBookCacheClaimFailureCleanup(t *testing.T) {
+	for _, slot := range []string{"refresh", "export"} {
+		for _, rejected := range []bool{false, true} {
+			t.Run(slot+"/rejected="+strconv.FormatBool(rejected), func(t *testing.T) {
+				s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir()})
+				inProgress := &s.bookCache.refreshing
+				if slot == "export" {
+					inProgress = &s.bookCache.exporting
+				}
+				if rejected {
+					s.stopBackground()
+				}
+				var ran atomic.Bool
+				s.startBookCacheWork(inProgress, func() {
+					ran.Store(true)
+					panic("cache work panic")
+				})
+				s.stopBackground()
+				if *inProgress || ran.Load() == rejected {
+					t.Fatalf("claim = %v, ran = %v, rejected = %v", *inProgress, ran.Load(), rejected)
+				}
+			})
 		}
 	}
 }

@@ -12,12 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
-// NewHandler serves the reads the reader UI performs, and nothing else.
-//
-// The paths mirror the server's so the frontend's own provider works unchanged;
-// what is missing is the point: no listing, no folders, no trash, no writes. A
-// path outside this set is a 404 rather than a stub, so a UI that wandered
-// somewhere it cannot go here fails loudly during development.
 func NewHandler(lib *Library, version string) http.Handler {
 	h := &handlers{lib: lib, version: version}
 
@@ -46,13 +40,6 @@ type handlers struct {
 	version string
 }
 
-// withBook resolves the request's book and answers the request itself when it
-// cannot: no book open yet (503, the window is still asking for a folder), or
-// a request for a book this reader does not hold (404).
-//
-// read runs while the package is held open, so a book opened in another window
-// — or from the File menu — cannot close the directory handle midway through
-// this response.
 func (h *handlers) withBook(w http.ResponseWriter, r *http.Request, read func(*bookpkg.Book)) {
 	held := h.lib.withBook(func(book *bookpkg.Book) {
 		if requested := r.PathValue("book_id"); requested != book.ID() {
@@ -67,8 +54,6 @@ func (h *handlers) withBook(w http.ResponseWriter, r *http.Request, read func(*b
 	}
 }
 
-// source resolves the source named in the path, or the current one when the
-// route carries no source id.
 func (h *handlers) source(w http.ResponseWriter, r *http.Request, book *bookpkg.Book) (*bookpkg.Source, bool) {
 	sourceID := r.PathValue("source_id")
 	if sourceID == "" {
@@ -88,54 +73,46 @@ func (h *handlers) source(w http.ResponseWriter, r *http.Request, book *bookpkg.
 	return source, true
 }
 
-func writeJSON(w http.ResponseWriter, value any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if err := json.MarshalWrite(w, value, jsonopt.API()); err != nil {
-		// The status is already written by now, so the response is lost either
-		// way; closing the connection is what tells the client not to parse it.
+func (h *handlers) writeJSON(w http.ResponseWriter, value any) {
+	body, err := json.Marshal(value, jsonopt.API())
+	if err != nil {
+		h.lib.warn("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if _, err := w.Write(body); err != nil {
+		h.lib.warn("failed to write response", "error", err)
 	}
 }
 
-// GET /api/mode
-//
-// Read-only is not a mode the user can leave here: the reader has no write
-// paths at all. The frontend reads this to hide every editing affordance.
 func (h *handlers) getMode(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, map[string]bool{"read_only": true})
+	h.writeJSON(w, map[string]bool{"read_only": true})
 }
 
-// GET /api/version
 func (h *handlers) getVersion(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, map[string]string{"version": h.version})
+	h.writeJSON(w, map[string]string{"version": h.version})
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}
-//
-// The response mirrors the server's: metadata under "meta", folder beside it.
-// A package has no folder — it is not inside a shelf — so the value is empty
-// rather than absent, which is what the frontend's transform expects.
 func (h *handlers) getBook(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
-		writeJSON(w, struct {
+		h.writeJSON(w, struct {
 			Meta   *bookpkg.BookMeta `json:"meta"`
 			Folder []string          `json:"folder"`
 		}{Meta: book.GetMeta(), Folder: []string{}})
 	})
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/content
 func (h *handlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
 		source, ok := h.source(w, r, book)
 		if !ok {
 			return
 		}
-		h.streamSource(w, source)
+		h.streamSource(w, book, source)
 	})
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources
 func (h *handlers) listSources(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
 		h.writeSourceList(w, book)
@@ -153,48 +130,43 @@ func (h *handlers) writeSourceList(w http.ResponseWriter, book *bookpkg.Book) {
 	for _, source := range sources {
 		metas = append(metas, source.GetMeta())
 	}
-	writeJSON(w, metas)
+	h.writeJSON(w, metas)
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}
 func (h *handlers) getSource(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
 		source, ok := h.source(w, r, book)
 		if !ok {
 			return
 		}
-		writeJSON(w, source.GetMeta())
+		h.writeJSON(w, source.GetMeta())
 	})
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (h *handlers) getSourceContent(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
 		source, ok := h.source(w, r, book)
 		if !ok {
 			return
 		}
-		h.streamSource(w, source)
+		h.streamSource(w, book, source)
 	})
 }
 
-func (h *handlers) streamSource(w http.ResponseWriter, source *bookpkg.Source) {
+func (h *handlers) streamSource(w http.ResponseWriter, book *bookpkg.Book, source *bookpkg.Source) {
 	content, err := source.Open()
 	if err != nil {
 		http.Error(w, "failed to open the source", http.StatusInternalServerError)
 		return
 	}
-	defer content.Close() //nolint:errcheck // read-only handle
+	defer content.Close()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if _, err := io.Copy(w, content); err != nil {
-		// Same as writeJSON: the status is out, so this only records why the
-		// body is short.
-		return
+		h.lib.warn("source stream ended early", "book_id", book.ID(), "source_id", source.ID(), "error", err)
 	}
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *handlers) getCover(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
 		h.writeCover(w, book)
@@ -217,10 +189,9 @@ func (h *handlers) writeCover(w http.ResponseWriter, book *bookpkg.Book) {
 	}
 
 	w.Header().Set("Content-Type", contentTypeForExt(ext))
-	w.Write(cover) //nolint:errcheck // the status is already written
+	w.Write(cover)
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
 func (h *handlers) getAsset(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
 		source, ok := h.source(w, r, book)
@@ -232,15 +203,13 @@ func (h *handlers) getAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) writeAsset(w http.ResponseWriter, source *bookpkg.Source, name string) {
-	// Whatever the name is, it is resolved by the shelf's own asset rules
-	// (assets/ only, no traversal, supported extensions) rather than by string
-	// handling here.
+
 	asset, err := source.OpenAsset(name)
 	if err != nil {
 		http.Error(w, "asset not found", http.StatusNotFound)
 		return
 	}
-	defer asset.File.Close() //nolint:errcheck // read-only handle
+	defer asset.File.Close()
 
 	w.Header().Set("Content-Type", contentTypeForExt(asset.Ext))
 	if _, err := io.Copy(w, asset.File); err != nil {
@@ -248,8 +217,6 @@ func (h *handlers) writeAsset(w http.ResponseWriter, source *bookpkg.Source, nam
 	}
 }
 
-// contentTypeForExt keeps the reader from guessing: an illustration the browser
-// cannot type is served as bytes rather than as something it will try to parse.
 func contentTypeForExt(ext string) string {
 	if mimeType := mime.TypeByExtension(ext); mimeType != "" {
 		return mimeType

@@ -3,11 +3,6 @@
     <div>
       <div class="setting-label">{{ t('settings.shelves.readOnlyLabel') }}</div>
       <p class="setting-description">{{ t('settings.shelves.readOnlyHelp') }}</p>
-      <!-- None of these three follow from "read-only" on its own, and each one
-           is visible to the user the moment it bites: the shelf stops being
-           locked against a second instance, its exported book cache stops being
-           refreshed, and a path that does not exist yet is an error rather than
-           a new shelf. -->
       <ul class="shelf-read-only-effects">
         <li>{{ t('settings.shelves.readOnlyEffectLock') }}</li>
         <li>{{ t('settings.shelves.readOnlyEffectBookCache') }}</li>

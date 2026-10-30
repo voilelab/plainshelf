@@ -31,8 +31,6 @@ type Guard = (
   next: NavigationGuardNext
 ) => unknown;
 
-// Captures the guard `installMobileRouterGuards` registers so it can be invoked
-// with a synthetic destination, without standing up a real router.
 function captureGuard(): Guard {
   let guard: Guard | null = null;
   const router = {
@@ -47,8 +45,6 @@ function captureGuard(): Guard {
   return guard;
 }
 
-// The guard returns its verdict (a redirect location or `true`) rather than
-// calling `next`, so a no-op stands in for the unused navigation callback.
 function runGuard(guard: Guard, id: string, query: Record<string, string> = {}) {
   const to = {
     name: 'reader',
@@ -111,5 +107,28 @@ describe('mobile reader download gate', () => {
     const result = await runGuard(guard, 'book-1');
 
     expect(result).toBe(true);
+  });
+});
+
+describe('mobile write surface', () => {
+  function runRoute(guard: Guard, name: string, query: Record<string, string> = {}) {
+    const to = { name, params: {}, query, path: `/${name}`, hash: '' } as unknown as RouteLocationNormalized;
+    return guard(to, {} as RouteLocationNormalized, (() => {}) as unknown as NavigationGuardNext);
+  }
+
+  it('refuses the edit page and the import query for a server shelf', async () => {
+    loadShelfEntriesMock.mockResolvedValue({ entries: [{ id: 'e', type: 'server' }], activeEntryID: 'e' });
+    const guard = captureGuard();
+
+    expect(await runRoute(guard, 'book-sources-edit')).toEqual({ name: 'library' });
+    expect(await runRoute(guard, 'library', { import: '1' })).toMatchObject({ query: {} });
+  });
+
+  it('opens them for a local shelf, which the app can edit', async () => {
+    loadShelfEntriesMock.mockResolvedValue({ entries: [{ id: 'e', type: 'local' }], activeEntryID: 'e' });
+    const guard = captureGuard();
+
+    expect(await runRoute(guard, 'book-sources-edit')).toBe(true);
+    expect(await runRoute(guard, 'library', { import: '1' })).toBe(true);
   });
 });

@@ -9,7 +9,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// batchHandlers serves the endpoints that start a sweep over many books.
 type batchHandlers struct {
 	*taskSubmitter
 }
@@ -47,7 +46,6 @@ func normalizeBookBatchIDs(ids []string) ([]string, error) {
 	return result, nil
 }
 
-// POST /api/shelves/{shelf_id}/book-batches
 func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
@@ -86,12 +84,7 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The batch runs after this response, so which of the named books it may
-	// touch is decided here. A book this request cannot see is refused inside
-	// the chain rather than rejected outright, because that is what an ID the
-	// shelf has never held gets: the caller still receives its 202 and reads
-	// not_found for that ID, and the two are indistinguishable.
-	visible, err := h.visibility(shelfData).visibleBookIDs()
+	visible, err := h.visibility(shelfData).visibleBooks()
 	if err != nil {
 		h.writeErr(w, r, err, "failed to list books")
 		return

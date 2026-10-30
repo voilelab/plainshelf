@@ -1,4 +1,4 @@
-# Data Model
+# Data model
 
 PlainShelf is **filesystem-first**: the shelf directory on disk is the source of
 truth, and the server reads and writes it directly. There is no separate
@@ -16,6 +16,7 @@ A typical shelf looks like this:
 ├─ books/
 │  ├─ {book1-folder}.bookpkg/
 │  ├─ {folder1}/
+│  │  ├─ folder.json   (optional; this folder's icon and other settings)
 │  │  └─ {book2-folder}.bookpkg/
 │  └─ {folder2}/
 │     └─ {folder3}/
@@ -45,9 +46,9 @@ shelf rather than to the program reading it — see [`shelf.json`](#shelfjson)
 below. Deleting it is safe in the sense that nothing breaks: the shelf goes back
 to the built-in defaults.
 
-Before changing this layout — renaming, adding, or removing a top-level
-directory, or how book folders are named or nested — read [Shelf layout changes
-are not
+Before changing this layout (renaming, adding, or removing a top-level
+directory, or changing how book folders are named or nested), read [Shelf layout
+changes are not
 versioned](data-format-versioning.md#shelf-layout-changes-are-not-versioned):
 the shelf carries no top-level version marker, and that page gives the test for
 what counts as a layout change and how one is expected to be detected.
@@ -57,6 +58,14 @@ what counts as a layout change and how one is expected to be detected.
 Source of truth. This directory contains all user-owned data: book metadata,
 text files, cover images, and other long-lived files. Books can be nested under
 [folders](folders.md) by placing them inside sub-directories.
+
+A folder directory may hold a `folder.json` with that folder's own settings,
+such as its icon and optional `sort_key` for
+[custom sibling order](folders.md#custom-sibling-order). It is user data like
+`book.json` and moves with the folder. Display metadata is carried in the cached
+and exported `folder_meta` map; directory location defines the hierarchy;
+see [`folder.json` schema
+v1](data-format-versioning.md#folderjson-schema-v1).
 
 ### `trash/`
 
@@ -80,7 +89,7 @@ was deleted and where it came from:
 
 | Field | Description |
 |---|---|
-| `schema_version` | On-disk format version of this file. Managed by PlainShelf; see [Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v2) |
+| `schema_version` | On-disk format version of this file. Managed by PlainShelf; see [Data format versioning](data-format-versioning.md#trash-metadata-schema-v2) |
 | `deleted_at` | When the book was moved to the trash |
 | `original_path` | The path it was moved from, used to restore its folder name |
 | `original_folder` | The [folder](folders.md) it lived in, recreated on restore |
@@ -93,7 +102,7 @@ it has in the trash.
 A `trash.json` written by a *newer* PlainShelf is the opposite case: the book is
 still listed with everything the file says, but this build will not rewrite that
 record, so restoring or permanently deleting it is refused. See
-[Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v2).
+[Data format versioning](data-format-versioning.md#trash-metadata-schema-v2).
 
 Restoring never overwrites: if something already occupies the original path, the
 restored folder gets a `-1`, `-2`, … suffix. The book ID inside `book.json` is
@@ -102,17 +111,17 @@ unchanged either way, so reading progress and bookmarks survive the round trip.
 ### `trash/` was `.trash/` before
 
 Older shelves keep the trash in a hidden `.trash/` directory. PlainShelf renames
-it to `trash/` the next time it opens such a shelf; if both names exist — a
-shelf opened by an older build again after the rename — every book under
+it to `trash/` the next time it opens such a shelf; if both names exist, as when
+an older build opens the shelf again after the rename, every book under
 `.trash/books/` is moved into `trash/books/`, a book ID already taken there
 getting a `-1` suffix, and the emptied `.trash/` is removed. Files you put under
 `.trash/` yourself are moved along or, if they block the removal, left exactly
 where they are; the migration deletes nothing.
 
 That suffix is the one case where the trash holds two folders for the same book
-ID. A book ID is never rewritten — everything else, including your reading
-progress, is keyed on it — so the trash screen cannot tell the two apart: it
-lists both and restores or deletes the one without the suffix. Move the extra
+ID. A book ID is never rewritten, because everything else, including your
+reading progress, is keyed on it. So the trash screen cannot tell the two apart:
+it lists both and restores or deletes the one without the suffix. Move the extra
 folder back into `books/` with a file manager if you want it, or empty the
 trash, which removes both.
 
@@ -127,13 +136,13 @@ book listing. All of it is rebuildable and none of it is user data — the serve
 recreates it on the next startup.
 
 `book-cache-{writer-id}.json` is a copy of the shelf's book listing, kept so
-that a client reading the shelf over a slow or request-metered connection — the
-Android app opening a shelf from pCloud — does not have to walk it book by book.
-Each installation writes its own file, named after an ID generated on first
-start, so several machines sharing a shelf do not overwrite each other; a file
-no installation has refreshed for 30 days is removed. Deleting them is safe:
-they are rebuilt, and a client that finds none simply scans instead. See [Shelf
-cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache).
+that a client reading the shelf over a slow or request-metered connection, such
+as the Android app opening a shelf from pCloud, does not have to walk it book by
+book. Each installation writes its own file, named after an ID generated on
+first start, so several machines sharing a shelf do not overwrite each other; a
+file no installation has refreshed for 30 days is removed. Deleting them is
+safe: they are rebuilt, and a client that finds none simply scans instead. See
+[Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache).
 
 `scan-cache.json` records the modification time of each directory under `books/`
 alongside the entries found there, so a scan can skip listing the folders that
@@ -145,14 +154,15 @@ one.
 `fingerprint-cache.json` stores the content fingerprints behind the [Similar
 Books](../finding-similar-books.md) page, so that page does not have to re-read
 every book each time you open it. Unlike the exported book cache there is one
-shared file, not one per installation — a fingerprint is a pure function of a
-source's content, so every machine computes the same value and they merge into
-the one file. It is the largest thing under `app/`, growing with your library at
-roughly 1.5 KB per source, so on a big shelf it reaches a few megabytes and you
-will notice it in a backup. Deleting it is safe: the next time you build
-fingerprints, the ones that are gone are simply read and computed again. It is
-also discarded and rebuilt whenever the similarity algorithm changes — see [Data
-Format Versioning](data-format-versioning.md#fingerprint-cache).
+shared file, not one per installation, because a fingerprint is a pure function
+of a source's content, so every machine computes the same value and they merge
+into the one file. It is the largest thing under `app/`, growing with your
+library at roughly 1.5 KB per source, so on a big shelf it reaches a few
+megabytes and you will notice it in a backup. Deleting it is safe: the next time
+you build fingerprints, the ones that are gone are simply read and computed
+again. It is also discarded and rebuilt whenever the similarity algorithm
+changes. See [Data format
+versioning](data-format-versioning.md#fingerprint-cache).
 
 Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is
 reading-time history from before it moved onto each device; nothing reads it any
@@ -166,8 +176,8 @@ PlainShelf has always read it, and no build creates the file for you.
 It sits at the shelf root rather than under `app/` because `app/` is disposable
 and a setting that vanishes with the cache would be worse than no setting. It
 travels with the shelf rather than with the server's configuration file so that
-every reader of the same shelf — this server, the desktop app, the Android
-client reading it from pCloud — applies the same rules.
+every reader of the same shelf (this server, the desktop app, the Android client
+reading it from pCloud) applies the same rules.
 
 ```json
 {
@@ -202,12 +212,12 @@ and key order survive, and the settings are read when the shelf is opened: edit
 the file and restart the server (or reopen the shelf in the desktop app) for the
 change to take effect.
 
-An entry that cannot name a directory or a folder is skipped rather than fatal —
+An entry that cannot name a directory or a folder is skipped rather than fatal:
 one containing a `/` where a name is expected, one whose path names no folder at
-all, or one written as a bare string rather than an object — and the rest of the
-file still applies. A file that cannot be read as a single JSON object at all,
-or one larger than 1 MiB, leaves the defaults in place; so does a key this build
-does not know. The server log says what was dropped and why, and warns when your list
+all, or one written as a bare string rather than an object. The rest of the file
+still applies. A file that cannot be read as a single JSON object at all, or one
+larger than 1 MiB, leaves the defaults in place; so does a key this build does
+not know. The server log says what was dropped and why, and warns when your list
 leaves out a default such as `@eaDir`, because that is how a library grows a
 duplicate folder tree.
 
@@ -227,6 +237,10 @@ them and are not synchronized between devices:
 Each position is a JavaScript UTF-16 character offset. Moving or renaming a
 book does not lose it because records use the persistent book ID rather than a
 filesystem path.
+
+The dashboard estimates completion by dividing this UTF-16 offset by the
+source's rune count. Supplementary characters occupy two UTF-16 units but one
+rune, so this estimate can reach 100% before the end of the source.
 
 The standalone reader writes into the desktop app's `reading_progress.json` so a
 book read there shows the same position in the desktop library. Because the
@@ -256,7 +270,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 
 | Path | Description |
 |---|---|
-| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data Format Versioning](data-format-versioning.md). |
+| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data format versioning](data-format-versioning.md). |
 | `CURRENT_SOURCE.txt` | Human-readable hint, in English, that points to the active source. The server writes it whenever the current source changes and never parses it back — `current_source` in `book.json` is the source of truth — so deleting it is safe. Shelves written by older builds carry the same hint as `CURRENT_VERSION_LOCATION.txt`; the next write replaces it with `CURRENT_SOURCE.txt` rather than leaving both. |
 | `cover.(jpg\|png\|webp)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure |
@@ -341,8 +355,8 @@ That path resolves the same way in the reader as it does in any editor you open
 deletes its illustrations too, so nothing is left orphaned.
 
 The directory is flat, and file names must be a plain `.jpg`, `.jpeg`, `.png`,
-`.webp`, or `.gif`. Nothing records its contents — the filesystem is the list —
-so adding or removing an image is just adding or removing a file, and
+`.webp`, or `.gif`. Nothing records its contents, because the filesystem is the
+list, so adding or removing an image is just adding or removing a file, and
 `book.json` never changes because of it.
 
 Files get here three ways: [EPUB import](../epub-import.md#illustrations) writes
@@ -370,15 +384,15 @@ percent-encoded; all three name the same file:
 ```
 
 Downloading a book for offline reading on Android brings its illustrations
-along: the download reads the text it just fetched and stores exactly the
-images that text renders. It asks for them as one zip — a single request for
-the whole source's figures rather than one per image, which is what a
-high-latency or metered mobile connection actually pays for — unpacking and
-storing each figure as it goes so an image-heavy book never holds them all in
-memory at once. When the server is too old to offer that bundle, or the bundled
-request fails, the download falls back to fetching each image on its own. A book
-downloaded by a build that stored no illustrations keeps working and shows alt
-text where its pictures would be; downloading it again stores them.
+along: the download reads the text it just fetched and stores exactly the images
+that text renders. It asks for them as one zip, a single request for the whole
+source's figures rather than one per image, which is what a high-latency or
+metered mobile connection actually pays for. It unpacks and stores each figure
+as it goes so an image-heavy book never holds them all in memory at once. When
+the server is too old to offer that bundle, or the bundled request fails, the
+download falls back to fetching each image on its own. A book downloaded by a
+build that stored no illustrations keeps working and shows alt text where its
+pictures would be; downloading it again stores them.
 
 The bundle is a read-only endpoint beside the per-image one — a source's
 `assets.zip`, taking an optional list of file names so the client packs only
@@ -421,12 +435,12 @@ Copying or moving a book to a **different shelf** applies the same principle
 from two directions. A **move** keeps the ID: it is the same book, now living on
 another shelf, so reading progress and any external reference to it carry over
 unbroken. The move publishes the book on the destination in full before removing
-it from the source, so an interruption never loses it from both — at worst it
+it from the source, so an interruption never loses it from both. At worst it
 ends up copied to the destination and still recoverable in the source's trash.
 Because the ID is preserved, a move onto a shelf that already holds a book with
 that ID is refused rather than silently overwriting it. A **copy** does the
 opposite: the copy is a new, independent book, so it is minted a fresh ID drawn
-from the destination shelf and the original and the copy coexist — the same
+from the destination shelf and the original and the copy coexist, for the same
 reason a copy made within one shelf gets a new ID.
 
 ---
@@ -439,5 +453,5 @@ an equivalent option: Git does not track empty directories, so a folder holding
 no book is not in the commit and is not there after a checkout. See [Git does
 not back up empty
 folders](../backup-and-restore.md#git-does-not-back-up-empty-folders), and
-[Backup and Restore](../backup-and-restore.md) for what a complete backup
+[Backup and restore](../backup-and-restore.md) for what a complete backup
 covers.

@@ -37,7 +37,8 @@ import {
   setCurrentSource,
   updateSourceContent
 } from '@/api/sources';
-import { type FolderChangeOptions, getFolders, transferFolder } from '@/api/folders';
+import { type FolderChangeOptions, type FolderMetaListing, getFolderMeta, getFolders, transferFolder } from '@/api/folders';
+import { sortFolderPaths } from '@/utils/folders';
 import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
@@ -71,8 +72,6 @@ import type {
   ShelfRefreshResult
 } from './bookshelfProvider';
 
-// Declares both halves rather than the loose BookshelfProvider alias, so
-// dropping or mistyping any write method fails to compile here.
 export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter {
   readonly writable = true as const;
 
@@ -96,8 +95,13 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return copyBook(bookId, folder);
   }
 
-  listShelfFolders(shelfID: string): Promise<string[]> {
-    return getFolders(shelfID);
+  async listShelfFolders(shelfID: string): Promise<string[]> {
+    const folders = await getFolders(shelfID);
+    try {
+      return sortFolderPaths(folders, (await getFolderMeta(shelfID)).folders);
+    } catch {
+      return folders;
+    }
   }
 
   transferBook(
@@ -139,8 +143,6 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return saveLocalReadingProgress(bookId, progress);
   }
 
-  // Reading progress and history are device-local; only book data comes from
-  // the server.
   addReadHistory(bookId: string): Promise<void> {
     return addLocalReadHistory(bookId);
   }
@@ -225,6 +227,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return getFolders();
   }
 
+  listFolderMeta(): Promise<FolderMetaListing> {
+    return getFolderMeta();
+  }
+
   listSources(bookId: string): Promise<SourceMeta[]> {
     return listSource(bookId);
   }
@@ -269,13 +275,6 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return refreshSourceMeta(bookId, sourceId);
   }
 
-  // A server discovers external changes only every `scan_interval`, and on an
-  // SMB or cloud-mounted shelf nothing notifies it sooner, so the user needs a
-  // way to say "look now". There is no stored listing to date, hence no
-  // getShelfFetchedAt: the counts refreshShelf reports are what the UI shows.
-  supportsShelfRefresh(): boolean {
-    return true;
-  }
 
   refreshShelf(): Promise<ShelfRefreshResult> {
     return rescanShelf();

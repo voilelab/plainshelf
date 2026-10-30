@@ -19,18 +19,12 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 const props = withDefaults(
   defineProps<{
     items: readonly TItem[];
-    /** Estimated pixel height for a block that has not been measured yet. */
     estimate?: (item: TItem, index: number) => number;
-    /** Extra viewport margin, in CSS pixels, kept mounted above and below. */
     overscan?: number;
   }>(),
   { estimate: undefined, overscan: 800 }
 );
 
-// Off-screen blocks collapse to a placeholder of their last measured height so
-// the scroll container keeps its full height. useReader's scroll<->offset bridge
-// derives the char offset from scrollHeight, so preserving it is what keeps
-// virtualization from shifting a saved reading position (see the ticket).
 const active = ref<boolean[]>([]);
 const heights = ref<number[]>([]);
 
@@ -56,10 +50,6 @@ function measure(index: number): void {
 
 function reset(): void {
   const count = props.items.length;
-  // Without an observer (jsdom, or a webview that lacks it) everything mounts,
-  // which is exactly the reader's pre-virtualization behavior. With one, the
-  // first block starts mounted so reading from the top paints immediately;
-  // the observer resolves the rest (including a deep resume) on its first pass.
   active.value = Array.from({ length: count }, (_unused, index) => !supportsObserver || index === 0);
   heights.value = Array.from({ length: count }, (_unused, index) => estimateFor(index));
 }
@@ -74,7 +64,6 @@ function onIntersections(entries: IntersectionObserverEntry[]): void {
         void nextTick(() => measure(index));
       }
     } else if (active.value[index]) {
-      // Record the real height before collapsing so the placeholder holds it.
       measure(index);
       active.value[index] = false;
     }
@@ -121,7 +110,7 @@ watch(
     disconnect();
     wrappers.clear();
     reset();
-    // The v-for re-runs its element refs on the next flush; reconnect after.
+    // Vue 3.5.43 refreshes callback refs during vnode patching (runtime-core setRef).
     void nextTick(connect);
   }
 );

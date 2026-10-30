@@ -11,7 +11,7 @@ import (
 
 // Badger locks the store directory until the handle is closed, so a startup
 // that fails after opening it must still release the lock.
-func TestNewAppReleasesStoreWhenLaterStepFails(t *testing.T) {
+func TestNewAppReleasesStoreOnFailure(t *testing.T) {
 	storePath := filepath.Join(t.TempDir(), "store")
 
 	conf := &AppConf{
@@ -22,8 +22,7 @@ func TestNewAppReleasesStoreWhenLaterStepFails(t *testing.T) {
 			},
 		},
 		StorePath: storePath,
-		// The worker logger is built after the store is opened, so an invalid
-		// level here fails startup at exactly the point being tested.
+
 		Worker: &WorkerConf{
 			Logger: logutil.LogConf{Level: "not-a-real-level"},
 		},

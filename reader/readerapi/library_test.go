@@ -10,8 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/reader/readerapi"
 )
 
-// blockingRecorder holds a response open at its first write, which is where a
-// handler has already resolved its book and is reading through the package.
 type blockingRecorder struct {
 	*httptest.ResponseRecorder
 
@@ -36,14 +34,7 @@ func (r *blockingRecorder) Write(data []byte) (int, error) {
 	return r.ResponseRecorder.Write(data)
 }
 
-// Opening another book must not pull the directory handle out from under a
-// request that is still reading the current one.
-//
-// The failure this pins is not theoretical: a handler resolves the book, then
-// opens its source or an asset through the same os.Root, and those are separate
-// reads. Closing the package between them ends the response halfway with an
-// error the user cannot act on.
-func TestOpeningAnotherBookWaitsForInFlightReads(t *testing.T) {
+func TestOpenAnotherBookWaitsForReads(t *testing.T) {
 	library := newOpenLibrary(t)
 	handler := readerapi.NewHandler(library, "test")
 

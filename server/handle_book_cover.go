@@ -1,29 +1,30 @@
 package server
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/imgutil"
 )
 
-const maxCoverBodySize = 20 << 20 // 20 MB
+const maxCoverBodySize = 20 << 20
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *bookHandlers) getCover(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)
 	if !ok {
 		return
 	}
 
-	if h.serveImageValidator(w, r, book.CoverETag(), cacheUntilChanged) {
+	if h.serveImageValidator(w, r, book.CoverETag(), cacheFreshForOneDay) {
 		return
 	}
 
 	coverData, ext, err := book.OpenCover()
 	if err != nil {
-		h.Error("failed to open book cover", "error", err)
-		http.Error(w, "failed to get book cover", http.StatusInternalServerError)
+
+		h.writeErr(w, r, err, "failed to get book cover")
 		return
 	}
 
@@ -36,7 +37,6 @@ func (h *bookHandlers) getCover(w http.ResponseWriter, r *http.Request) {
 	w.Write(coverData)
 }
 
-// PUT /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *bookHandlers) updateCover(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)
 	if !ok {
@@ -76,6 +76,10 @@ func (h *bookHandlers) updateCover(w http.ResponseWriter, r *http.Request) {
 
 	if coverToJPG {
 		data, err = imgutil.AnyToJPG(data)
+		if errors.Is(err, imgutil.ErrTooManyPixels) {
+			http.Error(w, fmt.Sprintf("image too large (max %d megapixels)", imgutil.MaxPixels/1_000_000), http.StatusRequestEntityTooLarge)
+			return
+		}
 		if err != nil {
 			h.Error("failed to convert image to JPEG", "error", err)
 			http.Error(w, "failed to convert image to JPEG", http.StatusInternalServerError)
@@ -93,7 +97,6 @@ func (h *bookHandlers) updateCover(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *bookHandlers) deleteCover(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)
 	if !ok {

@@ -30,8 +30,6 @@ func TestAPIFolderMoveAndRenameContract(t *testing.T) {
 		t.Fatalf("folder = %#v, want gamma/renamed", got.Folder)
 	}
 
-	// Moving onto a folder that does not exist is a conflict, and a name that is
-	// not a single path segment is a client error.
 	rec = env.Post(apitest.ShelfURL("folder-moves"), strings.NewReader(`{"folder":["gamma","renamed"],"target_folder":["missing"]}`))
 	apitest.AssertStatus(t, rec, http.StatusConflict)
 
@@ -39,7 +37,7 @@ func TestAPIFolderMoveAndRenameContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 
-func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
+func TestAPIInvalidFolderNameIs400(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Folder Book", "keep", "folder.txt", "body")
 
@@ -66,8 +64,7 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 			body:   `{"folder":[".."]}`,
 		},
 		{
-			// Creating and importing a book place it in a folder too, so they
-			// reject a bad one on the same terms.
+
 			name:   "create book in folder",
 			method: http.MethodPost,
 			path:   apitest.BooksURL(),
@@ -85,9 +82,32 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 	}
 }
 
-// The folder routes answer outcomes the error table cannot name as a conflict.
-// Routing them through the table must not turn those into 500s.
-func TestAPIFolderConflictsStillAnswerConflictContract(t *testing.T) {
+func TestAPIReservedFolderNameIs400(t *testing.T) {
+	env := apitest.New(t)
+	if rec := env.Request(http.MethodPost, apitest.ShelfURL("folders", "alpha"), nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("create alpha: %d %s", rec.Code, rec.Body.String())
+	}
+
+	tests := []struct {
+		name         string
+		method, path string
+		body         string
+	}{
+		{name: "create", method: http.MethodPost, path: apitest.ShelfURL("folders", "folder.json")},
+		{name: "create in another case", method: http.MethodPost, path: apitest.ShelfURL("folders", "alpha", "Folder.JSON")},
+		{name: "rename", method: http.MethodPatch, path: apitest.ShelfURL("folders", "alpha"), body: `{"name":"folder.json"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := env.Request(tt.method, tt.path, strings.NewReader(tt.body))
+
+			apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest,
+				"INVALID_FOLDER", "invalid folder name")
+		})
+	}
+}
+
+func TestAPIFolderConflictsAnswer409(t *testing.T) {
 	env := apitest.New(t)
 
 	for _, folder := range []string{"alpha", "beta"} {
@@ -106,9 +126,7 @@ func TestAPIFolderConflictsStillAnswerConflictContract(t *testing.T) {
 	})
 }
 
-// Importing places the book in a folder as well, so a bad one must be refused
-// the same way rather than reported as an import failure.
-func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
+func TestAPIImportRejectsBadFolderName(t *testing.T) {
 	env := apitest.New(t)
 
 	rec := apitest.PostBookImport(t, env,
@@ -118,11 +136,7 @@ func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
 		"INVALID_FOLDER", "invalid folder name")
 }
 
-// A folder named after a directory the scanners skip is refused for a reason the
-// user cannot guess from "invalid folder name": the folder would be created and
-// then never listed again. The shelf error already explains it, so the API must
-// carry that reason out instead of flattening every rejection into one message.
-func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
+func TestAPIIgnoredFolderNameRule(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Ignored Folder Book", "keep", "folder.txt", "body")
 
@@ -170,8 +184,6 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 		})
 	}
 
-	// A folder that is invalid for any other reason keeps the general message,
-	// so the specific entry must not swallow the table's existing one.
 	t.Run("other invalid folder keeps the general message", func(t *testing.T) {
 		rec := env.Post(apitest.ShelfURL("folders", "bad%2F..%2Fesc"), nil)
 
@@ -180,11 +192,7 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 	})
 }
 
-// A shelf that lists its own directories also says why it skips them, and that
-// reason is what the user needs: they wrote the rule and can take it back. The
-// message therefore carries the shelf's own words rather than the built-in
-// directory names, which on such a shelf are not the rule in force.
-func TestAPIConfiguredIgnoredFolderNameCarriesTheShelfsReasonContract(t *testing.T) {
+func TestAPIIgnoredFolderReason(t *testing.T) {
 	libRoot := t.TempDir()
 	config := `{"schema_version":1,"scan":{"ignored_dirs":[{"name":"@Snapshot","reason":"Synology snapshot directory"}]}}`
 	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(config), 0644); err != nil {
@@ -203,7 +211,6 @@ func TestAPIConfiguredIgnoredFolderNameCarriesTheShelfsReasonContract(t *testing
 		}
 	}
 
-	// The directory must not have been created on the way to the rejection.
 	if _, err := os.Stat(filepath.Join(libRoot, "books", "@Snapshot")); !os.IsNotExist(err) {
 		t.Errorf("Stat books/@Snapshot = %v, want it never to have been created", err)
 	}

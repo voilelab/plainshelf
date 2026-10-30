@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// checkInvariant fails if any element sorts before its parent.
 func checkInvariant[T any](t *testing.T, heap *Heap[T]) {
 	t.Helper()
 
@@ -122,9 +121,6 @@ func TestReplaceMatchesPopThenPush(t *testing.T) {
 	}
 }
 
-// TestBoundedSmallest exercises the bottom-k use the max-heap exists for: keep
-// the k smallest of a stream by evicting the root whenever a smaller value
-// arrives.
 func TestBoundedSmallest(t *testing.T) {
 	const k = 16
 
@@ -149,7 +145,7 @@ func TestBoundedSmallest(t *testing.T) {
 	slices.Sort(want)
 
 	got := drain(heap)
-	slices.Sort(got) // A max-heap drains largest first.
+	slices.Sort(got)
 
 	if !slices.Equal(got, want[:k]) {
 		t.Errorf("kept %v, want the %d smallest %v", got, k, want[:k])
@@ -194,7 +190,6 @@ func TestRandomizedAgainstSort(t *testing.T) {
 	}
 }
 
-// drain pops the heap empty, returning the elements in the heap's own order.
 func drain[T any](heap *Heap[T]) []T {
 	drained := make([]T, 0, heap.Len())
 	for {

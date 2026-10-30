@@ -6,21 +6,9 @@ import {
 export type ReaderTextBlock = {
   type: 'paragraph' | 'quote';
   text: string;
-  /**
-   * False when this block is a continuation chunk of a larger block that was
-   * split only for virtualization. Such a chunk renders with no trailing gap so
-   * the split stays invisible. Absent (spaced) for ordinary paragraph blocks.
-   */
   spacedAfter?: boolean;
 };
 
-/**
- * A plain-text section with no blank lines collapses to one enormous block, so
- * cut such a block into virtualization chunks at line boundaries — the same
- * char/line budget the Markdown path uses. A line longer than the budget stays
- * whole (never cut mid-line), and every chunk but the last is marked seamless so
- * the wall of text reads exactly as before.
- */
 function splitOversizedTextBlock(block: ReaderTextBlock): ReaderTextBlock[] {
   const lines = block.text.split('\n');
   if (lines.length < READER_BLOCK_LINE_BUDGET && block.text.length < READER_BLOCK_CHAR_BUDGET) {

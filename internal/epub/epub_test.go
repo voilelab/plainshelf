@@ -46,8 +46,6 @@ const containerXML = `<?xml version="1.0"?>
   </rootfiles>
 </container>`
 
-// epub3Entries is a minimal but realistic EPUB 3: a navigation document, two
-// chapters, a cover image, and metadata carrying a scheme-less urn identifier.
 func epub3Entries() []zipEntry {
 	return []zipEntry{
 		{"mimetype", "application/epub+zip"},
@@ -88,6 +86,7 @@ func epub3Entries() []zipEntry {
 </body></html>`},
 		{"OEBPS/text/ch2.xhtml", `<html><body>
   <h2>第二章</h2>
+  <img src="../images/cover.png"/>
   <p>回程的路上，他<em>沉默</em>不語。</p>
 </body></html>`},
 	}
@@ -99,62 +98,73 @@ func TestParseEPUB3(t *testing.T) {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
-	if book.Title != "星塵集" {
-		t.Errorf("Title = %q, want %q", book.Title, "星塵集")
-	}
-	if len(book.Authors) != 1 || book.Authors[0] != "林望舒" {
-		t.Errorf("Authors = %v, want [林望舒]", book.Authors)
-	}
-	if book.Language != "zh-Hant" {
-		t.Errorf("Language = %q, want zh-Hant", book.Language)
-	}
-	if book.Description != "一部關於旅途的短篇小說。" {
-		t.Errorf("Description = %q", book.Description)
-	}
-	if book.PublishedAt != "2024-03-01" {
-		t.Errorf("PublishedAt = %q, want 2024-03-01", book.PublishedAt)
-	}
-	if got := book.Identifiers["isbn"]; got != "urn:isbn:9781234567897" {
-		t.Errorf("Identifiers[isbn] = %q", got)
-	}
-	if string(book.Cover) != "\x89PNG-not-a-real-image" {
-		t.Errorf("Cover = %q, want the manifest cover-image entry", string(book.Cover))
-	}
-	if book.CoverExt != ".png" {
-		t.Errorf("CoverExt = %q, want .png", book.CoverExt)
+	t.Run("metadata and manifest cover are extracted", func(t *testing.T) {
+		if book.Title != "星塵集" {
+			t.Errorf("Title = %q, want %q", book.Title, "星塵集")
+		}
+		if len(book.Authors) != 1 || book.Authors[0] != "林望舒" {
+			t.Errorf("Authors = %v, want [林望舒]", book.Authors)
+		}
+		if book.Language != "zh-Hant" {
+			t.Errorf("Language = %q, want zh-Hant", book.Language)
+		}
+		if book.Description != "一部關於旅途的短篇小說。" {
+			t.Errorf("Description = %q", book.Description)
+		}
+		if book.PublishedAt != "2024-03-01" {
+			t.Errorf("PublishedAt = %q, want 2024-03-01", book.PublishedAt)
+		}
+		if got := book.Identifiers["isbn"]; got != "urn:isbn:9781234567897" {
+			t.Errorf("Identifiers[isbn] = %q", got)
+		}
+		if string(book.Cover) != "\x89PNG-not-a-real-image" {
+			t.Errorf("Cover = %q, want the manifest cover-image entry", string(book.Cover))
+		}
+		if book.CoverExt != ".png" {
+			t.Errorf("CoverExt = %q, want .png", book.CoverExt)
+		}
+	})
+
+	if !t.Run("nav document in spine is not a chapter", func(t *testing.T) {
+		if len(book.Chapters) != 2 {
+			t.Fatalf("len(Chapters) = %d, want 2; chapters = %+v", len(book.Chapters), book.Chapters)
+		}
+	}) {
+		return
 	}
 
-	// The navigation document is in the spine but is not a chapter.
-	if len(book.Chapters) != 2 {
-		t.Fatalf("len(Chapters) = %d, want 2; chapters = %+v", len(book.Chapters), book.Chapters)
-	}
+	t.Run("nav title wins over heading", func(t *testing.T) {
+		if book.Chapters[0].Title != "啟程" {
+			t.Errorf("Chapters[0].Title = %q, want 啟程", book.Chapters[0].Title)
+		}
+		if book.Chapters[1].Title != "歸途" {
+			t.Errorf("Chapters[1].Title = %q, want 歸途", book.Chapters[1].Title)
+		}
+	})
 
-	// Titles come from the navigation document, which wins over the in-document
-	// heading.
-	if book.Chapters[0].Title != "啟程" {
-		t.Errorf("Chapters[0].Title = %q, want 啟程", book.Chapters[0].Title)
-	}
-	if book.Chapters[1].Title != "歸途" {
-		t.Errorf("Chapters[1].Title = %q, want 歸途", book.Chapters[1].Title)
-	}
+	t.Run("consumed heading not repeated in body", func(t *testing.T) {
+		for i, heading := range []string{"第一章", "第二章"} {
+			if strings.Contains(book.Chapters[i].Text, heading) {
+				t.Errorf("chapter %d repeats heading %q in its body", i+1, heading)
+			}
+		}
+	})
 
-	// The heading consumed as the fallback title must not also appear in the
-	// body, the source line wrap inside the paragraph must not leave a space
-	// between the CJK characters, and paragraphs are separated by a blank line.
-	wantText := "他走出了車站，天色still早。\n\n風很大。"
-	if got := book.Chapters[0].Text; got != wantText {
-		t.Errorf("Chapters[0].Text = %q, want %q", got, wantText)
-	}
+	t.Run("CJK line wrap joins without space", func(t *testing.T) {
+		wantText := "他走出了車站，天色still早。\n\n風很大。"
+		if got := book.Chapters[0].Text; got != wantText {
+			t.Errorf("Chapters[0].Text = %q, want %q", got, wantText)
+		}
+	})
 
-	// The cover is kept, and no chapter references an illustration.
-	if book.DroppedImages != 0 {
-		t.Errorf("DroppedImages = %d, want 0", book.DroppedImages)
-	}
+	t.Run("stored cover is not a dropped image", func(t *testing.T) {
+		if book.DroppedImages != 0 {
+			t.Errorf("DroppedImages = %d, want 0", book.DroppedImages)
+		}
+	})
 }
 
 func TestParseDroppedImages(t *testing.T) {
-	// coverOPF declares a cover image plus the documents each case needs, so the
-	// interesting difference between cases stays in the chapter markup.
 	const coverOPF = `<package xmlns="http://www.idpf.org/2007/opf">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>插圖</dc:title></metadata>
   <manifest>
@@ -186,8 +196,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 2,
 		},
 		{
-			// Without this exclusion nearly every EPUB would report a loss: the
-			// cover page normally sits in the spine and points at the cover.
 			name: "cover page image is not counted",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -200,10 +208,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 0,
 		},
 		{
-			// The flattener skips <svg> as a whole subtree, so the counter has to
-			// descend into it separately. Expecting a non-zero count here is what
-			// makes the cover case below meaningful: a counter that never entered
-			// an <svg> at all would satisfy that one by accident.
 			name: "svg wrapped illustration is counted",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -217,7 +221,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 1,
 		},
 		{
-			// The other common cover-page shape.
 			name: "svg wrapped cover image is not counted",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -245,8 +248,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 1,
 		},
 		{
-			// No cover is stored here, so the frontispiece really is lost — even
-			// though its document flattens to nothing and is skipped as a chapter.
 			name: "image on a skipped page counts when no cover is stored",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -265,9 +266,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 1,
 		},
 		{
-			// The archive stores the cover one way and the cover page spells it
-			// another. lookupZipEntry reads both, so the exclusion has to hold too
-			// or the book reports a loss it did not suffer.
 			name: "cover referenced with different casing is still excluded",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -287,8 +285,6 @@ func TestParseDroppedImages(t *testing.T) {
 			want: 0,
 		},
 		{
-			// Nothing was lost: the archive never carried these. Counting a href
-			// the file cannot satisfy would report artwork that never existed.
 			name: "references the archive cannot satisfy are not counted",
 			entries: []zipEntry{
 				{"META-INF/container.xml", containerXML},
@@ -446,8 +442,6 @@ func TestParseFallbacks(t *testing.T) {
   <manifest><item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest>
   <spine><itemref idref="c1"/></spine>
 </package>`},
-				// &nbsp; is undeclared in XHTML 1.1 without a DTD and would break a
-				// strict XML decoder. An unclosed <p> would too.
 				{"OEBPS/ch1.xhtml", `<html><body><p>前面&nbsp;後面<p>第二段</body></html>`},
 			},
 			check: func(t *testing.T, book *Book) {

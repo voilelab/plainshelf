@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// The bootstrap injected into index.html is the only channel the ticket allows
-// the Web UI's "no API auth" warning to travel through (no new API endpoint), so
-// these cases pin exactly which flags each security posture emits.
 func TestInjectSecurityBootstrap(t *testing.T) {
 	const page = "<html><head></head><body></body></html>"
 
@@ -52,8 +49,6 @@ func TestInjectSecurityBootstrap(t *testing.T) {
 		},
 	}
 
-	// The CSP served with the same response admits this inline bootstrap only by
-	// nonce, so the injected <script> must carry it verbatim.
 	const nonce = "test-nonce-value"
 
 	for _, tc := range cases {
@@ -71,7 +66,7 @@ func TestInjectSecurityBootstrap(t *testing.T) {
 				}
 				return
 			}
-			// Injected before </head> so it runs before the SPA bundle reads it.
+
 			if strings.Index(out, "window.__PLAINSHELF_SECURITY__") > strings.Index(out, "</head>") {
 				t.Fatalf("bootstrap injected after </head>: %q", out)
 			}
@@ -88,12 +83,7 @@ func TestInjectSecurityBootstrap(t *testing.T) {
 	}
 }
 
-// TestInjectSecurityBootstrapEscapesScriptClose pins the escaping the payload
-// depends on now that it is marshalled with encoding/json/v2, which - unlike v1
-// - writes "<" as itself. token_header comes from the config file, so an
-// unescaped one would close the inline <script> and put the rest of its value
-// into the document as markup.
-func TestInjectSecurityBootstrapEscapesScriptClose(t *testing.T) {
+func TestSecurityBootstrapEscapesScript(t *testing.T) {
 	const page = "<html><head></head><body></body></html>"
 
 	security, err := NewSecurity(&SecurityConf{

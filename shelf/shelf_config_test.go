@@ -11,9 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
-// snapshotDir is a directory name no default covers: it carries no leading dot
-// and is not one of the built-in names, so a shelf only skips it because its own
-// shelf.json says so. Synology's snapshot directories are named like this.
 const snapshotDir = "@Snapshot"
 
 func writeShelfConfig(t *testing.T, libRoot, body string) {
@@ -24,10 +21,6 @@ func writeShelfConfig(t *testing.T, libRoot, body string) {
 	}
 }
 
-// plantExtraDirs drops one snapshotDir under books/ and under every user folder,
-// each holding a book. This is the shape that makes the setting worth having:
-// like "@eaDir", the directory appears at every level, so a scanner that treats
-// it as a folder roughly doubles the tree the user sees.
 func plantExtraDirs(t *testing.T, libRoot string) {
 	t.Helper()
 
@@ -45,7 +38,7 @@ func scannedBookIDs(t *testing.T, s *Shelf) []string {
 	t.Helper()
 
 	var found []string
-	if _, err := s.iterateShelfTree(nil, func(b *Book) bool {
+	if _, err := s.iterateShelfTree(nil, nil, func(b *Book) bool {
 		found = append(found, b.ID())
 		return true
 	}); err != nil {
@@ -55,9 +48,6 @@ func scannedBookIDs(t *testing.T, s *Shelf) []string {
 	return found
 }
 
-// openConfiguredShelf builds a shelf holding the user's folder tree, a snapshot
-// directory at every level and one "@eaDir", with the given shelf.json - or none
-// when body is empty.
 func openConfiguredShelf(t *testing.T, body string) *Shelf {
 	t.Helper()
 
@@ -85,8 +75,6 @@ func listedFolders(t *testing.T, s *Shelf) []string {
 	return folderStrings(folders)
 }
 
-// FolderPath.String() renders the root as "", which is how a listing reports a
-// book sitting directly under books/.
 var userFolders = []string{"", "Empty", "Fiction", "Fiction/Classics"}
 
 func assertFolders(t *testing.T, got, want []string) {
@@ -97,11 +85,7 @@ func assertFolders(t *testing.T, got, want []string) {
 	}
 }
 
-// The list in shelf.json is the shelf's rules, not an addition to them: a shelf
-// that names its own directories skips those and only those. Naming "@Snapshot"
-// therefore also stops "@eaDir" from being skipped, which is the cost of a
-// single list and is pinned here rather than left to be discovered.
-func TestShelfConfigIgnoredDirsReplacesTheDefaults(t *testing.T) {
+func TestShelfConfigIgnoredDirsReplace(t *testing.T) {
 	s := openConfiguredShelf(t, `{
   "schema_version": 1,
   "scan": { "ignored_dirs": [{ "name": "@Snapshot" }] }
@@ -122,9 +106,7 @@ func TestShelfConfigIgnoredDirsReplacesTheDefaults(t *testing.T) {
 	}
 }
 
-// A shelf that says nothing about scanning is read exactly as PlainShelf has
-// always read it.
-func TestShelfConfigWithoutTheKeyKeepsTheDefaults(t *testing.T) {
+func TestShelfConfigWithoutKeyUsesDefaults(t *testing.T) {
 	for name, body := range map[string]string{
 		"no file":          "",
 		"no scan section":  `{"schema_version": 1}`,
@@ -144,10 +126,7 @@ func TestShelfConfigWithoutTheKeyKeepsTheDefaults(t *testing.T) {
 	}
 }
 
-// An empty list is a shelf saying "skip nothing", which is not the same as
-// saying nothing. Hidden directories are still skipped: that is a rule, not a
-// name on the list.
-func TestShelfConfigEmptyListSkipsOnlyHiddenDirectories(t *testing.T) {
+func TestShelfConfigEmptyListSkipsHidden(t *testing.T) {
 	libRoot := t.TempDir()
 	makeUserFolderTree(t, libRoot)
 	plantIgnoredDirs(t, libRoot)
@@ -170,9 +149,7 @@ func TestShelfConfigEmptyListSkipsOnlyHiddenDirectories(t *testing.T) {
 	}
 }
 
-func TestShelfConfigIgnoredDirsAreCaseInsensitive(t *testing.T) {
-	// The shelf may be read over SMB, where a share can report either spelling,
-	// so a configured name folds case exactly like the defaults.
+func TestShelfConfigIgnoredDirsIgnoreCase(t *testing.T) {
 	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@snapshot"}]}}`)
 
 	for _, folder := range listedFolders(t, s) {
@@ -182,8 +159,6 @@ func TestShelfConfigIgnoredDirsAreCaseInsensitive(t *testing.T) {
 	}
 }
 
-// The object form is what lets a shelf say why it skips a directory this build
-// has never heard of, and that sentence is what the user is shown later.
 func TestShelfConfigEntryCarriesItsReason(t *testing.T) {
 	const reason = "Synology snapshot directory"
 	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@Snapshot", "reason": "`+reason+`"}]}}`)
@@ -202,43 +177,23 @@ func TestShelfConfigEntryCarriesItsReason(t *testing.T) {
 	}
 }
 
-// One unusable entry must not cost the rest of the file: the shelf opens, the
-// entries that are usable apply, and the bad ones are reported to the log. An
-// entry of the wrong type counts as one of those - the pCloud reader drops just
-// that element, and the two must not read one file differently.
 func TestShelfConfigSkipsUnusableEntries(t *testing.T) {
-	// A bare name is one of the unusable shapes: an entry is always an object,
-	// so that one list is not read two ways.
 	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": ""}, {"name": "with/separator"}, {"name": ".."}, 17, "@Snapshot", {"reason": "no name"}, {"name": "@Snapshot"}]}}`)
 
-	// "@Snapshot" survived the bad entries; "@eaDir" and the directory under it
-	// are ordinary folders, because this list replaced the defaults.
 	want := append([]string{"", "@eaDir", "@eaDir/nested"}, userFolders[1:]...)
 	assertFolders(t, listedFolders(t, s), want)
 }
 
-// A shelf whose settings cannot be read still opens, on the defaults: locking a
-// user out of their library over a typo in an optional file is the worse
-// failure.
-func TestShelfConfigMalformedFallsBackToDefaults(t *testing.T) {
+func TestShelfConfigMalformedUsesDefaults(t *testing.T) {
 	for name, body := range map[string]string{
 		"not json":            "this is not json",
 		"wrong field type":    `{"scan": "everything"}`,
 		"wrong list type":     `{"scan": {"ignored_dirs": "@Snapshot"}}`,
 		"truncated mid-value": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}`,
-		// UnmarshalRead consumes the whole reader, which the pCloud reader also
-		// does by parsing the file in one go, so what follows the first value is
-		// refused rather than ignored.
-		"trailing object": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}} {"scan": {}}`,
-		"trailing debris": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}} half an edit`,
-		// Read with the strictness book.json is read with: a member written
-		// twice is refused rather than silently resolved to the last one, and a
-		// name is matched exactly.
-		// Both bodies would apply if they were read at all - last member wins,
-		// invalid bytes tolerated - so a case that fell through to the defaults
-		// for some other reason would fail here rather than pass quietly.
-		"duplicate member": `{"scan": {}, "scan": {"ignored_dirs": [{"name": "@Snapshot"}]}}`,
-		"invalid utf-8":    "{\"scan\": {\"ignored_dirs\": [{\"name\": \"@Snapshot\", \"reason\": \"\xff\xfe\"}]}}",
+		"trailing object":     `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}} {"scan": {}}`,
+		"trailing debris":     `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}} half an edit`,
+		"duplicate member":    `{"scan": {}, "scan": {"ignored_dirs": [{"name": "@Snapshot"}]}}`,
+		"invalid utf-8":       "{\"scan\": {\"ignored_dirs\": [{\"name\": \"@Snapshot\", \"reason\": \"\xff\xfe\"}]}}",
 	} {
 		t.Run(name, func(t *testing.T) {
 			folders := listedFolders(t, openConfiguredShelf(t, body))
@@ -250,11 +205,7 @@ func TestShelfConfigMalformedFallsBackToDefaults(t *testing.T) {
 	}
 }
 
-// A file too large to be a settings file is skipped without being read, which is
-// also what the pCloud client does with the size in its listing - it must not
-// download megabytes onto a phone to discover the same thing.
 func TestShelfConfigTooLargeIsSkipped(t *testing.T) {
-	// Valid JSON that would otherwise apply, padded past the limit.
 	padding := strings.Repeat(" ", maxShelfConfigBytes)
 	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}}`+padding)
 
@@ -264,10 +215,7 @@ func TestShelfConfigTooLargeIsSkipped(t *testing.T) {
 	}
 }
 
-// A shelf shared with a newer build carries a file this one only partly
-// understands. Reading is all that happens to it, so the fields this build knows
-// still apply rather than the whole file being discarded.
-func TestShelfConfigNewerSchemaVersionStillApplies(t *testing.T) {
+func TestShelfConfigNewerSchemaApplies(t *testing.T) {
 	s := openConfiguredShelf(t, `{
   "schema_version": 99,
   "scan": { "ignored_dirs": [{"name": "@Snapshot"}], "something_later": true },
@@ -279,10 +227,7 @@ func TestShelfConfigNewerSchemaVersionStillApplies(t *testing.T) {
 	}
 }
 
-// A configured name is refused for the same reason "@eaDir" is on a shelf that
-// kept the defaults: the directory would be created and then skipped by the very
-// next scan.
-func TestValidateFolderPathRejectsConfiguredNames(t *testing.T) {
+func TestFolderPathRejectsConfiguredNames(t *testing.T) {
 	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}}`)
 
 	for _, folder := range []FolderPath{{snapshotDir}, {"Fiction", snapshotDir}, {"@snapshot"}} {
@@ -299,8 +244,6 @@ func TestValidateFolderPathRejectsConfiguredNames(t *testing.T) {
 		t.Errorf("Expected an ordinary layer to stay valid, got %v", err)
 	}
 
-	// The shelf replaced the defaults, so a name it no longer skips is a name it
-	// can create - the setting decides, not the built-in list.
 	if err := s.ValidateFolderPath(FolderPath{"@eaDir"}); err != nil {
 		t.Errorf("Expected @eaDir to be creatable on a shelf that dropped it, got %v", err)
 	}
@@ -315,8 +258,6 @@ func TestNewFolderRejectsConfiguredNames(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected NewFolder to reject a configured name, got nil")
 	}
-	// The message carries the shelf's own reason, since this is a rule the user
-	// wrote and can take back.
 	if !strings.Contains(err.Error(), "kept by the NAS") {
 		t.Errorf("Expected the error to carry the shelf's reason, got %v", err)
 	}
@@ -326,8 +267,6 @@ func TestNewFolderRejectsConfiguredNames(t *testing.T) {
 	}
 }
 
-// The zero value is a shelf with no names at all, which is what an empty
-// configured list produces; the hidden-directory rule survives it.
 func TestIgnoreRulesZeroValue(t *testing.T) {
 	var rules shelfutil.IgnoreRules
 

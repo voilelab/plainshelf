@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// Lookup answers from the loaded index and entries alone.
-func TestFingerprintCacheLookup(t *testing.T) {
+func TestLookupUsesLoadedCacheWithoutStat(t *testing.T) {
 	ts := newTestShelf(t)
 	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 
@@ -14,36 +13,42 @@ func TestFingerprintCacheLookup(t *testing.T) {
 	cache := openCache(t, ts, ts.base, testAlgo)
 	want := resolveFingerprint(t, cache, ts.base, book.PackagePath(), builder)
 
-	got, ok := cache.Lookup(book.ID(), book.CurrentSource())
+	saveCache(t, cache)
+	counting := ts.countSourceReads()
+	cache = openCache(t, ts, counting, testAlgo)
+
+	got, ok := cache.LookupRecorded(book.ID(), book.CurrentSource())
 	if !ok {
-		t.Fatalf("Lookup(%q, %q) missed a source that was just resolved", book.ID(), book.CurrentSource())
+		t.Fatalf("LookupRecorded(%q, %q) missed a source loaded from disk", book.ID(), book.CurrentSource())
 	}
 	if got != want {
-		t.Errorf("Lookup returned %+v, want %+v", got, want)
+		t.Errorf("LookupRecorded returned %+v, want %+v", got, want)
 	}
 
-	if _, ok := cache.Lookup(book.ID(), "no-such-source"); ok {
-		t.Error("Lookup found a source the cache has no record of")
+	if _, ok := cache.LookupRecorded(book.ID(), "no-such-source"); ok {
+		t.Error("LookupRecorded found a source the cache has no record of")
 	}
-	if _, ok := cache.Lookup("no-such-book", book.CurrentSource()); ok {
-		t.Error("Lookup found a book the cache has no record of")
+	if _, ok := cache.LookupRecorded("no-such-book", book.CurrentSource()); ok {
+		t.Error("LookupRecorded found a book the cache has no record of")
+	}
+	if got := counting.stats.Load(); got != 0 {
+		t.Errorf("LookupRecorded statted %d paths, want 0", got)
+	}
+	if got := counting.opens.Load(); got != 0 {
+		t.Errorf("LookupRecorded opened source.txt %d times, want 0", got)
 	}
 }
 
-// The maintenance page's status bar loads on every visit, so the count must not
-// open a single source.txt.
 func TestCoverageForReadsNoSources(t *testing.T) {
 	ts := newTestShelf(t)
 	dune := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	solaris := ts.addBook("solaris.bookpkg", "book-solaris", "Solaris", "the ocean thinks in shapes", -time.Hour)
 
-	// Fingerprint one of the two books so the count has both a hit and a miss.
 	builder := &fakeFingerprint{label: "v1"}
 	cache := openCache(t, ts, ts.base, testAlgo)
 	resolveFingerprint(t, cache, ts.base, dune.PackagePath(), builder)
 	saveCache(t, cache)
 
-	// From here on, any source.txt open is one this coverage read caused.
 	counting := ts.countSourceReads()
 	fresh := openCache(t, ts, counting, testAlgo)
 
@@ -63,9 +68,7 @@ func TestCoverageForReadsNoSources(t *testing.T) {
 	}
 }
 
-// A cache built under different rules answers for nothing: every book reads as
-// missing, which is what tells the UI to offer a full rebuild.
-func TestCoverageForUnderDifferentRulesCountsNothing(t *testing.T) {
+func TestCoverageForOtherRulesIsZero(t *testing.T) {
 	ts := newTestShelf(t)
 	dune := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 

@@ -9,14 +9,18 @@ on:
 permissions:
   contents: read
 
+env:
+  NPM_CONFIG_PREFER_OFFLINE: "true"
+  NPM_CONFIG_FETCH_TIMEOUT: "30000"
+  NPM_CONFIG_FETCH_RETRIES: "2"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "10000"
+  NPM_CONFIG_LOGLEVEL: http
+
 jobs:
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
-    # PSW-76: derived from three measured `dev` runs, not guessed — twice the
-    # slowest, rounded up to a whole minute, never under 5. The table and the
-    # rule are in docs/development/testing-levels.md; a job that hits its cap
-    # is a regression to explain, not a number to raise.
     timeout-minutes: 5
     defaults:
       run:
@@ -37,6 +41,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        timeout-minutes: 3
         run: npm ci
 
       - name: Run unit tests
@@ -102,6 +107,27 @@ jobs:
           version: latest
           working-directory: reader
 
+  docs:
+    name: Docs build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build site
+        run: mkdocs build --strict
+
   go:
     name: Go tests
     runs-on: ubuntu-latest
@@ -123,9 +149,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # -timeout replaces `go test`'s 10-minute default, which outlives this
-      # job's own cap: a hung test has to panic with its goroutine dump while the
-      # runner is still alive, or the only evidence is a cancelled job.
+      # Go 1.27 go test defaults to a ten-minute timeout (go help testflag).
       - name: Run tests
         run: go test -timeout 2m ./...
 
@@ -136,17 +160,8 @@ jobs:
         run: cd reader && go test -timeout 2m ./...
 
   e2e:
-    # The name is the required-check name in the branch protection rule, so it
-    # stays "Frontend E2E" even though the job now runs only the smoke tier —
-    # internal/repocheck's TestCIJobNamesAreStable enforces that.
     name: Frontend E2E
     runs-on: ubuntu-latest
-    # PSW-77: provisional. The tier split changed the shape of this job — 15
-    # smoke cases instead of 101, at two workers — so the measured 6:27 that
-    # justified 13 no longer describes it. The subset ran in 20s on a 4-core
-    # container, leaving the browser install as the variable part (23s to 3:05
-    # across the three measured runs). Re-measure over three `dev` runs and
-    # tighten this per docs/development/testing-levels.md.
     timeout-minutes: 10
     needs: frontend
     steps:
@@ -174,15 +189,13 @@ jobs:
 
       - name: Install E2E dependencies
         working-directory: e2e
+        timeout-minutes: 3
         run: npm ci
 
       - name: Install Playwright browser
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
-      # The `@smoke` subset only: the whole suite runs nightly (nightly.yml),
-      # where it gates the release instead of the merge. The tagged cases are
-      # listed in docs/development/testing-levels.md.
       - name: Run frontend E2E smoke tests
         working-directory: e2e
         run: npm run test:smoke
@@ -190,9 +203,6 @@ jobs:
   wasm-demo:
     name: Wasm demo smoke
     runs-on: ubuntu-latest
-    # Provisional, like Frontend E2E's: no measured dev runs yet. The smoke itself
-    # took about 10s in the cloud container; the browser install is the variable
-    # part. Re-measure over three `dev` runs per docs/development/testing-levels.md.
     timeout-minutes: 10
     needs: frontend
     steps:
@@ -220,26 +230,25 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # Packages with a js-only implementation, run under node. wasm caps the
-      # size of argv plus environment, and the runner's environment exceeds it.
+      # Go 1.27.3 wasm_exec.js reserves an 8 KiB region for argv and environment data and throws when it overflows.
       - name: Test browser-build Go packages
         run: >-
           env -i PATH="$(go env GOROOT)/lib/wasm:$PATH" HOME="$HOME"
           GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)"
           GOOS=js GOARCH=wasm go test ./server/store/
 
-      # smoke.mjs drives chromium through the e2e package's Playwright.
       - name: Install E2E dependencies
         working-directory: e2e
+        timeout-minutes: 3
         run: npm ci
 
       - name: Install Playwright browser
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
-      # A base other than / rebuilds the frontend for that path.
       - name: Install frontend dependencies
         working-directory: frontend
+        timeout-minutes: 3
         run: npm ci
 
       - name: Build wasm demo
@@ -248,7 +257,6 @@ jobs:
       - name: Run wasm demo smoke test
         run: node cmd/plainshelf-wasm/web/smoke.mjs workspace/wasm-demo wasm-demo.png
 
-      # As docs.yml deploys it: under /demo/, behind the site's 404 page.
       - name: Build wasm demo under /demo/
         run: cmd/plainshelf-wasm/build.sh workspace/wasm-site /demo/
 
@@ -269,22 +277,23 @@ jobs:
     name: Android build
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: frontend
-    # Not a merge gate yet: this job is new, and its SDK/Gradle setup has not
-    # run often enough here to tell a real break from its own flakiness. Drop
-    # this line once it has been green across a week of ordinary PRs.
+    needs: [frontend, android-lib]
     continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # cap sync copies this into the Android project, so the APK is built from
-      # the same dist the other jobs test rather than a second build of it.
       - name: Download frontend dist
         uses: actions/download-artifact@v8
         with:
           name: frontend-dist
           path: frontend/dist
+
+      - name: Download Android Go library
+        uses: actions/download-artifact@v8
+        with:
+          name: plainshelf-android-lib
+          path: frontend/android/app/libs
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -300,9 +309,9 @@ jobs:
           java-version: 21
           cache: gradle
 
-      # @capacitor/cli only; the web build is already downloaded above.
       - name: Install frontend dependencies
         working-directory: frontend
+        timeout-minutes: 3
         run: npm ci
 
       - name: Sync the web build into the Android project
@@ -320,30 +329,65 @@ jobs:
           path: frontend/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-  vulncheck:
-    name: Go vulnerability scan
+  android-lib:
+    name: Android Go library
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     needs: frontend
-    # A gate, deliberately: govulncheck reports a module's advisory only when a
-    # vulnerable symbol is reachable from this code, so red here is an exposure
-    # rather than noise. It gates merges once the check is added to the branch
-    # protection rule for `dev`; the workflow alone cannot do that.
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # All three modules reach frontend/web.go and its embed, and govulncheck
-      # type-checks packages before scanning them.
       - name: Download frontend dist
         uses: actions/download-artifact@v8
         with:
           name: frontend-dist
           path: frontend/dist
 
-      # go-version-file matters beyond convenience here: govulncheck has to be
-      # built by a Go at least as new as go.mod's, or it fails while loading
-      # packages ("requires newer Go version") instead of while scanning.
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build and measure the library
+        run: ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" ./scripts/build-android-lib.sh build/android-lib
+
+      - name: Upload library
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: plainshelf-android-lib
+          path: |
+            build/android-lib/plainshelf.aar
+            build/android-lib/report.md
+          if-no-files-found: ignore
+
+  vulncheck:
+    name: Go vulnerability scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: frontend
+    # govulncheck default symbol scanning uses call-graph reachability and can report conservative false positives (govulncheck doc.go).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # govulncheck source mode loads and type-checks packages before scanning, requiring go:embed inputs (internal/scan/source.go).
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      # govulncheck go/types cannot check packages using a newer Go language version than the scanner was built with (Go 1.27 go/types.Checker).
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
@@ -353,13 +397,7 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      # Two scans per module, one per GOOS release.yml ships (linux for the
-      # server binaries and the Docker image, darwin/arm64 for those plus both
-      # Wails apps). Source mode resolves build tags for the target it runs as,
-      # so a linux-only scan cannot see a vulnerability reachable through a
-      # darwin-only file. GOARCH is not split: the released arm64 and amd64
-      # builds share their Go source. Every step runs even after one fails, so
-      # a round reports all six scans instead of stopping at the first.
+      # govulncheck source mode analyzes the selected build configuration, including GOOS build constraints (govulncheck doc.go).
       - name: Scan main module (linux)
         if: ${{ !cancelled() }}
         env:

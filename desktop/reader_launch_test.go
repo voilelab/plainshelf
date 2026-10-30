@@ -1,9 +1,26 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"regexp"
 	"testing"
 )
+
+func TestUnsupportedPlatformCodeMatchesUI(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "frontend", "src", "api", "desktop.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := regexp.MustCompile(`(?m)^const READER_UNSUPPORTED_PLATFORM_CODE = '([^']+)';$`).FindSubmatch(source)
+	if len(match) != 2 {
+		t.Fatal("frontend reader unsupported-platform code declaration not found")
+	}
+	if got := string(match[1]); got != readerUnsupportedPlatformCode {
+		t.Fatalf("frontend code = %q, desktop code = %q", got, readerUnsupportedPlatformCode)
+	}
+}
 
 func TestReaderLaunchCommandDefault(t *testing.T) {
 	t.Setenv("PLAINSHELF_READER_APP", "")
@@ -28,9 +45,6 @@ func TestReaderLaunchCommandEnvOverride(t *testing.T) {
 	}
 }
 
-// A launch with no real shelf id (empty -shelf) must omit the flag entirely, so
-// the reader falls back to its synthetic shelf rather than reporting an empty
-// shelf as active.
 func TestReaderLaunchCommandNoShelf(t *testing.T) {
 	t.Setenv("PLAINSHELF_READER_APP", "")
 
@@ -41,8 +55,6 @@ func TestReaderLaunchCommandNoShelf(t *testing.T) {
 	}
 }
 
-// A chapter "read" action passes the reader section index, which the launcher
-// forwards as -section so the standalone reader opens at that chapter.
 func TestReaderLaunchCommandWithSection(t *testing.T) {
 	t.Setenv("PLAINSHELF_READER_APP", "")
 
@@ -53,8 +65,6 @@ func TestReaderLaunchCommandWithSection(t *testing.T) {
 	}
 }
 
-// Section 0 is the first chapter, a real request, so it must still be forwarded —
-// only a negative section (no chapter requested) is omitted.
 func TestReaderLaunchCommandSectionZero(t *testing.T) {
 	t.Setenv("PLAINSHELF_READER_APP", "")
 

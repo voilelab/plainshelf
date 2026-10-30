@@ -11,17 +11,12 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// folderTransferConflictBody mirrors the 409 body a pre-flight refusal answers
-// with, so a test can tell the two conflict kinds apart and read the colliding
-// IDs. Restating it here pins the wire shape the frontend relies on.
 type folderTransferConflictBody struct {
 	Error              string   `json:"error"`
 	Message            string   `json:"message"`
 	ConflictingBookIDs []string `json:"conflicting_book_ids"`
 }
 
-// booksUnderFolder returns the IDs of the shelf's books that sit exactly under
-// folder, so a test can assert the set that landed there.
 func booksUnderFolder(books []server.Book, folder shelf.FolderPath) []string {
 	var ids []string
 	for _, book := range books {
@@ -32,8 +27,6 @@ func booksUnderFolder(books []server.Book, folder shelf.FolderPath) []string {
 	return ids
 }
 
-// A copy transfer reproduces the source subtree on the target with fresh IDs and
-// leaves the source shelf untouched.
 func TestAPIFolderTransferCopyContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	top := apitest.ImportTextBook(t, env, "Top", "fiction", "top.txt", "a")
@@ -55,13 +48,11 @@ func TestAPIFolderTransferCopyContract(t *testing.T) {
 		t.Errorf("result = %#v, want a copy of two books to the second shelf", result)
 	}
 
-	// The source keeps both originals.
 	sourceBooks := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL())
 	if len(sourceBooks) != 2 {
 		t.Errorf("source books = %#v, want the two originals", sourceBooks)
 	}
 
-	// The target holds fresh-ID copies under the remapped folders.
 	targetBooks := apitest.GetJSON[[]server.Book](t, env, apitest.SecondShelfBooksURL())
 	topCopies := booksUnderFolder(targetBooks, shelf.FolderPath{"imported"})
 	deepCopies := booksUnderFolder(targetBooks, shelf.FolderPath{"imported", "sci-fi"})
@@ -73,9 +64,6 @@ func TestAPIFolderTransferCopyContract(t *testing.T) {
 	}
 }
 
-// A move transfer keeps every book's ID, publishes the subtree on the target, and
-// clears the source folder. With no target_folder it lands under the source folder's
-// own name.
 func TestAPIFolderTransferMoveContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	top := apitest.ImportTextBook(t, env, "Top", "fiction", "top.txt", "a")
@@ -91,14 +79,11 @@ func TestAPIFolderTransferMoveContract(t *testing.T) {
 		t.Fatalf("chain = %+v, want completed at 100%%", chain)
 	}
 
-	// The source shelf no longer lists either book.
 	sourceBooks := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL())
 	if len(sourceBooks) != 0 {
 		t.Errorf("source books = %#v, want none after a move", sourceBooks)
 	}
 
-	// The target lists both under their original IDs, defaulting to the source
-	// folder name.
 	targetBooks := apitest.GetJSON[[]server.Book](t, env, apitest.SecondShelfBooksURL())
 	if got := booksUnderFolder(targetBooks, shelf.FolderPath{"fiction"}); len(got) != 1 || got[0] != top.Meta.ID {
 		t.Errorf("target [fiction] = %v, want [%s]", got, top.Meta.ID)
@@ -108,13 +93,10 @@ func TestAPIFolderTransferMoveContract(t *testing.T) {
 	}
 }
 
-// A transfer onto a folder the target shelf already holds is refused with a 409
-// that names the conflict, before any work is scheduled.
-func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
+func TestAPIFolderTransferFolderConflict(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Source", "fiction", "src.txt", "a")
-	// The target already holds the destination folder, so the transfer must refuse
-	// to land on it rather than merge into it.
+
 	apitest.AssertStatus(t, env.Post(apitest.ShelfIDURL(apitest.SecondShelfID, "folders", "taken"), nil), http.StatusNoContent)
 
 	rec := env.Post(apitest.FolderTransfersURL(), strings.NewReader(`{
@@ -133,17 +115,11 @@ func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
 	}
 }
 
-// The transfer preflight forces a walk of both shelves, but it is not the walk
-// the rescan rate limit governs: that budget belongs to the button a user
-// presses, and a run of transfers must not leave it answering 429 for something
-// the user never pressed.
-func TestAPIFolderTransferPreflightDoesNotSpendTheRescanRateLimitContract(t *testing.T) {
+func TestAPITransferPreflightKeepsTokens(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Source", "fiction", "src.txt", "a")
 	apitest.AssertStatus(t, env.Post(apitest.ShelfIDURL(apitest.SecondShelfID, "folders", "taken"), nil), http.StatusNoContent)
 
-	// Refused after the preflight, so each round costs both walks without
-	// scheduling any work — the cheapest way to run the preflight many times.
 	body := `{
 		"mode": "copy",
 		"source_folder": ["fiction"],
@@ -160,15 +136,11 @@ func TestAPIFolderTransferPreflightDoesNotSpendTheRescanRateLimitContract(t *tes
 	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
 }
 
-// A move whose books collide with IDs the target already holds is refused with a
-// 409 that lists every colliding ID, before any work is scheduled.
-func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
+func TestAPIFolderTransferBookIDConflict(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	original := apitest.ImportTextBook(t, env, "Twice", "fiction", "twice.txt", "body")
 	id := original.Meta.ID
 
-	// Move the book across with the single-book endpoint, then restore the source's
-	// trashed copy, so the ID lives on both shelves.
 	moved := apitest.SubmitTaskChain(t, env, apitest.BookTransfersURL(id), []byte(`{
 		"mode": "move",
 		"target_shelf": "`+apitest.SecondShelfID+`"
@@ -197,9 +169,7 @@ func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
 	}
 }
 
-// Re-submitting a transfer already in flight is a 409 that points at the running
-// chain, so the client can attach to it instead of starting a second.
-func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
+func TestAPIFolderTransferDuplicateChain(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Queued", "fiction", "queued.txt", "body")
 
@@ -214,9 +184,7 @@ func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
 	})
 }
 
-// A transfer into a read-only target shelf is refused with 409, the status every
-// write to a read-only shelf gets, and nothing is scheduled.
-func TestAPIFolderTransferReadOnlyTargetContract(t *testing.T) {
+func TestAPIFolderTransferReadOnlyTarget(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlySecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "No Room", "fiction", "noroom.txt", "body")
 
@@ -232,7 +200,6 @@ func TestAPIFolderTransferReadOnlyTargetContract(t *testing.T) {
 	}
 }
 
-// The endpoint rejects malformed requests before scheduling anything.
 func TestAPIFolderTransferBadRequestContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	apitest.ImportTextBook(t, env, "Present", "fiction", "present.txt", "body")

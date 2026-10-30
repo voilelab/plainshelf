@@ -18,17 +18,18 @@ lists every key — the ones they leave out are exactly the ones this page is fo
     `1.0.0-rc1` freeze covers the shelf's on-disk format, not this file. Check
     the release notes' *Breaking changes* before upgrading.
 
-The file has three top-level sections:
+The file has four top-level sections:
 
 ```yaml
 logger:        # the process logger, used before the app is built
 server_conf:   # the HTTP listener
+dav_export:    # optional: a read-only WebDAV export on a second listener
 app_conf:      # everything else
 ```
 
 `server_conf` and `app_conf` are both required; the server refuses to start
 without either. `logger` may be omitted, and then takes the defaults in
-[Logger blocks](#logger-blocks).
+[Logger blocks](#logger-blocks). `dav_export` is off unless present.
 
 Only the desktop and reader apps run without a config file. They build their
 configuration in code, so nothing on this page applies to them; the settings
@@ -59,6 +60,12 @@ error, not a default, and the server refuses to start.
 
 Durations use Go syntax: `60s`, `5m`, `1h30m`.
 
+On SIGINT or SIGTERM the server stops accepting connections and gives requests
+still in flight 5 seconds to finish, then closes them. The `dav_export`
+listener shuts down at the same time, within the same 5 seconds. The server then
+stops background tasks, saves each shelf's caches and closes the settings store,
+which takes longer on an SMB or pCloud shelf.
+
 `addr` is also read by the security check: it must be a loopback address unless
 `app_conf.security.mode` is set explicitly. See
 [Deployment and threat model](../deployment-and-threat-model.md).
@@ -78,6 +85,110 @@ server_conf:
   write_timeout: 60s
 ```
 
+## `dav_export`
+
+Exports every local shelf as a read-only WebDAV tree at
+`http://{addr}/dav/{shelf_id}/`, so another PlainShelf can open it as a virtual
+shelf (see [Shelf Sources](../concepts/shelf-sources.md)). It is off when the
+section is absent, and then no second port is opened.
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `addr` | string | none (required) | Listen address of the export, `host:port`. Must differ from `server_conf.addr`. |
+| `read_timeout` | duration | none (required) | As in `server_conf`. |
+| `write_timeout` | duration | none (required) | As in `server_conf`. Raise it for large books on a slow mount. |
+| `token_file` | string | none (required) | File holding the token every request must send as `Authorization: Bearer <token>`. Generated with mode `0600` when missing, and kept across restarts. Must not be a file the export serves: see [Token file location](#token-file-location). |
+| `allowed_origins` | list of strings | empty | Browser origins sent CORS headers, so a page served from one of them — a self-hosted wasm demo — can read the export. An origin is `scheme://host[:port]` with no path, and a default port may be written or left out; `*` is refused. Empty sends no CORS header at all. See [Browser access](#browser-access). |
+
+```yaml
+dav_export:
+  addr: "192.168.1.20:20001"
+  read_timeout: 60s
+  write_timeout: 60s
+  token_file: ./dav-export.token
+```
+
+What the export serves:
+
+- `OPTIONS`, `GET`, `HEAD`, and `PROPFIND` with `Depth: 0` or `1`. Every other
+  method, writes included, is answered 405 with or without a token; a
+  `PROPFIND` without `Depth`, or with `infinity`, is answered 403.
+- Only the shelf's own files: `books/`, `trash/`, `shelf.json` and
+  `app/book-cache-*.json`. Lock files, the scan cache, `app/tmp/` and the
+  temporary files and folders of a write still in progress are not listed and a
+  direct `GET` of them is 404, so a client only ever copies finished files.
+  A path with a `..` segment is 400,
+  and a path through a symlink is 404, so a link under `books/` cannot reach
+  `app/`.
+- Nothing else. `/api/...` and the web UI are 404 on this listener; the HTTP API
+  stays on `server_conf.addr` with its own `security` gate, unchanged. A
+  virtual shelf is not re-exported.
+
+A missing or wrong token is 401. To replace the token, run
+
+```bash
+plainshelf-srv -conf config.yaml -rotate-dav-token
+```
+
+It prints the new token, and the absolute path of the file it wrote on stderr:
+a relative `token_file` resolves against the working directory, so run it from
+the directory the server runs in. A running server reads the file on every
+request, so the old token stops working at once, with no restart. The server
+logs a warning at startup when the file is readable by other users, and fails
+to start when `addr` cannot be bound — including when it overlaps
+`server_conf.addr` (`0.0.0.0:20000` and `127.0.0.1:20000`), since the API binds
+first.
+
+!!! warning "The token travels in plaintext"
+    The export speaks plain HTTP. Anyone who can watch the network between the
+    two devices can read the token and every file the export serves. Bind it
+    only on a network you trust, such as a home LAN or a VPN, never on a port
+    reachable from the internet. TLS is not supported yet.
+
+### Token file location
+
+The server refuses to start when `token_file` is one of the files the export
+serves (inside a local shelf's root, under `books/`, `trash/`, `shelf.json` or
+`app/book-cache-*.json`), because anyone who can reach the export could then
+download the token. The error names the shelf and the path. Both paths are made
+absolute against the working directory and their symlinks resolved first, so
+`./shelf/../shelf/books/dav.token` is refused too, and so is a token reached
+through another name for a shelf root that is itself a symlink. Elsewhere in the
+shelf root (`<lib_root>/app/dav.token`) or outside every shelf is fine; the
+default `./dav-export.token` is outside.
+
+The check compares paths, so it does not see a hard link to the token file
+placed inside a shelf; do not create one. A symlink inside a shelf that points
+at the token is harmless, since the export does not follow symlinks.
+
+### Browser access
+
+A page in a browser can read the export only from an origin listed in
+`allowed_origins`:
+
+```yaml
+dav_export:
+  # ...
+  allowed_origins:
+    - "http://192.168.1.30:8080"
+```
+
+For a listed origin the export answers the CORS preflight (`OPTIONS` with
+`Access-Control-Request-Method`) with 204 before checking the token, allowing
+`GET`, `HEAD`, `PROPFIND` and the `Authorization`, `Content-Type`, `Depth` and
+`Range` headers. The preflight carries no file, listing or shelf name, and it
+answers the same for a shelf that does not exist. Every other request still
+needs the token, and writes are still 405. Credentials mode is not allowed: the
+token travels in `Authorization`, not a cookie.
+
+Listing an origin trusts every page on it: any script there that holds the
+token reads every exported shelf. That is why `*` is refused.
+
+The export is plain HTTP, so a browser refuses to read it from an `https://`
+page as mixed content. The published demo is served over HTTPS and cannot read
+it, whatever this list says; only a demo served over plain HTTP, on the LAN,
+can.
+
 ## `app_conf`
 
 | Key | Type | Default | What it does |
@@ -94,11 +205,14 @@ server_conf:
 `store_path` holds server settings only — the cover-to-JPEG flag, the EPUB
 import default, the log retention window, and whether books marked as adult
 content are shown. It is not the book store: the shelf on disk is. See
-[Backup and Restore](../backup-and-restore.md).
+[Backup and restore](../backup-and-restore.md).
 
 `cover_to_jpg` is one of the three settings that have both a key here and a
 runtime value. A value saved from the settings page wins over the config file;
 deleting it reverts to the config file, and then to `false`.
+
+A cover is converted only up to 40 megapixels. A larger upload is refused with
+413, and a larger EPUB cover is skipped, leaving the book without one.
 
 `show_nsfw` has no key here at all: it lives only in the store, defaults to
 hidden, and is changed from **Settings → Adult content** or through
@@ -118,7 +232,7 @@ are not.
 | `protect_read` | bool | `false` | Require the token for reads too, not only writes. The log API always requires it either way. |
 | `token_header` | string | `X-PlainShelf-Token` | Header name the token is read from. `Authorization: Bearer <token>` is always accepted as well. |
 | `allow_missing_origin_with_token` | bool | `true` in `local_token` mode | Accept a token-bearing request that carries no `Origin` or `Referer` — a non-browser client such as the Android app. Set `false` to require an allowed origin on every protected request. |
-| `allowed_origins` | list of strings | the four loopback origins below | Browser origins allowed to make API calls. An origin is `scheme://host[:port]` with no path. |
+| `allowed_origins` | list of strings | the four loopback origins below | Browser origins allowed to make API calls. An origin is `scheme://host[:port]` with no path; a default port (`:80` for `http`, `:443` for `https`) may be written or left out. |
 
 The default `allowed_origins` in `local_token` mode:
 
@@ -167,20 +281,22 @@ fingerprinting. The whole section is optional.
 A [logger block](#logger-blocks) for the application log — API requests,
 imports, shelf operations.
 
-The **Logs** page lists the files of every logger under `app_conf` — this one,
-`app_conf.worker.logger` and each shelf's — and the retention window saved there
+The **Logs** page lists the files of every logger under `app_conf` (this one,
+`app_conf.worker.logger` and each shelf's), and the retention window saved there
 applies to all of them. Only the ones writing to `filename` or `filename_rotate`
 have files to list.
 
 ### `shelves[]`
 
-Each entry is one shelf. `id` and `lib_root` are the only required keys.
+Each entry is one shelf. `id` and one of `lib_root` or `source` are the only
+required keys.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
 | `id` | string | none (required) | Stable identifier, unique across the list. It appears in URLs, so keep it URI-safe. |
 | `name` | string | same as `id` | Display name in the UI. |
-| `lib_root` | string | none (required) | Path to the shelf directory. Created if missing, unless the shelf is read-only. Use a local mount path for a network share, not a `smb://` URL. |
+| `lib_root` | string | none | Path to the shelf directory. Created if missing, unless the shelf is read-only. Use a local mount path for a network share, not a `smb://` URL. Shorthand for a `local` [`source`](#shelvessource); give one or the other, never both. |
+| `source` | mapping | none | Where the shelf's files are, when they are not a local path: another PlainShelf's export or a WebDAV server. See [`source`](#shelvessource). |
 | `read_only` | bool | `false` | Open this shelf without writing to it at all: no directory creation, no cache files, no lock file, and every mutating operation refused with 409. Forces `lock_mode: none` and disables the exported book cache. |
 | `logger` | [logger block](#logger-blocks) | see below | Where this shelf's log is written. |
 | `scan_interval` | duration | `1m` | Minimum time between full on-disk scans. Between scans a refresh only re-reads books already known, so new books appear at the next full scan. `0s` scans on every refresh. |
@@ -196,16 +312,147 @@ for this installation. Explicitly setting it to `""` on a writable shelf is
 therefore not the way to disable the export — the server fills it back in.
 
 For what these tuning keys cost and buy on each kind of filesystem, see
-[Shelf Cache and Disk I/O](../concepts/shelf-cache-and-io.md#tuning-options)
+[Shelf cache and disk I/O](../concepts/shelf-cache-and-io.md#tuning-options)
 and [Configure an SMB shelf file source](../configuring-smb-shelf.md).
 
 Scan settings held in the shelf's own `shelf.json` are a separate mechanism and
-are not listed here; see [Data Model](../concepts/data-model.md).
+are not listed here; see [Data model](../concepts/data-model.md).
+
+### `shelves[].source`
+
+The server resolves `credential` references into plaintext secrets for the
+source client; a reference does not mean the process never handles a password
+or token. Keep referenced files private to its user. These remote-source
+credentials are separate from `dav_export.token_file` and the UI API's
+`local_token`; see [Where credentials live](../deployment-and-threat-model.md#where-credentials-live)
+for storage and transmission boundaries on each host.
+
+Opens a shelf from somewhere other than a local path. A `plainshelf` or
+`webdav` source is a **virtual shelf**: always read-only whatever `read_only`
+says, never locked or exported, listed from the exported book cache when the
+remote has one, and kept readable offline from copies under `store_path`. See
+[Shelf sources and credentials](../concepts/shelf-sources.md).
+
+| Key | Type | Used by | What it does |
+|---|---|---|---|
+| `type` | string | all | `local`, `plainshelf`, `webdav` or `pcloud`. Any other value fails startup. `pcloud` is refused on the server for now. |
+| `path` | string | `local`, `pcloud` | The shelf directory. |
+| `url` | string | `plainshelf`, `webdav` | URL of the shelf directory, `http` or `https`. It must not carry credentials, a query or a fragment. |
+| `username` | string | `webdav` | Sign in as this user, sending the credential as HTTP Basic. Unset, the credential is sent as a bearer token. |
+| `credential` | string | `plainshelf` (required), `webdav`, `pcloud` | A reference to the secret, never the secret itself: `env:NAME` reads an environment variable, `file:/path` a file's trimmed contents. Resolved at startup and again whenever the remote answers 401, so a rotated token is picked up without a restart. |
+| `host` | string | `pcloud` | The regional API host. |
+| `user_id` | string | `pcloud` | The pCloud account ID. |
+| `client_id` | string | `pcloud` | The pCloud app key. |
+
+A key that does not belong to the declared `type` fails startup, as does a
+credential that is not a reference or names nothing. A remote that cannot be
+reached does not stop the server: the shelf answers `SOURCE_UNAVAILABLE`, or
+`SOURCE_UNAUTHORIZED` when the remote refuses the credential, until it can. A
+`url` the remote answers 404 for (a typo, a shelf that is no longer shared, a
+moved folder) answers `NOT_A_SHELF` rather than an empty shelf; a shelf already
+listed keeps its books and offline snapshot until the folder is back.
+
+```yaml
+shelves:
+  # Another PlainShelf's dav_export; the token file is copied from that machine.
+  - id: living_room
+    name: Living room
+    source:
+      type: plainshelf
+      url: http://192.168.1.20:20001/dav/default_shelf/
+      credential: file:/etc/plainshelf/living_room.token
+  # Any WebDAV server holding a shelf directory.
+  - id: nas
+    source:
+      type: webdav
+      url: https://nas.example/dav/books/
+      username: reader
+      credential: env:PLAINSHELF_NAS_PASSWORD
+```
+
+#### Tested WebDAV servers
+
+The following servers were tested on 2026-10-18 with the Go server's `webdav`
+source, HTTP Basic authentication, and a fresh local `store_path` for each
+opening. Both listed the same books and folders as the local shelf and returned
+identical source metadata, text, and cover bytes. No client changes were needed.
+
+| Server | Authentication tested | Requests to open and list books and folders |
+|---|---|---|
+| rclone v1.75.2, `serve webdav` over a local directory | Username and password | 3 |
+| Nextcloud 35.0.2, Apache 2.4.68 / PHP 8.5.11, SQLite | Username and app password | 3 |
+
+For rclone, point `serve webdav` at the **shelf root**, which contains `books/`
+and `app/`. Set `RCLONE_USER=reader` and `RCLONE_PASS` to the password in the
+environment of the serving process, then run:
+
+```sh
+rclone serve webdav /path/to/shelf --addr 127.0.0.1:21621 --read-only
+```
+
+In the PlainShelf process, set `PLAINSHELF_RCLONE_PASSWORD` to the same password:
+
+```yaml
+shelves:
+  - id: rclone
+    source:
+      type: webdav
+      url: http://127.0.0.1:21621/
+      username: reader
+      credential: env:PLAINSHELF_RCLONE_PASSWORD
+```
+
+For Nextcloud, upload the complete shelf directory, including
+`app/book-cache-*.json`, into the user's files. Create an app password under
+**Personal settings → Security → Devices & sessions**, and store it in the file
+named by `credential`. For a shelf uploaded as the `Books` folder:
+
+```yaml
+shelves:
+  - id: nextcloud
+    source:
+      type: webdav
+      url: https://cloud.example/remote.php/dav/files/reader/Books/
+      username: reader
+      credential: file:/etc/plainshelf/nextcloud-app-password
+```
+
+Replace `reader` with the login name, and percent-encode special characters in
+each URL path segment. The test used a folder named `PSW 162 & 100% #+`, addressed
+as `PSW%20162%20%26%20100%25%20%23%2B/`. Nextcloud returned lowercase percent
+escapes in its WebDAV `href` values; these decoded correctly. Both servers also
+read a book under `books/小說 & 100% #+/` and returned usable HTTP dates for
+`getlastmodified`.
+
+The request counts above used the two-book `plain-book` conformance fixture,
+with its `Fiction` folder renamed as above and one usable book cache exported
+by PlainShelf. Requests were counted through a local recording reverse proxy,
+from shelf creation through `WaitReady`, `GET /api/shelves/<id>/books`, and
+`GET /api/shelves/<id>/folders`, before reading individual books:
+
+1. `GET shelf.json` — 200.
+2. `PROPFIND app/` with `Depth: 1` — 207.
+3. `GET app/book-cache-webdav-smoke.json` — 200.
+
+No opening request entered `books/`. Listing the book's sources, reading its
+23-byte text, and reading its 5,072-byte PNG cover then took 8 more requests on
+rclone and 7 on Nextcloud. rclone compressed the text response; the Go HTTP
+client's decompression left its length unknown, so `davfs` made an additional
+`PROPFIND` to obtain the uncompressed size. Nextcloud supplied the text length
+directly. These counts describe this fixture and sequence, rather than every
+shelf or server configuration.
+
+With a wrong password, both servers returned 401 and PlainShelf's book-list
+API answered HTTP 503 with `error.code: SOURCE_UNAUTHORIZED`. After stopping
+each WebDAV server, reopening with a fresh `store_path` answered HTTP 503 with
+`error.code: SOURCE_UNAVAILABLE`. A fresh store matters here: previously
+downloaded books may remain readable offline. The compatibility test used
+loopback HTTP; use HTTPS when credentials cross the network.
 
 ### `app_conf.epub_import_strategy`
 
 The default conversion options for an EPUB import that does not carry its own.
-See [EPUB Import](../epub-import.md) for what each one produces.
+See [EPUB import](../epub-import.md) for what each one produces.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
@@ -255,11 +502,11 @@ and read; `stderr`, `stdout` and `none` leave it with nothing to show.
     `missing log dir: filename_rotate requires dir`. Both shipped example
     configs set `dir`; if you write your own, set it too.
 
-Deletion happens at rotation — the first log line written on a new day — so an
-idle or stopped server deletes nothing. Nothing else ever removes these files.
-A retention window saved from **Settings → Logs** overrides `retention_days`
-for the application, worker and shelf loggers while the server runs; see
-[Logs](../logs.md#retention).
+Deletion happens at rotation, when the first log line is written on a new day,
+so an idle or stopped server deletes nothing. Nothing else ever removes these
+files. A retention window saved from **Settings → Logs** overrides
+`retention_days` for the application, worker and shelf loggers while the server
+runs; see [Logs](../logs.md#retention).
 
 ## A complete example
 
@@ -282,6 +529,13 @@ server_conf:
   addr: "127.0.0.1:20000"
   read_timeout: 60s
   write_timeout: 60s
+
+# Off by default; see dav_export above.
+# dav_export:
+#   addr: "192.168.1.20:20001"
+#   read_timeout: 60s
+#   write_timeout: 60s
+#   token_file: ./dav-export.token
 
 app_conf:
   logger:

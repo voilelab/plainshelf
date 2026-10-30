@@ -1,32 +1,22 @@
+import { useShelfCapabilities } from './useShelfCapabilities';
 import { computed, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import type { DownloadState } from '@/types/book';
 import { t } from '@/i18n';
 
-/**
- * Wraps the optional `downloadBook` / `removeDownload` / `getDownloadState`
- * BookshelfProvider methods into a small state machine for a single book's
- * offline-download UI (BookDetailPage's "Download to device" button).
- *
- * `downloading` and `failed` are transient, component-local states — they
- * are never persisted to the cache, only `not_downloaded` / `downloaded` /
- * `update_available` come back from `getDownloadState`. When the provider
- * does not implement these optional methods (desktop, plain server), the
- * state stays `not_downloaded` and `supported` is false so callers can
- * disable/hide the control.
- */
 export function useOfflineDownload(bookId: () => string) {
+  const capability = useShelfCapabilities();
   const state = ref<DownloadState>('not_downloaded');
   const error = ref('');
 
   const supported = computed(() => {
     const provider = getBookshelfProvider();
-    return Boolean(provider.downloadBook && provider.removeDownload && provider.getDownloadState);
+    return capability.download.value && Boolean(provider.downloadBook && provider.removeDownload && provider.getDownloadState);
   });
 
   async function refresh(): Promise<void> {
     const provider = getBookshelfProvider();
-    if (!provider.getDownloadState) {
+    if (!supported.value || !provider.getDownloadState) {
       state.value = 'not_downloaded';
       return;
     }
@@ -40,7 +30,7 @@ export function useOfflineDownload(bookId: () => string) {
 
   async function download(): Promise<void> {
     const provider = getBookshelfProvider();
-    if (!provider.downloadBook) {
+    if (!supported.value || !provider.downloadBook) {
       return;
     }
 
@@ -58,7 +48,7 @@ export function useOfflineDownload(bookId: () => string) {
 
   async function remove(): Promise<void> {
     const provider = getBookshelfProvider();
-    if (!provider.removeDownload) {
+    if (!supported.value || !provider.removeDownload) {
       return;
     }
 

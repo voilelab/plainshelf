@@ -1,9 +1,4 @@
 <template>
-  <!--
-    role="status", not "alert": the failure itself is already announced by the
-    page's own alert region, and this only adds the number to quote for it.
-    Fixed-position so a page with no reference to show keeps its exact layout.
-  -->
   <div v-if="incident" class="error-incident" role="status" aria-live="polite">
     <span class="error-incident__label">{{ t('errorIncident.label') }}</span>
     <code class="error-incident__id">{{ incident }}</code>
@@ -32,15 +27,11 @@ const { incident, dismissIncident } = useErrorIncident();
 
 const copied = ref(false);
 
-// A second failure reuses the notice, so the confirmation has to belong to the
-// number now shown rather than to the last one copied.
 watch(incident, () => {
   copied.value = false;
 });
 
 async function copy(): Promise<void> {
-  // No clipboard API (an insecure origin, an old WebView): the number is
-  // selectable text either way, so the button simply reports nothing.
   if (!navigator.clipboard) {
     return;
   }

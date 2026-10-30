@@ -6,9 +6,6 @@ vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({ listBooks })
 }));
 
-// The store is a module-level singleton, so each test needs its own copy of it.
-// The reset also gives the store a fresh `@/api/client`, so the errors it is
-// fed have to come from that same copy or its `instanceof ApiError` check fails.
 async function freshStore() {
   vi.resetModules();
   const { ApiError } = await import('@/api/client');
@@ -39,8 +36,6 @@ describe('useBookStore', () => {
 
     await fetchBooks();
 
-    // Between attempts the page reports "initializing" rather than an error the
-    // shelf resolves on its own.
     expect(shelfInitializing.value).toBe(true);
     expect(loading.value).toBe(true);
     expect(error.value).toBe('');
@@ -68,15 +63,10 @@ describe('useBookStore', () => {
     expect(shelfUnreachable.value).toBe(true);
     expect(shelfInitializing.value).toBe(false);
     expect(loading.value).toBe(false);
-    // "Unreachable" is its own state; it must not also read as a load failure.
     expect(error.value).toBe('');
   });
 
   it('does not strand the page in loading when a concurrent load succeeds', async () => {
-    // Several mutation and page flows call this module-level store on their
-    // own, so two loads can overlap. The first sees the 503 and arms a retry;
-    // the second then succeeds, which must both cancel that now-pointless
-    // retry and leave the page reporting loaded rather than initializing.
     const { books, loading, error, shelfInitializing, fetchBooks, initializing } =
       await freshStore();
     listBooks.mockRejectedValueOnce(initializing()).mockResolvedValueOnce({ items: [{ id: 'a' }] });

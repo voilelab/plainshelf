@@ -12,32 +12,25 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// TestAPIImportEPUBRecordsDroppedImagesContract pins the whole path: the
-// converter counts the illustrations, the importer writes the note onto the
-// source it created, and the sources endpoint hands it back for the book detail
-// view to show.
-func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
+func TestAPIImportEPUBDroppedImages(t *testing.T) {
 	tests := []struct {
 		name    string
 		archive []byte
 		want    string
 	}{
 		{
-			// Both plates are stored beside the text now, so an illustrated
-			// EPUB loses nothing and leaves no note.
+
 			archive: testutil.BuildIllustratedTestEPUB(t),
 			want:    "",
 		},
 		{
-			// A format the shelf cannot serve is still a loss, and is still
-			// what the note is for.
+
 			name:    "unstorable illustration is still reported",
 			archive: testutil.BuildUnstorableImageTestEPUB(t),
 			want:    "Converted from EPUB. 1 embedded image was dropped.",
 		},
 		{
-			// The cover is kept, so an EPUB whose only image is the cover has
-			// nothing to report.
+
 			name:    "epub without illustrations records nothing",
 			archive: testutil.BuildTestEPUB(t),
 			want:    "",
@@ -62,11 +55,7 @@ func TestAPIImportEPUBRecordsDroppedImagesContract(t *testing.T) {
 	}
 }
 
-// The illustrations an EPUB carried must land on the shelf, be referenced by
-// the text, and come back through the asset route. This is the first test that
-// exercises storage, conversion and serving together; each side alone can pass
-// while the names they agree on have drifted apart.
-func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
+func TestAPIImportEPUBImageAssets(t *testing.T) {
 	env := apitest.New(t)
 	imported := apitest.ImportFileBook(t, env, "book.epub", "application/epub+zip",
 		string(testutil.BuildIllustratedTestEPUB(t)))
@@ -80,7 +69,6 @@ func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	content := rec.Body.String()
 
-	// Both plates are stored, numbered in the order the spine reached them.
 	for _, name := range []string{"img-0001.png", "img-0002.png"} {
 		link := "![](" + shelf.SourceAssetsFolder + "/" + name + ")"
 		if !strings.Contains(content, link) {
@@ -97,17 +85,12 @@ func TestAPIImportEPUBStoresIllustrationsAsAssetsContract(t *testing.T) {
 		}
 	}
 
-	// The book is Markdown, which is the only format whose reader renders the
-	// link that was just written into the text.
 	if imported.Meta.Format != "md" {
 		t.Errorf("imported format = %q, want md", imported.Meta.Format)
 	}
 }
 
-// With the keep_images setting off, an import that submits a strategy of its
-// own must still store no illustrations. The unit-level half of this is
-// TestImportEPUBPerRequestStrategyInheritsKeepImages in package server.
-func TestAPIImportEPUBHonoursKeepImagesOffContract(t *testing.T) {
+func TestAPIImportEPUBKeepImagesOff(t *testing.T) {
 	env := apitest.New(t)
 
 	rec := env.Post("/api/setting/epub_import_strategy",

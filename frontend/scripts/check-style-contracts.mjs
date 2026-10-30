@@ -28,6 +28,14 @@ import { pathToFileURL } from 'node:url';
  */
 export const CONTRACTS = [
   {
+    name: 'danger toasts retain their variant styling',
+    file: 'src/styles.css',
+    selector: '.reka-toast-danger',
+    property: 'border-color',
+    must: /var\(--danger\)/,
+    why: 'ToastHost builds this class from ToastVariant when a danger toast is raised.'
+  },
+  {
     name: 'hidden settings panels collapse',
     file: 'src/features/settings/pages/SettingsPage.vue',
     selector: '.settings-tab-content[hidden]',

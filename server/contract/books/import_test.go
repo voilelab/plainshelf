@@ -27,8 +27,6 @@ func TestAPIImportBookContract(t *testing.T) {
 		t.Fatal("import response missing current_source")
 	}
 
-	// A form with no file part at all, and a file whose extension this build does
-	// not import, are both client errors.
 	rec := apitest.PostBookImport(t, env, apitest.FormUpload{
 		Fields:    [][2]string{{"title", "Missing File"}},
 		FileField: "file",
@@ -39,10 +37,6 @@ func TestAPIImportBookContract(t *testing.T) {
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 
-// TestAPIImportUnsupportedEncodingContract pins that a .txt whose bytes decode to
-// an encoding the server has no decoder for is a client error (400), not a server
-// error (500), and that the detected encoding name reaches the client so the user
-// can tell why their file was refused.
 func TestAPIImportUnsupportedEncodingContract(t *testing.T) {
 	env := apitest.New(t)
 
@@ -59,15 +53,9 @@ func TestAPIImportUnsupportedEncodingContract(t *testing.T) {
 	}
 }
 
-// TestAPIImportStripsBOMContract pins the UTF-8-SIG behavior end to end: a leading
-// BOM must not survive into the stored source content, and it must not be counted
-// in char_count. apitest.ImportTextBook prepends a BOM to every upload, so this exercises
-// the common path.
 func TestAPIImportStripsBOMContract(t *testing.T) {
 	env := apitest.New(t)
 
-	// apitest.ImportTextBook uploads "\ufeff" + body + "\n世界"; after BOM stripping the
-	// stored content is exactly that without the leading BOM.
 	book := apitest.ImportTextBook(t, env, "BOM Book", "", "bom.txt", "hello world")
 	const wantContent = "hello world\n世界"
 
@@ -81,7 +69,6 @@ func TestAPIImportStripsBOMContract(t *testing.T) {
 		t.Fatalf("content = %q, want %q", content, wantContent)
 	}
 
-	// char_count is derived from the stored content, so it must not count the BOM.
 	books := apitest.GetJSON[[]server.Book](t, env, apitest.BooksURL()+"?include=char_count")
 	var charCount int
 	var found bool
@@ -103,8 +90,6 @@ func TestAPIImportStripsBOMContract(t *testing.T) {
 func TestAPIImportMarkdownBookContract(t *testing.T) {
 	env := apitest.New(t)
 
-	// Browsers vary in what Content-Type they send for a .md upload; the
-	// extension is the primary signal, so all of these must succeed.
 	const markdown = "# Notes\n\nhello markdown"
 	var markdownBook server.Book
 	for _, tc := range []struct{ name, filename, contentType string }{
@@ -122,13 +107,11 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 		}
 	}
 
-	// A plain .txt import must still be recognized as "txt" format.
 	txtBook := apitest.ImportTextBook(t, env, "Plain Text", "", "plain.txt", "hello world")
 	if txtBook.Meta == nil || txtBook.Meta.Format != "txt" {
 		t.Fatalf("unexpected imported book meta: %#v", txtBook.Meta)
 	}
 
-	// The source carries the same format as the book it was created for.
 	for _, imported := range []struct {
 		book server.Book
 		want string
@@ -143,8 +126,6 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 		}
 	}
 
-	// Reading back the content must still be exactly what was uploaded, with no
-	// markdown rendering applied (rendering is out of scope for this PR).
 	contentRec := env.Get(apitest.BookURL(markdownBook.Meta.ID, "content"))
 	apitest.AssertStatus(t, contentRec, http.StatusOK)
 	apitest.AssertContentType(t, contentRec, apitest.PlainTextContentType)
@@ -162,11 +143,10 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 		t.Fatal("import response missing meta")
 	}
 
-	// The book's own dc:title beats the filename.
 	if imported.Meta.Title != testutil.TestEPUBTitle {
 		t.Fatalf("title = %q, want %q", imported.Meta.Title, testutil.TestEPUBTitle)
 	}
-	// The default strategy is the Markdown preset, so the stored format is "md".
+
 	if imported.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md", imported.Meta.Format)
 	}
@@ -176,8 +156,7 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 	if imported.Meta.Language != "zh-Hant" {
 		t.Fatalf("language = %q, want zh-Hant", imported.Meta.Language)
 	}
-	// dc:description lands in the metadata regardless of whether it is also
-	// written into the text.
+
 	if imported.Meta.Comments != "一部關於旅途的短篇小說。" {
 		t.Fatalf("comments = %q, want the epub description", imported.Meta.Comments)
 	}
@@ -206,20 +185,16 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 			t.Fatalf("content is missing %q:\n%s", want, content)
 		}
 	}
-	// The navigation document is not a chapter, and the headings consumed as
-	// chapter titles must not be duplicated in the body.
+
 	if strings.Contains(content, "第一章") || strings.Contains(content, "第二章") {
 		t.Fatalf("content still contains in-document headings:\n%s", content)
 	}
 
-	// The source owns the Markdown format. H2 text is the chapter structure, so
-	// EPUB import no longer persists a parallel regex or boundary configuration.
 	rec = env.Get(apitest.SourceURL(imported.Meta.ID, imported.Meta.CurrentSource))
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	apitest.AssertJSONContentType(t, rec)
 	assertSourceFormat(t, apitest.DecodeJSON[map[string]any](t, rec), "md")
 
-	// The cover survives the round trip.
 	rec = env.Get(apitest.BookURL(imported.Meta.ID, "cover"))
 	apitest.AssertStatus(t, rec, http.StatusOK)
 	if rec.Body.Len() == 0 {
@@ -231,7 +206,6 @@ func TestAPIImportEPUBBookStrategyContract(t *testing.T) {
 	env := apitest.New(t)
 	archive := string(testutil.BuildTestEPUB(t))
 
-	// A per-import strategy overrides the configured default.
 	plain := apitest.ImportEPUBWithStrategy(t, env, "plain.epub", archive,
 		`{"preset":"plain","include_description":false}`)
 	if plain.Meta.Format != "txt" {
@@ -251,21 +225,13 @@ func TestAPIImportEPUBBookStrategyContract(t *testing.T) {
 		t.Fatalf("plain preset lost the chapter titles:\n%s", content)
 	}
 
-	// Plain EPUB output is an unstructured TXT source; it deliberately carries
-	// no chapter navigation state.
 	plainSourceMeta := apitest.GetJSON[map[string]any](t, env, apitest.SourceURL(plain.Meta.ID, plain.Meta.CurrentSource))
 	assertSourceFormat(t, plainSourceMeta, "txt")
 
-	// An unknown preset is rejected rather than silently falling back, and a file
-	// that is not a readable archive is rejected rather than stored as a broken
-	// book.
 	apitest.ImportEPUBExpectingStatus(t, env, "bad.epub", archive, `{"preset":"custom"}`, http.StatusBadRequest)
 	apitest.ImportEPUBExpectingStatus(t, env, "broken.epub", "this is not a zip", "", http.StatusBadRequest)
 }
 
-// assertSourceFormat pins the two fields an imported source's meta must report:
-// the format the reader parses it with, and the absence of a split config, since
-// chapter structure now comes from the text itself.
 func assertSourceFormat(t *testing.T, sourceMeta map[string]any, wantFormat string) {
 	t.Helper()
 

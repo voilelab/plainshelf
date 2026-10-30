@@ -1,12 +1,7 @@
 <template>
   <section class="panel settings-group">
     <h3>{{ t('settings.cover.title') }}</h3>
-    <!-- The row stays one big <label> so clicking the description or the space
-         beside it still toggles, as it did with the checkbox. The switch is a
-         <button>, which is interactive content, so a click on the switch itself
-         does not also run the label's activation behavior. `for` is what points
-         the label at it; aria-labelledby keeps the accessible name the title
-         alone rather than the whole row's text. -->
+    <!-- HTML Standard label activation excludes events targeting interactive descendants. -->
     <label class="setting-item" :for="switchId">
       <div>
         <span :id="labelId" class="setting-label">

@@ -21,8 +21,6 @@ describe('useToasts', () => {
     expect(useToasts().toasts.value.map((toast) => toast.message)).toEqual(['first', 'second']);
   });
 
-  // Two rescans in a row must both be readable; the host renders a list, so a
-  // second message may not silently replace the first.
   it('keeps identical messages apart', () => {
     const { showToast, toasts } = useToasts();
 
@@ -41,8 +39,6 @@ describe('useToasts', () => {
     dismissToast(first);
 
     expect(toasts.value.map((toast) => toast.message)).toEqual(['second']);
-    // Dismissing a toast that has already gone is a no-op, not an error: the
-    // timer and the close button can both fire for the same toast.
     dismissToast(first);
     expect(toasts.value).toHaveLength(1);
   });

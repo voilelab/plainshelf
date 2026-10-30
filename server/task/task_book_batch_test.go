@@ -31,7 +31,7 @@ func TestBookBatchTaskNoOpStillCompletes(t *testing.T) {
 	}
 
 	task := newBookBatchTask("default_shelf", newShelf, logger,
-		BookBatchOperationMove, []string{book.ID()}, shelf.FolderPath{"target"}, nil)
+		BookBatchOperationMove, []string{book.ID()}, shelf.FolderPath{"target"}, AllBooks())
 
 	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -45,7 +45,7 @@ func TestBookBatchTaskNoOpStillCompletes(t *testing.T) {
 	}
 }
 
-func TestBookBatchTaskAllFailuresStillProcessesEveryBook(t *testing.T) {
+func TestBookBatchProcessesAllFailures(t *testing.T) {
 	shelfDir := path.Join(t.TempDir(), "shelf")
 	newShelf, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: shelfDir})
 	if err != nil {
@@ -65,7 +65,7 @@ func TestBookBatchTaskAllFailuresStillProcessesEveryBook(t *testing.T) {
 	}
 
 	task := newBookBatchTask("default_shelf", newShelf, logger,
-		BookBatchOperationTrash, []string{"missing-a", "missing-b"}, shelf.FolderPath{}, nil)
+		BookBatchOperationTrash, []string{"missing-a", "missing-b"}, shelf.FolderPath{}, AllBooks())
 
 	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run returned an item error: %v", err)
@@ -104,7 +104,7 @@ func TestBookBatchTaskCancelledBeforeStart(t *testing.T) {
 	}
 
 	task := newBookBatchTask("default_shelf", newShelf, logger,
-		BookBatchOperationTrash, []string{book.ID()}, shelf.FolderPath{}, nil)
+		BookBatchOperationTrash, []string{book.ID()}, shelf.FolderPath{}, AllBooks())
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -126,7 +126,7 @@ func TestBookBatchTaskCancelledBeforeStart(t *testing.T) {
 	}
 }
 
-func TestBookBatchTaskResultSnapshotsAreIndependent(t *testing.T) {
+func TestBookBatchResultSnapshots(t *testing.T) {
 	shelfDir := path.Join(t.TempDir(), "shelf")
 	newShelf, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: shelfDir})
 	if err != nil {
@@ -146,7 +146,7 @@ func TestBookBatchTaskResultSnapshotsAreIndependent(t *testing.T) {
 	}
 
 	task := newBookBatchTask("default_shelf", newShelf, logger,
-		BookBatchOperationMove, []string{book.ID()}, shelf.FolderPath{"target"}, nil)
+		BookBatchOperationMove, []string{book.ID()}, shelf.FolderPath{"target"}, AllBooks())
 
 	if err := task.Run(t.Context()); err != nil {
 		t.Fatalf("Run: %v", err)

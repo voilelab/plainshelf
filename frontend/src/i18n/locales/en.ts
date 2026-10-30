@@ -1,4 +1,11 @@
 const en = {
+  mobileQR: {
+    scan: 'Scan a LAN share QR code',
+    open: 'Open imported shelf',
+    unavailable: 'QR scanning is unavailable on this device. Enter the address and token manually.',
+    failed: 'Could not scan. Allow camera access, check the camera, and try again, or enter the address and token manually.',
+    invalid: 'Invalid LAN share QR payload.'
+  },
   app: {
     name: 'PlainShelf',
     mockModeBadge: 'MOCK API MODE',
@@ -32,8 +39,6 @@ const en = {
     label: 'Language',
     en: 'English',
     zhHant: '繁體中文',
-    // The language a book is written in, distinct from the two keys above,
-    // which name the UI locale and stay in their own endonym either way.
     book: {
       unspecified: 'Unspecified',
       zhHant: 'Chinese (Traditional)',
@@ -60,8 +65,6 @@ const en = {
     inFolder: ' in {folder}',
     taskStartFailed: 'Failed to start the task',
     taskPollFailed: 'Failed to read task progress',
-    // Names the stepper buttons of a number field; {label} is the field's own
-    // label, so two fields side by side do not read as the same button.
     decrease: 'Decrease {label}',
     increase: 'Increase {label}'
   },
@@ -87,6 +90,17 @@ const en = {
       maintenance: 'Toggle sidebar maintenance',
       admin: 'Toggle sidebar administration'
     },
+    folderOrder: {
+      action: 'Reorder folders',
+      done: 'Finish reordering',
+      hint: 'Drag before a sibling, or use the up/down buttons. Folder locations stay the same.',
+      up: 'Move {name} up',
+      down: 'Move {name} down',
+      failed:
+        'Could not save the complete order. The saved order was reloaded; try the move again.',
+      reloadFailed:
+        'Could not reload the saved order. Reload folders before trying again.'
+    },
     createFolder: {
       add: 'Add folder',
       title: 'New folder',
@@ -96,7 +110,20 @@ const en = {
       invalidName: 'Folder name cannot be empty or contain /.',
       creating: 'Creating...',
       create: 'Create',
-      loadingFolders: 'Loading folders...'
+      loadingFolders: 'Loading folders...',
+      iconLabel: 'Icon',
+      iconFailed: 'The folder was created, but its icon could not be saved: {message}'
+    },
+    folderIcon: {
+      shortAction: 'Change icon',
+      title: 'Icon for "{name}"',
+      label: 'Folder icon',
+      default: 'Default',
+      save: 'Save',
+      saving: 'Saving...',
+      closeLabel: 'Close folder icon dialog',
+      conflict: "This folder's settings changed elsewhere and have been reloaded. Choose the icon again.",
+      failed: 'Failed to save the folder icon'
     },
     deleteFolder: {
       title: 'Delete folder',
@@ -121,9 +148,6 @@ const en = {
     moveFolder: {
       failed: 'Failed to move folder. Drag a folder onto an existing target folder.'
     },
-    // The change takes a folder out of a subtree shelf.json marks as adult
-    // content. folderOnly covers the count of 0, which is a real case: an empty
-    // marked folder discloses itself by its name alone.
     folderReveal: {
       title: 'Make hidden content visible?',
       bookCount:
@@ -311,6 +335,22 @@ const en = {
     readHistory: {
       title: 'Reading history'
     },
+    lanShare: {
+      title: 'Share on local network',
+      label: 'Share selected shelves read-only',
+      description:
+        'Opens a read-only export another device on this network can open as a shelf, with the address and token below. Nothing can be changed through it. Off, this app opens no network port.',
+      addressLabel: 'Network address',
+      noAddress: 'No local network address was found. Connect to a network and try again.',
+      shelvesLabel: 'Shelves to share',
+      noneShared: 'No shelf is ticked, so nothing is shared yet.',
+      urlLabel: 'Address',
+      tokenLabel: 'Token',
+      qrAlt: 'QR code with the address and token',
+      rotate: 'Replace token',
+      firewall:
+        'The first time sharing is turned on, your operating system may ask whether PlainShelf may accept incoming connections. Allow it on private networks only.'
+    },
     readerLaunch: {
       title: 'Reading',
       label: 'How to open the reader',
@@ -366,6 +406,7 @@ const en = {
       version: 'Version',
       repository: 'Repository',
       thirdPartyFonts: 'Third-party font licenses',
+      thirdPartySoftware: 'Third-party software licenses',
       fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · package version 5.3.0',
       source: 'Source',
       license: 'Full license text',
@@ -423,9 +464,21 @@ const en = {
       addShelfLocationExisting: 'Use a folder I already have',
       addShelfLocationExistingHelp:
         'Point PlainShelf at a folder you choose, anywhere on your disk. It is opened as it is.',
+      qrConfirm: 'Import shelves',
+      qrTitle: 'Paste a LAN share QR payload',
+      qrPaste: 'QR JSON content',
+      qrPreview: 'Preview shelves',
+      qrHelp: 'Preview first, then confirm to add all listed shelves as read-only PlainShelf sources. Failed sources are not saved. Existing sources and their tokens are kept.',
+      qrAdded: 'Added',
+      qrExists: 'Already exists; skipped',
+      qrFailed: 'Could not import this shelf',
+      addShelfLocationRemote: 'Read a shelf from another device',
+      addShelfLocationRemoteHelp:
+        'Another PlainShelf’s LAN share or a WebDAV server such as a NAS. Opened read-only; the token is kept in the system keychain.',
       addShelfDefaultPath: 'Folder to create:',
       addShelfDirectoryNotAbsolute: 'Enter a full path, starting from the root of the drive.',
       removeConfirmYes: 'Delete shelf',
+      virtualOpenFailed: 'Could not open this virtual shelf. Check the connection and unlock the keychain, then retry.',
       openFolder: 'Open folder',
       openFolderFailed: 'Failed to open shelf folder',
       modify: 'Modify',
@@ -682,8 +735,6 @@ const en = {
     folderPath: 'Book folder path',
     ratingLabel: 'Rated {rating} stars',
     emptyDetails: 'No additional details are available for this book.',
-    newerSchemaNotice:
-      'This book was saved in a newer format than this version of PlainShelf reads, so some of its details may be missing here.',
     sections: {
       publication: 'Publication',
       content: 'Content',
@@ -1079,12 +1130,36 @@ const en = {
       lastSection: 'You are at the last chapter'
     }
   },
+  shelfSource: {
+    kindLabel: 'Source',
+    plainshelf: 'Another PlainShelf',
+    webdav: 'WebDAV',
+    urlLabel: 'Shelf URL',
+    urlPlaceholder: 'http://192.168.1.20:20001/dav/default_shelf/',
+    urlHint: 'The address of the shelf folder: the one that contains books/. For another PlainShelf, the LAN share shows it.',
+    tokenLabel: 'Token',
+    usernameLabel: 'Username (optional)',
+    passwordLabel: 'Password or token (optional)',
+    secretHint: 'Kept in this device’s secure storage, never in the shelf list.',
+    check: 'Check shelf',
+    checking: 'Checking…',
+    shelfFound: 'Found {count} books.',
+    unauthorized: 'Wrong token: the source refused it.',
+    unavailable: 'Cannot connect to the source.',
+    notAShelf: 'That address has no books/ folder, so it is not a PlainShelf shelf.',
+    checkRequired: 'Check the shelf before saving.',
+    readOnlyHint: 'Opened read-only. Books can be downloaded to this device for offline reading.'
+  },
   mobileConnect: {
     title: 'Connect to PlainShelf',
-    description: 'Choose where your library lives so you can browse and read it on this device. The app is read-only: it never changes your library.',
+    description: 'Choose where your library lives so you can browse and read it on this device. The app never changes a library on a server or pCloud; a local shelf lives on this device and can be edited.',
     modeLabel: 'Library source',
     modeServer: 'PlainShelf server',
     modePCloud: 'pCloud',
+    modeLocal: 'Local shelf',
+    modeRemote: 'Another device',
+    localHint: 'Kept in this app’s own storage and works offline. Uninstalling the app or removing the shelf deletes its books.',
+    localNameRequired: 'Name the shelf first.',
     pcloud: {
       clientIdLabel: 'pCloud app key',
       clientIdPlaceholder: 'Your app key',
@@ -1150,8 +1225,39 @@ const en = {
     use: 'Use this shelf',
     removeTitle: 'Remove {name}?',
     removeDescription: 'Books downloaded from this shelf are deleted from the device. Reading progress and history are kept, so adding it back later picks up where you left off.',
+    removeLocalDescription: 'Every book on this shelf is permanently deleted from the device. This cannot be undone.',
+    localDetail: 'Stored on this device',
+    export: 'Export',
+    exported: 'Exported. Unzipped, the backup opens as a shelf in the desktop app or server.',
+    lastExport: 'Last exported {time}',
+    neverExported: 'Not backed up yet',
+    localUninstallWarning: 'Local shelves are deleted with the app. Export them to a zip before uninstalling, or keep the app’s data when the system asks.',
+    restoreTitle: 'Restore from a backup?',
+    restoreDescription: 'If you exported a local shelf to a zip before, you can restore it on this device.',
+    restoreZip: 'Restore from a backup zip',
+    restoreSkip: 'Skip',
+    importZip: 'Import from zip',
+    imported: 'Imported as a new shelf, “{name}”.',
+    importedName: 'Imported shelf',
+    errorBusy: 'Background tasks are still running. Please try again shortly.',
+    errorNotShelf: 'This zip is not a PlainShelf shelf: it has no books/ folder.',
+    errorUnsafePath: 'This zip has paths that point outside the shelf, so it was not imported.',
+    errorTooLarge: 'This zip is, or unpacks to, more than 512 MiB, the import limit.',
+    errorNotZip: 'This file is not a zip.',
     removeConfirm: 'Remove',
-    removeCancel: 'Keep it'
+    removeCancel: 'Keep it',
+    lanShare: {
+      title: 'Share on local network',
+      description:
+        'Lets another device on this Wi-Fi read the ticked shelves, read-only, with the address and token below. A notification stays while sharing; it stops by itself after {minutes} minutes without a read or when the network changes. Off, the app opens no network port.',
+      shelvesLabel: 'Shelves to share',
+      start: 'Start sharing',
+      stop: 'Stop sharing',
+      urlLabel: 'Address',
+      tokenLabel: 'Token',
+      ended: 'Sharing stopped: {reason}',
+      noWifi: 'Connect to Wi-Fi first: sharing works only on a local network.'
+    }
   },
   libraryForms: {
     editBook: {
@@ -1283,9 +1389,6 @@ const en = {
       delete: 'Delete',
       deleteLabel: 'Delete source {id}'
     },
-    // A source without a stored format predates source-level format metadata.
-    // The badge shows the format otherwise, uppercased, which needs no catalog
-    // entry.
     format: {
       legacy: 'Legacy'
     },
@@ -1320,9 +1423,6 @@ const en = {
         next: 'Next',
         replace: 'Replace',
         replaceAll: 'Replace all',
-        // The catalog has no pluralization, so counted nouns that can be one
-        // or many get a key per form. Replacing that with a "(s)" suffix would
-        // have made the English worse than it was before it was translated.
         noMatches: 'No matches.',
         matchOrdinal: 'Match {ordinal} of {total}.',
         matchCount: '{total} matches.',
@@ -1332,8 +1432,6 @@ const en = {
         replacedOneThenMatch: 'Replaced 1 occurrence. Match {ordinal} of {total}.',
         replacedOneThenCount: 'Replaced 1 occurrence. {total} matches.',
         invalidRegexp: 'That regular expression is not valid.',
-        // Spoken by the editor's own live region when a command moves or
-        // replaces a match; the visible status line above stays separate.
         announce: {
           currentMatch: 'Current match',
           onLine: 'on line',

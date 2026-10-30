@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,7 +14,6 @@ import (
 
 var errInjected = errors.New("injected failure")
 
-// faultFS wraps an FS and lets a test fail or observe individual operations.
 type faultFS struct {
 	FS
 
@@ -67,7 +67,6 @@ func (f *faultFS) written() []string {
 	return slices.Clone(f.writtenPaths)
 }
 
-// errReader fails partway through so streaming writes can be interrupted.
 type errReader struct {
 	prefix string
 	read   bool
@@ -82,7 +81,6 @@ func (e *errReader) Read(p []byte) (int, error) {
 	return 0, errInjected
 }
 
-// leftoverTempFiles lists temp files that survived in root.
 func leftoverTempFiles(t *testing.T, root string) []string {
 	t.Helper()
 
@@ -107,8 +105,6 @@ func TestTempPathKeepsTmpSuffixAndIsUnique(t *testing.T) {
 	second := tempPath(name)
 
 	if !strings.HasSuffix(first, ".tmp") {
-		// Sync tools are configured to ignore *.tmp; losing the suffix would
-		// let them sync half-written files.
 		t.Errorf("tempPath(%q) = %q, want a .tmp suffix", name, first)
 	}
 	if !strings.HasPrefix(first, name+".") {
@@ -145,7 +141,7 @@ func TestWriteFileAtomicReplacesExistingFile(t *testing.T) {
 	}
 }
 
-func TestWriteFileAtomicLeavesDestinationIntactOnWriteFailure(t *testing.T) {
+func TestAtomicWriteFailureKeepsDestination(t *testing.T) {
 	root := t.TempDir()
 	ffs := newTestFS(t, root)
 
@@ -168,7 +164,7 @@ func TestWriteFileAtomicLeavesDestinationIntactOnWriteFailure(t *testing.T) {
 	}
 }
 
-func TestWriteFileAtomicRemovesTempOnRenameFailure(t *testing.T) {
+func TestWriteAtomicCleansTempOnRenameError(t *testing.T) {
 	root := t.TempDir()
 	faulty := &faultFS{FS: newTestFS(t, root), failRename: true}
 
@@ -208,7 +204,7 @@ func TestWriteAtomicStreamsReader(t *testing.T) {
 	}
 }
 
-func TestWriteAtomicLeavesDestinationIntactWhenReaderFails(t *testing.T) {
+func TestAtomicReadFailureKeepsDestination(t *testing.T) {
 	root := t.TempDir()
 	ffs := newTestFS(t, root)
 
@@ -234,7 +230,7 @@ func TestWriteAtomicLeavesDestinationIntactWhenReaderFails(t *testing.T) {
 	}
 }
 
-func TestWriteAtomicRemovesTempWhenOpenWriterFails(t *testing.T) {
+func TestWriteAtomicCleansTempOnOpenError(t *testing.T) {
 	root := t.TempDir()
 	faulty := &faultFS{FS: newTestFS(t, root), failOpenWriter: true}
 
@@ -246,9 +242,7 @@ func TestWriteAtomicRemovesTempWhenOpenWriterFails(t *testing.T) {
 	}
 }
 
-// Two writers racing on the same destination must not share a temp file.
-// With a fixed "<name>.tmp" they would overwrite each other's staged data.
-func TestWriteFileAtomicConcurrentWritersUseDistinctTempFiles(t *testing.T) {
+func TestAtomicWriteFileConcurrentWriters(t *testing.T) {
 	root := t.TempDir()
 	faulty := &faultFS{FS: newTestFS(t, root)}
 
@@ -283,5 +277,45 @@ func TestWriteFileAtomicConcurrentWritersUseDistinctTempFiles(t *testing.T) {
 
 	if leftover := leftoverTempFiles(t, root); len(leftover) != 0 {
 		t.Errorf("temp files left behind after concurrent writes: %v", leftover)
+	}
+}
+
+func TestIsTempName(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		generate func() string
+	}{
+		{"atomic file beside its destination", func() string { return path.Base(tempPath("books/a.bookpkg/book.json")) }},
+		{"hidden staging directory", func() string { return TempDirName("20260101-000000") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for range 100 {
+				if name := tc.generate(); !IsTempName(name) {
+					t.Errorf("IsTempName(%q) = false for a generated name", name)
+				}
+			}
+		})
+	}
+	for _, tc := range []struct {
+		name  string
+		input string
+	}{
+		{"ordinary tmp extension", "notes.tmp"},
+		{"tmp extension is not last", "a.tmp.txt"},
+		{"extension without a stem", ".tmp"},
+		{"file random suffix too short", "x.abcdefg.tmp"},
+		{"file random suffix too long", "x.abcdefghi.tmp"},
+		{"file stem is missing", ".abcdefgh.tmp"},
+		{"file suffix contains a separator", "x.abcd-fgh.tmp"},
+		{"directory random suffix too short", ".x-abcde.tmp"},
+		{"directory base is missing", ".-abcdef.tmp"},
+		{"directory is not hidden", "x-abcdef.tmp"},
+		{"atomic name followed by another extension", "book.json.aB3dE6gH.tmp.txt"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if IsTempName(tc.input) {
+				t.Errorf("IsTempName(%q) = true", tc.input)
+			}
+		})
 	}
 }

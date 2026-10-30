@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -11,21 +12,14 @@ type ShelfData struct {
 	ID   string
 	Name string
 
-	// conf is the configuration this shelf was opened with. UpdateShelf needs
-	// it to tell an in-place change from one that can only be applied by
-	// opening the shelf again, and to reopen the previous one when that fails.
 	conf ShelfConf
 
 	*Shelf
 }
 
 type ShelfConfWithID struct {
-	// ID is a unique identifier for the shelf. It should be uri-safe as it may be used in URLs.
-	// It is used in the API to specify which shelf to use.
 	ID string `yaml:"id"`
 
-	// Name is a human-readable name for the shelf.
-	// If not provided, it will default to the same value as ID.
 	Name string `yaml:"name"`
 
 	ShelfConf `yaml:",inline"`
@@ -63,6 +57,38 @@ func (sm *ShelfManager) AddShelf(conf ShelfConfWithID) error {
 		conf.Name = conf.ID
 	}
 
+	sm.shelves[conf.ID] = &ShelfData{
+		Shelf: s,
+		Name:  conf.Name,
+		ID:    conf.ID,
+		conf:  conf.ShelfConf,
+	}
+
+	return nil
+}
+
+func (sm *ShelfManager) AddVirtualShelf(conf ShelfConfWithID, root fsutil.ReadFS, offlineDir string) error {
+	if conf.ID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	if _, exists := sm.shelves[conf.ID]; exists {
+		return util.Errorf("duplicate shelf ID: %q", conf.ID)
+	}
+
+	s, err := NewShelfFromFS(&conf.ShelfConf, root, offlineDir)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if conf.Name == "" {
+		conf.Name = conf.ID
+	}
+
+	conf.ReadOnly = true
 	sm.shelves[conf.ID] = &ShelfData{
 		Shelf: s,
 		Name:  conf.Name,
@@ -111,17 +137,6 @@ func (sm *ShelfManager) GetAllShelves() []ShelfData {
 	return shelves
 }
 
-// UpdateShelf applies a new configuration to a shelf that is already open.
-//
-// The name, the scan interval and the per-book check interval are changed on
-// the live shelf. read_only cannot be: it is read while the shelf is being
-// opened - it picks the lock
-// mode, decides whether lib_root may be created, whether app/ is written and
-// whether the book cache is exported - so changing it closes the shelf and
-// opens it again from the new configuration.
-//
-// lib_root is not a setting this can change; a shelf that should live somewhere
-// else is removed and added again under the new path.
 func (sm *ShelfManager) UpdateShelf(conf ShelfConfWithID) error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
@@ -134,18 +149,18 @@ func (sm *ShelfManager) UpdateShelf(conf ShelfConfWithID) error {
 	if conf.LibRoot != s.conf.LibRoot {
 		return util.Errorf("shelf %q lib_root cannot be changed from %q to %q", conf.ID, s.conf.LibRoot, conf.LibRoot)
 	}
+	if (conf.Source == nil) != (s.conf.Source == nil) || (conf.Source != nil && *conf.Source != *s.conf.Source) {
+		return util.Errorf("shelf %q source cannot be changed", conf.ID)
+	}
 
 	if conf.ReadOnly != s.conf.ReadOnly {
+		if s.IsVirtual() {
+			return util.Errorf("shelf %q is virtual and always read-only", conf.ID)
+		}
 		return sm.reopenShelfLocked(s, conf)
 	}
 
-	if err := s.SetScanInterval(conf.ScanInterval); err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	// After SetScanInterval, so an empty book_check_interval ("same as scan
-	// interval") follows the interval this same update just applied.
-	if err := s.SetBookCheckInterval(conf.BookCheckInterval); err != nil {
+	if err := s.SetIntervals(conf.ScanInterval, conf.BookCheckInterval); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -154,16 +169,6 @@ func (sm *ShelfManager) UpdateShelf(conf ShelfConfWithID) error {
 	return nil
 }
 
-// reopenShelfLocked replaces an open shelf with one opened from conf.
-//
-// The old shelf is closed first: both configurations name the same lib_root,
-// and a writable shelf opened next to the one it is replacing would contend
-// with it for the lock file, the scan cache and the exported book cache.
-//
-// That leaves a window with nothing open, so a configuration that does not open
-// - read_only pointed at a lib_root that no longer exists - falls back to the
-// previous one instead of leaving the shelf unregistered. Only when that also
-// fails to open is the shelf dropped, and the error says so.
 func (sm *ShelfManager) reopenShelfLocked(s *ShelfData, conf ShelfConfWithID) error {
 	previous := s.conf
 

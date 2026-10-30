@@ -1,14 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listFolders = vi.fn();
+const listFolderMeta = vi.fn();
+let withFolderMeta = true;
 
 vi.mock('@/providers', () => ({
-  getBookshelfProvider: () => ({ listFolders })
+  getBookshelfProvider: () => (withFolderMeta ? { listFolders, listFolderMeta } : { listFolders })
 }));
 
-// The store is a module-level singleton, so each test needs its own copy of it.
-// The reset also gives the store a fresh `@/api/client`, so the errors it is
-// fed have to come from that same copy or its `instanceof ApiError` check fails.
 async function freshStore() {
   vi.resetModules();
   const { ApiError } = await import('@/api/client');
@@ -21,6 +20,9 @@ async function freshStore() {
 
 beforeEach(() => {
   listFolders.mockReset();
+  listFolderMeta.mockReset();
+  listFolderMeta.mockResolvedValue({ icons: [], folders: {} });
+  withFolderMeta = true;
   vi.useFakeTimers();
 });
 
@@ -38,8 +40,6 @@ describe('useFolderStore', () => {
 
     await fetchFolders();
 
-    // Between attempts the sidebar stays in its loading state instead of
-    // showing an error the shelf resolves on its own.
     expect(loading.value).toBe(true);
     expect(error.value).toBe('');
     expect(loaded.value).toBe(false);
@@ -89,8 +89,45 @@ describe('useFolderStore', () => {
 
     listFolders.mockReset();
     listFolders.mockResolvedValue(['/']);
-    // Bound directly to the Retry button, so it is called with a click event.
     await (fetchFolders as (...args: unknown[]) => Promise<void>)(new Event('click'));
     expect(listFolders).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useFolderStore folder metadata', () => {
+  it('loads each folder\'s metadata beside the folder list', async () => {
+    const { folders, folderMeta, fetchFolders } = await freshStore();
+    listFolders.mockResolvedValueOnce(['/', 'Fiction']);
+    const meta = { Fiction: { icon: 'rocket', version: 'v1', readOnly: false } };
+    listFolderMeta.mockResolvedValueOnce({ icons: ['rocket'], folders: meta });
+
+    await fetchFolders();
+
+    expect(folders.value).toEqual(['/', 'Fiction']);
+    expect(folderMeta.value).toEqual(meta);
+  });
+
+  it('keeps the folder list when the metadata cannot be read', async () => {
+    const { folders, folderMeta, error, fetchFolders } = await freshStore();
+    listFolders.mockResolvedValueOnce(['/', 'Fiction']);
+    listFolderMeta.mockRejectedValueOnce(new Error('offline'));
+
+    await fetchFolders();
+
+    expect(folders.value).toEqual(['/', 'Fiction']);
+    expect(folderMeta.value).toEqual({});
+    expect(error.value).toBe('');
+  });
+
+  it('shows no metadata on a backend without the listing', async () => {
+    withFolderMeta = false;
+    const { folderMeta, fetchFolders, fetchFolderMeta } = await freshStore();
+    listFolders.mockResolvedValueOnce(['/']);
+
+    await fetchFolders();
+    await fetchFolderMeta();
+
+    expect(folderMeta.value).toEqual({});
+    expect(listFolderMeta).not.toHaveBeenCalled();
   });
 });

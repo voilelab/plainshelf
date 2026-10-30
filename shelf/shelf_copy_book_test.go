@@ -10,10 +10,6 @@ import (
 	"testing"
 )
 
-// Copying a book must hand the copy a fresh ID so that the original and the copy
-// can both be listed. This is the exact case a hand-made `cp -r` loses: the book
-// cache keys on book.json's id, so two books sharing one collapse to a single
-// listing entry and the other silently disappears.
 func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -48,8 +44,6 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 		t.Errorf("copy ID %q is not usable as one: %v", copied.ID(), err)
 	}
 
-	// A copy into the source's own folder under the same title must not overwrite
-	// it: the folder name gets a suffix, exactly as a second new book would.
 	if path.Base(copied.PackagePath()) == path.Base(original.PackagePath()) {
 		t.Errorf("copy folder %q collides with the original", copied.PackagePath())
 	}
@@ -67,8 +61,6 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 			ids, original.ID(), copied.ID())
 	}
 
-	// The copy is self-contained. Re-read it through the shelf so the checks run
-	// against what reached disk, not the handle CopyBook returned.
 	reopenedListing, err := s.GetBookListing(copied.ID())
 	if err != nil {
 		t.Fatalf("GetBookListing copy: %v", err)
@@ -123,8 +115,6 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 		t.Errorf("copy cover = %q, %q, want %q, .png", cover, ext, "cover bytes")
 	}
 
-	// Independent IDs mean independent files: writing to the copy leaves the
-	// original untouched.
 	meta := reopened.GetMeta()
 	meta.Title = "Renamed Copy"
 	if err := reopened.SetMeta(meta); err != nil {
@@ -138,16 +128,12 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 		t.Errorf("original title = %q, want it left as %q", originalAfter.Title(), "Copy Me")
 	}
 
-	// The copy is published by renaming it out of staging, so a successful copy
-	// must leave nothing behind under app/tmp.
 	staged, err := os.ReadDir(path.Join(tmpLib, appFolder, appTmpFolder))
 	if err == nil && len(staged) != 0 {
 		t.Errorf("staging folder not clean after a copy: %d entries", len(staged))
 	}
 }
 
-// A copy can land in a different folder than the source, and the destination
-// folder becomes visible without waiting for the next scan.
 func TestShelfCopyBookIntoAnotherFolder(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -175,10 +161,6 @@ func TestShelfCopyBookIntoAnotherFolder(t *testing.T) {
 	}
 }
 
-// A symlinked directory inside a book package must be copied as a real
-// directory. os.Root lists a symlink as a non-directory but stats through it as
-// a directory, so a copy that keyed on the directory entry alone would try to
-// copy the link as a file and fail with "is a directory".
 func TestShelfCopyBookFollowsSymlinkedDir(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -195,8 +177,6 @@ func TestShelfCopyBookFollowsSymlinkedDir(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bookAbs, "extra", "note.txt"), []byte("linked bytes"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	// A relative link to a sibling keeps the target inside the shelf root, so
-	// os.Root follows it rather than refusing it as an escape.
 	if err := os.Symlink("extra", filepath.Join(bookAbs, "linked")); err != nil {
 		t.Skipf("symlinks unavailable on this platform: %v", err)
 	}
@@ -216,7 +196,6 @@ func TestShelfCopyBookFollowsSymlinkedDir(t *testing.T) {
 	}
 }
 
-// Copying an unknown book reports ErrBookNotFound and leaves nothing staged.
 func TestShelfCopyBookNotFound(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})

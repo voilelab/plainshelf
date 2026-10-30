@@ -1,6 +1,7 @@
 import { effectScope, ref } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import type { BookSortKey, SortOrder } from './useBooksSort';
+import { setLocale } from '@/i18n';
 import { useLibraryNavigation } from './useLibraryNavigation';
 
 function setup(folder: string | undefined, page = 1) {
@@ -46,6 +47,13 @@ describe('useLibraryNavigation', () => {
 
     nav.toggleOrder();
     expect(pushBooksQuery).toHaveBeenLastCalledWith({ folder: 'x', page: 1, sort: 'updated_at', order: 'asc' });
+  });
+
+  it('titles the top level as No folder', () => {
+    setLocale('en');
+    const { nav } = setup('/');
+
+    expect(nav.selectedFolderTitle.value).toBe('No folder');
   });
 
   it('ignores a sort value that is not a known key', () => {

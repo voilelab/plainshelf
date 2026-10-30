@@ -3,12 +3,33 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
+
+func TestStartServerSharesProgressPath(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("startup isolation uses XDG_CONFIG_HOME")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	a := NewDesktopApp()
+	t.Cleanup(a.Shutdown)
+	if err := a.startServer(); err != nil {
+		t.Fatal(err)
+	}
+	want, err := readingprogress.DefaultProgressPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.readingProgressPath != want {
+		t.Fatalf("desktop progress path = %q, shared reader path = %q", a.readingProgressPath, want)
+	}
+}
 
 func TestBookOpenDialogOptions(t *testing.T) {
 	options := bookOpenDialogOptions()
@@ -48,19 +69,20 @@ func TestNormalizeFolderParts(t *testing.T) {
 	}
 }
 
-// startedDesktopAppWithShelf builds a started DesktopApp backed by a real server
-// app with one ready shelf, for the tests that exercise ImportBookFromLocalPath
-// end to end.
 func startedDesktopAppWithShelf(t *testing.T, shelfID string) *DesktopApp {
 	t.Helper()
+	return startedDesktopAppWithShelves(t, shelfID)
+}
 
+func startedDesktopAppWithShelves(t *testing.T, shelfIDs ...string) *DesktopApp {
+	t.Helper()
+
+	confs := make([]*shelf.ShelfConfWithID, 0, len(shelfIDs))
+	for _, id := range shelfIDs {
+		confs = append(confs, &shelf.ShelfConfWithID{ID: id, LibRoot: t.TempDir()})
+	}
 	serverApp, err := server.NewApp(&server.AppConf{
-		Shelves: []*shelf.ShelfConfWithID{
-			{
-				ID:      shelfID,
-				LibRoot: t.TempDir(),
-			},
-		},
+		Shelves:   confs,
 		StorePath: t.TempDir(),
 		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
 	})
@@ -85,7 +107,7 @@ func startedDesktopAppWithShelf(t *testing.T, shelfID string) *DesktopApp {
 	return &DesktopApp{app: serverApp}
 }
 
-func TestImportBookFromLocalPathReturnsBookIDOnSuccess(t *testing.T) {
+func TestImportLocalPathReturnsBookID(t *testing.T) {
 	const shelfID = "default_shelf"
 	desktopApp := startedDesktopAppWithShelf(t, shelfID)
 
@@ -109,12 +131,10 @@ func TestImportBookFromLocalPathReturnsBookIDOnSuccess(t *testing.T) {
 	}
 }
 
-func TestImportBookFromLocalPathReportsFailureInResult(t *testing.T) {
+func TestImportLocalPathReportsFailure(t *testing.T) {
 	const shelfID = "default_shelf"
 	desktopApp := startedDesktopAppWithShelf(t, shelfID)
 
-	// A missing source path must fail through the result's Error field, not a Go
-	// error, so the frontend's per-file loop keeps stepping through the batch.
 	missingPath := filepath.Join(t.TempDir(), "does-not-exist.txt")
 	result, err := desktopApp.ImportBookFromLocalPath(shelfID, missingPath, nil)
 	if err != nil {
@@ -134,7 +154,6 @@ func TestImportBookFromLocalPathReportsFailureInResult(t *testing.T) {
 func TestSaveAndLoadDesktopShelves(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "shelves.json")
 
-	// Loading a missing config returns empty config without error.
 	conf, err := loadDesktopShelves(configPath)
 	if err != nil {
 		t.Fatalf("loadDesktopShelves on missing file: %v", err)
@@ -165,7 +184,6 @@ func TestSaveAndLoadDesktopShelves(t *testing.T) {
 		t.Fatalf("unexpected second shelf ID: %q", loaded.Shelves[1].ID)
 	}
 
-	// Verify file permissions are restricted.
 	info, err := os.Stat(configPath)
 	if err != nil {
 		t.Fatalf("stat config file: %v", err)
@@ -175,7 +193,7 @@ func TestSaveAndLoadDesktopShelves(t *testing.T) {
 	}
 }
 
-func TestDesktopShelfEntryIncludesScanInterval(t *testing.T) {
+func TestShelfEntryIncludesScanInterval(t *testing.T) {
 	entry := desktopShelfEntry{
 		ID:           "network-books",
 		Name:         "Network Books",
@@ -203,10 +221,6 @@ func TestDesktopShelfEntryIncludesReadOnly(t *testing.T) {
 	}
 }
 
-// The shelf setting that opens a shelf without writing to it has to be
-// reachable from the desktop UI, and reversible from it: shelves.json lives in
-// the desktop data directory, outside every shelf, so a shelf's own read_only
-// never governs whether its settings can be edited. See DesktopApp.ModifyShelf.
 func TestModifyShelfTogglesReadOnlyBothWays(t *testing.T) {
 	const shelfID = "archive"
 	tempDir := t.TempDir()
@@ -235,9 +249,6 @@ func TestModifyShelfTogglesReadOnlyBothWays(t *testing.T) {
 	}
 	assertShelfReadOnly(t, desktopApp, shelfID, true)
 
-	// The modify form reads its initial state from here, so a shelf that could
-	// be turned read-only but never showed the toggle as on would be a one-way
-	// door in the UI even though the backend can still be told otherwise.
 	details, err := desktopApp.GetShelfDetails(shelfID)
 	if err != nil {
 		t.Fatalf("GetShelfDetails: %v", err)
@@ -260,9 +271,7 @@ func TestModifyShelfTogglesReadOnlyBothWays(t *testing.T) {
 	}
 }
 
-// A read-only shelf is taken exactly as it is found: opening one must leave no
-// app/ directory, no lock file and no exported book cache behind.
-func TestAddShelfReadOnlyWritesNothingToTheShelf(t *testing.T) {
+func TestAddShelfReadOnlyWritesNothing(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "shelves.json")
 	libRoot := filepath.Join(tempDir, "archive-shelf")
@@ -306,10 +315,6 @@ func TestAddShelfReadOnlyWritesNothingToTheShelf(t *testing.T) {
 	}
 }
 
-// book_check_interval is a per-shelf setting the UI now exposes, so it has to
-// survive the same round trip as scan_interval: submitted through AddShelf,
-// persisted in shelves.json, mapped into ShelfConf, and read back by the modify
-// form through GetShelfDetails. An empty value means "same as scan_interval".
 func TestAddAndModifyShelfBookCheckInterval(t *testing.T) {
 	const shelfID = "archive"
 	tempDir := t.TempDir()
@@ -352,8 +357,6 @@ func TestAddAndModifyShelfBookCheckInterval(t *testing.T) {
 		t.Fatalf("toShelfConfWithID book_check_interval = %q, want %q", got, "5m")
 	}
 
-	// Clearing it in the modify form falls back to "same as scan_interval", so the
-	// stored value goes back to empty rather than keeping the old override.
 	if err := desktopApp.ModifyShelf(ModifyShelfParams{ShelfID: shelfID, Name: "Archive", ScanInterval: "10m"}); err != nil {
 		t.Fatalf("ModifyShelf: %v", err)
 	}
@@ -432,7 +435,7 @@ func TestGenerateDesktopShelfID(t *testing.T) {
 	}
 }
 
-func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
+func TestAddShelfFailedRegistration(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "shelves.json")
 	badShelfPath := filepath.Join(tempDir, "not-a-directory")
@@ -463,7 +466,7 @@ func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
 	}
 }
 
-func TestLoadOrMigrateDesktopShelvesSeedsLegacyDefaultShelf(t *testing.T) {
+func TestDesktopShelvesLegacyMigration(t *testing.T) {
 	dataRoot := t.TempDir()
 	configPath := filepath.Join(dataRoot, "shelves.json")
 
@@ -518,11 +521,9 @@ func TestResolveDesktopFolderPath(t *testing.T) {
 	}
 }
 
-func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
+func TestFolderPathRejectsTraversal(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
-	// The second case only escapes once the path is cleaned, so it separates a
-	// lexical check on the raw relative path from one that cleans first.
 	for _, parts := range [][]string{
 		{"..", "outside"},
 		{"fiction", "..", "..", "outside"},
@@ -533,7 +534,7 @@ func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
 	}
 }
 
-func TestOpenFolderDirectoryOpensFinderForFolderPath(t *testing.T) {
+func TestOpenFolderDirectoryOpensFinder(t *testing.T) {
 	tempDir := t.TempDir()
 	libRoot := filepath.Join(tempDir, "library")
 	folderDir := filepath.Join(libRoot, "books", "fiction", "sci-fi")
@@ -635,11 +636,7 @@ func TestPreviewShelfID(t *testing.T) {
 		{name: "", want: ShelfIDPreview{}},
 		{name: "   ", want: ShelfIDPreview{}},
 		{name: "My Books", want: ShelfIDPreview{ID: "my-books", DefaultPath: filepath.Join(shelvesDir, "my-books")}},
-		// A purely non-ASCII name slugifies to nothing and falls back to
-		// "shelf"; the seeded config already holds "shelf", so the next free id
-		// is "shelf-2" — exactly what the user would silently receive. The
-		// default path carries the same suffix, so it cannot land on the
-		// existing shelf's directory either.
+
 		{name: "漫畫", want: ShelfIDPreview{ID: "shelf-2", DefaultPath: filepath.Join(shelvesDir, "shelf-2")}},
 	}
 	for _, tc := range cases {
@@ -653,11 +650,7 @@ func TestPreviewShelfID(t *testing.T) {
 	}
 }
 
-// The default directory sits under a "shelves" subdirectory rather than beside
-// shelves.json, because a name that slugifies to nothing becomes "shelf" — the
-// legacy default shelf's own directory name, which is not in the id namespace
-// generateDesktopShelfID guards.
-func TestDefaultDesktopShelfDirAvoidsLegacyShelfDir(t *testing.T) {
+func TestDefaultShelfDirAvoidsLegacyDir(t *testing.T) {
 	dataRoot := t.TempDir()
 	configPath := filepath.Join(dataRoot, "shelves.json")
 
@@ -667,9 +660,6 @@ func TestDefaultDesktopShelfDirAvoidsLegacyShelfDir(t *testing.T) {
 	}
 }
 
-// Reading history, progress, and stats are device documents over one
-// pair of helpers (readDeviceDocument/writeDeviceDocument), so they are held to
-// one set of expectations instead of two copies of the same test.
 type deviceDocument struct {
 	name        string
 	fileName    string
@@ -716,7 +706,7 @@ func deviceDocuments() []deviceDocument {
 	}
 }
 
-func TestDeviceDocumentReturnsEmptyWhenUnwritten(t *testing.T) {
+func TestDeviceDocumentEmptyWhenUnwritten(t *testing.T) {
 	for _, doc := range deviceDocuments() {
 		t.Run(doc.name, func(t *testing.T) {
 			app := doc.newApp(filepath.Join(t.TempDir(), doc.fileName))
@@ -750,8 +740,6 @@ func TestDeviceDocumentWriteAndReadRoundTrip(t *testing.T) {
 				t.Fatalf("read = %q, want %q", got, doc.stored)
 			}
 
-			// A second write replaces the document rather than appending to it,
-			// and leaves no temp file behind.
 			if err := doc.write(app, doc.replacement); err != nil {
 				t.Fatalf("write (replace): %v", err)
 			}
@@ -774,7 +762,7 @@ func TestDeviceDocumentWriteAndReadRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDeviceDocumentWriteRejectsInvalidDocuments(t *testing.T) {
+func TestDeviceDocumentRejectsInvalid(t *testing.T) {
 	for _, doc := range deviceDocuments() {
 		t.Run(doc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), doc.fileName)
@@ -790,7 +778,6 @@ func TestDeviceDocumentWriteRejectsInvalidDocuments(t *testing.T) {
 				t.Fatal("write accepted an oversized document")
 			}
 
-			// A rejected write must not disturb the document already on disk.
 			got, err := doc.read(app)
 			if err != nil {
 				t.Fatalf("read: %v", err)
@@ -802,7 +789,7 @@ func TestDeviceDocumentWriteRejectsInvalidDocuments(t *testing.T) {
 	}
 }
 
-func TestDeviceDocumentFailsWithoutStoragePath(t *testing.T) {
+func TestDeviceDocumentNeedsStoragePath(t *testing.T) {
 	for _, doc := range deviceDocuments() {
 		t.Run(doc.name, func(t *testing.T) {
 			app := &DesktopApp{}
@@ -817,7 +804,6 @@ func TestDeviceDocumentFailsWithoutStoragePath(t *testing.T) {
 	}
 }
 
-// The two documents are separate files: writing one must not disturb the other.
 func TestDeviceDocumentsAreIndependent(t *testing.T) {
 	dir := t.TempDir()
 	app := &DesktopApp{

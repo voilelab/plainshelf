@@ -1,47 +1,61 @@
 package util
 
 import (
-	"bufio"
-	"io"
+	"bytes"
+	"unicode/utf8"
 )
 
-func LineCount(fp io.Reader) (int, error) {
-	reader := bufio.NewReader(fp)
-	count := 0
-	hasLineContent := false
-
-	for {
-		fragment, err := reader.ReadSlice('\n')
-		if len(fragment) > 0 {
-			hasLineContent = true
-		}
-		if err == nil {
-			count++
-			hasLineContent = false
-			continue
-		}
-		if err == bufio.ErrBufferFull {
-			continue
-		}
-		if err == io.EOF {
-			if hasLineContent {
-				count++
-			}
-			return count, nil
-		}
-		return 0, Errorf("%w", err)
-	}
+type TextCounter struct {
+	lines    int
+	chars    int
+	lineOpen bool
+	partial  []byte
 }
 
-func CharCount(fp io.Reader) (int, error) {
-	scanner := bufio.NewScanner(fp)
-	scanner.Split(bufio.ScanRunes)
-	count := 0
-	for scanner.Scan() {
-		count++
+func (c *TextCounter) Write(p []byte) (int, error) {
+	n := len(p)
+	if n == 0 {
+		return 0, nil
 	}
-	if err := scanner.Err(); err != nil {
-		return 0, Errorf("%w", err)
+	c.lines += bytes.Count(p, []byte{'\n'})
+	c.lineOpen = p[n-1] != '\n'
+
+	if len(c.partial) > 0 {
+		head := append(c.partial, p[:min(n, utf8.UTFMax)]...)
+		i := 0
+		for i < len(c.partial) {
+			if !utf8.FullRune(head[i:]) {
+				c.partial = append([]byte(nil), head[i:]...)
+				return n, nil
+			}
+			_, size := utf8.DecodeRune(head[i:])
+			c.chars++
+			i += size
+		}
+		p = p[i-len(c.partial):]
+		c.partial = nil
 	}
-	return count, nil
+
+	for k := 1; k <= min(len(p), utf8.UTFMax-1); k++ {
+		if tail := p[len(p)-k:]; utf8.RuneStart(tail[0]) {
+			if !utf8.FullRune(tail) {
+				c.partial = append([]byte(nil), tail...)
+				p = p[:len(p)-k]
+			}
+			break
+		}
+	}
+	c.chars += utf8.RuneCount(p)
+	return n, nil
+}
+
+func (c *TextCounter) Lines() int {
+	if c.lineOpen {
+		return c.lines + 1
+	}
+	return c.lines
+}
+
+func (c *TextCounter) Chars() int {
+	return c.chars + utf8.RuneCount(c.partial)
 }

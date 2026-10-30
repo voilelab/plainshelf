@@ -1,11 +1,6 @@
-// A small demo-only bar to take the shelf out as a zip and put one back, with a
-// note that the shelf lives only in browser storage and an offer to ask the
-// browser to keep it. The zip's layout is a
-// lib_root (books/, trash/), so it unzips into a native shelf.
-// Load after boot.js, on the app page.
 (() => {
   const ZIP_URL = '/_demo/shelf.zip';
-  const MAX_IMPORT_BYTES = 512 << 20; // shelfzip's limit, checked before the file is read
+  const MAX_IMPORT_BYTES = 512 << 20;
 
   function button(label, onClick) {
     const b = document.createElement('button');
@@ -30,16 +25,17 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  // The picker opens straight from the click: an await first could cost the
-  // user activation browsers require for it.
   function importShelf() {
+    // File input activation requires transient user activation (WHATWG HTML,
+    // https://html.spec.whatwg.org/multipage/input.html#file-upload-state-(type=file)).
+    // Open the picker before storage checks can outlive that activation.
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.zip,application/zip';
     input.addEventListener('change', async () => {
       const file = input.files?.[0];
       if (!file) return;
-      // An import reloads every tab, which only keeps the new shelf if it persists.
+
       if (!(await window.plainshelfDemo.hasStorage())) {
         alert('This browser cannot keep the demo shelf (no OPFS), so an imported shelf would be lost on reload.');
         return;
@@ -70,30 +66,27 @@
   }
 
   function dismiss() {
-    try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* the prompt just returns next visit */ }
+    try { localStorage.setItem(DISMISS_KEY, '1'); } catch {  }
   }
 
-  // Inline display beats the hidden attribute, so the prompt toggles display.
-  function show(el, visible) {
+  function setShown(el, visible) {
     el.style.display = visible ? 'flex' : 'none';
   }
 
-  // Browser storage is not guaranteed, so the bar says where the shelf lives
-  // and, until the browser agrees to keep it, offers to ask.
   async function refresh(note, prompt) {
     if (!(await demo.hasStorage())) {
       note.textContent = 'Not saved: this browser has no storage for the demo, so a reload starts over.';
       note.style.color = '#92400e';
       note.style.fontWeight = '600';
-      show(prompt, false);
+      setShown(prompt, false);
       return;
     }
     const kept = await demo.persisted();
     note.textContent = kept
       ? 'Kept in this browser, which has agreed not to clear it. Export to keep a copy elsewhere.'
       : 'Kept only in this browser, which may clear it. Export to keep a copy.';
-    // A decline stays on screen until closed.
-    if (kept || prompt.dataset.declined !== '1') show(prompt, !kept && demo.canPersist() && !dismissed());
+    const showsDeclineMessage = !kept && prompt.dataset.declined === '1';
+    if (!showsDeclineMessage) setShown(prompt, !kept && demo.canPersist() && !dismissed());
   }
 
   function persistPrompt(onDone) {
@@ -116,7 +109,7 @@
     });
     const later = button('Not now', () => {
       dismiss();
-      show(prompt, false);
+      setShown(prompt, false);
     });
     prompt.append(text, keep, later);
     return prompt;

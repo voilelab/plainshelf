@@ -15,10 +15,6 @@ import type { Book, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { CachedBookManifest } from './mobileBookCache';
 
-// In-memory filesystem model shared between the vi.mock factory (hoisted to
-// the top of the module) and the tests. Keys are normalized as
-// `<DIRECTORY>/<path>` with no leading/trailing slashes, mirroring how the
-// real web plugin namespaces paths under the Capacitor Directory.
 const fsModel = vi.hoisted(() => {
   const store = new Map<string, { type: 'file'; data: string } | { type: 'directory' }>();
   const normalize = (directory: string | undefined, path: string): string => {
@@ -187,8 +183,6 @@ vi.mock('@capacitor/filesystem', async (importOriginal) => {
           moved.push([`${to}${key.slice(from.length)}`, value]);
         }
       }
-      // Collect first, then delete, then insert: the destination may live inside
-      // a subtree that the delete pass would otherwise sweep away.
       store.delete(from);
       for (const key of Array.from(store.keys())) {
         if (key.startsWith(`${from}/`)) {
@@ -204,8 +198,6 @@ vi.mock('@capacitor/filesystem', async (importOriginal) => {
   return { ...actual, Filesystem };
 });
 
-// Imported after vi.mock so the implementation binds to the mocked plugin,
-// and Filesystem/Directory here refer to the mock (used to seed corrupt data).
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { setActiveShelfID, setApiBase } from '@/api/client';
 import { buildDeviceDocumentKey } from '@/storage/deviceDocument';
@@ -216,13 +208,11 @@ const SERVER_B = 'http://192.168.1.50:20000';
 const SHELF_A = 'default_shelf';
 const SHELF_B = 'comics';
 
-/** Points the API client — and therefore the cache — at one (server, shelf). */
 function connectTo(apiBase: string, shelfID: string): void {
   setApiBase(apiBase);
   setActiveShelfID(shelfID);
 }
 
-/** Mirrors the production layout, so tests can seed and assert raw paths. */
 function booksDirFor(apiBase: string, shelfID: string): string {
   return `plainshelf-cache/scopes/${encodeURIComponent(buildDeviceDocumentKey(apiBase, shelfID))}/books`;
 }
@@ -319,7 +309,6 @@ describe('FilesystemMobileBookCache', () => {
 
   it('ignores orphan directories without manifest.json in listDownloadedBooks', async () => {
     await saveFullBook(cache, 'real-book', 'src-1');
-    // Orphan: a directory under books/ containing a stray file but no manifest.
     await Filesystem.writeFile({
       path: `${booksDir}/orphan-dir/leftover.txt`,
       data: 'junk',
@@ -379,7 +368,6 @@ describe('FilesystemMobileBookCache', () => {
 
     await cache.removeDownloadedBook('book-A');
 
-    // Book A is fully gone.
     expect(await cache.getCachedBook('book-A')).toBeNull();
     expect(await cache.getDownloadState('book-A')).toBe('not_downloaded');
     expect(await cache.getCachedBookContent('book-A')).toBeNull();
@@ -388,7 +376,6 @@ describe('FilesystemMobileBookCache', () => {
     expect(await cache.getReadProgress('book-A')).toBeNull();
     expect((await cache.listDownloadedBooks()).map((book) => book.id)).toEqual(['book-B']);
 
-    // Book B is fully intact.
     expect(await cache.getCachedBook('book-B')).toMatchObject({
       id: 'book-B',
       download_state: 'downloaded'
@@ -408,8 +395,6 @@ describe('FilesystemMobileBookCache', () => {
   it('round-trips ids with special characters without collisions', async () => {
     const bookA = '中文 book#1';
     const sourceA = 'src/01?.txt';
-    // Deliberately chosen so encodeURIComponent(bookB) !== encodeURIComponent(bookA)
-    // even though bookB is the encoded form of a slash-containing id.
     const bookB = 'a/b';
     const bookC = 'a%2Fb';
 
@@ -423,7 +408,6 @@ describe('FilesystemMobileBookCache', () => {
     );
     expect(await cache.getReadProgress(bookA)).toEqual({ char_offset: 42, percent: 0.5 });
 
-    // b and c must not collide: each reads back its own data.
     expect(await cache.getCachedBookContent(bookB)).toEqual({ content: `content of ${bookB}` });
     expect(await cache.getCachedBookContent(bookC)).toEqual({ content: `content of ${bookC}` });
     expect((await cache.listCachedSources(bookB))[0].comment).toBe('comment for src-plain');
@@ -431,7 +415,6 @@ describe('FilesystemMobileBookCache', () => {
     const ids = (await cache.listDownloadedBooks()).map((book) => book.id).sort();
     expect(ids).toEqual([bookA, bookB, bookC].sort());
 
-    // Removing one of the near-colliding ids must not affect the other.
     await cache.removeDownloadedBook(bookB);
     expect(await cache.getCachedBook(bookB)).toBeNull();
     expect(await cache.getCachedBook(bookC)).toMatchObject({ id: bookC });
@@ -443,7 +426,6 @@ describe('FilesystemMobileBookCache', () => {
     expect(await cache.getCachedSourceContent('missing-book', 'missing-src')).toBeNull();
     expect(await cache.getCachedSource('missing-book', 'missing-src')).toBeNull();
 
-    // Also for a downloaded book whose content/source files were never written.
     await cache.saveDownloadedBook(makeManifest('manifest-only', ['src-1']));
     expect(await cache.getCachedBookContent('manifest-only')).toBeNull();
     expect(await cache.getCachedSourceContent('manifest-only', 'src-1')).toBeNull();
@@ -458,7 +440,6 @@ describe('FilesystemMobileBookCache', () => {
     expect(await cache.getReadProgress(bookId)).toEqual({ char_offset: 100, percent: 0.25 });
     expect(await cache.getDownloadState(bookId)).toBe('not_downloaded');
     expect(await cache.getCachedBook(bookId)).toBeNull();
-    // The progress-only directory must not surface as a downloaded book.
     expect(await cache.listDownloadedBooks()).toEqual([]);
   });
 
@@ -483,11 +464,6 @@ describe('FilesystemMobileBookCache', () => {
     expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(bytes);
   });
 
-  // The shelf accepts an asset name up to 255 UTF-8 bytes, and percent-encoding
-  // a CJK name triples it — about 29 characters would already overflow a
-  // 255-byte filesystem component and the real write would fail. This mock
-  // filesystem enforces no such limit, so the assertion is on the path itself
-  // rather than on the write succeeding.
   it('keeps the path component bounded for a name that would overflow encoded', async () => {
     const name = `${'插'.repeat(40)}.png`;
     expect(encodeURIComponent(name).length).toBeGreaterThan(255);
@@ -506,8 +482,6 @@ describe('FilesystemMobileBookCache', () => {
     expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(new Uint8Array([7]));
   });
 
-  // The path is a hash, so the file has to say which name it holds: a
-  // collision must read as a miss, never as another illustration.
   it('treats a stored illustration under a different name as a miss', async () => {
     await cache.saveCachedAsset('book-1', 'src-1', 'img.png', new Blob([new Uint8Array([1])]));
 
@@ -610,8 +584,6 @@ describe('FilesystemMobileBookCache', () => {
   });
 });
 
-// A book id is only unique within one shelf, so the same id routinely means two
-// different books across shelves or servers. Downloads must not share storage.
 describe('FilesystemMobileBookCache scoping', () => {
   let cache: FilesystemMobileBookCache;
 
@@ -690,9 +662,6 @@ describe('FilesystemMobileBookCache scoping', () => {
 });
 
 describe('FilesystemMobileBookCache legacy migration', () => {
-  // Writes a fully downloaded book straight to disk, bypassing the cache — the
-  // migration runs on first use, so seeding through a cache instance would
-  // already have triggered it.
   async function seedBookAt(booksDir: string, bookId: string, sourceId: string): Promise<void> {
     const dir = `${booksDir}/${encodeURIComponent(bookId)}`;
     const write = async (path: string, data: string): Promise<void> => {
@@ -704,7 +673,6 @@ describe('FilesystemMobileBookCache legacy migration', () => {
     await write(`${dir}/progress.json`, JSON.stringify({ char_offset: 42, percent: 0.5 }));
   }
 
-  /** Seeds the pre-scope layout: a book directly under plainshelf-cache/books. */
   async function seedLegacyBook(bookId: string, sourceId: string): Promise<void> {
     await seedBookAt(LEGACY_BOOKS_DIR, bookId, sourceId);
   }
@@ -727,7 +695,6 @@ describe('FilesystemMobileBookCache legacy migration', () => {
     );
     expect(await cache.getReadProgress('legacy-book')).toEqual({ char_offset: 42, percent: 0.5 });
 
-    // Moved, not copied.
     expect(fsModel.store.has(`${Directory.Data}/${LEGACY_BOOKS_DIR}`)).toBe(false);
   });
 
@@ -737,8 +704,6 @@ describe('FilesystemMobileBookCache legacy migration', () => {
 
     const cache = new FilesystemMobileBookCache();
     expect((await cache.listDownloadedBooks()).map((book) => book.id)).toEqual(['own-book']);
-    // The legacy directory is kept rather than merged or deleted: merging could
-    // overwrite this shelf's books with same-id books from another one.
     expect(fsModel.store.has(`${Directory.Data}/${LEGACY_BOOKS_DIR}`)).toBe(true);
   });
 

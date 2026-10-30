@@ -1,13 +1,4 @@
-/**
- * Declarative registry of the library page's book filters: a condition states
- * everything about itself in one entry, so adding one is not also editing the
- * query builder, hand-writing a computed, and remembering every key to strip.
- *
- * `buildBooksQuery` (useBooksRouteQuery.ts) loops over `BOOK_FILTERS` and
- * touches only the URL parts; `predicate` stays deliberately
- * transport-independent so a future query language can reuse the same leaf
- * checks its AST evaluates to.
- */
+import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
 import type { LocationQuery } from 'vue-router';
 import type { Book } from '@/types/book';
 import { toSingleQueryValue } from '@/composables/useBookPagination';
@@ -31,86 +22,38 @@ import {
   type FilterFieldValue
 } from './codec';
 
-/**
- * `inline` conditions sit in the toolbar (search) or are driven by navigation
- * (the folder, from the breadcrumb); `panel` conditions live in the filter panel
- * and show as removable chips above the list.
- */
 type FilterChrome = 'inline' | 'panel';
 
-/**
- * Extra, lazily loaded data a filter needs before it can decide books — today
- * only the character-count index. Kept off the generic path: only a consumer
- * that actually filters the list creates and reads it.
- */
 interface FilterDependency {
-  /** Ensures the extra data is loaded (idempotent). */
   load(): void | Promise<void>;
-  /** Whether the extra data has arrived and the filter may be applied. */
   ready(): boolean;
-  /**
-   * The bridge that keeps `predicate` transport-independent: a consumer
-   * evaluates `predicate(dependency.augment(book), value)`, so the lazily
-   * fetched datum is applied without the predicate knowing where it came from.
-   */
   augment(book: Book): Book;
-  /** How many of `books` the filter cannot decide because their datum is unknown. */
   unknownCount(books: readonly Book[], value: unknown): number;
 }
 
-/**
- * The shape of a panel filter's control, and thus of its chip. Keying the UI on
- * this rather than on the filter's identity is what keeps "add a condition" to
- * one registry entry: a new `facetSingle` field needs no new component.
- *
- * - `range`     — two numeric bounds (charCount).
- * - `triState`  — has / none / all, where `all` is the inactive value (cover).
- * - `facetSingle` — one value chosen from the shelf's own values, plus the
- *   "(unset)" sentinel (author, language).
- * - `facetMulti`  — any number of values chosen the same way (tags).
- */
 type PanelControlKind = 'range' | 'triState' | 'facetSingle' | 'facetMulti';
 
 interface BookFilterDef<T> {
-  /** Stable identity of the condition, independent of its query keys. */
   readonly key: string;
-  /** Every query key the condition owns; all are cleared before re-serializing. */
   readonly queryKeys: readonly string[];
   readonly chrome: FilterChrome;
   parse(query: LocationQuery): T;
   serialize(value: T): Record<string, string | string[]>;
-  /** Whether `value` actually narrows the list (an empty value does not). */
   isActive(value: T): boolean;
-  /** Decides a single book. Must depend only on `book` and `value`, never on transport. */
   predicate(book: Book, value: T): boolean;
-  /** Whether the active backend can answer this condition at all. */
   supported?(): boolean;
-  /** Builds this condition's lazy data dependency; call from a component setup. */
   createDependency?(): FilterDependency;
-  /** How a `chrome: 'panel'` condition is rendered in the filter panel. */
   readonly panelControl?: PanelControlKind;
-  /**
-   * The value that makes `isActive` false — what "remove chip" and "clear all"
-   * assign, so nothing has to special-case how one condition is turned off.
-   */
   readonly clearedValue?: T;
-  /**
-   * A book's own non-blank values for this field, for the panel's facet list.
-   * The same function `predicate` decides "none/has/eq" against, so the two can
-   * never disagree about what counts as a value.
-   */
   facetValues?(book: Book): string[];
 }
 
-/** A filter whose value type has been erased for iteration over the registry. */
 export type AnyBookFilterDef = BookFilterDef<unknown>;
 
-/** Identity helper that keeps each definition checked against its own value type. */
 function defineBookFilter<T>(def: BookFilterDef<T>): BookFilterDef<T> {
   return def;
 }
 
-/** Mirrors `toFolderPath`: a blank folder value is "no folder", not an empty path. */
 function normalizeFolderValue(raw: string | undefined): string | undefined {
   if (raw === undefined) {
     return undefined;
@@ -138,8 +81,6 @@ export const searchFilter = defineBookFilter<string>({
 
 export const foldersFilter = defineBookFilter<string | undefined>({
   key: 'folders',
-  // `folder` (singular) is the legacy key: read for back-compat, always rewritten
-  // as `folders`, and stripped either way.
   queryKeys: ['folders', 'folder'],
   chrome: 'inline',
   parse: (query) =>
@@ -179,22 +120,13 @@ export const charCountFilter = defineBookFilter<CharCountRange>({
     return query;
   },
   isActive: (value) => isCharCountRangeActive(value),
-  // Transport-independent: reads only the book's own count. A consumer that has
-  // loaded the dependency first passes `createDependency().augment(book)` here so
-  // a count that lives only in the lazy index is applied; the predicate itself
-  // never learns where the count came from.
   predicate: (book, value) => isCharCountInRange(book.char_count, value),
-  // Hidden on a backend that cannot afford the counts (pCloud would read every
-  // book's source over the network to answer includeCharCount).
-  supported: () => getBookshelfProvider().supportsCharCountListing?.() !== false,
+  supported: () => useShelfCapabilities().charCount.value,
   createDependency: () => {
     const index = useCharCountIndex();
     return {
       load: () => index.load(),
       ready: () => index.ready.value,
-      // The listing omits char_count; a count fetched into the index is the one
-      // the predicate must see. book.char_count already present (mock data, or a
-      // listing that did include it) is left untouched.
       augment: (book) =>
         book.char_count !== undefined
           ? book
@@ -212,13 +144,6 @@ export const charCountFilter = defineBookFilter<CharCountRange>({
   }
 });
 
-/**
- * A book's non-blank entries for a field, trimmed. This is the single place
- * "the field is absent" is decided, so a field filter's `none` value and the
- * facet that will count it can never disagree about what counts as missing.
- * Accepts a bare string (treated as one entry) as well as the string arrays
- * `authors`/`tags` carry.
- */
 function nonBlankValues(raw: unknown): string[] {
   if (typeof raw === 'string') {
     const trimmed = raw.trim();
@@ -241,12 +166,6 @@ function tagValues(book: Book): string[] {
   return nonBlankValues(book.tags);
 }
 
-// The cover contract is presence, not a URL. The listing carries `cover` — the
-// on-disk filename, '' when the book has none — while `cover_url` is derived
-// downstream (api/books.ts) and is deliberately left unset on the pCloud
-// backend even when a cover exists, because its links expire. Reading it here
-// would report every pCloud book as missing its cover, so both this predicate
-// and any future facet read `cover` alone.
 function coverValues(book: Book): string[] {
   return nonBlankValues(book.cover);
 }
@@ -255,7 +174,6 @@ function languageValues(book: Book): string[] {
   return nonBlankValues(book.language);
 }
 
-/** Decides one field value against a book's own non-blank entries for that field. */
 function matchesFieldValue(values: readonly string[], value: FilterFieldValue): boolean {
   switch (value.kind) {
     case 'none':
@@ -267,13 +185,6 @@ function matchesFieldValue(values: readonly string[], value: FilterFieldValue): 
   }
 }
 
-/**
- * A presence/equality condition over one book field, carried in the URL as a
- * single `none` / `has` / `eq:<value>` token (see codec.ts). All four metadata
- * filters read data the listing already returns, so — unlike charCount — they
- * are free client-side predicates with no `supported`/`createDependency`. Their
- * control lives in the filter panel added in a later change, hence `panel`.
- */
 function fieldFilter(
   key: string,
   values: (book: Book) => string[],
@@ -293,15 +204,10 @@ function fieldFilter(
   });
 }
 
-// `author` is a single token = one author selectable at a time, even though the
-// datum is an array; if multi-select AND is ever wanted, give it a `<field>Op`
-// like `tags` below rather than changing the key. cover is presence-only, so it
-// is a has/none/all tri-state rather than a facet of filenames.
 export const authorFilter = fieldFilter('author', authorValues, 'facetSingle');
 export const coverFilter = fieldFilter('cover', coverValues, 'triState');
 export const languageFilter = fieldFilter('language', languageValues, 'facetSingle');
 
-/** A repeatable field with a sibling `<field>Op` operator. */
 export interface MultiFieldValue {
   readonly values: readonly FilterFieldValue[];
   readonly op: FilterFieldOp;
@@ -332,18 +238,12 @@ export const tagsFilter = defineBookFilter<MultiFieldValue>({
     return query;
   },
   isActive: (value) => value.values.length > 0,
-  // `all` (AND) is the only operator today: every listed value must match.
   predicate: (book, value) => {
     const tags = tagValues(book);
     return value.values.every((entry) => matchesFieldValue(tags, entry));
   }
 });
 
-/**
- * The filters in the order the query builder applies them. New conditions are
- * added here (and, when they narrow the list, wired into the page's filtering);
- * nothing in `buildBooksQuery` needs to change.
- */
 export const BOOK_FILTERS: readonly AnyBookFilterDef[] = [
   searchFilter,
   foldersFilter,
@@ -354,14 +254,6 @@ export const BOOK_FILTERS: readonly AnyBookFilterDef[] = [
   languageFilter
 ] as unknown as readonly AnyBookFilterDef[];
 
-/**
- * The conditions the filter panel owns, in the order they are shown. Every one
- * has `chrome: 'panel'`, a `panelControl`, and a `clearedValue`; the panel, the
- * chip row, and the "active count" badge are all derived from this list, so a
- * new panel condition appears in all three by being added here (and to
- * `BOOK_FILTERS`). Display order is independent of `BOOK_FILTERS`, which orders
- * how the empty-state cause is attributed.
- */
 export const PANEL_BOOK_FILTERS: readonly AnyBookFilterDef[] = [
   authorFilter,
   tagsFilter,

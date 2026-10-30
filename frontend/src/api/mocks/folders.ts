@@ -1,10 +1,7 @@
-import { FolderHttpError } from '../folderErrors';
+import { FolderHttpError, FolderMetaConflictError } from '../folderErrors';
 import { mockBooks } from './books';
 import { normalizeFolderInput, normalizeFolderPath } from '@/utils/folders';
 
-// In-memory folder tree for VITE_USE_MOCK_API, seeded from the mock books so the
-// two agree on startup. The gate that reaches for it lives in api/client.ts
-// (isMockApiMode); nothing here is reachable in a real build.
 
 function pathFromFolders(folders: string[] = []): string {
   const segments = folders.map((s) => s.trim()).filter((s) => s.length > 0);
@@ -42,6 +39,43 @@ function deriveMockFoldersFromBooks(): string[] {
 
 const mockFolders = new Set<string>(deriveMockFoldersFromBooks());
 
+const mockFolderIcons = new Map<string, { icon: string; version: string; sort_key?: number }>();
+let mockFolderMetaVersion = 0;
+
+export function getMockFolderMeta(): Record<string, { icon: string; version: string; readOnly: boolean; sort_key?: number }> {
+  const folders: Record<string, { icon: string; version: string; readOnly: boolean; sort_key?: number }> = {};
+  for (const [path, meta] of mockFolderIcons) {
+    folders[path] = { ...meta, readOnly: false };
+  }
+  return folders;
+}
+
+export function setMockFolderIcon(path: string, icon: string, version: string): void {
+  if (!mockFolders.has(path)) {
+    throw new FolderHttpError('folder not found');
+  }
+  if ((mockFolderIcons.get(path)?.version ?? '') !== version) {
+    throw new FolderMetaConflictError('folder.json changed since it was read; read it again and retry');
+  }
+  const current = mockFolderIcons.get(path);
+  if (icon === '' && current?.sort_key === undefined) {
+    mockFolderIcons.delete(path);
+    return;
+  }
+  mockFolderMetaVersion += 1;
+  mockFolderIcons.set(path, { ...current, icon, version: String(mockFolderMetaVersion) });
+}
+
+export function setMockFolderSortKey(path: string, sort_key: number, version: string): void {
+  if (!mockFolders.has(path)) throw new FolderHttpError('folder not found');
+  const current = mockFolderIcons.get(path);
+  if ((current?.version ?? '') !== version) {
+    throw new FolderMetaConflictError('folder.json changed since it was read; read it again and retry');
+  }
+  mockFolderMetaVersion += 1;
+  mockFolderIcons.set(path, {icon: current?.icon ?? '', sort_key, version: String(mockFolderMetaVersion)});
+}
+
 export function getMockFolders(): string[] {
   return Array.from(mockFolders).sort((a, b) => a.localeCompare(b));
 }
@@ -60,12 +94,19 @@ export function addMockFolder(path: string): void {
   }
 }
 
-/** Moves a subtree and drags the mock books' folder paths along with it. */
 function moveMockSubtree(from: string, to: string): void {
   for (const folder of getMockFolders()) {
     if (folder === from || folder.startsWith(`${from}/`)) {
       mockFolders.delete(folder);
       mockFolders.add(replaceFolderPrefix(folder, from, to));
+    }
+  }
+
+  for (const [path, meta] of [...mockFolderIcons]) {
+    const nextPath = replaceFolderPrefix(path, from, to);
+    if (nextPath !== path) {
+      mockFolderIcons.delete(path);
+      mockFolderIcons.set(nextPath, meta);
     }
   }
 
@@ -108,4 +149,5 @@ export function deleteMockFolder(normalized: string): void {
   }
 
   mockFolders.delete(normalized);
+  mockFolderIcons.delete(normalized);
 }

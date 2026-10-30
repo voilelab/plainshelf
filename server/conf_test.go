@@ -12,7 +12,7 @@ import (
 // than reading the json tags, so every field the documentation shows in
 // snake_case needs its own yaml tag. Without them only "preset" survived and
 // include_description silently inverted its default.
-func TestLoadAppConfReadsEPUBImportStrategyFields(t *testing.T) {
+func TestLoadAppConfReadsEPUBStrategy(t *testing.T) {
 	confPath := filepath.Join(t.TempDir(), "config.yaml")
 	body := `
 server_conf:

@@ -11,12 +11,6 @@ import (
 	"time"
 )
 
-// ageShelfDirs pushes every directory under books/ back in time.
-//
-// The walk deliberately refuses to remember a directory that was modified
-// within fsutil.RacyWindow, so a shelf that was just built by the test is
-// entirely unrememberable. Ageing it is how a test reaches the steady state a
-// real shelf is in almost all the time, without sleeping for it.
 func ageShelfDirs(t *testing.T, libRoot string, age time.Duration) {
 	t.Helper()
 
@@ -36,8 +30,6 @@ func ageShelfDirs(t *testing.T, libRoot string, age time.Duration) {
 	}
 }
 
-// openShelf builds a shelf the test closes itself, for the cases that check
-// what a shutdown writes.
 func openShelf(t *testing.T, conf *ShelfConf) *Shelf {
 	t.Helper()
 
@@ -60,14 +52,10 @@ func mustScan(t *testing.T, s *Shelf) scanStats {
 	return s.scanCache.LastStats()
 }
 
-// cachedFolderNames reads the folder list the last scan left in the cache,
-// without the refresh that GetAllFolders would schedule.
 func cachedFolderNames(s *Shelf) []string {
 	return folderNames(s.listFoldersFromCache())
 }
 
-// The point of the whole feature: a second walk of an unchanged tree lists no
-// directory at all, and still sees exactly the same shelf.
 func TestScanCacheReusesUnchangedDirectories(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
@@ -105,9 +93,7 @@ func TestScanCacheReusesUnchangedDirectories(t *testing.T) {
 	}
 }
 
-// A new folder directory created outside PlainShelf is what the full scan exists
-// for; the cache must not swallow it.
-func TestScanCacheFindsFolderAddedAfterWarmScan(t *testing.T) {
+func TestScanCacheFindsFolderAfterWarmScan(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -128,8 +114,6 @@ func TestScanCacheFindsFolderAddedAfterWarmScan(t *testing.T) {
 	}
 }
 
-// The snapshot is what makes the first walk of a process cheap, which is the
-// walk a user actually waits for.
 func TestScanCacheSurvivesReopen(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	conf := &ShelfConf{LibRoot: tmpLib}
@@ -159,8 +143,6 @@ func TestScanCacheSurvivesReopen(t *testing.T) {
 	}
 }
 
-// The snapshot is disposable by definition, so anything unreadable in its place
-// is a cache miss and never an error.
 func TestScanCacheIgnoresUnreadableSnapshot(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	conf := &ShelfConf{LibRoot: tmpLib}
@@ -187,7 +169,6 @@ func TestScanCacheIgnoresUnreadableSnapshot(t *testing.T) {
 	}
 }
 
-// The escape hatch for a mount whose directory mtimes cannot be trusted.
 func TestScanCacheOffListsEveryDirectory(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	scanCacheOff := false
@@ -216,9 +197,6 @@ func TestScanCacheOffListsEveryDirectory(t *testing.T) {
 	}
 }
 
-// The measurement behind the ticket: on a directory-heavy shelf, what does the
-// second full scan cost compared with the first? Reported rather than asserted
-// on wall time, which is not a stable thing to gate a test on.
 func TestScanCacheLargeTreeMeasurement(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a few thousand directories")
@@ -252,12 +230,7 @@ func TestScanCacheLargeTreeMeasurement(t *testing.T) {
 	}
 }
 
-// An unchanged shelf must not rewrite its snapshot: the digest short-circuit is
-// the property most easily broken when the cache is extracted, so it is guarded
-// end to end here as well as by the unit tests in shelf/scancache. Open a shelf
-// that already has a settled snapshot, close it again, and the file's mtime must
-// not move.
-func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
+func TestScanCacheUnchangedShelfNotRewritten(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	conf := &ShelfConf{LibRoot: tmpLib}
 
@@ -277,9 +250,6 @@ func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
 		t.Fatalf("stat %s: %v", snapshotPath, err)
 	}
 
-	// Reopen and close without changing anything: the loaded snapshot's digest
-	// matches what the walk reproduces, so neither the initial scan nor Close
-	// should touch the file.
 	second := openShelf(t, conf)
 	if err := second.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -294,13 +264,7 @@ func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
 	}
 }
 
-// TestScanCacheWithManyDirectoriesIsNotRewritten is the test above scaled to
-// where its claim can actually break. The snapshot is skipped when
-// scanCacheDigest matches the last one, and that digest hashes
-// map[string]dirSnapshot — so the skip holds only while the encoder sorts map
-// keys, which json/v2 leaves unspecified unless jsonopt says otherwise. Two
-// directories can be ordered one way; sixteen cannot be, eight times running.
-func TestScanCacheWithManyDirectoriesIsNotRewritten(t *testing.T) {
+func TestScanCacheManyDirsNotRewritten(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	conf := &ShelfConf{LibRoot: tmpLib}
 

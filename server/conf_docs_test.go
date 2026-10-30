@@ -16,39 +16,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// docsConfigReference is the page that documents every configuration key.
-// PSW-64 made it the public description of the config file, so it is checked
-// here rather than left to drift: a renamed or added key is a change to an
-// interface users depend on, and the tests below fail when the page and the
-// structs stop agreeing.
 const docsConfigReference = "../docs/reference/configuration.md"
 
-// docsSections names the heading whose section documents each configuration
-// struct's own keys. The empty string is the page's introduction, above the
-// first heading, where the three top-level sections are named.
-//
-// A key is looked for in its owner's section rather than anywhere on the page,
-// so a new key cannot be counted as documented by a same-named key belonging to
-// a different section — a `server_conf.type` would not be covered by
-// `log_file`'s `type`. A struct reachable from SrvConf and missing from this map
-// fails the test, which is what forces a new configuration section to be given
-// a section on the page.
 var docsSections = map[reflect.Type]string{
 	reflect.TypeFor[SrvConf]():               "",
 	reflect.TypeFor[httputil.Conf]():         "## `server_conf`",
+	reflect.TypeFor[DAVExportConf]():         "## `dav_export`",
 	reflect.TypeFor[AppConf]():               "## `app_conf`",
 	reflect.TypeFor[SecurityConf]():          "### `app_conf.security`",
 	reflect.TypeFor[WorkerConf]():            "### `app_conf.worker`",
 	reflect.TypeFor[shelf.ShelfConfWithID](): "### `shelves[]`",
 	reflect.TypeFor[shelf.ShelfConf]():       "### `shelves[]`",
+	reflect.TypeFor[shelf.SourceConf]():      "### `shelves[].source`",
 	reflect.TypeFor[epub.Strategy]():         "### `app_conf.epub_import_strategy`",
 	reflect.TypeFor[logutil.LogConf]():       "## Logger blocks",
 	reflect.TypeFor[logutil.LogFileConf]():   "### `log_file`",
 }
 
-// TestDocsConfigExampleLoads decodes the page's complete example with unknown
-// fields rejected, so a key the page spells wrong -- or one the code has since
-// dropped -- fails here instead of on a user's first startup.
 func TestDocsConfigExampleLoads(t *testing.T) {
 	dec := yaml.NewDecoder(bytes.NewReader(configExampleYAML(t)))
 	dec.KnownFields(true)
@@ -81,9 +65,6 @@ func TestDocsConfigExampleLoads(t *testing.T) {
 	}
 }
 
-// TestDocsConfigCoversEveryKey walks SrvConf and requires every YAML key to be
-// documented in the section that describes the struct it belongs to, so a key
-// added to the config structs cannot ship undocumented.
 func TestDocsConfigCoversEveryKey(t *testing.T) {
 	sections := docSections(t)
 
@@ -107,8 +88,6 @@ func TestDocsConfigCoversEveryKey(t *testing.T) {
 	}
 }
 
-// TestDocsSectionsAreReachable keeps docsSections from accumulating entries for
-// structs the configuration no longer has.
 func TestDocsSectionsAreReachable(t *testing.T) {
 	reachable := make(map[reflect.Type]bool)
 	for _, field := range yamlFields(reflect.TypeFor[SrvConf](), nil) {
@@ -121,15 +100,11 @@ func TestDocsSectionsAreReachable(t *testing.T) {
 	}
 }
 
-// yamlField is one configuration key and the struct that declares it.
 type yamlField struct {
 	owner reflect.Type
 	key   string
 }
 
-// yamlFields collects every field reachable from t that carries a YAML key.
-// seen breaks the recursion on a type that appears more than once, which
-// LogConf does.
 func yamlFields(t reflect.Type, seen []reflect.Type) []yamlField {
 	for t.Kind() == reflect.Pointer || t.Kind() == reflect.Slice || t.Kind() == reflect.Array {
 		t = t.Elem()
@@ -151,8 +126,7 @@ func yamlFields(t reflect.Type, seen []reflect.Type) []yamlField {
 		if name == "-" {
 			continue
 		}
-		// An empty name is an inline or untagged struct: it contributes no key
-		// of its own, only the ones its fields carry.
+
 		if name != "" {
 			fields = append(fields, yamlField{owner: t, key: name})
 		}
@@ -161,14 +135,8 @@ func yamlFields(t reflect.Type, seen []reflect.Type) []yamlField {
 	return fields
 }
 
-// docKeyPattern is what a configuration key looks like, so that a URL inside a
-// YAML list item is not mistaken for one.
 var docKeyPattern = regexp.MustCompile(`^[a-z0-9_]+$`)
 
-// docSections splits the page at its headings and collects, per section, the
-// keys it names: the first column of each table row, and each key line of each
-// YAML block. A section ends at the next heading of any level, so a subsection's
-// keys are never counted as its parent's.
 func docSections(t *testing.T) map[string]map[string]struct{} {
 	t.Helper()
 
@@ -178,8 +146,7 @@ func docSections(t *testing.T) map[string]map[string]struct{} {
 
 	for line := range strings.Lines(docPage(t)) {
 		line = strings.TrimRight(line, "\n")
-		// Only "##" and deeper open a section, so the page title stays part of
-		// the introduction and a "#" comment inside a YAML block is not a heading.
+
 		if strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "### ") {
 			sections[heading] = keys
 			heading, keys = line, map[string]struct{}{}
@@ -198,7 +165,6 @@ func docSections(t *testing.T) map[string]map[string]struct{} {
 	return sections
 }
 
-// docTableKey returns the key a Markdown table row names in its first column.
 func docTableKey(line string) (string, bool) {
 	line = strings.TrimSpace(line)
 	if !strings.HasPrefix(line, "|") {
@@ -213,8 +179,6 @@ func docTableKey(line string) (string, bool) {
 	return cell, true
 }
 
-// headingLabel is a heading as a reader would name it, without its Markdown
-// level or the introduction's empty string.
 func headingLabel(heading string) string {
 	if heading == "" {
 		return "the page introduction"
@@ -222,8 +186,6 @@ func headingLabel(heading string) string {
 	return strings.TrimLeft(heading, "# ")
 }
 
-// configExampleYAML returns the YAML block under the page's "A complete
-// example" heading.
 func configExampleYAML(t *testing.T) []byte {
 	t.Helper()
 

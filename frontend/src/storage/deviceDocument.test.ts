@@ -92,8 +92,6 @@ describe('buildDeviceDocumentKey', () => {
     expect(buildDeviceDocumentKey('   ', 'default_shelf')).toBe('default_shelf');
   });
 
-  // Two servers commonly both call a shelf `default_shelf` while their book ids
-  // mean different things, so a repointable client must not share a key.
   it('qualifies the shelf id with the API base on a repointable client', () => {
     expect(buildDeviceDocumentKey('http://host:20000', 'default_shelf')).toBe(
       'http://host:20000|default_shelf'

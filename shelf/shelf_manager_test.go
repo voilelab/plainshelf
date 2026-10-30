@@ -116,29 +116,32 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	if interval != 2*time.Minute {
 		t.Fatalf("updated scan interval = %v, want %v", interval, 2*time.Minute)
 	}
-	// The change reaches the live shelf, not just s.conf: before this it stayed
-	// on the value the shelf was opened with until a restart.
 	if bookCheckInterval != 5*time.Minute {
 		t.Fatalf("updated book check interval = %v, want %v", bookCheckInterval, 5*time.Minute)
 	}
 
-	// An invalid book_check_interval is rejected the same way an invalid scan
-	// interval is, and leaves the live value untouched.
 	if err := sm.UpdateShelf(ShelfConfWithID{
 		ID:                "primary",
 		Name:              "Main Shelf",
 		LibRoot:           firstRoot,
 		LockMode:          "none",
-		ScanInterval:      "2m",
+		ScanInterval:      "7m",
 		BookCheckInterval: "not-a-duration",
 	}); err == nil {
 		t.Fatal("UpdateShelf accepted an invalid book check interval")
 	}
 	primary.bookCache.RLock()
+	interval = primary.bookCache.scanInterval
 	bookCheckInterval = primary.bookCache.bookCheckInterval
 	primary.bookCache.RUnlock()
+	if interval != 2*time.Minute {
+		t.Fatalf("scan interval after rejected update = %v, want %v", interval, 2*time.Minute)
+	}
 	if bookCheckInterval != 5*time.Minute {
 		t.Fatalf("book check interval after rejected update = %v, want %v", bookCheckInterval, 5*time.Minute)
+	}
+	if primary.conf.ScanInterval != "2m" || primary.conf.BookCheckInterval != "5m" || primary.Name != "Main Shelf" {
+		t.Fatalf("rejected update changed shelf configuration: %+v, name %q", primary.conf, primary.Name)
 	}
 
 	if err := sm.RemoveShelf("missing"); err == nil {
@@ -186,10 +189,7 @@ func TestShelfConfigurationValidation(t *testing.T) {
 	}
 }
 
-// read_only is the one shelf setting UpdateShelf cannot apply to the live
-// shelf, and the one whose change must not be one-way: a shelf opened
-// read-only has to be able to become writable again without a restart.
-func TestShelfManagerUpdateShelfTogglesReadOnly(t *testing.T) {
+func TestUpdateShelfTogglesReadOnly(t *testing.T) {
 	libRoot := t.TempDir()
 	bookID := seedReadOnlyShelf(t, libRoot)
 
@@ -240,10 +240,7 @@ func TestShelfManagerUpdateShelfTogglesReadOnly(t *testing.T) {
 	}
 }
 
-// A read_only change closes the shelf before it opens the new one, so a
-// configuration that does not open would otherwise leave the shelf gone. The
-// previous one is opened again instead, and the shelf keeps working.
-func TestShelfManagerUpdateShelfRestoresShelfWhenReopenFails(t *testing.T) {
+func TestShelfManagerReopenRollback(t *testing.T) {
 	libRoot := t.TempDir()
 
 	sm := NewShelfManager()
@@ -260,8 +257,6 @@ func TestShelfManagerUpdateShelfRestoresShelfWhenReopenFails(t *testing.T) {
 	}
 	waitShelfReady(t, sm, "primary")
 
-	// A read-only shelf is never created, so a lib_root that is not there is an
-	// error rather than a new shelf - the writable configuration recreates it.
 	if err := os.RemoveAll(libRoot); err != nil {
 		t.Fatalf("RemoveAll(libRoot): %v", err)
 	}

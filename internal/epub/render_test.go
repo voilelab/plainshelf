@@ -70,7 +70,7 @@ func TestRenderPlainPreset(t *testing.T) {
 	}
 }
 
-func TestRenderUntitledChapterGetsStableHeading(t *testing.T) {
+func TestUntitledChapterStableHeading(t *testing.T) {
 	book := sampleBook()
 	book.Chapters[1].Title = ""
 
@@ -147,8 +147,6 @@ func TestStrategyValidate(t *testing.T) {
 	}
 }
 
-// Normalized fills each unset field with its own default, which is what lets a
-// caller accept a partially written strategy instead of discarding it.
 func TestStrategyNormalizedFillsUnsetFields(t *testing.T) {
 	got := Strategy{IncludeDescription: false}.Normalized()
 
@@ -161,10 +159,14 @@ func TestStrategyNormalizedFillsUnsetFields(t *testing.T) {
 	if got.IncludeDescription {
 		t.Error("include_description = true, want the written false to survive")
 	}
+}
 
-	// Normalizing is filling in, not correcting: an unknown preset stays
-	// unknown so Validate can still reject it.
-	if err := (Strategy{Preset: "nonsense"}).Normalized().Validate(); err == nil {
+func TestNormalizeStrategyKeepsUnknownPreset(t *testing.T) {
+	got := (Strategy{Preset: "nonsense"}).Normalized()
+	if got.Preset != "nonsense" {
+		t.Errorf("Normalized preset = %q, want the unknown preset preserved", got.Preset)
+	}
+	if err := got.Validate(); err == nil {
 		t.Error("Normalized().Validate() on an unknown preset = nil, want an error")
 	}
 }
@@ -182,12 +184,8 @@ func TestStrategyDerivedValues(t *testing.T) {
 		{"markdown", Strategy{Preset: PresetMarkdown}, "md", true, true},
 		{"plain", Strategy{Preset: PresetPlain}, "txt", false, false},
 		{"empty falls back to the default preset", Strategy{}, "md", true, true},
-		// A plain-text book has no image syntax, so the strategy must not ask
-		// for illustrations even when the setting says to keep them.
 		{"plain never keeps images", Strategy{Preset: PresetPlain, KeepImages: &keep}, "txt", false, false},
 		{"markdown honours an explicit keep", Strategy{Preset: PresetMarkdown, KeepImages: &keep}, "md", true, true},
-		// A strategy stored before keep_images existed must keep illustrations
-		// rather than inherit a false zero value.
 		{"markdown honours an explicit drop", Strategy{Preset: PresetMarkdown, KeepImages: &drop}, "md", true, false},
 	}
 

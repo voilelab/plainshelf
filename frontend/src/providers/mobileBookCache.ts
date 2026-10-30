@@ -5,21 +5,15 @@ interface CachedBookSizeBreakdown {
   content: number;
   sources: number;
   cover: number;
-  // Optional for the same reason size_bytes is: manifests written before
-  // illustrations were downloaded carry no figure for them.
   assets?: number;
 }
 
 export interface CachedBookManifest {
   book: Book;
   sources: SourceMeta[];
-  // Compatibility field for a legacy source. Schema-versioned sources carry
-  // their format in SourceMeta and never need book-level split state.
   downloaded_at: string;
   local_version?: string;
   remote_version?: string;
-  // Optional: absent on manifests written before size accounting existed
-  // (pre-v2 IndexedDB records). Consumers must fall back to 0.
   size_bytes?: number;
   size_breakdown?: CachedBookSizeBreakdown;
 }
@@ -48,27 +42,12 @@ export interface MobileBookCache {
   saveCachedCover(bookId: string, blob: Blob): Promise<void>;
   deleteCachedCover(bookId: string): Promise<void>;
 
-  /**
-   * Illustrations belonging to a downloaded source, keyed by source and file
-   * name because assets live per source on the shelf.
-   *
-   * A miss is a normal outcome: books downloaded before assets were cached
-   * have none, and a download only stores what its text referenced.
-   */
   getCachedAsset(bookId: string, sourceId: string, name: string): Promise<Blob | null>;
   saveCachedAsset(bookId: string, sourceId: string, name: string, blob: Blob): Promise<void>;
 
   listDownloadedManifests(): Promise<CachedBookManifest[]>;
 }
 
-/**
- * The Book a downloaded manifest stands for.
- *
- * Every MobileBookCache answers listDownloadedBooks/getCachedBook from a stored
- * manifest, and MobileBookshelfProvider.listDownloadedBookEntries builds the
- * same shape for the downloads page — so the manifest-wins-over-book precedence
- * for the version fields lives here rather than being restated per caller.
- */
 export function downloadedBookFromManifest(manifest: CachedBookManifest): Book {
   return {
     ...manifest.book,
@@ -79,24 +58,6 @@ export function downloadedBookFromManifest(manifest: CachedBookManifest): Book {
   };
 }
 
-/**
- * Copy of a manifest that shares none of its own objects with the original:
- * assigning to a field of the returned book, of one of its sources, or of the
- * size breakdown cannot reach the cache's copy, and vice versa.
- *
- * **One level deep, no further.** Values nested inside those objects stay
- * shared by reference — `book.authors`, `book.tags`, `book.folders`,
- * `book.identifiers` — so this does not protect against a caller mutating one
- * of those in place.
- *
- * That depth is what every cache implementation applied before this was
- * shared, and it is enough for how manifests are actually used: the only one
- * ever handed to saveDownloadedBook is built per download in
- * MobileBookshelfProvider.downloadBook and dropped straight after, the
- * filesystem cache serialises to JSON on the way in, and the downloads page
- * only reads what listDownloadedManifests returns. Deepen it here if a caller
- * ever starts mutating a manifest it did not build.
- */
 export function cloneManifest(manifest: CachedBookManifest): CachedBookManifest {
   return {
     book: { ...manifest.book },

@@ -10,34 +10,19 @@ import (
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
-// marshalRounds is how many times each option set is exercised. One round
-// cannot tell a deterministic marshal from a lucky one: Go randomises map
-// iteration per range, so a set that lost json.Deterministic would still sort
-// its keys correctly about 1 time in n!. Repeating collapses that to nothing.
 const marshalRounds = 20
 
-// mapKeys is wide enough that an unordered marshal cannot plausibly agree with
-// the sorted one, and the keys are deliberately not inserted in sorted order.
-var mapKeys = []string{"zeta", "alpha", "mu", "beta", "omega", "delta", "kappa", "gamma"}
+var unsortedWideKeys = []string{"zeta", "alpha", "mu", "beta", "omega", "delta", "kappa", "gamma"}
 
 func unsortedMap() map[string]int {
-	m := make(map[string]int, len(mapKeys))
-	for i, key := range mapKeys {
+	m := make(map[string]int, len(unsortedWideKeys))
+	for i, key := range unsortedWideKeys {
 		m[key] = i
 	}
 	return m
 }
 
-/*
-Determinism is the reason this package exists, and the reason it is tested:
-three mechanisms are built on "same content, same bytes" — the fingerprint
-cache compares its encoded file against the one on disk before rewriting it,
-the exported book cache is keyed by a digest of its own payload, and the scan
-cache does the same. Dropping json.Deterministic breaks all three silently,
-with no compile error and, until this file existed, no test failure. The cost
-is a pointless re-upload per scan for a shelf held on pCloud or SMB.
-*/
-func TestEveryOptionSetMarshalsMapsDeterministically(t *testing.T) {
+func TestOptionSetsSortMapKeys(t *testing.T) {
 	sets := map[string]json.Options{
 		"Disk":        jsonopt.Disk(),
 		"DiskCompact": jsonopt.DiskCompact(),
@@ -68,11 +53,7 @@ func TestEveryOptionSetMarshalsMapsDeterministically(t *testing.T) {
 	}
 }
 
-// The indentation is the one difference between Disk and DiskCompact, and it is
-// what makes book.json and the exported cache openable in a text editor. Pinned
-// so a merge of the two sets is a test failure rather than a silent reformat of
-// every file on the shelf.
-func TestDiskIndentsAndTheMachineOnlySetsDoNot(t *testing.T) {
+func TestOnlyDiskOptionsIndent(t *testing.T) {
 	indented, err := json.Marshal(unsortedMap(), jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("marshal with Disk: %v", err)
@@ -95,12 +76,11 @@ func TestDiskIndentsAndTheMachineOnlySetsDoNot(t *testing.T) {
 	}
 }
 
-// keyOrder returns the object's member names in the order they were written.
 func keyOrder(t *testing.T, encoded string) []string {
 	t.Helper()
 
-	positions := make(map[string]int, len(mapKeys))
-	for _, key := range mapKeys {
+	positions := make(map[string]int, len(unsortedWideKeys))
+	for _, key := range unsortedWideKeys {
 		index := strings.Index(encoded, fmt.Sprintf("%q", key))
 		if index < 0 {
 			t.Fatalf("key %q missing from %s", key, encoded)
@@ -108,7 +88,7 @@ func keyOrder(t *testing.T, encoded string) []string {
 		positions[key] = index
 	}
 
-	names := slices.Clone(mapKeys)
+	names := slices.Clone(unsortedWideKeys)
 	slices.SortFunc(names, func(a, b string) int { return positions[a] - positions[b] })
 	return names
 }

@@ -1,7 +1,5 @@
 import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue';
 
-// Set only by the wasm demo's boot.js (cmd/plainshelf-wasm/web), so its
-// presence is what tells the browser-only demo from a server, desktop or app.
 interface PlainshelfDemo {
   persistEvent: string;
   hasStorage(): Promise<boolean>;
@@ -24,12 +22,6 @@ export function isWasmDemo(): boolean {
   return demo() !== undefined;
 }
 
-/**
- * - `memory`: the demo has no storage at all, so there is nothing to keep
- * - `unsupported`: the browser cannot be asked
- * - `persisted`: the browser agreed not to clear it on its own
- * - `best-effort`: the browser may clear it when space runs low
- */
 type DemoStorageState = 'loading' | 'memory' | 'unsupported' | 'persisted' | 'best-effort';
 
 export function useDemoStoragePersistence(): {
@@ -64,7 +56,6 @@ export function useDemoStoragePersistence(): {
     await refresh();
   }
 
-  // The Demo bar asks too; follow its answer.
   const onPersist = () => void refresh();
   onMounted(() => {
     const api = demo();

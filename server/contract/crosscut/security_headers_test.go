@@ -12,10 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// The browser-hardening headers every response must carry, whatever the route
-// and whatever the security mode. They are restated here rather than imported:
-// the exact header names and values are part of the contract this ticket adds,
-// so a change to either has to be a change to this test too.
 var staticSecurityHeaders = map[string]string{
 	"X-Content-Type-Options": "nosniff",
 	"X-Frame-Options":        "DENY",
@@ -31,11 +27,7 @@ func assertStaticSecurityHeaders(t *testing.T, rec *httptest.ResponseRecorder, w
 	}
 }
 
-// TestSecurityHeadersOnEveryResponseContract pins that the static hardening
-// headers ride on the SPA document, an API read, an API mutation, the health
-// check, and an unknown-API 404 alike -- the point of the header is that no
-// response is exempt.
-func TestSecurityHeadersOnEveryResponseContract(t *testing.T) {
+func TestSecurityHeadersOnEveryResponse(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	cases := []struct {
@@ -56,10 +48,7 @@ func TestSecurityHeadersOnEveryResponseContract(t *testing.T) {
 	}
 }
 
-// TestSecurityHeadersWithSecurityDisabledContract pins that the hardening
-// headers do not depend on the token gate: they are just as present when the
-// API security mode is none, because they defend the browser, not the API.
-func TestSecurityHeadersWithSecurityDisabledContract(t *testing.T) {
+func TestSecurityHeadersSecurityDisabled(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(&server.SecurityConf{Mode: server.SecurityModeNone}))
 
 	assertStaticSecurityHeaders(t, env.Get("/"), "spa index (security none)")
@@ -68,10 +57,6 @@ func TestSecurityHeadersWithSecurityDisabledContract(t *testing.T) {
 
 var cspScriptSrcRE = regexp.MustCompile(`script-src ([^;]*)`)
 
-// TestContentSecurityPolicyOnIndexContract pins the document CSP the ticket
-// requires: present on the SPA index, carrying the minimum directive set, and
-// keeping script-src free of 'unsafe-inline' by nonce-ing the one inline
-// bootstrap script instead.
 func TestContentSecurityPolicyOnIndexContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
@@ -83,7 +68,6 @@ func TestContentSecurityPolicyOnIndexContract(t *testing.T) {
 		t.Fatal("index response carries no Content-Security-Policy header")
 	}
 
-	// The directives the ticket names as the required floor.
 	for _, directive := range []string{
 		"default-src 'self'",
 		"object-src 'none'",
@@ -112,11 +96,7 @@ var (
 	bootstrapNonceRE = regexp.MustCompile(`<script nonce="([^"]+)">window\.__PLAINSHELF_SECURITY__`)
 )
 
-// TestBootstrapScriptCarriesCSPNonceContract pins that the nonce announced in
-// the CSP header is the nonce written on the injected bootstrap <script>, so
-// the one inline script the app needs is exactly the one the policy admits.
-// A fresh request must mint a fresh nonce.
-func TestBootstrapScriptCarriesCSPNonceContract(t *testing.T) {
+func TestBootstrapScriptCarriesCSPNonce(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecurity(apitest.LocalTokenSecurity()))
 
 	headerNonce := func() string {

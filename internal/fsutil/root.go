@@ -29,7 +29,6 @@ func (l *RootFS) Open(name string) (fs.File, error) {
 }
 
 func (l *RootFS) ReadDir(name string) ([]fs.DirEntry, error) {
-	// list directory entries
 	f, err := l.root.Open(name)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -52,6 +51,65 @@ func (l *RootFS) Stat(name string) (fs.FileInfo, error) {
 	return info, nil
 }
 
+func (l *RootFS) OpenNoFollow(name string) (fs.File, error) {
+	if name == "." {
+		return l.Open(name)
+	}
+	notExist := util.Errorf("%q: %w", name, fs.ErrNotExist)
+
+	dir := l.root
+	defer func() {
+		if dir != l.root {
+			dir.Close()
+		}
+	}()
+	parts := strings.Split(name, "/")
+	for _, part := range parts[:len(parts)-1] {
+		checked, err := dir.Lstat(part)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		if checked.Mode()&fs.ModeSymlink != 0 {
+			return nil, notExist
+		}
+
+		if !checked.IsDir() {
+			return nil, notExist
+		}
+
+		sub, err := dir.OpenRoot(part)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		if dir != l.root {
+			dir.Close()
+		}
+		dir = sub
+		opened, err := dir.Stat(".")
+		if err != nil || !os.SameFile(checked, opened) {
+			return nil, notExist
+		}
+	}
+	part := parts[len(parts)-1]
+	checked, err := dir.Lstat(part)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	if checked.Mode()&fs.ModeSymlink != 0 {
+		return nil, notExist
+	}
+	fp, err := dir.Open(part)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	opened, err := fp.Stat()
+	if err != nil || !os.SameFile(checked, opened) {
+		fp.Close()
+		return nil, notExist
+	}
+	return fp, nil
+}
+
 func (l *RootFS) OpenWriter(name string) (io.WriteCloser, error) {
 	fp, err := l.root.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
@@ -70,11 +128,11 @@ func (l *RootFS) WriteFile(name string, data []byte) error {
 	for written < len(data) {
 		n, err := fp.Write(data[written:])
 		if err != nil {
-			fp.Close() //nolint:errcheck // best-effort cleanup; write error is returned
+			fp.Close()
 			return util.Errorf("%w", err)
 		}
 		if n == 0 {
-			fp.Close() //nolint:errcheck // best-effort cleanup; write error is returned
+			fp.Close()
 			return util.Errorf("%w", io.ErrShortWrite)
 		}
 		written += n

@@ -1,7 +1,6 @@
 package bookpkg
 
 import (
-	"bytes"
 	"encoding/json/v2"
 	"io"
 	"io/fs"
@@ -11,7 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/internal/jsonopt"
-	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
@@ -19,22 +17,11 @@ import (
 const SourceMetaFile = "meta.json"
 const SourceFile = "source.txt"
 
-// SourceMetaSchemaVersion is the source metadata format written for sources
-// that own their content format. A missing version is a legacy source: its
-// format is inherited from book.json and it renders as a single section.
 const SourceMetaSchemaVersion = 1
 
 var ErrUnsupportedSourceSchemaVersion = util.NewError("source meta.json schema version is newer than this build supports")
 
-/*
-{source-folder}/
-├─ meta.json
-└─ source.txt
-*/
-
 type Source struct {
-	// root is a ReadFS so that a read path cannot mutate the source by
-	// accident; every mutation narrows it back through writeRoot.
 	root       fsutil.ReadFS
 	folderPath string
 
@@ -92,8 +79,6 @@ func (r *Source) Open() (fs.File, error) {
 	return fp, nil
 }
 
-// ContentStat reports an error rather than a zero value so a caller cannot
-// mistake a missing source for an unchanged one.
 func (r *Source) ContentStat() (*FileStat, error) {
 	stat, err := getFileStat(r.root, path.Join(r.folderPath, SourceFile))
 	if err != nil {
@@ -153,40 +138,24 @@ func (r *Source) refreshContentMetadata() error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	// One read, three metrics: a network-mounted shelf pays per round trip.
-	data, err := r.ReadContent()
+	f, err := r.Open()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-
-	r.meta.MD5Hash, err = hashutil.MD5Hash(bytes.NewReader(data))
-	if err != nil {
-		return util.Errorf("%w", err)
+	stats, readErr := measureContent(f)
+	closeErr := f.Close()
+	if readErr != nil {
+		return util.Errorf("%w", readErr)
 	}
-
-	r.meta.LineCount, err = util.LineCount(bytes.NewReader(data))
-	if err != nil {
-		return util.Errorf("%w", err)
+	if closeErr != nil {
+		return util.Errorf("%w", closeErr)
 	}
+	meta := r.GetMeta()
+	meta.MD5Hash, meta.LineCount, meta.CharCount = stats.md5Hash, stats.lineCount, stats.charCount
 
-	r.meta.CharCount, err = util.CharCount(bytes.NewReader(data))
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	return r.writebackMeta(root)
+	return r.writebackMeta(root, meta)
 }
 
-// RepairContentHash rewrites meta.json's md5_hash when it disagrees with the
-// content hash, reporting whether it wrote anything. A source edited outside
-// PlainShelf carries a confidently wrong hash; only a caller that just read the
-// whole file knows the true value.
-//
-// Deliberately narrow: line_count and char_count are stale in the same case but
-// are UI-visible, so a background task must not change them as a side effect;
-// and a source with no md5_hash (a legacy import) is left alone, since filling
-// it in would trigger the whole-library rewrite
-// docs/concepts/data-format-versioning.md exists to avoid.
 func (r *Source) RepairContentHash(md5Hash string) (bool, error) {
 	if md5Hash == "" || r.meta.MD5Hash == "" || r.meta.MD5Hash == md5Hash {
 		return false, nil
@@ -199,15 +168,14 @@ func (r *Source) RepairContentHash(md5Hash string) (bool, error) {
 		return false, util.Errorf("%w", err)
 	}
 
-	r.meta.MD5Hash = md5Hash
-	if err := r.writebackMeta(root); err != nil {
+	meta := r.GetMeta()
+	meta.MD5Hash = md5Hash
+	if err := r.writebackMeta(root, meta); err != nil {
 		return false, util.Errorf("%w", err)
 	}
 	return true, nil
 }
 
-// UpdateComment replaces the free-form record of how this source came to be —
-// for example what an import could not carry over.
 func (r *Source) UpdateComment(comment string) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
@@ -216,21 +184,18 @@ func (r *Source) UpdateComment(comment string) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	r.meta.Comment = comment
-	if err := r.writebackMeta(root); err != nil {
+	meta := r.GetMeta()
+	meta.Comment = comment
+	if err := r.writebackMeta(root, meta); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil
 }
 
-// writebackMeta takes the writable handle rather than narrowing r.root itself:
-// a caller has already changed r.meta in memory by the time it gets here, so
-// refusing a read-only shelf here would leave GetMeta reporting a value that
-// never reached disk.
-func (r *Source) writebackMeta(root fsutil.FS) error {
+func (r *Source) writebackMeta(root fsutil.FS, meta *SourceMeta) error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 
-	bs, err := json.Marshal(r.meta, jsonopt.Disk())
+	bs, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -240,6 +205,7 @@ func (r *Source) writebackMeta(root fsutil.FS) error {
 		return util.Errorf("%w", err)
 	}
 
+	r.meta = meta
 	return nil
 }
 
@@ -253,7 +219,7 @@ func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 
 	var meta SourceMeta
 	if err := json.UnmarshalRead(metaFile, &meta); err != nil {
-		return nil, util.Errorf("%w", MetadataReadError(metaPath, err))
+		return nil, util.Errorf("%w", NameMetadataDecodeError(metaPath, err))
 	}
 
 	return &Source{
@@ -263,7 +229,7 @@ func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 	}, nil
 }
 
-func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, source io.Reader, format, comment string) (*Source, error) {
+func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader, format, comment string) (*Source, error) {
 	if !shelfutil.ValidateBookFormat(format) || format == "" {
 		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, format)
 	}
@@ -277,34 +243,17 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		return nil, util.Errorf("%w", err)
 	}
 
-	destFile1, err := rt.Open(sourceDestPath)
+	destFile, err := rt.Open(sourceDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	sourceData, readErr := io.ReadAll(destFile1)
-	readCloseErr := destFile1.Close()
+	stats, readErr := measureContent(destFile)
+	readCloseErr := destFile.Close()
 	if readErr != nil {
 		return nil, util.Errorf("%w", readErr)
 	}
 	if readCloseErr != nil {
 		return nil, util.Errorf("%w", readCloseErr)
-	}
-
-	md5Hash, err := hashutil.MD5Hash(bytes.NewReader(sourceData))
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	lineCount, err := util.LineCount(bytes.NewReader(sourceData))
-	if err != nil {
-		lineCount = 0
-		logger.Error("failed to count lines", "error", err)
-	}
-
-	charCount, err := util.CharCount(bytes.NewReader(sourceData))
-	if err != nil {
-		charCount = 0
-		logger.Error("failed to count characters", "error", err)
 	}
 
 	meta := SourceMeta{
@@ -313,9 +262,9 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		CreatedAt:     util.JSONTime(time.Now()),
 		Format:        format,
 
-		MD5Hash:   md5Hash,
-		LineCount: lineCount,
-		CharCount: charCount,
+		MD5Hash:   stats.md5Hash,
+		LineCount: stats.lineCount,
+		CharCount: stats.charCount,
 		Comment:   comment,
 	}
 
@@ -335,5 +284,24 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		root:       rt,
 		folderPath: sourcePath,
 		meta:       &meta,
+	}, nil
+}
+
+type contentStats struct {
+	md5Hash   string
+	lineCount int
+	charCount int
+}
+
+func measureContent(r io.Reader) (contentStats, error) {
+	var text util.TextCounter
+	md5Hash, err := hashutil.MD5Hash(io.TeeReader(r, &text))
+	if err != nil {
+		return contentStats{}, util.Errorf("%w", err)
+	}
+	return contentStats{
+		md5Hash:   md5Hash,
+		lineCount: text.Lines(),
+		charCount: text.Chars(),
 	}, nil
 }

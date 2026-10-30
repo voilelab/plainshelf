@@ -1,23 +1,13 @@
 import { computed } from 'vue';
 
 import { useShelvesStore } from '@/composables/useShelvesStore';
-import { isWailsRuntime } from '@/providers/runtime';
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { getShell } from '@/providers/shell';
 import type { ShelfPicker } from '@/types/shelfPicker';
 import { t } from '@/i18n';
 
 export type { ShelfPicker, ShelfPickerItem } from '@/types/shelfPicker';
 
-/**
- * What the sidebar shelf dropdown offers, which differs by client.
- *
- * Here the shelves come from the server and picking one is an in-page change.
- * A shell whose shelves are device-local supplies its own picker instead — see
- * RuntimeShell.createShelfPicker.
- *
- * Both are behind one interface so MainLayout renders a single Select rather
- * than two copies of the same portal markup.
- */
 export function useShelfPicker(options: {
   onServerShelfSelected: (shelfID: string) => Promise<void>;
 }): ShelfPicker {
@@ -48,9 +38,7 @@ export function useShelfPicker(options: {
       }
       return shelves.value.length === 0 ? t('layout.shelf.empty') : '';
     }),
-    // The web build has no shelf-management surface to link to; the desktop
-    // build manages shelves on the settings shelves tab.
-    manageTo: isWailsRuntime() ? { path: '/settings', query: { tab: 'shelves' } } : null,
+    manageTo: getPlatformCapabilities().shelves ? { path: '/settings', query: { tab: 'shelves' } } : null,
     select: async (id: string) => {
       selectShelf(id);
       await options.onServerShelfSelected(id);

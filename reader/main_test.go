@@ -1,47 +1,42 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+	"time"
+)
 
-// The book path is a named flag rather than a positional argument because
-// `wails dev` hands the app whatever -appargs carried, and a bare value there
-// is as likely to belong to another flag as to be a path.
 func TestBookPathFromArgs(t *testing.T) {
 	tests := map[string]struct {
 		args []string
 		want string
 	}{
-		"no arguments":            {args: nil, want: ""},
-		"separate value":          {args: []string{"-book", "/books/dune.bookpkg"}, want: "/books/dune.bookpkg"},
-		"joined value":            {args: []string{"-book=/books/dune.bookpkg"}, want: "/books/dune.bookpkg"},
-		"double dash":             {args: []string{"--book", "dune.bookpkg"}, want: "dune.bookpkg"},
-		"double dash joined":      {args: []string{"--book=dune.bookpkg"}, want: "dune.bookpkg"},
-		"a bare path is not used": {args: []string{"/books/dune.bookpkg"}, want: ""},
-		"no value after -book":    {args: []string{"-book"}, want: ""},
-		// An argument this app does not define ends the parse rather than
-		// failing the launch. In practice it does not arrive: `wails dev` passes
-		// its own settings to the binary through the environment, and only
-		// -appargs reaches os.Args.
-		"an undefined flag": {args: []string{"-loglevel", "debug"}, want: ""},
-		"after an undefined flag": {
-			args: []string{"-loglevel", "debug", "-book", "/books/dune.bookpkg"},
-			want: "",
-		},
+		"no arguments":              {args: nil, want: ""},
+		"separate value":            {args: []string{"-book", "/books/dune.bookpkg"}, want: "/books/dune.bookpkg"},
+		"joined value":              {args: []string{"-book=/books/dune.bookpkg"}, want: "/books/dune.bookpkg"},
+		"double dash":               {args: []string{"--book", "dune.bookpkg"}, want: "dune.bookpkg"},
+		"double dash joined":        {args: []string{"--book=dune.bookpkg"}, want: "dune.bookpkg"},
+		"a bare path is not used":   {args: []string{"/books/dune.bookpkg"}, want: ""},
+		"dash-leading string value": {args: []string{"-book", "-section=4"}, want: "-section=4"},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			if got := parseLaunchArgs(test.args).bookPath; got != test.want {
+			launch, err := parseLaunchArgs(test.args)
+			if err != nil {
+				t.Fatalf("parseLaunchArgs(%q): %v", test.args, err)
+			}
+			if got := launch.bookPath; got != test.want {
 				t.Errorf("parseLaunchArgs(%q).bookPath = %q, want %q", test.args, got, test.want)
 			}
 		})
 	}
 }
 
-// -shelf carries the real desktop shelf id and -section the chapter to open at.
-// Both are parsed on the same FlagSet as -book so that any flag order the desktop
-// app might emit is read whole — a FlagSet that knew only one of them would stop
-// at the others. -section defaults to noLaunchSection (a negative sentinel) so
-// section 0, the first chapter, stays distinguishable from "no chapter requested".
 func TestParseLaunchArgs(t *testing.T) {
 	tests := map[string]struct {
 		args        []string
@@ -49,20 +44,24 @@ func TestParseLaunchArgs(t *testing.T) {
 		wantShelf   string
 		wantSection int
 	}{
-		"neither flag":            {args: nil, wantSection: noLaunchSection},
-		"shelf only":              {args: []string{"-shelf", "shelf-real"}, wantShelf: "shelf-real", wantSection: noLaunchSection},
-		"book then shelf":         {args: []string{"-book", "/books/dune.bookpkg", "-shelf", "shelf-real"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real", wantSection: noLaunchSection},
-		"shelf then book":         {args: []string{"-shelf", "shelf-real", "-book", "/books/dune.bookpkg"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real", wantSection: noLaunchSection},
-		"joined values":           {args: []string{"-book=/books/dune.bookpkg", "-shelf=shelf-real"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real", wantSection: noLaunchSection},
-		"no value after -shelf":   {args: []string{"-shelf"}, wantSection: noLaunchSection},
-		"book, shelf and section": {args: []string{"-book", "/books/dune.bookpkg", "-shelf", "shelf-real", "-section", "4"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real", wantSection: 4},
-		"section then book":       {args: []string{"-section", "4", "-book", "/books/dune.bookpkg"}, wantBook: "/books/dune.bookpkg", wantSection: 4},
-		"section zero":            {args: []string{"-book", "/books/dune.bookpkg", "-section", "0"}, wantBook: "/books/dune.bookpkg", wantSection: 0},
+		"neither flag":             {args: nil, wantSection: noLaunchSection},
+		"shelf only":               {args: []string{"-shelf", "shelf-real"}, wantShelf: "shelf-real", wantSection: noLaunchSection},
+		"book then shelf":          {args: []string{"-book", "/books/dune.bookpkg", "-shelf", "shelf-real"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real", wantSection: noLaunchSection},
+		"shelf then book":          {args: []string{"-shelf", "shelf-real", "-book", "/books/dune.bookpkg"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real", wantSection: noLaunchSection},
+		"joined values":            {args: []string{"-book=/books/dune.bookpkg", "-shelf=shelf-real"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real", wantSection: noLaunchSection},
+		"book, shelf and section":  {args: []string{"-book", "/books/dune.bookpkg", "-shelf", "shelf-real", "-section", "4"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real", wantSection: 4},
+		"section then book":        {args: []string{"-section", "4", "-book", "/books/dune.bookpkg"}, wantBook: "/books/dune.bookpkg", wantSection: 4},
+		"section zero":             {args: []string{"-book", "/books/dune.bookpkg", "-section", "0"}, wantBook: "/books/dune.bookpkg", wantSection: 0},
+		"negative section":         {args: []string{"-section=-2"}, wantSection: -2},
+		"dash-leading shelf value": {args: []string{"-shelf", "-unknown"}, wantShelf: "-unknown", wantSection: noLaunchSection},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := parseLaunchArgs(test.args)
+			got, err := parseLaunchArgs(test.args)
+			if err != nil {
+				t.Fatalf("parseLaunchArgs(%q): %v", test.args, err)
+			}
 			if got.bookPath != test.wantBook {
 				t.Errorf("parseLaunchArgs(%q).bookPath = %q, want %q", test.args, got.bookPath, test.wantBook)
 			}
@@ -73,5 +72,50 @@ func TestParseLaunchArgs(t *testing.T) {
 				t.Errorf("parseLaunchArgs(%q).section = %d, want %d", test.args, got.section, test.wantSection)
 			}
 		})
+	}
+}
+
+func TestParseLaunchArgsInvalidFlags(t *testing.T) {
+	for name, args := range map[string][]string{
+		"unknown flag":                      {"-loglevel", "debug"},
+		"unknown flag before book":          {"-loglevel", "debug", "-book", "/books/dune.bookpkg"},
+		"unknown flag after book":           {"-book", "/books/dune.bookpkg", "-unknown"},
+		"book without value":                {"-book"},
+		"shelf without value":               {"-shelf"},
+		"section without value":             {"-section"},
+		"non-integer section":               {"-section", "chapter-one"},
+		"overflowing section":               {"-section=99999999999999999999999999"},
+		"invalid section after valid flags": {"-book", "/books/dune.bookpkg", "-shelf", "shelf-real", "-section=bad"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := parseLaunchArgs(args)
+			if err == nil {
+				t.Fatalf("parseLaunchArgs(%q) succeeded, want an error", args)
+			}
+			if got != (launchArgs{}) {
+				t.Fatalf("parseLaunchArgs(%q) returned partial launch arguments: %+v", args, got)
+			}
+		})
+	}
+}
+
+func TestMainRejectsBadLaunchArgs(t *testing.T) {
+	const child = "PLAINSHELF_READER_TEST_INVALID_ARGS"
+	if os.Getenv(child) == "1" {
+		os.Args = []string{"plainshelf-reader", "-section=chapter-one"}
+		main()
+		return
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMainRejectsBadLaunchArgs$")
+	cmd.Env = append(os.Environ(), child+"=1")
+	output, err := cmd.CombinedOutput()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("invalid launch exited with %v, want exit code 1; output: %s", err, output)
+	}
+	if !strings.Contains(string(output), "invalid reader launch arguments:") || !strings.Contains(string(output), "-section") {
+		t.Fatalf("invalid launch did not report the flag error: %s", output)
 	}
 }

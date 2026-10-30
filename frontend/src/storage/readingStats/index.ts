@@ -1,7 +1,5 @@
 import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
 import { hasDesktopReadingStatsBinding } from '@/api/desktop';
-// Imported from providers/runtime rather than the providers barrel: the barrel
-// pulls in the providers, which import this module.
 import { isWailsRuntime } from '@/providers/runtime';
 import { getShell } from '@/providers/shell';
 import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
@@ -29,12 +27,6 @@ export type { ReadingStatsDocument } from './document';
 export { mockReadingSecondsForDate } from './mock';
 export type { ReadingStatsStorage } from './storage';
 
-/**
- * Daily reading time, kept on the device that did the reading. The server has
- * no part in it: no API call, no shelf file, nothing shared between clients.
- * That is what lets the heatmap keep filling in while offline, and against a
- * read-only server.
- */
 export class ReadingStatsStore extends DeviceDocumentStore<ReadingStatsDocument> {
   constructor(storage: ReadingStatsStorage) {
     super(storage, parseReadingStatsDocument, serializeReadingStatsDocument);
@@ -49,9 +41,6 @@ export class ReadingStatsStore extends DeviceDocumentStore<ReadingStatsDocument>
   }
 }
 
-// Mock mode keeps the dev dashboard populated the way the old mock API did: a
-// year of deterministic activity, seeded lazily so the active shelf is already
-// known.
 function createMockReadingStatsStorage(): ReadingStatsStorage {
   const backing = createInMemoryReadingStatsStorage();
   let seeded = false;
@@ -84,16 +73,10 @@ function createReadingStatsStorage(): ReadingStatsStorage {
     return createMockReadingStatsStorage();
   }
 
-  // `?desktop-shell-preview=1` reports the Wails runtime in an ordinary
-  // browser, where the Go bindings do not exist; fall back to localStorage
-  // there rather than failing every write.
   if (isWailsRuntime() && hasDesktopReadingStatsBinding()) {
     return createDesktopReadingStatsStorage();
   }
 
-  // A shell that keeps documents somewhere other than the browser says so;
-  // the mobile one writes to app-private storage, which an Android WebView
-  // does not silently evict the way it may evict localStorage.
   const fromShell = getShell()?.createDeviceDocumentStorage?.(MOBILE_READING_STATS_PATH);
   if (fromShell) {
     return fromShell;
@@ -119,19 +102,10 @@ function requireStatsKey(): string {
   return buildDeviceDocumentKey(getApiBase(), shelfID);
 }
 
-/**
- * Map of "YYYY-MM-DD" -> total seconds read that day, for [from, to]
- * inclusive. Days with no reading are omitted.
- */
 export function getReadingActivityRange(from: string, to: string): Promise<Record<string, number>> {
   return getReadingStatsStore().range(requireStatsKey(), from, to);
 }
 
-/**
- * Records a stretch of reading. `bookID` is required — a stretch that cannot
- * be attributed to a book is a bug in the caller — but it is not persisted:
- * nothing displays a per-book breakdown.
- */
 export function addReadingSeconds(bookID: string, seconds: number, date: string): Promise<void> {
   if (!bookID.trim()) {
     return Promise.resolve();

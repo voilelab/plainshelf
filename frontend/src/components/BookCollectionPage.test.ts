@@ -5,11 +5,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import BookCollectionPage from './BookCollectionPage.vue';
 import type { Book } from '@/types/book';
 
-// A search that matches nothing used to render its empty state followed by a
-// "Page 1 / 0" control row. The pager's own arithmetic is covered by
-// useBookCollectionRoute.test.ts; what is checked here is that the row is not
-// rendered at all when there is nothing to page through — which is what the
-// end-to-end search case looked at, and needs no server to answer.
 
 function book(id: string, title: string): Book {
   return { id, title } as Book;

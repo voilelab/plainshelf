@@ -2,22 +2,17 @@ package shelf
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// GetAllFolders returns a sorted list of all unique folders present in the library.
-//
-// The list comes from the book cache, which records folders during the same walk
-// it builds the book listing from, so this is throttled by scan_interval like
-// any other listing instead of walking books/ on every request. Folders created,
-// renamed, moved or deleted through this process update the cache immediately,
-// so only a change made outside PlainShelf waits for the next scan.
 func (s *Shelf) GetAllFolders() ([]FolderPath, error) {
 	if !s.IsReady() {
-		return nil, util.Errorf("%w", ErrShelfInitializing)
+		return nil, s.notReady()
 	}
 
 	if err := s.shelfLock.RLock(); err != nil {
@@ -30,12 +25,12 @@ func (s *Shelf) GetAllFolders() ([]FolderPath, error) {
 	return s.listFoldersFromCache(), nil
 }
 
-// NewFolder creates a new folder named name under the parent folder path. It
-// validates every path segment to ensure it does not contain invalid characters
-// and then creates the necessary directory structure.
 func (s *Shelf) NewFolder(parent FolderPath, name string) error {
 	folder := append(append(FolderPath(nil), parent...), name)
 	if err := s.ValidateFolderPath(folder); err != nil {
+		return util.Errorf("%w", err)
+	}
+	if err := validateNewFolderName(name); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -55,16 +50,22 @@ func (s *Shelf) NewFolder(parent FolderPath, name string) error {
 		return util.Errorf("%w", err)
 	}
 
-	// Recorded rather than left to the next scan: a folder the user just created
-	// has to appear in the very next listing, and an empty one holds no book to
-	// rebuild it from.
 	s.addFolderToBookCache(folder)
 
 	return nil
 }
 
-// DeleteFolder removes a folder from the library. It checks if the folder is empty (i.e., contains no books) before deleting it. If the folder is not empty, it returns an error.
 func (s *Shelf) DeleteFolder(folder FolderPath) error {
+	return s.deleteFolder(folder, nil)
+}
+
+func (s *Shelf) PruneFolder(folder FolderPath, carriedMeta string) error {
+	return s.deleteFolder(folder, func(data []byte) bool {
+		return carriedMeta != "" && folderMetaVersion(data) == carriedMeta
+	})
+}
+
+func (s *Shelf) deleteFolder(folder FolderPath, dropMeta func([]byte) bool) error {
 	if err := s.ValidateFolderPath(folder); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -86,25 +87,25 @@ func (s *Shelf) DeleteFolder(folder FolderPath) error {
 		return util.Errorf("%w", err)
 	}
 
-	if len(entries) > 0 {
+	if !holdsOnlyFolderMeta(entries) {
 		return util.Errorf("cannot delete non-empty folder")
 	}
+	if len(entries) > 0 && dropMeta != nil {
+		data, err := readFolderMetaFile(s.dbRoot, path.Join(folderPath, FolderMetaFile))
+		if err != nil || !dropMeta(data) {
+			return util.Errorf("cannot delete a folder whose folder.json was not carried")
+		}
+	}
 
-	err = root.RemoveAll(folderPath)
-	if err != nil {
+	if err := removeFolderNonRecursively(root, folderPath, len(entries) > 0); err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	// The folder was verified empty above, so it has no descendants in the cache
-	// either and dropping this one entry is enough.
 	s.removeFolderFromBookCache(folder)
 
 	return nil
 }
 
-// RenameFolder renames the last segment of an existing folder path to newName,
-// keeping the folder under the same parent. The new path is derived from the
-// old one's parent, so a rename can never move the folder to a different parent.
 func (s *Shelf) RenameFolder(folder FolderPath, newName string) error {
 	if len(folder) == 0 {
 		return util.Errorf("cannot rename root folder")
@@ -116,6 +117,9 @@ func (s *Shelf) RenameFolder(folder FolderPath, newName string) error {
 		return util.Errorf("invalid old folder: %w", err)
 	}
 	if err := s.ValidateFolderPath(newFolder); err != nil {
+		return util.Errorf("invalid new folder: %w", err)
+	}
+	if err := validateNewFolderName(newName); err != nil {
 		return util.Errorf("invalid new folder: %w", err)
 	}
 
@@ -160,7 +164,6 @@ func (s *Shelf) RenameFolder(folder FolderPath, newName string) error {
 	return nil
 }
 
-// MoveFolder moves an existing folder under an existing target parent folder without renaming it.
 func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 	if err := s.ValidateFolderPath(folder); err != nil {
 		return util.Errorf("invalid folder: %w", err)
@@ -170,6 +173,9 @@ func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 	}
 	if len(folder) == 0 {
 		return util.Errorf("cannot move root folder")
+	}
+	if err := validateNewFolderName(folder[len(folder)-1]); err != nil {
+		return util.Errorf("invalid folder: %w", err)
 	}
 
 	root, err := s.writeRoot()
@@ -220,4 +226,22 @@ func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 	s.markBookCacheTreeDirty()
 
 	return nil
+}
+
+func holdsOnlyFolderMeta(entries []fs.DirEntry) bool {
+	for _, entry := range entries {
+		if entry.Name() != FolderMetaFile || entry.IsDir() {
+			return false
+		}
+	}
+	return true
+}
+
+func removeFolderNonRecursively(root fsutil.FS, folderPath string, hasMeta bool) error {
+	if hasMeta {
+		if err := root.Remove(path.Join(folderPath, FolderMetaFile)); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+	return root.Remove(folderPath)
 }

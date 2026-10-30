@@ -11,9 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/server/contract/apitest"
 )
 
-// Every refusal writeErr answers carries the same JSON envelope, so a client
-// can read one shape rather than parsing prose. The code is the stable half:
-// the message may be reworded, the code may not.
 func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 	env := apitest.New(t)
 	book := apitest.ImportTextBook(t, env, "Envelope Book", "", "envelope.txt", "body")
@@ -75,8 +72,6 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 
 			apitest.AssertErrorEnvelope(t, rec, tt.status, tt.code, tt.message)
 
-			// A client reading the body line-wise would block without it, the
-			// same reason the success bodies carry one.
 			if got := rec.Body.String(); !strings.HasSuffix(got, "\n") {
 				t.Fatalf("body = %q, want a trailing newline", got)
 			}
@@ -84,9 +79,7 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 	}
 }
 
-// A refusal the shelf itself raises keeps its Retry-After alongside the
-// envelope: the code says what happened, the header says when to come back.
-func TestAPIReadOnlyShelfRefusalCarriesItsCodeContract(t *testing.T) {
+func TestAPIReadOnlyShelfRefusalCode(t *testing.T) {
 	env := apitest.New(t, apitest.WithReadOnlyShelf())
 
 	rec := env.Post(apitest.ShelfURL("folders", "new-folder"), nil)
@@ -95,13 +88,8 @@ func TestAPIReadOnlyShelfRefusalCarriesItsCodeContract(t *testing.T) {
 		"shelf is opened read-only; this PlainShelf instance cannot modify it")
 }
 
-// A 500 says only what the caller was trying to do. The cause names the shelf's
-// on-disk layout - the book's directory, the atomic write's temp file - and
-// that stays in the log, because a user pastes an error body into a bug report
-// without reading it first.
-func TestAPIInternalErrorBodyWithholdsTheCauseContract(t *testing.T) {
-	// The shelf root is named distinctively so a leaked path is unmistakable
-	// rather than a substring that could plausibly come from anywhere.
+func TestAPIInternalErrorHidesCause(t *testing.T) {
+
 	libRoot := filepath.Join(t.TempDir(), "secret-shelf-b7f2")
 	if err := os.MkdirAll(libRoot, 0755); err != nil {
 		t.Fatalf("create shelf root: %v", err)
@@ -117,10 +105,6 @@ func TestAPIInternalErrorBodyWithholdsTheCauseContract(t *testing.T) {
 		t.Fatalf("sources = %d, want 1", len(sources))
 	}
 
-	// Replacing the source file with a directory makes the atomic rename fail,
-	// which is an error the table does not name: exactly the fallback path. The
-	// file is located by walking rather than by rebuilding the shelf's naming
-	// rule, which is not what this test is about.
 	sourceFile := findSourceFile(t, libRoot)
 	if err := os.Remove(sourceFile); err != nil {
 		t.Fatalf("remove source file: %v", err)
@@ -143,7 +127,6 @@ func TestAPIInternalErrorBodyWithholdsTheCauseContract(t *testing.T) {
 	}
 }
 
-// findSourceFile returns the single source file under a shelf holding one book.
 func findSourceFile(t *testing.T, libRoot string) string {
 	t.Helper()
 

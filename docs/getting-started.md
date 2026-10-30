@@ -1,4 +1,4 @@
-# Getting Started
+# Getting started
 
 This guide takes you from an installed PlainShelf release to your first local
 library. To build the project itself, use [Local Development Setup](development/setup.md).
@@ -15,8 +15,8 @@ open -a PlainShelf
 ```
 
 Use the shelf controls in the app to add a shelf. Creating one needs only a
-name — PlainShelf makes the folder in its own shelves directory — or you can
-choose an existing folder to open instead.
+name, because PlainShelf makes the folder in its own shelves directory, or you
+can choose an existing folder to open instead.
 
 ### Prebuilt server
 
@@ -81,13 +81,19 @@ continue to scroll within the current chapter. These gestures are shown once the
 first time you open a book; the **?** button in the reader's controls brings the
 reminder back at any time.
 
+The library's search box matches titles, authors, tags and comments. It ignores
+case, accents and full-width or half-width forms, treats katakana as hiragana,
+and matches Traditional Chinese, Simplified Chinese and Japanese shinjitai or
+kyujitai forms of the same character, so `红楼梦` finds `紅樓夢`. Name separators
+such as `·` and `・` match a space. It does not search book contents.
+
 An EPUB is converted to text as it is imported; see
-[EPUB Import](epub-import.md) for what is kept, what is dropped, and how to
+[EPUB import](epub-import.md) for what is kept, what is dropped, and how to
 choose the output layout.
 
 PlainShelf creates a `.bookpkg` directory in the shelf and assigns a stable book
 ID. Renaming the title or moving the book between folders does not change that
-ID. See [Data Model](concepts/data-model.md) for the on-disk layout.
+ID. See [Data model](concepts/data-model.md) for the on-disk layout.
 
 ## 4. Back up before experimenting
 

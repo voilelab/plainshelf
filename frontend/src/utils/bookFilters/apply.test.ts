@@ -7,8 +7,6 @@ function book(overrides: Partial<Book> = {}): Book {
   return { id: 'b', title: 'b', authors: [], tags: [], folders: [], ...overrides };
 }
 
-// A shelf with three distinct books so a condition can empty the list on its own
-// or jointly with another.
 const alice = book({ id: 'alice', authors: ['Alice'], cover: 'a.jpg', tags: ['fiction'] });
 const bob = book({ id: 'bob', authors: ['Bob'], cover: '', tags: ['essays'] });
 const carol = book({ id: 'carol', authors: [], cover: 'c.jpg', tags: [] });
@@ -42,8 +40,6 @@ describe('soleBlockingFilter', () => {
   });
 
   it('names the one condition whose removal alone brings books back', () => {
-    // author=eq:Zed matches nobody; cover=has still matches alice+carol. Removing
-    // the author condition alone rescues the list, so it is the sole cause.
     const result = soleBlockingFilter(
       shelf,
       active(
@@ -55,9 +51,6 @@ describe('soleBlockingFilter', () => {
   });
 
   it('blames nothing when two conditions are jointly responsible', () => {
-    // cover=none keeps only bob; author=eq:Alice keeps only alice. Together they
-    // are empty, and removing either still leaves the other emptying the list, so
-    // neither can be singled out.
     const result = soleBlockingFilter(
       shelf,
       active(

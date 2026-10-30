@@ -1,38 +1,24 @@
-/**
- * On disk the value is a Go duration string, where empty means the built-in
- * default and `0s` means "walk the whole shelf on every refresh". Neither is
- * guessable from a text box, so the panel edits a mode plus an amount and a
- * unit and converts here.
- */
 
 export type ScanIntervalMode = 'default' | 'interval' | 'always';
 export type ScanIntervalUnit = 's' | 'm' | 'h';
 
 interface ScanIntervalSelection {
   mode: ScanIntervalMode;
-  /** Whole units; only meaningful for the `interval` mode. */
   amount: number;
   unit: ScanIntervalUnit;
 }
 
 interface ScanIntervalLoad extends ScanIntervalSelection {
-  /**
-   * The stored string when the controls cannot represent it exactly (sub-second
-   * precision, a negative duration, or something `time.ParseDuration` would
-   * reject), so the caller can say the value was replaced. Empty when the
-   * selection round-trips to the same duration.
-   */
   adjustedFrom: string;
 }
 
-/** Matches `time.ParseDuration`'s default of one minute in `NewShelf`. */
 const DEFAULT_AMOUNT = 1;
 const DEFAULT_UNIT: ScanIntervalUnit = 'm';
 
 const UNIT_MS: Record<string, number> = {
   ns: 1e-6,
   us: 1e-3,
-  // Both the micro sign and the Greek letter, as Go accepts.
+  // Go time.ParseDuration accepts both µs and μs for microseconds.
   'µs': 1e-3,
   'μs': 1e-3,
   ms: 1,
@@ -43,28 +29,15 @@ const UNIT_MS: Record<string, number> = {
 
 const SECONDS_PER_UNIT: Record<ScanIntervalUnit, number> = { s: 1, m: 60, h: 3600 };
 
-/**
- * 2^63-1 nanoseconds in milliseconds, the most `time.Duration` holds. Past it
- * `time.ParseDuration` answers `invalid duration`, so an amount the number box
- * would accept — `2562048h` — would put the raw Go error in front of the user.
- * Rounded down: the exact figure is not representable as a double, and only the
- * direction of the error matters.
- */
+// Go time.Duration is signed int64 nanoseconds and time.ParseDuration rejects overflow; ECMAScript Number cannot represent the exact upper bound.
 const MAX_DURATION_MS = 9_223_372_036_854.775;
 
-/** The largest whole `unit` amount that still fits `time.Duration`. */
 export function maxScanIntervalAmount(unit: ScanIntervalUnit): number {
   return Math.floor(MAX_DURATION_MS / (SECONDS_PER_UNIT[unit] * 1000));
 }
 
-// Longest-first so `ms` is not read as `m` followed by a stray `s`.
 const TERM_PATTERN = /^(\d*\.?\d*)(ns|us|µs|μs|ms|s|m|h)/;
 
-/**
- * Parses a Go duration string into milliseconds, or null when
- * `time.ParseDuration` would reject it. Kept deliberately close to Go's own
- * grammar so the UI accepts exactly the values the shelf already holds.
- */
 export function parseGoDuration(text: string): number | null {
   let rest = text.trim();
   if (rest === '') {
@@ -77,7 +50,7 @@ export function parseGoDuration(text: string): number | null {
     rest = rest.slice(1);
   }
 
-  // Go's one special case: a bare zero needs no unit.
+  // Go time.ParseDuration accepts bare zero without a unit.
   if (rest === '0') {
     return 0;
   }
@@ -96,7 +69,6 @@ export function parseGoDuration(text: string): number | null {
     rest = rest.slice(matched.length);
   }
 
-  // Go rejects what int64 nanoseconds cannot hold, and so must we.
   if (!Number.isFinite(total) || total > MAX_DURATION_MS) {
     return null;
   }
@@ -104,7 +76,6 @@ export function parseGoDuration(text: string): number | null {
   return sign * total;
 }
 
-/** Renders a selection as the Go duration string the backend stores. */
 export function scanIntervalFromSelection(selection: ScanIntervalSelection): string {
   if (selection.mode === 'default') {
     return '';
@@ -120,12 +91,6 @@ export function scanIntervalFromSelection(selection: ScanIntervalSelection): str
   return `${amount}${selection.unit}`;
 }
 
-/**
- * Reads a stored duration back into the controls, normalizing as it goes: `60s`
- * loads as one minute and `1h30m` as ninety minutes, because the controls carry
- * a single unit. A value they cannot hold is replaced by the nearest one they
- * can and reported in `adjustedFrom`.
- */
 export function scanIntervalToSelection(stored: string): ScanIntervalLoad {
   const raw = stored.trim();
   if (raw === '') {
@@ -137,8 +102,6 @@ export function scanIntervalToSelection(stored: string): ScanIntervalLoad {
     return { mode: 'default', amount: DEFAULT_AMOUNT, unit: DEFAULT_UNIT, adjustedFrom: raw };
   }
   if (ms <= 0) {
-    // A negative interval throttles nothing, same as 0s, but it is not the
-    // string we would write back.
     return { mode: 'always', amount: DEFAULT_AMOUNT, unit: DEFAULT_UNIT, adjustedFrom: ms < 0 ? raw : '' };
   }
 

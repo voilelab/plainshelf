@@ -90,9 +90,6 @@ const dirty = ref(false);
 const showDiscardConfirmation = ref(false);
 let session = 0;
 
-// The modal owns close-button/backdrop protection, while its host page owns
-// route, unload, and native-back protection. Relay changes synchronously so a
-// browser/native back action cannot unmount the draft between watcher flushes.
 function setDirty(value: boolean): void {
   dirty.value = value;
   emit('dirty-change', value);
@@ -119,11 +116,6 @@ watch(
   { immediate: true }
 );
 
-/**
- * The modal owns this read deliberately. List and detail pages may be showing a
- * cached Book, while metadata can also change on disk outside PlainShelf. Every
- * open (and every retry) therefore asks the active provider for the latest copy.
- */
 async function loadCurrentBook(): Promise<void> {
   const bookId = props.bookId;
   const request = (session += 1);

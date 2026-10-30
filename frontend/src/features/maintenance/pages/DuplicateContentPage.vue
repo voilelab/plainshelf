@@ -40,7 +40,6 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 
 const { t } = useI18n();
 
-// The other maintenance pages all set one; this was the odd one out.
 useDocumentTitle(() => [t('maintenance.duplicateContent')]);
 
 type DuplicateGroupView = {

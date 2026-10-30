@@ -1,14 +1,3 @@
-/**
- * Owns the shelf-wide "recompute character counts" sweep for the library page.
- *
- * This deliberately lives on the always-mounted library page rather than inside
- * the filter panel: the panel (a popover/bottom sheet) unmounts when closed, and
- * `useTaskChainProgress` stops its poll on scope disposal. If the tracker lived
- * in the panel, closing it mid-sweep would abandon the poll — the server would
- * finish the work but `onSettled` would never fire, so the character-count index
- * would stay stale until the next manual refresh. Keeping it here means the poll
- * (and the index refresh it triggers on completion) survives the panel closing.
- */
 import { computed, type Ref } from 'vue';
 import { bookshelfWriter } from '@/providers';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
@@ -27,8 +16,6 @@ export function useContentStatsRefresh(unknownCount: Ref<number>, onRefreshed: (
     status,
     start: startChain
   } = useTaskChainProgress({
-    // The sweep rewrites char_count in each source's meta.json, so the cached
-    // counts — not the book listing — are what went stale.
     onSettled: () => onRefreshed(),
     startFailedMessage: () => t('library.charCount.refreshStats.failed'),
     pollFailedMessage: () => t('library.charCount.refreshStats.failed')
@@ -67,8 +54,6 @@ export function useContentStatsRefresh(unknownCount: Ref<number>, onRefreshed: (
   });
 
   async function start(): Promise<void> {
-    // A sweep already in flight returns its own ID, so this attaches to the
-    // existing progress instead of scheduling a second one.
     await startChain(() => bookshelfWriter().refreshContentStats());
   }
 

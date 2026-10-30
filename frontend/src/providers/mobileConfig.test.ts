@@ -37,9 +37,6 @@ vi.mock('@/api/client', async () => {
   };
 });
 
-// api/client.ts reads the persisted shelf id at module load, and this suite
-// imports it for real to prove shelfEntryTarget normalizes a base exactly the
-// way setApiBase does.
 Object.defineProperty(globalThis, 'window', {
   configurable: true,
   writable: true,
@@ -58,7 +55,10 @@ const {
   getActiveShelfEntry,
   getActiveShelfEntryToken,
   getShelfEntries,
+  addShelfEntry,
+  dismissRestorePrompt,
   initMobileConfig,
+  isRestorePromptDismissed,
   isShelfEntryConfigured,
   isShelfEntryUsable,
   loadShelfEntries,
@@ -127,14 +127,12 @@ function pcloudEntry(overrides: Partial<PCloudShelfEntry> = {}): PCloudShelfEntr
   };
 }
 
-/** The cache scope key providers/cacheScope.ts would derive after applying. */
 function appliedScopeKey(): string {
   const apiBase = setApiBaseMock.mock.lastCall?.[0] ?? '';
   const shelfID = setActiveShelfIDMock.mock.lastCall?.[0] ?? '';
   return buildDeviceDocumentKey(apiBase, shelfID);
 }
 
-/** Puts the module back in its pre-init state between cases. */
 async function reinit(): Promise<void> {
   await initMobileConfig();
 }
@@ -147,11 +145,6 @@ beforeEach(() => {
 });
 
 describe('token wiring', () => {
-  // The regression this pins: a `protect_read` server requires a token for
-  // reads too, so without this wiring a native install cannot browse one at
-  // all. The e2e suite cannot catch it — its preview loads index.html from the
-  // Go server, which injects window.__PLAINSHELF_SECURITY__, a source a real
-  // APK never has.
   it('exposes the active entry token to the API client via window.plainshelf', async () => {
     store.set(ENTRIES_KEY, JSON.stringify([serverEntry()]));
     store.set(ACTIVE_KEY, 'entry-1');
@@ -173,8 +166,6 @@ describe('token wiring', () => {
     expect(await window.plainshelf?.getApiToken?.()).toBe('second');
   });
 
-  // Provider construction runs at bootstrap and cannot await, so the active
-  // entry's secret is also latched.
   it('latches the active token for synchronous callers', async () => {
     store.set(ENTRIES_KEY, JSON.stringify([pcloudEntry()]));
     store.set(ACTIVE_KEY, 'entry-2');
@@ -195,6 +186,30 @@ describe('token wiring', () => {
   });
 });
 
+describe('adding an entry without switching', () => {
+  it('keeps the active entry and appends the new one', async () => {
+    await reinit();
+    await upsertShelfEntry(serverEntry({ id: 'a' }));
+
+    await addShelfEntry({ id: 'b', type: 'local', name: 'Restored', localShelfId: 'local-2' });
+
+    const loaded = await loadShelfEntries();
+    expect(loaded.activeEntryID).toBe('a');
+    expect(loaded.entries.map((entry) => entry.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('the restore prompt', () => {
+  it('stays dismissed once skipped', async () => {
+    expect(await isRestorePromptDismissed()).toBe(false);
+
+    await dismissRestorePrompt();
+
+    expect(await isRestorePromptDismissed()).toBe(true);
+    expect(store.get('plainshelf.mobile.restorePromptDismissed')).toBe('true');
+  });
+});
+
 describe('applying an entry', () => {
   it('applies the server URL and shelf id for a server entry', async () => {
     await reinit();
@@ -204,9 +219,6 @@ describe('applying an entry', () => {
     expect(setActiveShelfIDMock).toHaveBeenLastCalledWith('main');
   });
 
-  // The API base and shelf id double as the identity that scopes device-local
-  // book data (providers/cacheScope.ts). Left empty, two pCloud folders — or a
-  // pCloud folder and a same-origin web install — would share one cache.
   it('derives a distinct cache identity for a pCloud entry', async () => {
     await reinit();
     await upsertShelfEntry(
@@ -217,10 +229,6 @@ describe('applying an entry', () => {
     expect(setActiveShelfIDMock).toHaveBeenLastCalledWith('/PlainShelf/default-shelf');
   });
 
-  // setApiBase normalizes what it is given, so a server URL saved with a
-  // trailing slash produced one scope key while the shelf was active and a
-  // different one when its downloads were located for deletion — the delete
-  // then swept a directory that never existed and left the real one on disk.
   it('normalizes a server URL the same way the API client does', () => {
     expect(shelfEntryTarget(serverEntry({ serverUrl: 'http://host:20000/' }))).toEqual({
       apiBase: 'http://host:20000',
@@ -242,9 +250,6 @@ describe('applying an entry', () => {
     });
   });
 
-  // Host and folder path are not unique across accounts. Without the account
-  // id these two share one cache: each shows the other's books, and removing
-  // either deletes the other's downloads.
   it('separates the same folder path in two pCloud accounts', () => {
     const first = shelfEntryTarget(pcloudEntry({ pcloudUserId: '111', pcloudShelfRoot: '/shelf' }));
     const second = shelfEntryTarget(pcloudEntry({ pcloudUserId: '222', pcloudShelfRoot: '/shelf' }));
@@ -253,8 +258,6 @@ describe('applying an entry', () => {
     expect(first).not.toEqual(second);
   });
 
-  // The account id is recorded at authorization, so entries that predate it
-  // have none — and must keep deriving the scope their downloads live under.
   it('leaves the scope unchanged for an entry with no recorded account', () => {
     expect(shelfEntryTarget(pcloudEntry({ pcloudShelfRoot: '/shelf' })).apiBase).toBe(
       'pcloud://api.pcloud.com'
@@ -275,6 +278,22 @@ describe('applying an entry', () => {
 
     const [reloaded] = (await loadShelfEntries()).entries;
     expect(reloaded).toMatchObject({ pcloudUserId: '111' });
+  });
+
+  it('points the client at the embedded server for a local entry', async () => {
+    await reinit();
+    await upsertShelfEntry({ id: 'entry-3', type: 'local', name: 'Phone', localShelfId: 'local-abc' });
+
+    expect(setApiBaseMock).toHaveBeenLastCalledWith('https://localhost/__plainshelf_local');
+    expect(setActiveShelfIDMock).toHaveBeenLastCalledWith('local-abc');
+    const [reloaded] = (await loadShelfEntries()).entries;
+    expect(reloaded).toEqual({ id: 'entry-3', type: 'local', name: 'Phone', localShelfId: 'local-abc' });
+    expect(isShelfEntryConfigured(reloaded)).toBe(true);
+    expect(await isShelfEntryUsable(reloaded)).toBe(true);
+  });
+
+  it('does not open a local entry without its shelf id', () => {
+    expect(isShelfEntryConfigured(newShelfEntry('local'))).toBe(false);
   });
 
   it('clears the client when the device has no shelf left', async () => {
@@ -340,8 +359,6 @@ describe('the entry list', () => {
     await upsertShelfEntry(serverEntry());
     await deleteShelfEntry('entry-1');
 
-    // An absent key is what marks an install as not yet migrated, so an
-    // emptied list must still leave a stored list behind.
     expect(store.get(ENTRIES_KEY)).toBe('[]');
   });
 
@@ -357,9 +374,6 @@ describe('the entry list', () => {
   });
 });
 
-// The whole list is read before the app mounts and again on every navigation,
-// so a blob it cannot understand has to degrade to "no shelves" — which the
-// router answers with the setup page — rather than take the app down.
 describe('a damaged list', () => {
   it.each([
     ['not JSON', 'not json at all'],
@@ -377,9 +391,6 @@ describe('a damaged list', () => {
     expect((await loadShelfEntries()).entries).toHaveLength(1);
   });
 
-  // An entry stored before pCloud support, or with a type nobody recognises,
-  // is a server entry — the same rule the single-connection layout applied to
-  // an absent mode key.
   it('reads an unknown type as a server entry', async () => {
     store.set(ENTRIES_KEY, JSON.stringify([{ id: 'x', type: 'something-else', shelfId: 'main' }]));
 
@@ -387,10 +398,6 @@ describe('a damaged list', () => {
   });
 });
 
-// The load-bearing property: an install upgraded from the single-connection
-// layout must resolve to exactly the (API base, shelf id) pair it had before,
-// because that pair is the cache scope key. Anything else leaves every
-// downloaded book on disk but invisible.
 describe('migration from the single connection', () => {
   it('carries a server connection over with its cache scope intact', async () => {
     store.set('plainshelf.mobile.mode', 'server');
@@ -433,8 +440,6 @@ describe('migration from the single connection', () => {
     expect(secureStore.has('plainshelf.mobile.pcloud.accessToken')).toBe(false);
   });
 
-  // Installs that predate Keystore-backed storage kept the pCloud token in
-  // plaintext Preferences.
   it('picks up a plaintext pCloud token and encrypts it', async () => {
     store.set('plainshelf.mobile.mode', 'pcloud');
     store.set('plainshelf.mobile.pcloud.host', 'api.pcloud.com');
@@ -448,8 +453,6 @@ describe('migration from the single connection', () => {
     expect(store.has('plainshelf.mobile.pcloud.accessToken')).toBe(false);
   });
 
-  // The whole point of the ordering: a migration that dies partway must be
-  // resumable from an untouched source rather than lose the connection.
   it('leaves the old keys alone when writing the new token fails', async () => {
     store.set('plainshelf.mobile.mode', 'server');
     store.set('plainshelf.mobile.serverUrl', 'http://host:20000');
@@ -508,10 +511,6 @@ describe('isShelfEntryConfigured', () => {
 });
 
 describe('isShelfEntryUsable', () => {
-  // Without this the router lets the user into a library whose every read
-  // fails: createMobileSource falls back to the server provider while the API
-  // base is still `pcloud://…`, so nothing can answer. The form that could
-  // re-authorize is the only useful destination.
   it('refuses a pCloud entry whose token is gone', async () => {
     store.set(ENTRIES_KEY, JSON.stringify([pcloudEntry()]));
     store.set(ACTIVE_KEY, 'entry-2');
@@ -523,8 +522,6 @@ describe('isShelfEntryUsable', () => {
     await expect(isShelfEntryUsable(pcloudEntry())).resolves.toBe(true);
   });
 
-  // The opposite rule for a server: a token is only needed when the server sets
-  // `protect_read`, so requiring one would lock a working connection out.
   it('accepts a server entry with no token', async () => {
     await expect(isShelfEntryUsable(serverEntry())).resolves.toBe(true);
   });
@@ -556,5 +553,58 @@ describe('applyActiveShelfEntry', () => {
     await applyActiveShelfEntry();
 
     expect(setApiBaseMock).toHaveBeenCalledWith('http://host:20000');
+  });
+});
+
+describe('a dav entry', () => {
+  type DavShelfEntry = import('./mobileConfig').DavShelfEntry;
+
+  function davEntry(overrides: Partial<DavShelfEntry> = {}): DavShelfEntry {
+    return {
+      id: 'entry-3',
+      type: 'dav',
+      name: 'Living room',
+      davSource: 'plainshelf',
+      davUrl: 'http://192.168.1.20:20001/dav/default_shelf/',
+      ...overrides
+    };
+  }
+
+  it('keeps its token in secure storage, never in the list', async () => {
+    await reinit();
+    await upsertShelfEntry(davEntry(), 'tok');
+
+    expect(secureStore.get('plainshelf.mobile.secret.entry-3')).toBe('tok');
+    expect(store.get(ENTRIES_KEY)).not.toContain('tok');
+    const [reloaded] = (await loadShelfEntries()).entries;
+    expect(reloaded).toEqual(davEntry());
+  });
+
+  it('scopes by source type, URL and account, never as an HTTP base', () => {
+    const plain = shelfEntryTarget(davEntry());
+    expect(plain.apiBase).toBe('plainshelf+http://192.168.1.20:20001/dav/default_shelf');
+    const webdav = shelfEntryTarget(davEntry({ davSource: 'webdav' }));
+    const account = shelfEntryTarget(davEntry({ davSource: 'webdav', davUsername: 'reader' }));
+    expect(new Set([plain.apiBase, webdav.apiBase, account.apiBase]).size).toBe(3);
+    expect(account.apiBase).toContain('reader@');
+  });
+
+  it('needs a token for a PlainShelf export but not for WebDAV', async () => {
+    await reinit();
+    await expect(isShelfEntryUsable(davEntry())).resolves.toBe(false);
+    await expect(isShelfEntryUsable(davEntry({ davSource: 'webdav' }))).resolves.toBe(true);
+    await expect(isShelfEntryUsable(davEntry({ davSource: 'webdav', davUsername: 'reader' }))).resolves.toBe(false);
+
+    secureStore.set('plainshelf.mobile.secret.entry-3', 'tok');
+    await expect(isShelfEntryUsable(davEntry())).resolves.toBe(true);
+    expect(isShelfEntryConfigured(davEntry({ davUrl: '' }))).toBe(false);
+  });
+
+  it('is named after its host when saved without a name', () => {
+    expect(shelfEntryDisplayName(davEntry({ name: '' }))).toBe('192.168.1.20:20001');
+  });
+
+  it('starts as a PlainShelf source', () => {
+    expect(newShelfEntry('dav')).toMatchObject({ type: 'dav', davSource: 'plainshelf', davUrl: '' });
   });
 });

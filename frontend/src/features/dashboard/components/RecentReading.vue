@@ -63,14 +63,8 @@ defineProps<{
 
 const { t, locale } = useI18n();
 
-// The reader entry follows the device-local "reader launch preference" — a new
-// tab / standalone reader on 'new-reader', in-place navigation on 'in-window' —
-// instead of the plain in-window RouterLink it used to be, so the home cards
-// match the library and book-detail read actions.
 const { onReaderLinkClick } = useReaderLaunch();
 
-// Captured once when the section mounts: the relative labels are a snapshot of
-// the moment the dashboard was opened, not a ticking clock.
 const now = Date.now();
 </script>
 

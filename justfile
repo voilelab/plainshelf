@@ -3,7 +3,6 @@ set shell := ["zsh", "-cu"]
 srv_frontend_dir := "frontend"
 e2e_test_dir := "e2e"
 
-# Product version strings derived from Git tags for application builds.
 version := `./scripts/resolve-version.sh display`
 native_version := `./scripts/resolve-version.sh native`
 android_version_name := `./scripts/resolve-version.sh android-name`
@@ -23,11 +22,6 @@ test-go: build-server-frontend
 	cd desktop && go test ./...
 	cd reader && go test ./...
 
-# Run e2e tests: build frontend and run the whole e2e suite.
-# The server is compiled once here and reused by every spec (via
-# PLAINSHELF_E2E_SERVER_BIN) instead of a `go run` cold start per test.
-# This stays the whole suite on purpose: CI only gates on `test-e2e-smoke`, so
-# this recipe is where a change outside the smoke set gets checked before it is
 # pushed and waits for a nightly to say so.
 test-e2e: build-server-frontend
 	npm --prefix {{e2e_test_dir}} ci
@@ -50,7 +44,6 @@ build-wasm-demo: build-server-frontend
 run-wasm-demo port="5180": build-wasm-demo
 	node cmd/plainshelf-wasm/web/serve.mjs workspace/wasm-demo {{port}}
 
-# Run the wasm demo's browser smoke test, the same check CI gates on.
 # Set CHROMIUM to a preinstalled browser to skip Playwright's own download.
 test-wasm-demo: build-wasm-demo
 	env -i PATH="$(go env GOROOT)/lib/wasm:$PATH" HOME="$HOME" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" GOOS=js GOARCH=wasm go test ./server/store/
@@ -71,14 +64,6 @@ build-desktop: build-server-frontend
 	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' desktop/build/bin/PlainShelf.app/Contents/Info.plist)" = "{{native_version}}"
 	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' desktop/build/bin/PlainShelf.app/Contents/Info.plist)" = "{{native_version}}"
 
-# Run desktop app. On macOS the in-app "read" action shells out to the standalone
-# reader; in dev this points it at your locally built reader
-# (reader/build/bin/PlainShelfReader.app), so reads open the dev-line reader
-# instead of the brew-installed one. build-reader runs first so that reader is
-# rebuilt from the current source every time — a stale dev reader would open with
-# yesterday's code. Override the reader with a path or app name —
-# `just run-desktop /path/to/PlainShelfReader.app` — and an already-set
-# PLAINSHELF_READER_APP in the environment wins over both (the rebuilt dev reader
 # is then simply not used).
 run-desktop reader="": build-reader
 	#!/usr/bin/env zsh
@@ -109,7 +94,6 @@ build-reader: build-server-frontend
 	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' reader/build/bin/PlainShelfReader.app/Contents/Info.plist)" = "{{native_version}}"
 	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' reader/build/bin/PlainShelfReader.app/Contents/Info.plist)" = "{{native_version}}"
 
-# Run reader app in dev mode. Opens a book straight away when given one:
 # `just run-reader path/to/book.bookpkg`; otherwise the app asks for a folder.
 run-reader book="": build-server-frontend
 	#!/usr/bin/env zsh
@@ -130,8 +114,14 @@ mobile-add-android: build-server-frontend
 mobile-sync: build-server-frontend
 	cd {{srv_frontend_dir}} && npx cap sync android
 
+# Build the embedded server AAR the APK packages (needs ANDROID_HOME, ANDROID_NDK_HOME and a JDK)
+android-lib:
+	./scripts/build-android-lib.sh build/android-lib
+	mkdir -p {{srv_frontend_dir}}/android/app/libs
+	cp build/android-lib/plainshelf.aar {{srv_frontend_dir}}/android/app/libs/
+
 # Build a debug APK (run mobile-add-android first if android/ is missing)
-build-mobile-android: mobile-sync
+build-mobile-android: mobile-sync android-lib
 	#!/usr/bin/env zsh
 	set -eu
 	java_home="$(./scripts/resolve-android-jdk.sh)"
@@ -143,7 +133,7 @@ open-mobile-android: mobile-sync
 	cd {{srv_frontend_dir}} && npx cap open android
 
 # Run the app on a local Android emulator with a local server (in-app server URL: http://10.0.2.2:20000)
-run-android-app conf="config.yaml": build-server-frontend
+run-android-app conf="config.yaml": build-server-frontend android-lib
 	#!/usr/bin/env zsh
 	set -eu
 	java_home="$(./scripts/resolve-android-jdk.sh)"
@@ -151,23 +141,17 @@ run-android-app conf="config.yaml": build-server-frontend
 	if lsof -nP -iTCP:20000 -sTCP:LISTEN >/dev/null 2>&1; then
 		echo "port 20000 is already in use — stop the running server first"; exit 1
 	fi
-	# Start the local server in the background; killed on exit/Ctrl-C.
-	# Runs from the repo root, so config paths resolve relative to it (workspace/... style).
 	[[ -f workspace/config.yaml ]] || { mkdir -p workspace && cp cmd/plainshelf-srv/conf/config.yaml workspace/; }
 	( exec go run ./cmd/plainshelf-srv/main.go -conf workspace/{{conf}} ) &
 	srv_pid=$!
 	trap 'kill $srv_pid 2>/dev/null' EXIT INT TERM
-	# Fail fast: wait until the server is healthy before touching the emulator.
 	until curl -sf http://127.0.0.1:20000/health >/dev/null 2>&1; do
 		if ! kill -0 $srv_pid 2>/dev/null; then
 			echo "server failed to start — see the error above (config: workspace/{{conf}}, e.g. lib_root volume not mounted)"; exit 1
 		fi
 		sleep 1
 	done
-	# The ephemeral access token (regenerated every start) is only injected into the
-	# server-served page; the APK shell never sees it, so surface it for the connect page.
 	token=$(curl -s http://127.0.0.1:20000/ | sed -n 's/.*__PLAINSHELF_SECURITY__=[^<]*"token":"\([^"]*\)".*/\1/p')
-	# Boot an emulator if none is running (emulator binary is not on PATH).
 	if ! adb devices | grep -q '^emulator-.*device$'; then
 		avd="${PLAINSHELF_AVD:-$("$ANDROID_HOME/emulator/emulator" -list-avds | head -n1)}"
 		"$ANDROID_HOME/emulator/emulator" -avd "$avd" >/dev/null 2>&1 &
@@ -175,7 +159,6 @@ run-android-app conf="config.yaml": build-server-frontend
 		until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; do sleep 2; done
 	fi
 	target=$(adb devices | awk '$2 == "device" && /^emulator-/ { print $1; exit }')
-	# cap run performs sync + gradle build + install + launch on the target.
 	( cd {{srv_frontend_dir}} && npx cap run android --target "$target" )
 	echo "Server running at 127.0.0.1:20000 — in the app connect to http://10.0.2.2:20000"
 	echo "Access token for edits (paste in the app's connect page; changes every restart): ${token:-(security disabled)}"

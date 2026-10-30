@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// seedLogFile writes a file into dir, whether or not it is one the writer is
-// expected to recognize as a log.
 func seedLogFile(t *testing.T, dir, name string) string {
 	t.Helper()
 
@@ -19,7 +17,6 @@ func seedLogFile(t *testing.T, dir, name string) string {
 	return path
 }
 
-// remainingNames lists what survived a rotation, sorted for comparison.
 func remainingNames(t *testing.T, dir string) []string {
 	t.Helper()
 
@@ -49,15 +46,13 @@ func TestDailyFileWriterRotateRemovesExpired(t *testing.T) {
 		t.Fatalf("rotate: %v", err)
 	}
 
-	// Retention is an age, so 01-09 is exactly three days old and stays while
-	// 01-01 is well past the window.
 	want := []string{"app-2024-01-09.log", "app-2024-01-10.log", "app-2024-01-12.log"}
 	if got := remainingNames(t, dir); !equalNames(got, want) {
 		t.Fatalf("remaining = %v, want %v", got, want)
 	}
 }
 
-func TestDailyFileWriterRotateKeepsEverythingWhenDisabled(t *testing.T) {
+func TestDailyFileWriterDisabledRotation(t *testing.T) {
 	dir := t.TempDir()
 	seedLogFile(t, dir, "app-2020-01-01.log")
 
@@ -74,10 +69,7 @@ func TestDailyFileWriterRotateKeepsEverythingWhenDisabled(t *testing.T) {
 	}
 }
 
-// TestDailyFileWriterRotateOnlyRemovesLogFiles pins the acceptance rule that
-// cleanup deletes exactly what the log API lists: the same prefix, date stamp
-// and suffix, and never a directory or a symlink.
-func TestDailyFileWriterRotateOnlyRemovesLogFiles(t *testing.T) {
+func TestDailyRotateRemovesOnlyLogs(t *testing.T) {
 	dir := t.TempDir()
 
 	target := seedLogFile(t, dir, "keep-me.txt")
@@ -101,7 +93,6 @@ func TestDailyFileWriterRotateOnlyRemovesLogFiles(t *testing.T) {
 		t.Fatalf("rotate: %v", err)
 	}
 
-	// Only app-2020-01-01.log matches the listing rules and is expired.
 	want := []string{
 		"app-2020-01-01.txt",
 		"app-2020-01-02.log",
@@ -116,16 +107,12 @@ func TestDailyFileWriterRotateOnlyRemovesLogFiles(t *testing.T) {
 		t.Fatalf("remaining = %v, want %v", got, want)
 	}
 
-	// The symlink is skipped, not followed: its target has to survive too.
 	if _, err := os.Stat(target); err != nil {
 		t.Fatalf("Stat symlink target: %v", err)
 	}
 }
 
-// TestDailyFileWriterRotateExpiresTheClosedFile covers a rotation that skips
-// days: the file just closed is already out of the window, and the one now
-// being written to is not.
-func TestDailyFileWriterRotateExpiresTheClosedFile(t *testing.T) {
+func TestDailyRotateExpiresClosedFile(t *testing.T) {
 	dir := t.TempDir()
 
 	w := newTestWriter(dir, "app", 1)
@@ -144,7 +131,6 @@ func TestDailyFileWriterRotateExpiresTheClosedFile(t *testing.T) {
 	}
 }
 
-// newTestWriter builds a rotating writer over dir with a fixed window.
 func newTestWriter(dir, prefix string, retentionDays int) *DailyFileWriter {
 	return NewDailyFileWriter(LogFileConf{
 		Type:          LogFileTypeNameRotate,
@@ -154,10 +140,7 @@ func newTestWriter(dir, prefix string, retentionDays int) *DailyFileWriter {
 	})
 }
 
-// TestDailyFileWriterRotateUsesTheRuntimeWindow covers the setting route
-// changing retention while the server runs: the writer reads the shared value
-// on its next rotation rather than the one it was built with.
-func TestDailyFileWriterRotateUsesTheRuntimeWindow(t *testing.T) {
+func TestDailyRotateUsesRuntimeWindow(t *testing.T) {
 	dir := t.TempDir()
 	seedLogFile(t, dir, "app-2024-01-01.log")
 
@@ -172,7 +155,6 @@ func TestDailyFileWriterRotateUsesTheRuntimeWindow(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = w.Close() })
 
-	// Set to keep everything: the configured three-day window must not apply.
 	retention.Set(0)
 	if err := w.rotate("2024-01-12"); err != nil {
 		t.Fatalf("rotate under an override: %v", err)
@@ -181,18 +163,16 @@ func TestDailyFileWriterRotateUsesTheRuntimeWindow(t *testing.T) {
 		t.Fatalf("remaining under an override = %v, want the expired file kept", got)
 	}
 
-	// Clearing it returns the writer to its configured window.
 	retention.Clear()
 	if err := w.rotate("2024-01-13"); err != nil {
 		t.Fatalf("rotate after clearing: %v", err)
 	}
-	// The three-day window now applies again: 01-01 is expired, 01-12 is not.
 	if got := remainingNames(t, dir); !equalNames(got, []string{"app-2024-01-12.log", "app-2024-01-13.log"}) {
 		t.Fatalf("remaining after clearing = %v, want the expired file gone", got)
 	}
 }
 
-func TestRetentionDaysFallsBackToTheConfiguredWindow(t *testing.T) {
+func TestRetentionDaysFallsBackToConfig(t *testing.T) {
 	var unset *Retention
 	if got := unset.Days(7); got != 7 {
 		t.Fatalf("nil Retention Days(7) = %d, want 7", got)

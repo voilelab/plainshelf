@@ -7,8 +7,9 @@
 PlainShelf is a local-first, single-user reading library for lightweight text
 content. It stores the library in human-readable files and provides web,
 desktop, and experimental Android clients. Local-first is also a security
-stance: no platform — including this one — holds your library or your reading
-records, and no PlainShelf server holds your credentials. See
+stance: PlainShelf operates no service that holds your library, reading records
+or credentials. Your own server or device reads the credentials needed for the
+remote sources you configure. See
 [Deployment and threat model](docs/deployment-and-threat-model.md) for what each
 deployment does and does not protect.
 
@@ -16,9 +17,9 @@ deployment does and does not protect.
 > on, the shelf's user-data files take only backward-compatible changes. Until
 > then a 0.x upgrade can still change them, and the HTTP API and UI stay
 > changeable either way. Back up your shelf before upgrading — see
-> [Backup and Restore](docs/backup-and-restore.md) for what to copy and how to
+> [Backup and restore](docs/backup-and-restore.md) for what to copy and how to
 > put it back, and
-> [Data Format Versioning](docs/concepts/data-format-versioning.md) for what the
+> [Data format versioning](docs/concepts/data-format-versioning.md) for what the
 > on-disk format does and does not guarantee.
 
 ![PlainShelf library preview](image.png)
@@ -40,14 +41,14 @@ read-only storage backend, not sync: nothing is written back.
 
 EPUB is an import format, not a storage format: the text is extracted and stored
 as an ordinary plain-text or Markdown book, and the original `.epub` is not kept.
-[EPUB Import](docs/epub-import.md) covers what survives the conversion, including
+[EPUB import](docs/epub-import.md) covers what survives the conversion, including
 the illustrations a Markdown import keeps.
 
 ## Try it
 
 [Open the demo](https://plainshelf.org/demo/): the full web app running in your
 browser, with nothing to install and nothing uploaded. See
-[Try the Demo](docs/try-the-demo.md) for where it keeps your library and how to
+[Try the demo](docs/try-the-demo.md) for where it keeps your library and how to
 move a library between it and a real install.
 
 ## Install
@@ -60,7 +61,7 @@ brew install --cask voilelab/plainshelf/plainshelf
 
 Prebuilt server archives and Docker images are also available. See the
 [installation guide](docs/installation.md), then follow
-[Getting Started](docs/getting-started.md).
+[Getting started](docs/getting-started.md).
 
 ## Develop
 
@@ -79,7 +80,7 @@ in the [development guide](docs/development/setup.md).
 - [Documentation home](docs/index.md)
 - [Try the demo](docs/try-the-demo.md)
 - [Installation](docs/installation.md)
-- [Getting Started](docs/getting-started.md)
+- [Getting started](docs/getting-started.md)
 - [Local shelf configuration](docs/configuring-local-shelf.md)
 - [SMB shelf configuration](docs/configuring-smb-shelf.md)
 - [Deployment and threat model](docs/deployment-and-threat-model.md)

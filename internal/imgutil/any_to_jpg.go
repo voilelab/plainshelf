@@ -5,6 +5,7 @@ import (
 	_ "image/png"
 
 	"bytes"
+	"errors"
 	"image"
 	"image/jpeg"
 
@@ -13,9 +14,19 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// AnyToJPG converts image bytes of any supported format to JPEG format.
-// If the input is already in JPEG format, it returns the original bytes.
+const MaxPixels = 40_000_000
+
+var ErrTooManyPixels = errors.New("image exceeds the pixel limit")
+
 func AnyToJPG(bs []byte) ([]byte, error) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(bs))
+	if err != nil {
+		return nil, err
+	}
+	if int64(cfg.Width)*int64(cfg.Height) > MaxPixels {
+		return nil, ErrTooManyPixels
+	}
+
 	img, format, err := image.Decode(bytes.NewReader(bs))
 	if err != nil {
 		return nil, err

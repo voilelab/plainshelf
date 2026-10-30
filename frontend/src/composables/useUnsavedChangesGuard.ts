@@ -24,12 +24,7 @@ interface BrowserHistoryState {
 
 type HistoryTraversalDirection = 'back' | 'forward' | null;
 
-/**
- * Vue Router exposes the entry reached by a popstate event while leave guards
- * run. That lets a cancelled browser/mouse history action be retried in the
- * same direction after the user confirms, instead of replacing the editor and
- * leaving a duplicate entry behind it.
- */
+// Vue Router 5.3.1 updates history state on popstate before running navigation guards.
 export function historyTraversalDirection(
   toFullPath: string,
   fromFullPath: string,
@@ -42,17 +37,10 @@ export function historyTraversalDirection(
 }
 
 interface UnsavedChangesGuardOptions {
-  /** The shared safe-back action used by the editor's button and native back. */
   goBack: LeaveAction;
-  /** Flushes any editor buffer whose reactive dirty flag trails the visible text. */
   beforeCheck?: () => void;
 }
 
-/**
- * Protects every way out of an editor with one confirmation state:
- * in-page back, Vue Router navigation, browser/mouse history, page unload and
- * Capacitor's Android system back button.
- */
 export function useUnsavedChangesGuard(
   isDirty: MaybeRefOrGetter<boolean>,
   options: UnsavedChangesGuardOptions
@@ -112,13 +100,8 @@ export function useUnsavedChangesGuard(
     } else if (direction === 'forward') {
       pendingLeave.value = () => router.forward();
     } else if (state?.back === to.fullPath) {
-      // A sidebar/link can point at the same entry the shared back action
-      // would consume. Use that entry instead of replacing the editor with a
-      // duplicate copy of it.
       pendingLeave.value = options.goBack;
     } else {
-      // A link/router navigation has already been cancelled. Replacing the
-      // editor entry honours its intended destination without adding history.
       pendingLeave.value = () => router.replace(routeLocationForRetry(to));
     }
     return false;
@@ -126,11 +109,7 @@ export function useUnsavedChangesGuard(
 
   onBeforeRouteLeave(guardRouteChange);
 
-  // A parameter-only move between two entries of the same route — /books/A to
-  // /books/B, reached by a link or by browser history — reuses this component,
-  // so Vue Router runs the update guard and never the leave guard above. The
-  // page would then swap books underneath the open editor and discard the
-  // draft without asking. Both guards share one decision.
+  // Vue Router 5.3.1 runs update guards for reused components and leave guards for components being left.
   onBeforeRouteUpdate(guardRouteChange);
 
   function onBeforeUnload(event: BeforeUnloadEvent): void {

@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// writeAsset bypasses WriteAsset, so the read path is exercised against a file
-// dropped into the shelf by hand.
 func writeAsset(t *testing.T, libRoot string, source *Source, name string, data []byte) string {
 	t.Helper()
 
@@ -69,7 +67,6 @@ func TestSourceOpenAsset(t *testing.T) {
 func TestSourceWriteAsset(t *testing.T) {
 	_, source, _ := newBookWithSource(t, "Written Art", "body")
 
-	// The assets directory does not exist yet; writing has to create it.
 	want := []byte("fake png bytes")
 	if err := source.WriteAsset("img-0001.png", want); err != nil {
 		t.Fatalf("WriteAsset: %v", err)
@@ -89,7 +86,6 @@ func TestSourceWriteAsset(t *testing.T) {
 		t.Errorf("asset bytes = %q, want %q", got, want)
 	}
 
-	// Rewriting replaces the contents rather than appending to them.
 	if err := source.WriteAsset("img-0001.png", []byte("replaced")); err != nil {
 		t.Fatalf("WriteAsset second time: %v", err)
 	}
@@ -107,8 +103,6 @@ func TestSourceWriteAsset(t *testing.T) {
 	}
 }
 
-// Writing a name the read path would refuse would create a file the server can
-// never serve.
 func TestSourceWriteAssetRejectsUnsafeNames(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "Unsafe Writes", "body")
 
@@ -118,7 +112,6 @@ func TestSourceWriteAssetRejectsUnsafeNames(t *testing.T) {
 		}
 	}
 
-	// Nothing was created on the way to being refused.
 	if _, err := os.Stat(path.Join(libRoot, source.FolderPath(), SourceAssetsFolder)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("assets dir exists after only refused writes: err = %v", err)
 	}
@@ -140,7 +133,6 @@ func TestSourceDeleteAsset(t *testing.T) {
 		t.Fatalf("OpenAsset after delete: error = %v, want ErrAssetNotFound", err)
 	}
 
-	// A quiet success would hide a typo.
 	if err := source.DeleteAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
 		t.Fatalf("second DeleteAsset: error = %v, want ErrAssetNotFound", err)
 	}
@@ -151,7 +143,6 @@ func TestSourceDeleteAsset(t *testing.T) {
 		}
 	}
 
-	// The text is left alone; a dead link renders as its alt text.
 	content, err := os.ReadFile(path.Join(libRoot, source.FolderPath(), SourceFile))
 	if err != nil {
 		t.Fatalf("read source.txt: %v", err)
@@ -164,7 +155,6 @@ func TestSourceDeleteAsset(t *testing.T) {
 func TestSourceOpenAssetMissing(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "No Pictures", "body")
 
-	// Neither an absent assets/ directory nor an absent file is a server fault.
 	if _, err := source.OpenAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
 		t.Fatalf("OpenAsset with no assets dir: error = %v, want ErrAssetNotFound", err)
 	}
@@ -176,7 +166,6 @@ func TestSourceOpenAssetMissing(t *testing.T) {
 	}
 }
 
-// A name resolving to a directory is a missing asset, not a server error.
 func TestSourceOpenAssetRejectsDirectory(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "Directory Trap", "body")
 
@@ -193,12 +182,8 @@ func TestSourceOpenAssetRejectsDirectory(t *testing.T) {
 func TestSourceOpenAssetRejectsUnsafeNames(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "Unsafe Names", "body")
 
-	// A real asset exists, so a rejected name cannot be mistaken for an empty
-	// assets/ directory happening to answer the same way.
 	writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))
 
-	// source.txt sits one level up, so the traversal cases below name a file
-	// that genuinely exists: a pass proves refusal, not a missing target.
 	cases := map[string]string{
 		"empty":              "",
 		"dot":                ".",
@@ -225,7 +210,7 @@ func TestSourceOpenAssetRejectsUnsafeNames(t *testing.T) {
 	}
 }
 
-func TestSourceAssetExtensionsAreCaseInsensitive(t *testing.T) {
+func TestAssetExtensionsIgnoreCase(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "Shouty Extension", "body")
 	writeAsset(t, libRoot, source, "img-0001.JPG", []byte("x"))
 
@@ -255,12 +240,13 @@ func TestSourceAssetETagTracksContent(t *testing.T) {
 	}
 }
 
-// validateAssetName shares the ignored-name rule with layer and source-id
-// validation through shelfutil, but must report it as ErrInvalidAssetName.
-func TestIgnoredAssetNamesStayAssetErrors(t *testing.T) {
-	err := validateAssetName("@eaDir")
-	if !errors.Is(err, ErrInvalidAssetName) {
-		t.Fatalf("validateAssetName(@eaDir) = %v, want ErrInvalidAssetName", err)
+func TestInvalidAssetNameErrors(t *testing.T) {
+	for _, name := range []string{"@eaDir", "", ".hidden.png", ".hidden/nested.png", "nested/image.png", "image.txt"} {
+		t.Run(name, func(t *testing.T) {
+			if err := validateAssetName(name); !errors.Is(err, ErrInvalidAssetName) {
+				t.Fatalf("validateAssetName(%q) = %v, want ErrInvalidAssetName", name, err)
+			}
+		})
 	}
 }
 
@@ -283,7 +269,6 @@ func TestIsSupportedImageExt(t *testing.T) {
 func TestSourceListAssets(t *testing.T) {
 	_, source, libRoot := newBookWithSource(t, "Listable Art", "body")
 
-	// No assets/ directory yet: an empty result, not an error.
 	names, err := source.ListAssets()
 	if err != nil {
 		t.Fatalf("ListAssets with no assets dir: %v", err)
@@ -295,7 +280,6 @@ func TestSourceListAssets(t *testing.T) {
 	writeAsset(t, libRoot, source, "img-0002.png", []byte("two"))
 	writeAsset(t, libRoot, source, "img-0001.webp", []byte("one"))
 
-	// The list is exactly what a per-name request could open.
 	writeAsset(t, libRoot, source, "notes.txt", []byte("prose"))
 	writeAsset(t, libRoot, source, ".hidden.png", []byte("dot"))
 	subDir := path.Join(libRoot, source.FolderPath(), SourceAssetsFolder, "nested")
@@ -319,7 +303,6 @@ func TestSourceListAssets(t *testing.T) {
 	}
 }
 
-// The property that makes a separate orphan-collection pass unnecessary.
 func TestDeleteSourceRemovesItsAssets(t *testing.T) {
 	book, source, libRoot := newBookWithSource(t, "Doomed Art", "body")
 	assetPath := writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))
@@ -333,7 +316,6 @@ func TestDeleteSourceRemovesItsAssets(t *testing.T) {
 	}
 }
 
-// An assets/ directory must not stop the book from listing its real source.
 func TestAssetsDirIsNotMistakenForASource(t *testing.T) {
 	book, source, libRoot := newBookWithSource(t, "One Source Only", "body")
 	writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))

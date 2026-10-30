@@ -24,26 +24,33 @@ markdown_extensions:
   - toc:
       permalink: true
 
+# Agent instructions stay in the repository, outside the published user docs.
+exclude_docs: |
+  /development/agent/
+
 nav:
   - Home: index.md
-  - Try the Demo: try-the-demo.md
+  - Try the demo: try-the-demo.md
   - Installation: installation.md
-  - Getting Started: getting-started.md
-  - EPUB Import: epub-import.md
-  - Finding Similar Books: finding-similar-books.md
+  - Getting started: getting-started.md
+  - EPUB import: epub-import.md
+  - Finding similar books: finding-similar-books.md
   - Logs: logs.md
-  - Backup & Restore: backup-and-restore.md
-  - Deployment & Threat Model: deployment-and-threat-model.md
+  - Backup & restore: backup-and-restore.md
+  - Deployment & threat model: deployment-and-threat-model.md
   - Configuration:
-      - Configuration Reference: reference/configuration.md
-      - Local Shelf File Source: configuring-local-shelf.md
-      - SMB Shelf File Source: configuring-smb-shelf.md
+      - Configuration reference: reference/configuration.md
+      - Local shelf file source: configuring-local-shelf.md
+      - SMB shelf file source: configuring-smb-shelf.md
   - Concepts:
       - Architecture: concepts/architecture.md
-      - Data Model: concepts/data-model.md
-      - Data Format Versioning: concepts/data-format-versioning.md
-      - Shelf Cache and Disk I/O: concepts/shelf-cache-and-io.md
+      - Data model: concepts/data-model.md
+      - Data format versioning: concepts/data-format-versioning.md
+      - Shelf cache and disk I/O: concepts/shelf-cache-and-io.md
       - Folders: concepts/folders.md
+      - Shelf sources and credentials: concepts/shelf-sources.md
+      - Shelf and platform capabilities: concepts/platform-capabilities.md
+      - Similarity fingerprints: concepts/similarity-fingerprints.md
   - Development:
       - Local Setup: development/setup.md
       - Android: development/android.md
@@ -51,4 +58,8 @@ nav:
       - Testing Levels: development/testing-levels.md
       - Mutation Testing: development/mutation-testing.md
       - Releasing: development/releasing.md
-  - Known Issues: known-issue.md
+  - Known issues: known-issue.md
+
+# A missing in-page anchor is only INFO by default, which --strict lets through.
+validation:
+  anchors: warn

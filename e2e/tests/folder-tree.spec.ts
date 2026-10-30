@@ -9,6 +9,7 @@ import {
   openFolderContextMenu,
   selectAllBooks,
   selectFolder,
+  selectNoFolder,
   switchToCardView
 } from './support/folders';
 
@@ -25,6 +26,24 @@ test('creates a nested folder level by level and filters books by exact folder',
   await expect(folderRow(page, 'ftnested')).toBeVisible();
   await expect(folderRow(page, 'ftnested-scifi')).toBeVisible();
 
+  await addFolder(page, 'ftorder-a');
+  await addFolder(page, 'ftorder-b');
+  await page.getByRole('button', { name: 'Reorder folders', exact: true }).click();
+  await page.getByRole('button', { name: 'Move ftorder-b up', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Finish reordering', exact: true })).toBeEnabled();
+  const orderLabels = () => page.locator('.folder-node > .sidebar-nav-item-label').allTextContents();
+  await expect.poll(async () => {
+    const labels = (await orderLabels()).map(label => label.trim());
+    return labels.indexOf('ftorder-b') < labels.indexOf('ftorder-a');
+  }).toBe(true);
+  await page.reload();
+  await expect(folderRow(page, 'ftorder-b')).toBeVisible();
+  await expect.poll(async () => {
+    const labels = (await orderLabels()).map(label => label.trim());
+    return labels.indexOf('ftorder-b') < labels.indexOf('ftorder-a');
+  }).toBe(true);
+
+
   await selectFolder(page, 'ftnested-scifi');
   await expect(page).toHaveURL(foldersQueryRegex('ftnested/ftnested-scifi'));
 
@@ -36,18 +55,35 @@ test('creates a nested folder level by level and filters books by exact folder',
     page.locator('.book-list-row').getByRole('heading', { name: 'ft-nested-book', exact: true })
   ).toBeVisible();
 
-  // "ftnested" itself has no directly-attached books (only its "ftnested-scifi" child does).
   await selectFolder(page, 'ftnested');
   await expect(page.getByText('No books in ftnested.')).toBeVisible();
+
+  await selectAllBooks(page);
+  await importBookAs(page, helloFixturePath, 'ft-loose-book');
+  await selectNoFolder(page);
+  await expect(page).toHaveURL(/[?&]folders=(?:\/|%2F)(?:&|$)/);
+  await expect(page.getByRole('heading', { name: 'No folder', exact: true })).toBeVisible();
+  const titles = page.locator('.book-list-row').getByRole('heading');
+  await expect(titles.filter({ hasText: 'ft-loose-book' })).toBeVisible();
+  await expect(titles.filter({ hasText: 'ft-nested-book' })).toHaveCount(0);
 });
 
-test('renames a folder, updating the tree and the active URL filter', async ({ page }) => {
+test('renames a folder, keeping its icon and updating the tree and the active URL filter', async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
   await addFolder(page, 'ftrename');
   await selectFolder(page, 'ftrename');
   await expect(page).toHaveURL(foldersQueryRegex('ftrename'));
+  await expect(folderRow(page, 'ftrename').locator('[data-folder-icon="folder"]')).toBeVisible();
+
+  await openFolderContextMenu(page, 'ftrename');
+  await page.getByRole('menuitem', { name: 'Change icon', exact: true }).click();
+  const iconDialog = page.getByRole('dialog', { name: 'Icon for "ftrename"' });
+  await iconDialog.getByRole('radio', { name: 'rocket', exact: true }).click();
+  await iconDialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(iconDialog).not.toBeVisible();
+  await expect(folderRow(page, 'ftrename').locator('[data-folder-icon="rocket"]')).toBeVisible();
 
   await openFolderContextMenu(page, 'ftrename');
   await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
@@ -60,6 +96,17 @@ test('renames a folder, updating the tree and the active URL filter', async ({ p
   await expect(folderRow(page, 'ftrename')).toHaveCount(0);
   await expect(folderRow(page, 'ftrenamed')).toBeVisible();
   await expect(page).toHaveURL(foldersQueryRegex('ftrenamed'));
+
+  await page.reload();
+  await expect(folderRow(page, 'ftrenamed').locator('[data-folder-icon="rocket"]')).toBeVisible();
+
+  await openFolderContextMenu(page, 'ftrenamed');
+  await page.getByRole('menuitem', { name: 'Change icon', exact: true }).click();
+  const clearDialog = page.getByRole('dialog', { name: 'Icon for "ftrenamed"' });
+  await clearDialog.getByRole('radio', { name: 'Default', exact: true }).click();
+  await clearDialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(clearDialog).not.toBeVisible();
+  await expect(folderRow(page, 'ftrenamed').locator('[data-folder-icon="folder"]')).toBeVisible();
 });
 
 test('only offers Delete for empty folders, and deleting removes it from the tree', async ({ page }) => {
@@ -121,7 +168,6 @@ test('moves a book into a folder via drag and drop', async ({ page }) => {
   await expect(
     page.locator('.book-card-view').getByRole('heading', { name: 'ft-dnd-book', exact: true })
   ).toBeVisible();
-  // Folder-scoped count: only this test's book was moved into ftreading.
   await expect(page.getByText('1 books')).toBeVisible();
 
   await selectAllBooks(page);

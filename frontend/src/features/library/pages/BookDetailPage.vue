@@ -297,9 +297,6 @@ const {
   fetchDetail
 } = useBookDetail(() => id.value);
 
-// The note the open dialog is about, captured when it opens. The router reuses
-// this page across /books/:id, so reading the live id on confirm would delete
-// whichever book the user has since navigated to.
 const importNoteTarget = ref<{ bookID: string; sourceID: string } | null>(null);
 const removingImportNote = ref(false);
 const importNoteError = ref('');
@@ -317,8 +314,6 @@ function cancelRemoveImportNote(): void {
   importNoteTarget.value = null;
 }
 
-// Removal is the only edit the note allows, so there is nothing to save back:
-// the source is re-read afterwards and the row simply stops being rendered.
 async function confirmRemoveImportNote(): Promise<void> {
   const target = importNoteTarget.value;
   if (!target || removingImportNote.value) return;
@@ -378,20 +373,14 @@ const {
   onDeleted: (deleted) => {
     void router.push(booksRouteForFolderPath(getFolderPath(deleted)));
   },
-  // The book keeps its id across a move, so the route stays valid and only the
-  // detail payload (breadcrumb included) has to be re-read.
   onMoved: () => {
     void fetchDetail();
   },
-  // The copy is a distinct book with its own id, so open its detail page. The
-  // `copied` flag drives the same one-off notice imported/saved use.
   onCopied: (copy) => {
     void router.push({ path: `/books/${copy.id}`, query: { copied: '1' } });
   }
 });
 
-// The transfer picker needs a shelf that can actually receive the book, so the
-// menu entry stays hidden until the shelf list proves one exists.
 const { transferDestinationShelves, ensureShelvesLoaded } = useShelvesStore();
 const hasTransferDestinations = computed(() => transferDestinationShelves.value.length > 0);
 
@@ -407,8 +396,6 @@ const readingActionLabel = computed(() => {
   return t(`bookDetail.actions.${readingAction.value === 'reread' ? 'reread' : 'startReading'}`);
 });
 const readingStatusLabel = computed(() => t(`bookDetail.progress.${readingAction.value}`));
-// The menu survives a read-only shelf when it still holds something the shelf
-// allows: opening its folder, or copying the book out to another shelf.
 const showManagementMenu = computed(
   () =>
     !readOnly.value ||
@@ -439,8 +426,6 @@ async function onReadClick(): Promise<void> {
   }
 }
 
-// Saving content to a file and keeping an offline device copy are deliberately
-// separate actions. The labels in the template make that distinction explicit.
 const {
   state: offlineDownloadState,
   error: offlineDownloadError,
@@ -474,12 +459,6 @@ function onOfflineDownloadClick(): void {
   void startOfflineDownload();
 }
 
-// The mobile shell's router guard redirects a "read" of a not-yet-downloaded
-// book back here with `?downloadRequired=1`. Show the prompt only while the
-// book genuinely still needs downloading, so it clears itself once the offline
-// download this page offers completes. The query flag is an inline literal for
-// the same reason `imported`/`saved`/`copied` above are: this shared page must
-// not import the mobile-only module that sets it.
 const showDownloadRequiredMessage = computed(
   () =>
     route.query.downloadRequired === '1' &&
@@ -517,24 +496,10 @@ function closeMetadataEditor(): void {
 async function onMetadataSaved(updatedBook: Book): Promise<void> {
   const wasNSFW = book.value !== null && isBookNsfw(book.value);
 
-  // The metadata endpoint returns the complete book. Applying it directly keeps
-  // the detail page, reading progress, chapter expansion, and other modal state
-  // intact while updating every metadata field in the same render cycle.
   book.value = updatedBook;
   metadataEditorDirty.value = false;
   metadataSaved.value = true;
 
-  // Marking a book is the one metadata edit that can take it off this server's
-  // shelf: with `show_nsfw` off the API answers 404 for it from here on, and
-  // the page would otherwise keep rendering a book every later request denies
-  // until something else reloaded it. The list page has this covered by the
-  // full refresh it runs after every save; a detail page has no listing to
-  // re-evaluate, so it re-reads itself.
-  //
-  // Re-reading is also the whole test: with `show_nsfw` on the same request
-  // simply returns the book again, so this needs no opinion about the setting.
-  // A 404 lands on the page's own error state, where an address typed for a
-  // hidden book already lands.
   if (!wasNSFW && isBookNsfw(updatedBook)) {
     await fetchDetail();
   }
@@ -583,8 +548,6 @@ function onRequestCopy(): void {
 }
 
 function onRequestTransfer(): void {
-  // outgoingCopyEnabled, not readOnly: a read-only shelf still allows the copy
-  // out, and the modal is what withdraws the move.
   if (!outgoingCopyEnabled.value || !book.value) {
     return;
   }
@@ -592,10 +555,6 @@ function onRequestTransfer(): void {
 }
 
 function onTransferClose(): void {
-  // Read the outcome before cancelTransfer clears it: a completed move leaves
-  // the book on another shelf, so this shelf's detail page for it is now stale
-  // and the user is returned to the folder it came from. A copy left the source
-  // in place, so the page stays as it is.
   const movedAway =
     transferMode.value === 'move' && transferFinished.value && transferStatus.value !== 'failed';
   const from = transferTarget.value;
@@ -623,8 +582,6 @@ watch(id, () => {
   }
 }, { immediate: true });
 
-// Loaded once so the transfer menu entry can tell whether any destination shelf
-// exists; idempotent, so re-running when a book id changes is a no-op.
 if (!readOnly.value) {
   void ensureShelvesLoaded();
 }

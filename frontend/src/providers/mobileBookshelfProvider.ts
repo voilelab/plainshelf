@@ -1,5 +1,3 @@
-import { Capacitor } from '@capacitor/core';
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { unzipSync } from 'fflate';
 import type {
   BookmarkPayload,
@@ -27,8 +25,7 @@ import type {
   BookshelfReader,
   DownloadedBookEntry,
   ListBooksOptions,
-  ShelfRefreshResult,
-  StorageEstimateResult
+  ShelfRefreshResult
 } from './bookshelfProvider';
 import {
   downloadedBookFromManifest,
@@ -44,30 +41,13 @@ const OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR = 'Cannot download book while offline';
 export const DOWNLOAD_SHELF_CHANGED_ERROR =
   'The shelf changed while the book was downloading; the download was discarded';
 
-// How many illustrations are fetched and stored at a time. Small on purpose:
-// the point of the limit is to bound peak memory on a phone, and a download is
-// not a latency-sensitive operation.
 const ASSET_DOWNLOAD_CONCURRENCY = 3;
 
-// How many illustrations one bundle request fetches. The archive is held whole
-// in memory and the images are uncompressed, so an unbounded bundle would hold
-// the whole book's figures at once; chunking keeps at most this many resident
-// while still collapsing dozens of per-image requests into a handful. A book
-// with no more figures than this stays a single request.
 const ASSET_BUNDLE_CHUNK_SIZE = 16;
-
-// Sub-folder of the shared Documents directory that exported books land in, so
-// they are grouped and never collide with an unrelated file already named the
-// same at the Documents root. Shown to the user as part of the saved location.
-const EXPORT_SUBDIR = 'PlainShelf';
 
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
 
-// The bundle arrives as one application/zip, so an unpacked figure's MIME is
-// derived from its name the way the server's single-asset route derives it. The
-// filesystem cache persists blob.type, so this keeps a cached figure's type
-// identical whether the per-file or the bundle path stored it.
 function imageMimeType(name: string): string {
   const dot = name.lastIndexOf('.');
   switch (dot === -1 ? '' : name.slice(dot).toLowerCase()) {
@@ -85,42 +65,18 @@ function imageMimeType(name: string): string {
   }
 }
 
-// True when a remote call never received an HTTP response at all — a
-// transport-level failure (device is online per navigator.onLine, but the
-// self-hosted server is unreachable, e.g. LTE away from the home LAN) or a
-// request timeout — as opposed to the server replying with an error status
-// (a real ApiError with a status, which must be surfaced, not swallowed).
+const SOURCE_UNREACHABLE_CODES = new Set(['SOURCE_UNAVAILABLE', 'BOOK_NOT_DOWNLOADED']);
+
 function isServerUnreachableError(err: unknown): boolean {
-  return err instanceof ApiError ? err.isTimeout : true;
+  if (!(err instanceof ApiError)) {
+    return true;
+  }
+  return err.isTimeout || SOURCE_UNREACHABLE_CODES.has(err.code ?? '');
 }
 
 export class MobileBookshelfProvider implements BookshelfReader {
-  // Memoized object URLs for cached cover blobs, created in applyCachedCover
-  // and revoked in removeDownload. The provider is a long-lived singleton, so
-  // this map lives as long as the app — fine for the number of downloads.
-  //
-  // The scope belongs in the key for the same reason the filesystem cache puts
-  // it in the path (see cacheScope.ts): keyed by book id alone, a cover
-  // memoized on one shelf would be handed back for a different book with the
-  // same id on another, short-circuiting the scoped lookup that would have
-  // corrected it.
   private readonly coverUrlCache = new Map<string, string>();
 
-  // Present only in a native shell: a browser preview leaves it undefined so
-  // useBookActions.downloadBook falls back to its blob `<a download>` path,
-  // which the Android WebView silently ignores. Gated at construction because
-  // native-ness is fixed for the page lifetime.
-  saveBookContentToFile?: (bookId: string, suggestedName: string) => Promise<string>;
-
-  /**
-   * The offline cache, wrapped so it withholds what this device hides.
-   *
-   * Every cache-first path below — content, covers, sources, illustrations —
-   * answers before connectivity is even checked, and the listing and single
-   * book fall back to it when the backend is unreachable. Wrapping it once is
-   * what keeps those paths from being a way round the setting the backend
-   * applies; see VisibleMobileBookCache, which is inert behind a server.
-   */
   private readonly cache: MobileBookCache;
 
   constructor(
@@ -134,41 +90,8 @@ export class MobileBookshelfProvider implements BookshelfReader {
       () => this.filtersNsfwOnDevice(),
       () => this.remote.localNsfwMarks?.() ?? Promise.resolve(null)
     );
-
-    if (Capacitor.isNativePlatform()) {
-      this.saveBookContentToFile = (bookId, suggestedName) =>
-        this.exportBookContentToDocuments(bookId, suggestedName);
-    }
   }
 
-  /**
-   * Writes into the shared Documents folder so the user can reach the file from
-   * the Files app, returning the saved location for a toast.
-   *
-   * `suggestedName` is already filesystem-safe (useBookActions sanitizes it),
-   * and Documents needs no runtime permission for a file the app itself creates.
-   * An existing file of the same name is overwritten, matching a browser
-   * download into a folder that already holds one.
-   */
-  private async exportBookContentToDocuments(
-    bookId: string,
-    suggestedName: string
-  ): Promise<string> {
-    const blob = await this.downloadBookContent(bookId);
-    const relativePath = `${EXPORT_SUBDIR}/${suggestedName}`;
-    await Filesystem.writeFile({
-      path: relativePath,
-      data: await blob.text(),
-      directory: Directory.Documents,
-      encoding: Encoding.UTF8,
-      recursive: true
-    });
-    return `Documents/${relativePath}`;
-  }
-
-  // `options` only affects the remote call; the offline cache stores whatever
-  // the plain /books response carried, so opt-in fields such as char_count are
-  // absent from cached results.
   async listBooks(page = 1, pageSize = 20, options?: ListBooksOptions): Promise<PaginatedBooks> {
     if (this.isOnline()) {
       let remoteBooks: PaginatedBooks;
@@ -227,7 +150,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
   }
 
-
   async getBookContent(bookId: string): Promise<BookContent> {
     const cached = await this.cache.getCachedBookContent(bookId);
     if (cached) {
@@ -254,12 +176,13 @@ export class MobileBookshelfProvider implements BookshelfReader {
     throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
   }
 
-  // Delegated without an offline branch: the folder store surfaces a failure in
-  // the sidebar, which is what the server path already does when unreachable.
+  listFolderMeta() {
+    return this.remote.listFolderMeta?.() ?? Promise.resolve({icons: [], folders: {}});
+  }
+
   listFolders(): Promise<string[]> {
     return this.remote.listFolders();
   }
-
 
   async getReadProgress(bookId: string): Promise<ReadingProgress> {
     const cached = await this.cache.getReadProgress(bookId);
@@ -285,10 +208,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.cache.saveReadProgress(bookId, progress);
   }
 
-  // Reading history lives on the device (see storage/readHistory), so it is
-  // recorded and cleared regardless of connectivity. Listing goes through this
-  // provider's own listBooks, which falls back to the offline cache, so the
-  // history page still shows downloaded books when the server is unreachable.
   addReadHistory(bookId: string): Promise<void> {
     return addLocalReadHistory(bookId);
   }
@@ -300,7 +219,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
   clearReadHistory(): Promise<void> {
     return clearLocalReadHistory();
   }
-
 
   async getBookCover(bookId: string): Promise<Blob> {
     const cached = await this.cache.getCachedCover(bookId);
@@ -324,36 +242,9 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.getBookCoverUrl(bookId, cacheKey);
   }
 
-  /**
-   * Always, on this shell: the WebView issues an `<img src="http://...">`
-   * itself rather than through CapacitorHttp, so the request is not the one
-   * the native bridge would have made. Going through getBookCover() also
-   * reuses the offline cover cache for a downloaded book.
-   */
-  coversMustBeFetchedAsBlob(): boolean {
-    return true;
-  }
-
-  /** Whatever this shell is pointed at answers; a wrapper has no mode of its own. */
-  supportsServerMode(): boolean {
-    return this.remote.supportsServerMode?.() ?? true;
-  }
-
-  /** Likewise: the cost belongs to whatever backend this shell is pointed at. */
-  supportsCharCountListing(): boolean {
-    return this.remote.supportsCharCountListing?.() ?? true;
-  }
-
-  /**
-   * Also the backend's answer, not the shell's. The same app reads a pCloud
-   * shelf on one device and a PlainShelf server on the next, and only the first
-   * has no server to apply the setting for it — so this cannot be read off the
-   * runtime being mobile.
-   */
   filtersNsfwOnDevice(): boolean {
     return this.remote.filtersNsfwOnDevice?.() ?? false;
   }
-
 
   getDuplicateBookGroups(): Promise<string[][]> {
     return this.remote.getDuplicateBookGroups();
@@ -371,21 +262,8 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.listTrashedBooks();
   }
 
-
-  // Entirely the wrapped backend's business — nothing here caches the listing.
-  // Unsupported unless the backend says otherwise, and both do.
-  supportsShelfRefresh(): boolean {
-    return Boolean(this.remote.supportsShelfRefresh?.());
-  }
-
-  // Whatever the backend found is passed straight through: it is the only thing
-  // that can say, and dropping it would leave the button with nothing to report.
   async refreshShelf(): Promise<ShelfRefreshResult | void> {
     return this.remote.refreshShelf?.();
-  }
-
-  async getShelfFetchedAt(): Promise<number | null> {
-    return (await this.remote.getShelfFetchedAt?.()) ?? null;
   }
 
   async listSources(bookId: string): Promise<SourceMeta[]> {
@@ -440,31 +318,27 @@ export class MobileBookshelfProvider implements BookshelfReader {
     throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
   }
 
-  /**
-   * The cache answers first, so a downloaded book shows its illustrations
-   * without a request. An asset the download did not store still resolves
-   * online; offline it fails and the reader shows the alt text.
-   */
   async getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
     const cached = await this.cache.getCachedAsset(bookId, sourceId, name);
     if (cached) {
       return cached;
     }
 
-    if (this.isOnline() && this.remote.getSourceAsset) {
+    if (this.isOnline()) {
       return this.remote.getSourceAsset(bookId, sourceId, name);
     }
 
     throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
   }
 
+  async getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob> {
+    if (this.isOnline()) {
+      return this.remote.getSourceAssetsBundle(bookId, sourceId, names);
+    }
 
-  /**
-   * The shelf chosen during connection setup, applied to the API client at
-   * bootstrap by initMobileConfig(). Read live rather than captured, for the
-   * same reason currentCacheScopeKey() is: the settings UI repoints this
-   * process-wide state in place.
-   */
+    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+  }
+
   getPersistedShelfID(): string {
     return getActiveShelfID();
   }
@@ -478,13 +352,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
       throw new Error(OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR);
     }
 
-    // Everything below reads the connected shelf at the moment it runs: the
-    // remote calls resolve it per request, and each cache write resolves the
-    // scope it lands in. A shelf change while the fetches are in flight would
-    // therefore file this book under a shelf it does not belong to, possibly
-    // overwriting that shelf's own book of the same id, or split one download
-    // across two scopes. Abandon the download instead — the user has left the
-    // shelf they asked for it on, and a partial write is worse than none.
     const scopeAtStart = currentCacheScopeKey();
 
     const [book, sources, bookContent] = await Promise.all([
@@ -499,8 +366,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
       }))
     );
 
-    // Cover download is best-effort: a failure here (network hiccup, no
-    // cover uploaded, etc.) must not abort the book download itself.
     let coverBlob: Blob | null = null;
     if (book.cover) {
       try {
@@ -515,18 +380,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
       throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
     }
 
-    // Illustrations are found by reading the text that was just downloaded
-    // rather than by listing the shelf: the reader only requests what its
-    // Markdown renders, so parsing the same text stores exactly that set and
-    // skips files no longer referenced. It also needs no listing endpoint and
-    // no index on disk, which keeps the shelf the only record of what exists.
-    //
-    // Only a Markdown book can render an image, so a plain-text one is not
-    // scanned at all.
-    //
-    // This runs before the manifest is written, so a failure leaves files under
-    // a book directory carrying no manifest - an orphan this cache already
-    // ignores - rather than a book listed as downloaded without its pictures.
     const currentSource = sources.find((source) => source.id === book.current_source);
     const effectiveFormat = currentSource?.format ?? book.format ?? 'txt';
     const currentSourceContent = book.current_source
@@ -536,8 +389,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
       ? await this.storeSourceAssets(bookId, currentSourceContent)
       : 0;
 
-    // The asset phase did network I/O of its own, so the window the check above
-    // closed has reopened.
     if (currentCacheScopeKey() !== scopeAtStart) {
       throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
     }
@@ -549,15 +400,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     );
     const coverSize = coverBlob ? coverBlob.size : 0;
 
-    // The manifest is the download's commit point, so it is written *last* —
-    // after the content, source files and cover it accounts for are all on
-    // disk. getDownloadState reports "downloaded" from the manifest alone, and
-    // the mobile shell now gates reading on that, so "manifest present" must
-    // mean "content present": a book that streams on-demand when online would
-    // otherwise pass the gate mid-write and then fail once offline. A failure
-    // before this last write leaves manifest-less files the cache already
-    // ignores as an orphan (same as the asset phase above), not a book listed
-    // as downloaded without its text.
     await this.cache.saveCachedBookContent(bookId, bookContent);
     await Promise.all(
       sourceContents.map(({ sourceId, content }) =>
@@ -583,49 +425,30 @@ export class MobileBookshelfProvider implements BookshelfReader {
     });
   }
 
-  /**
-   * Fetches the illustrations the downloaded text references and stores each.
-   *
-   * Prefers the bundle path (one request per source) when the backend offers
-   * it, falling back to the per-file concurrent path when it does not or a
-   * bundle request fails. Either way each figure is best-effort — one that will
-   * not download or store is left for the reader's alt text — and the whole
-   * download never fails over a picture.
-   *
-   * Returns the bytes actually stored, for the manifest's size breakdown.
-   */
   private async storeSourceAssets(
     bookId: string,
     sourceContents: { sourceId: string; content: string }[]
   ): Promise<number> {
-    const fetchBundle = this.remote.getSourceAssetsBundle?.bind(this.remote);
-    if (fetchBundle) {
-      try {
-        return await this.storeSourceAssetsViaBundle(bookId, sourceContents, fetchBundle);
-      } catch (err) {
-        // A bundle request that failed (network, HTTP error, or a malformed
-        // archive) drops to the per-file path below. Anything the bundle
-        // already stored is simply overwritten there, which recomputes the
-        // total from scratch, so no figure is double-counted.
-        console.warn(
-          `Asset bundle download failed for book ${bookId}; falling back to per-file fetches.`,
-          err
-        );
-      }
+    try {
+      return await this.storeSourceAssetsViaBundle(
+        bookId,
+        sourceContents,
+        this.remote.getSourceAssetsBundle.bind(this.remote)
+      );
+    } catch (err) {
+      console.warn(
+        `Asset bundle download failed for book ${bookId}; falling back to per-file fetches.`,
+        err
+      );
     }
 
-    const fetchAsset = this.remote.getSourceAsset?.bind(this.remote);
-    if (!fetchAsset) {
-      return 0;
-    }
-    return this.storeSourceAssetsPerFile(bookId, sourceContents, fetchAsset);
+    return this.storeSourceAssetsPerFile(
+      bookId,
+      sourceContents,
+      this.remote.getSourceAsset.bind(this.remote)
+    );
   }
 
-  /**
-   * Stores each referenced figure by fetching it on its own, a bounded number
-   * at a time. The original download path, kept as the fallback for a backend
-   * with no bundle endpoint.
-   */
   private async storeSourceAssetsPerFile(
     bookId: string,
     sourceContents: { sourceId: string; content: string }[],
@@ -649,12 +472,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return stored;
   }
 
-  /**
-   * Stores each referenced figure out of per-source zips, requested in chunks of
-   * ASSET_BUNDLE_CHUNK_SIZE so at most one chunk's archive is resident at a time.
-   * A chunk fetch/parse failure throws, dropping storeSourceAssets to the
-   * per-file fallback; an absent or unstorable figure is skipped, best-effort.
-   */
   private async storeSourceAssetsViaBundle(
     bookId: string,
     sourceContents: { sourceId: string; content: string }[],
@@ -673,10 +490,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return stored;
   }
 
-  /**
-   * Fetches one chunk of a source's figures as a single archive and stores each,
-   * decoding one entry at a time. Returns the bytes stored from this chunk.
-   */
   private async storeAssetChunkViaBundle(
     bookId: string,
     sourceId: string,
@@ -688,9 +501,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
     let stored = 0;
     for (const name of names) {
-      // A malformed archive throws here (→ per-file fallback); a filter matching
-      // nothing yields undefined — a referenced-but-absent figure, shown as alt
-      // text.
       const bytes = unzipSync(archive, { filter: (file) => file.name === name })[name];
       if (!bytes) {
         continue;
@@ -723,24 +533,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     );
   }
 
-  async getStorageEstimate(): Promise<StorageEstimateResult> {
-    if (typeof navigator === 'undefined' || !navigator.storage?.estimate) {
-      return { supported: false };
-    }
-
-    try {
-      const estimate = await navigator.storage.estimate();
-      return { supported: true, usage: estimate.usage, quota: estimate.quota };
-    } catch {
-      return { supported: false };
-    }
-  }
-
-  openLocalBookFiles?(): Promise<string[] | null> {
-    return this.remote.openLocalBookFiles?.() ?? Promise.resolve(null);
-  }
-
-
   private async annotateDownloadState(book: Book): Promise<Book> {
     const cached = await this.cache.getCachedBook(book.id);
     if (!cached) {
@@ -757,15 +549,9 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
   private coverUrlKey(bookId: string): string {
-    // Newline cannot occur in a scope key (it is a URL joined to a shelf id),
-    // so it cannot be confused with the separator.
     return `${currentCacheScopeKey()}\n${bookId}`;
   }
 
-  // Revokes and forgets this book's memoized cover object URL, if any, for the
-  // connected shelf. Does not touch the cached cover blob itself — callers that
-  // also want the blob gone must call cache.deleteCachedCover separately (see
-  // evictCachedCover below). Safe to call for a book with no cached URL.
   private invalidateCoverUrl(bookId: string): void {
     const key = this.coverUrlKey(bookId);
     const cachedUrl = this.coverUrlCache.get(key);
@@ -775,15 +561,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     }
   }
 
-
-  // Rewrites `cover_url` to a memoized object URL for a cached cover blob
-  // when one is available locally. Used for offline reads and for the
-  // network-online-but-server-unreachable fallback paths, where the remote
-  // cover URL would fail to load anyway. UI components render covers via
-  // `book.cover_url` as an <img src>, so this is the only place cached
-  // cover display needs to be wired in; no component changes required.
-  // No-ops (returns the book unchanged) when there is no cached cover blob
-  // for this book, leaving whatever cover_url the caller already set.
   private async applyCachedCover(book: Book): Promise<Book> {
     const key = this.coverUrlKey(book.id);
     let url = this.coverUrlCache.get(key);

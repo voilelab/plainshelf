@@ -8,7 +8,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-func TestApplyBookPatchLeavesOmittedFieldsAlone(t *testing.T) {
+func TestBookPatchKeepsOmittedFields(t *testing.T) {
 	before := shelf.BookMeta{
 		ID:       "book_1",
 		Title:    "Original",
@@ -68,8 +68,6 @@ func TestApplyBookPatchAppliesSetFields(t *testing.T) {
 	}
 }
 
-// The slice fields are copied, not aliased: a decoded request must not stay
-// reachable from the meta that gets written to disk.
 func TestApplyBookPatchCopiesSliceFields(t *testing.T) {
 	authors := []string{"Original Author"}
 	tags := []string{"original"}
@@ -88,7 +86,6 @@ func TestApplyBookPatchCopiesSliceFields(t *testing.T) {
 	}
 }
 
-// Field rules belong to shelf, so an out-of-range star is copied through.
 func TestApplyBookPatchDoesNotValidate(t *testing.T) {
 	meta := shelf.BookMeta{Star: 3}
 	applyBookPatch(&meta, &UpdateBookRequest{Star: new(99)})

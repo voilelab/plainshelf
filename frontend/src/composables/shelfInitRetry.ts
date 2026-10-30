@@ -1,43 +1,18 @@
 import { ApiError } from '@/api/client';
 import { reportErrorIncident } from './useErrorIncident';
 
-/**
- * One auto-retry policy for reads that race the shelf's initial scan, which
- * answers 503 (`ErrShelfInitializing`) until it finishes. Four loaders each had
- * a copy of this timer and counter, which is how their delays drifted apart.
- *
- * What to show once the budget is spent stays at the call site, where the
- * loaders disagree on purpose.
- *
- * `useShelvesStore` deliberately does not use this: its fast startup poll for
- * the shelf list is not a "scanning, wait a while" budget, and these delays
- * would visibly slow the sidebar's first paint.
- */
 
-export const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before giving up
+export const SHELF_INIT_MAX_AUTO_RETRIES = 10;
 export const SHELF_INIT_RETRY_DELAY_MS = 3000;
 
-/** True for the 503 a shelf answers while its initial scan is still running. */
 export function isShelfInitializing(err: unknown): boolean {
   return err instanceof ApiError && err.status === 503;
 }
 
 interface ShelfInitRetry {
-  /** True while a scheduled retry is waiting to fire. */
   readonly pending: boolean;
-  /**
-   * Schedules `attempt` after the shared delay and reports whether it did.
-   * False means the budget is spent and the caller owns the failure state.
-   *
-   * `giveUpOn` is the refusal that prompted this call. api/client.ts publishes
-   * no reference for one carrying Retry-After, since a hidden retry usually
-   * succeeds — but the attempt that spends the budget is not hidden, and its
-   * reference has to come back with the error the caller shows.
-   */
-  schedule(attempt: () => void, giveUpOn: unknown): boolean;
-  /** Cancels a pending retry, keeping the remaining budget. */
+  schedule(attempt: () => void, terminalRefusal: unknown): boolean;
   cancel(): void;
-  /** Cancels a pending retry and restores the full budget. */
   reset(): void;
 }
 
@@ -61,11 +36,11 @@ export function createShelfInitRetry(): ShelfInitRetry {
       cancel();
       attempts = 0;
     },
-    schedule(attempt: () => void, giveUpOn: unknown): boolean {
+    schedule(attempt: () => void, terminalRefusal: unknown): boolean {
       cancel();
       attempts++;
       if (attempts >= SHELF_INIT_MAX_AUTO_RETRIES) {
-        reportErrorIncident(giveUpOn);
+        reportErrorIncident(terminalRefusal);
         return false;
       }
       timer = setTimeout(() => {

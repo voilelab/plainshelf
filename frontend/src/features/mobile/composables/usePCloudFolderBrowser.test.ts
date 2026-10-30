@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PCloudError } from '@/api/pcloud/errors';
-import type { PCloudItem } from '@/api/pcloud/types';
 import { useErrorIncident } from '@/composables/useErrorIncident';
 import {
   usePCloudFolderBrowser,
@@ -9,33 +8,23 @@ import {
   type PCloudFolderRef
 } from './usePCloudFolderBrowser';
 
-function folder(name: string, folderid: number, contents: PCloudItem[] = []): PCloudItem {
-  return { name, isfolder: true, folderid, contents };
-}
+type PCloudFolderListing = Awaited<ReturnType<PCloudFolderClient['listFolder']>>;
 
-function file(name: string): PCloudItem {
-  return { name, isfolder: false, fileid: 1 };
-}
-
-/**
- * A client backed by a folder-id keyed tree, standing in for the network the
- * same way the pCloud client tests stand in for fetch.
- */
-function fakeClient(tree: Record<number, PCloudItem[]>) {
+function fakeClient(tree: Record<number, PCloudFolderListing>) {
   const listFolder = vi.fn(async (folderid: number) => {
-    const contents = tree[folderid];
-    if (!contents) {
+    const listing = tree[folderid];
+    if (!listing) {
       throw new Error(`no folder ${folderid}`);
     }
-    return folder(String(folderid), folderid, contents);
+    return listing;
   });
 
   const resolveFolderTrail = vi.fn(async (path: string) => {
     const trail: PCloudFolderRef[] = [];
     let folderid = 0;
     for (const segment of path.split('/').filter(Boolean)) {
-      const match = (tree[folderid] ?? []).find((item) => item.isfolder && item.name === segment);
-      if (!match || match.folderid === undefined) {
+      const match = (tree[folderid]?.folders ?? []).find((item) => item.name === segment);
+      if (!match) {
         throw new Error(`pCloud has no folder named "${segment}".`);
       }
       folderid = match.folderid;
@@ -44,22 +33,27 @@ function fakeClient(tree: Record<number, PCloudItem[]>) {
     return trail;
   });
 
-  return { listFolder, resolveFolderTrail } as unknown as PCloudFolderClient & {
-    listFolder: typeof listFolder;
-    resolveFolderTrail: typeof resolveFolderTrail;
-  };
+  return { listFolder, resolveFolderTrail } satisfies PCloudFolderClient;
 }
 
-// /PlainShelf/my-shelf is a shelf; /Photos is not.
-const TREE: Record<number, PCloudItem[]> = {
-  0: [folder('PlainShelf', 10), folder('Photos', 20), file('notes.txt')],
-  10: [folder('my-shelf', 11), folder('archive', 12)],
-  11: [folder('books', 13), file('README.md')],
-  12: [],
-  13: [folder('Fiction', 14), folder('Dune.bookpkg', 15)],
-  14: [],
-  15: [],
-  20: []
+function level(folders: Array<[string, number]>, isShelf = false): PCloudFolderListing {
+  return { folders: folders.map(([name, folderid]) => ({ name, folderid })), isShelf };
+}
+
+const TREE: Record<number, PCloudFolderListing> = {
+  0: level([
+    ['PlainShelf', 10],
+    ['Photos', 20]
+  ]),
+  10: level([
+    ['my-shelf', 11],
+    ['archive', 12]
+  ]),
+  11: level([['books', 13]], true),
+  12: level([]),
+  13: level([['Fiction', 14]]),
+  14: level([]),
+  20: level([])
 };
 
 describe('usePCloudFolderBrowser', () => {
@@ -90,10 +84,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(browser.isShelf.value).toBe(true);
   });
 
-  // A saved path can name a folder that was renamed, or one belonging to the
-  // account authorized before this one. The root has to stay browsable
-  // underneath the explanation, which is why the reason is not an error: the
-  // picker hides the folder list while one is set.
   it('falls back to a browsable root and explains why, when a path does not resolve', async () => {
     const client = fakeClient(TREE);
     const browser = usePCloudFolderBrowser(() => client);
@@ -116,8 +106,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(browser.notice.value).toBe('');
   });
 
-  // Otherwise the reason the saved path failed would be reported as though it
-  // were the reason the root could not be listed.
   it('reports a failed fallback listing on its own terms', async () => {
     const client = fakeClient(TREE);
     const browser = usePCloudFolderBrowser(() => client);
@@ -149,15 +137,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(browser.currentPath.value).toBe('/');
   });
 
-  it('lists only folders, and never a book package', async () => {
-    const client = fakeClient(TREE);
-    const browser = usePCloudFolderBrowser(() => client);
-
-    await browser.open('/PlainShelf/my-shelf/books');
-
-    expect(browser.folders.value.map((item) => item.name)).toEqual(['Fiction']);
-  });
-
   it('answers a level it has already listed from memory', async () => {
     const client = fakeClient(TREE);
     const browser = usePCloudFolderBrowser(() => client);
@@ -187,8 +166,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(browser.folders.value).toEqual([]);
   });
 
-  // The picker talks to pCloud directly, so nothing between this failure and
-  // the alert region publishes the reference it minted.
   it('publishes the reference of a failed listing', async () => {
     const { incident, dismissIncident } = useErrorIncident();
     dismissIncident();
@@ -206,8 +183,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(incident.value).toMatch(/^c-/);
   });
 
-  // A reply the user has navigated away from lands nowhere, and its reference
-  // must not either.
   it('publishes nothing for a listing the user navigated away from', async () => {
     const { incident, dismissIncident } = useErrorIncident();
     dismissIncident();
@@ -219,7 +194,7 @@ describe('usePCloudFolderBrowser', () => {
     let failSlow = (): void => {};
     client.listFolder.mockImplementationOnce(
       async () =>
-        await new Promise<PCloudItem>((_resolve, reject) => {
+        await new Promise<PCloudFolderListing>((_resolve, reject) => {
           failSlow = () => reject(new PCloudError('pCloud listfolder failed.'));
         })
     );
@@ -232,8 +207,6 @@ describe('usePCloudFolderBrowser', () => {
     expect(incident.value).toBe('');
   });
 
-  // Two taps in a row must not let the first, slower reply repaint the level
-  // the user has already moved past.
   it('drops the reply to a listing the user navigated away from', async () => {
     const client = fakeClient(TREE);
     const browser = usePCloudFolderBrowser(() => client);
@@ -242,8 +215,8 @@ describe('usePCloudFolderBrowser', () => {
     let releaseSlow = (): void => {};
     client.listFolder.mockImplementationOnce(
       async () =>
-        await new Promise<PCloudItem>((resolve) => {
-          releaseSlow = () => resolve(folder('PlainShelf', 10, TREE[10]));
+        await new Promise<PCloudFolderListing>((resolve) => {
+          releaseSlow = () => resolve(TREE[10]);
         })
     );
 
@@ -265,8 +238,8 @@ describe('usePCloudFolderBrowser', () => {
     let releaseSlow = (): void => {};
     client.listFolder.mockImplementationOnce(
       async () =>
-        await new Promise<PCloudItem>((resolve) => {
-          releaseSlow = () => resolve(folder('PlainShelf', 10, TREE[10]));
+        await new Promise<PCloudFolderListing>((resolve) => {
+          releaseSlow = () => resolve(TREE[10]);
         })
     );
 

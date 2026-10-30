@@ -53,7 +53,7 @@ func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) erro
 		return util.Errorf("%w", err)
 	}
 	if savePath == "" {
-		return nil // user cancelled
+		return nil
 	}
 
 	apiPath, err := url.JoinPath("/api/shelves", shelfID, "books", bookID, "content")
@@ -112,12 +112,6 @@ func normalizeFolderParts(folderParts []string) shelf.FolderPath {
 	return normalizedParts
 }
 
-// ImportBookFromLocalPath imports one book the desktop client picked from disk
-// and reports the outcome as a single result. The frontend calls it once per
-// selected file so it can drive the same N/M progress and file-boundary abort
-// the web upload path uses; a per-file import failure is reported through the
-// result's Error field, not a Go error, so one bad file does not abort the batch
-// the frontend is stepping through.
 func (a *DesktopApp) ImportBookFromLocalPath(shelfID string, localPath string, folderParts []string) (DesktopImportBookResult, error) {
 	if a.app == nil {
 		return DesktopImportBookResult{}, util.NewError("desktop backend app instance is nil")
@@ -146,8 +140,6 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 	return dir, nil
 }
 
-// shelfLibRoot returns the configured lib_root of the shelf with the given id,
-// or an error when the id is empty or unknown.
 func (a *DesktopApp) shelfLibRoot(shelfID string) (string, error) {
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
@@ -159,19 +151,16 @@ func (a *DesktopApp) shelfLibRoot(shelfID string) (string, error) {
 		return "", util.Errorf("loading shelf config: %w", err)
 	}
 
-	for _, entry := range conf.Shelves {
-		if entry.ID == shelfID {
-			return entry.LibRoot, nil
-		}
+	entry := conf.find(shelfID)
+	switch {
+	case entry == nil:
+		return "", util.Errorf("shelf with ID %q not found", shelfID)
+	case entry.Source != nil:
+		return "", util.Errorf("shelf %q is read from %s and has no folder on this computer", shelfID, entry.Source.URL)
 	}
-	return "", util.Errorf("shelf with ID %q not found", shelfID)
+	return entry.LibRoot, nil
 }
 
-// OpenShelfInFinder reveals a shelf's lib_root in the host file explorer. It is
-// the shelf-level counterpart to OpenFolderDirectory/OpenBookDirectory, so a
-// first-time user can find where their books actually live on disk without
-// guessing at the config directory. OpenShelfDirectory (no arguments) is the
-// unrelated directory *picker* used when adding a shelf.
 func (a *DesktopApp) OpenShelfInFinder(shelfID string) error {
 	libRoot, err := a.shelfLibRoot(shelfID)
 	if err != nil {
@@ -225,9 +214,6 @@ func (a *DesktopApp) OpenFolderDirectory(shelfID string, folderParts []string) e
 		return util.Errorf("%w", err)
 	}
 
-	// normalizeFolderParts trims user-provided segments and drops empty entries;
-	// resolveDesktopFolderPath then enforces that the final path stays under
-	// <shelf>/books.
 	targetDir, err := resolveDesktopFolderPath(libRoot, normalizeFolderParts(folderParts))
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -248,9 +234,6 @@ func (a *DesktopApp) OpenFolderDirectory(shelfID string, folderParts []string) e
 	return nil
 }
 
-// resolveBookPackagePath returns the absolute path of a book's .bookpkg
-// directory, verified to exist and stay within its shelf. It is shared by
-// "reveal in Finder" and "open in the standalone reader".
 func (a *DesktopApp) resolveBookPackagePath(shelfID, bookID string) (string, error) {
 	if a.app == nil {
 		return "", util.NewError("desktop backend app instance is nil")
@@ -304,28 +287,8 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 	return nil
 }
 
-// readerUnsupportedPlatformCode is a stable token embedded in the OpenReader
-// error returned on non-macOS platforms, where no standalone reader binary
-// exists at all. The frontend matches this token to tell that case apart from a
-// genuine macOS launch failure (reader not installed, or the launch itself
-// failed) and word its in-app fallback notice accordingly. It survives the
-// util.NewError function-name prefix, so a substring match stays reliable. Keep
-// in sync with READER_UNSUPPORTED_PLATFORM_CODE in frontend/src/api/desktop.ts.
 const readerUnsupportedPlatformCode = "reader_unsupported_platform"
 
-// OpenReader launches the standalone PlainShelfReader in its own window, showing
-// the given book. It is the desktop's reading path: the frontend routes the read
-// action here on desktop instead of opening the in-app reader.
-//
-// The reader is a separate macOS app (installed via the Homebrew cask, bundle id
-// com.voilelab.plainshelf-reader); it reads the .bookpkg directory directly and
-// persists progress into the shared reading_progress.json this app also uses, so
-// the position shows up in this library. macOS-only for now — there is no reader
-// binary on other platforms.
-//
-// section is the reader section index to open at, or negative to open at the
-// book's restored progress. The frontend passes the chapter it was launched from
-// (a chapter "read" action) so the standalone reader lands on that chapter.
 func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
 	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
 	if err != nil {
@@ -343,26 +306,8 @@ func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
 	return nil
 }
 
-// readerLaunchCommand builds the macOS command that opens the standalone reader
-// at bookPath. It launches the app by name so LaunchServices finds the installed
-// PlainShelfReader.app and gives it its own window; PLAINSHELF_READER_APP
-// overrides the app (a path or name) for development against a local build.
-//
-// -shelf passes the book's real shelf id so the reader reports it as the active
-// shelf and reads/writes progress under shelves.<shelfID>.<bookID> — the same key
-// the desktop library uses — instead of the reader's synthetic shelf. It is
-// omitted when shelfID is empty so a launch with no real shelf still falls back
-// to the synthetic one.
-//
-// -section passes the reader section index to open at, so a chapter "read" action
-// lands the standalone reader on that chapter rather than the restored progress.
-// It is omitted when section is negative (no chapter requested), which opens the
-// book at its restored progress like a default read.
-//
-// -n forces a new instance: the reader takes its book only from its startup
-// arguments and shows a single book, so without it a second launch while a
-// reader is already open would merely reactivate the first window (still showing
-// the first book) and report success, so the frontend would not fall back.
+// macOS LaunchServices open(1) needs -n to create a new reader process;
+// otherwise it reactivates the existing app without applying new startup args.
 func readerLaunchCommand(bookPath, shelfID string, section int) (string, []string) {
 	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
 	if app == "" {

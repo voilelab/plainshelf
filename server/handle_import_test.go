@@ -94,9 +94,6 @@ func TestValidateImportFileHeader(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// The message is what the client sees, so it must be present on a
-			// rejection and must not carry the util.Errorf function prefix the
-			// logged error has.
 			if tt.wantErr {
 				if message == "" {
 					t.Fatal("rejection returned no client message")
@@ -111,7 +108,7 @@ func TestValidateImportFileHeader(t *testing.T) {
 	}
 }
 
-func TestIsRequestBodyTooLargeUsesMaxBytesErrorType(t *testing.T) {
+func TestBodyTooLargeUsesMaxBytesError(t *testing.T) {
 	wrapped := errors.Join(errors.New("parse multipart"), &http.MaxBytesError{Limit: maxImportBodySize})
 	if !isRequestBodyTooLarge(wrapped) {
 		t.Fatal("expected wrapped http.MaxBytesError to be recognized")
@@ -121,7 +118,7 @@ func TestIsRequestBodyTooLargeUsesMaxBytesErrorType(t *testing.T) {
 	}
 }
 
-func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
+func TestEPUBImportErrorClassifies(t *testing.T) {
 	tests := []struct {
 		name         string
 		err          error
@@ -143,8 +140,7 @@ func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
 			forbidInBody: "/private/shelf",
 		},
 		{
-			// An import creates a book, so it fails for the same reasons any
-			// other write does and must get the same status for them.
+
 			name:       "a refused folder is a client error",
 			err:        util.Errorf("%w", shelf.ErrInvalidFolder),
 			wantStatus: http.StatusBadRequest,
@@ -173,7 +169,7 @@ func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
 	}
 }
 
-func TestMultipartDefaultFileContentTypeIsRejected(t *testing.T) {
+func TestMultipartDefaultContentType(t *testing.T) {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	part, err := writer.CreateFormFile("file", "book.txt")
@@ -203,11 +199,7 @@ func TestMultipartDefaultFileContentTypeIsRejected(t *testing.T) {
 	}
 }
 
-// TestImportFromLocalPathStripsExtensionFromTitle pins that the desktop local-path
-// import derives the book title from the filename with its extension removed, so
-// "遮天.txt" becomes "遮天" rather than "遮天.txt" — matching the web-upload path,
-// whose frontend already sends a de-extensioned title.
-func TestImportFromLocalPathStripsExtensionFromTitle(t *testing.T) {
+func TestImportLocalPathStripsExtension(t *testing.T) {
 	app := newTestApp(t)
 
 	srcPath := filepath.Join(t.TempDir(), "遮天.txt")

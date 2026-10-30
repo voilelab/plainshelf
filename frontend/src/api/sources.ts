@@ -136,14 +136,6 @@ export async function getSourceContent(bookId: string, sourceId: string): Promis
   );
 }
 
-/**
- * Fetches one of a source's illustrations.
- *
- * This goes through `fetchBlob` rather than being handed to an `<img src>`,
- * because the request has to carry the API token: a plain image request would
- * be issued by the browser without it and fail whenever the server sets
- * `protect_read`.
- */
 export async function getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
   if (isMockApiMode()) {
     throw new Error('Source assets are not served in mock API mode');
@@ -156,15 +148,6 @@ export async function getSourceAsset(bookId: string, sourceId: string, name: str
   );
 }
 
-/**
- * Fetches a source's illustrations as one zip, so a download pays a single
- * request instead of one per figure. `names` picks which files to pack (empty =
- * the whole `assets/` directory); an absent name is packed as no entry.
- *
- * Goes through `fetchBlob`, like getSourceAsset, so the request carries the API
- * token a plain browser request would omit under `protect_read`. Returns the
- * raw archive so the caller can unzip one entry at a time.
- */
 export async function getSourceAssetsBundle(
   bookId: string,
   sourceId: string,
@@ -199,12 +182,6 @@ export async function createSource(bookId: string, options?: CreateSourceOptions
     return { ...newItem.meta };
   }
 
-  // Wails routes fetches through the WebView's custom scheme handler. WebKit
-  // can truncate a generated multipart body there, especially once a derived
-  // source crosses the old in-memory form-field threshold; Go then reports
-  // `multipart: NextPart: EOF`. JSON is serialized as one ordinary request
-  // body and avoids that streaming path. The server still accepts multipart
-  // for older clients.
   const body = options ? JSON.stringify({
     content: options.content ?? '',
     format: options.format ?? 'txt',
@@ -238,10 +215,6 @@ export async function deleteSource(bookId: string, sourceId: string): Promise<vo
   );
 }
 
-/**
- * Clears the source's import note. The note records where the text came from,
- * so the API only removes one — there is no rewrite to pair with this.
- */
 export async function deleteSourceComment(bookId: string, sourceId: string): Promise<void> {
   if (isMockApiMode()) {
     const item = ensureMockSource(bookId).find((source) => source.meta.id === sourceId);

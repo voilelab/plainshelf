@@ -14,7 +14,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const maxImportBodySize = 100 << 20 // 100 MB
+const maxImportBodySize = 100 << 20
 
 const importTextMediaType = "text/plain"
 const importMarkdownMediaType = "text/markdown"
@@ -23,9 +23,6 @@ const importOctetStreamMediaType = "application/octet-stream"
 const importEPUBMediaType = "application/epub+zip"
 const importZipMediaType = "application/zip"
 
-// importHandlers turns an uploaded or local file into a book. It reads settings
-// because an EPUB import that carries no strategy of its own falls back to the
-// configured one.
 type importHandlers struct {
 	*apiCore
 
@@ -59,19 +56,14 @@ func parseImportFolderParts(rawFolder string) []string {
 	return parts
 }
 
-// isSupportedImportExt reports whether ext (as returned by filepath.Ext, lower-cased
-// by the caller) is one of the file types accepted for book import.
 func isSupportedImportExt(ext string) bool {
 	return ext == ".txt" || ext == ".md" || ext == ".epub"
 }
 
-// isEPUBExt reports whether a filename should go through the EPUB conversion
-// path rather than being stored as-is.
 func isEPUBExt(ext string) bool {
 	return ext == ".epub"
 }
 
-// deriveTitleFromFilename strips a filename's extension to use it as a book title.
 func deriveTitleFromFilename(filename string) string {
 	base := filepath.Base(filename)
 	title := strings.TrimSuffix(base, filepath.Ext(base))
@@ -81,9 +73,6 @@ func deriveTitleFromFilename(filename string) string {
 	return title
 }
 
-// bookFormatFromFilename derives the BookMeta.Format value ("txt" or "md") from a
-// filename's extension. Callers must have already validated the extension is supported.
-// It is not used for EPUB, whose stored format comes from the conversion strategy.
 func bookFormatFromFilename(filename string) string {
 	if strings.ToLower(filepath.Ext(filename)) == ".md" {
 		return shelf.BookFormatMarkdown
@@ -91,8 +80,6 @@ func bookFormatFromFilename(filename string) string {
 	return shelf.BookFormatText
 }
 
-// validateImportFileHeader returns the message shown to the client separately
-// from the error, which is logged and carries util.Errorf's function prefix.
 func validateImportFileHeader(header *multipart.FileHeader) (string, error) {
 	reject := func(message string) (string, error) {
 		return message, util.Errorf("%s", message)
@@ -111,10 +98,7 @@ func validateImportFileHeader(header *multipart.FileHeader) (string, error) {
 	contentType := strings.TrimSpace(header.Header.Get("Content-Type"))
 
 	if ext == ".epub" {
-		// As with .md, the extension is the primary signal: browsers send
-		// application/epub+zip, application/zip or application/octet-stream for
-		// the same file depending on the platform's MIME database. The archive
-		// itself is validated when it is parsed.
+
 		if contentType == "" {
 			return "", nil
 		}
@@ -144,9 +128,6 @@ func validateImportFileHeader(header *multipart.FileHeader) (string, error) {
 		return "", nil
 	}
 
-	// ext == ".md": browsers disagree on what content type to send for Markdown
-	// uploads (some send text/markdown, some text/plain, some application/octet-stream,
-	// some nothing at all), so the extension is the primary signal here.
 	if contentType == "" {
 		return "", nil
 	}
@@ -183,12 +164,6 @@ func validateLocalImportPath(localPath string) (string, error) {
 	return cleanPath, nil
 }
 
-// newPlainTextBook stores an already re-encoded .txt or .md file as a new book.
-//
-// The source, the current-source pointer and the detected metadata are all
-// written while the book is still staged, so an import either lands complete or
-// not at all. The caller re-encodes before calling: that reads the file, while
-// this initializer runs with the exclusive shelf lock held.
 func newPlainTextBook(
 	shelfData *shelf.ShelfData,
 	utf8Reader io.Reader,
@@ -213,14 +188,12 @@ func newPlainTextBook(
 	})
 }
 
-// POST /api/shelves/{shelf_id}/books/import
 func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
-	// Limit overall request body size.
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
@@ -232,7 +205,6 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Required: file field.
 	f, header, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "missing required field: file", http.StatusBadRequest)
@@ -246,7 +218,6 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional fields.
 	title := r.FormValue("title")
 	if title == "" {
 		title = header.Filename
@@ -261,8 +232,6 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// multipart.File is an io.ReaderAt, so the archive is read randomly
-		// rather than buffered whole.
 		newBook, err := h.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), folderParts, strategy)
 		if err != nil {
 			h.writeEPUBImportError(w, r, err)
@@ -273,13 +242,10 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-encode before creating the book: this reads the upload, and the book
-	// initializer runs while the exclusive shelf lock is held.
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
 		if unsupported, ok := errors.AsType[*util.UnsupportedEncodingError](err); ok {
-			// The file's encoding is the problem, not the server: report it as a
-			// client error and name the detected encoding so the user knows why.
+
 			h.Warn("rejected import upload: unsupported encoding", "error", err)
 			http.Error(w, "unsupported text encoding: "+unsupported.Encoding, http.StatusBadRequest)
 			return
@@ -298,8 +264,6 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 	h.writeImportedBook(w, shelfData, newBook, folderParts)
 }
 
-// writeEPUBImportError reports a bad archive with its detail, because the
-// client is the only one who can act on it, and maps everything else.
 func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, r *http.Request, err error) {
 	if isEPUBInputError(err) {
 		h.Error("failed to import epub", "error", err)
@@ -310,16 +274,10 @@ func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, r *http.Req
 	h.writeErr(w, r, err, "failed to import epub")
 }
 
-// writeImportedBook responds with the freshly imported book. The book was
-// created under folderParts, which is where it now sits; the book itself does
-// not carry its folder back.
 func (h *importHandlers) writeImportedBook(w http.ResponseWriter, shelfData *shelf.ShelfData, newBook *shelf.Book, folderParts shelf.FolderPath) {
 	h.writeJSON(w, http.StatusCreated, newBookResponse(shelfData, newBook.GetMeta(), folderParts))
 }
 
-// fromLocalPath imports a book from a local file path on the server.
-// This is intended for desktop application use, where the client can specify a
-// local file path and the server can access it directly.
 func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderParts shelf.FolderPath) (*shelf.Book, error) {
 	cleanPath, err := validateLocalImportPath(localPath)
 	if err != nil {
@@ -347,21 +305,15 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderP
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		// The desktop client has no per-import options, so the configured
-		// default strategy is the whole story here.
+
 		return h.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", folderParts, h.settings.epubImportStrategy())
 	}
 
-	// Re-encode before creating the book: this reads the file, and the book
-	// initializer runs while the exclusive shelf lock is held.
 	utf8Reader, _, err := util.ReEncodeToUTF8(fp)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Strip the extension so the desktop local-path import yields "遮天" rather
-	// than "遮天.txt", matching the web-upload path (the frontend already sends a
-	// de-extensioned title).
 	title := deriveTitleFromFilename(cleanPath)
 
 	newBook, err := newPlainTextBook(shelfData, utf8Reader, folderParts, title, cleanPath)

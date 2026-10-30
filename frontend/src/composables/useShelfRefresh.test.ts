@@ -2,23 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PaginatedBooks } from '@/types/book';
 
-const supportsShelfRefresh = vi.fn();
+const capability = vi.hoisted(() => ({ rescan: true, snapshotAt: null as number | null }));
 const refreshShelf = vi.fn();
-const getShelfFetchedAt = vi.fn();
+
 const listBooks = vi.fn();
 const listFolders = vi.fn();
 
-// Whether the backend dates its stored listing at all. Absence of the method is
-// the signal, not a null return, so it has to be togglable per test.
-let datesItsListing = true;
-
-// The composable reads the provider through the same accessor the stores it
-// drives use, so one mock covers all three.
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
-    supportsShelfRefresh,
     refreshShelf,
-    ...(datesItsListing ? { getShelfFetchedAt } : {}),
     listBooks,
     listFolders
   })
@@ -30,7 +22,6 @@ const { useToasts } = await import('./useToasts');
 const { ShelfScanInProgressError, ShelfScanRateLimitedError } = await import('@/api/shelves');
 const { t } = await import('@/i18n');
 
-/** The messages the shared toast queue is holding right now. */
 function toastMessages(): string[] {
   return useToasts().toasts.value.map((toast) => toast.message);
 }
@@ -48,10 +39,9 @@ function page(ids: string[]): PaginatedBooks {
 }
 
 beforeEach(() => {
-  datesItsListing = true;
-  supportsShelfRefresh.mockReset().mockReturnValue(true);
+  capability.rescan = true;
+  capability.snapshotAt = null;
   refreshShelf.mockReset().mockResolvedValue(undefined);
-  getShelfFetchedAt.mockReset().mockResolvedValue(null);
   listBooks.mockReset().mockResolvedValue(page(['a']));
   listFolders.mockReset().mockResolvedValue(['/']);
 
@@ -64,17 +54,17 @@ beforeEach(() => {
 
 describe('useShelfRefresh', () => {
   it('reports unsupported when the provider does not offer a manual update', async () => {
-    supportsShelfRefresh.mockReturnValue(false);
+    capability.rescan = false;
 
     const shelf = useShelfRefresh();
     await shelf.refresh();
 
-    expect(shelf.supported).toBe(false);
+    expect(shelf.supported.value).toBe(false);
     expect(refreshShelf).not.toHaveBeenCalled();
   });
 
   it('updates the shelf, then reloads books, folders and the sync time', async () => {
-    getShelfFetchedAt.mockResolvedValue(1_700_000_000_000);
+    capability.snapshotAt = 1_700_000_000_000;
     const shelf = useShelfRefresh();
 
     await shelf.refresh();
@@ -119,7 +109,7 @@ describe('useShelfRefresh', () => {
   });
 
   it('reads the last sync time without updating the shelf', async () => {
-    getShelfFetchedAt.mockResolvedValue(4_242);
+    capability.snapshotAt = 4_242;
     const shelf = useShelfRefresh();
 
     await shelf.loadLastSyncedAt();
@@ -128,8 +118,6 @@ describe('useShelfRefresh', () => {
     expect(refreshShelf).not.toHaveBeenCalled();
   });
 
-  // A count of five digits beside the button would push the toolbar around
-  // every time the shelf grows, so what the walk found is announced and goes.
   it('announces what the update found in a toast', async () => {
     refreshShelf.mockResolvedValue({ bookCount: 12, folderCount: 3 });
     const shelf = useShelfRefresh();
@@ -137,8 +125,6 @@ describe('useShelfRefresh', () => {
     await shelf.refresh();
 
     expect(toastMessages()).toEqual([t('library.scanFound', { books: 12, folders: 3 })]);
-    // Nothing durable is claimed from it: a backend that reports counts has no
-    // sync time, and the toolbar must not invent one.
     expect(shelf.lastSyncedAt.value).toBeNull();
   });
 
@@ -150,23 +136,17 @@ describe('useShelfRefresh', () => {
     expect(toastMessages()).toEqual([]);
   });
 
-  // "Never updated" is only true of a backend that dates its stored listing. A
-  // server has no such date, so the toolbar must be able to leave the label out
-  // rather than claim the shelf has never been read.
   it('reports whether the backend dates its listing at all', async () => {
-    expect(useShelfRefresh().tracksLastSynced).toBe(true);
+    capability.snapshotAt = 42;
+    expect(useShelfRefresh().tracksLastSynced.value).toBe(true);
 
-    datesItsListing = false;
+    capability.snapshotAt = null;
     const shelf = useShelfRefresh();
 
-    expect(shelf.tracksLastSynced).toBe(false);
+    expect(shelf.tracksLastSynced.value).toBe(false);
     await shelf.loadLastSyncedAt();
-    expect(getShelfFetchedAt).not.toHaveBeenCalled();
   });
 
-  // Not a failure: another client is already walking the shelf, the previous
-  // listing is still correct, and the answer is to wait. So it is a remark
-  // about the press rather than a state the page must keep showing.
   it('explains a refusal to start a second walk in a toast, not as a page error', async () => {
     refreshShelf.mockRejectedValue(new ShelfScanInProgressError('running-one'));
     const shelf = useShelfRefresh();
@@ -177,9 +157,6 @@ describe('useShelfRefresh', () => {
     expect(shelf.error.value).toBe('');
   });
 
-  // Same reasoning as the refusal above, and a separate message: telling the
-  // user to wait for a scan that is not running would send them watching for
-  // something that never ends.
   it('tells the user how long to wait when the server refuses the pace', async () => {
     refreshShelf.mockRejectedValue(new ShelfScanRateLimitedError(7));
     const shelf = useShelfRefresh();
@@ -190,8 +167,6 @@ describe('useShelfRefresh', () => {
     expect(shelf.error.value).toBe('');
   });
 
-  // A real failure does stay on the page: the listing on screen may now be
-  // wrong, and a toast the user missed cannot be read again.
   it('leaves a genuine failure on the page rather than in a toast', async () => {
     refreshShelf.mockRejectedValue(new Error('pCloud is unreachable.'));
     const shelf = useShelfRefresh();
@@ -202,3 +177,12 @@ describe('useShelfRefresh', () => {
     expect(toastMessages()).toEqual([]);
   });
 });
+
+vi.mock('./useShelfCapabilities', async () => {
+  const { computed } = await import('vue');
+  return { useShelfCapabilities: () => ({
+    rescan: computed(() => capability.rescan),
+    snapshotAt: computed(() => capability.snapshotAt)
+  }) };
+});
+vi.mock('./useShelvesStore', () => ({ useShelvesStore: () => ({ fetchShelves: async () => {} }) }));

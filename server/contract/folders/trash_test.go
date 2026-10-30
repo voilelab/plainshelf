@@ -87,26 +87,19 @@ func TestAPIEmptyTrashOnEmptyTrashContract(t *testing.T) {
 	}
 }
 
-// A second request while a sweep is still in flight must point the client at
-// the existing chain instead of queueing a redundant one.
-func TestAPIEmptyTrashConflictReportsRunningChainContract(t *testing.T) {
+func TestAPIEmptyTrashRunningChainConflict(t *testing.T) {
 	env := apitest.New(t)
 
 	first := apitest.AssertDuplicateChainConflict(t, env, func(wantStatus int) apitest.TaskChainSubmitResponse {
 		return apitest.EmptyTrash(t, env, wantStatus)
 	})
 
-	// Once the sweep has finished, a fresh request is accepted again.
 	if next := apitest.EmptyTrash(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
 		t.Errorf("expected a new chain after the previous one finished")
 	}
 }
 
-// DELETE /books/{id} and POST /books/{id}/trash share one handler, and the two
-// below pin that they stay interchangeable. The lifecycle itself is covered by
-// TestAPITrashLifecycleContract. One env serves both routes: each trashes its
-// own book, so they never observe each other's effect.
-func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
+func TestAPIDeleteAndTrashRoutes(t *testing.T) {
 	env := apitest.New(t)
 
 	routes := map[string]func(bookID string) *http.Request{
@@ -127,7 +120,6 @@ func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
 
 			apitest.AssertStatus(t, env.Get(apitest.BookURL(bookID)), http.StatusNotFound)
 
-			// Recoverable, which is what makes both routes a trash operation.
 			trashed := apitest.GetJSON[[]server.TrashedBook](t, env, apitest.ShelfURL("trash", "books"))
 			if !slices.ContainsFunc(trashed, func(b server.TrashedBook) bool { return b.ID == bookID }) {
 				t.Fatalf("trash = %+v, want it to contain the trashed book %s", trashed, bookID)
@@ -136,7 +128,7 @@ func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
 	}
 }
 
-func TestAPIDeleteAndTrashRoutesAgreeOnUnknownBookContract(t *testing.T) {
+func TestAPITrashRoutesUnknownBook(t *testing.T) {
 	env := apitest.New(t)
 
 	requests := map[string]*http.Request{

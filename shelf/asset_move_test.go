@@ -8,9 +8,6 @@ import (
 	"testing"
 )
 
-// writeShelfAsset plants a file under a source's assets/ directory by hand, the
-// way a user dropping an illustration into the shelf would, so the read path is
-// exercised against a file it did not write itself.
 func writeShelfAsset(t *testing.T, libRoot string, source *Source, name string, data []byte) {
 	t.Helper()
 
@@ -23,11 +20,7 @@ func writeShelfAsset(t *testing.T, libRoot string, source *Source, name string, 
 	}
 }
 
-// Assets live inside the book package, so every shelf operation that relocates
-// the package must carry them along without the book's identity changing. The
-// book-package-level asset behaviour is covered in shelf/bookpkg; this test pins
-// the shelf move/trash/restore path on top of it.
-func TestSourceAssetsSurviveMoveAndTrashRestore(t *testing.T) {
+func TestSourceAssetsSurviveMoveAndRestore(t *testing.T) {
 	libRoot := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
 

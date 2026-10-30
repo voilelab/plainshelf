@@ -11,9 +11,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
-// ignoredDirFixtures is one directory of every ignored kind: the hidden
-// helpers a sync client or a desktop OS leaves behind, plus the system
-// directories NAS firmware and SMB shares create without a leading dot.
 var ignoredDirFixtures = []string{
 	"@eaDir",
 	"#recycle",
@@ -27,7 +24,6 @@ var ignoredDirFixtures = []string{
 	".TemporaryItems",
 }
 
-// userFolderDirs is the folder tree the user actually built, relative to books/.
 var userFolderDirs = []string{
 	"Fiction",
 	"Fiction/Classics",
@@ -44,10 +40,6 @@ func makeUserFolderTree(t *testing.T, libRoot string) {
 	}
 }
 
-// plantIgnoredDirs drops one of every ignored directory under books/ and under
-// every user folder, each holding a plain subdirectory. This is the Synology
-// shape: "@eaDir" exists at every level, so a scanner that descends into it
-// reports roughly twice the folders the user made.
 func plantIgnoredDirs(t *testing.T, libRoot string) {
 	t.Helper()
 
@@ -62,8 +54,6 @@ func plantIgnoredDirs(t *testing.T, libRoot string) {
 	}
 }
 
-// writeFixtureBook creates a book package directly on disk, bypassing NewBook
-// so that it can be planted inside a directory the API refuses to name.
 func writeFixtureBook(t *testing.T, libRoot, folderDir, bookID string) {
 	t.Helper()
 
@@ -85,7 +75,7 @@ func folderStrings(folders []FolderPath) []string {
 	return out
 }
 
-func TestGetAllFoldersIgnoresSystemDirectories(t *testing.T) {
+func TestGetAllFoldersIgnoresSystemDirs(t *testing.T) {
 	cleanRoot := t.TempDir()
 	noisyRoot := t.TempDir()
 
@@ -108,7 +98,6 @@ func TestGetAllFoldersIgnoresSystemDirectories(t *testing.T) {
 	clean := folderStrings(cleanFolders)
 	noisy := folderStrings(noisyFolders)
 
-	// Guard against the comparison passing because both sides are empty.
 	found := slices.Contains(clean, "Fiction/Classics")
 	if !found {
 		t.Fatalf("Expected the clean shelf to report Fiction/Classics, got %v", clean)
@@ -124,7 +113,6 @@ func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 	makeUserFolderTree(t, libRoot)
 
 	writeFixtureBook(t, libRoot, "Fiction/Classics", "keep-0001")
-	// A deleted book still sitting in the NAS recycle bin must not come back.
 	writeFixtureBook(t, libRoot, "#recycle", "recycled-0002")
 	writeFixtureBook(t, libRoot, "Fiction/@eaDir", "sidecar-0003")
 	writeFixtureBook(t, libRoot, ".stfolder", "synced-0004")
@@ -132,7 +120,7 @@ func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 
 	var found []string
-	if _, err := shelf.iterateShelfTree(nil, func(b *Book) bool {
+	if _, err := shelf.iterateShelfTree(nil, nil, func(b *Book) bool {
 		found = append(found, b.ID())
 		return true
 	}); err != nil {
@@ -145,7 +133,7 @@ func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 	}
 }
 
-func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
+func TestBookCacheExportOmitsIgnoredDirs(t *testing.T) {
 	libRoot := t.TempDir()
 	makeUserFolderTree(t, libRoot)
 	plantIgnoredDirs(t, libRoot)
@@ -176,9 +164,7 @@ func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 	}
 }
 
-// A shelf that has said nothing skips the built-in defaults, and each of them
-// carries the reason the user is shown when one is refused as a folder name.
-func TestDefaultIgnoreRules(t *testing.T) {
+func TestDefaultIgnoreRulesAndReasons(t *testing.T) {
 	rules := shelfutil.NewIgnoreRules(shelfutil.DefaultIgnoredDirs())
 
 	tests := []struct {
@@ -215,8 +201,6 @@ func TestDefaultIgnoreRules(t *testing.T) {
 		}
 	}
 
-	// Hidden directories are a rule rather than a listed name, so they are not
-	// among the names and answer with the rule's own reason.
 	if reason, _ := rules.MatchIgnoredDir(".git"); reason != shelfutil.DirIgnoreReasonHidden {
 		t.Errorf("MatchIgnoredDir(.git) reason = %q, want the hidden-directory rule", reason)
 	}
@@ -225,9 +209,7 @@ func TestDefaultIgnoreRules(t *testing.T) {
 	}
 }
 
-// Which names are refused is the shelf's own rule now, so the check belongs to a
-// shelf: a shelf with no configuration refuses exactly the defaults.
-func TestValidateFolderPathRejectsIgnoredNames(t *testing.T) {
+func TestFolderPathRejectsIgnoredNames(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	for _, name := range ignoredDirFixtures {
@@ -244,10 +226,7 @@ func TestValidateFolderPathRejectsIgnoredNames(t *testing.T) {
 	}
 }
 
-// The API answers a name the scanners skip with its own explanation, so the
-// rejection has to be distinguishable from every other invalid folder while
-// still classifying as one, and it has to carry the reason out.
-func TestValidateFolderPathReportsIgnoredNamesAsTheirOwnSentinel(t *testing.T) {
+func TestIgnoredFolderErrorType(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
 	for _, name := range ignoredDirFixtures {
@@ -269,7 +248,6 @@ func TestValidateFolderPathReportsIgnoredNamesAsTheirOwnSentinel(t *testing.T) {
 		}
 	}
 
-	// Any other rejection keeps the general sentinel alone.
 	for _, name := range []string{"", "..", "with/separator", "Book.bookpkg"} {
 		err := s.ValidateFolderPath(FolderPath{name})
 		if !errors.Is(err, ErrInvalidFolder) {
@@ -288,8 +266,6 @@ func TestNewFolderRejectsIgnoredNames(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected NewFolder to reject @eaDir, got nil")
 	}
-	// The message has to say why, since the directory would be creatable but
-	// then invisible to every later scan.
 	if !strings.Contains(err.Error(), "Synology index and thumbnail sidecar") {
 		t.Errorf("Expected the error to carry the reason the name is skipped, got %v", err)
 	}

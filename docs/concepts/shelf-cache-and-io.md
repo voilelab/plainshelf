@@ -1,4 +1,4 @@
-# Shelf Cache and Disk I/O
+# Shelf cache and disk I/O
 
 PlainShelf is filesystem-first: the shelf directory on disk is the source of
 truth, and the server keeps an in-memory cache so common browsing operations do
@@ -97,14 +97,34 @@ scheduled it.
     Only book listings are refused while the initial cache is still being built.
     A folder listing takes the shared lock without that check, so a request that
     arrives during initial construction performs its own full scan and answers
-    `200` — slowly — rather than `503`. Everything after that first gate is
+    `200`, slowly, rather than `503`. Everything after that first gate is
     identical for both.
+
+### Metadata changes with unchanged timestamps
+
+The per-book check cannot detect an external edit that preserves both the size
+and modification time of `book.json`. An equal-length title edit can have this
+effect on a filesystem with coarse timestamps, or when a sync tool restores
+the previous timestamp. The cached metadata can stay unchanged across repeated
+per-book checks.
+
+A full scan of a local or mounted shelf reopens every `book.json`, even when
+its stat is unchanged. Use [Update book list](#rescanning-on-demand) to request
+that scan, or wait for `scan_interval`. Reducing `book_check_interval` does not
+help with a stat collision. Remote shelves use
+[exported book caches](#the-exported-book-cache) instead of this per-book check.
+
+Comparing file contents on every check would add a read per book, including
+unchanged books, on SMB and other network filesystems. A recent-timestamp rule
+would catch some collisions but would still miss an equal-length edit that
+restores an older timestamp. PlainShelf keeps the stat-only check and relies
+on full scans for these edits.
 
 ### Character counts
 
 A book's character count is not stored in `book.json` but in its current
-source's `meta.json`, so the per-book freshness check above — which compares
-`book.json` — cannot see a count change on its own.
+source's `meta.json`, so the per-book freshness check above, which compares
+`book.json`, cannot see a count change on its own.
 
 PlainShelf closes that gap at the point of writing: every request that rewrites
 a source's content, recomputes its statistics, or moves the current-source
@@ -126,6 +146,16 @@ as they happen, so they appear in the very next listing regardless of the
 interval. Only a folder created or removed outside PlainShelf waits for the next
 full scan.
 
+A folder's own settings, its [`folder.json`](folders.md#folder-metadata), are
+cached the same way. An icon set through PlainShelf shows at once; a
+`folder.json` edited by hand shows after the next full scan, or after **Update
+book list**. Only folders that have the file cost anything: the scan sees the
+file in its folder's listing, and reads it once per full scan. It reads it every
+time rather than trusting the folder's modification time, because editing a file
+in place does not change the time of the folder that holds it. A shelf with five
+folders that carry an icon adds five small reads to each full scan, and nothing
+to a listing between scans.
+
 ### Skipping folders that did not change
 
 A full scan does not have to list every folder to find out that nothing moved.
@@ -134,9 +164,9 @@ A directory's modification time changes whenever one of its **direct** children
 is added, removed, or renamed. So each scan writes down the modification time of
 every directory under `books/` together with the entries it found there, and the
 next scan replaces the directory listing with a single stat wherever that time
-is unchanged. On a shelf where most folders sit untouched between scans — the
-normal case — the cost of a full scan drops from one listing per directory to
-one stat per directory, plus a listing for the few that actually changed.
+is unchanged. On a shelf where most folders sit untouched between scans, which
+is the normal case, the cost of a full scan drops from one listing per directory
+to one stat per directory, plus a listing for the few that actually changed.
 
 This is polling made cheaper, not polling removed, so it helps on an SMB, NAS,
 or cloud mount for the same reason it helps on a local disk: on those mounts a
@@ -146,14 +176,14 @@ What it deliberately does not do:
 
 - **It does not decide whether a book changed.** A directory's modification time
   says nothing about what happened inside its subdirectories, so everything
-  inside a `.bookpkg` folder — `book.json` above all — is still checked by the
+  inside a `.bookpkg` folder, `book.json` above all, is still checked by the
   per-book stat described above. Editing a book is never hidden by this.
 - **It does not trust a folder inside one that changed.** A modification time
   identifies a folder's content, not the folder itself: move one away and rename
   another into its place and the path holds something else, possibly carrying
-  the same time. What rules that out is the folder above — renaming a folder
-  into place changes its parent's time — so a folder is only believed when its
-  parent's listing is proven unchanged too. When a folder does change,
+  the same time. What rules that out is the folder above, because renaming a
+  folder into place changes its parent's time. So a folder is only believed when
+  its parent's listing is proven unchanged too. When a folder does change,
   everything below it is listed again on that one scan, and cheap again on the
   next.
 - **It does not trust a folder that was just touched.** Timestamps are coarse:
@@ -264,6 +294,9 @@ copied in from outside would never be discovered. If new books appear only after
 you restart the server or delete `app/scan-cache.json`, this is the setting to
 try.
 
+A virtual shelf (`NewShelfFromFS`) always runs with it off: a remote tree need
+not report directory times the way the machine that saved the snapshot saw them.
+
 ### `book_cache_interval`
 
 How quickly a change reaches the exported book cache described below. It applies
@@ -336,12 +369,26 @@ instead of walking the shelf, and the cost of opening a library stops growing
 with the number of books in it.
 
 One value in it is computed rather than copied: each entry carries `nsfw`, the
-finished answer to whether that book is
-[adult content](folders.md#marking-a-folder-as-adult-content), assembled from the
+finished answer to whether that book is [adult
+content](folders.md#marking-a-folder-as-adult-content), assembled from the
 folder rules in `shelf.json` and the book's own flag. It is there so that a
-client which downloads only this file — which is the point of the file — reaches
+client which downloads only this file, which is the point of the file, reaches
 the same answer as the server without reading `shelf.json` itself. Like the flag
 in `book.json`, it is written only when `true`.
+
+Folders with a [`folder.json`](folders.md#folder-metadata) are listed under
+`folder_meta`, keyed like the folder list, with the icon as written. A client
+reading the export gets the icons without opening one `folder.json` of its own;
+in exchange, an icon changed on the server reaches it when the server next
+exports, like any other change. The member is omitted when no folder has
+metadata, so such a shelf exports what it did before the field existed, and a
+client built before it ignores it.
+
+Each entry also carries `current_source_md5`, the content hash from the current
+source's `meta.json`. Editing a source's text in place rewrites that file but
+not `book.json`, so without it a client holding an
+[offline copy](shelf-sources.md#offline-copies) could not tell the text had
+changed without reading every source. It is omitted when unknown.
 
 ### When it is written
 
@@ -388,6 +435,59 @@ three choices are the conservative one:
 Each of those costs a couple of requests for one book. The alternative is
 showing a title or current source that is quietly wrong.
 
+### Folder metadata freshness on remote shelves
+
+`folder_meta` shares the export's `timestamp`: it is the metadata observed by
+that scan, not a promise that every folder is still unchanged now. The writer
+captures the folder paths, metadata, book entries and scan timestamp together,
+so a concurrent rescan cannot mix two listings in the export or offline snapshot.
+
+A virtual shelf (`NewShelfFromFS`, including pCloud and LAN shares) takes the
+whole listing from the newest usable export and checks for another export at
+`scan_interval`. It does **not** stat individual `book.json` or `folder.json`
+files to validate that listing. The per-book mtime rule above is not applied to
+this export-backed listing; opening an individual book is a separate read. An
+icon edited on the source reaches the client after the writer next scans and
+exports, then the client refreshes. Manual rescan walks the source directly and
+revalidates its `folder.json` files.
+
+A legacy export without `folder_meta` shows default icons and makes no extra
+folder requests. It does not prevent a later export from supplying metadata.
+Exports older than the current listing are ignored; at the same timestamp second,
+a changed content digest still refreshes icons, including clearing an icon.
+
+With an offline store configured, the listing and metadata survive restart in
+the local snapshot. If the source is unavailable, the current listing or stored
+snapshot remains visible with its original freshness. Reconnecting applies the
+source's usable export again, including metadata changed within the same second.
+Without an offline store there is no persisted listing to restore on an offline
+cold start. A source with no usable export is walked at first open (or restored
+from an existing offline snapshot); later interval checks look for an export,
+and manual rescan can walk it again.
+
+### Folder metadata I/O measurement
+
+Measured on Linux with local temporary files and a counting `ReadFS`, 2026-10-19:
+40 folder directories, five with `folder.json`, and no books in the remote case.
+The local rescan case also holds one book per folder. Counts describe metadata
+costs; they are not measured SMB or pCloud latency.
+
+| Operation | Observed I/O | Folder metadata cost |
+|---|---|---|
+| Local cold scan | 41 folder directory listings | Five `folder.json` opens/reads, each also checking the opened file's stat |
+| Local warm rescan | 41 directory snapshots reused, zero directory listings | The same five opens/reads; directory mtime never substitutes for reading existing metadata |
+| Warm folder and metadata listings | Zero `ReadFS` calls within the intervals | Zero |
+| Remote cold open from one export | Open `shelf.json`, list `app/`, open one export | Zero accesses under `books/` |
+| Remote export refresh | List `app/`, open one export | Zero accesses under `books/` |
+
+The tests are `TestFolderMetaScanReadsOnlyItsFolders` and
+`TestFolderMetaRemoteListingIO` in `shelf/shelf_folder_meta_cache_test.go`.
+On SMB, each metadata open/read/stat may require network round trips depending
+on the OS and mount cache; five files do not imply exactly five wire requests.
+On a request-metered backend an export read may require a link lookup and a
+download, but the number does not grow per folder. Actual SMB/NAS, pCloud, LAN,
+Windows, macOS and Android transport timings were not measured here.
+
 ### Several machines, one shelf
 
 The writer ID is generated on first start and stored outside the shelf, with the
@@ -407,10 +507,11 @@ cannot parse are never removed, so anything else under `app/` is left alone.
 - Its `schema_version` is a cross-device contract: the phone reader rejects a
   file whose version it does not match exactly and walks the shelf book by book
   instead — safe, but a per-book request cliff over pCloud, not free. [Data
-  Format Versioning](data-format-versioning.md#the-exported-book-cache) covers
+  format versioning](data-format-versioning.md#the-exported-book-cache) covers
   what a mismatch costs and why the version is duplicated on the TypeScript
   side.
-- It contains what `book.json` already contains, plus the computed `nsfw` above.
+- It contains what `book.json` already contains, plus the computed `nsfw` and
+  `current_source_md5` above.
   If your shelf is private, it is no more revealing than the shelf itself — but
   it does put every book's metadata in one file, which matters if you share
   `app/` more widely than `books/`.
@@ -425,10 +526,10 @@ Everything above describes reads. Writes follow two rules so that an abrupt
 shutdown cannot leave the shelf in a broken state.
 
 **Every file is written atomically.** Content goes to a temp file beside its
-destination and is then renamed over it. A reader — PlainShelf, your backup
-tool, or your file manager — never sees a partially written `book.json`,
-`meta.json`, `source.txt`, `cover.*`, or `trash.json`. If the process dies
-mid-write, the destination still holds its previous complete content.
+destination and is then renamed over it. A reader (PlainShelf, your backup tool,
+or your file manager) never sees a partially written `book.json`, `meta.json`,
+`source.txt`, `cover.*`, or `trash.json`. If the process dies mid-write, the
+destination still holds its previous complete content.
 
 Temp files are named `<destination>.<random>.tmp`. The `.tmp` suffix is
 deliberate: file sync clients such as Dropbox, Syncthing, and iCloud are
@@ -437,7 +538,7 @@ it is complete. The random segment keeps two concurrent writers from sharing a
 temp file.
 
 **Creating and importing a book is transactional.** A new book is assembled in
-full — its metadata, its first source, and the current-source pointer — inside
+full (its metadata, its first source, and the current-source pointer) inside
 `app/tmp/`, and only then renamed into `books/` in a single step. A book
 therefore either appears in your library complete or does not appear at all; an
 interrupted import cannot leave a book with no source behind.
@@ -446,7 +547,7 @@ interrupted import cannot leave a book with no source behind.
 leftovers from an interrupted run are cleaned up automatically at startup.
 
 A crash can still leave a stray `*.tmp` file next to its destination. These are
-inert — PlainShelf ignores them when scanning — and safe to delete by hand.
+inert, since PlainShelf ignores them when scanning, and safe to delete by hand.
 
 What this does *not* cover: two clients editing the same book at the same time.
 Each write lands complete, but the later one replaces the earlier one. See
@@ -497,9 +598,9 @@ What that costs:
   writable one does. On a large or high-latency shelf, that is the cost of the
   guarantee.
 - **The refusal does not depend on the interface.** The app withdraws the
-  controls that would write and shows a read-only banner — see [Open a shelf
+  controls that would write and shows a read-only banner (see [Open a shelf
   read-only](../configuring-local-shelf.md#open-a-shelf-read-only) for which
-  ones — but the write endpoints stay routed and answer 409 either way, so a
+  ones), but the write endpoints stay routed and answer 409 either way, so a
   client that asks anyway is refused rather than obeyed.
 
 `read_only` is per shelf, so one server can serve a writable shelf and an
@@ -508,7 +609,7 @@ toggle in **Settings → Shelves**, which closes and reopens that one shelf so t
 change applies immediately.
 
 `app_conf.read_only` puts the whole server in that mode instead: every write
-request is refused, and every shelf — including one added after startup — is
+request is refused, and every shelf, including one added after startup, is
 opened exactly as if it carried `read_only: true`, so nothing in the table above
 is written for any of them. Rescanning stays allowed, because a rescan only
 walks the shelf and rebuilds the in-memory cache.
