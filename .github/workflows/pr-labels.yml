@@ -11,7 +11,7 @@ permissions: {}
 jobs:
   release-label:
     name: Release notes label
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 1
     steps:
       - name: Require a category label

@@ -32,7 +32,7 @@ env:
 jobs:
   prepare:
     name: Resolve version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       native_version: ${{ steps.resolve.outputs.native_version }}
@@ -63,7 +63,7 @@ jobs:
 
   frontend:
     name: Build frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -93,7 +93,7 @@ jobs:
   test:
     name: Go tests
     needs: frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -121,7 +121,7 @@ jobs:
   binaries:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     needs: [prepare, frontend, test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -318,7 +318,7 @@ jobs:
     name: Build and push Docker image
     needs: [prepare, test, release]
     if: ${{ !cancelled() && !failure() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -366,7 +366,7 @@ jobs:
     name: Publish GitHub Release
     needs: [prepare, binaries, desktop-mac, reader-mac]
     if: inputs.publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

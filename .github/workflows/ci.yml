@@ -20,7 +20,7 @@ env:
 jobs:
   frontend:
     name: Frontend build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     defaults:
       run:
@@ -71,7 +71,7 @@ jobs:
 
   lint:
     name: Go lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     needs: frontend
     steps:
@@ -109,7 +109,7 @@ jobs:
 
   docs:
     name: Docs build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -130,7 +130,7 @@ jobs:
 
   go:
     name: Go tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     needs: frontend
     steps:
@@ -161,7 +161,7 @@ jobs:
 
   e2e:
     name: Frontend E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
     steps:
@@ -202,7 +202,7 @@ jobs:
 
   wasm-demo:
     name: Wasm demo smoke
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
     steps:
@@ -275,7 +275,7 @@ jobs:
 
   android:
     name: Android build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     needs: [frontend, android-lib]
     continue-on-error: true
@@ -331,7 +331,7 @@ jobs:
 
   android-lib:
     name: Android Go library
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
     continue-on-error: true
@@ -372,7 +372,7 @@ jobs:
 
   vulncheck:
     name: Go vulnerability scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     needs: frontend
     # govulncheck default symbol scanning uses call-graph reachability and can report conservative false positives (govulncheck doc.go).
