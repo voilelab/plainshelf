@@ -24,7 +24,7 @@ env:
 jobs:
   e2e-full:
     name: Full E2E suite
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.repository == 'voilelab/plainshelf'
     timeout-minutes: 25
     steps:
@@ -111,7 +111,7 @@ jobs:
 
   wasm-demo-browsers:
     name: Wasm demo in ${{ matrix.browser }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.repository == 'voilelab/plainshelf'
     timeout-minutes: 15
     strategy:
