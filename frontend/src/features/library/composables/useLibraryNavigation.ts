@@ -1,11 +1,9 @@
 import { computed, type Ref } from 'vue';
 import type { AcceptableValue } from 'reka-ui';
-import { normalizeFolderPath } from '@/utils/folders';
+import { normalizeFolderPath, ROOT_FOLDER_FILTER } from '@/utils/folders';
 import { useI18n } from '@/i18n';
 import type { useBooksRouteQuery } from './useBooksRouteQuery';
 import { SORT_OPTIONS, type BookSortKey, type SortOrder } from './useBooksSort';
-
-export const ROOT_FOLDER_LABEL = '/';
 
 interface LibraryRouteQuery {
   selectedFolder: Readonly<Ref<string | undefined>>;
@@ -19,11 +17,14 @@ export function useLibraryNavigation(query: LibraryRouteQuery, setPageSize: (siz
   const { selectedFolder, page, sortBy, sortOrder, pushBooksQuery } = query;
   const { t } = useI18n();
 
-  const isRootFolderSelected = computed(() => selectedFolder.value === ROOT_FOLDER_LABEL);
+  const isRootFolderSelected = computed(() => selectedFolder.value === ROOT_FOLDER_FILTER);
 
   const selectedFolderTitle = computed(() => {
     if (!selectedFolder.value) {
       return t('library.allBooks');
+    }
+    if (isRootFolderSelected.value) {
+      return t('bookCollection.noFolder');
     }
     return selectedFolder.value;
   });
@@ -49,7 +50,7 @@ export function useLibraryNavigation(query: LibraryRouteQuery, setPageSize: (siz
       return;
     }
 
-    const normalized = trimmed === ROOT_FOLDER_LABEL ? ROOT_FOLDER_LABEL : normalizeFolderPath(trimmed);
+    const normalized = trimmed === ROOT_FOLDER_FILTER ? ROOT_FOLDER_FILTER : normalizeFolderPath(trimmed);
 
     if (selectedFolder.value === normalized && page.value === 1) {
       return;

@@ -9,6 +9,7 @@ import {
   openFolderContextMenu,
   selectAllBooks,
   selectFolder,
+  selectNoFolder,
   switchToCardView
 } from './support/folders';
 
@@ -56,6 +57,15 @@ test('creates a nested folder level by level and filters books by exact folder',
 
   await selectFolder(page, 'ftnested');
   await expect(page.getByText('No books in ftnested.')).toBeVisible();
+
+  await selectAllBooks(page);
+  await importBookAs(page, helloFixturePath, 'ft-loose-book');
+  await selectNoFolder(page);
+  await expect(page).toHaveURL(/[?&]folders=(?:\/|%2F)(?:&|$)/);
+  await expect(page.getByRole('heading', { name: 'No folder', exact: true })).toBeVisible();
+  const titles = page.locator('.book-list-row').getByRole('heading');
+  await expect(titles.filter({ hasText: 'ft-loose-book' })).toBeVisible();
+  await expect(titles.filter({ hasText: 'ft-nested-book' })).toHaveCount(0);
 });
 
 test('renames a folder, keeping its icon and updating the tree and the active URL filter', async ({ page }) => {

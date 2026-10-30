@@ -39,8 +39,8 @@ describe('flattenFolderTreePaths', () => {
     expect(flattenFolderTreePaths([])).toEqual([]);
   });
 
-  it('skips the synthetic root node', () => {
-    expect(flattenFolderTreePaths(buildFolderTreeNodes(['/']))).toEqual([]);
+  it('leaves the top level out of the tree', () => {
+    expect(buildFolderTreeNodes(['/', ''])).toEqual([]);
   });
 
   it('lists each folder depth-first with its nesting depth', () => {

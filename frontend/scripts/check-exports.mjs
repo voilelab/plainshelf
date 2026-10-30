@@ -98,7 +98,6 @@ const ALLOWED = new Set([
   'src/utils/bookFilters/registry.ts#languageFilter',
   'src/utils/bookFilters/registry.ts#tagsFilter',
   'src/utils/charCountFilter.ts#parseCharCountBound',
-  'src/utils/folders.ts#ROOT_FOLDER_FILTER',
   'src/utils/folders.ts#flattenFolderTreePaths',
   'src/utils/safeHtml.ts#sanitizeColorStyle',
   'src/utils/sidebarMode.ts#SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY',

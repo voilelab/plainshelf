@@ -131,15 +131,6 @@ export function buildFolderTreeNodes(
 
   for (const inputPath of [...folderPaths].sort((a, b) => a.localeCompare(b))) {
     const normalizedPath = normalizeFolderPath(inputPath);
-    if (normalizedPath === ROOT_FOLDER_PATH) {
-      if (!nodeByPath.has('/')) {
-        const rootNode: FolderTreeNode = { name: '/', path: '/', children: [] };
-        nodeByPath.set('/', rootNode);
-        roots.push(rootNode);
-      }
-      continue;
-    }
-
     const segments = normalizedPath.split('/').filter((segment) => segment.length > 0);
     let parentPath = '';
     let siblings = roots;
@@ -180,10 +171,6 @@ export function flattenFolderTreePaths(nodes: FolderTreeNode[], depth = 0): Fold
   const options: FolderPathOption[] = [];
 
   for (const node of nodes) {
-    if (node.path === '/') {
-      continue;
-    }
-
     options.push({ path: node.path, depth });
     options.push(...flattenFolderTreePaths(node.children, depth + 1));
   }
