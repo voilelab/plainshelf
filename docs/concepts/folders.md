@@ -18,6 +18,14 @@ They are real directories, so they survive a server restart and can be browsed
 in any file manager. The `books/` root is itself the top-level group: a book
 sitting directly under it is in no folder.
 
+In the sidebar, **All books** lists every book on the shelf, including those in
+folders, and selecting a folder lists only the books directly inside it, not
+those in its subfolders. Books in no folder are listed under **No folder**, just
+below **All books**; that entry appears only while at least one such book
+exists. To create a top-level folder, right-click **All books** and choose
+**Add folder**; dropping a book or a folder on **All books** moves it to the top
+level.
+
 Create folders, move books between them, and delete empty ones from the web
 interface — none of it needs the filesystem touched by hand. A folder change you
 make in PlainShelf appears in the very next listing; one made outside PlainShelf
