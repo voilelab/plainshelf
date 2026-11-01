@@ -107,11 +107,13 @@ interface DesktopAppBinding {
   SetLANShare?: (params: DesktopLANShareParams) => Promise<DesktopLANShareStatus>;
   RotateLANShareToken?: () => Promise<DesktopLANShareStatus>;
   ReadReadHistory?: () => Promise<string>;
-  WriteReadHistory?: (doc: string) => Promise<void>;
+  RecordReadHistory?: (shelfKey: string, bookID: string) => Promise<void>;
+  ClearReadHistory?: (shelfKey: string) => Promise<void>;
+  SetReadHistoryLimit?: (limit: number) => Promise<void>;
   ReadReadingProgress?: () => Promise<string>;
   WriteReadingProgress?: (doc: string) => Promise<void>;
   ReadReadingStats?: () => Promise<string>;
-  WriteReadingStats?: (doc: string) => Promise<void>;
+  AddReadingSeconds?: (key: string, date: string, seconds: number) => Promise<void>;
   StageReadingProgress?: (
     shelfID: string,
     bookID: string,
@@ -361,27 +363,49 @@ export async function saveDesktopBookContent(
   await desktopApp.SaveBookContent(shelfID, bookID, suggestedName);
 }
 
-export function hasDesktopReadHistoryBinding(): boolean {
+type ReadHistoryBinding = Required<
+  Pick<
+    DesktopAppBinding,
+    'ReadReadHistory' | 'RecordReadHistory' | 'ClearReadHistory' | 'SetReadHistoryLimit'
+  >
+>;
+
+function getReadHistoryBinding(): ReadHistoryBinding {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  return Boolean(desktopApp?.ReadReadHistory && desktopApp?.WriteReadHistory);
+  if (
+    !desktopApp?.ReadReadHistory ||
+    !desktopApp.RecordReadHistory ||
+    !desktopApp.ClearReadHistory ||
+    !desktopApp.SetReadHistoryLimit
+  ) {
+    throw new Error('Read history binding not available');
+  }
+  return desktopApp as ReadHistoryBinding;
+}
+
+export function hasDesktopReadHistoryBinding(): boolean {
+  try {
+    getReadHistoryBinding();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function readDesktopReadHistory(): Promise<string> {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.ReadReadHistory) {
-    throw new Error('ReadReadHistory binding not available');
-  }
-
-  return (await desktopApp.ReadReadHistory()) ?? '';
+  return (await getReadHistoryBinding().ReadReadHistory()) ?? '';
 }
 
-export async function writeDesktopReadHistory(doc: string): Promise<void> {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.WriteReadHistory) {
-    throw new Error('WriteReadHistory binding not available');
-  }
+export async function recordDesktopReadHistory(shelfKey: string, bookID: string): Promise<void> {
+  await getReadHistoryBinding().RecordReadHistory(shelfKey, bookID);
+}
 
-  await desktopApp.WriteReadHistory(doc);
+export async function clearDesktopReadHistory(shelfKey: string): Promise<void> {
+  await getReadHistoryBinding().ClearReadHistory(shelfKey);
+}
+
+export async function setDesktopReadHistoryLimit(limit: number): Promise<void> {
+  await getReadHistoryBinding().SetReadHistoryLimit(limit);
 }
 
 function getReadingProgressBinding(): ReaderAppBinding | undefined {
@@ -419,27 +443,37 @@ export async function writeDesktopReadingProgress(doc: string): Promise<void> {
   await binding.WriteReadingProgress(doc);
 }
 
-export function hasDesktopReadingStatsBinding(): boolean {
+type ReadingStatsBinding = Required<
+  Pick<DesktopAppBinding, 'ReadReadingStats' | 'AddReadingSeconds'>
+>;
+
+function getReadingStatsBinding(): ReadingStatsBinding {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  return Boolean(desktopApp?.ReadReadingStats && desktopApp?.WriteReadingStats);
+  if (!desktopApp?.ReadReadingStats || !desktopApp.AddReadingSeconds) {
+    throw new Error('Reading stats binding not available');
+  }
+  return desktopApp as ReadingStatsBinding;
+}
+
+export function hasDesktopReadingStatsBinding(): boolean {
+  try {
+    getReadingStatsBinding();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function readDesktopReadingStats(): Promise<string> {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.ReadReadingStats) {
-    throw new Error('ReadReadingStats binding not available');
-  }
-
-  return (await desktopApp.ReadReadingStats()) ?? '';
+  return (await getReadingStatsBinding().ReadReadingStats()) ?? '';
 }
 
-export async function writeDesktopReadingStats(doc: string): Promise<void> {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.WriteReadingStats) {
-    throw new Error('WriteReadingStats binding not available');
-  }
-
-  await desktopApp.WriteReadingStats(doc);
+export async function addDesktopReadingSeconds(
+  key: string,
+  date: string,
+  seconds: number
+): Promise<void> {
+  await getReadingStatsBinding().AddReadingSeconds(key, date, seconds);
 }
 
 export function stageDesktopReadingProgress(bookID: string, offset: number, at: number): void {

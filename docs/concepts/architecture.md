@@ -90,6 +90,18 @@ and save **one string**; parsing, merging and trimming live in each feature's ow
 document module, so every platform shares one implementation and a new backend
 only has to persist text.
 
+The Wails desktop is the exception for read history and reading stats. Another
+process can write the same files, and neither document can be merged after the
+fact: read history is an ordered list without timestamps, and reading stats are
+summed seconds, so taking the newer copy drops an update and taking the union
+counts one twice. The desktop therefore sends each change as one operation
+(`RecordReadHistory`, `ClearReadHistory`, `SetReadHistoryLimit`,
+`AddReadingSeconds`), and Go applies it inside the cross-process file lock
+(`internal/readhistory`, `internal/readingstats`, both on
+`internal/lockedfile`), including the history limit and the 400-day stats
+retention. Reading progress keeps whole-document writes, which Go merges
+newest-wins under the same lock.
+
 ### Which backend a document actually gets
 
 The backend is resolved per document, not per platform, so the table is not
@@ -98,19 +110,22 @@ uniform:
 | Document | Browser | Android shell | Wails desktop | Standalone reader |
 |---|---|---|---|---|
 | `readingProgress` | localStorage | localStorage | JSON file | JSON file (shared with desktop) |
-| `readHistory` | localStorage | Capacitor Filesystem | JSON file | localStorage |
-| `readingStats` | localStorage | Capacitor Filesystem | JSON file | localStorage |
+| `readHistory` | localStorage | Capacitor Filesystem | JSON file | none |
+| `readingStats` | localStorage | Capacitor Filesystem | JSON file | none |
 
 Mock API mode and unit tests use the in-memory backend for all three.
 
-The standalone reader binds only the reading-progress methods, so its read
-history and reading stats fall back to WebView localStorage; its reading
+Inside a Wails window, a document whose binding is missing is an error, not a
+reason to fall back to WebView localStorage: every read and write rejects. Only
+the `?desktop-shell-preview=1` browser preview keeps browser storage.
+
+The standalone reader binds only the reading-progress methods, so it records no
+read history or reading stats yet; those writes fail and are logged. Its reading
 progress goes to the same JSON file the desktop app uses, which is what lets it
-reach the desktop library (below). The reader's read history still lives in its
-own localStorage, but when the desktop shells out to it the launching side
-(`WailsBookshelfProvider.openDesktopReader`) writes the entry into the desktop's
-own `readHistory` after the launch succeeds, so the desktop app's "recent
-reading" sees a book read this way.
+reach the desktop library (below). When the desktop shells out to the reader,
+the launching side (`WailsBookshelfProvider.openDesktopReader`) writes the entry
+into the desktop's own `readHistory` after the launch succeeds, so the desktop
+app's "recent reading" sees a book read this way.
 
 The frontend autosaves reading progress every 10 seconds. To narrow what closing
 a Wails window between two saves can lose, the frontend also stages its latest

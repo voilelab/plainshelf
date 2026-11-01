@@ -1,6 +1,4 @@
-import { readDesktopReadHistory, writeDesktopReadHistory } from '@/api/desktop';
 import {
-  createDesktopDocumentStorage,
   createInMemoryDocumentStorage,
   createLocalStorageDocumentStorage,
   type DeviceDocumentStorage
@@ -14,13 +12,6 @@ export function createLocalStorageReadHistoryStorage(
   key: string = READ_HISTORY_STORAGE_KEY
 ): ReadHistoryStorage {
   return createLocalStorageDocumentStorage(key);
-}
-
-export function createDesktopReadHistoryStorage(): ReadHistoryStorage {
-  return createDesktopDocumentStorage({
-    read: readDesktopReadHistory,
-    write: writeDesktopReadHistory
-  });
 }
 
 export const MOBILE_READ_HISTORY_PATH = 'plainshelf-cache/read-history.json';

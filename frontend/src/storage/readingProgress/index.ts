@@ -1,8 +1,12 @@
 import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
 import { hasDesktopReadingProgressBinding } from '@/api/desktop';
-import { isWailsRuntime } from '@/providers/runtime';
+import { isDesktopShellPreview, isWailsRuntime } from '@/providers/runtime';
 import type { BookmarkPayload, ReadingProgress } from '@/types/book';
-import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
+import {
+  buildDeviceDocumentKey,
+  createUnavailableDocumentStorage,
+  DeviceDocumentStore
+} from '@/storage/deviceDocument';
 import {
   createReadingProgressDocument,
   getBookReadingEntry,
@@ -73,8 +77,13 @@ function createReadingProgressStorage(): ReadingProgressStorage {
     return createMockReadingProgressStorage();
   }
 
-  if (isWailsRuntime() && hasDesktopReadingProgressBinding()) {
-    return createDesktopReadingProgressStorage();
+  if (isWailsRuntime()) {
+    if (hasDesktopReadingProgressBinding()) {
+      return createDesktopReadingProgressStorage();
+    }
+    if (!isDesktopShellPreview()) {
+      return createUnavailableDocumentStorage('Reading progress');
+    }
   }
 
   return createLocalStorageReadingProgressStorage();
