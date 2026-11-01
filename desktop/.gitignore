@@ -2,7 +2,9 @@
 /frontend/
 
 /build/bin/
-/build/darwin/
+/build/darwin/*
+!/build/darwin/Info.plist
+!/build/darwin/Info.dev.plist
 /build/windows/
 
 # go build ./... output (binary named after the module dir)

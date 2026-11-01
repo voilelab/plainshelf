@@ -51,6 +51,19 @@ The bundled `.app` is unsigned and unnotarized; the cask's `postflight_steps`
 clears Gatekeeper's quarantine attribute so the app opens normally on
 first launch.
 
+The desktop app's bundle identifier is `com.voilelab.plainshelf`, pinned in
+`desktop/build/darwin/Info.plist` so it no longer depends on the Wails build
+template. Releases up to 0.12 shipped as `com.wails.plainshelf`, the Wails v2
+template default; the identifier changed before `1.0.0-rc1` to match the
+reader's `com.voilelab.plainshelf-reader`. macOS keys permissions to the
+identifier, so after upgrading from one of those releases macOS asks again for
+**Local Network** access the first time you turn on
+[Share on local network](configuring-local-shelf.md#share-shelves-on-your-local-network-desktop-app).
+Your library, settings, and saved SMB and pCloud passwords are unaffected:
+they are stored under `PlainShelf`, not under the bundle identifier.
+`brew zap --cask plainshelf` removes the caches and preferences of both
+identifiers.
+
 For other platforms, build the desktop client from source — see
 [Local Setup](development/setup.md).
 
