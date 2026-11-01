@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/readingclose"
@@ -26,6 +27,7 @@ type ReaderApp struct {
 	promptedForBook bool
 
 	progressStager *readingclose.Stager
+	closeOnce      sync.Once
 }
 
 func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
@@ -51,8 +53,8 @@ func (a *ReaderApp) Startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-func (a *ReaderApp) beforeClose(context.Context) (prevent bool) {
-	a.progressStager.PersistOnClose()
+func (a *ReaderApp) beforeClose(ctx context.Context) (prevent bool) {
+	a.Shutdown(ctx)
 	return false
 }
 
@@ -74,6 +76,11 @@ func (a *ReaderApp) DomReady(context.Context) {
 }
 
 func (a *ReaderApp) Shutdown(context.Context) {
+	a.closeOnce.Do(a.closeInOrder)
+}
+
+func (a *ReaderApp) closeInOrder() {
+	a.progressStager.PersistOnClose()
 	if err := a.library.Close(); err != nil {
 		log.Println("failed to close the open book package:", err)
 	}
