@@ -114,9 +114,12 @@ reading" sees a book read this way.
 
 The frontend autosaves reading progress every 10 seconds. To narrow what closing
 a Wails window between two saves can lose, the frontend also stages its latest
-position in Go memory, and `OnBeforeClose` waits for it to be written
-(`internal/readingclose`); a flush request over an async event proved unreliable
-during window teardown. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
+position in Go memory, and the app's single close function waits for it to be
+written (`internal/readingclose`); a flush request over an async event proved
+unreliable during window teardown. Both `OnBeforeClose` and `OnShutdown` call that
+function, which runs once whichever hook fires first: it writes the staged
+position, then stops LAN sharing (desktop), then closes the server or the open
+book package. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
 seconds) and best-effort: if the cross-process file lock is held longer, or the
 write fails, the window closes anyway and that position can still be lost. The
 staged write merges newest-wins, so it never overwrites a newer entry from the

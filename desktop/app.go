@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/readingclose"
@@ -32,6 +33,7 @@ type DesktopApp struct {
 	startupErr          error
 	progressStager      *readingclose.Stager
 	lanShare            *lanShare
+	closeOnce           sync.Once
 
 	secrets secretStore
 
@@ -99,19 +101,23 @@ func (a *DesktopApp) warnShelfOpenErrs(ctx context.Context) {
 }
 
 func (a *DesktopApp) Shutdown() {
+	a.closeOnce.Do(a.closeInOrder)
+}
+
+func (a *DesktopApp) closeInOrder() {
+	a.progressStager.PersistOnClose()
 	if a.lanShare != nil {
 		a.lanShare.stop()
 	}
 	if a.app != nil {
-		err := a.app.Close()
-		if err != nil {
+		if err := a.app.Close(); err != nil {
 			log.Println("Failed to close app:", err)
 		}
 	}
 }
 
 func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
-	a.progressStager.PersistOnClose()
+	a.Shutdown()
 	return false
 }
 

@@ -13,6 +13,7 @@ import (
 func TestReaderStageThenCloseRoundTrips(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	app := &ReaderApp{
+		library:        readerapi.NewLibrary(nil),
 		shelfID:        readerapi.ShelfID,
 		progressStore:  store,
 		progressStager: readingclose.NewStager(store, time.Second),
