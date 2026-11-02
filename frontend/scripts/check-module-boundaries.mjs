@@ -61,6 +61,15 @@ const MOBILE_SIDE = [
   /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookExport|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|secureStorage|cacheScope|localShelf|embeddedPCloud)\.ts$/
 ];
 
+const WAILS_ONLY = [/^(@\/api\/|\.\.\/)(wailsBindings|desktop)$/];
+
+const MOBILE_STACK = [
+  /^src\/shells\/mobile\//,
+  /^src\/features\/mobile\//,
+  /^src\/api\/pcloud\//,
+  /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookExport|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|secureStorage|cacheScope|localShelf|embeddedPCloud)\.ts$/
+];
+
 /**
  * providers/runtime.ts is the one shared module that may touch Capacitor: it
  * answers "are we in a native shell?", which main.ts must ask before it can
@@ -134,6 +143,9 @@ function importViolations(rule, file, source) {
   if (rule.side.some((pattern) => pattern.test(file))) {
     return [];
   }
+  if (rule.only && !rule.only.some((pattern) => pattern.test(file))) {
+    return [];
+  }
 
   const exempt = rule.exempt.get(file) ?? new Set();
   const violations = [];
@@ -190,6 +202,18 @@ const RULES = [
       'The reader is a feature, not a library. Move what more than one feature needs\n' +
       'into src/utils or src/components — safe HTML rendering lives in\n' +
       'src/utils/safeHtml.ts and src/components/SafeHtml.vue.'
+  },
+  {
+    restricted: WAILS_ONLY,
+    side: [],
+    only: MOBILE_STACK,
+    exempt: new Map(),
+    find: importViolations,
+    problem: 'The mobile stack must not import the Wails bindings:',
+    hint:
+      'The Android app never runs inside Wails. Reach platform behaviour through a\n' +
+      'RuntimeShell member (src/providers/shell.ts) instead of src/api/desktop.ts or\n' +
+      'src/api/wailsBindings.ts.'
   },
   {
     side: READER_LAUNCH_SIDE,

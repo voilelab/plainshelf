@@ -93,3 +93,35 @@ describe('isWebRuntime', () => {
     }
   });
 });
+
+describe('isWailsRuntime', () => {
+  type Marker = '__PLAINSHELF_DESKTOP__' | '__PLAINSHELF_READER__' | 'go';
+
+  async function withGlobal(marker: Marker, url: string): Promise<boolean> {
+    const runtime = await loadRuntime(url, false);
+    const win = window as unknown as Record<string, unknown>;
+    win[marker] = {};
+    try {
+      return runtime.isWailsRuntime();
+    } finally {
+      delete win[marker];
+    }
+  }
+
+  it('is true for the desktop marker', async () => {
+    expect(await withGlobal('__PLAINSHELF_DESKTOP__', '/books')).toBe(true);
+  });
+
+  it('is true for the reader marker', async () => {
+    expect(await withGlobal('__PLAINSHELF_READER__', '/books')).toBe(true);
+  });
+
+  it('ignores window.go', async () => {
+    expect(await withGlobal('go', '/books')).toBe(false);
+  });
+
+  it('is true under the desktop shell preview', async () => {
+    const runtime = await loadRuntime('/books?desktop-shell-preview=1', false);
+    expect(runtime.isWailsRuntime()).toBe(true);
+  });
+});

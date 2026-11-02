@@ -42,11 +42,10 @@ function installBinding(state: DesktopLANShareStatus) {
     return { ...state };
   });
   const getLANShare = vi.fn(async () => ({ ...state }));
-  (window as unknown as { go: unknown }).go = {
-    main: {
-      DesktopApp: { GetLANShare: getLANShare, SetLANShare: setLANShare }
-    }
-  };
+  Object.assign(window, {
+    __PLAINSHELF_DESKTOP__: true,
+    go: { main: { DesktopApp: { GetLANShare: getLANShare, SetLANShare: setLANShare } } }
+  });
   return { setLANShare, getLANShare };
 }
 
@@ -69,6 +68,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete (window as unknown as { go?: unknown }).go;
+  delete (window as unknown as { __PLAINSHELF_DESKTOP__?: unknown }).__PLAINSHELF_DESKTOP__;
 });
 
 describe('LanSharePanel', () => {

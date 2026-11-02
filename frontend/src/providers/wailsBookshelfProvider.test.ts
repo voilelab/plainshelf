@@ -82,7 +82,10 @@ it('exposes virtual-shelf management only when the native bindings exist', async
 
     const ListShelfDetails = vi.fn().mockResolvedValue([]);
     const RetryShelf = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal('window', { go: { main: { DesktopApp: { ListShelfDetails, RetryShelf } } } });
+    vi.stubGlobal('window', {
+      __PLAINSHELF_DESKTOP__: true,
+      go: { main: { DesktopApp: { ListShelfDetails, RetryShelf } } }
+    });
     const native = createWailsPlatform(new WailsBookshelfProvider());
     await expect(native.shelves?.listShelfDetails?.()).resolves.toEqual([]);
     await native.shelves?.retryShelf?.('remote');

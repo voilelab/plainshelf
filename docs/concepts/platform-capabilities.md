@@ -179,6 +179,18 @@ requires: `server.App`'s handler has no shelf-management route, so "can this
 client manage shelves" is answered by whether `shelves` is present, never by a
 server field.
 
+### Reaching the Wails bindings
+
+Every frontend call into Go goes through `frontend/src/api/wailsBindings.ts`;
+nothing else reads `window.go`. The page learns which Wails app it runs in from
+a marker the Go side injects into `index.html`: `window.__PLAINSHELF_DESKTOP__`
+from `desktop/assets.go`, `window.__PLAINSHELF_READER__` from
+`reader/readerapi/spa.go`. `isWailsRuntime()` is true for either marker or for
+`?desktop-shell-preview=1`. A call made inside the right app whose method Go
+does not bind throws an error naming `App.Method`, so a binding lost in a
+migration fails loudly instead of disabling the feature. The mobile stack may
+not import this module or `src/api/desktop.ts`; `check-boundaries` enforces it.
+
 ---
 
 ## The remote-server connection stays a wrapper
