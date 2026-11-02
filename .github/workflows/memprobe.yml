@@ -38,7 +38,6 @@ jobs:
     timeout-minutes: 60
     env:
       PROBE_DIR: ${{ github.workspace }}/probe
-      SHELF_DIR: ${{ runner.temp }}/shelf
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -80,6 +79,7 @@ jobs:
           LARGE_BOOK_MB: ${{ inputs.large_book_mb || '20' }}
         run: |
           set -euo pipefail
+          SHELF_DIR="$RUNNER_TEMP/shelf"
           mkdir -p "$SHELF_DIR" "$RUNNER_TEMP/store"
           cat >"$RUNNER_TEMP/seed.yaml" <<EOF
           server_conf:
