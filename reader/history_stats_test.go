@@ -92,7 +92,7 @@ func TestReaderUsesDesktopDocumentPaths(t *testing.T) {
 		t.Skip("path isolation uses XDG_CONFIG_HOME")
 	}
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	app := NewReaderApp(nil, "shelf-real", noLaunchSection)
+	app := NewReaderApp(nil, nil, "shelf-real", noLaunchSection)
 	t.Cleanup(func() { app.Shutdown(t.Context()) })
 	today := time.Now().Format(time.DateOnly)
 

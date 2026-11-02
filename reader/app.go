@@ -14,11 +14,10 @@ import (
 	"github.com/voilelab/plainshelf/internal/readingstats"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/reader/readerapi"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type ReaderApp struct {
-	ctx     context.Context
+	native  nativeUI
 	library *readerapi.Library
 
 	shelfID    string
@@ -36,7 +35,7 @@ type ReaderApp struct {
 	closeOnce      sync.Once
 }
 
-func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
+func NewReaderApp(native nativeUI, logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
 	shelfID = strings.TrimSpace(shelfID)
 	standalone := shelfID == ""
 	if standalone {
@@ -44,6 +43,7 @@ func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *Re
 	}
 
 	app := &ReaderApp{
+		native:        native,
 		library:       readerapi.NewLibrary(logger),
 		shelfID:       shelfID,
 		standalone:    standalone,
@@ -73,10 +73,6 @@ func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *Re
 	return app
 }
 
-func (a *ReaderApp) Startup(ctx context.Context) {
-	a.ctx = ctx
-}
-
 func (a *ReaderApp) beforeClose(ctx context.Context) (prevent bool) {
 	a.Shutdown(ctx)
 	return false
@@ -86,8 +82,6 @@ func (a *ReaderApp) StageReadingProgress(shelfID, bookID string, offset, at int6
 	a.progressStager.Stage(shelfID, bookID, offset, at)
 }
 
-// Wails v2.16.0 WailsContext.m presents macOS directory dialogs with
-// beginSheetModalForWindow:self.mainWindow, so the window must exist first.
 func (a *ReaderApp) DomReady(context.Context) {
 	if a.promptedForBook || a.library.BookID() != "" {
 		return
@@ -111,13 +105,7 @@ func (a *ReaderApp) closeInOrder() {
 }
 
 func (a *ReaderApp) OpenBookPackage() (string, error) {
-	if a.ctx == nil {
-		return "", nil
-	}
-
-	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "Open a book",
-	})
+	dir, err := a.native.openDirectory("Open a book")
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
@@ -127,18 +115,15 @@ func (a *ReaderApp) OpenBookPackage() (string, error) {
 
 	bookID, err := a.openStandaloneBook(dir)
 	if err != nil {
-		_, dialogErr := wailsruntime.MessageDialog(a.ctx, wailsruntime.MessageDialogOptions{
-			Type:    wailsruntime.ErrorDialog,
-			Title:   "Cannot open this folder",
-			Message: "That folder is not a book package: it has no readable book.json.",
-		})
+		dialogErr := a.native.showError("Cannot open this folder",
+			"That folder is not a book package: it has no readable book.json.")
 		if dialogErr != nil {
 			log.Println("failed to show book-open error dialog:", dialogErr)
 		}
 		return "", util.Errorf("%w", err)
 	}
 
-	wailsruntime.WindowReloadApp(a.ctx)
+	a.native.reloadApp()
 	return bookID, nil
 }
 

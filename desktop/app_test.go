@@ -20,7 +20,7 @@ func TestStartServerSharesProgressPath(t *testing.T) {
 		t.Skip("startup isolation uses XDG_CONFIG_HOME")
 	}
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	a := NewDesktopApp()
+	a := NewDesktopApp(&fakeNative{})
 	t.Cleanup(a.Shutdown)
 	if err := a.startServer(); err != nil {
 		t.Fatal(err)
@@ -40,15 +40,15 @@ func TestStartServerSharesProgressPath(t *testing.T) {
 	}
 }
 
-func TestBookOpenDialogOptions(t *testing.T) {
-	options := bookOpenDialogOptions()
-	if len(options.Filters) != 1 {
-		t.Fatalf("expected exactly one file filter, got %d", len(options.Filters))
+func TestBookFileFilters(t *testing.T) {
+	filters := bookFileFilters()
+	if len(filters) != 1 {
+		t.Fatalf("expected exactly one file filter, got %d", len(filters))
 	}
 
-	filter := options.Filters[0]
-	if filter.Pattern != "*.txt;*.md;*.epub" {
-		t.Fatalf("expected txt+md+epub filter pattern, got %q", filter.Pattern)
+	filter := filters[0]
+	if filter.pattern != "*.txt;*.md;*.epub" {
+		t.Fatalf("expected txt+md+epub filter pattern, got %q", filter.pattern)
 	}
 }
 

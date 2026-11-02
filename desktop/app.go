@@ -20,13 +20,12 @@ import (
 	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type DesktopApp struct {
 	app                 *server.App
 	apiHandler          http.Handler
-	ctx                 context.Context
+	native              nativeUI
 	shelvesConfigPath   string
 	readHistoryPath     string
 	readingProgressPath string
@@ -51,18 +50,13 @@ func (a *DesktopApp) secretStore() secretStore {
 
 var openFinder = util.OpenFinder
 
-func NewDesktopApp() *DesktopApp {
-	return &DesktopApp{}
+func NewDesktopApp(native nativeUI) *DesktopApp {
+	return &DesktopApp{native: native}
 }
 
-func (a *DesktopApp) Startup(ctx context.Context) {
-	a.ctx = ctx
+func (a *DesktopApp) Startup(context.Context) {
 	err := a.startServer()
 	if err != nil {
-		// Don't call runtime methods (e.g. MessageDialog) here: from
-		// OnStartup the window is still initializing and they are not
-		// guaranteed to work — on Windows MessageDialog panics. Record the
-		// failure and report it from DomReady instead. See wailsapp/wails#1660.
 		log.Println("Failed to start PlainShelf backend:", err)
 		a.startupErr = err
 		return
@@ -70,33 +64,26 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 	a.apiHandler = a.app.Handler()
 }
 
-func (a *DesktopApp) DomReady(ctx context.Context) {
+func (a *DesktopApp) DomReady(context.Context) {
 	if a.startupErr == nil {
-		a.warnShelfOpenErrs(ctx)
+		a.warnShelfOpenErrs()
 		return
 	}
 
-	_, dialogErr := wailsruntime.MessageDialog(ctx, wailsruntime.MessageDialogOptions{
-		Type:    wailsruntime.ErrorDialog,
-		Title:   "PlainShelf failed to start",
-		Message: "PlainShelf could not start its backend and will now close.\n\n" + a.startupErr.Error(),
-	})
-	if dialogErr != nil {
-		log.Println("Failed to show startup error dialog:", dialogErr)
+	err := a.native.showMessage(errorDialog, "PlainShelf failed to start",
+		"PlainShelf could not start its backend and will now close.\n\n"+a.startupErr.Error())
+	if err != nil {
+		log.Println("Failed to show startup error dialog:", err)
 	}
 
-	wailsruntime.Quit(ctx)
+	a.native.quit()
 }
 
-func (a *DesktopApp) warnShelfOpenErrs(ctx context.Context) {
+func (a *DesktopApp) warnShelfOpenErrs() {
 	if len(a.shelfOpenErrs) == 0 {
 		return
 	}
-	_, err := wailsruntime.MessageDialog(ctx, wailsruntime.MessageDialogOptions{
-		Type:    wailsruntime.WarningDialog,
-		Title:   "Some shelves could not be opened",
-		Message: errors.Join(a.shelfOpenErrs...).Error(),
-	})
+	err := a.native.showMessage(warningDialog, "Some shelves could not be opened", errors.Join(a.shelfOpenErrs...).Error())
 	if err != nil {
 		log.Println("Failed to show shelf warning dialog:", err)
 	}
@@ -139,7 +126,7 @@ func (a *DesktopApp) OpenExternalURL(rawURL string) error {
 		return util.Errorf("invalid external URL: %q", rawURL)
 	}
 
-	wailsruntime.BrowserOpenURL(a.ctx, parsed.String())
+	a.native.openURL(parsed.String())
 	return nil
 }
 
@@ -164,29 +151,21 @@ func (a *DesktopApp) ResetZoom() {
 }
 
 func (a *DesktopApp) navigateHistory(step int) {
-	if a.ctx == nil {
-		return
-	}
-
 	script := historyNavigationScript(step)
 	if script == "" {
 		return
 	}
 
-	wailsruntime.WindowExecJS(a.ctx, script)
+	a.native.execJS(script)
 }
 
 func (a *DesktopApp) runZoomScript(action string) {
-	if a.ctx == nil {
-		return
-	}
-
 	script := zoomScript(action)
 	if script == "" {
 		return
 	}
 
-	wailsruntime.WindowExecJS(a.ctx, script)
+	a.native.execJS(script)
 }
 
 func (a *DesktopApp) startServer() error {
