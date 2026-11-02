@@ -39,7 +39,7 @@
  * for `check-licenses` to vet — would cost more than they explain.
  */
 import { readdir, readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, posix, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const SRC = 'src';
@@ -61,7 +61,7 @@ const MOBILE_SIDE = [
   /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookExport|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|secureStorage|cacheScope|localShelf|embeddedPCloud)\.ts$/
 ];
 
-const WAILS_ONLY = [/^(@\/api\/|\.\.\/)(wailsBindings|desktop)$/];
+const WAILS_ONLY = [/^(@|src)\/api\/(wailsBindings|desktop)(\.ts)?$/];
 
 const MOBILE_STACK = [
   /^src\/shells\/mobile\//,
@@ -155,7 +155,10 @@ function importViolations(rule, file, source) {
     if (exempt.has(specifier)) {
       continue;
     }
-    if (rule.restricted.some((restricted) => restricted.test(specifier))) {
+    const target = specifier.startsWith('.')
+      ? posix.join(posix.dirname(file), specifier)
+      : specifier;
+    if (rule.restricted.some((restricted) => restricted.test(specifier) || restricted.test(target))) {
       violations.push(`${file} imports ${specifier}`);
     }
   }

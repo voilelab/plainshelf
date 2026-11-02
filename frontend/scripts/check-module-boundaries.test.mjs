@@ -197,6 +197,8 @@ describe('findViolations', () => {
       await check({
         'src/shells/mobile/index.ts': "import { callWails } from '@/api/wailsBindings';\n",
         'src/api/pcloud/probe.ts': "import { openDesktopReader } from '../desktop';\n",
+        'src/providers/mobileConfig.ts': "import { openDesktopReader } from '../api/desktop';\n",
+        'src/shells/mobile/pages/probe.ts': "import { callWails } from '../../../api/wailsBindings';\n",
         'src/shells/reader/openBook.ts': "import { callWails } from '@/api/wailsBindings';\n",
         'src/providers/wailsBookshelfProvider.ts': "import { addDesktopShelf } from '@/api/desktop';\n"
       })
@@ -205,7 +207,9 @@ describe('findViolations', () => {
       [],
       [
         'src/api/pcloud/probe.ts imports ../desktop',
-        'src/shells/mobile/index.ts imports @/api/wailsBindings'
+        'src/providers/mobileConfig.ts imports ../api/desktop',
+        'src/shells/mobile/index.ts imports @/api/wailsBindings',
+        'src/shells/mobile/pages/probe.ts imports ../../../api/wailsBindings'
       ],
       []
     ]);
