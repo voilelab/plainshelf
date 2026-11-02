@@ -31,11 +31,9 @@ function stubWails(app: Record<string, unknown>): void {
 }
 
 async function loadStorage() {
-  const [history, stats, progress] = await Promise.all([
-    import('./readHistory'),
-    import('./readingStats'),
-    import('./readingProgress')
-  ]);
+  const history = await import('./readHistory');
+  const stats = await import('./readingStats');
+  const progress = await import('./readingProgress');
   return { ...history, ...stats, ...progress };
 }
 
