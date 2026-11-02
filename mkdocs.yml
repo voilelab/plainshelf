@@ -57,6 +57,7 @@ nav:
       - Docker: development/docker.md
       - Testing Levels: development/testing-levels.md
       - Mutation Testing: development/mutation-testing.md
+      - Desktop Memory Probe: development/memory-probe.md
       - Releasing: development/releasing.md
   - Known issues: known-issue.md
 

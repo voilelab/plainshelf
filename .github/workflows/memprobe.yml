@@ -1,0 +1,150 @@
+name: Desktop memory probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      books:
+        description: "Number of ordinary books to seed"
+        default: "500"
+      book_kb:
+        description: "Size of each ordinary book (KB)"
+        default: "256"
+      large_book_mb:
+        description: "Size of the one large book (MB)"
+        default: "20"
+      cycles:
+        description: "Scenario cycles (library scroll, read large book, hop books)"
+        default: "5"
+      idle_sec:
+        description: "Idle time before the first and after the last cycle (s)"
+        default: "60"
+      settle_sec:
+        description: "Pause after each cycle (s)"
+        default: "15"
+  pull_request:
+    paths:
+      - .github/workflows/memprobe.yml
+      - desktop/memprobe.go
+      - desktop/memprobe.js
+      - scripts/memprobe/**
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Measure desktop memory on macOS
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      PROBE_DIR: ${{ github.workspace }}/probe
+      SHELF_DIR: ${{ runner.temp }}/shelf
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build server and probe app
+        run: |
+          set -euo pipefail
+          go build -o "$RUNNER_TEMP/plainshelf-srv" ./cmd/plainshelf-srv
+          cd desktop
+          go mod tidy
+          go tool wails build -platform darwin/arm64 -tags memprobe -trimpath
+
+      - name: Seed shelf
+        env:
+          BOOKS: ${{ inputs.books || '500' }}
+          BOOK_KB: ${{ inputs.book_kb || '256' }}
+          LARGE_BOOK_MB: ${{ inputs.large_book_mb || '20' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$SHELF_DIR" "$RUNNER_TEMP/store"
+          cat >"$RUNNER_TEMP/seed.yaml" <<EOF
+          server_conf:
+            addr: "127.0.0.1:18080"
+            read_timeout: 120s
+            write_timeout: 120s
+          app_conf:
+            logger:
+              level: error
+              format: text
+              log_file:
+                type: stderr
+            shelves:
+              - id: default_shelf
+                name: Default Shelf
+                lib_root: "$SHELF_DIR"
+            store_path: "$RUNNER_TEMP/store"
+            cover_to_jpg: true
+            security:
+              mode: "none"
+          EOF
+          "$RUNNER_TEMP/plainshelf-srv" -conf "$RUNNER_TEMP/seed.yaml" &
+          srv=$!
+          for _ in $(seq 60); do curl -sf http://127.0.0.1:18080/health >/dev/null && break; sleep 1; done
+          python3 -I scripts/memprobe/seed.py --base-url http://127.0.0.1:18080 \
+            --books "$BOOKS" --book-kb "$BOOK_KB" --large-book-mb "$LARGE_BOOK_MB"
+          kill "$srv"
+          wait "$srv" || true
+          du -sh "$SHELF_DIR"
+
+          data="$HOME/Library/Application Support/PlainShelf"
+          mkdir -p "$data"
+          printf '{"shelves":[{"id":"default_shelf","name":"Default Shelf","lib_root":"%s"}]}\n' "$SHELF_DIR" >"$data/shelves.json"
+
+      - name: Run scenario and sample memory
+        env:
+          PLAINSHELF_MEMPROBE_CYCLES: ${{ inputs.cycles || '5' }}
+          PLAINSHELF_MEMPROBE_IDLE_SEC: ${{ inputs.idle_sec || '60' }}
+          PLAINSHELF_MEMPROBE_SETTLE_SEC: ${{ inputs.settle_sec || '15' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$PROBE_DIR"
+          export PLAINSHELF_MEMPROBE_MARKS="$PROBE_DIR/marks.tsv"
+          desktop/build/bin/plainshelf.app/Contents/MacOS/plainshelf >"$PROBE_DIR/app.log" 2>&1 &
+          app=$!
+          status=0
+          bash scripts/memprobe/sample.sh "$app" "$PLAINSHELF_MEMPROBE_MARKS" "$PROBE_DIR" 3000 || status=$?
+          kill "$app" 2>/dev/null || true
+          exit "$status"
+
+      - name: Report
+        if: always()
+        run: |
+          set -euo pipefail
+          cp -R "$HOME/Library/Application Support/PlainShelf/logs" "$PROBE_DIR/app-logs" 2>/dev/null || true
+          if [[ -s "$PROBE_DIR/samples.csv" && -s "$PROBE_DIR/marks.tsv" ]]; then
+            python3 -I scripts/memprobe/report.py "$PROBE_DIR/samples.csv" "$PROBE_DIR/marks.tsv" | tee "$PROBE_DIR/report.md" >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "No samples or marks were recorded; see app.log in the artifact." >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: memprobe-${{ github.run_id }}
+          path: probe/
+          if-no-files-found: warn

@@ -49,6 +49,8 @@ func (a *DesktopApp) secretStore() secretStore {
 
 var openFinder = util.OpenFinder
 
+var domReadyProbe func(context.Context)
+
 func NewDesktopApp() *DesktopApp {
 	return &DesktopApp{}
 }
@@ -71,6 +73,9 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 func (a *DesktopApp) DomReady(ctx context.Context) {
 	if a.startupErr == nil {
 		a.warnShelfOpenErrs(ctx)
+		if domReadyProbe != nil {
+			domReadyProbe(ctx)
+		}
 		return
 	}
 
