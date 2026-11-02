@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"io/fs"
 	"net/http"
+	"path"
 	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/internal/wailsshell"
 )
 
 const desktopMarker = "<script>window.__PLAINSHELF_DESKTOP__ = true;</script>"
@@ -18,8 +20,8 @@ func assetMiddleware(assets fs.FS, api func() http.Handler) func(http.Handler) h
 			switch {
 			case strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api":
 				api().ServeHTTP(w, r)
-			case r.Method == http.MethodGet && (r.URL.Path == "/" || r.URL.Path == "/index.html"):
-				serveDesktopIndex(w, assets)
+			case r.Method == http.MethodGet && isAppRoute(assets, r.URL.Path):
+				serveDesktopIndex(w, assets, r.URL.Path)
 			default:
 				next.ServeHTTP(w, r)
 			}
@@ -27,14 +29,25 @@ func assetMiddleware(assets fs.FS, api func() http.Handler) func(http.Handler) h
 	}
 }
 
-func serveDesktopIndex(w http.ResponseWriter, assets fs.FS) {
+func isAppRoute(assets fs.FS, urlPath string) bool {
+	if urlPath == "/" || urlPath == "/index.html" {
+		return true
+	}
+	if strings.HasPrefix(urlPath, "/wails/") || path.Ext(urlPath) != "" {
+		return false
+	}
+	_, err := fs.Stat(assets, strings.TrimPrefix(urlPath, "/"))
+	return err != nil
+}
+
+func serveDesktopIndex(w http.ResponseWriter, assets fs.FS, urlPath string) {
 	page, err := desktopIndexHTML(assets)
 	if err != nil {
 		http.Error(w, "failed to render the app shell", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(page)
+	w.Write(wailsshell.WithRuntime(urlPath, page))
 }
 
 func desktopIndexHTML(assets fs.FS) ([]byte, error) {

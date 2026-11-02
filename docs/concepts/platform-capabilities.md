@@ -186,7 +186,11 @@ nothing else reads `window.go`. The page learns which Wails app it runs in from
 a marker the Go side injects into `index.html`: `window.__PLAINSHELF_DESKTOP__`
 from `desktop/assets.go`, `window.__PLAINSHELF_READER__` from
 `reader/readerapi/spa.go`. `isWailsRuntime()` is true for either marker or for
-`?desktop-shell-preview=1`. A call made inside the right app whose method Go
+`?desktop-shell-preview=1`. Both apps also answer an in-app route such as
+`/books` with that page, so a reload keeps the route. Wails v2 injects
+`window.go` (its `/wails/ipc.js` and `/wails/runtime.js`) only for `/` and
+`/index.html`, so `internal/wailsshell` adds the two scripts to the page served
+for any other route. A call made inside the right app whose method Go
 does not bind throws an error naming `App.Method`, so a binding lost in a
 migration fails loudly instead of disabling the feature. The mobile stack may
 not import this module or `src/api/desktop.ts`; `check-boundaries` enforces it.
