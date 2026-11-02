@@ -13,7 +13,6 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type DesktopImportBookResult struct {
@@ -23,11 +22,7 @@ type DesktopImportBookResult struct {
 }
 
 func (a *DesktopApp) OpenBookFiles() ([]string, error) {
-	if a.ctx == nil {
-		return []string{}, nil
-	}
-
-	paths, err := wailsruntime.OpenMultipleFilesDialog(a.ctx, bookOpenDialogOptions())
+	paths, err := a.native.openFiles("Select books to import", bookFileFilters())
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -35,19 +30,8 @@ func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 }
 
 func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) error {
-	if a.ctx == nil {
-		return util.NewError("desktop context not ready")
-	}
-
-	savePath, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
-		DefaultFilename: suggestedName,
-		Title:           "Save book",
-		Filters: []wailsruntime.FileFilter{
-			{
-				DisplayName: "Text Files (*.txt)",
-				Pattern:     "*.txt",
-			},
-		},
+	savePath, err := a.native.saveFile("Save book", suggestedName, []fileFilter{
+		{label: "Text Files (*.txt)", pattern: "*.txt"},
 	})
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -60,7 +44,7 @@ func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) erro
 	if err != nil {
 		return util.Errorf("building content path: %w", err)
 	}
-	req := httptest.NewRequest(http.MethodGet, apiPath, nil).WithContext(a.ctx)
+	req := httptest.NewRequest(http.MethodGet, apiPath, nil)
 
 	rec := httptest.NewRecorder()
 	a.GetAPIHandler().ServeHTTP(rec, req)
@@ -76,16 +60,8 @@ func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) erro
 	return nil
 }
 
-func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
-	return wailsruntime.OpenDialogOptions{
-		Title: "Select books to import",
-		Filters: []wailsruntime.FileFilter{
-			{
-				DisplayName: "Books (*.txt, *.md, *.epub)",
-				Pattern:     "*.txt;*.md;*.epub",
-			},
-		},
-	}
+func bookFileFilters() []fileFilter {
+	return []fileFilter{{label: "Books (*.txt, *.md, *.epub)", pattern: "*.txt;*.md;*.epub"}}
 }
 
 func normalizeSelectedLocalPaths(paths []string) []string {
@@ -128,12 +104,7 @@ func (a *DesktopApp) ImportBookFromLocalPath(shelfID string, localPath string, f
 }
 
 func (a *DesktopApp) OpenShelfDirectory() (string, error) {
-	if a.ctx == nil {
-		return "", nil
-	}
-	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "Select shelf directory",
-	})
+	dir, err := a.native.openDirectory("Select shelf directory")
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
