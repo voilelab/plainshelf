@@ -108,11 +108,13 @@ interface DesktopAppBinding {
   SetLANShare: (params: DesktopLANShareParams) => Promise<DesktopLANShareStatus>;
   RotateLANShareToken: () => Promise<DesktopLANShareStatus>;
   ReadReadHistory: () => Promise<string>;
-  WriteReadHistory: (doc: string) => Promise<void>;
+  RecordReadHistory: (shelfKey: string, bookID: string) => Promise<void>;
+  ClearReadHistory: (shelfKey: string) => Promise<void>;
+  SetReadHistoryLimit: (limit: number) => Promise<void>;
   ReadReadingProgress: () => Promise<string>;
   WriteReadingProgress: (doc: string) => Promise<void>;
   ReadReadingStats: () => Promise<string>;
-  WriteReadingStats: (doc: string) => Promise<void>;
+  AddReadingSeconds: (key: string, date: string, seconds: number) => Promise<void>;
   StageReadingProgress: (
     shelfID: string,
     bookID: string,
@@ -280,15 +282,28 @@ export async function saveDesktopBookContent(
 }
 
 export function hasDesktopReadHistoryBinding(): boolean {
-  return hasDesktopMethods('ReadReadHistory', 'WriteReadHistory');
+  return hasDesktopMethods(
+    'ReadReadHistory',
+    'RecordReadHistory',
+    'ClearReadHistory',
+    'SetReadHistoryLimit'
+  );
 }
 
 export async function readDesktopReadHistory(): Promise<string> {
   return (await callDesktop('ReadReadHistory')) ?? '';
 }
 
-export async function writeDesktopReadHistory(doc: string): Promise<void> {
-  await callDesktop('WriteReadHistory', doc);
+export async function recordDesktopReadHistory(shelfKey: string, bookID: string): Promise<void> {
+  await callDesktop('RecordReadHistory', shelfKey, bookID);
+}
+
+export async function clearDesktopReadHistory(shelfKey: string): Promise<void> {
+  await callDesktop('ClearReadHistory', shelfKey);
+}
+
+export async function setDesktopReadHistoryLimit(limit: number): Promise<void> {
+  await callDesktop('SetReadHistoryLimit', limit);
 }
 
 function readingProgressApp(): WailsApp | null {
@@ -323,15 +338,19 @@ export async function writeDesktopReadingProgress(doc: string): Promise<void> {
 }
 
 export function hasDesktopReadingStatsBinding(): boolean {
-  return hasDesktopMethods('ReadReadingStats', 'WriteReadingStats');
+  return hasDesktopMethods('ReadReadingStats', 'AddReadingSeconds');
 }
 
 export async function readDesktopReadingStats(): Promise<string> {
   return (await callDesktop('ReadReadingStats')) ?? '';
 }
 
-export async function writeDesktopReadingStats(doc: string): Promise<void> {
-  await callDesktop('WriteReadingStats', doc);
+export async function addDesktopReadingSeconds(
+  key: string,
+  date: string,
+  seconds: number
+): Promise<void> {
+  await callDesktop('AddReadingSeconds', key, date, seconds);
 }
 
 export function stageDesktopReadingProgress(bookID: string, offset: number, at: number): void {

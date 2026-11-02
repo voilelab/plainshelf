@@ -1,8 +1,16 @@
 import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
-import { hasDesktopReadingStatsBinding } from '@/api/desktop';
-import { isWailsRuntime } from '@/providers/runtime';
+import {
+  addDesktopReadingSeconds,
+  hasDesktopReadingStatsBinding,
+  readDesktopReadingStats
+} from '@/api/desktop';
+import { isDesktopShellPreview, isWailsRuntime } from '@/providers/runtime';
 import { getShell } from '@/providers/shell';
-import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
+import {
+  buildDeviceDocumentKey,
+  createUnavailableDocumentStorage,
+  DeviceDocumentStore
+} from '@/storage/deviceDocument';
 import {
   createReadingStatsDocument,
   getReadingStatsRange,
@@ -16,7 +24,6 @@ import {
 import { mockReadingSecondsForDate } from './mock';
 import {
   MOBILE_READING_STATS_PATH,
-  createDesktopReadingStatsStorage,
   createInMemoryReadingStatsStorage,
   createLocalStorageReadingStatsStorage,
   type ReadingStatsStorage
@@ -38,6 +45,19 @@ export class ReadingStatsStore extends DeviceDocumentStore<ReadingStatsDocument>
 
   async add(key: string, date: string, seconds: number): Promise<void> {
     await this.mutate((doc) => withReadingSeconds(doc, key, date, seconds));
+  }
+}
+
+type ReadingStatsBackend = Pick<ReadingStatsStore, 'range' | 'add'>;
+
+class DesktopReadingStats implements ReadingStatsBackend {
+  async range(key: string, from: string, to: string): Promise<Record<string, number>> {
+    const doc = parseReadingStatsDocument(await readDesktopReadingStats());
+    return getReadingStatsRange(doc, key, from, to);
+  }
+
+  add(key: string, date: string, seconds: number): Promise<void> {
+    return addDesktopReadingSeconds(key, date, seconds);
   }
 }
 
@@ -68,28 +88,29 @@ function createMockReadingStatsStorage(): ReadingStatsStorage {
   };
 }
 
-function createReadingStatsStorage(): ReadingStatsStorage {
+function createReadingStatsBackend(): ReadingStatsBackend {
   if (isMockApiMode()) {
-    return createMockReadingStatsStorage();
+    return new ReadingStatsStore(createMockReadingStatsStorage());
   }
 
-  if (isWailsRuntime() && hasDesktopReadingStatsBinding()) {
-    return createDesktopReadingStatsStorage();
+  if (isWailsRuntime()) {
+    if (hasDesktopReadingStatsBinding()) {
+      return new DesktopReadingStats();
+    }
+    if (!isDesktopShellPreview()) {
+      return new ReadingStatsStore(createUnavailableDocumentStorage('Reading stats'));
+    }
   }
 
   const fromShell = getShell()?.createDeviceDocumentStorage?.(MOBILE_READING_STATS_PATH);
-  if (fromShell) {
-    return fromShell;
-  }
-
-  return createLocalStorageReadingStatsStorage();
+  return new ReadingStatsStore(fromShell ?? createLocalStorageReadingStatsStorage());
 }
 
-let store: ReadingStatsStore | null = null;
+let store: ReadingStatsBackend | null = null;
 
-function getReadingStatsStore(): ReadingStatsStore {
+function getReadingStatsStore(): ReadingStatsBackend {
   if (!store) {
-    store = new ReadingStatsStore(createReadingStatsStorage());
+    store = createReadingStatsBackend();
   }
   return store;
 }
