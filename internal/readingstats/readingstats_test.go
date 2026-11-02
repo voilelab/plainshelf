@@ -1,10 +1,14 @@
 package readingstats
 
 import (
+	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gofrs/flock"
 )
 
 var now = time.Date(2026, 11, 1, 15, 0, 0, 0, time.Local)
@@ -136,22 +140,34 @@ func TestStoreNeedsPath(t *testing.T) {
 }
 
 func TestAddReadsClockUnderLock(t *testing.T) {
-	store := newStore(t)
-	if err := store.Add("main", "2026-11-02", 30, func() time.Time { return now.AddDate(0, 0, 1) }); err != nil {
-		t.Fatalf("add next day: %v", err)
+	path := filepath.Join(t.TempDir(), "reading_stats.json")
+	lock := flock.New(path + ".lock")
+	if err := lock.Lock(); err != nil {
+		t.Fatalf("lock: %v", err)
 	}
 
-	var clockReads int
-	late := func() time.Time {
-		clockReads++
-		return now.AddDate(0, 0, 1)
+	var today atomic.Pointer[time.Time]
+	today.Store(&now)
+	done := make(chan error, 1)
+	go func() {
+		done <- NewStore(path).Add("main", "2026-11-01", 20, func() time.Time { return *today.Load() })
+	}()
+	time.Sleep(200 * time.Millisecond)
+
+	nextDay := now.AddDate(0, 0, 1)
+	today.Store(&nextDay)
+	if err := os.WriteFile(path, []byte(`{"version":1,"shelves":{"main":{"2026-11-02":30}}}`), 0o644); err != nil {
+		t.Fatalf("write next day: %v", err)
 	}
-	if err := store.Add("main", "2026-11-01", 20, late); err != nil {
-		t.Fatalf("add delayed: %v", err)
+	if err := lock.Unlock(); err != nil {
+		t.Fatalf("unlock: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("add: %v", err)
 	}
 
-	days := readDoc(t, store).Shelves["main"]
-	if days["2026-11-02"] != 30 || days["2026-11-01"] != 20 || clockReads != 1 {
-		t.Fatalf("days = %v, clock reads = %d", days, clockReads)
+	days := readDoc(t, NewStore(path)).Shelves["main"]
+	if days["2026-11-02"] != 30 || days["2026-11-01"] != 20 {
+		t.Fatalf("days = %v, want the next day's entry kept", days)
 	}
 }

@@ -55,11 +55,11 @@ func Parse(text string) Document {
 }
 
 func parseLimit(value jsontext.Value) int {
-	var limit float64
-	if json.Unmarshal(value, &limit) != nil {
+	var limit *float64
+	if json.Unmarshal(value, &limit) != nil || limit == nil {
 		return DefaultLimit
 	}
-	return normalizeLimit(limit)
+	return normalizeLimit(*limit)
 }
 
 func normalizeLimit(limit float64) int {
