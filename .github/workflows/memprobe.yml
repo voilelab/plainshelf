@@ -136,7 +136,9 @@ jobs:
           set -euo pipefail
           cp -R "$HOME/Library/Application Support/PlainShelf/logs" "$PROBE_DIR/app-logs" 2>/dev/null || true
           if [[ -s "$PROBE_DIR/samples.csv" && -s "$PROBE_DIR/marks.tsv" ]]; then
-            python3 -I scripts/memprobe/report.py "$PROBE_DIR/samples.csv" "$PROBE_DIR/marks.tsv" | tee "$PROBE_DIR/report.md" >>"$GITHUB_STEP_SUMMARY"
+            python3 -I scripts/memprobe/report.py "$PROBE_DIR/samples.csv" "$PROBE_DIR/marks.tsv" >"$PROBE_DIR/report.md"
+            cat "$PROBE_DIR/report.md" | tee -a "$GITHUB_STEP_SUMMARY"
+            ls "$PROBE_DIR/screens"
           else
             echo "No samples or marks were recorded; see app.log in the artifact." >>"$GITHUB_STEP_SUMMARY"
           fi
