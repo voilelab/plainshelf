@@ -27,6 +27,15 @@ cask "plainshelf" do
   zap trash: [
     "~/Library/Application Support/PlainShelf",
     "~/Library/Caches/PlainShelf",
+    "~/Library/WebKit/com.voilelab.plainshelf",
+    "~/Library/Caches/com.voilelab.plainshelf",
+    "~/Library/HTTPStorages/com.voilelab.plainshelf",
     "~/Library/Preferences/com.voilelab.plainshelf.plist",
+    "~/Library/Saved Application State/com.voilelab.plainshelf.savedState",
+    "~/Library/WebKit/com.wails.plainshelf",
+    "~/Library/Caches/com.wails.plainshelf",
+    "~/Library/HTTPStorages/com.wails.plainshelf",
+    "~/Library/Preferences/com.wails.plainshelf.plist",
+    "~/Library/Saved Application State/com.wails.plainshelf.savedState",
   ]
 end
