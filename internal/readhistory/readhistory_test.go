@@ -2,6 +2,7 @@ package readhistory
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -156,6 +157,9 @@ func TestParseMatchesFrontendNormalization(t *testing.T) {
 		},
 		`{"version":1,"limit":-3,"shelves":["book-1"]}`: New(),
 		`{"version":1,"limit":1.5,"shelves":{}}`:        New(),
+		`{"version":1,"limit":3000000000,"shelves":{"s":["a","b"]}}`: {
+			Version: 1, Limit: math.MaxInt32, Shelves: map[string][]string{"s": {"a", "b"}},
+		},
 	}
 	for text, want := range cases {
 		got := Parse(text)

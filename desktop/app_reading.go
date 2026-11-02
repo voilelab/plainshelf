@@ -164,5 +164,5 @@ func (a *DesktopApp) ReadReadingStats() (string, error) {
 }
 
 func (a *DesktopApp) AddReadingSeconds(key, date string, seconds float64) error {
-	return readingstats.NewStore(a.readingStatsPath).Add(key, date, seconds, time.Now())
+	return readingstats.NewStore(a.readingStatsPath).Add(key, date, seconds, time.Now)
 }

@@ -63,10 +63,10 @@ func parseLimit(value jsontext.Value) int {
 }
 
 func normalizeLimit(limit float64) int {
-	if limit < 0 || limit > math.MaxInt32 || limit != math.Trunc(limit) {
+	if limit < 0 || limit != math.Trunc(limit) || math.IsInf(limit, 0) {
 		return DefaultLimit
 	}
-	return int(limit)
+	return int(min(limit, math.MaxInt32))
 }
 
 func parseIDs(value jsontext.Value, limit int) []string {
@@ -76,15 +76,17 @@ func parseIDs(value jsontext.Value, limit int) []string {
 	}
 
 	var ids []string
+	seen := map[string]bool{}
 	for _, entry := range entries {
 		var id string
 		if json.Unmarshal(entry, &id) != nil {
 			continue
 		}
 		id = strings.TrimSpace(id)
-		if id == "" || slices.Contains(ids, id) {
+		if id == "" || seen[id] {
 			continue
 		}
+		seen[id] = true
 		ids = append(ids, id)
 		if len(ids) >= limit {
 			break

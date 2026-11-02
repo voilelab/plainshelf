@@ -118,6 +118,41 @@ describe('Wails runtime with desktop bindings', () => {
     expect(localStore.size).toBe(0);
   });
 
+  it('sends read history writes in call order, even after a failure', async () => {
+    const calls: string[] = [];
+    let finishRecord: () => void = () => undefined;
+    const app = {
+      ReadReadHistory: vi.fn().mockResolvedValue(''),
+      RecordReadHistory: vi.fn(
+        (_key: string, bookID: string) =>
+          new Promise<void>((resolve, reject) => {
+            calls.push(`record ${bookID}`);
+            if (bookID === 'bad') {
+              reject(new Error('disk full'));
+              return;
+            }
+            finishRecord = resolve;
+          })
+      ),
+      ClearReadHistory: vi.fn(async () => void calls.push('clear')),
+      SetReadHistoryLimit: vi.fn(async () => void calls.push('limit'))
+    };
+    stubWails(app);
+    const storage = await loadStorage();
+
+    const record = storage.addReadHistory('book-1');
+    const clear = storage.clearReadHistory();
+    await Promise.resolve();
+    expect(calls).toEqual(['record book-1']);
+
+    finishRecord();
+    await Promise.all([record, clear]);
+    await expect(storage.addReadHistory('bad')).rejects.toThrow('disk full');
+    await storage.setReadHistoryLimit(5);
+
+    expect(calls).toEqual(['record book-1', 'clear', 'record bad', 'limit']);
+  });
+
   it('adds reading seconds through the operation binding', async () => {
     const app = {
       ReadReadingStats: vi

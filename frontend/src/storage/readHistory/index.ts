@@ -67,6 +67,14 @@ type ReadHistoryBackend = Pick<
 >;
 
 class DesktopReadHistory implements ReadHistoryBackend {
+  private queue: Promise<unknown> = Promise.resolve();
+
+  private enqueue(write: () => Promise<void>): Promise<void> {
+    const next = this.queue.then(write);
+    this.queue = next.catch(() => undefined);
+    return next;
+  }
+
   private async read(): Promise<ReadHistoryDocument> {
     return parseReadHistoryDocument(await readDesktopReadHistory());
   }
@@ -76,11 +84,11 @@ class DesktopReadHistory implements ReadHistoryBackend {
   }
 
   add(shelfID: string, bookID: string): Promise<void> {
-    return recordDesktopReadHistory(shelfID, bookID);
+    return this.enqueue(() => recordDesktopReadHistory(shelfID, bookID));
   }
 
   clear(shelfID: string): Promise<void> {
-    return clearDesktopReadHistory(shelfID);
+    return this.enqueue(() => clearDesktopReadHistory(shelfID));
   }
 
   async getLimit(): Promise<number> {
@@ -88,7 +96,7 @@ class DesktopReadHistory implements ReadHistoryBackend {
   }
 
   setLimit(limit: number): Promise<void> {
-    return setDesktopReadHistoryLimit(limit);
+    return this.enqueue(() => setDesktopReadHistoryLimit(limit));
   }
 }
 

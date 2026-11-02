@@ -9,6 +9,8 @@ import (
 
 var now = time.Date(2026, 11, 1, 15, 0, 0, 0, time.Local)
 
+func clock() time.Time { return now }
+
 func readDoc(t *testing.T, store *Store) Document {
 	t.Helper()
 	raw, err := store.Read()
@@ -33,7 +35,7 @@ func TestConcurrentStoresSumEverySecond(t *testing.T) {
 	for s, store := range stores {
 		for range perStore {
 			wg.Go(func() {
-				errs <- store.Add("main", "2026-11-01", float64(s+1), now)
+				errs <- store.Add("main", "2026-11-01", float64(s+1), clock)
 			})
 		}
 	}
@@ -52,7 +54,7 @@ func TestConcurrentStoresSumEverySecond(t *testing.T) {
 
 func TestAddClampsPerCallAndPerDay(t *testing.T) {
 	store := newStore(t)
-	if err := store.Add("main", "2026-11-01", 500, now); err != nil {
+	if err := store.Add("main", "2026-11-01", 500, clock); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	if got := readDoc(t, store).Shelves["main"]["2026-11-01"]; got != maxSecondsPerCall {
@@ -128,7 +130,28 @@ func TestStoreNeedsPath(t *testing.T) {
 	if _, err := store.Read(); err == nil {
 		t.Fatal("read succeeded without a path")
 	}
-	if err := store.Add("main", "2026-11-01", 30, now); err == nil {
+	if err := store.Add("main", "2026-11-01", 30, clock); err == nil {
 		t.Fatal("add succeeded without a path")
+	}
+}
+
+func TestAddReadsClockUnderLock(t *testing.T) {
+	store := newStore(t)
+	if err := store.Add("main", "2026-11-02", 30, func() time.Time { return now.AddDate(0, 0, 1) }); err != nil {
+		t.Fatalf("add next day: %v", err)
+	}
+
+	var clockReads int
+	late := func() time.Time {
+		clockReads++
+		return now.AddDate(0, 0, 1)
+	}
+	if err := store.Add("main", "2026-11-01", 20, late); err != nil {
+		t.Fatalf("add delayed: %v", err)
+	}
+
+	days := readDoc(t, store).Shelves["main"]
+	if days["2026-11-02"] != 30 || days["2026-11-01"] != 20 || clockReads != 1 {
+		t.Fatalf("days = %v, clock reads = %d", days, clockReads)
 	}
 }

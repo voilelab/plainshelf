@@ -138,9 +138,9 @@ func (s *Store) Read() (string, error) {
 	return s.file.Read()
 }
 
-func (s *Store) Add(key, date string, seconds float64, now time.Time) error {
+func (s *Store) Add(key, date string, seconds float64, now func() time.Time) error {
 	_, err := lockedfile.Mutate(s.file, Parse, Serialize, func(doc Document) Document {
-		return withSeconds(doc, key, date, seconds, now)
+		return withSeconds(doc, key, date, seconds, now())
 	})
 	return err
 }
