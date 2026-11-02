@@ -43,7 +43,16 @@ func writeDeviceDocument(path, label, doc string) error {
 }
 
 func (a *DesktopApp) ReadReadHistory() (string, error) {
-	return readhistory.NewStore(a.readHistoryPath).Read()
+	store := readhistory.NewStore(a.readHistoryPath)
+	if a.readerNamespaceIsRealShelf() {
+		return store.Read()
+	}
+	text, err := store.ProjectReader(readingprogress.ReaderShelfID, a.resolveUniqueBookShelf)
+	if err != nil {
+		log.Println("failed to project reader read history:", err)
+		return store.Read()
+	}
+	return text, nil
 }
 
 func (a *DesktopApp) RecordReadHistory(shelfKey, bookID string) error {
@@ -160,7 +169,16 @@ func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
 }
 
 func (a *DesktopApp) ReadReadingStats() (string, error) {
-	return readingstats.NewStore(a.readingStatsPath).Read()
+	store := readingstats.NewStore(a.readingStatsPath)
+	if a.readerNamespaceIsRealShelf() {
+		return store.Read()
+	}
+	text, err := store.ProjectReader(readingprogress.ReaderShelfID, a.resolveUniqueBookShelf)
+	if err != nil {
+		log.Println("failed to project reader reading stats:", err)
+		return store.Read()
+	}
+	return text, nil
 }
 
 func (a *DesktopApp) AddReadingSeconds(key, date string, seconds float64) error {

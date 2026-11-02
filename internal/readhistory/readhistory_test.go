@@ -194,3 +194,34 @@ func TestStoreNeedsPath(t *testing.T) {
 		t.Fatal("record succeeded without a path")
 	}
 }
+
+func TestProjectPrependsWithinLimit(t *testing.T) {
+	doc := New()
+	doc.Limit = 3
+	doc.Shelves["real"] = []string{"b", "x", "y"}
+	doc.Shelves["book"] = []string{"a", "loose", "b"}
+	resolve := func(id string) (string, bool) { return "real", id != "loose" }
+
+	got := Project(doc, "book", resolve)
+
+	if want := []string{"a", "b", "x"}; !slices.Equal(got.Shelves["real"], want) {
+		t.Errorf("real = %v, want %v", got.Shelves["real"], want)
+	}
+	if want := []string{"loose"}; !slices.Equal(got.Shelves["book"], want) {
+		t.Errorf("book = %v, want %v", got.Shelves["book"], want)
+	}
+	if want := []string{"b", "x", "y"}; !slices.Equal(doc.Shelves["real"], want) {
+		t.Errorf("input mutated: %v", doc.Shelves["real"])
+	}
+}
+
+func TestProjectDropsEmptyReaderShelf(t *testing.T) {
+	doc := New()
+	doc.Shelves["book"] = []string{"a"}
+
+	got := Project(doc, "book", func(string) (string, bool) { return "real", true })
+
+	if _, ok := got.Shelves["book"]; ok {
+		t.Errorf("empty reader shelf kept: %v", got.Shelves)
+	}
+}

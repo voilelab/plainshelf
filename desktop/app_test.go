@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
+	"github.com/voilelab/plainshelf/internal/readingstats"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -29,6 +31,12 @@ func TestStartServerSharesProgressPath(t *testing.T) {
 	}
 	if a.readingProgressPath != want {
 		t.Fatalf("desktop progress path = %q, shared reader path = %q", a.readingProgressPath, want)
+	}
+	if want, _ := readhistory.DefaultPath(); a.readHistoryPath != want {
+		t.Errorf("desktop history path = %q, shared reader path = %q", a.readHistoryPath, want)
+	}
+	if want, _ := readingstats.DefaultPath(); a.readingStatsPath != want {
+		t.Errorf("desktop stats path = %q, shared reader path = %q", a.readingStatsPath, want)
 	}
 }
 
@@ -82,6 +90,12 @@ func startedDesktopAppWithShelves(t *testing.T, shelfIDs ...string) *DesktopApp 
 	for _, id := range shelfIDs {
 		confs = append(confs, &shelf.ShelfConfWithID{ID: id, LibRoot: t.TempDir()})
 	}
+	return startedDesktopAppWithConfs(t, confs)
+}
+
+func startedDesktopAppWithConfs(t *testing.T, confs []*shelf.ShelfConfWithID) *DesktopApp {
+	t.Helper()
+
 	serverApp, err := server.NewApp(&server.AppConf{
 		Shelves:   confs,
 		StorePath: t.TempDir(),

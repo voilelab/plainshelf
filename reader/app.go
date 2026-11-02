@@ -5,10 +5,13 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
+	"github.com/voilelab/plainshelf/internal/readingstats"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/reader/readerapi"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -23,6 +26,8 @@ type ReaderApp struct {
 	launchSection int
 
 	progressStore *readingprogress.Store
+	historyStore  *readhistory.Store
+	statsStore    *readingstats.Store
 
 	promptedForBook bool
 
@@ -43,6 +48,18 @@ func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *Re
 	} else {
 		app.progressStore = readingprogress.NewStore(path)
 	}
+
+	historyPath, err := readhistory.DefaultPath()
+	if err != nil {
+		log.Println("read history will not be persisted:", err)
+	}
+	app.historyStore = readhistory.NewStore(historyPath)
+
+	statsPath, err := readingstats.DefaultPath()
+	if err != nil {
+		log.Println("reading stats will not be persisted:", err)
+	}
+	app.statsStore = readingstats.NewStore(statsPath)
 
 	app.progressStager = readingclose.NewStager(app.progressStore, readingclose.DefaultTimeout)
 
@@ -172,3 +189,36 @@ func (a *ReaderApp) WriteReadingProgress(doc string) error {
 	})
 	return err
 }
+
+func (a *ReaderApp) ReadReadHistory() (string, error) {
+	return a.historyStore.Read()
+}
+
+func (a *ReaderApp) RecordReadHistory(shelfKey, bookID string) error {
+	return a.historyStore.Record(shelfKey, bookID)
+}
+
+func (a *ReaderApp) ClearReadHistory(shelfKey string) error {
+	return a.historyStore.Clear(shelfKey)
+}
+
+func (a *ReaderApp) SetReadHistoryLimit(limit int) error {
+	return a.historyStore.SetLimit(limit)
+}
+
+func (a *ReaderApp) ReadReadingStats() (string, error) {
+	return a.statsStore.Read()
+}
+
+func (a *ReaderApp) AddReadingSeconds(key, date string, seconds float64) error {
+	return a.statsStore.Add(a.readingStatsKey(key), date, seconds, time.Now)
+}
+
+func (a *ReaderApp) readingStatsKey(key string) string {
+	bookID := a.library.BookID()
+	if key != readerapi.ShelfID || bookID == "" {
+		return key
+	}
+	return readingstats.ReaderBookKey(key, bookID)
+}
+

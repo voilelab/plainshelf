@@ -4,11 +4,13 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"math"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/lockedfile"
+	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -177,4 +179,72 @@ func (s *Store) SetLimit(limit int) error {
 func (s *Store) mutate(fn func(Document) Document) error {
 	_, err := lockedfile.Mutate(s.file, Parse, Serialize, fn)
 	return err
+}
+
+func Project(doc Document, readerShelfID string, resolve func(bookID string) (string, bool)) Document {
+	readerIDs := doc.Shelves[readerShelfID]
+	if readerShelfID == "" || len(readerIDs) == 0 || resolve == nil {
+		return doc
+	}
+
+	out := doc.clone()
+	var kept []string
+	moved := map[string][]string{}
+	var targets []string
+	for _, bookID := range readerIDs {
+		target, ok := resolve(bookID)
+		target = strings.TrimSpace(target)
+		if !ok || target == "" || target == readerShelfID {
+			kept = append(kept, bookID)
+			continue
+		}
+		if _, seen := moved[target]; !seen {
+			targets = append(targets, target)
+		}
+		moved[target] = append(moved[target], bookID)
+	}
+	if len(targets) == 0 {
+		return doc
+	}
+
+	for _, target := range targets {
+		ids := moved[target]
+		for _, id := range doc.Shelves[target] {
+			if !slices.Contains(moved[target], id) {
+				ids = append(ids, id)
+			}
+		}
+		out.Shelves[target] = ids[:min(len(ids), out.Limit)]
+	}
+	if len(kept) == 0 {
+		delete(out.Shelves, readerShelfID)
+	} else {
+		out.Shelves[readerShelfID] = kept
+	}
+	return out
+}
+
+func (s *Store) ProjectReader(readerShelfID string, resolve func(bookID string) (string, bool)) (string, error) {
+	raw, err := s.file.Read()
+	if err != nil {
+		return "", err
+	}
+	if len(Parse(raw).Shelves[readerShelfID]) == 0 {
+		return raw, nil
+	}
+	doc, err := lockedfile.Mutate(s.file, Parse, Serialize, func(doc Document) Document {
+		return Project(doc, readerShelfID, resolve)
+	})
+	if err != nil {
+		return "", err
+	}
+	return Serialize(doc)
+}
+
+func DefaultPath() (string, error) {
+	dir, err := readingprogress.SharedDataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "read_history.json"), nil
 }

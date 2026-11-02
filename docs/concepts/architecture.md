@@ -90,11 +90,12 @@ and save **one string**; parsing, merging and trimming live in each feature's ow
 document module, so every platform shares one implementation and a new backend
 only has to persist text.
 
-The Wails desktop is the exception for read history and reading stats. Another
+The Wails desktop and the standalone reader are the exception for read history
+and reading stats. Another
 process can write the same files, and neither document can be merged after the
 fact: read history is an ordered list without timestamps, and reading stats are
 summed seconds, so taking the newer copy drops an update and taking the union
-counts one twice. The desktop therefore sends each change as one operation
+counts one twice. Both therefore send each change as one operation
 (`RecordReadHistory`, `ClearReadHistory`, `SetReadHistoryLimit`,
 `AddReadingSeconds`), and Go applies it inside the cross-process file lock
 (`internal/readhistory`, `internal/readingstats`, both on
@@ -110,8 +111,8 @@ uniform:
 | Document | Browser | Android shell | Wails desktop | Standalone reader |
 |---|---|---|---|---|
 | `readingProgress` | localStorage | localStorage | JSON file | JSON file (shared with desktop) |
-| `readHistory` | localStorage | Capacitor Filesystem | JSON file | none |
-| `readingStats` | localStorage | Capacitor Filesystem | JSON file | none |
+| `readHistory` | localStorage | Capacitor Filesystem | JSON file | JSON file (shared with desktop) |
+| `readingStats` | localStorage | Capacitor Filesystem | JSON file | JSON file (shared with desktop) |
 
 Mock API mode and unit tests use the in-memory backend for all three.
 
@@ -119,13 +120,10 @@ Inside a Wails window, a document whose binding is missing is an error, not a
 reason to fall back to WebView localStorage: every read and write rejects. Only
 the `?desktop-shell-preview=1` browser preview keeps browser storage.
 
-The standalone reader binds only the reading-progress methods, so it records no
-read history or reading stats yet; those writes fail and are logged. Its reading
-progress goes to the same JSON file the desktop app uses, which is what lets it
-reach the desktop library (below). When the desktop shells out to the reader,
-the launching side (`WailsBookshelfProvider.openDesktopReader`) writes the entry
-into the desktop's own `readHistory` after the launch succeeds, so the desktop
-app's "recent reading" sees a book read this way.
+The standalone reader binds the same methods for all three documents and writes
+the same JSON files as the desktop app, through the same operations and lock.
+That is what lets a book read in the reader reach the desktop library's progress,
+"recent reading" and reading time (below).
 
 The frontend autosaves reading progress every 10 seconds. To narrow what closing
 a Wails window between two saves can lose, the frontend also stages its latest
@@ -210,6 +208,25 @@ by recency. Only a reader opened **directly** stays one-way, its `book`
 namespace folded in by projection; progress recorded in the desktop app does not
 appear there because it never carried that book's real shelf id. Nothing here is
 written into the shelf; reading progress stays device-local convenience state.
+
+Read history and reading time follow the same keying. A desktop-launched reader
+records both under the real shelf id, so the desktop sees them directly; the
+reader's own record moves the book to the front of "recent reading" once, and
+the desktop no longer records a launch itself. A standalone reader records:
+
+- **Read history** under `book`. Whenever the desktop reads history, it moves
+  each `book` entry that resolves to exactly one real shelf to the front of that
+  shelf's list, in reader order, and removes it from `book`. History carries no
+  timestamps, so a copy left under `book` would be moved to the front again on
+  every read; moving it is what keeps the order stable.
+- **Reading time** under `book/<bookID>`, because a stats entry is only shelf,
+  date and seconds and would otherwise lose which book it was for. Whenever the
+  desktop reads stats, it adds each such key's seconds to the book's real shelf,
+  capped per day as usual, and removes the key.
+
+Both use the same rule as progress: a book found on no shelf, or on more than one,
+stays under the reader key until it can be placed. When a real shelf is itself
+called `book`, the desktop projects neither document, as for progress.
 
 The diagram cannot show either of these:
 
