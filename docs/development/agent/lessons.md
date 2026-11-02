@@ -50,6 +50,13 @@ Read the relevant section before working in that area. Add entries according to
   with a reason and keep a caller check for the exported helpers; that check
   counts functions only, not types, constants or methods.
   (`internal/repocheck/cjk_test.go`, `internal/repocheck/contract_test.go`)
+- **`vi.mock` loses to concurrent first imports:** a test that `Promise.all`s
+  dynamic imports fails only under CI load, with the real module's behavior
+  (here `No shelf selected.` from an unmocked `@/api/client`). Vitest 5.0.5's
+  `resolveMocks()` empties its queue before awaiting path resolution, so a
+  parallel import skips the wait and loads the original. Await the first
+  dynamic import before starting others; reproduce by adding a delay after
+  `pendingIds = []` in Vitest's mocker. (`frontend/src/storage/wailsBackends.test.ts`)
 - **Server tests race the initial shelf scan:** a read issued before it finishes
   is answered 503 `ErrShelfInitializing`. Test envs must wait via
   `WaitReady`; do not rely on unrelated startup work to mask it.

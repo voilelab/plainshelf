@@ -30,12 +30,12 @@ function stubWails(desktopApp: Record<string, unknown>): void {
   });
 }
 
+// Sequential: Vitest 5.0.5 resolveMocks() clears its queue before resolving,
+// so a concurrent first import can load the real module instead of the mock.
 async function loadStorage() {
-  const [history, stats, progress] = await Promise.all([
-    import('./readHistory'),
-    import('./readingStats'),
-    import('./readingProgress')
-  ]);
+  const history = await import('./readHistory');
+  const stats = await import('./readingStats');
+  const progress = await import('./readingProgress');
   return { ...history, ...stats, ...progress };
 }
 
