@@ -13,8 +13,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/reader/readerapi"
 	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
@@ -34,7 +32,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	app := NewReaderApp(logger, launch.shelfID, launch.section)
+	native := &wailsNative{}
+	app := NewReaderApp(native, logger, launch.shelfID, launch.section)
 
 	if launch.bookPath != "" {
 		if _, err := app.Library().Open(launch.bookPath); err != nil {
@@ -44,6 +43,10 @@ func main() {
 
 	api := readerapi.NewHandler(app.Library(), version.Version)
 	spa := readerapi.NewSPAHandler(frontend.WebFS, app.BootConfig)
+	appMenu, err := toWailsMenu(applicationMenu(app))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	err = wails.Run(&options.App{
 		Title:  "PlainShelf Reader",
@@ -59,8 +62,11 @@ func main() {
 				spa.ServeHTTP(w, r)
 			}),
 		},
-		Menu:          newApplicationMenu(app),
-		OnStartup:     app.Startup,
+		Menu:      appMenu,
+		OnStartup: native.attach,
+		// Wails v2.16.0 WailsContext.m presents macOS directory dialogs with
+		// beginSheetModalForWindow:self.mainWindow, so the first book prompt
+		// waits until the window exists.
 		OnDomReady:    app.DomReady,
 		OnBeforeClose: app.beforeClose,
 		OnShutdown:    app.Shutdown,
@@ -96,19 +102,4 @@ func parseLaunchArgs(args []string) (launchArgs, error) {
 		return launchArgs{}, err
 	}
 	return launchArgs{bookPath: *book, shelfID: *shelf, section: *section}, nil
-}
-
-func newApplicationMenu(app *ReaderApp) *menu.Menu {
-	root := menu.NewMenu()
-	root.Append(menu.AppMenu())
-
-	fileMenu := root.AddSubmenu("File")
-	fileMenu.AddText("Open Book…", keys.CmdOrCtrl("o"), func(*menu.CallbackData) {
-		if _, err := app.OpenBookPackage(); err != nil {
-			log.Println("failed to open a book package:", err)
-		}
-	})
-
-	root.Append(menu.EditMenu())
-	return root
 }

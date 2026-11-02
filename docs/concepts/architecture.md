@@ -31,6 +31,14 @@ separate listener for the selected shelves' read-only WebDAV export, protected
 by its own token; it exposes neither the API nor the web UI. See
 [the read-only WebDAV export](../deployment-and-threat-model.md#the-read-only-webdav-export).
 
+**Wails stays at the edge of the desktop and reader apps.** `DesktopApp` and
+`ReaderApp` reach dialogs, the browser, script execution, reload and quit
+through a small `nativeUI` interface, and describe their menus as plain data.
+Only each module's `main.go` and `wails_native.go` import Wails; together they
+hold the Wails context, translate the menu, and decide lifecycle timing such
+as deferring dialogs to `DomReady`. Tests drive the apps through a fake
+`nativeUI`.
+
 **The Android app embeds the Go server.** Local shelves, pCloud shelves and
 WebDAV sources (including another PlainShelf's LAN share) are all read through
 that server, reached in-process through the native bridge and WebView request
