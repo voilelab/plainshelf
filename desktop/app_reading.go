@@ -4,9 +4,12 @@ import (
 	"encoding/json/jsontext"
 	"log"
 	"slices"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
+	"github.com/voilelab/plainshelf/internal/readingstats"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -40,11 +43,19 @@ func writeDeviceDocument(path, label, doc string) error {
 }
 
 func (a *DesktopApp) ReadReadHistory() (string, error) {
-	return readDeviceDocument(a.readHistoryPath)
+	return readhistory.NewStore(a.readHistoryPath).Read()
 }
 
-func (a *DesktopApp) WriteReadHistory(doc string) error {
-	return writeDeviceDocument(a.readHistoryPath, "read history", doc)
+func (a *DesktopApp) RecordReadHistory(shelfKey, bookID string) error {
+	return readhistory.NewStore(a.readHistoryPath).Record(shelfKey, bookID)
+}
+
+func (a *DesktopApp) ClearReadHistory(shelfKey string) error {
+	return readhistory.NewStore(a.readHistoryPath).Clear(shelfKey)
+}
+
+func (a *DesktopApp) SetReadHistoryLimit(limit int) error {
+	return readhistory.NewStore(a.readHistoryPath).SetLimit(limit)
 }
 
 func (a *DesktopApp) ReadReadingProgress() (string, error) {
@@ -149,9 +160,9 @@ func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
 }
 
 func (a *DesktopApp) ReadReadingStats() (string, error) {
-	return readDeviceDocument(a.readingStatsPath)
+	return readingstats.NewStore(a.readingStatsPath).Read()
 }
 
-func (a *DesktopApp) WriteReadingStats(doc string) error {
-	return writeDeviceDocument(a.readingStatsPath, "reading stats", doc)
+func (a *DesktopApp) AddReadingSeconds(key, date string, seconds float64) error {
+	return readingstats.NewStore(a.readingStatsPath).Add(key, date, seconds, time.Now)
 }

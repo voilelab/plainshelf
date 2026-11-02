@@ -10,6 +10,10 @@ function hasDesktopPreviewFlag(): boolean {
   return desktopPreview;
 }
 
+export function isDesktopShellPreview(): boolean {
+  return typeof window !== 'undefined' && hasDesktopPreviewFlag();
+}
+
 export function isWailsRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;

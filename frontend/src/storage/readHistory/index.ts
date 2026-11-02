@@ -1,9 +1,19 @@
 import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
-import { hasDesktopReadHistoryBinding } from '@/api/desktop';
+import {
+  clearDesktopReadHistory,
+  hasDesktopReadHistoryBinding,
+  readDesktopReadHistory,
+  recordDesktopReadHistory,
+  setDesktopReadHistoryLimit
+} from '@/api/desktop';
 import { mockBooks } from '@/api/mocks/books';
-import { isWailsRuntime } from '@/providers/runtime';
+import { isDesktopShellPreview, isWailsRuntime } from '@/providers/runtime';
 import { getShell } from '@/providers/shell';
-import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
+import {
+  buildDeviceDocumentKey,
+  createUnavailableDocumentStorage,
+  DeviceDocumentStore
+} from '@/storage/deviceDocument';
 import {
   createReadHistoryDocument,
   getShelfReadHistory,
@@ -16,7 +26,6 @@ import {
 } from './document';
 import {
   MOBILE_READ_HISTORY_PATH,
-  createDesktopReadHistoryStorage,
   createInMemoryReadHistoryStorage,
   createLocalStorageReadHistoryStorage,
   type ReadHistoryStorage
@@ -52,6 +61,45 @@ export class ReadHistoryStore extends DeviceDocumentStore<ReadHistoryDocument> {
   }
 }
 
+type ReadHistoryBackend = Pick<
+  ReadHistoryStore,
+  'list' | 'add' | 'clear' | 'getLimit' | 'setLimit'
+>;
+
+class DesktopReadHistory implements ReadHistoryBackend {
+  private queue: Promise<unknown> = Promise.resolve();
+
+  private enqueue(write: () => Promise<void>): Promise<void> {
+    const next = this.queue.then(write);
+    this.queue = next.catch(() => undefined);
+    return next;
+  }
+
+  private async read(): Promise<ReadHistoryDocument> {
+    return parseReadHistoryDocument(await readDesktopReadHistory());
+  }
+
+  async list(shelfID: string): Promise<string[]> {
+    return getShelfReadHistory(await this.read(), shelfID);
+  }
+
+  add(shelfID: string, bookID: string): Promise<void> {
+    return this.enqueue(() => recordDesktopReadHistory(shelfID, bookID));
+  }
+
+  clear(shelfID: string): Promise<void> {
+    return this.enqueue(() => clearDesktopReadHistory(shelfID));
+  }
+
+  async getLimit(): Promise<number> {
+    return (await this.read()).limit;
+  }
+
+  setLimit(limit: number): Promise<void> {
+    return this.enqueue(() => setDesktopReadHistoryLimit(limit));
+  }
+}
+
 function createMockReadHistoryStorage(): ReadHistoryStorage {
   const backing = createInMemoryReadHistoryStorage();
   let seeded = false;
@@ -71,28 +119,29 @@ function createMockReadHistoryStorage(): ReadHistoryStorage {
   };
 }
 
-function createReadHistoryStorage(): ReadHistoryStorage {
+function createReadHistoryBackend(): ReadHistoryBackend {
   if (isMockApiMode()) {
-    return createMockReadHistoryStorage();
+    return new ReadHistoryStore(createMockReadHistoryStorage());
   }
 
-  if (isWailsRuntime() && hasDesktopReadHistoryBinding()) {
-    return createDesktopReadHistoryStorage();
+  if (isWailsRuntime()) {
+    if (hasDesktopReadHistoryBinding()) {
+      return new DesktopReadHistory();
+    }
+    if (!isDesktopShellPreview()) {
+      return new ReadHistoryStore(createUnavailableDocumentStorage('Read history'));
+    }
   }
 
   const fromShell = getShell()?.createDeviceDocumentStorage?.(MOBILE_READ_HISTORY_PATH);
-  if (fromShell) {
-    return fromShell;
-  }
-
-  return createLocalStorageReadHistoryStorage();
+  return new ReadHistoryStore(fromShell ?? createLocalStorageReadHistoryStorage());
 }
 
-let store: ReadHistoryStore | null = null;
+let store: ReadHistoryBackend | null = null;
 
-function getReadHistoryStore(): ReadHistoryStore {
+function getReadHistoryStore(): ReadHistoryBackend {
   if (!store) {
-    store = new ReadHistoryStore(createReadHistoryStorage());
+    store = createReadHistoryBackend();
   }
   return store;
 }
