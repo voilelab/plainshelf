@@ -39,7 +39,7 @@
  * for `check-licenses` to vet — would cost more than they explain.
  */
 import { readdir, readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, posix, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const SRC = 'src';
@@ -56,6 +56,15 @@ const MOBILE_ONLY = [
 /** Files allowed to reach them: the shell itself, the mobile feature area, and the mobile modules. */
 const MOBILE_SIDE = [
   /^src\/shells\//,
+  /^src\/features\/mobile\//,
+  /^src\/api\/pcloud\//,
+  /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookExport|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|secureStorage|cacheScope|localShelf|embeddedPCloud)\.ts$/
+];
+
+const WAILS_ONLY = [/^(@|src)\/api\/(wailsBindings|desktop)(\.ts)?$/];
+
+const MOBILE_STACK = [
+  /^src\/shells\/mobile\//,
   /^src\/features\/mobile\//,
   /^src\/api\/pcloud\//,
   /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookExport|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|secureStorage|cacheScope|localShelf|embeddedPCloud)\.ts$/
@@ -134,6 +143,9 @@ function importViolations(rule, file, source) {
   if (rule.side.some((pattern) => pattern.test(file))) {
     return [];
   }
+  if (rule.only && !rule.only.some((pattern) => pattern.test(file))) {
+    return [];
+  }
 
   const exempt = rule.exempt.get(file) ?? new Set();
   const violations = [];
@@ -143,7 +155,10 @@ function importViolations(rule, file, source) {
     if (exempt.has(specifier)) {
       continue;
     }
-    if (rule.restricted.some((restricted) => restricted.test(specifier))) {
+    const target = specifier.startsWith('.')
+      ? posix.join(posix.dirname(file), specifier)
+      : specifier;
+    if (rule.restricted.some((restricted) => restricted.test(specifier) || restricted.test(target))) {
       violations.push(`${file} imports ${specifier}`);
     }
   }
@@ -190,6 +205,18 @@ const RULES = [
       'The reader is a feature, not a library. Move what more than one feature needs\n' +
       'into src/utils or src/components — safe HTML rendering lives in\n' +
       'src/utils/safeHtml.ts and src/components/SafeHtml.vue.'
+  },
+  {
+    restricted: WAILS_ONLY,
+    side: [],
+    only: MOBILE_STACK,
+    exempt: new Map(),
+    find: importViolations,
+    problem: 'The mobile stack must not import the Wails bindings:',
+    hint:
+      'The Android app never runs inside Wails. Reach platform behaviour through a\n' +
+      'RuntimeShell member (src/providers/shell.ts) instead of src/api/desktop.ts or\n' +
+      'src/api/wailsBindings.ts.'
   },
   {
     side: READER_LAUNCH_SIDE,

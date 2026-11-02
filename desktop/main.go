@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
-	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
 	"github.com/wailsapp/wails/v2"
@@ -21,18 +19,8 @@ func main() {
 		Width:  1600,
 		Height: 1200,
 		AssetServer: &assetserver.Options{
-			Assets: frontend.WebFS,
-			Middleware: func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-					if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
-						app.GetAPIHandler().ServeHTTP(w, r)
-						return
-					}
-
-					next.ServeHTTP(w, r)
-				})
-			},
+			Assets:     frontend.WebFS,
+			Middleware: assetMiddleware(frontend.WebFS, app.GetAPIHandler),
 		},
 		Menu:          newApplicationMenu(app),
 		OnStartup:     app.Startup,

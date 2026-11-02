@@ -10,7 +10,9 @@ vi.mock('@/api/client', () => ({
 
 vi.mock('@/providers/runtime', () => ({
   isWailsRuntime: () => true,
-  isDesktopShellPreview: () => runtime.preview
+  isDesktopShellPreview: () => runtime.preview,
+  isDesktopHost: () => !runtime.preview,
+  isReaderRuntime: () => false
 }));
 
 vi.mock('@/providers/shell', () => ({ getShell: () => undefined }));

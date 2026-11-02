@@ -14,19 +14,20 @@ export function isDesktopShellPreview(): boolean {
   return typeof window !== 'undefined' && hasDesktopPreviewFlag();
 }
 
+export function isDesktopHost(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return Boolean((window as { __PLAINSHELF_DESKTOP__?: unknown }).__PLAINSHELF_DESKTOP__);
+}
+
 export function isWailsRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
 
-  const hasWailsBinding = Boolean((window as { go?: unknown }).go);
-
-  return (
-    hasWailsBinding ||
-    window.location.protocol === 'wails:' ||
-    window.location.host.endsWith('.wails.localhost') ||
-    hasDesktopPreviewFlag()
-  );
+  return isDesktopHost() || isReaderRuntime() || hasDesktopPreviewFlag();
 }
 
 let mobilePreview: boolean | undefined;
