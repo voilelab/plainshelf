@@ -101,12 +101,14 @@ func newReaderAppWithBook(t *testing.T, shelfID string) *ReaderApp {
 		t.Fatalf("Open: %v", err)
 	}
 
-	if shelfID == "" {
+	standalone := shelfID == ""
+	if standalone {
 		shelfID = readerapi.ShelfID
 	}
 	return &ReaderApp{
 		library:       library,
 		shelfID:       shelfID,
+		standalone:    standalone,
 		progressStore: readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json")),
 	}
 }

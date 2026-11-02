@@ -59,6 +59,19 @@ func TestRealShelfStatsKeyedByShelf(t *testing.T) {
 	}
 }
 
+func TestRealBookShelfStatsKeyedByShelf(t *testing.T) {
+	app := withDeviceStores(t, newReaderAppWithBook(t, readerapi.ShelfID))
+	today := time.Now().Format(time.DateOnly)
+
+	if err := app.AddReadingSeconds(readerapi.ShelfID, today, 30); err != nil {
+		t.Fatalf("AddReadingSeconds: %v", err)
+	}
+
+	if v := readStats(t, app).Shelves[readerapi.ShelfID][today]; v != 30 {
+		t.Errorf("seconds for a real %q shelf = %d, want 30", readerapi.ShelfID, v)
+	}
+}
+
 func TestReaderRecordsReadHistory(t *testing.T) {
 	app := withDeviceStores(t, newReaderAppWithBook(t, "shelf-real"))
 

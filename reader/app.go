@@ -21,7 +21,8 @@ type ReaderApp struct {
 	ctx     context.Context
 	library *readerapi.Library
 
-	shelfID string
+	shelfID    string
+	standalone bool
 
 	launchSection int
 
@@ -37,11 +38,17 @@ type ReaderApp struct {
 
 func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
 	shelfID = strings.TrimSpace(shelfID)
-	if shelfID == "" {
+	standalone := shelfID == ""
+	if standalone {
 		shelfID = readerapi.ShelfID
 	}
 
-	app := &ReaderApp{library: readerapi.NewLibrary(logger), shelfID: shelfID, launchSection: launchSection}
+	app := &ReaderApp{
+		library:       readerapi.NewLibrary(logger),
+		shelfID:       shelfID,
+		standalone:    standalone,
+		launchSection: launchSection,
+	}
 
 	if path, err := readingprogress.DefaultProgressPath(); err != nil {
 		log.Println("reading progress will not be persisted:", err)
@@ -141,6 +148,7 @@ func (a *ReaderApp) openStandaloneBook(dir string) (string, error) {
 		return "", err
 	}
 	a.shelfID = readerapi.ShelfID
+	a.standalone = true
 	a.launchSection = noLaunchSection
 	return bookID, nil
 }
@@ -216,9 +224,8 @@ func (a *ReaderApp) AddReadingSeconds(key, date string, seconds float64) error {
 
 func (a *ReaderApp) readingStatsKey(key string) string {
 	bookID := a.library.BookID()
-	if key != readerapi.ShelfID || bookID == "" {
+	if !a.standalone || key != readerapi.ShelfID || bookID == "" {
 		return key
 	}
 	return readingstats.ReaderBookKey(key, bookID)
 }
-
