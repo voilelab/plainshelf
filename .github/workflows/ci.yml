@@ -101,6 +101,9 @@ jobs:
           version: latest
           working-directory: desktop
 
+      - name: Install Wails v3 Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+
       - name: Lint reader module
         uses: golangci/golangci-lint-action@v9
         with:
@@ -155,6 +158,9 @@ jobs:
 
       - name: Run desktop tests
         run: cd desktop && go test -timeout 2m ./...
+
+      - name: Install Wails v3 Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Run reader tests
         run: cd reader && go test -timeout 2m ./...
@@ -426,6 +432,10 @@ jobs:
           GOARCH: arm64
         run: cd desktop && govulncheck ./...
 
+      - name: Install Wails v3 Linux dependencies
+        if: ${{ !cancelled() }}
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+
       - name: Scan reader module (linux)
         if: ${{ !cancelled() }}
         env:
@@ -438,5 +448,6 @@ jobs:
         env:
           GOOS: darwin
           GOARCH: arm64
+          GOFLAGS: -tags=purego
         run: cd reader && govulncheck ./...
 

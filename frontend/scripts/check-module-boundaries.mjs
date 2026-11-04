@@ -184,6 +184,23 @@ function readerRouteViolations(rule, file, source) {
   return violations;
 }
 
+const WAILS_RUNTIME = '@wailsio/runtime';
+const WAILS_RUNTIME_SIDE = 'src/api/wailsBindings.ts';
+const WAILS_RUNTIME_REFERENCE = /['"]@wailsio\/runtime['"]/;
+const SIDE_EFFECT_IMPORT_PATTERN = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
+
+function wailsRuntimeViolations(rule, file, source) {
+  const code = blankComments(source);
+  const imported = [...code.matchAll(STATIC_IMPORT_PATTERN), ...code.matchAll(SIDE_EFFECT_IMPORT_PATTERN)];
+  if (imported.some((match) => match[1] === WAILS_RUNTIME)) {
+    return [`${file} imports ${WAILS_RUNTIME} statically`];
+  }
+  if (file !== WAILS_RUNTIME_SIDE && WAILS_RUNTIME_REFERENCE.test(code)) {
+    return [`${file} references ${WAILS_RUNTIME}`];
+  }
+  return [];
+}
+
 const RULES = [
   {
     restricted: MOBILE_ONLY,
@@ -227,6 +244,14 @@ const RULES = [
       'preference. Render the entry as a RouterLink `custom` slot whose click runs\n' +
       "useReaderLaunch().onReaderLinkClick, and take its :to from readerRoutePath(id)\n" +
       '(src/composables/useReaderLaunch.ts) so the path stays in one place.'
+  },
+  {
+    find: wailsRuntimeViolations,
+    problem: 'The Wails v3 runtime must load only through a dynamic import in src/api/wailsBindings.ts:',
+    hint:
+      'Importing @wailsio/runtime starts the v3 runtime and its DOM listeners. A static\n' +
+      'import, or one from another module, puts it in the web and mobile bundles. Call\n' +
+      'callWails or startWailsRuntime (src/api/wailsBindings.ts) instead.'
   }
 ];
 

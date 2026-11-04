@@ -36,8 +36,10 @@ by its own token; it exposes neither the API nor the web UI. See
 through a small `nativeUI` interface, and describe their menus as plain data.
 Only each module's `main.go` and `wails_native.go` import Wails; together they
 hold the Wails context, translate the menu, and decide lifecycle timing such
-as deferring dialogs to `DomReady`. Tests drive the apps through a fake
-`nativeUI`.
+as deferring dialogs until the page is up (`OnDomReady` on the desktop,
+`WindowRuntimeReady` in the reader). Tests drive the apps through a fake
+`nativeUI`. The desktop app runs on Wails v2 and the standalone reader on Wails
+v3, so the reader's adapter is the template for the desktop migration.
 
 **The Android app embeds the Go server.** Local shelves, pCloud shelves and
 WebDAV sources (including another PlainShelf's LAN share) are all read through
@@ -137,8 +139,9 @@ The frontend autosaves reading progress every 10 seconds. To narrow what closing
 a Wails window between two saves can lose, the frontend also stages its latest
 position in Go memory, and the app's single close function waits for it to be
 written (`internal/readingclose`); a flush request over an async event proved
-unreliable during window teardown. Both `OnBeforeClose` and `OnShutdown` call that
-function, which runs once whichever hook fires first: it writes the staged
+unreliable during window teardown. The window-close hook (`OnBeforeClose` on the
+desktop, the main window's `WindowClosing` hook in the reader) and `OnShutdown`
+both call that function, which runs once whichever fires first: it writes the staged
 position, then stops LAN sharing (desktop), then closes the server or the open
 book package. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
 seconds) and best-effort: if the cross-process file lock is held longer, or the

@@ -26,6 +26,11 @@ and 25 have not been tried.
 
 Desktop development also needs the
 [Wails platform dependencies](https://wails.io/docs/gettingstarted/installation).
+The standalone reader is built with Wails v3, which links GTK 4 and WebKitGTK
+6.0 through cgo on Linux whenever the `reader` module compiles, so even its
+`go test` and `golangci-lint` need them there (`libgtk-4-dev` and
+`libwebkitgtk-6.0-dev` on Ubuntu 24.04); see the
+[Wails v3 installation guide](https://v3.wails.io/getting-started/installation/).
 Android development has [additional prerequisites](android.md).
 
 ## Install dependencies

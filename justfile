@@ -87,7 +87,7 @@ run-desktop reader="": build-reader
 
 # Build reader app (standalone .bookpkg reader)
 build-reader: build-server-frontend
-	cd reader && go mod tidy && go tool wails build -ldflags "-X {{version_pkg}}.Version={{version}}"
+	cd reader && go mod tidy && go tool wails3 task package:darwin VERSION={{version}}
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString {{native_version}}" reader/build/bin/PlainShelfReader.app/Contents/Info.plist
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion {{native_version}}" reader/build/bin/PlainShelfReader.app/Contents/Info.plist
 	plutil -lint reader/build/bin/PlainShelfReader.app/Contents/Info.plist
@@ -101,9 +101,9 @@ run-reader book="": build-server-frontend
 	cd reader
 	go mod tidy
 	if [[ -n "{{book}}" ]]; then
-		go tool wails dev -appargs "-book {{book}}"
+		go run . -book "{{book}}"
 	else
-		go tool wails dev
+		go run .
 	fi
 
 # Add the Android platform (one-time; requires Android SDK + JDK 21)

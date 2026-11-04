@@ -1,0 +1,40 @@
+version: '3'
+
+vars:
+  APP_NAME: PlainShelfReader
+  BIN_DIR: build/bin
+  APP_BUNDLE: '{{.BIN_DIR}}/{{.APP_NAME}}.app'
+  VERSION: '{{.VERSION | default "dev"}}'
+  VERSION_PKG: github.com/voilelab/plainshelf/internal/version
+
+tasks:
+  icons:darwin:
+    dir: build
+    sources:
+      - appicon.png
+    generates:
+      - darwin/icons.icns
+    cmds:
+      - go tool wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename ""
+
+  build:darwin:
+    cmds:
+      - go build -tags production -trimpath -buildvcs=false -ldflags "-s -w -X {{.VERSION_PKG}}.Version={{.VERSION}}" -o "{{.BIN_DIR}}/{{.APP_NAME}}"
+    env:
+      GOOS: darwin
+      GOARCH: arm64
+      CGO_ENABLED: '1'
+      CGO_CFLAGS: -mmacosx-version-min=12.0
+      CGO_LDFLAGS: -mmacosx-version-min=12.0
+      MACOSX_DEPLOYMENT_TARGET: '12.0'
+
+  package:darwin:
+    deps:
+      - icons:darwin
+      - build:darwin
+    cmds:
+      - rm -rf "{{.APP_BUNDLE}}"
+      - mkdir -p "{{.APP_BUNDLE}}/Contents/MacOS" "{{.APP_BUNDLE}}/Contents/Resources"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.APP_BUNDLE}}/Contents/MacOS/"
+      - cp build/darwin/icons.icns "{{.APP_BUNDLE}}/Contents/Resources/"
+      - cp build/darwin/Info.plist "{{.APP_BUNDLE}}/Contents/"
