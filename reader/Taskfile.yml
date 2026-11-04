@@ -24,9 +24,9 @@ tasks:
       GOOS: darwin
       GOARCH: arm64
       CGO_ENABLED: '1'
-      CGO_CFLAGS: -mmacosx-version-min=12.0
-      CGO_LDFLAGS: -mmacosx-version-min=12.0
-      MACOSX_DEPLOYMENT_TARGET: '12.0'
+      CGO_CFLAGS: -mmacosx-version-min=13.0
+      CGO_LDFLAGS: -mmacosx-version-min=13.0
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
 
   package:darwin:
     deps:
