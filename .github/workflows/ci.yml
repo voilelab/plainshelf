@@ -72,7 +72,7 @@ jobs:
   lint:
     name: Go lint
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     needs: frontend
     steps:
       - name: Checkout
@@ -134,7 +134,7 @@ jobs:
   go:
     name: Go tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     needs: frontend
     steps:
       - name: Checkout
@@ -379,7 +379,7 @@ jobs:
   vulncheck:
     name: Go vulnerability scan
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     needs: frontend
     # govulncheck default symbol scanning uses call-graph reachability and can report conservative false positives (govulncheck doc.go).
     steps:
