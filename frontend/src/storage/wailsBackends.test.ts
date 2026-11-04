@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const runtime = vi.hoisted(() => ({ preview: false }));
+const runtime = vi.hoisted(() => ({ preview: false, reader: false }));
 
 vi.mock('@/api/client', () => ({
   getActiveShelfID: () => 'shelf-1',
@@ -11,18 +11,18 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/providers/runtime', () => ({
   isWailsRuntime: () => true,
   isDesktopShellPreview: () => runtime.preview,
-  isDesktopHost: () => !runtime.preview,
-  isReaderRuntime: () => false
+  isDesktopHost: () => !runtime.preview && !runtime.reader,
+  isReaderRuntime: () => runtime.reader
 }));
 
 vi.mock('@/providers/shell', () => ({ getShell: () => undefined }));
 
 let localStore: Map<string, string>;
 
-function stubWails(desktopApp: Record<string, unknown>): void {
+function stubWails(app: Record<string, unknown>): void {
   localStore = new Map();
   vi.stubGlobal('window', {
-    go: { main: { DesktopApp: desktopApp } },
+    go: { main: { [runtime.reader ? 'ReaderApp' : 'DesktopApp']: app } },
     localStorage: {
       getItem: (key: string) => localStore.get(key) ?? null,
       setItem: (key: string, value: string) => void localStore.set(key, value)
@@ -42,6 +42,7 @@ async function loadStorage() {
 beforeEach(() => {
   vi.resetModules();
   runtime.preview = false;
+  runtime.reader = false;
 });
 
 afterEach(() => {
@@ -168,6 +169,37 @@ describe('Wails runtime with desktop bindings', () => {
     await storage.addReadingSeconds('book-1', 30, '2026-11-01');
 
     expect(app.AddReadingSeconds).toHaveBeenCalledWith('shelf-1', '2026-11-01', 30);
+    expect(await storage.getReadingActivityRange('2026-10-01', '2026-11-01')).toEqual({
+      '2026-10-31': 40
+    });
+    expect(localStore.size).toBe(0);
+  });
+});
+
+describe('Wails runtime with reader bindings', () => {
+  it('writes read history and reading stats through the reader app', async () => {
+    runtime.reader = true;
+    const app = {
+      ReadReadHistory: vi
+        .fn()
+        .mockResolvedValue('{"version":1,"limit":100,"shelves":{"shelf-1":["book-9"]}}'),
+      RecordReadHistory: vi.fn().mockResolvedValue(undefined),
+      ClearReadHistory: vi.fn().mockResolvedValue(undefined),
+      SetReadHistoryLimit: vi.fn().mockResolvedValue(undefined),
+      ReadReadingStats: vi
+        .fn()
+        .mockResolvedValue('{"version":1,"shelves":{"shelf-1":{"2026-10-31":40}}}'),
+      AddReadingSeconds: vi.fn().mockResolvedValue(undefined)
+    };
+    stubWails(app);
+    const storage = await loadStorage();
+
+    await storage.addReadHistory('book-1');
+    await storage.addReadingSeconds('book-1', 30, '2026-11-01');
+
+    expect(app.RecordReadHistory).toHaveBeenCalledWith('shelf-1', 'book-1');
+    expect(app.AddReadingSeconds).toHaveBeenCalledWith('shelf-1', '2026-11-01', 30);
+    expect(await storage.getReadHistoryIDs()).toEqual(['book-9']);
     expect(await storage.getReadingActivityRange('2026-10-01', '2026-11-01')).toEqual({
       '2026-10-31': 40
     });

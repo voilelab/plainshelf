@@ -1,6 +1,6 @@
 import { getActiveShelfID } from './client';
 import { isWailsRuntime } from '@/providers/runtime';
-import { callWails, hasWailsMethod, wailsHost, type WailsApp } from './wailsBindings';
+import { callWails, hasWailsMethod, wailsHost } from './wailsBindings';
 import type { ShelfSourceCheck, ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 interface DesktopImportBookResult {
@@ -123,9 +123,17 @@ interface DesktopAppBinding {
   ) => Promise<void>;
 }
 
-type ReadingProgressBinding = Pick<
+type DeviceDocumentBinding = Pick<
   DesktopAppBinding,
-  'ReadReadingProgress' | 'WriteReadingProgress' | 'StageReadingProgress'
+  | 'ReadReadHistory'
+  | 'RecordReadHistory'
+  | 'ClearReadHistory'
+  | 'SetReadHistoryLimit'
+  | 'ReadReadingProgress'
+  | 'WriteReadingProgress'
+  | 'ReadReadingStats'
+  | 'AddReadingSeconds'
+  | 'StageReadingProgress'
 >;
 
 function callDesktop<M extends keyof DesktopAppBinding>(
@@ -281,8 +289,20 @@ export async function saveDesktopBookContent(
   await callDesktop('SaveBookContent', shelfID, bookID, suggestedName);
 }
 
+function hostHasMethods(...methods: (keyof DeviceDocumentBinding)[]): boolean {
+  const app = wailsHost();
+  return app !== null && methods.every((method) => hasWailsMethod(app, method));
+}
+
+function callDeviceDocument<M extends keyof DeviceDocumentBinding>(
+  method: M,
+  ...args: Parameters<DeviceDocumentBinding[M]>
+): ReturnType<DeviceDocumentBinding[M]> {
+  return callWails<DeviceDocumentBinding, M>(wailsHost() ?? 'DesktopApp', method, ...args);
+}
+
 export function hasDesktopReadHistoryBinding(): boolean {
-  return hasDesktopMethods(
+  return hostHasMethods(
     'ReadReadHistory',
     'RecordReadHistory',
     'ClearReadHistory',
@@ -291,58 +311,39 @@ export function hasDesktopReadHistoryBinding(): boolean {
 }
 
 export async function readDesktopReadHistory(): Promise<string> {
-  return (await callDesktop('ReadReadHistory')) ?? '';
+  return (await callDeviceDocument('ReadReadHistory')) ?? '';
 }
 
 export async function recordDesktopReadHistory(shelfKey: string, bookID: string): Promise<void> {
-  await callDesktop('RecordReadHistory', shelfKey, bookID);
+  await callDeviceDocument('RecordReadHistory', shelfKey, bookID);
 }
 
 export async function clearDesktopReadHistory(shelfKey: string): Promise<void> {
-  await callDesktop('ClearReadHistory', shelfKey);
+  await callDeviceDocument('ClearReadHistory', shelfKey);
 }
 
 export async function setDesktopReadHistoryLimit(limit: number): Promise<void> {
-  await callDesktop('SetReadHistoryLimit', limit);
-}
-
-function readingProgressApp(): WailsApp | null {
-  const app = wailsHost();
-  if (
-    app &&
-    hasWailsMethod(app, 'ReadReadingProgress') &&
-    hasWailsMethod(app, 'WriteReadingProgress')
-  ) {
-    return app;
-  }
-  return null;
-}
-
-function callReadingProgress<M extends keyof ReadingProgressBinding>(
-  method: M,
-  ...args: Parameters<ReadingProgressBinding[M]>
-): ReturnType<ReadingProgressBinding[M]> {
-  return callWails<ReadingProgressBinding, M>(wailsHost() ?? 'DesktopApp', method, ...args);
+  await callDeviceDocument('SetReadHistoryLimit', limit);
 }
 
 export function hasDesktopReadingProgressBinding(): boolean {
-  return readingProgressApp() !== null;
+  return hostHasMethods('ReadReadingProgress', 'WriteReadingProgress');
 }
 
 export async function readDesktopReadingProgress(): Promise<string> {
-  return (await callReadingProgress('ReadReadingProgress')) ?? '';
+  return (await callDeviceDocument('ReadReadingProgress')) ?? '';
 }
 
 export async function writeDesktopReadingProgress(doc: string): Promise<void> {
-  await callReadingProgress('WriteReadingProgress', doc);
+  await callDeviceDocument('WriteReadingProgress', doc);
 }
 
 export function hasDesktopReadingStatsBinding(): boolean {
-  return hasDesktopMethods('ReadReadingStats', 'AddReadingSeconds');
+  return hostHasMethods('ReadReadingStats', 'AddReadingSeconds');
 }
 
 export async function readDesktopReadingStats(): Promise<string> {
-  return (await callDesktop('ReadReadingStats')) ?? '';
+  return (await callDeviceDocument('ReadReadingStats')) ?? '';
 }
 
 export async function addDesktopReadingSeconds(
@@ -350,15 +351,16 @@ export async function addDesktopReadingSeconds(
   date: string,
   seconds: number
 ): Promise<void> {
-  await callDesktop('AddReadingSeconds', key, date, seconds);
+  await callDeviceDocument('AddReadingSeconds', key, date, seconds);
 }
 
 export function stageDesktopReadingProgress(bookID: string, offset: number, at: number): void {
-  const app = readingProgressApp();
-  if (!app || !hasWailsMethod(app, 'StageReadingProgress')) {
+  if (
+    !hostHasMethods('ReadReadingProgress', 'WriteReadingProgress', 'StageReadingProgress')
+  ) {
     return;
   }
-  void callReadingProgress('StageReadingProgress', getActiveShelfID(), bookID, offset, at).catch(
+  void callDeviceDocument('StageReadingProgress', getActiveShelfID(), bookID, offset, at).catch(
     () => undefined
   );
 }

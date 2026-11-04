@@ -5,11 +5,13 @@ import (
 	"encoding/json/v2"
 	"maps"
 	"math"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/lockedfile"
+	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -143,4 +145,81 @@ func (s *Store) Add(key, date string, seconds float64, now func() time.Time) err
 		return withSeconds(doc, key, date, seconds, now())
 	})
 	return err
+}
+
+const readerBookKeySeparator = "/"
+
+func ReaderBookKey(readerShelfID, bookID string) string {
+	return readerShelfID + readerBookKeySeparator + bookID
+}
+
+func Project(doc Document, readerShelfID string, resolve func(bookID string) (string, bool)) Document {
+	if readerShelfID == "" || resolve == nil {
+		return doc
+	}
+
+	var out Document
+	prefix := readerShelfID + readerBookKeySeparator
+	for key, days := range doc.Shelves {
+		bookID, pending := strings.CutPrefix(key, prefix)
+		if !pending || bookID == "" {
+			continue
+		}
+		target, ok := resolve(bookID)
+		target = strings.TrimSpace(target)
+		if !ok || target == "" || target == readerShelfID {
+			continue
+		}
+		if out.Shelves == nil {
+			out = Document{Version: doc.Version, Shelves: maps.Clone(doc.Shelves)}
+		}
+		merged := maps.Clone(out.Shelves[target])
+		if merged == nil {
+			merged = map[string]int64{}
+		}
+		for date, seconds := range days {
+			merged[date] = min(merged[date]+seconds, maxSecondsPerDay)
+		}
+		out.Shelves[target] = merged
+		delete(out.Shelves, key)
+	}
+	if out.Shelves == nil {
+		return doc
+	}
+	return out
+}
+
+func (s *Store) ProjectReader(readerShelfID string, resolve func(bookID string) (string, bool)) (string, error) {
+	raw, err := s.file.Read()
+	if err != nil {
+		return "", err
+	}
+	if !hasReaderBookKeys(Parse(raw), readerShelfID) {
+		return raw, nil
+	}
+	doc, err := lockedfile.Mutate(s.file, Parse, Serialize, func(doc Document) Document {
+		return Project(doc, readerShelfID, resolve)
+	})
+	if err != nil {
+		return "", err
+	}
+	return Serialize(doc)
+}
+
+func hasReaderBookKeys(doc Document, readerShelfID string) bool {
+	prefix := readerShelfID + readerBookKeySeparator
+	for key := range doc.Shelves {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func DefaultPath() (string, error) {
+	dir, err := readingprogress.SharedDataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "reading_stats.json"), nil
 }

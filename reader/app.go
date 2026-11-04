@@ -5,10 +5,13 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
+	"github.com/voilelab/plainshelf/internal/readingstats"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/reader/readerapi"
 )
@@ -17,11 +20,14 @@ type ReaderApp struct {
 	native  nativeUI
 	library *readerapi.Library
 
-	shelfID string
+	shelfID    string
+	standalone bool
 
 	launchSection int
 
 	progressStore *readingprogress.Store
+	historyStore  *readhistory.Store
+	statsStore    *readingstats.Store
 
 	promptedForBook bool
 
@@ -31,17 +37,36 @@ type ReaderApp struct {
 
 func NewReaderApp(native nativeUI, logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
 	shelfID = strings.TrimSpace(shelfID)
-	if shelfID == "" {
+	standalone := shelfID == ""
+	if standalone {
 		shelfID = readerapi.ShelfID
 	}
 
-	app := &ReaderApp{native: native, library: readerapi.NewLibrary(logger), shelfID: shelfID, launchSection: launchSection}
+	app := &ReaderApp{
+		native:        native,
+		library:       readerapi.NewLibrary(logger),
+		shelfID:       shelfID,
+		standalone:    standalone,
+		launchSection: launchSection,
+	}
 
 	if path, err := readingprogress.DefaultProgressPath(); err != nil {
 		log.Println("reading progress will not be persisted:", err)
 	} else {
 		app.progressStore = readingprogress.NewStore(path)
 	}
+
+	historyPath, err := readhistory.DefaultPath()
+	if err != nil {
+		log.Println("read history will not be persisted:", err)
+	}
+	app.historyStore = readhistory.NewStore(historyPath)
+
+	statsPath, err := readingstats.DefaultPath()
+	if err != nil {
+		log.Println("reading stats will not be persisted:", err)
+	}
+	app.statsStore = readingstats.NewStore(statsPath)
 
 	app.progressStager = readingclose.NewStager(app.progressStore, readingclose.DefaultTimeout)
 
@@ -108,6 +133,7 @@ func (a *ReaderApp) openStandaloneBook(dir string) (string, error) {
 		return "", err
 	}
 	a.shelfID = readerapi.ShelfID
+	a.standalone = true
 	a.launchSection = noLaunchSection
 	return bookID, nil
 }
@@ -155,4 +181,36 @@ func (a *ReaderApp) WriteReadingProgress(doc string) error {
 		return readingprogress.MergeNewest(disk, incoming)
 	})
 	return err
+}
+
+func (a *ReaderApp) ReadReadHistory() (string, error) {
+	return a.historyStore.Read()
+}
+
+func (a *ReaderApp) RecordReadHistory(shelfKey, bookID string) error {
+	return a.historyStore.Record(shelfKey, bookID)
+}
+
+func (a *ReaderApp) ClearReadHistory(shelfKey string) error {
+	return a.historyStore.Clear(shelfKey)
+}
+
+func (a *ReaderApp) SetReadHistoryLimit(limit int) error {
+	return a.historyStore.SetLimit(limit)
+}
+
+func (a *ReaderApp) ReadReadingStats() (string, error) {
+	return a.statsStore.Read()
+}
+
+func (a *ReaderApp) AddReadingSeconds(key, date string, seconds float64) error {
+	return a.statsStore.Add(a.readingStatsKey(key), date, seconds, time.Now)
+}
+
+func (a *ReaderApp) readingStatsKey(key string) string {
+	bookID := a.library.BookID()
+	if !a.standalone || key != readerapi.ShelfID || bookID == "" {
+		return key
+	}
+	return readingstats.ReaderBookKey(key, bookID)
 }

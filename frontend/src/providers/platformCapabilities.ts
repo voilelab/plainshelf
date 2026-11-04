@@ -6,7 +6,6 @@ import type { ShelfSourceCheck } from '@/utils/shelfSourceCheck';
 import { getShell } from './shell';
 import { isWailsRuntime } from './runtime';
 import { createWailsPlatform } from './wailsBookshelfProvider';
-import { getBookshelfProvider } from './index';
 
 export interface DesktopImportBookResult {
   path?: string;
@@ -60,7 +59,7 @@ export function getPlatformCapabilities(): PlatformCapabilities {
   const fromShell = getShell()?.platform;
   if (fromShell) return fromShell;
   if (isWailsRuntime()) {
-    desktop ??= createWailsPlatform(getBookshelfProvider());
+    desktop ??= createWailsPlatform();
     return desktop;
   }
   return browser;

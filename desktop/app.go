@@ -12,8 +12,10 @@ import (
 	"sync"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
+	"github.com/voilelab/plainshelf/internal/readingstats"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/server"
@@ -177,6 +179,14 @@ func (a *DesktopApp) startServer() error {
 	if err != nil {
 		return err
 	}
+	historyPath, err := readhistory.DefaultPath()
+	if err != nil {
+		return err
+	}
+	statsPath, err := readingstats.DefaultPath()
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dataRoot, 0o755); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -226,9 +236,9 @@ func (a *DesktopApp) startServer() error {
 	a.shelfOpenErrs = openVirtualShelves(app, virtual)
 
 	a.shelvesConfigPath = shelvesConfigPath
-	a.readHistoryPath = filepath.Join(dataRoot, "read_history.json")
+	a.readHistoryPath = historyPath
 	a.readingProgressPath = progressPath
-	a.readingStatsPath = filepath.Join(dataRoot, "reading_stats.json")
+	a.readingStatsPath = statsPath
 	a.readingProgressSync = readingprogress.NewStore(a.readingProgressPath)
 	a.progressStager = readingclose.NewStager(a.readingProgressSync, readingclose.DefaultTimeout)
 	a.app = app

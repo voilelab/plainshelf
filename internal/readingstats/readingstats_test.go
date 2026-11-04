@@ -171,3 +171,32 @@ func TestAddReadsClockUnderLock(t *testing.T) {
 		t.Fatalf("days = %v, want the next day's entry kept", days)
 	}
 }
+
+func TestProjectCapsMergedDay(t *testing.T) {
+	doc := New()
+	doc.Shelves["real"] = map[string]int64{"2026-11-01": maxSecondsPerDay - 10}
+	doc.Shelves[ReaderBookKey("book", "a")] = map[string]int64{"2026-11-01": 60, "2026-10-31": 5}
+
+	got := Project(doc, "book", func(string) (string, bool) { return "real", true })
+
+	if v := got.Shelves["real"]["2026-11-01"]; v != maxSecondsPerDay {
+		t.Errorf("merged day = %d, want %d", v, maxSecondsPerDay)
+	}
+	if v := got.Shelves["real"]["2026-10-31"]; v != 5 {
+		t.Errorf("new day = %d, want 5", v)
+	}
+	if v := doc.Shelves["real"]["2026-11-01"]; v != maxSecondsPerDay-10 {
+		t.Errorf("input mutated: %d", v)
+	}
+}
+
+func TestProjectIgnoresPlainReaderShelf(t *testing.T) {
+	doc := New()
+	doc.Shelves["book"] = map[string]int64{"2026-11-01": 60}
+
+	got := Project(doc, "book", func(string) (string, bool) { return "real", true })
+
+	if _, ok := got.Shelves["real"]; ok {
+		t.Errorf("seconds without a book were projected: %v", got.Shelves)
+	}
+}

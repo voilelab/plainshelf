@@ -1,6 +1,6 @@
 import { isDesktopHost, isReaderRuntime } from '@/providers/runtime';
 
-export type WailsApp = 'DesktopApp' | 'ReaderApp';
+type WailsApp = 'DesktopApp' | 'ReaderApp';
 
 type BindingMethod = (...args: never[]) => Promise<unknown>;
 

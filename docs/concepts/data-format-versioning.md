@@ -342,7 +342,8 @@ exclusions are deliberate:
   any mismatch. Nothing of yours is lost when one is thrown away, so nothing
   about them is frozen. See [What is versioned today](#what-is-versioned-today).
 - **Per-device reading state**, which is not shelf data at all: the desktop and
-  standalone reader's `reading_progress.json` in the application store, the
+  standalone reader's `reading_progress.json`, `read_history.json` and
+  `reading_stats.json` in the application store, the
   browser's `localStorage`, and the Android client's per-book `progress.json`.
   [Backup and restore](../backup-and-restore.md) says where each one lives.
 
