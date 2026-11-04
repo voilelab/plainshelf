@@ -207,7 +207,13 @@ async function onImport(): Promise<void> {
       return;
     }
     const name = result.name ?? t('mobileShelves.importedName');
-    await addShelfEntry({ ...newShelfEntry('local'), type: 'local', name, localShelfId: result.id });
+    const entry = { ...newShelfEntry('local'), type: 'local' as const, name, localShelfId: result.id };
+    if (entries.value.length === 0) {
+      await upsertShelfEntry(entry);
+      reloadIntoApp();
+      return;
+    }
+    await addShelfEntry(entry);
     notice.value = t('mobileShelves.imported', { name });
     await refresh();
   } catch (err) {

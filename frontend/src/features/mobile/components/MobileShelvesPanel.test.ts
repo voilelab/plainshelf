@@ -225,6 +225,23 @@ describe('importing a shelf zip', () => {
     expect(host.querySelector('.mobile-shelves-notice')?.textContent).toContain('Backup');
   });
 
+  it('opens the zip as the shelf in use on a device with no shelf', async () => {
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [], activeEntryID: '' });
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-import').click();
+    await flush();
+
+    expect(mocks.upsertShelfEntry).toHaveBeenCalledWith({
+      id: 'new-entry',
+      type: 'local',
+      name: 'Backup',
+      localShelfId: 'local-2'
+    });
+    expect(mocks.addShelfEntry).not.toHaveBeenCalled();
+    expect(mocks.reloadIntoApp).toHaveBeenCalled();
+  });
+
   it.each([
     ['not a PlainShelf shelf: the zip has no books/ directory', 'no books/ folder'],
     ['zip entry escapes the shelf: "../evil"', 'outside the shelf'],
