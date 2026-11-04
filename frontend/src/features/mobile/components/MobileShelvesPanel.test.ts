@@ -32,7 +32,7 @@ vi.mock('@/providers/mobileConfig', () => ({
   newShelfEntry: () => ({ id: 'new-entry', type: 'local', name: '', localShelfId: '' }),
   setActiveShelfEntry: mocks.setActiveShelfEntry,
   shelfEntryDisplayName: (entry: { name: string }) => entry.name,
-  SOURCE_TYPE_LABEL_KEYS: { dav: 'mobileConnect.modeWebDav', server: 'mobileConnect.modeServer', pcloud: 'mobileConnect.modePCloud', local: 'mobileConnect.modeLocal' }
+  SOURCE_TYPE_LABEL_KEYS: { dav: 'mobileShelfForm.modeWebDav', server: 'mobileShelfForm.modeServer', pcloud: 'mobileShelfForm.modePCloud', local: 'mobileShelfForm.modeLocal' }
 }));
 vi.mock('@/providers/localShelf', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/providers/localShelf')>()),

@@ -1,5 +1,5 @@
 <template>
-  <div class="mobile-connect">
+  <div class="mobile-shelf-edit">
     <MobileShelfForm v-if="ready" :entry="entry" cancellable @cancel="onCancel" />
   </div>
 </template>
@@ -42,4 +42,10 @@ function manageShelvesRoute() {
 }
 </script>
 
-<style scoped src="../styles/mobile-connect.css"></style>
+<style scoped>
+.mobile-shelf-edit {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+</style>

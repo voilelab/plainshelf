@@ -1128,7 +1128,7 @@ const zhHant = {
     checkRequired: '請先檢查書架再儲存。',
     readOnlyHint: '以唯讀方式開啟。可以把書下載到這台裝置離線閱讀。'
   },
-  mobileConnect: {
+  mobileShelfForm: {
     title: '連線到 PlainShelf',
     description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。App 不會變更伺服器或 pCloud 上的書庫；本機書庫存在這台裝置上，可以編輯。',
     modeLabel: '書庫來源',

@@ -12,7 +12,7 @@
       <button type="button" class="button primary" :disabled="busy || !preview.shelves.length" @click="confirm">
         {{ t('settings.shelves.qrConfirm') }}
       </button>
-      <button type="button" class="button" :disabled="busy" @click="clear">{{ t('mobileConnect.cancel') }}</button>
+      <button type="button" class="button" :disabled="busy" @click="clear">{{ t('mobileShelfForm.cancel') }}</button>
     </template>
     <ul v-if="results.length" aria-live="polite">
       <li v-for="(result, index) in results" :key="index">{{ result.name }} — {{ t(result.message) }}</li>

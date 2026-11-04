@@ -296,7 +296,7 @@
   <section v-if="isMobileEnv" class="panel settings-group">
     <h3>{{ t('settings.downloads.title') }}</h3>
     <p class="setting-description">{{ t('settings.downloads.description') }}</p>
-    <RouterLink to="/downloads" class="button mobile-connect-link">
+    <RouterLink to="/downloads" class="button mobile-downloads-link">
       {{ t('settings.downloads.open') }}
     </RouterLink>
   </section>
@@ -547,7 +547,7 @@ onMounted(() => {
 <style scoped src="../styles/settings-form.css"></style>
 
 <style scoped>
-.mobile-connect-link {
+.mobile-downloads-link {
   justify-self: start;
   text-decoration: none;
 }

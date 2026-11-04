@@ -1,19 +1,19 @@
 <template>
-  <section class="mobile-connect-card panel" role="form" :aria-label="heading">
-    <h1 class="mobile-connect-title">{{ heading }}</h1>
-    <p class="mobile-connect-description">{{ t('mobileConnect.description') }}</p>
+  <section class="mobile-shelf-form-card panel" role="form" :aria-label="heading">
+    <h1 class="mobile-shelf-form-title">{{ heading }}</h1>
+    <p class="mobile-shelf-form-description">{{ t('mobileShelfForm.description') }}</p>
 
     <div
       v-if="!entry"
-      class="mobile-connect-modes"
+      class="mobile-shelf-form-modes"
       role="radiogroup"
-      :aria-label="t('mobileConnect.modeLabel')"
+      :aria-label="t('mobileShelfForm.modeLabel')"
     >
       <button
         v-for="option in typeOptions"
         :key="option.value"
         type="button"
-        class="button mobile-connect-mode"
+        class="button mobile-shelf-form-mode"
         role="radio"
         :aria-checked="type === option.value"
         :class="{ primary: type === option.value }"
@@ -25,22 +25,22 @@
 
     <MobileQRImport v-if="!entry && Capacitor.isNativePlatform()" @busy="qrBusy = $event" />
 
-    <form class="mobile-connect-form" @submit.prevent="onSave">
-      <fieldset class="mobile-connect-fields" :disabled="qrBusy">
-      <label class="mobile-connect-field">
-        <span class="mobile-connect-label">{{ t('mobileConnect.nameLabel') }}</span>
+    <form class="mobile-shelf-form-form" @submit.prevent="onSave">
+      <fieldset class="mobile-shelf-form-fields" :disabled="qrBusy">
+      <label class="mobile-shelf-form-field">
+        <span class="mobile-shelf-form-label">{{ t('mobileShelfForm.nameLabel') }}</span>
         <input
           v-model="name"
           class="input"
           type="text"
-          :placeholder="t('mobileConnect.namePlaceholder')"
+          :placeholder="t('mobileShelfForm.namePlaceholder')"
         />
-        <span class="mobile-connect-hint">{{ t('mobileConnect.nameHint') }}</span>
+        <span class="mobile-shelf-form-hint">{{ t('mobileShelfForm.nameHint') }}</span>
       </label>
 
       <template v-if="type === 'server'">
-        <label class="mobile-connect-field">
-          <span class="mobile-connect-label">{{ t('mobileConnect.serverUrlLabel') }}</span>
+        <label class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{ t('mobileShelfForm.serverUrlLabel') }}</span>
           <input
             v-model="serverUrl"
             class="input"
@@ -49,12 +49,12 @@
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            :placeholder="t('mobileConnect.serverUrlPlaceholder')"
+            :placeholder="t('mobileShelfForm.serverUrlPlaceholder')"
           />
         </label>
 
-        <label class="mobile-connect-field">
-          <span class="mobile-connect-label">{{ t('mobileConnect.tokenLabel') }}</span>
+        <label class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{ t('mobileShelfForm.tokenLabel') }}</span>
           <input
             v-model="token"
             class="input"
@@ -62,9 +62,9 @@
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            :placeholder="t('mobileConnect.tokenPlaceholder')"
+            :placeholder="t('mobileShelfForm.tokenPlaceholder')"
           />
-          <span class="mobile-connect-hint">{{ t('mobileConnect.tokenHint') }}</span>
+          <span class="mobile-shelf-form-hint">{{ t('mobileShelfForm.tokenHint') }}</span>
         </label>
 
         <button
@@ -73,18 +73,18 @@
           :disabled="shelvesLoading || serverUrl.trim().length === 0"
           @click="onLoadShelves"
         >
-          {{ shelvesLoading ? t('mobileConnect.loadingShelves') : t('mobileConnect.loadShelves') }}
+          {{ shelvesLoading ? t('mobileShelfForm.loadingShelves') : t('mobileShelfForm.loadShelves') }}
         </button>
 
-        <label class="mobile-connect-field">
-          <span class="mobile-connect-label">{{ t('mobileConnect.shelfLabel') }}</span>
+        <label class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{ t('mobileShelfForm.shelfLabel') }}</span>
           <SelectRoot
             :model-value="shelfId"
             :disabled="shelvesLoading || shelves.length === 0"
             @update:model-value="onShelfSelect"
           >
-            <SelectTrigger class="button mobile-connect-shelf-select">
-              <SelectValue :placeholder="t('mobileConnect.shelfPlaceholder')" />
+            <SelectTrigger class="button mobile-shelf-form-shelf-select">
+              <SelectValue :placeholder="t('mobileShelfForm.shelfPlaceholder')" />
             </SelectTrigger>
             <SelectPortal>
               <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
@@ -104,19 +104,19 @@
         </label>
       </template>
 
-      <p v-else-if="type === 'local'" class="mobile-connect-hint">{{ t('mobileConnect.localHint') }}</p>
+      <p v-else-if="type === 'local'" class="mobile-shelf-form-hint">{{ t('mobileShelfForm.localHint') }}</p>
 
       <template v-else-if="type === 'dav'">
-        <label class="mobile-connect-field">
-          <span class="mobile-connect-label">{{ t('shelfSource.kindLabel') }}</span>
+        <label class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{ t('shelfSource.kindLabel') }}</span>
           <select v-model="davSource" class="input" data-testid="dav-source">
             <option value="plainshelf">{{ t('shelfSource.plainshelf') }}</option>
             <option value="webdav">{{ t('shelfSource.webdav') }}</option>
           </select>
         </label>
 
-        <label class="mobile-connect-field">
-          <span class="mobile-connect-label">{{ t('shelfSource.urlLabel') }}</span>
+        <label class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{ t('shelfSource.urlLabel') }}</span>
           <input
             v-model="davUrl"
             class="input"
@@ -127,11 +127,11 @@
             spellcheck="false"
             :placeholder="t('shelfSource.urlPlaceholder')"
           />
-          <span class="mobile-connect-hint">{{ t('shelfSource.urlHint') }}</span>
+          <span class="mobile-shelf-form-hint">{{ t('shelfSource.urlHint') }}</span>
         </label>
 
-        <label v-if="davSource === 'webdav'" class="mobile-connect-field">
-          <span class="mobile-connect-label">{{ t('shelfSource.usernameLabel') }}</span>
+        <label v-if="davSource === 'webdav'" class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{ t('shelfSource.usernameLabel') }}</span>
           <input
             v-model="davUsername"
             class="input"
@@ -142,8 +142,8 @@
           />
         </label>
 
-        <label class="mobile-connect-field">
-          <span class="mobile-connect-label">{{
+        <label class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{
             davSource === 'webdav' ? t('shelfSource.passwordLabel') : t('shelfSource.tokenLabel')
           }}</span>
           <input
@@ -154,7 +154,7 @@
             autocorrect="off"
             spellcheck="false"
           />
-          <span class="mobile-connect-hint">{{ t('shelfSource.secretHint') }}</span>
+          <span class="mobile-shelf-form-hint">{{ t('shelfSource.secretHint') }}</span>
         </label>
 
         <button
@@ -166,15 +166,15 @@
           {{ verifying ? t('shelfSource.checking') : t('shelfSource.check') }}
         </button>
 
-        <p v-if="davBookCount !== null" class="mobile-connect-hint" role="status">
+        <p v-if="davBookCount !== null" class="mobile-shelf-form-hint" role="status">
           {{ t('shelfSource.shelfFound', { count: String(davBookCount) }) }}
         </p>
-        <p class="mobile-connect-hint">{{ t('shelfSource.readOnlyHint') }}</p>
+        <p class="mobile-shelf-form-hint">{{ t('shelfSource.readOnlyHint') }}</p>
       </template>
 
       <template v-else>
-        <label class="mobile-connect-field">
-          <span class="mobile-connect-label">{{ t('mobileConnect.pcloud.clientIdLabel') }}</span>
+        <label class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{ t('mobileShelfForm.pcloud.clientIdLabel') }}</span>
           <input
             v-model="pcloudClientId"
             class="input"
@@ -182,9 +182,9 @@
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            :placeholder="t('mobileConnect.pcloud.clientIdPlaceholder')"
+            :placeholder="t('mobileShelfForm.pcloud.clientIdPlaceholder')"
           />
-          <span class="mobile-connect-hint">{{ t('mobileConnect.pcloud.clientIdHint') }}</span>
+          <span class="mobile-shelf-form-hint">{{ t('mobileShelfForm.pcloud.clientIdHint') }}</span>
         </label>
 
         <button
@@ -193,26 +193,26 @@
           :disabled="authorizing || pcloudClientId.trim().length === 0"
           @click="onAuthorize"
         >
-          {{ authorizing ? t('mobileConnect.pcloud.authorizing') : t('mobileConnect.pcloud.authorize') }}
+          {{ authorizing ? t('mobileShelfForm.pcloud.authorizing') : t('mobileShelfForm.pcloud.authorize') }}
         </button>
 
         <button v-if="authorizing" type="button" class="button" @click="onCancelAuthorize">
-          {{ t('mobileConnect.pcloud.cancel') }}
+          {{ t('mobileShelfForm.pcloud.cancel') }}
         </button>
 
-        <p v-if="isAuthorized" class="mobile-connect-hint" role="status">
+        <p v-if="isAuthorized" class="mobile-shelf-form-hint" role="status">
           {{
             pcloudAccountIdentity
-              ? t('mobileConnect.pcloud.authorizedAccount', {
+              ? t('mobileShelfForm.pcloud.authorizedAccount', {
                   account: pcloudAccountIdentity,
                   host: pcloudHost
                 })
-              : t('mobileConnect.pcloud.authorized', { host: pcloudHost })
+              : t('mobileShelfForm.pcloud.authorized', { host: pcloudHost })
           }}
         </p>
 
-        <label class="mobile-connect-field">
-          <span class="mobile-connect-label">{{ t('mobileConnect.pcloud.shelfRootLabel') }}</span>
+        <label class="mobile-shelf-form-field">
+          <span class="mobile-shelf-form-label">{{ t('mobileShelfForm.pcloud.shelfRootLabel') }}</span>
           <input
             v-model="pcloudShelfRoot"
             class="input"
@@ -220,14 +220,14 @@
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            :placeholder="t('mobileConnect.pcloud.shelfRootPlaceholder')"
+            :placeholder="t('mobileShelfForm.pcloud.shelfRootPlaceholder')"
             @input="pcloudBookCount = null"
           />
-          <span class="mobile-connect-hint">{{ t('mobileConnect.pcloud.shelfRootHint') }}</span>
+          <span class="mobile-shelf-form-hint">{{ t('mobileShelfForm.pcloud.shelfRootHint') }}</span>
         </label>
 
         <button type="button" class="button" :disabled="!isAuthorized" @click="pickerOpen = true">
-          {{ t('mobileConnect.pcloud.picker.browse') }}
+          {{ t('mobileShelfForm.pcloud.picker.browse') }}
         </button>
 
         <button
@@ -236,11 +236,11 @@
           :disabled="verifying || !isAuthorized || pcloudShelfRoot.trim().length === 0"
           @click="onVerifyPCloudShelf"
         >
-          {{ verifying ? t('mobileConnect.pcloud.verifying') : t('mobileConnect.pcloud.verify') }}
+          {{ verifying ? t('mobileShelfForm.pcloud.verifying') : t('mobileShelfForm.pcloud.verify') }}
         </button>
 
-        <p v-if="pcloudBookCount !== null" class="mobile-connect-hint" role="status">
-          {{ t('mobileConnect.pcloud.shelfFound', { count: String(pcloudBookCount) }) }}
+        <p v-if="pcloudBookCount !== null" class="mobile-shelf-form-hint" role="status">
+          {{ t('mobileShelfForm.pcloud.shelfFound', { count: String(pcloudBookCount) }) }}
         </p>
 
         <PCloudFolderPicker
@@ -253,16 +253,16 @@
         />
       </template>
 
-      <p v-if="entry && type !== 'local'" class="mobile-connect-hint">{{ t('mobileConnect.retargetHint') }}</p>
+      <p v-if="entry && type !== 'local'" class="mobile-shelf-form-hint">{{ t('mobileShelfForm.retargetHint') }}</p>
 
-      <p v-if="message" class="mobile-connect-error" role="alert">{{ message }}</p>
+      <p v-if="message" class="mobile-shelf-form-error" role="alert">{{ message }}</p>
 
       <button type="submit" class="button primary" :disabled="saving || !canSave">
-        {{ saving ? t('mobileConnect.saving') : t('mobileConnect.save') }}
+        {{ saving ? t('mobileShelfForm.saving') : t('mobileShelfForm.save') }}
       </button>
 
       <button v-if="cancellable" type="button" class="button" @click="emit('cancel')">
-        {{ t('mobileConnect.cancel') }}
+        {{ t('mobileShelfForm.cancel') }}
       </button>
       </fieldset>
     </form>
@@ -321,12 +321,12 @@ const { t } = useI18n();
 const entry = computed(() => props.entry ?? null);
 
 const typeOptions: Array<{ value: ShelfSourceType; labelKey: string }> = [
-  { value: 'server', labelKey: 'mobileConnect.modeServer' },
-  { value: 'pcloud', labelKey: 'mobileConnect.modePCloud' },
+  { value: 'server', labelKey: 'mobileShelfForm.modeServer' },
+  { value: 'pcloud', labelKey: 'mobileShelfForm.modePCloud' },
   ...(Capacitor.isNativePlatform()
     ? [
-        { value: 'local' as const, labelKey: 'mobileConnect.modeLocal' },
-        { value: 'dav' as const, labelKey: 'mobileConnect.modeRemote' }
+        { value: 'local' as const, labelKey: 'mobileShelfForm.modeLocal' },
+        { value: 'dav' as const, labelKey: 'mobileShelfForm.modeRemote' }
       ]
     : [])
 ];
@@ -374,7 +374,7 @@ const localError = ref('');
 let authAbort: AbortController | null = null;
 
 const heading = computed(() =>
-  entry.value ? t('mobileConnect.editTitle') : t('mobileConnect.title')
+  entry.value ? t('mobileShelfForm.editTitle') : t('mobileShelfForm.title')
 );
 const isAuthorized = computed(() => Boolean(pcloudAccessToken.value && pcloudHost.value));
 const message = computed(() => localError.value);
@@ -473,7 +473,7 @@ async function loadShelves(): Promise<void> {
 async function onLoadShelves(): Promise<void> {
   localError.value = '';
   if (serverUrl.value.trim().length === 0) {
-    localError.value = t('mobileConnect.serverUrlRequired');
+    localError.value = t('mobileShelfForm.serverUrlRequired');
     return;
   }
   await loadShelves();
@@ -498,7 +498,7 @@ async function onAuthorize(): Promise<void> {
   localError.value = '';
   const clientId = pcloudClientId.value.trim();
   if (!clientId) {
-    localError.value = t('mobileConnect.pcloud.clientIdRequired');
+    localError.value = t('mobileShelfForm.pcloud.clientIdRequired');
     return;
   }
 
@@ -540,7 +540,7 @@ async function onVerifyPCloudShelf(): Promise<void> {
   pcloudBookCount.value = null;
   const shelfRoot = pcloudShelfRoot.value.trim();
   if (!shelfRoot) {
-    localError.value = t('mobileConnect.pcloud.shelfRootRequired');
+    localError.value = t('mobileShelfForm.pcloud.shelfRootRequired');
     return;
   }
 
@@ -548,7 +548,7 @@ async function onVerifyPCloudShelf(): Promise<void> {
   try {
     const books = await checkPCloudShelf(pcloudHost.value, pcloudAccessToken.value, shelfRoot);
     if (books === null) {
-      localError.value = t('mobileConnect.pcloud.notAShelf');
+      localError.value = t('mobileShelfForm.pcloud.notAShelf');
       return;
     }
     pcloudBookCount.value = books;
@@ -656,7 +656,7 @@ async function onSave(): Promise<void> {
 
   if (type.value === 'local') {
     if (!canSave.value) {
-      localError.value = t('mobileConnect.localNameRequired');
+      localError.value = t('mobileShelfForm.localNameRequired');
       return;
     }
     saving.value = true;
@@ -672,11 +672,11 @@ async function onSave(): Promise<void> {
 
   if (type.value === 'server') {
     if (shelfId.value.length === 0) {
-      localError.value = t('mobileConnect.shelfRequired');
+      localError.value = t('mobileShelfForm.shelfRequired');
       return;
     }
   } else if (!canSave.value) {
-    localError.value = t(type.value === 'dav' ? 'shelfSource.checkRequired' : 'mobileConnect.pcloud.verifyRequired');
+    localError.value = t(type.value === 'dav' ? 'shelfSource.checkRequired' : 'mobileShelfForm.pcloud.verifyRequired');
     return;
   }
 
@@ -693,41 +693,41 @@ async function onSave(): Promise<void> {
 </script>
 
 <style scoped>
-.mobile-connect-card {
+.mobile-shelf-form-card {
   width: min(480px, 100%);
   padding: 24px;
   display: grid;
   gap: 12px;
 }
 
-.mobile-connect-title {
+.mobile-shelf-form-title {
   margin: 0;
   font-size: 1.4rem;
 }
 
-.mobile-connect-description {
+.mobile-shelf-form-description {
   margin: 0;
   color: var(--text-muted, #666);
 }
 
-.mobile-connect-modes {
+.mobile-shelf-form-modes {
   display: flex;
   gap: 8px;
   margin-top: 4px;
 }
 
-.mobile-connect-mode {
+.mobile-shelf-form-mode {
   flex: 1;
   justify-content: center;
 }
 
-.mobile-connect-form {
+.mobile-shelf-form-form {
   display: grid;
   gap: 16px;
   margin-top: 8px;
 }
 
-.mobile-connect-fields {
+.mobile-shelf-form-fields {
   display: grid;
   gap: 16px;
   border: 0;
@@ -736,27 +736,27 @@ async function onSave(): Promise<void> {
   min-width: 0;
 }
 
-.mobile-connect-field {
+.mobile-shelf-form-field {
   display: grid;
   gap: 6px;
 }
 
-.mobile-connect-label {
+.mobile-shelf-form-label {
   font-weight: 600;
   font-size: 0.9rem;
 }
 
-.mobile-connect-hint {
+.mobile-shelf-form-hint {
   font-size: 0.8rem;
   color: var(--text-muted, #666);
 }
 
-.mobile-connect-shelf-select {
+.mobile-shelf-form-shelf-select {
   width: 100%;
   justify-content: space-between;
 }
 
-.mobile-connect-error {
+.mobile-shelf-form-error {
   margin: 0;
   color: var(--danger, #b3261e);
   font-size: 0.9rem;

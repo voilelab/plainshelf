@@ -1147,7 +1147,7 @@ const en = {
     checkRequired: 'Check the shelf before saving.',
     readOnlyHint: 'Opened read-only. Books can be downloaded to this device for offline reading.'
   },
-  mobileConnect: {
+  mobileShelfForm: {
     title: 'Connect to PlainShelf',
     description: 'Choose where your library lives so you can browse and read it on this device. The app never changes a library on a server or pCloud; a local shelf lives on this device and can be edited.',
     modeLabel: 'Library source',

@@ -22,10 +22,10 @@ const LEGACY_KEY_PCLOUD_SHELF_ROOT = 'plainshelf.mobile.pcloud.shelfRoot';
 export type ShelfSourceType = 'server' | 'pcloud' | 'local' | 'dav';
 
 export const SOURCE_TYPE_LABEL_KEYS: Record<ShelfSourceType, string> = {
-  server: 'mobileConnect.modeServer',
-  pcloud: 'mobileConnect.modePCloud',
-  local: 'mobileConnect.modeLocal',
-  dav: 'mobileConnect.modeRemote'
+  server: 'mobileShelfForm.modeServer',
+  pcloud: 'mobileShelfForm.modePCloud',
+  local: 'mobileShelfForm.modeLocal',
+  dav: 'mobileShelfForm.modeRemote'
 };
 
 interface ShelfEntryBase {
