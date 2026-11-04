@@ -17,67 +17,37 @@
     <!-- Reka UI 2.10.5 Tabs defaults unmountOnHide to true. -->
     <TabsRoot v-model="activeSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
-        <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
-        <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
-          t('settings.cover.title')
-        }}</TabsTrigger>
-        <TabsTrigger value="read-history" class="settings-tab-trigger">{{
-          t('settings.readHistory.title')
-        }}</TabsTrigger>
-        <TabsTrigger value="reader-launch" class="settings-tab-trigger">{{
-          t('settings.readerLaunch.title')
-        }}</TabsTrigger>
-        <TabsTrigger value="language" class="settings-tab-trigger">{{
-          t('settings.language.title')
-        }}</TabsTrigger>
-        <TabsTrigger v-if="serverSettingsEditable" value="nsfw" class="settings-tab-trigger">{{
-          t('settings.nsfw.title')
-        }}</TabsTrigger>
-        <TabsTrigger v-else value="device-nsfw" class="settings-tab-trigger">{{
-          t('settings.deviceNsfw.title')
-        }}</TabsTrigger>
+        <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.tabs.shelves') }}</TabsTrigger>
+        <TabsTrigger value="general" class="settings-tab-trigger">{{ t('settings.tabs.general') }}</TabsTrigger>
+        <TabsTrigger value="reading" class="settings-tab-trigger">{{ t('settings.tabs.reading') }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
-          t('settings.import.title')
+          t('settings.tabs.importCovers')
         }}</TabsTrigger>
-        <TabsTrigger v-if="serverSettingsEditable" value="logs" class="settings-tab-trigger">{{
-          t('settings.logs.title')
-        }}</TabsTrigger>
-        <TabsTrigger v-if="wasmDemo" value="demo-storage" class="settings-tab-trigger">{{
-          t('settings.demoStorage.title')
-        }}</TabsTrigger>
-        <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
+        <TabsTrigger value="system" class="settings-tab-trigger">{{ t('settings.tabs.system') }}</TabsTrigger>
       </TabsList>
 
-      <TabsContent v-if="serverSettingsEditable" value="cover" class="settings-tab-content">
-        <CoverPanel :value="coverToJpg" :disabled="loading || saving" @change="onCoverToJpgChange" />
-      </TabsContent>
-
-      <TabsContent value="read-history" class="settings-tab-content">
-        <ReadHistoryPanel
-          :value="readHistoryLimit"
+      <TabsContent value="general" class="settings-tab-content">
+        <LanguagePanel />
+        <NsfwPanel
+          v-if="serverSettingsEditable"
+          :value="showNsfw"
           :disabled="loading || saving"
-          @change="onReadHistoryLimitChange"
+          @change="onShowNsfwChange"
         />
+        <DeviceNsfwPanel v-else :value="showNsfwOnDevice" @change="setShowNsfwOnDevice" />
       </TabsContent>
 
-      <TabsContent value="reader-launch" class="settings-tab-content">
+      <TabsContent value="reading" class="settings-tab-content">
         <ReaderLaunchPanel
           :value="readerLaunchMode"
           :disabled="loading || saving"
           @change="onReaderLaunchModeChange"
         />
-      </TabsContent>
-
-      <TabsContent value="language" class="settings-tab-content">
-        <LanguagePanel />
-      </TabsContent>
-
-      <TabsContent v-if="serverSettingsEditable" value="nsfw" class="settings-tab-content">
-        <NsfwPanel :value="showNsfw" :disabled="loading || saving" @change="onShowNsfwChange" />
-      </TabsContent>
-
-      <TabsContent v-else value="device-nsfw" class="settings-tab-content">
-        <DeviceNsfwPanel :value="showNsfwOnDevice" @change="setShowNsfwOnDevice" />
+        <ReadHistoryPanel
+          :value="readHistoryLimit"
+          :disabled="loading || saving"
+          @change="onReadHistoryLimitChange"
+        />
       </TabsContent>
 
       <TabsContent v-if="serverSettingsEditable" value="import" class="settings-tab-content">
@@ -91,27 +61,23 @@
           @update:include-description="epubIncludeDescription = $event"
           @save="onSaveEpubImportStrategy"
         />
-      </TabsContent>
-
-      <TabsContent v-if="serverSettingsEditable" value="logs" class="settings-tab-content">
-        <LogRetentionPanel
-          :value="logRetentionDays"
-          :disabled="loading || saving"
-          @change="onLogRetentionDaysChange"
-        />
-      </TabsContent>
-
-      <TabsContent v-if="wasmDemo" value="demo-storage" class="settings-tab-content">
-        <DemoStoragePanel />
-      </TabsContent>
-
-      <TabsContent value="about" class="settings-tab-content">
-        <AboutPanel />
+        <CoverPanel :value="coverToJpg" :disabled="loading || saving" @change="onCoverToJpgChange" />
       </TabsContent>
 
       <TabsContent value="shelves" class="settings-tab-content">
         <ShelvesPanel />
         <LanSharePanel v-if="lanShareAvailable" />
+      </TabsContent>
+
+      <TabsContent value="system" class="settings-tab-content">
+        <LogRetentionPanel
+          v-if="serverSettingsEditable"
+          :value="logRetentionDays"
+          :disabled="loading || saving"
+          @change="onLogRetentionDaysChange"
+        />
+        <DemoStoragePanel v-if="wasmDemo" />
+        <AboutPanel />
       </TabsContent>
     </TabsRoot>
   </section>
@@ -145,7 +111,7 @@ const { t } = useI18n();
 const { serverSettingsEditable } = useWriteAccess();
 const wasmDemo = isWasmDemo();
 const lanShareAvailable = hasDesktopLANShareBinding();
-const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable, wasmDemo);
+const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable);
 const { showNsfw: showNsfwOnDevice, setShowNsfw: setShowNsfwOnDevice } = useDeviceNsfwPreference();
 
 const {

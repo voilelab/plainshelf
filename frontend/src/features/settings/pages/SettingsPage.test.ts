@@ -103,15 +103,16 @@ async function selectTab(host: HTMLElement, label: string): Promise<void> {
   await nextTick();
 }
 
-function panelStates(host: HTMLElement): Record<string, boolean> {
-  const states: Record<string, boolean> = {};
+function panelsByTab(host: HTMLElement): { visible: string[][]; hidden: string[][] } {
+  const visible: string[][] = [];
+  const hidden: string[][] = [];
   for (const wrapper of host.querySelectorAll<HTMLElement>('.settings-tab-content')) {
-    const name = wrapper.querySelector<HTMLElement>('[data-panel]')?.dataset.panel;
-    if (name) {
-      states[name] = wrapper.hasAttribute('hidden');
-    }
+    const names = [...wrapper.querySelectorAll<HTMLElement>('[data-panel]')].map(
+      (panel) => panel.dataset.panel ?? ''
+    );
+    (wrapper.hasAttribute('hidden') ? hidden : visible).push(names);
   }
-  return states;
+  return { visible, hidden };
 }
 
 afterEach(() => {
@@ -130,7 +131,7 @@ describe('SettingsPage tabs', () => {
     expect(mounts.log).toHaveLength(9);
 
     const mountedOnce = [...mounts.log];
-    for (const label of ['About', 'Shelves', 'About', 'Shelves']) {
+    for (const label of ['System', 'Shelves', 'System', 'Shelves']) {
       await selectTab(host, label);
     }
 
@@ -141,33 +142,37 @@ describe('SettingsPage tabs', () => {
     const { host } = await mountSettings();
     expect(form.loads).toBe(1);
 
-    await selectTab(host, 'About');
+    await selectTab(host, 'System');
     await selectTab(host, 'Shelves');
 
     expect(form.loads).toBe(1);
   });
 
-  it('marks exactly the inactive panels hidden', async () => {
+  it('groups the panels into five tabs and shows only the active one', async () => {
     const { host } = await mountSettings();
 
-    expect(panelStates(host).shelves).toBe(false);
-    expect(Object.values(panelStates(host)).filter((hidden) => !hidden)).toHaveLength(1);
+    const tabLabels = [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim());
+    expect(tabLabels).toEqual(['Shelves', 'General', 'Reading', 'Import & covers', 'System']);
+    expect(panelsByTab(host).visible).toEqual([['shelves']]);
 
-    await selectTab(host, 'Cover');
+    await selectTab(host, 'General');
+    expect(panelsByTab(host).visible).toEqual([['language', 'nsfw']]);
 
-    const states = panelStates(host);
-    expect(states.cover).toBe(false);
-    expect(states.shelves).toBe(true);
-    expect(Object.values(states).filter((hidden) => !hidden)).toHaveLength(1);
+    await selectTab(host, 'Reading');
+    expect(panelsByTab(host).visible).toEqual([['reader-launch', 'read-history']]);
+
+    await selectTab(host, 'Import & covers');
+    expect(panelsByTab(host).visible).toEqual([['import', 'cover']]);
+
+    await selectTab(host, 'System');
+    const { visible, hidden } = panelsByTab(host);
+    expect(visible).toEqual([['logs', 'about']]);
+    expect(hidden).toHaveLength(4);
   });
 
-  it('shows the browser storage tab only in the wasm demo', async () => {
-    const tabLabels = (host: HTMLElement) =>
-      [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim());
-
-    const server = await mountSettings();
-    expect(tabLabels(server.host)[0]).toBe('Shelves');
-    expect(tabLabels(server.host)).not.toContain('Browser storage');
+  it('shows the browser storage panel under System only in the wasm demo', async () => {
+    await mountSettings();
+    expect(mounts.log).not.toContain('demo-storage');
     active?.app.unmount();
     active?.host.remove();
 
@@ -179,7 +184,7 @@ describe('SettingsPage tabs', () => {
       persist: () => Promise.resolve(true)
     };
     const demo = await mountSettings();
-    expect(tabLabels(demo.host)).toContain('Browser storage');
-    expect(mounts.log).toContain('demo-storage');
+    await selectTab(demo.host, 'System');
+    expect(panelsByTab(demo.host).visible).toEqual([['logs', 'demo-storage', 'about']]);
   });
 });

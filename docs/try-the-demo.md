@@ -63,7 +63,7 @@ discards it when the window closes.
 
 The browser can be asked not to clear the demo's storage on its own. The
 **Demo** bar offers this on a first visit with **Keep this shelf**, and
-**Settings → Browser storage** shows whether the browser has agreed and can
+**Settings → System → Browser storage** shows whether the browser has agreed and can
 ask again. That tab exists only in the demo.
 
 The browser decides. Some agree only for a site that is bookmarked, installed

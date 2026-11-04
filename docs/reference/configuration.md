@@ -43,7 +43,7 @@ exists.
 
 It sits outside `app_conf`, and two things follow from that. The **Logs** page
 lists only the loggers under `app_conf`, so this one's files never appear there.
-And the retention window saved in **Settings → Logs** is applied only to those
+And the retention window saved in **Settings → System → Logs** is applied only to those
 same loggers while the server runs, so this one keeps whatever `retention_days`
 its own block names.
 
@@ -215,7 +215,7 @@ A cover is converted only up to 40 megapixels. A larger upload is refused with
 413, and a larger EPUB cover is skipped, leaving the book without one.
 
 `show_nsfw` has no key here at all: it lives only in the store, defaults to
-hidden, and is changed from **Settings → Adult content** or through
+hidden, and is changed from **Settings → General → Adult content** or through
 `/api/setting/show_nsfw`. See
 [Whether a marked book is shown](../concepts/folders.md#whether-a-marked-book-is-shown).
 
@@ -468,7 +468,7 @@ being present: with no `epub_import_strategy` block at all the built-in default
 applies and the description is included, but inside a block you wrote, an
 omitted `include_description` is `false`. Set it explicitly.
 
-A strategy saved from **Settings → Import** takes precedence over this section.
+A strategy saved from **Settings → Import & covers** takes precedence over this section.
 
 ## Logger blocks
 
@@ -504,7 +504,7 @@ and read; `stderr`, `stdout` and `none` leave it with nothing to show.
 
 Deletion happens at rotation, when the first log line is written on a new day,
 so an idle or stopped server deletes nothing. Nothing else ever removes these
-files. A retention window saved from **Settings → Logs** overrides
+files. A retention window saved from **Settings → System → Logs** overrides
 `retention_days` for the application, worker and shelf loggers while the server
 runs; see [Logs](../logs.md#retention).
 

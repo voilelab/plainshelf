@@ -48,7 +48,7 @@ Rotated log files are deleted once they are older than the retention window.
 **Nothing else deletes them**, so without a window a log directory grows for as
 long as the application is installed.
 
-The default window is **30 days**. Change it in **Settings → Logs**:
+The default window is **30 days**. Change it in **Settings → System → Logs**:
 
 - A number of days: files older than that are deleted.
 - `0`: no log file is ever deleted.

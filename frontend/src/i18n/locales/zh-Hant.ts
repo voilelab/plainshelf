@@ -354,8 +354,12 @@ const zhHant = {
       label: '介面語言',
       description: '介面顯示的語言。此偏好只保存在這台裝置。'
     },
-    import: {
-      title: '匯入'
+    tabs: {
+      general: '一般',
+      reading: '閱讀',
+      importCovers: '匯入與封面',
+      shelves: '書架',
+      system: '系統'
     },
     epubImport: {
       title: 'EPUB 轉換',
