@@ -1,8 +1,16 @@
 <template>
   <header class="topbar">
     <div class="topbar-left">
+      <RouterLink
+        v-if="backTo"
+        :to="backTo"
+        class="menu-btn back-btn"
+        :aria-label="t('common.back')"
+      >
+        <Icon name="back" />
+      </RouterLink>
       <button
-        v-if="narrow"
+        v-else-if="narrow"
         class="menu-btn"
         type="button"
         :aria-label="t(drawerOpen ? 'layout.closeMenu' : 'layout.openMenu')"
@@ -68,6 +76,7 @@ import {
   SelectViewport,
   type AcceptableValue
 } from 'reka-ui';
+import { RouterLink, type RouteLocationRaw } from 'vue-router';
 import Icon from '@/components/Icon.vue';
 import { isWailsRuntime } from '@/providers';
 import appIcon from '@/assets/icon-192.png';
@@ -77,6 +86,7 @@ defineProps<{
   narrow: boolean;
   drawerOpen: boolean;
   locationLabel: string;
+  backTo?: RouteLocationRaw | null;
 }>();
 
 const emit = defineEmits<{

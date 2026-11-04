@@ -34,9 +34,9 @@ async function setup(editable: boolean, initialPath = '/settings') {
 }
 
 describe('useSettingsTabs', () => {
-  it('defaults to general when server settings are editable', async () => {
+  it('defaults to shelves when server settings are editable', async () => {
     const { api, app } = await setup(true);
-    expect(api.activeSettingsTab.value).toBe('general');
+    expect(api.activeSettingsTab.value).toBe('shelves');
     app.unmount();
   });
 
@@ -66,7 +66,7 @@ describe('useSettingsTabs', () => {
 
   it('ignores a tab id that no longer exists', async () => {
     const { api, app } = await setup(true, '/settings?tab=cover');
-    expect(api.activeSettingsTab.value).toBe('general');
+    expect(api.activeSettingsTab.value).toBe('shelves');
     app.unmount();
   });
 

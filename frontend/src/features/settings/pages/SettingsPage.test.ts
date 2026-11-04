@@ -151,6 +151,11 @@ describe('SettingsPage tabs', () => {
   it('groups the panels into five tabs and shows only the active one', async () => {
     const { host } = await mountSettings();
 
+    const tabLabels = [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim());
+    expect(tabLabels).toEqual(['Shelves', 'General', 'Reading', 'Import & covers', 'System']);
+    expect(panelsByTab(host).visible).toEqual([['shelves']]);
+
+    await selectTab(host, 'General');
     expect(panelsByTab(host).visible).toEqual([['language', 'nsfw']]);
 
     await selectTab(host, 'Reading');

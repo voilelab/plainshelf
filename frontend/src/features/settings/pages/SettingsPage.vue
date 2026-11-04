@@ -17,12 +17,12 @@
     <!-- Reka UI 2.10.5 Tabs defaults unmountOnHide to true. -->
     <TabsRoot v-model="activeSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
+        <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.tabs.shelves') }}</TabsTrigger>
         <TabsTrigger value="general" class="settings-tab-trigger">{{ t('settings.tabs.general') }}</TabsTrigger>
         <TabsTrigger value="reading" class="settings-tab-trigger">{{ t('settings.tabs.reading') }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
           t('settings.tabs.importCovers')
         }}</TabsTrigger>
-        <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.tabs.shelves') }}</TabsTrigger>
         <TabsTrigger value="system" class="settings-tab-trigger">{{ t('settings.tabs.system') }}</TabsTrigger>
       </TabsList>
 

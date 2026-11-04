@@ -1,16 +1,15 @@
 import { computed, type ComputedRef, type Ref, type WritableComputedRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-const ALWAYS_TABS = ['general', 'reading', 'shelves', 'system'];
+const ALWAYS_TABS = ['shelves', 'general', 'reading', 'system'];
 const EDITABLE_TABS = ['import'];
+const DEFAULT_TAB = 'shelves';
 
 export function useSettingsTabs(
   serverSettingsEditable: Ref<boolean> | ComputedRef<boolean>
 ): { activeSettingsTab: WritableComputedRef<string> } {
   const route = useRoute();
   const router = useRouter();
-
-  const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'general' : 'shelves'));
 
   const availableTabs = computed(() => [
     ...ALWAYS_TABS,
@@ -25,7 +24,7 @@ export function useSettingsTabs(
   }
 
   const activeSettingsTab = computed<string>({
-    get: () => requestedTab() ?? defaultSettingsTab.value,
+    get: () => requestedTab() ?? DEFAULT_TAB,
     set: (tab) => {
       if (tab === requestedTab()) {
         return;
