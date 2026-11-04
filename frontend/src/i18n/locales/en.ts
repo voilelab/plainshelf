@@ -215,7 +215,9 @@ const en = {
       empty: 'No shelves configured',
       unavailableTitle: 'No shelf selected',
       unavailableDescription: 'Configure at least one shelf to browse and read books.',
-      manage: 'Manage shelves'
+      unusableDescription: 'The shelf in use is missing its settings or its token. Fix it to keep reading.',
+      manage: 'Manage shelves',
+      fix: 'Fix this shelf'
     },
     dashboard: 'Home',
     library: 'Library',
@@ -414,11 +416,6 @@ const en = {
       licenseLoading: 'Loading license text…',
       licenseLoadFailed: 'The bundled license text could not be loaded.',
       licenseClose: 'Close'
-    },
-    mobileConnect: {
-      title: 'Shelves',
-      description: 'Every library this device can open, from PlainShelf servers or from pCloud.',
-      open: 'Manage shelves'
     },
     downloads: {
       title: 'Downloaded books',

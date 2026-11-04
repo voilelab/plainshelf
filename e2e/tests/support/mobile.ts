@@ -39,7 +39,7 @@ export async function connectMobile(
 ): Promise<void> {
   const shelfName = opts.shelfName ?? 'Default Shelf';
 
-  await page.goto(`${baseUrl}${withMobilePreview('/connect')}`);
+  await page.goto(`${baseUrl}${withMobilePreview('/connect/new')}`);
   await expect(page.getByRole('heading', { name: 'Connect to PlainShelf' })).toBeVisible();
 
   await page.locator('input[type="url"]').fill(baseUrl);

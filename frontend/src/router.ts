@@ -13,7 +13,6 @@ const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
 const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
 const AdminLogsPage = () => import('@/features/settings/pages/AdminLogsPage.vue');
 const SettingsPage = () => import('@/features/settings/pages/SettingsPage.vue');
-const MobileShelvesPage = () => import('@/features/mobile/pages/MobileShelvesPage.vue');
 const MobileConnectPage = () => import('@/features/mobile/pages/MobileConnectPage.vue');
 const ReaderPage = () => import('@/features/reader/pages/ReaderView.vue');
 const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
@@ -43,18 +42,7 @@ const router = createRouter({
     },
     {
       path: '/connect',
-      name: 'mobile-shelves',
-      component: MobileShelvesPage
-    },
-    {
-      path: '/connect/new',
-      name: 'mobile-shelf-add',
-      component: MobileConnectPage
-    },
-    {
-      path: '/connect/:entryId',
-      name: 'mobile-shelf-edit',
-      component: MobileConnectPage
+      redirect: (to) => ({ path: '/settings', query: { ...to.query, tab: 'shelves' } })
     },
     {
       path: '/',
@@ -136,7 +124,20 @@ const router = createRouter({
         {
           path: 'settings',
           name: 'settings',
-          component: SettingsPage
+          component: SettingsPage,
+          meta: { shelfOptional: true }
+        },
+        {
+          path: 'connect/new',
+          name: 'mobile-shelf-add',
+          component: MobileConnectPage,
+          meta: { shelfOptional: true }
+        },
+        {
+          path: 'connect/:entryId',
+          name: 'mobile-shelf-edit',
+          component: MobileConnectPage,
+          meta: { shelfOptional: true }
         },
         {
           path: ':pathMatch(.*)*',

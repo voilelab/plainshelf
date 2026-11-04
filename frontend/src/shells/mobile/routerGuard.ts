@@ -12,19 +12,13 @@ import { getBookshelfProvider } from '@/providers';
 import { isShelfEntryUsable, loadShelfEntries } from '@/providers/mobileConfig';
 import type { DownloadState } from '@/types/book';
 
-const MOBILE_SETUP_ROUTES = new Set(['mobile-shelves', 'mobile-shelf-add', 'mobile-shelf-edit']);
-
 // Vue Router 5.3.1 installation starts the initial browser navigation; guards must be registered before installation.
 export function installMobileRouterGuards(router: Router): void {
   router.beforeEach(async (to) => {
-    if (typeof to.name === 'string' && MOBILE_SETUP_ROUTES.has(to.name)) {
-      return true;
-    }
-
     const { entries, activeEntryID } = await loadShelfEntries();
     const activeEntry = entries.find((entry) => entry.id === activeEntryID) ?? null;
     if (!(await isShelfEntryUsable(activeEntry))) {
-      return { name: 'mobile-shelves', query: to.query };
+      return true;
     }
 
     if (activeEntry?.type === 'local') {

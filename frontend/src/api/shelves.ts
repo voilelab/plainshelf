@@ -65,6 +65,9 @@ export async function listServerShelves(): Promise<ShelfInfo[]> {
 }
 
 export async function listShelves(): Promise<ShelfInfo[]> {
+  if (getShell()?.shelfUnavailable?.()) {
+    return [];
+  }
   const shellShelf = getShell()?.activeShelfInfo?.();
   if (shellShelf) {
     return [await getShell()?.loadActiveShelfInfo?.(shellShelf) ?? shellShelf];

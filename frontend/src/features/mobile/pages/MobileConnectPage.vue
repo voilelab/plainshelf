@@ -26,7 +26,7 @@ onMounted(async () => {
   const { entries } = await loadShelfEntries();
   const found = entries.find((candidate) => candidate.id === entryID);
   if (!found) {
-    await router.replace({ name: 'mobile-shelves', query: route.query });
+    await router.replace(manageShelvesRoute());
     return;
   }
   entry.value = found;
@@ -34,7 +34,11 @@ onMounted(async () => {
 });
 
 function onCancel(): void {
-  void router.push({ name: 'mobile-shelves', query: route.query });
+  void router.push(manageShelvesRoute());
+}
+
+function manageShelvesRoute() {
+  return { path: '/settings', query: { ...route.query, tab: 'shelves' } };
 }
 </script>
 

@@ -354,16 +354,26 @@ export function isShelfEntryConfigured(entry: ShelfEntry | null | undefined): bo
   return Boolean(entry.serverUrl && entry.shelfId);
 }
 
+function shelfEntryNeedsToken(entry: ShelfEntry): boolean {
+  return entry.type === 'pcloud' || (entry.type === 'dav' && shelfSourceNeedsSecret(entry.davSource, entry.davUsername));
+}
+
 export async function isShelfEntryUsable(entry: ShelfEntry | null | undefined): Promise<boolean> {
   if (!isShelfEntryConfigured(entry) || !entry) {
     return false;
   }
-  const needsToken =
-    entry.type === 'pcloud' || (entry.type === 'dav' && shelfSourceNeedsSecret(entry.davSource, entry.davUsername));
-  if (!needsToken) {
+  if (!shelfEntryNeedsToken(entry)) {
     return true;
   }
   return Boolean(await getShelfEntryToken(entry.id));
+}
+
+export function isActiveShelfEntryUsable(): boolean {
+  const entry = getActiveShelfEntry();
+  if (!entry || !isShelfEntryConfigured(entry)) {
+    return false;
+  }
+  return !shelfEntryNeedsToken(entry) || Boolean(activeEntryToken);
 }
 
 export async function loadShelfEntries(): Promise<{

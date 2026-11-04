@@ -172,7 +172,7 @@ onBeforeUnmount(close);
   /* Capped rather than fixed: a folder with three children gets a short dialog,
      while a long listing scrolls inside the list instead of pushing the confirm
      button off the bottom of a phone screen. First line is the fallback for
-     engines without dvh, as in mobile-connect.css. */
+     engines without dvh. */
   max-height: min(560px, calc(100vh / var(--app-zoom, 1) - 64px));
   max-height: min(560px, calc(100dvh / var(--app-zoom, 1) - 64px));
   box-sizing: border-box;

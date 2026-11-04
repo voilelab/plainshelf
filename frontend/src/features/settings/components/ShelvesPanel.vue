@@ -291,13 +291,7 @@
     </form>
   </ConfirmModal>
 
-  <section v-if="isMobileEnv" class="panel settings-group">
-    <h3>{{ t('settings.mobileConnect.title') }}</h3>
-    <p class="setting-description">{{ t('settings.mobileConnect.description') }}</p>
-    <RouterLink to="/connect" class="button mobile-connect-link">
-      {{ t('settings.mobileConnect.open') }}
-    </RouterLink>
-  </section>
+  <MobileShelvesPanel v-if="isMobileEnv" />
 
   <section v-if="isMobileEnv" class="panel settings-group">
     <h3>{{ t('settings.downloads.title') }}</h3>
@@ -307,7 +301,7 @@
     </RouterLink>
   </section>
 
-  <section class="panel settings-group">
+  <section v-if="!isMobileEnv" class="panel settings-group">
     <h3>{{ t('settings.shelves.title') }}</h3>
 
     <p v-if="shelvesError || shelfOpError" class="settings-message settings-message-error" role="alert">
@@ -435,7 +429,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, useId } from 'vue';
+import { computed, defineAsyncComponent, onMounted, ref, useId } from 'vue';
 import { RadioGroupIndicator, RadioGroupItem, RadioGroupRoot } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
@@ -448,6 +442,10 @@ import { useWriteAccess } from '@/composables/useWriteAccess';
 import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { isMobileRuntime } from '@/providers';
 import { useShelfManagement } from '@/features/settings/composables/useShelfManagement';
+
+const MobileShelvesPanel = defineAsyncComponent(
+  () => import('@/features/mobile/components/MobileShelvesPanel.vue')
+);
 
 const { t } = useI18n();
 const { serverSettingsEditable } = useWriteAccess();

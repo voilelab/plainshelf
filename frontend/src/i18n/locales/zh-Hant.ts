@@ -208,7 +208,9 @@ const zhHant = {
       empty: '尚未設定書架',
       unavailableTitle: '尚未選擇書架',
       unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
-      manage: '管理書架'
+      unusableDescription: '目前使用的書架缺少設定或 token，修正後才能繼續閱讀。',
+      manage: '管理書架',
+      fix: '修正這個書架'
     },
     dashboard: '首頁',
     library: '書庫',
@@ -400,11 +402,6 @@ const zhHant = {
       licenseLoading: '正在載入授權條款…',
       licenseLoadFailed: '無法載入隨附的授權條款。',
       licenseClose: '關閉'
-    },
-    mobileConnect: {
-      title: '書架',
-      description: '這台裝置可以開啟的所有書庫，來源可以是 PlainShelf 伺服器或 pCloud。',
-      open: '管理書架'
     },
     downloads: {
       title: '已下載書籍',

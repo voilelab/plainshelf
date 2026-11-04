@@ -1,4 +1,5 @@
 import { fetchJson, isMockApiMode } from './client';
+import { getShell } from '@/providers/shell';
 
 interface ModeResponse {
   read_only?: unknown;
@@ -9,7 +10,7 @@ function toBoolean(value: unknown): boolean {
 }
 
 export async function getReadOnlyMode(): Promise<boolean> {
-  if (isMockApiMode()) {
+  if (isMockApiMode() || getShell()?.shelfUnavailable?.()) {
     return false;
   }
 

@@ -61,6 +61,7 @@ const {
   isRestorePromptDismissed,
   isShelfEntryConfigured,
   isShelfEntryUsable,
+  isActiveShelfEntryUsable,
   loadShelfEntries,
   newShelfEntry,
   setActiveShelfEntry,
@@ -529,6 +530,25 @@ describe('isShelfEntryUsable', () => {
   it('refuses an incomplete entry and a device with none', async () => {
     await expect(isShelfEntryUsable(serverEntry({ shelfId: '' }))).resolves.toBe(false);
     await expect(isShelfEntryUsable(null)).resolves.toBe(false);
+  });
+});
+
+describe('isActiveShelfEntryUsable', () => {
+  it('follows the token loaded for the active pCloud entry', async () => {
+    store.set(ENTRIES_KEY, JSON.stringify([pcloudEntry()]));
+    store.set(ACTIVE_KEY, 'entry-2');
+    await reinit();
+    expect(isActiveShelfEntryUsable()).toBe(false);
+
+    secureStore.set('plainshelf.mobile.secret.entry-2', 'tok');
+    await reinit();
+    expect(isActiveShelfEntryUsable()).toBe(true);
+  });
+
+  it('is false on a device with no entry', async () => {
+    await reinit();
+
+    expect(isActiveShelfEntryUsable()).toBe(false);
   });
 });
 

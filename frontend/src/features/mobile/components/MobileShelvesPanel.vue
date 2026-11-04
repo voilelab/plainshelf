@@ -1,106 +1,100 @@
 <template>
-  <div class="mobile-connect">
-    <div v-if="ready && entries.length === 0" class="mobile-shelves-first-run">
-      <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
-      <section v-if="restorePrompt" class="mobile-shelves-restore panel" :aria-label="t('mobileShelves.restoreTitle')">
-        <h1 class="mobile-shelves-title">{{ t('mobileShelves.restoreTitle') }}</h1>
-        <p class="mobile-shelves-description">{{ t('mobileShelves.restoreDescription') }}</p>
-        <div class="mobile-shelves-actions">
-          <button type="button" class="button primary mobile-shelves-restore-zip" :disabled="busy" @click="onRestore">
-            {{ t('mobileShelves.restoreZip') }}
-          </button>
-          <button type="button" class="button mobile-shelves-restore-skip" :disabled="busy" @click="onSkipRestore">
-            {{ t('mobileShelves.restoreSkip') }}
-          </button>
-        </div>
-      </section>
-      <MobileShelfForm />
-    </div>
-
-    <section v-else-if="ready" class="mobile-shelves panel" :aria-label="t('mobileShelves.title')">
-      <h1 class="mobile-shelves-title">{{ t('mobileShelves.title') }}</h1>
-      <p class="mobile-shelves-description">{{ t('mobileShelves.description') }}</p>
-      <p v-if="hasLocal" class="mobile-shelves-local-warning" role="note">
-        {{ t('mobileShelves.localUninstallWarning') }}
-      </p>
-
-      <ul class="mobile-shelves-list">
-        <li v-for="entry in entries" :key="entry.id" class="mobile-shelves-item">
-          <div class="mobile-shelves-item-head">
-            <span class="mobile-shelves-name">{{ displayName(entry) }}</span>
-            <span class="mobile-shelves-type">{{ typeLabel(entry) }}</span>
-            <span v-if="entry.id === activeEntryID" class="mobile-shelves-active">
-              {{ t('mobileShelves.active') }}
-            </span>
-          </div>
-          <p class="mobile-shelves-detail">{{ detail(entry) }}</p>
-          <p v-if="entry.type === 'local'" class="mobile-shelves-detail mobile-shelves-last-export">
-            {{ lastExportLabel(entry.localShelfId) }}
-          </p>
-
-          <div class="mobile-shelves-actions">
-            <button
-              v-if="entry.id !== activeEntryID"
-              type="button"
-              class="button"
-              :disabled="busy"
-              @click="onUse(entry.id)"
-            >
-              {{ t('mobileShelves.use') }}
-            </button>
-            <button type="button" class="button" @click="onEdit(entry.id)">
-              {{ t('mobileShelves.edit') }}
-            </button>
-            <button
-              v-if="entry.type === 'local'"
-              type="button"
-              class="button mobile-shelves-export"
-              :disabled="busy"
-              @click="onExport(entry)"
-            >
-              {{ t('mobileShelves.export') }}
-            </button>
-            <button type="button" class="button" :disabled="busy" @click="pendingRemoval = entry">
-              {{ t('mobileShelves.remove') }}
-            </button>
-          </div>
-        </li>
-      </ul>
-
-      <MobileLanSharePanel v-if="canImport && hasLocal" :shelves="localShelves" />
-
-      <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
-      <p v-if="notice" class="mobile-shelves-notice" role="status">{{ notice }}</p>
-
-      <button type="button" class="button primary" @click="onAdd">
-        {{ t('mobileShelves.add') }}
-      </button>
-      <button v-if="canImport" type="button" class="button mobile-shelves-import" :disabled="busy" @click="onImport">
-        {{ t('mobileShelves.importZip') }}
-      </button>
-
-      <div v-if="pendingRemoval" class="mobile-shelves-confirm" role="alertdialog">
-        <h2 class="mobile-shelves-confirm-title">
-          {{ t('mobileShelves.removeTitle', { name: displayName(pendingRemoval) }) }}
-        </h2>
-        <p class="mobile-shelves-confirm-body">
-          {{
-            pendingRemoval.type === 'local'
-              ? t('mobileShelves.removeLocalDescription')
-              : t('mobileShelves.removeDescription')
-          }}
-        </p>
-        <div class="mobile-shelves-actions">
-          <button type="button" class="button" :disabled="busy" @click="pendingRemoval = null">
-            {{ t('mobileShelves.removeCancel') }}
-          </button>
-          <button type="button" class="button primary" :disabled="busy" @click="onRemove">
-            {{ t('mobileShelves.removeConfirm') }}
-          </button>
-        </div>
+  <section v-if="ready" class="mobile-shelves panel settings-group" :aria-label="t('mobileShelves.title')">
+    <h3 class="mobile-shelves-title">{{ t('mobileShelves.title') }}</h3>
+    <p class="mobile-shelves-description">{{ t('mobileShelves.description') }}</p>
+    <section v-if="restorePrompt" class="mobile-shelves-restore" :aria-label="t('mobileShelves.restoreTitle')">
+      <h4 class="mobile-shelves-restore-title">{{ t('mobileShelves.restoreTitle') }}</h4>
+      <p class="mobile-shelves-description">{{ t('mobileShelves.restoreDescription') }}</p>
+      <div class="mobile-shelves-actions">
+        <button type="button" class="button primary mobile-shelves-restore-zip" :disabled="busy" @click="onRestore">
+          {{ t('mobileShelves.restoreZip') }}
+        </button>
+        <button type="button" class="button mobile-shelves-restore-skip" :disabled="busy" @click="onSkipRestore">
+          {{ t('mobileShelves.restoreSkip') }}
+        </button>
       </div>
     </section>
-  </div>
+    <p v-if="hasLocal" class="mobile-shelves-local-warning" role="note">
+      {{ t('mobileShelves.localUninstallWarning') }}
+    </p>
+
+    <p v-if="entries.length === 0" class="mobile-shelves-empty">{{ t('layout.shelf.empty') }}</p>
+    <ul v-else class="mobile-shelves-list">
+      <li v-for="entry in entries" :key="entry.id" class="mobile-shelves-item">
+        <div class="mobile-shelves-item-head">
+          <span class="mobile-shelves-name">{{ displayName(entry) }}</span>
+          <span class="mobile-shelves-type">{{ typeLabel(entry) }}</span>
+          <span v-if="entry.id === activeEntryID" class="mobile-shelves-active">
+            {{ t('mobileShelves.active') }}
+          </span>
+        </div>
+        <p class="mobile-shelves-detail">{{ detail(entry) }}</p>
+        <p v-if="entry.type === 'local'" class="mobile-shelves-detail mobile-shelves-last-export">
+          {{ lastExportLabel(entry.localShelfId) }}
+        </p>
+
+        <div class="mobile-shelves-actions">
+          <button
+            v-if="entry.id !== activeEntryID"
+            type="button"
+            class="button"
+            :disabled="busy"
+            @click="onUse(entry.id)"
+          >
+            {{ t('mobileShelves.use') }}
+          </button>
+          <button type="button" class="button" @click="onEdit(entry.id)">
+            {{ t('mobileShelves.edit') }}
+          </button>
+          <button
+            v-if="entry.type === 'local'"
+            type="button"
+            class="button mobile-shelves-export"
+            :disabled="busy"
+            @click="onExport(entry)"
+          >
+            {{ t('mobileShelves.export') }}
+          </button>
+          <button type="button" class="button" :disabled="busy" @click="pendingRemoval = entry">
+            {{ t('mobileShelves.remove') }}
+          </button>
+        </div>
+      </li>
+    </ul>
+
+    <MobileLanSharePanel v-if="canImport && hasLocal" :shelves="localShelves" />
+
+    <p v-if="error" class="mobile-shelves-error" role="alert">{{ error }}</p>
+    <p v-if="notice" class="mobile-shelves-notice" role="status">{{ notice }}</p>
+
+    <button type="button" class="button primary" @click="onAdd">
+      {{ t('mobileShelves.add') }}
+    </button>
+    <button v-if="canImport" type="button" class="button mobile-shelves-import" :disabled="busy" @click="onImport">
+      {{ t('mobileShelves.importZip') }}
+    </button>
+
+    <div v-if="pendingRemoval" class="mobile-shelves-confirm" role="alertdialog">
+      <h2 class="mobile-shelves-confirm-title">
+        {{ t('mobileShelves.removeTitle', { name: displayName(pendingRemoval) }) }}
+      </h2>
+      <p class="mobile-shelves-confirm-body">
+        {{
+          pendingRemoval.type === 'local'
+            ? t('mobileShelves.removeLocalDescription')
+            : t('mobileShelves.removeDescription')
+        }}
+      </p>
+      <div class="mobile-shelves-actions">
+        <button type="button" class="button" :disabled="busy" @click="pendingRemoval = null">
+          {{ t('mobileShelves.removeCancel') }}
+        </button>
+        <button type="button" class="button primary" :disabled="busy" @click="onRemove">
+          {{ t('mobileShelves.removeConfirm') }}
+        </button>
+      </div>
+    </div>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -108,7 +102,6 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Capacitor } from '@capacitor/core';
 import { useI18n } from '@/i18n';
-import MobileShelfForm from '@/features/mobile/components/MobileShelfForm.vue';
 import MobileLanSharePanel from '@/features/mobile/components/MobileLanSharePanel.vue';
 import { LocalShelf, localShelfErrorKey, localShelfExportFileName } from '@/providers/localShelf';
 import { removeCacheScope } from '@/providers/mobileCacheFs';
@@ -151,44 +144,9 @@ const restorePrompt = ref(false);
 
 onMounted(async () => {
   await refresh();
-  if (await firstRun()) {
-    return;
-  }
+  restorePrompt.value = canImport && entries.value.length === 0 && !(await isRestorePromptDismissed());
   ready.value = true;
 });
-
-async function firstRun(): Promise<boolean> {
-  if (!canImport || entries.value.length > 0) {
-    return false;
-  }
-  let shelves: { id: string; name: string }[];
-  try {
-    ({ shelves } = await LocalShelf.listShelves());
-  } catch {
-    return false;
-  }
-  if (shelves.length === 0) {
-    restorePrompt.value = !(await isRestorePromptDismissed());
-    return false;
-  }
-  try {
-    const adopted = shelves.map((shelf) => ({
-      ...newShelfEntry('local'),
-      type: 'local' as const,
-      name: shelf.name,
-      localShelfId: shelf.id
-    }));
-    for (const entry of adopted) {
-      await addShelfEntry(entry);
-    }
-    await setActiveShelfEntry(adopted[0].id);
-    reloadIntoApp();
-    return true;
-  } catch (err) {
-    error.value = explain(err);
-    return false;
-  }
-}
 
 async function refresh(): Promise<void> {
   const loaded = await loadShelfEntries();
@@ -378,7 +336,7 @@ async function onRemove(): Promise<void> {
     await refresh();
 
     if (wasActive) {
-      reloadIntoApp(entries.value.length > 0 ? '/books' : '/connect');
+      reloadIntoApp(entries.value.length > 0 ? '/books' : '/settings?tab=shelves');
       return;
     }
   } catch (err) {
@@ -389,22 +347,19 @@ async function onRemove(): Promise<void> {
 }
 </script>
 
-<style scoped src="../styles/mobile-connect.css"></style>
-
 <style scoped>
 .mobile-shelves {
-  width: min(480px, 100%);
-  padding: 24px;
   display: grid;
   gap: 12px;
 }
 
-.mobile-shelves-title {
+.mobile-shelves-title,
+.mobile-shelves-restore-title {
   margin: 0;
-  font-size: 1.4rem;
 }
 
-.mobile-shelves-description {
+.mobile-shelves-description,
+.mobile-shelves-empty {
   margin: 0;
   color: var(--text-muted, #666);
 }
@@ -416,21 +371,12 @@ async function onRemove(): Promise<void> {
   font-size: 0.9rem;
 }
 
-/* .mobile-connect lays out a row; the prompt sits above the form. */
-.mobile-shelves-first-run {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
 .mobile-shelves-restore {
-  width: min(480px, 100%);
-  box-sizing: border-box;
-  padding: 24px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border, #d9d2c4);
+  border-radius: 8px;
 }
 
 .mobile-shelves-list {

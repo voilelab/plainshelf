@@ -24,6 +24,8 @@ import { shelfSourceNeedsSecret } from '@/utils/shelfSourceCheck';
 import { registerShell } from '@/providers/shell';
 import { createMobileDeviceDocumentStorage } from './deviceDocumentStorage';
 import { activeMobileShelfInfo } from './shelfInfo';
+import { adoptLocalShelves } from './adoptLocalShelves';
+import { mobileShelfUnavailable } from './shelfUnavailable';
 import { installMobileRouterGuards } from './routerGuard';
 import { createMobileShelfPicker } from './shelfPicker';
 import { ServerBookshelfProvider } from '@/providers/serverBookshelfProvider';
@@ -40,6 +42,7 @@ function isUsableEmbeddedEntry(entry: ShelfEntry | null): entry is PCloudShelfEn
 
 export async function installMobileShell(): Promise<void> {
   await initMobileConfig();
+  await adoptLocalShelves();
   const active = getActiveShelfEntry();
   const isLocal = active?.type === 'local';
   const wrapsRemote = !isLocal && !isUsableEmbeddedEntry(active);
@@ -54,6 +57,7 @@ export async function installMobileShell(): Promise<void> {
   registerShell({
     platform: createMobilePlatform(),
     activeShelfInfo: activeMobileShelfInfo,
+    shelfUnavailable: mobileShelfUnavailable,
     async loadActiveShelfInfo(shelf) {
       try {
         const listed = await listServerShelves();
