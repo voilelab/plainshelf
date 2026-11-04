@@ -28,7 +28,7 @@
  * resolve it at the boundary.
  *
  * Only *static* imports are refused by the import rules. A dynamic `import()` is
- * the sanctioned way to reach this code — it is what `main.ts` uses for the
+ * the sanctioned way to reach this code — it is what `bootstrap.ts` uses for the
  * shell itself, what the router uses for the mobile pages, and what puts the
  * module in its own chunk rather than the eagerly loaded graph. Refusing those
  * too would force a second route table into the shell, which is worse than the
@@ -72,7 +72,7 @@ const MOBILE_STACK = [
 
 /**
  * providers/runtime.ts is the one shared module that may touch Capacitor: it
- * answers "are we in a native shell?", which main.ts must ask before it can
+ * answers "are we in a native shell?", which bootstrap.ts must ask before it can
  * decide whether to load the shell at all. It imports only @capacitor/core.
  */
 const CAPACITOR_EXEMPT = new Map([['src/providers/runtime.ts', new Set(['@capacitor/core'])]]);

@@ -1,4 +1,5 @@
-import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue';
+import { computed, getCurrentScope, onScopeDispose, ref, toValue, watch, type MaybeRefOrGetter } from 'vue';
+import { getPreference, setPreference, subscribePreference } from '@/storage/preferences';
 
 const FONT_SIZE_STORAGE_KEY = 'reader-font-size';
 const FONT_FAMILY_STORAGE_KEY = 'reader-font-family';
@@ -59,15 +60,25 @@ export function getReaderFontFamily(font: ReaderFont): string {
 
 export function useReaderSettings(defaultFontSize: MaybeRefOrGetter<number> = DEFAULT_READER_FONT_SIZE) {
   const fontSize = ref(clampFontSize(toValue(defaultFontSize)));
-  const fontFamily = ref<ReaderFont>(DEFAULT_READER_FONT);
+  const fontFamily = ref<ReaderFont>(parseReaderFont(getPreference(FONT_FAMILY_STORAGE_KEY)));
   const hasExplicitFontSize = ref(false);
 
-  if (typeof window !== 'undefined') {
-    const storedFontSize = window.localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+  function applyStoredFontSize(storedFontSize: string | null): void {
     const parsedStoredFontSize = storedFontSize === null ? Number.NaN : Number.parseInt(storedFontSize, 10);
     hasExplicitFontSize.value = Number.isFinite(parsedStoredFontSize);
     fontSize.value = parseFontSize(storedFontSize, toValue(defaultFontSize));
-    fontFamily.value = parseReaderFont(window.localStorage.getItem(FONT_FAMILY_STORAGE_KEY));
+  }
+
+  applyStoredFontSize(getPreference(FONT_SIZE_STORAGE_KEY));
+
+  const unsubscribers = [
+    subscribePreference(FONT_SIZE_STORAGE_KEY, applyStoredFontSize),
+    subscribePreference(FONT_FAMILY_STORAGE_KEY, (value) => {
+      fontFamily.value = parseReaderFont(value);
+    })
+  ];
+  if (getCurrentScope()) {
+    onScopeDispose(() => unsubscribers.forEach((unsubscribe) => unsubscribe()));
   }
 
   watch(() => toValue(defaultFontSize), (value) => {
@@ -77,10 +88,7 @@ export function useReaderSettings(defaultFontSize: MaybeRefOrGetter<number> = DE
   });
 
   watch(fontFamily, (value) => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    window.localStorage.setItem(FONT_FAMILY_STORAGE_KEY, parseReaderFont(value));
+    setPreference(FONT_FAMILY_STORAGE_KEY, parseReaderFont(value));
   });
 
   const isAtMinFontSize = computed(() => fontSize.value <= MIN_FONT_SIZE);
@@ -98,9 +106,7 @@ export function useReaderSettings(defaultFontSize: MaybeRefOrGetter<number> = DE
 
   function persistFontSize(): void {
     hasExplicitFontSize.value = true;
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(fontSize.value));
-    }
+    setPreference(FONT_SIZE_STORAGE_KEY, String(fontSize.value));
   }
 
   function setFontFamily(value: ReaderFont): void {

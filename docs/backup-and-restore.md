@@ -176,6 +176,7 @@ shelf:
 ```text
 ~/Library/Application Support/PlainShelf/
 ├─ shelves.json            the shelves you added, and their settings
+├─ preferences.json        language, zoom, reader font and other UI preferences
 ├─ store/                  the application store
 ├─ logs/
 ├─ reading_progress.json   per-device — this machine's reading positions

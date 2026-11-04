@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/preferences"
 	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
@@ -31,6 +32,7 @@ type DesktopApp struct {
 	readingProgressPath string
 	readingStatsPath    string
 	readingProgressSync *readingprogress.Store
+	preferences         *preferences.Store
 	startupErr          error
 	progressStager      *readingclose.Stager
 	lanShare            *lanShare
@@ -51,7 +53,23 @@ func (a *DesktopApp) secretStore() secretStore {
 var openFinder = util.OpenFinder
 
 func NewDesktopApp(native nativeUI) *DesktopApp {
-	return &DesktopApp{native: native}
+	return &DesktopApp{native: native, preferences: newPreferencesStore(preferences.AppDesktop)}
+}
+
+func newPreferencesStore(app string) *preferences.Store {
+	path, err := preferences.DefaultPath()
+	if err != nil {
+		log.Println("preferences will not be persisted:", err)
+	}
+	return preferences.NewStore(path, app)
+}
+
+func (a *DesktopApp) GetPreferences() (map[string]string, error) {
+	return a.preferences.Read()
+}
+
+func (a *DesktopApp) SetPreference(key, value string) error {
+	return a.preferences.Set(key, value)
 }
 
 func (a *DesktopApp) Startup(context.Context) {

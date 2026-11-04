@@ -248,6 +248,40 @@ The diagram cannot show either of these:
   `default_shelf` while their book IDs mean entirely different things.
   Same-origin clients (web, desktop) keep the bare shelf ID.
 
+## UI preferences
+
+Language, zoom, reader font and the other UI preferences go through one
+synchronous key/value store, `frontend/src/storage/preferences.ts`, instead of
+each module calling `window.localStorage`. Components that show the same
+preference subscribe to it, so a change in one updates the others in the same
+app.
+
+| Client | Where |
+|---|---|
+| Browser | `localStorage`, per origin |
+| Android shell | WebView `localStorage` |
+| Wails desktop and standalone reader | `preferences.json` in the app data directory, beside `shelves.json` |
+
+The desktop and the reader share one `preferences.json`, so a font size chosen in
+the reader is what the desktop's in-app reader uses next. Only the selected shelf
+(`plainshelf.shelf`) is kept per app, under `apps.desktop` or `apps.reader`;
+every other key is under `shared`. Go decides which keys are per app
+(`internal/preferences`), and writes one key at a time inside the same
+cross-process file lock the reading documents use, so the two apps writing
+different keys at once keep both.
+
+`frontend/src/main.ts` loads the whole file through `GetPreferences()` before it
+imports the rest of the app, because the locale, the zoom and the selected shelf
+are read when their modules load; the first paint already uses the stored
+values. After that, reads come from the in-memory copy and each change is sent
+as `SetPreference(key, value)`, in call order. An empty value removes the key.
+Like the reading documents, a Wails window without the binding does not fall
+back to WebView storage: preferences then last only until the window closes. The
+`?desktop-shell-preview=1` browser preview keeps `localStorage`.
+
+The mobile reader's one-time gesture hint (`reader-mobile-gesture-hint-seen`)
+is not a preference and stays in `localStorage`.
+
 ---
 
 ## Where the code lives

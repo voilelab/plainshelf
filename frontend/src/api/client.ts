@@ -1,5 +1,6 @@
 import { reportIncident } from '@/composables/useErrorIncident';
 import { isMobileRuntime } from '@/providers/runtime';
+import { getPreference, setPreference } from '@/storage/preferences';
 
 export class ApiError extends Error {
   status?: number;
@@ -85,11 +86,9 @@ export function setApiBase(base: string): void {
 const SHELF_STORAGE_KEY = 'plainshelf.shelf';
 let activeShelfID = '';
 
-if (typeof window !== 'undefined') {
-  const storedShelfID = window.localStorage.getItem(SHELF_STORAGE_KEY)?.trim();
-  if (storedShelfID) {
-    activeShelfID = storedShelfID;
-  }
+const storedShelfID = getPreference(SHELF_STORAGE_KEY)?.trim();
+if (storedShelfID) {
+  activeShelfID = storedShelfID;
 }
 
 export function isMockApiMode(): boolean {
@@ -147,13 +146,7 @@ export function getActiveShelfID(): string {
 export function setActiveShelfID(shelfID: string): void {
   const normalized = shelfID.trim();
   activeShelfID = normalized;
-  if (typeof window !== 'undefined') {
-    if (normalized) {
-      window.localStorage.setItem(SHELF_STORAGE_KEY, normalized);
-    } else {
-      window.localStorage.removeItem(SHELF_STORAGE_KEY);
-    }
-  }
+  setPreference(SHELF_STORAGE_KEY, normalized || null);
 }
 
 export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): string {
