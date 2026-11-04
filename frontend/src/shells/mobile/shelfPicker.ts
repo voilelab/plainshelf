@@ -7,17 +7,16 @@ import { t } from '@/i18n';
 import { MANAGE_SHELVES_ROUTE } from './shelfUnavailable';
 import {
   getActiveShelfEntryID,
-  getShelfEntries,
   setActiveShelfEntry,
   shelfEntryDisplayName,
   SOURCE_TYPE_LABEL_KEYS,
-  type ShelfEntry
+  watchedShelfEntries
 } from '@/providers/mobileConfig';
 
 export function createMobileShelfPicker(): ShelfPicker {
   const { loading: shelvesLoading } = useShelvesStore();
 
-  const entries = ref<ShelfEntry[]>(getShelfEntries());
+  const entries = watchedShelfEntries();
   const activeID = ref(getActiveShelfEntryID());
 
   return {

@@ -286,13 +286,11 @@ import {
 } from 'reka-ui';
 import { surfaceError } from '@/composables/useErrorIncident';
 import { useI18n } from '@/i18n';
-import { setApiBase } from '@/api/client';
 import { listServerShelves, type ShelfInfo } from '@/api/shelves';
 import { buildAuthorizeUrl, generateRequestId, pollForToken } from '@/api/pcloud/auth';
 import { PCloudClient } from '@/api/pcloud/client';
 import { LocalShelf } from '@/providers/localShelf';
 import {
-  applyActiveShelfEntry,
   getShelfEntryToken,
   newShelfEntry,
   upsertShelfEntry,
@@ -442,21 +440,10 @@ function onTypeSelect(next: ShelfSourceType): void {
   localError.value = '';
 }
 
-async function withTemporaryServerClient<T>(probe: () => Promise<T>): Promise<T> {
-  const probeToken = token.value;
-  setApiBase(serverUrl.value);
-  window.plainshelf = { getApiToken: async () => probeToken };
-  try {
-    return await probe();
-  } finally {
-    await applyActiveShelfEntry();
-  }
-}
-
 async function loadShelves(): Promise<void> {
   shelvesLoading.value = true;
   try {
-    const loaded = await withTemporaryServerClient(listServerShelves);
+    const loaded = await listServerShelves({ apiBase: serverUrl.value, token: token.value });
     shelves.value = loaded;
     if (!loaded.some((shelf) => shelf.id === shelfId.value)) {
       shelfId.value = '';

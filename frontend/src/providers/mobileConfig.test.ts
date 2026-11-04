@@ -50,7 +50,6 @@ Object.defineProperty(globalThis, 'window', {
 });
 
 const {
-  applyActiveShelfEntry,
   deleteShelfEntry,
   getActiveShelfEntry,
   getActiveShelfEntryToken,
@@ -67,7 +66,8 @@ const {
   setActiveShelfEntry,
   shelfEntryDisplayName,
   shelfEntryTarget,
-  upsertShelfEntry
+  upsertShelfEntry,
+  watchedShelfEntries
 } = await import('./mobileConfig');
 const { buildDeviceDocumentKey } = await import('@/storage/deviceDocument');
 
@@ -184,6 +184,19 @@ describe('token wiring', () => {
 
     expect(secureStore.get('plainshelf.mobile.secret.a')).toBe('token-a');
     expect(secureStore.get('plainshelf.mobile.secret.b')).toBe('token-b');
+  });
+});
+
+describe('the watched entry list', () => {
+  it('follows additions and removals without a restart', async () => {
+    await reinit();
+    const watched = watchedShelfEntries();
+    await upsertShelfEntry(serverEntry({ id: 'a' }));
+    await addShelfEntry({ id: 'b', type: 'local', name: 'Imported', localShelfId: 'local-2' });
+    expect(watched.value.map((entry) => entry.id)).toEqual(['a', 'b']);
+
+    await deleteShelfEntry('b');
+    expect(watched.value.map((entry) => entry.id)).toEqual(['a']);
   });
 });
 
@@ -560,19 +573,6 @@ describe('shelfEntryDisplayName', () => {
   it('falls back to the shelf id, then the folder name', () => {
     expect(shelfEntryDisplayName(serverEntry({ name: '' }))).toBe('main');
     expect(shelfEntryDisplayName(pcloudEntry({ name: '' }))).toBe('shelf');
-  });
-});
-
-describe('applyActiveShelfEntry', () => {
-  it('is idempotent, so a form can restore it after probing a server', async () => {
-    store.set(ENTRIES_KEY, JSON.stringify([serverEntry()]));
-    store.set(ACTIVE_KEY, 'entry-1');
-    await reinit();
-
-    setApiBaseMock.mockClear();
-    await applyActiveShelfEntry();
-
-    expect(setApiBaseMock).toHaveBeenCalledWith('http://host:20000');
   });
 });
 

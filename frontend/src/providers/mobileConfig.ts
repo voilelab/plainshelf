@@ -1,4 +1,5 @@
 import { Preferences } from '@capacitor/preferences';
+import { shallowRef, type ShallowRef } from 'vue';
 
 import { normalizeApiBase, setActiveShelfID, setApiBase } from '@/api/client';
 import { LOCAL_API_BASE } from '@/providers/localShelf';
@@ -66,6 +67,11 @@ const DAV_SHELF_ID = 'shelf';
 let entries: ShelfEntry[] = [];
 let activeEntryID = '';
 let activeEntryToken = '';
+const shelfEntryList = shallowRef<ShelfEntry[]>([]);
+
+export function watchedShelfEntries(): Readonly<ShallowRef<ShelfEntry[]>> {
+  return shelfEntryList;
+}
 
 async function read(key: string): Promise<string> {
   const { value } = await Preferences.get({ key });
@@ -406,7 +412,7 @@ export function getActiveShelfEntryID(): string {
   return activeEntryID;
 }
 
-export async function applyActiveShelfEntry(): Promise<void> {
+async function applyActiveShelfEntry(): Promise<void> {
   const entry = getActiveShelfEntry();
   const { apiBase, shelfID } = shelfEntryTarget(entry);
   setApiBase(apiBase);
@@ -428,6 +434,7 @@ async function commit(next: ShelfEntry[], nextActiveID: string): Promise<void> {
   await persistShelfEntries(next, nextActiveID);
   entries = next;
   activeEntryID = nextActiveID;
+  shelfEntryList.value = next;
   await applyActiveShelfEntry();
 }
 
@@ -497,5 +504,6 @@ export async function initMobileConfig(): Promise<void> {
   const loaded = await loadShelfEntries();
   entries = loaded.entries;
   activeEntryID = loaded.activeEntryID;
+  shelfEntryList.value = loaded.entries;
   await applyActiveShelfEntry();
 }

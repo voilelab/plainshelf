@@ -362,3 +362,32 @@ describe('accepted non-2xx statuses', () => {
     expect(res.error.code).toBe('X');
   });
 });
+
+describe('a request with an explicit target', () => {
+  const transport = vi.fn();
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    transport.mockReset().mockResolvedValue(okResponse());
+    fetchMock.mockReset().mockResolvedValue(okResponse());
+    vi.stubGlobal('fetch', fetchMock);
+    setApiTransport({ fetch: transport, allowMobileWrites: false });
+    (window as unknown as { plainshelf?: unknown }).plainshelf = { getApiToken: async () => 'active-token' };
+  });
+
+  afterEach(() => {
+    setApiTransport({ fetch: (...args) => fetch(...args), allowMobileWrites: false });
+    delete (window as unknown as { plainshelf?: unknown }).plainshelf;
+    vi.unstubAllGlobals();
+  });
+
+  it('goes to that server with its token, bypassing the active transport', async () => {
+    await fetchJson('/api/shelves', undefined, { target: { apiBase: 'http://other:20000/', token: 'probe' } });
+
+    expect(transport).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://other:20000/api/shelves');
+    expect(new Headers(init.headers).get('X-PlainShelf-Token')).toBe('probe');
+  });
+});
