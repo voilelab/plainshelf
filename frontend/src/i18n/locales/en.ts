@@ -473,9 +473,6 @@ const en = {
       qrAdded: 'Added',
       qrExists: 'Already exists; skipped',
       qrFailed: 'Could not import this shelf',
-      addShelfLocationRemote: 'Read a shelf from another device',
-      addShelfLocationRemoteHelp:
-        'Another PlainShelf’s LAN share or a WebDAV server such as a NAS. Opened read-only; the token is kept in the system keychain.',
       addShelfDefaultPath: 'Folder to create:',
       addShelfDirectoryNotAbsolute: 'Enter a full path, starting from the root of the drive.',
       removeConfirmYes: 'Delete shelf',
@@ -1132,6 +1129,9 @@ const en = {
     }
   },
   shelfSource: {
+    modeRemote: 'Read a shelf on another device',
+    modeRemoteHelp: 'Another PlainShelf sharing on the local network, or a WebDAV server such as a NAS. Opened read-only.',
+    modeQRHelp: 'Adds every shelf another PlainShelf shares on this network, read-only.',
     kindLabel: 'Source',
     plainshelf: 'Another PlainShelf',
     webdav: 'WebDAV',
@@ -1148,7 +1148,6 @@ const en = {
     unauthorized: 'Wrong token: the source refused it.',
     unavailable: 'Cannot connect to the source.',
     notAShelf: 'That address has no books/ folder, so it is not a PlainShelf shelf.',
-    checkRequired: 'Check the shelf before saving.',
     readOnlyHint: 'Opened read-only. Books can be downloaded to this device for offline reading.'
   },
   mobileShelfForm: {
@@ -1158,6 +1157,9 @@ const en = {
     modeServer: 'PlainShelf server',
     modePCloud: 'pCloud',
     modeLocal: 'Local shelf',
+    modeLocalHelp: 'A new shelf kept in this app. Works offline and can be edited.',
+    modeServerHelp: 'A shelf on a PlainShelf server you run, read over the network.',
+    modePCloudHelp: 'A shelf folder in your pCloud account, opened read-only.',
     modeRemote: 'Another device',
     localHint: 'Kept in this app’s own storage and works offline. Uninstalling the app or removing the shelf deletes its books.',
     localNameRequired: 'Name the shelf first.',

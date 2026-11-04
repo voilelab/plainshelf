@@ -3,30 +3,19 @@
     <h1 class="mobile-shelf-form-title">{{ heading }}</h1>
     <p class="mobile-shelf-form-description">{{ t('mobileShelfForm.description') }}</p>
 
-    <div
+    <ShelfSourceModes
       v-if="!entry"
-      class="mobile-shelf-form-modes"
-      role="radiogroup"
-      :aria-label="t('mobileShelfForm.modeLabel')"
-    >
-      <button
-        v-for="option in typeOptions"
-        :key="option.value"
-        type="button"
-        class="button mobile-shelf-form-mode"
-        role="radio"
-        :aria-checked="type === option.value"
-        :class="{ primary: type === option.value }"
-        @click="onTypeSelect(option.value)"
-      >
-        {{ t(option.labelKey) }}
-      </button>
-    </div>
+      :model-value="type"
+      :options="typeOptions"
+      :label="t('mobileShelfForm.modeLabel')"
+      :disabled="saving || qrBusy"
+      @update:model-value="onTypeSelect"
+    />
 
-    <MobileQRImport v-if="!entry && Capacitor.isNativePlatform()" @busy="qrBusy = $event" />
+    <MobileQRImport v-if="type === 'qr'" @busy="qrBusy = $event" />
 
-    <form class="mobile-shelf-form-form" @submit.prevent="onSave">
-      <fieldset class="mobile-shelf-form-fields" :disabled="qrBusy">
+    <form v-else class="mobile-shelf-form-form" @submit.prevent="onSave">
+      <fieldset class="mobile-shelf-form-fields" :disabled="saving">
       <label class="mobile-shelf-form-field">
         <span class="mobile-shelf-form-label">{{ t('mobileShelfForm.nameLabel') }}</span>
         <input
@@ -107,55 +96,12 @@
       <p v-else-if="type === 'local'" class="mobile-shelf-form-hint">{{ t('mobileShelfForm.localHint') }}</p>
 
       <template v-else-if="type === 'dav'">
-        <label class="mobile-shelf-form-field">
-          <span class="mobile-shelf-form-label">{{ t('shelfSource.kindLabel') }}</span>
-          <select v-model="davSource" class="input" data-testid="dav-source">
-            <option value="plainshelf">{{ t('shelfSource.plainshelf') }}</option>
-            <option value="webdav">{{ t('shelfSource.webdav') }}</option>
-          </select>
-        </label>
-
-        <label class="mobile-shelf-form-field">
-          <span class="mobile-shelf-form-label">{{ t('shelfSource.urlLabel') }}</span>
-          <input
-            v-model="davUrl"
-            class="input"
-            type="url"
-            inputmode="url"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-            :placeholder="t('shelfSource.urlPlaceholder')"
-          />
-          <span class="mobile-shelf-form-hint">{{ t('shelfSource.urlHint') }}</span>
-        </label>
-
-        <label v-if="davSource === 'webdav'" class="mobile-shelf-form-field">
-          <span class="mobile-shelf-form-label">{{ t('shelfSource.usernameLabel') }}</span>
-          <input
-            v-model="davUsername"
-            class="input"
-            type="text"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-          />
-        </label>
-
-        <label class="mobile-shelf-form-field">
-          <span class="mobile-shelf-form-label">{{
-            davSource === 'webdav' ? t('shelfSource.passwordLabel') : t('shelfSource.tokenLabel')
-          }}</span>
-          <input
-            v-model="davSecret"
-            class="input"
-            type="password"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-          />
-          <span class="mobile-shelf-form-hint">{{ t('shelfSource.secretHint') }}</span>
-        </label>
+        <RemoteSourceFields
+          v-model:kind="davSource"
+          v-model:url="davUrl"
+          v-model:username="davUsername"
+          v-model:secret="davSecret"
+        />
 
         <button
           type="button"
@@ -305,6 +251,8 @@ import {
   type ShelfSourceKind
 } from '@/utils/shelfSourceCheck';
 import MobileQRImport from '@/features/mobile/components/MobileQRImport.vue';
+import RemoteSourceFields from '@/components/shelfSource/RemoteSourceFields.vue';
+import ShelfSourceModes from '@/components/shelfSource/ShelfSourceModes.vue';
 import PCloudFolderPicker from '@/features/mobile/components/PCloudFolderPicker.vue';
 
 const props = defineProps<{
@@ -318,18 +266,24 @@ const { t } = useI18n();
 
 const entry = computed(() => props.entry ?? null);
 
-const typeOptions: Array<{ value: ShelfSourceType; labelKey: string }> = [
-  { value: 'server', labelKey: 'mobileShelfForm.modeServer' },
-  { value: 'pcloud', labelKey: 'mobileShelfForm.modePCloud' },
-  ...(Capacitor.isNativePlatform()
+type FormMode = ShelfSourceType | 'qr';
+
+const native = Capacitor.isNativePlatform();
+const typeOptions = computed(() => [
+  ...(native
+    ? [{ value: 'local' as const, label: t('mobileShelfForm.modeLocal'), help: t('mobileShelfForm.modeLocalHelp') }]
+    : []),
+  { value: 'server' as const, label: t('mobileShelfForm.modeServer'), help: t('mobileShelfForm.modeServerHelp') },
+  { value: 'pcloud' as const, label: t('mobileShelfForm.modePCloud'), help: t('mobileShelfForm.modePCloudHelp') },
+  ...(native
     ? [
-        { value: 'local' as const, labelKey: 'mobileShelfForm.modeLocal' },
-        { value: 'dav' as const, labelKey: 'mobileShelfForm.modeRemote' }
+        { value: 'dav' as const, label: t('shelfSource.modeRemote'), help: t('shelfSource.modeRemoteHelp') },
+        { value: 'qr' as const, label: t('mobileQR.scan'), help: t('shelfSource.modeQRHelp') }
       ]
     : [])
-];
+]);
 
-const type = ref<ShelfSourceType>('server');
+const type = ref<FormMode>(typeOptions.value[0].value);
 const name = ref('');
 const serverUrl = ref('');
 const token = ref('');
@@ -382,7 +336,7 @@ const canSave = computed(() => {
     return name.value.trim().length > 0;
   }
   if (type.value === 'dav') {
-    return davCanCheck.value && davBookCount.value !== null;
+    return davCanCheck.value;
   }
   return type.value === 'server'
     ? serverUrl.value.trim().length > 0 && shelfId.value.length > 0
@@ -435,7 +389,7 @@ onMounted(async () => {
   }
 });
 
-function onTypeSelect(next: ShelfSourceType): void {
+function onTypeSelect(next: FormMode): void {
   type.value = next;
   localError.value = '';
 }
@@ -553,11 +507,11 @@ async function onPickShelfRoot(path: string): Promise<void> {
   await onVerifyPCloudShelf();
 }
 
-async function onCheckDavShelf(): Promise<void> {
+async function checkDavShelf(): Promise<boolean> {
   localError.value = '';
   davBookCount.value = null;
   verifying.value = true;
-  const token = ++davDraftRevision;
+  const revision = ++davDraftRevision;
   try {
     const check = await LocalShelf.checkSource({
       source: davSource.value,
@@ -565,25 +519,31 @@ async function onCheckDavShelf(): Promise<void> {
       username: davAccount(),
       secret: davSecret.value.trim()
     });
-    if (token !== davDraftRevision) {
-      return;
+    if (revision !== davDraftRevision) {
+      return false;
     }
     const messageKey = shelfSourceCheckMessageKey(check);
     if (messageKey) {
       localError.value = t(messageKey);
-      return;
+      return false;
     }
     davBookCount.value = check.books;
+    return true;
   } catch (err) {
     localError.value = surfaceError(err);
+    return false;
   } finally {
     verifying.value = false;
   }
 }
 
-function draftEntry(): { entry: ShelfEntry; secret: string } {
-  const base = entry.value ?? newShelfEntry(type.value);
-  if (type.value === 'dav') {
+async function onCheckDavShelf(): Promise<void> {
+  await checkDavShelf();
+}
+
+function draftEntry(kind: 'server' | 'pcloud' | 'dav'): { entry: ShelfEntry; secret: string } {
+  const base = entry.value ?? newShelfEntry(kind);
+  if (kind === 'dav') {
     const username = davAccount();
     return {
       entry: {
@@ -597,7 +557,7 @@ function draftEntry(): { entry: ShelfEntry; secret: string } {
       secret: davSecret.value.trim()
     };
   }
-  if (type.value === 'pcloud') {
+  if (kind === 'pcloud') {
     return {
       entry: {
         id: base.id,
@@ -657,19 +617,26 @@ async function onSave(): Promise<void> {
     return;
   }
 
-  if (type.value === 'server') {
-    if (shelfId.value.length === 0) {
-      localError.value = t('mobileShelfForm.shelfRequired');
-      return;
-    }
-  } else if (!canSave.value) {
-    localError.value = t(type.value === 'dav' ? 'shelfSource.checkRequired' : 'mobileShelfForm.pcloud.verifyRequired');
+  const kind = type.value;
+  if (kind === 'qr') {
+    return;
+  }
+  if (kind === 'server' && shelfId.value.length === 0) {
+    localError.value = t('mobileShelfForm.shelfRequired');
+    return;
+  }
+  if (kind === 'pcloud' && !canSave.value) {
+    localError.value = t('mobileShelfForm.pcloud.verifyRequired');
     return;
   }
 
   saving.value = true;
   try {
-    const draft = draftEntry();
+    if (kind === 'dav' && davBookCount.value === null && !(await checkDavShelf())) {
+      saving.value = false;
+      return;
+    }
+    const draft = draftEntry(kind);
     await upsertShelfEntry(draft.entry, draft.secret);
     reloadIntoApp();
   } catch (err) {
@@ -695,17 +662,6 @@ async function onSave(): Promise<void> {
 .mobile-shelf-form-description {
   margin: 0;
   color: var(--text-muted, #666);
-}
-
-.mobile-shelf-form-modes {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.mobile-shelf-form-mode {
-  flex: 1;
-  justify-content: center;
 }
 
 .mobile-shelf-form-form {

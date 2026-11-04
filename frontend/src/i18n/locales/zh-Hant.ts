@@ -458,8 +458,6 @@ const zhHant = {
       qrAdded: '已新增',
       qrExists: '已存在，已略過',
       qrFailed: '無法匯入此書架',
-      addShelfLocationRemote: '讀取其他裝置上的書架',
-      addShelfLocationRemoteHelp: '另一台 PlainShelf 的區網分享，或 NAS 這類 WebDAV 伺服器。以唯讀方式開啟；token 存在系統鑰匙圈。',
       addShelfDefaultPath: '將建立的資料夾：',
       addShelfDirectoryNotAbsolute: '請輸入從磁碟根目錄開始的完整路徑。',
       removeConfirmYes: '刪除書架',
@@ -1113,6 +1111,9 @@ const zhHant = {
     }
   },
   shelfSource: {
+    modeRemote: '讀取其他裝置上的書架',
+    modeRemoteHelp: '另一台 PlainShelf 的區網分享，或 NAS 這類 WebDAV 伺服器。以唯讀方式開啟。',
+    modeQRHelp: '加入另一台 PlainShelf 在區網分享的所有書架，以唯讀方式開啟。',
     kindLabel: '來源',
     plainshelf: '另一台 PlainShelf',
     webdav: 'WebDAV',
@@ -1129,7 +1130,6 @@ const zhHant = {
     unauthorized: 'token 錯誤：來源拒絕了這組憑證。',
     unavailable: '連不上這個來源。',
     notAShelf: '這個網址沒有 books/ 資料夾，不是 PlainShelf 書架。',
-    checkRequired: '請先檢查書架再儲存。',
     readOnlyHint: '以唯讀方式開啟。可以把書下載到這台裝置離線閱讀。'
   },
   mobileShelfForm: {
@@ -1139,6 +1139,9 @@ const zhHant = {
     modeServer: 'PlainShelf 伺服器',
     modePCloud: 'pCloud',
     modeLocal: '本機書庫',
+    modeLocalHelp: '在這個 App 裡建立新書架，離線也能用，可以編輯。',
+    modeServerHelp: '你自己架設的 PlainShelf 伺服器上的書架，透過網路讀取。',
+    modePCloudHelp: 'pCloud 帳號裡的書架資料夾，以唯讀方式開啟。',
     modeRemote: '其他裝置',
     localHint: '存在這個 App 自己的儲存空間，離線也能用。解除安裝 App 或移除書庫時，裡面的書會一起刪除。',
     localNameRequired: '請先為書庫命名。',
