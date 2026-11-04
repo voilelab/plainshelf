@@ -1,3 +1,5 @@
+import { getPreference, setPreference } from '@/storage/preferences';
+
 export type BooksViewMode = 'list' | 'card' | 'title';
 
 const BOOKS_VIEW_MODE_STORAGE_KEY = 'plainshelf.books.viewMode';
@@ -13,18 +15,10 @@ function resolveStorageKey(key?: string): string {
 }
 
 export function getStoredBooksViewMode(storageKey?: string): BooksViewMode {
-  if (typeof window === 'undefined') {
-    return 'list';
-  }
-
-  const value = window.localStorage.getItem(resolveStorageKey(storageKey));
+  const value = getPreference(resolveStorageKey(storageKey));
   return isBooksViewMode(value) ? value : 'list';
 }
 
 export function setStoredBooksViewMode(mode: BooksViewMode, storageKey?: string): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(resolveStorageKey(storageKey), mode);
+  setPreference(resolveStorageKey(storageKey), mode);
 }

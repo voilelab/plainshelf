@@ -15,7 +15,7 @@
  *
  * Two consequences of the same choice, both intended:
  *   - `const { X } = await import('./m')` and `type X = import('./m').Y` count as
- *     uses without any special case. `main.ts` loads `installMobileShell` that way.
+ *     uses without any special case. `bootstrap.ts` loads `installMobileShell` that way.
  *   - only declaration forms are scanned (`export const|function|class|type|…`).
  *     `export { X }` and `export * from` are re-exports whose name also appears
  *     at its declaration, so scanning them would report the barrel, not the

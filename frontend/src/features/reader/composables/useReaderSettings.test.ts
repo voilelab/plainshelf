@@ -114,6 +114,24 @@ describe('reader font settings', () => {
 
     scope.stop();
   });
+
+  it('syncs font changes to other readers in the same app', async () => {
+    stubWindow();
+    const first = setupSettings();
+    const second = setupSettings();
+
+    first.settings.increaseFontSize();
+    first.settings.setFontFamily('noto-serif-tc');
+    await nextTick();
+
+    expect(second.settings.fontSize.value).toBe(first.settings.fontSize.value);
+    expect(second.settings.fontFamily.value).toBe('noto-serif-tc');
+
+    second.scope.stop();
+    first.settings.decreaseFontSize();
+    expect(second.settings.fontSize.value).not.toBe(first.settings.fontSize.value);
+    first.scope.stop();
+  });
 });
 
 describe('reader font reaches the rendered text', () => {

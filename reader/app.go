@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/preferences"
 	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
@@ -28,6 +29,7 @@ type ReaderApp struct {
 	progressStore *readingprogress.Store
 	historyStore  *readhistory.Store
 	statsStore    *readingstats.Store
+	preferences   *preferences.Store
 
 	promptedForBook bool
 
@@ -67,6 +69,12 @@ func NewReaderApp(native nativeUI, logger *logutil.Logger, shelfID string, launc
 		log.Println("reading stats will not be persisted:", err)
 	}
 	app.statsStore = readingstats.NewStore(statsPath)
+
+	preferencesPath, err := preferences.DefaultPath()
+	if err != nil {
+		log.Println("preferences will not be persisted:", err)
+	}
+	app.preferences = preferences.NewStore(preferencesPath, preferences.AppReader)
 
 	app.progressStager = readingclose.NewStager(app.progressStore, readingclose.DefaultTimeout)
 
@@ -181,6 +189,14 @@ func (a *ReaderApp) WriteReadingProgress(doc string) error {
 		return readingprogress.MergeNewest(disk, incoming)
 	})
 	return err
+}
+
+func (a *ReaderApp) GetPreferences() (map[string]string, error) {
+	return a.preferences.Read()
+}
+
+func (a *ReaderApp) SetPreference(key, value string) error {
+	return a.preferences.Set(key, value)
 }
 
 func (a *ReaderApp) ReadReadHistory() (string, error) {
