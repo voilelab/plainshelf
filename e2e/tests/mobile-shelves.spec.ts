@@ -20,7 +20,7 @@ test('starts without a shelf, then keeps several and switches between them', asy
   await expect(page).toHaveURL(/\/settings\?.*tab=shelves/);
   await expect(page.locator('.mobile-shelves-empty')).toBeVisible();
   await page.getByRole('button', { name: 'Add a shelf' }).click();
-  await expect(page.getByRole('heading', { name: 'Connect to PlainShelf' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Add a shelf' })).toBeVisible();
   await expect(page.locator('.mobile-tab.active')).toHaveText('Settings');
   await page.getByRole('link', { name: 'Back' }).click();
   await expect(page).toHaveURL(new RegExp(`/settings\\?.*${MOBILE_PREVIEW_QUERY}`));

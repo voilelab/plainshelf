@@ -41,10 +41,10 @@ example:
 ### On the desktop app
 
 The desktop app has no config file, so a shelf is created in **Settings →
-Shelves → Create shelf**. The dialog asks for a name and for where the shelf
-goes; on **Create a new folder**, its default, the app creates the shelf in its
-own data directory, under `shelves/<shelf id>` — beside the `shelves.json` that
-records it:
+Shelves → Add a shelf**. The dialog first asks where the shelf lives, then for
+its name and that source's settings. On **New folder**, the app creates the
+shelf in its own data directory, under `shelves/<shelf id>` — beside the
+`shelves.json` that records it:
 
 | Platform | Default shelf directory |
 |---|---|
@@ -54,7 +54,7 @@ records it:
 
 The dialog shows the exact path before you create the shelf, and that path is
 what is recorded. To put the shelf somewhere else, such as an external drive or
-a directory you back up separately, choose **Use a folder I already have** and
+a directory you back up separately, choose **Existing folder** and
 type the **Folder path** in or pick it with **Browse**; a directory you chose is
 kept even if you then change the name.
 
@@ -258,8 +258,8 @@ The QR code is JSON, and its shape is a promise between devices:
 
 #### Import on another desktop
 
-In **Settings → Shelves → Create shelf**, choose **Paste a LAN share QR
-payload**, paste the QR's JSON text, then click **Preview shelves**. Check the
+In **Settings → Shelves → Add a shelf**, choose **Paste QR content to add them
+all**, paste the QR's JSON text, then click **Preview shelves**. Check the
 names and addresses before confirming with **Import shelves**. Pasting or previewing
 does not connect, save entries or store the token. This accepts text, not images.
 
@@ -279,7 +279,7 @@ replaced. Name collisions receive the usual new shelf ID suffix.
 Imported tokens use the existing OS keychain flow, never `shelves.json`, logs
 or URLs. The pasted JSON is cleared after import or closing the dialog.
 The share publisher's existing `lan_share.token` storage is separate from
-imported credentials. For Android, use **Add shelf → Scan a LAN share QR code**,
+imported credentials. For Android, use **Add a shelf → Scan a QR code to add them all**,
 then preview and confirm the shelves. The Android reader uses this same parser and import
 semantics, with tokens in Android Keystore; see
 [Android QR import](development/android.md#scan-a-lan-share-qr-code) for camera
@@ -292,7 +292,7 @@ The export is plain HTTP, so share only on a network you trust; see
 
 ## Read a shelf from another device (desktop app)
 
-**Settings → Shelves → Create shelf → Read a shelf from another device** adds a
+**Settings → Shelves → Add a shelf → Another device** adds a
 shelf that lives elsewhere, read-only: another PlainShelf's local-network share
 (above), the server's [`dav_export`](reference/configuration.md#dav_export), or
 any WebDAV server holding a shelf directory, such as a NAS.
@@ -302,8 +302,10 @@ any WebDAV server holding a shelf directory, such as a NAS.
   shows.
 - **Another PlainShelf** needs the share's token. **WebDAV** takes an optional
   account and password or token.
-- Creating the shelf checks the source first: a refused token and an address
-  that cannot be reached are reported differently, and nothing is saved.
+- The dialog checks the source as soon as the address and token are filled in
+  and shows how many books it found, and **Add shelf** checks again if needed.
+  A refused token and an address that cannot be reached are reported
+  differently, and nothing is saved.
 - The token is stored in the operating system's keychain (Keychain on macOS,
   Credential Manager on Windows, the Secret Service on Linux), never in
   `shelves.json`. Removing the shelf removes it from the keychain.

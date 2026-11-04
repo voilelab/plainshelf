@@ -1,3 +1,11 @@
+import IconCheck from '~icons/tabler/check';
+import IconChevronRight from '~icons/tabler/chevron-right';
+import IconCloud from '~icons/tabler/cloud';
+import IconDevices from '~icons/tabler/devices';
+import IconFolder from '~icons/tabler/folder';
+import IconFolderPlus from '~icons/tabler/folder-plus';
+import IconQrcode from '~icons/tabler/qrcode';
+import IconServer from '~icons/tabler/server';
 import IconArrowLeft from '~icons/tabler/arrow-left';
 import IconBaselineDensityMedium from '~icons/tabler/baseline-density-medium';
 import IconBooks from '~icons/tabler/books';
@@ -27,7 +35,15 @@ export const ICONS = {
   'view-card': IconLayoutGrid,
   'view-title': IconBaselineDensityMedium,
   menu: IconMenu2,
-  back: IconArrowLeft
+  back: IconArrowLeft,
+  check: IconCheck,
+  'chevron-right': IconChevronRight,
+  cloud: IconCloud,
+  devices: IconDevices,
+  folder: IconFolder,
+  'folder-plus': IconFolderPlus,
+  qrcode: IconQrcode,
+  server: IconServer
 } as const;
 
 export type IconName = keyof typeof ICONS;
