@@ -17,6 +17,7 @@
     <!-- Reka UI 2.10.5 Tabs defaults unmountOnHide to true. -->
     <TabsRoot v-model="activeSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
+        <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
           t('settings.cover.title')
         }}</TabsTrigger>
@@ -45,7 +46,6 @@
           t('settings.demoStorage.title')
         }}</TabsTrigger>
         <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
-        <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
       </TabsList>
 
       <TabsContent v-if="serverSettingsEditable" value="cover" class="settings-tab-content">

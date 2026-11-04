@@ -1,3 +1,4 @@
+import IconArrowLeft from '~icons/tabler/arrow-left';
 import IconBaselineDensityMedium from '~icons/tabler/baseline-density-medium';
 import IconBooks from '~icons/tabler/books';
 import IconCopy from '~icons/tabler/copy';
@@ -25,7 +26,8 @@ export const ICONS = {
   'view-list': IconListDetails,
   'view-card': IconLayoutGrid,
   'view-title': IconBaselineDensityMedium,
-  menu: IconMenu2
+  menu: IconMenu2,
+  back: IconArrowLeft
 } as const;
 
 export type IconName = keyof typeof ICONS;
