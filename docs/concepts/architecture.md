@@ -275,6 +275,10 @@ imports the rest of the app, because the locale, the zoom and the selected shelf
 are read when their modules load; the first paint already uses the stored
 values. After that, reads come from the in-memory copy and each change is sent
 as `SetPreference(key, value)`, in call order. An empty value removes the key.
+When the window regains focus the copy is reloaded, so a font size changed in
+the reader reaches a desktop that stayed open. Components subscribed to a
+changed key update then; one that read its value only at load, such as the
+locale or the zoom, picks it up on the next start.
 Like the reading documents, a Wails window without the binding does not fall
 back to WebView storage: preferences then last only until the window closes. The
 `?desktop-shell-preview=1` browser preview keeps `localStorage`.

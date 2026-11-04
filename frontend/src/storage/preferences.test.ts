@@ -162,6 +162,54 @@ describe('preferences in the desktop and reader apps', () => {
     expect(window.localStorage.getItem('app-zoom-level')).toBe('2');
   });
 
+  it('reloads values another app wrote when the window regains focus', async () => {
+    runtime.host = 'desktop';
+    const binding = hostBinding({ 'reader-font-size': '20', 'reader-font-family': 'system' });
+    stubHost('DesktopApp', binding);
+    const { getPreference, subscribePreference } = await loadModule();
+    const listener = vi.fn();
+    subscribePreference('reader-font-size', listener);
+    binding.GetPreferences.mockResolvedValue({ 'reader-font-size': '28' });
+
+    window.dispatchEvent(new Event('focus'));
+
+    await vi.waitFor(() => expect(listener).toHaveBeenCalledWith('28'));
+    expect(getPreference('reader-font-size')).toBe('28');
+    expect(getPreference('reader-font-family')).toBeNull();
+  });
+
+  it('keeps a local change made while the reload is in flight', async () => {
+    runtime.host = 'desktop';
+    const binding = hostBinding({ 'app-zoom-level': '1' });
+    stubHost('DesktopApp', binding);
+    const { getPreference, setPreference } = await loadModule();
+    let finishRead!: (values: Record<string, string>) => void;
+    binding.GetPreferences.mockReturnValue(new Promise((resolve) => (finishRead = resolve)));
+
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(binding.GetPreferences.mock.calls.length).toBeGreaterThan(1));
+    setPreference('app-zoom-level', '1.5');
+    finishRead({ 'app-zoom-level': '1' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(getPreference('app-zoom-level')).toBe('1.5');
+  });
+
+  it('keeps the snapshot when a reload fails', async () => {
+    runtime.host = 'desktop';
+    const binding = hostBinding({ 'plainshelf.locale': 'zh-Hant' });
+    stubHost('DesktopApp', binding);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { getPreference } = await loadModule();
+    binding.GetPreferences.mockRejectedValue(new Error('locked'));
+
+    window.dispatchEvent(new Event('focus'));
+    await vi.waitFor(() => expect(binding.GetPreferences.mock.calls.length).toBeGreaterThan(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(getPreference('plainshelf.locale')).toBe('zh-Hant');
+  });
+
   it('is loaded before preference modules read their initial value', async () => {
     runtime.host = 'desktop';
     stubHost('DesktopApp', hostBinding({ 'reader-launch-mode': 'in-window', 'plainshelf.shelf': 'main' }));
