@@ -1,15 +1,22 @@
 <template>
   <section class="mobile-shelf-form-card panel" role="form" :aria-label="heading">
     <h1 class="mobile-shelf-form-title">{{ heading }}</h1>
-    <p class="mobile-shelf-form-description">{{ t('mobileShelfForm.description') }}</p>
 
-    <ShelfSourceModes
-      v-if="!entry"
-      :model-value="type"
-      :options="typeOptions"
-      :label="t('mobileShelfForm.modeLabel')"
+    <ShelfSourcePicker
+      v-if="step === 'pick'"
+      :prompt="t('shelfSource.pickPrompt')"
+      :groups="pickerGroups"
+      :shortcut="qrShortcut"
+      @pick="onTypeSelect"
+    />
+
+    <template v-else>
+    <ShelfSourceChosen
+      :icon="chosen.icon"
+      :label="chosen.label"
+      :change-label="entry ? undefined : t('shelfSource.change')"
       :disabled="saving || qrBusy"
-      @update:model-value="onTypeSelect"
+      @change="step = 'pick'"
     />
 
     <MobileQRImport v-if="type === 'qr'" @busy="qrBusy = $event" />
@@ -17,7 +24,10 @@
     <form v-else class="mobile-shelf-form-form" @submit.prevent="onSave">
       <fieldset class="mobile-shelf-form-fields" :disabled="saving">
       <label class="mobile-shelf-form-field">
-        <span class="mobile-shelf-form-label">{{ t('mobileShelfForm.nameLabel') }}</span>
+        <span class="mobile-shelf-form-label">
+          {{ t('mobileShelfForm.nameLabel') }}
+          <span class="mobile-shelf-form-optional">{{ t('shelfSource.optional') }}</span>
+        </span>
         <input
           v-model="name"
           class="input"
@@ -103,18 +113,11 @@
           v-model:secret="davSecret"
         />
 
-        <button
-          type="button"
-          class="button"
-          :disabled="verifying || !davCanCheck"
-          @click="onCheckDavShelf"
-        >
-          {{ verifying ? t('shelfSource.checking') : t('shelfSource.check') }}
-        </button>
-
-        <p v-if="davBookCount !== null" class="mobile-shelf-form-hint" role="status">
-          {{ t('shelfSource.shelfFound', { count: String(davBookCount) }) }}
-        </p>
+        <ShelfSourceStatus
+          :status="davCheck.status.value"
+          :books="davCheck.books.value"
+          :error="davCheck.error.value"
+        />
         <p class="mobile-shelf-form-hint">{{ t('shelfSource.readOnlyHint') }}</p>
       </template>
 
@@ -204,7 +207,7 @@
       <p v-if="message" class="mobile-shelf-form-error" role="alert">{{ message }}</p>
 
       <button type="submit" class="button primary" :disabled="saving || !canSave">
-        {{ saving ? t('mobileShelfForm.saving') : t('mobileShelfForm.save') }}
+        {{ saving ? t('mobileShelfForm.saving') : entry ? t('mobileShelfForm.saveEdit') : t('mobileShelfForm.save') }}
       </button>
 
       <button v-if="cancellable" type="button" class="button" @click="emit('cancel')">
@@ -212,11 +215,12 @@
       </button>
       </fieldset>
     </form>
+    </template>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -245,14 +249,14 @@ import {
 } from '@/providers/mobileConfig';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
 import { checkPCloudShelf } from '@/features/mobile/utils/pcloudSetup';
-import {
-  shelfSourceCheckMessageKey,
-  shelfSourceNeedsSecret,
-  type ShelfSourceKind
-} from '@/utils/shelfSourceCheck';
+import type { ShelfSourceKind } from '@/utils/shelfSourceCheck';
 import MobileQRImport from '@/features/mobile/components/MobileQRImport.vue';
 import RemoteSourceFields from '@/components/shelfSource/RemoteSourceFields.vue';
-import ShelfSourceModes from '@/components/shelfSource/ShelfSourceModes.vue';
+import ShelfSourceChosen from '@/components/shelfSource/ShelfSourceChosen.vue';
+import ShelfSourcePicker from '@/components/shelfSource/ShelfSourcePicker.vue';
+import ShelfSourceStatus from '@/components/shelfSource/ShelfSourceStatus.vue';
+import type { IconName } from '@/components/icons/registry';
+import { useSourceCheck } from '@/composables/useSourceCheck';
 import PCloudFolderPicker from '@/features/mobile/components/PCloudFolderPicker.vue';
 
 const props = defineProps<{
@@ -269,21 +273,48 @@ const entry = computed(() => props.entry ?? null);
 type FormMode = ShelfSourceType | 'qr';
 
 const native = Capacitor.isNativePlatform();
-const typeOptions = computed(() => [
-  ...(native
-    ? [{ value: 'local' as const, label: t('mobileShelfForm.modeLocal'), help: t('mobileShelfForm.modeLocalHelp') }]
-    : []),
-  { value: 'server' as const, label: t('mobileShelfForm.modeServer'), help: t('mobileShelfForm.modeServerHelp') },
-  { value: 'pcloud' as const, label: t('mobileShelfForm.modePCloud'), help: t('mobileShelfForm.modePCloudHelp') },
-  ...(native
-    ? [
-        { value: 'dav' as const, label: t('shelfSource.modeRemote'), help: t('shelfSource.modeRemoteHelp') },
-        { value: 'qr' as const, label: t('mobileQR.scan'), help: t('shelfSource.modeQRHelp') }
-      ]
-    : [])
+const MODE_ICONS: Record<FormMode, IconName> = {
+  local: 'folder-plus',
+  server: 'server',
+  pcloud: 'cloud',
+  dav: 'devices',
+  qr: 'qrcode'
+};
+const MODE_LABEL_KEYS: Record<FormMode, string> = {
+  local: 'mobileShelfForm.modeLocal',
+  server: 'mobileShelfForm.modeServer',
+  pcloud: 'mobileShelfForm.modePCloud',
+  dav: 'shelfSource.modeRemote',
+  qr: 'mobileShelfForm.modeQR'
+};
+const option = (value: Exclude<FormMode, 'qr'>, helpKey: string) => ({
+  value,
+  label: t(MODE_LABEL_KEYS[value]),
+  help: t(helpKey),
+  icon: MODE_ICONS[value]
+});
+const pickerGroups = computed(() => [
+  {
+    label: t('shelfSource.groupThisDevice'),
+    local: true,
+    options: native ? [option('local', 'mobileShelfForm.modeLocalHelp')] : []
+  },
+  {
+    label: t('shelfSource.groupElsewhere'),
+    options: [
+      ...(native ? [option('dav', 'shelfSource.modeRemoteHelp')] : []),
+      option('server', 'mobileShelfForm.modeServerHelp'),
+      option('pcloud', 'mobileShelfForm.modePCloudHelp')
+    ]
+  }
 ]);
+const qrShortcut = computed(() =>
+  native ? { value: 'qr' as const, label: t('mobileShelfForm.modeQR'), help: t('shelfSource.modeQRHelp') } : null
+);
 
-const type = ref<FormMode>(typeOptions.value[0].value);
+const step = ref<'pick' | 'form'>(props.entry ? 'form' : 'pick');
+const type = ref<FormMode>('server');
+const chosen = computed(() => ({ icon: MODE_ICONS[type.value], label: t(MODE_LABEL_KEYS[type.value]) }));
 const name = ref('');
 const serverUrl = ref('');
 const token = ref('');
@@ -304,18 +335,11 @@ const davSource = ref<ShelfSourceKind>('plainshelf');
 const davUrl = ref('');
 const davUsername = ref('');
 const davSecret = ref('');
-const davBookCount = ref<number | null>(null);
-let davDraftRevision = 0;
 const davAccount = () => (davSource.value === 'webdav' ? davUsername.value.trim() : '');
-const davCanCheck = computed(
-  () =>
-    davUrl.value.trim().length > 0 &&
-    (!shelfSourceNeedsSecret(davSource.value, davAccount()) || davSecret.value.trim().length > 0)
+const davCheck = useSourceCheck(
+  { kind: davSource, url: davUrl, username: davUsername, secret: davSecret },
+  (params) => LocalShelf.checkSource(params)
 );
-watch([davSource, davUrl, davUsername, davSecret], () => {
-  davDraftRevision++;
-  davBookCount.value = null;
-});
 
 const qrBusy = ref(false);
 const saving = ref(false);
@@ -336,7 +360,7 @@ const canSave = computed(() => {
     return name.value.trim().length > 0;
   }
   if (type.value === 'dav') {
-    return davCanCheck.value;
+    return davCheck.ready.value;
   }
   return type.value === 'server'
     ? serverUrl.value.trim().length > 0 && shelfId.value.length > 0
@@ -392,6 +416,7 @@ onMounted(async () => {
 function onTypeSelect(next: FormMode): void {
   type.value = next;
   localError.value = '';
+  step.value = 'form';
 }
 
 async function loadShelves(): Promise<void> {
@@ -507,40 +532,6 @@ async function onPickShelfRoot(path: string): Promise<void> {
   await onVerifyPCloudShelf();
 }
 
-async function checkDavShelf(): Promise<boolean> {
-  localError.value = '';
-  davBookCount.value = null;
-  verifying.value = true;
-  const revision = ++davDraftRevision;
-  try {
-    const check = await LocalShelf.checkSource({
-      source: davSource.value,
-      url: davUrl.value.trim(),
-      username: davAccount(),
-      secret: davSecret.value.trim()
-    });
-    if (revision !== davDraftRevision) {
-      return false;
-    }
-    const messageKey = shelfSourceCheckMessageKey(check);
-    if (messageKey) {
-      localError.value = t(messageKey);
-      return false;
-    }
-    davBookCount.value = check.books;
-    return true;
-  } catch (err) {
-    localError.value = surfaceError(err);
-    return false;
-  } finally {
-    verifying.value = false;
-  }
-}
-
-async function onCheckDavShelf(): Promise<void> {
-  await checkDavShelf();
-}
-
 function draftEntry(kind: 'server' | 'pcloud' | 'dav'): { entry: ShelfEntry; secret: string } {
   const base = entry.value ?? newShelfEntry(kind);
   if (kind === 'dav') {
@@ -632,7 +623,7 @@ async function onSave(): Promise<void> {
 
   saving.value = true;
   try {
-    if (kind === 'dav' && davBookCount.value === null && !(await checkDavShelf())) {
+    if (kind === 'dav' && !(await davCheck.ensureChecked())) {
       saving.value = false;
       return;
     }
@@ -659,9 +650,9 @@ async function onSave(): Promise<void> {
   font-size: 1.4rem;
 }
 
-.mobile-shelf-form-description {
-  margin: 0;
-  color: var(--text-muted, #666);
+.mobile-shelf-form-optional {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .mobile-shelf-form-form {

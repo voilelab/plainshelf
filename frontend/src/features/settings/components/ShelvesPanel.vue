@@ -79,12 +79,29 @@
     :busy-text="t('settings.shelves.addShelfAdding')"
     :busy="addingShelf"
     :confirm-disabled="!canSubmitAddShelf"
+    :confirm-hidden="addShelfStep === 'pick'"
     :close-label="t('settings.shelves.addShelfCloseLabel')"
-    :initial-focus="`#${addShelfNameId}`"
+    initial-focus=".shelf-source-tile"
     @cancel="closeAddShelfModal"
     @confirm="onSubmitAddShelf"
   >
-    <form class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
+    <form class="shelf-add-form shelf-create-form" @submit.prevent="onSubmitAddShelf">
+      <ShelfSourcePicker
+        v-if="addShelfStep === 'pick'"
+        :prompt="t('shelfSource.pickPrompt')"
+        :groups="locationGroups"
+        :shortcut="qrShortcut"
+        :disabled="addingShelf"
+        @pick="pickShelfLocation"
+      />
+      <template v-else>
+      <ShelfSourceChosen
+        :icon="chosenLocation.icon"
+        :label="chosenLocation.label"
+        :change-label="t('shelfSource.change')"
+        :disabled="addingShelf"
+        @change="backToShelfLocations"
+      />
       <div v-if="newShelfLocationMode !== 'qr'" class="shelf-field">
         <label class="shelf-field-label" :for="addShelfNameId">
           {{ t('settings.shelves.addShelfNameLabel') }}
@@ -99,12 +116,6 @@
           :disabled="addingShelf"
         />
       </div>
-      <ShelfSourceModes
-        v-model="newShelfLocationMode"
-        :options="locationModeOptions"
-        :disabled="addingShelf"
-        :label="t('settings.shelves.addShelfLocationLabel')"
-      />
       <template v-if="newShelfLocationMode === 'qr'">
         <label class="shelf-field-label" :for="addShelfQRId">{{ t('settings.shelves.qrPaste') }}</label>
         <textarea
@@ -140,6 +151,12 @@
         v-model:username="newShelfSourceUsername"
         v-model:secret="newShelfSourceSecret"
         :disabled="addingShelf"
+      />
+      <ShelfSourceStatus
+        v-if="newShelfLocationMode === 'remote'"
+        :status="remoteCheck.status.value"
+        :books="remoteCheck.books.value"
+        :error="remoteCheck.error.value"
       />
 
       <template v-if="newShelfLocationMode === 'existing'">
@@ -195,6 +212,7 @@
       <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
         {{ addShelfError }}
       </p>
+      </template>
     </form>
   </ConfirmModal>
 
@@ -336,10 +354,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, useId } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onMounted, ref, useId, watch } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import RemoteSourceFields from '@/components/shelfSource/RemoteSourceFields.vue';
-import ShelfSourceModes from '@/components/shelfSource/ShelfSourceModes.vue';
+import type { IconName } from '@/components/icons/registry';
+import ShelfSourceChosen from '@/components/shelfSource/ShelfSourceChosen.vue';
+import ShelfSourcePicker from '@/components/shelfSource/ShelfSourcePicker.vue';
+import ShelfSourceStatus from '@/components/shelfSource/ShelfSourceStatus.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import ScanIntervalField from '@/features/settings/components/ScanIntervalField.vue';
 import BookCheckIntervalField from '@/features/settings/components/BookCheckIntervalField.vue';
@@ -391,6 +412,10 @@ const {
   showAddShelfModal,
   newShelfName,
   newShelfLocationMode,
+  addShelfStep,
+  pickShelfLocation,
+  backToShelfLocations,
+  remoteCheck,
   newShelfDirectory,
   newShelfDirectoryError,
   newShelfReadOnly,
@@ -424,34 +449,76 @@ const {
   onSubmitModifyShelf
 } = useShelfManagement();
 
-const locationModeOptions = computed(() => [
+interface LocationOption {
+  value: 'new' | 'existing' | 'remote';
+  label: string;
+  help: string;
+  icon: IconName;
+  testId: string;
+}
+
+const locationGroups = computed<Array<{ label: string; local?: boolean; options: LocationOption[] }>>(() => [
   {
-    value: 'new' as const,
-    label: t('settings.shelves.addShelfLocationNew'),
-    help: t('settings.shelves.addShelfLocationNewHelp'),
-    testId: 'shelf-location-new'
+    label: t('shelfSource.groupThisComputer'),
+    local: true,
+    options: [
+      {
+        value: 'new',
+        label: t('settings.shelves.addShelfLocationNew'),
+        help: t('settings.shelves.addShelfLocationNewHelp'),
+        icon: 'folder-plus',
+        testId: 'shelf-location-new'
+      },
+      {
+        value: 'existing',
+        label: t('settings.shelves.addShelfLocationExisting'),
+        help: t('settings.shelves.addShelfLocationExistingHelp'),
+        icon: 'folder',
+        testId: 'shelf-location-existing'
+      }
+    ]
   },
   {
-    value: 'existing' as const,
-    label: t('settings.shelves.addShelfLocationExisting'),
-    help: t('settings.shelves.addShelfLocationExistingHelp'),
-    testId: 'shelf-location-existing'
-  },
-  {
-    value: 'remote' as const,
-    label: t('shelfSource.modeRemote'),
-    help: t('shelfSource.modeRemoteHelp'),
-    testId: 'shelf-location-remote'
-  },
-  ...(getPlatformCapabilities().shelves?.previewLANShareQR
-    ? [{
+    label: t('shelfSource.groupElsewhere'),
+    options: [
+      {
+        value: 'remote',
+        label: t('shelfSource.modeRemote'),
+        help: t('shelfSource.modeRemoteHelp'),
+        icon: 'devices',
+        testId: 'shelf-location-remote'
+      }
+    ]
+  }
+]);
+
+const qrShortcut = computed(() =>
+  getPlatformCapabilities().shelves?.previewLANShareQR
+    ? {
         value: 'qr' as const,
         label: t('settings.shelves.qrTitle'),
         help: t('shelfSource.modeQRHelp'),
         testId: 'shelf-location-qr'
-      }]
-    : [])
-]);
+      }
+    : null
+);
+
+const chosenLocation = computed(() => {
+  const mode = newShelfLocationMode.value;
+  if (mode === 'qr') {
+    return { icon: 'qrcode' as const, label: t('settings.shelves.qrTitle') };
+  }
+  const option = locationGroups.value.flatMap((group) => group.options).find((o) => o.value === mode);
+  return { icon: option?.icon ?? ('folder' as IconName), label: option?.label ?? '' };
+});
+
+watch(addShelfStep, async (step) => {
+  if (step !== 'form') {
+    return;
+  }
+  await nextTick();
+  document.querySelector<HTMLElement>(`#${addShelfNameId}, #${addShelfQRId}`)?.focus();
+});
 
 const exportableShelves = computed(() => shelves.value.filter((shelf) => !shelf.readOnly));
 
@@ -638,21 +705,36 @@ onMounted(() => {
   gap: 8px;
 }
 
+.shelf-create-form {
+  gap: 14px;
+}
+
 .shelf-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/* Same small-caps field label the interval controls and the modify dialog's
-   read-only rows already use. */
-.shelf-field-label,
-.shelf-add-form :deep(.remote-source-label) {
+.shelf-field-label {
   color: #64748b;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.shelf-create-form .shelf-field-label {
+  color: var(--text);
+  font-size: 0.85rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.shelf-create-form .shelf-add-input {
+  border-color: var(--border);
+  border-radius: 9px;
+  font-size: 14px;
+  padding: 8px 10px;
 }
 
 .shelf-add-input {

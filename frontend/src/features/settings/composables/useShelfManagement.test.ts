@@ -17,6 +17,12 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function useShelfForm() {
+  const management = useShelfManagement();
+  management.pickShelfLocation('new');
+  return management;
+}
+
 describe('useShelfManagement shelf-ID preview', () => {
   it('previews the id the backend would assign as the name changes', async () => {
     provider.value = {
@@ -28,7 +34,7 @@ describe('useShelfManagement shelf-ID preview', () => {
         )
       )
     };
-    const { newShelfName, newShelfIDPreview } = useShelfManagement();
+    const { newShelfName, newShelfIDPreview } = useShelfForm();
 
     newShelfName.value = '小說';
     await nextTick();
@@ -41,7 +47,7 @@ describe('useShelfManagement shelf-ID preview', () => {
       Promise.resolve({ id: 'unexpected', defaultPath: '/unexpected' })
     );
     provider.value = { previewDesktopShelfID };
-    const { newShelfName, newShelfIDPreview } = useShelfManagement();
+    const { newShelfName, newShelfIDPreview } = useShelfForm();
 
     newShelfName.value = '   ';
     await nextTick();
@@ -52,7 +58,7 @@ describe('useShelfManagement shelf-ID preview', () => {
 
   it('leaves the preview empty when the provider cannot preview', async () => {
     provider.value = {};
-    const { newShelfName, newShelfIDPreview } = useShelfManagement();
+    const { newShelfName, newShelfIDPreview } = useShelfForm();
 
     newShelfName.value = 'My Books';
     await nextTick();
@@ -73,7 +79,7 @@ describe('useShelfManagement default shelf directory', () => {
       addDesktopShelf
     };
     const { newShelfName, newShelfEffectiveDirectory, canSubmitAddShelf, onSubmitAddShelf } =
-      useShelfManagement();
+      useShelfForm();
 
     newShelfName.value = 'Novels';
     await nextTick();
@@ -103,7 +109,7 @@ describe('useShelfManagement default shelf directory', () => {
       newShelfDirectory,
       newShelfEffectiveDirectory,
       onSubmitAddShelf
-    } = useShelfManagement();
+    } = useShelfForm();
 
     newShelfLocationMode.value = 'existing';
     newShelfDirectory.value = '/mnt/books';
@@ -129,7 +135,7 @@ describe('useShelfManagement default shelf directory', () => {
       )
     };
     const { newShelfName, newShelfIDPreview, newShelfEffectiveDirectory, openAddShelfModal } =
-      useShelfManagement();
+      useShelfForm();
 
     newShelfName.value = 'Novels';
     await nextTick();
@@ -156,7 +162,7 @@ describe('useShelfManagement default shelf directory', () => {
       addDesktopShelf: vi.fn(() => Promise.resolve())
     };
     const { newShelfName, newShelfIDPreview, newShelfEffectiveDirectory, canSubmitAddShelf } =
-      useShelfManagement();
+      useShelfForm();
 
     newShelfName.value = 'Novels';
     await nextTick();
@@ -183,7 +189,7 @@ describe('useShelfManagement default shelf directory', () => {
       newShelfReadOnly,
       newShelfDirectory,
       newShelfEffectiveDirectory
-    } = useShelfManagement();
+    } = useShelfForm();
 
     newShelfName.value = 'Novels';
     newShelfLocationMode.value = 'existing';
@@ -202,7 +208,7 @@ describe('useShelfManagement default shelf directory', () => {
 
   it('cannot submit off the desktop, where there is no default to fall back on', async () => {
     provider.value = { addDesktopShelf: vi.fn(() => Promise.resolve()) };
-    const { newShelfName, canSubmitAddShelf } = useShelfManagement();
+    const { newShelfName, canSubmitAddShelf } = useShelfForm();
 
     newShelfName.value = 'Novels';
     await nextTick();
@@ -217,7 +223,7 @@ describe('useShelfManagement default shelf directory', () => {
       addDesktopShelf
     };
     const { newShelfName, newShelfLocationMode, canSubmitAddShelf, onSubmitAddShelf } =
-      useShelfManagement();
+      useShelfForm();
 
     newShelfName.value = 'Novels';
     expect(newShelfLocationMode.value).toBe('new');
@@ -241,7 +247,7 @@ describe('useShelfManagement default shelf directory', () => {
       addDesktopShelf
     };
     const { newShelfName, newShelfLocationMode, newShelfDirectory, newShelfReadOnly, onSubmitAddShelf } =
-      useShelfManagement();
+      useShelfForm();
 
     newShelfName.value = 'Archive';
     newShelfLocationMode.value = 'existing';
@@ -268,7 +274,7 @@ describe('useShelfManagement default shelf directory', () => {
       newShelfDirectoryError,
       canSubmitAddShelf,
       onSubmitAddShelf
-    } = useShelfManagement();
+    } = useShelfForm();
 
     newShelfName.value = 'Archive';
     newShelfLocationMode.value = 'existing';
@@ -291,7 +297,7 @@ describe('useShelfManagement openShelfFolder', () => {
   it('asks the provider to reveal the shelf folder', async () => {
     const openDesktopShelfFolder = vi.fn(() => Promise.resolve());
     provider.value = { openDesktopShelfFolder };
-    const { openShelfFolder, shelfOpError } = useShelfManagement();
+    const { openShelfFolder, shelfOpError } = useShelfForm();
 
     await openShelfFolder('my-books');
     expect(openDesktopShelfFolder).toHaveBeenCalledWith('my-books');
@@ -302,7 +308,7 @@ describe('useShelfManagement openShelfFolder', () => {
     provider.value = {
       openDesktopShelfFolder: vi.fn(() => Promise.reject(new Error('boom')))
     };
-    const { openShelfFolder, shelfOpError } = useShelfManagement();
+    const { openShelfFolder, shelfOpError } = useShelfForm();
 
     await openShelfFolder('my-books');
     expect(shelfOpError.value).toBe('boom');
@@ -310,7 +316,7 @@ describe('useShelfManagement openShelfFolder', () => {
 
   it('is a no-op when the provider cannot reveal folders', async () => {
     provider.value = {};
-    const { openShelfFolder, shelfOpError } = useShelfManagement();
+    const { openShelfFolder, shelfOpError } = useShelfForm();
 
     await openShelfFolder('my-books');
     expect(shelfOpError.value).toBe('');
@@ -322,7 +328,7 @@ describe('useShelfManagement read-only shelves', () => {
     const addDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = { addDesktopShelf };
     const { newShelfName, newShelfLocationMode, newShelfDirectory, newShelfReadOnly, onSubmitAddShelf } =
-      useShelfManagement();
+      useShelfForm();
 
     newShelfName.value = 'Archive';
     newShelfLocationMode.value = 'existing';
@@ -343,7 +349,7 @@ describe('useShelfManagement read-only shelves', () => {
   it('clears the read-only toggle and the location branch when the form is reopened', async () => {
     provider.value = { addDesktopShelf: vi.fn(() => Promise.resolve()) };
     const { newShelfLocationMode, newShelfDirectory, newShelfReadOnly, openAddShelfModal } =
-      useShelfManagement();
+      useShelfForm();
 
     newShelfLocationMode.value = 'existing';
     newShelfDirectory.value = '/mnt/archive';
@@ -375,7 +381,7 @@ describe('useShelfManagement read-only shelves', () => {
       modifyShelfReadOnly,
       modifyShelfBookCheckInterval,
       onSubmitModifyShelf
-    } = useShelfManagement();
+    } = useShelfForm();
 
     await requestModifyShelf({ id: 'archive', name: 'Archive' });
     expect(modifyShelfReadOnly.value).toBe(true);
@@ -397,7 +403,7 @@ describe('useShelfManagement read-only shelves', () => {
 describe('useShelfManagement remote shelves', () => {
   async function fillRemote(m: ReturnType<typeof useShelfManagement>, secret: string) {
     m.newShelfName.value = 'Living room';
-    m.newShelfLocationMode.value = 'remote';
+    m.pickShelfLocation('remote');
     m.newShelfSourceURL.value = ' http://192.168.1.20:20001/dav/default_shelf/ ';
     m.newShelfSourceSecret.value = secret;
     await nextTick();
@@ -407,7 +413,7 @@ describe('useShelfManagement remote shelves', () => {
     const checkDesktopShelfSource = vi.fn(() => Promise.resolve({ books: 4 }));
     const addDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = { checkDesktopShelfSource, addDesktopShelf };
-    const m = useShelfManagement();
+    const m = useShelfForm();
     await fillRemote(m, 'tok');
     expect(m.canSubmitAddShelf.value).toBe(true);
 
@@ -441,20 +447,20 @@ describe('useShelfManagement remote shelves', () => {
       checkDesktopShelfSource: vi.fn(() => Promise.resolve({ code, books: 0 })),
       addDesktopShelf
     };
-    const m = useShelfManagement();
+    const m = useShelfForm();
     m.showAddShelfModal.value = true;
     await fillRemote(m, 'tok');
 
     await m.onSubmitAddShelf();
 
-    expect(m.addShelfError.value).toBe(message);
+    expect(m.remoteCheck.error.value).toBe(message);
     expect(addDesktopShelf).not.toHaveBeenCalled();
     expect(m.showAddShelfModal.value).toBe(true);
   });
 
   it('needs a token for a PlainShelf export but not for WebDAV', async () => {
     provider.value = {};
-    const m = useShelfManagement();
+    const m = useShelfForm();
     await fillRemote(m, '');
     expect(m.canSubmitAddShelf.value).toBe(false);
 
@@ -470,7 +476,7 @@ describe('useShelfManagement remote shelves', () => {
   it('sends a username only for WebDAV', async () => {
     const checkDesktopShelfSource = vi.fn(() => Promise.resolve({ books: 0 }));
     provider.value = { checkDesktopShelfSource, addDesktopShelf: vi.fn(() => Promise.resolve()) };
-    const m = useShelfManagement();
+    const m = useShelfForm();
     await fillRemote(m, 'pw');
     m.newShelfSourceUsername.value = 'reader';
 
@@ -502,7 +508,7 @@ describe('useShelfManagement remote shelves', () => {
         })
       )
     };
-    const m = useShelfManagement();
+    const m = useShelfForm();
     await m.requestModifyShelf({ id: 'nas', name: 'NAS' });
     expect(m.modifyShelfPath.value).toBe('https://nas.example/dav/books/');
     expect(m.modifyShelfIsVirtual.value).toBe(true);
@@ -542,7 +548,7 @@ it('loads configured failed virtual shelves and refreshes runtime shelves after 
     listShelfDetails.mockResolvedValue([{ ...remote, open_error: '' }]);
   });
   provider.value = { listShelfDetails, retryShelf };
-  const m = useShelfManagement();
+  const m = useShelfForm();
   await m.ensureShelvesLoaded();
   expect(m.shelves.value[0]).toMatchObject({
     id: 'failed',
@@ -567,9 +573,9 @@ describe('LAN QR import', () => {
     const previewLANShareQR = vi.fn().mockResolvedValue(listed);
     const importLANShareQR = vi.fn().mockResolvedValue([{ name: 'One', url: listed[0].url, status: 'added' }]);
     provider.value = { previewLANShareQR, importLANShareQR };
-    const form = useShelfManagement();
+    const form = useShelfForm();
     form.openAddShelfModal();
-    form.newShelfLocationMode.value = 'qr';
+    form.pickShelfLocation('qr');
     form.qrText.value = 'secret JSON';
     expect(form.canSubmitAddShelf.value).toBe(false);
     await form.previewQR();
@@ -587,8 +593,8 @@ describe('LAN QR import', () => {
   it('invalidates the preview on edits and ignores a stale async response', async () => {
     let resolve!: (value: typeof listed) => void;
     provider.value = { previewLANShareQR: vi.fn(() => new Promise((r) => { resolve = r; })) };
-    const form = useShelfManagement();
-    form.newShelfLocationMode.value = 'qr';
+    const form = useShelfForm();
+    form.pickShelfLocation('qr');
     form.qrText.value = 'first';
     const pending = form.previewQR();
     form.qrText.value = 'second';
@@ -599,14 +605,31 @@ describe('LAN QR import', () => {
   });
   it('surfaces parser rejection and clears pasted secrets when cancelled', async () => {
     provider.value = { previewLANShareQR: vi.fn().mockRejectedValue(new Error('unsupported QR version')) };
-    const form = useShelfManagement();
+    const form = useShelfForm();
     form.openAddShelfModal();
-    form.newShelfLocationMode.value = 'qr';
+    form.pickShelfLocation('qr');
     form.qrText.value = 'secret JSON';
     await form.previewQR();
     expect(form.addShelfError.value).toBe('unsupported QR version');
     expect(form.canSubmitAddShelf.value).toBe(false);
     form.closeAddShelfModal();
     expect(form.qrText.value).toBe('');
+  });
+});
+
+describe('useShelfManagement add-shelf steps', () => {
+  it('starts on the source picker and submits nothing until a source is picked', () => {
+    provider.value = {};
+    const m = useShelfManagement();
+    m.openAddShelfModal();
+    expect(m.addShelfStep.value).toBe('pick');
+    expect(m.canSubmitAddShelf.value).toBe(false);
+
+    m.pickShelfLocation('existing');
+    expect(m.addShelfStep.value).toBe('form');
+    expect(m.newShelfLocationMode.value).toBe('existing');
+
+    m.backToShelfLocations();
+    expect(m.addShelfStep.value).toBe('pick');
   });
 });

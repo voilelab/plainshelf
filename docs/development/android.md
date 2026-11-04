@@ -297,7 +297,7 @@ and never written back.
 
 ## Read a shelf from another device
 
-**Read a shelf on another device** reads a shelf over WebDAV through the embedded Go server, with
+**Another device** reads a shelf over WebDAV through the embedded Go server, with
 no server of your own: another PlainShelf's LAN share (the desktop app's, the
 server's [`dav_export`](../reference/configuration.md#dav_export), or another
 phone's), or a WebDAV server holding a shelf directory.
@@ -307,10 +307,11 @@ phone's), or a WebDAV server holding a shelf directory.
    `http://<address>:20001/dav/<shelf id>/`.
 2. Enter the token (another PlainShelf) or, for WebDAV, the account and its
    password or token if the server asks for one.
-3. **Save and continue** checks the shelf first and saves nothing if the check
-   fails. A refused token says so (`SOURCE_UNAUTHORIZED`); an address that
-   cannot be reached says it cannot connect (`SOURCE_UNAVAILABLE`). **Check
-   shelf** runs the same check without saving and shows how many books it found.
+3. The form checks the shelf once the address and token are filled in and
+   shows how many books it found; **Add shelf** checks again if needed and saves
+   nothing if the check fails. A refused token says so (`SOURCE_UNAUTHORIZED`);
+   an address that cannot be reached says it cannot connect
+   (`SOURCE_UNAVAILABLE`).
 
 The secret is stored in Keystore-backed storage under
 `plainshelf.mobile.secret.<entry id>`, the same key a pCloud token uses. Go reads
@@ -495,8 +496,8 @@ npx capacitor-assets generate --android
 
 ## Scan a LAN share QR code
 
-On **Add a shelf**, choose **Scan a LAN share QR code**, tap the scan button
-that replaces the form, and allow camera access.
+On **Add a shelf**, choose **Scan a QR code to add them all** below the source
+list, tap **Scan a LAN share QR code**, and allow camera access.
 Scan the desktop publisher's QR code, check the listed names and URLs, then
 confirm **Import shelves**. Previewing makes no network request and saves no
 credentials. Each confirmed shelf is checked through `LocalShelf.checkSource`
