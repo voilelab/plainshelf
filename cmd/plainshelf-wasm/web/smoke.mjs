@@ -263,7 +263,7 @@ if (persistent && engine === 'chromium') {
 }
 
 const settingsTab = await context.newPage();
-await settingsTab.goto(new URL('settings?tab=demo-storage', app).href);
+await settingsTab.goto(new URL('settings?tab=system', app).href);
 const statusWanted = !persistent ? 'Not saved' : kept ? 'Kept:' : 'Not kept';
 const status = await settingsTab.getByTestId('demo-storage-status').filter({ hasText: statusWanted })
   .waitFor({ timeout: 30000 }).then(() => true, () => false);
