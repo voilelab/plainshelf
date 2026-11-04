@@ -367,8 +367,12 @@ const en = {
       description:
         'The language of the interface. This preference is stored only on this device.'
     },
-    import: {
-      title: 'Import'
+    tabs: {
+      general: 'General',
+      reading: 'Reading',
+      importCovers: 'Import & covers',
+      shelves: 'Shelves',
+      system: 'System'
     },
     epubImport: {
       title: 'EPUB conversion',
