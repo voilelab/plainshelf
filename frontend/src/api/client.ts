@@ -182,9 +182,14 @@ async function getApiToken(): Promise<string> {
   return '';
 }
 
-async function withApiHeaders(init?: RequestInit): Promise<RequestInit> {
+export interface ApiTarget {
+  apiBase: string;
+  token: string;
+}
+
+async function withApiHeaders(init?: RequestInit, target?: ApiTarget): Promise<RequestInit> {
   const headers = new Headers(init?.headers ?? {});
-  const token = await getApiToken();
+  const token = target ? target.token.trim() : await getApiToken();
   const tokenHeader = window.__PLAINSHELF_SECURITY__?.tokenHeader?.trim() || 'X-PlainShelf-Token';
 
   if (token && !headers.has(tokenHeader) && !headers.has('Authorization')) {
@@ -262,11 +267,16 @@ async function toApiError(res: Response): Promise<ApiError> {
   return apiErrorFrom(res, (await res.text()).trim());
 }
 
-async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = FETCH_TIMEOUT_MS,
+  fetcher: typeof fetch = apiFetch
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await apiFetch(url, { ...init, signal: controller.signal });
+    return await fetcher(url, { ...init, signal: controller.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new ApiError('Request timed out — the shelf may be slow or unavailable.', {
@@ -285,6 +295,7 @@ interface FetchJsonOptions {
   timeoutMs?: number;
   readOnlySafe?: boolean;
   onResponse?: (res: Response) => void;
+  target?: ApiTarget;
 }
 
 export async function fetchJson<T>(
@@ -295,16 +306,18 @@ export async function fetchJson<T>(
   assertApiMode();
   assertWritableRequest(init, options);
 
-  const requestInit = await withApiHeaders(init);
+  const target = options?.target;
+  const requestInit = await withApiHeaders(init, target);
   const headers = new Headers(requestInit.headers ?? {});
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json');
   }
 
-  const res = await fetchWithTimeout(buildApiUrl(path), {
+  const url = target ? `${normalizeApiBase(target.apiBase)}${path.startsWith('/') ? path : `/${path}`}` : buildApiUrl(path);
+  const res = await fetchWithTimeout(url, {
     ...requestInit,
     headers
-  }, options?.timeoutMs ?? FETCH_TIMEOUT_MS);
+  }, options?.timeoutMs ?? FETCH_TIMEOUT_MS, target ? (...args) => fetch(...args) : apiFetch);
 
   options?.onResponse?.(res);
 

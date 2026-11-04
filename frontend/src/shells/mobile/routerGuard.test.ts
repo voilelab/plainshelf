@@ -132,3 +132,14 @@ describe('mobile write surface', () => {
     expect(await runRoute(guard, 'library', { import: '1' })).toBe(true);
   });
 });
+
+describe('a device without a usable shelf', () => {
+  it('lets every route open so the layout can say what is missing', async () => {
+    loadShelfEntriesMock.mockResolvedValue({ entries: [], activeEntryID: '' });
+    isShelfEntryUsableMock.mockResolvedValue(false);
+    const guard = captureGuard();
+    const to = { name: 'library', params: {}, query: {}, path: '/books', hash: '' } as unknown as RouteLocationNormalized;
+
+    expect(await guard(to, {} as RouteLocationNormalized, (() => {}) as unknown as NavigationGuardNext)).toBe(true);
+  });
+});

@@ -32,7 +32,7 @@ vi.mock('@/providers/mobileConfig', () => ({
   newShelfEntry: () => ({ id: 'new-entry', type: 'local', name: '', localShelfId: '' }),
   setActiveShelfEntry: mocks.setActiveShelfEntry,
   shelfEntryDisplayName: (entry: { name: string }) => entry.name,
-  SOURCE_TYPE_LABEL_KEYS: { dav: 'mobileConnect.modeWebDav', server: 'mobileConnect.modeServer', pcloud: 'mobileConnect.modePCloud', local: 'mobileConnect.modeLocal' }
+  SOURCE_TYPE_LABEL_KEYS: { dav: 'mobileShelfForm.modeWebDav', server: 'mobileShelfForm.modeServer', pcloud: 'mobileShelfForm.modePCloud', local: 'mobileShelfForm.modeLocal' }
 }));
 vi.mock('@/providers/localShelf', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/providers/localShelf')>()),
@@ -48,10 +48,9 @@ vi.mock('@/providers/localShelf', async (importOriginal) => ({
 vi.mock('@/providers/mobileCacheFs', () => ({ removeCacheScope: mocks.removeCacheScope }));
 vi.mock('@/providers/cacheScope', () => ({ cacheScopeKeyForEntry: (entry: { id: string; scope?: string }) => entry.scope ?? entry.id }));
 vi.mock('@/features/mobile/utils/reloadIntoApp', () => ({ reloadIntoApp: mocks.reloadIntoApp }));
-vi.mock('@/features/mobile/components/MobileShelfForm.vue', () => ({ default: { render: () => null } }));
 vi.mock('@/features/mobile/components/MobileLanSharePanel.vue', () => ({ default: { render: () => null } }));
 
-import MobileShelvesPage from './MobileShelvesPage.vue';
+import MobileShelvesPanel from './MobileShelvesPanel.vue';
 
 const local = { id: 'e1', type: 'local', name: 'Phone', localShelfId: 'local-1' };
 const server = { id: 'e2', type: 'server', name: 'Home', serverUrl: 'http://h', shelfId: 's' };
@@ -66,7 +65,7 @@ async function flush(): Promise<void> {
 async function mountPage(): Promise<HTMLElement> {
   const host = document.createElement('div');
   document.body.append(host);
-  const app = createApp({ setup: () => () => h(MobileShelvesPage) });
+  const app = createApp({ setup: () => () => h(MobileShelvesPanel) });
   app.mount(host);
   mounted = { app, host };
   await flush();
@@ -135,6 +134,16 @@ describe('removing a local shelf', () => {
     );
     expect(mocks.reloadIntoApp).toHaveBeenCalled();
     expect(host.querySelector('.mobile-shelves-error')).toBeNull();
+  });
+
+  it('opens the shelf settings after the last shelf is removed', async () => {
+    mocks.loadShelfEntries
+      .mockResolvedValueOnce({ entries: [local], activeEntryID: 'e1' })
+      .mockResolvedValue({ entries: [], activeEntryID: '' });
+
+    await removeFirst();
+
+    expect(mocks.reloadIntoApp).toHaveBeenCalledWith('/settings?tab=shelves');
   });
 
   it('drops an entry whose shelf is already gone', async () => {
@@ -216,6 +225,23 @@ describe('importing a shelf zip', () => {
     expect(host.querySelector('.mobile-shelves-notice')?.textContent).toContain('Backup');
   });
 
+  it('opens the zip as the shelf in use on a device with no shelf', async () => {
+    mocks.loadShelfEntries.mockResolvedValue({ entries: [], activeEntryID: '' });
+    const host = await mountPage();
+
+    button(host, '.mobile-shelves-import').click();
+    await flush();
+
+    expect(mocks.upsertShelfEntry).toHaveBeenCalledWith({
+      id: 'new-entry',
+      type: 'local',
+      name: 'Backup',
+      localShelfId: 'local-2'
+    });
+    expect(mocks.addShelfEntry).not.toHaveBeenCalled();
+    expect(mocks.reloadIntoApp).toHaveBeenCalled();
+  });
+
   it.each([
     ['not a PlainShelf shelf: the zip has no books/ directory', 'no books/ folder'],
     ['zip entry escapes the shelf: "../evil"', 'outside the shelf'],
@@ -289,7 +315,7 @@ describe('restoring after a reinstall', () => {
     await flush();
 
     expect(mocks.upsertShelfEntry).not.toHaveBeenCalled();
-    expect(host.querySelector('.mobile-shelves-first-run .mobile-shelves-error')?.textContent).toContain('no books/ folder');
+    expect(host.querySelector('.mobile-shelves-error')?.textContent).toContain('no books/ folder');
     expect(host.querySelector('.mobile-shelves-restore')).not.toBeNull();
   });
 
@@ -322,22 +348,14 @@ describe('restoring after a reinstall', () => {
     expect(host.querySelector('.mobile-shelves-restore')).toBeNull();
   });
 
-  it('lists shelves that came back without their entries, as after a device transfer', async () => {
-    mocks.listShelves.mockResolvedValue({
-      shelves: [
-        { id: 'local-1', name: 'Phone' },
-        { id: 'local-3', name: 'Notes' }
-      ]
-    });
+  it('leaves shelves found on disk to the shell, offering only the restore', async () => {
+    mocks.listShelves.mockResolvedValue({ shelves: [{ id: 'local-1', name: 'Phone' }] });
     const host = await mountPage();
 
-    expect(mocks.addShelfEntry.mock.calls.map(([entry]) => [entry.name, entry.localShelfId])).toEqual([
-      ['Phone', 'local-1'],
-      ['Notes', 'local-3']
-    ]);
-    expect(mocks.setActiveShelfEntry).toHaveBeenCalledWith('new-entry');
-    expect(mocks.reloadIntoApp).toHaveBeenCalled();
-    expect(host.querySelector('.mobile-shelves-restore')).toBeNull();
+    expect(mocks.addShelfEntry).not.toHaveBeenCalled();
+    expect(mocks.reloadIntoApp).not.toHaveBeenCalled();
+    expect(host.querySelector('.mobile-shelves-restore')).not.toBeNull();
+    expect(host.querySelector('.mobile-shelves-empty')).not.toBeNull();
   });
 
   it('shows no local shelf warning on an empty device', async () => {

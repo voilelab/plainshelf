@@ -353,7 +353,7 @@
         <section v-else class="no-shelf-panel" role="status">
           <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
           <p>{{ shelfUnavailableMessage }}</p>
-          <RouterLink to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
+          <RouterLink :to="shelfUnavailableActionTo" class="button">{{ shelfUnavailableActionLabel }}</RouterLink>
         </section>
       </div>
       </div>
@@ -366,6 +366,7 @@
 
 <script setup lang="ts">
 import { useShelfCapabilities } from '@/composables/useShelfCapabilities';
+import { useShelfUnavailableNotice } from '@/composables/useShelfUnavailableNotice';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import {
@@ -523,11 +524,12 @@ const railNavItems = computed<SidebarRailItem[]>(() => {
   items.push({ to: '/settings', icon: 'settings', label: t('layout.settings') });
   return items;
 });
-const isSettingsRoute = computed(() => route.name === 'settings');
-const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShelf.value);
-const shelfUnavailableMessage = computed(() =>
-  shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
-);
+const canShowRouteContent = computed(() => route.meta.shelfOptional === true || hasActiveShelf.value);
+const {
+  message: shelfUnavailableMessage,
+  actionLabel: shelfUnavailableActionLabel,
+  actionTo: shelfUnavailableActionTo
+} = useShelfUnavailableNotice(shelvesLoading);
 const shelfPicker = useShelfPicker({
   onServerShelfSelected: async () => {
     clearFolderErrors();
@@ -552,6 +554,8 @@ const ROUTE_LOCATION_LABEL_KEYS: Record<string, string> = {
   downloads: 'layout.downloads',
   'admin-logs': 'layout.adminLogs',
   settings: 'layout.settings',
+  'mobile-shelf-add': 'layout.shelf.manage',
+  'mobile-shelf-edit': 'layout.shelf.manage',
   'duplicate-content': 'maintenance.duplicateContent',
   'similar-content': 'maintenance.similarContent',
   'not-found': 'notFound.title'

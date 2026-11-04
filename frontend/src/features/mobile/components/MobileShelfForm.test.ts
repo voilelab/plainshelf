@@ -4,18 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   checkSource: vi.fn(),
-  upsertShelfEntry: vi.fn()
+  upsertShelfEntry: vi.fn(),
+  listServerShelves: vi.fn()
 }));
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true }, registerPlugin: () => ({}) }));
 vi.mock('@capacitor/browser', () => ({ Browser: { open: vi.fn(), close: vi.fn() } }));
 vi.mock('@/providers/localShelf', () => ({ LocalShelf: { checkSource: mocks.checkSource } }));
 vi.mock('@/providers/mobileConfig', () => ({
-  applyActiveShelfEntry: vi.fn(),
   getShelfEntryToken: vi.fn(() => Promise.resolve('')),
   newShelfEntry: (type: string) => ({ id: 'new-entry', type, name: '' }),
   upsertShelfEntry: mocks.upsertShelfEntry
 }));
+vi.mock('@/api/shelves', () => ({ listServerShelves: mocks.listServerShelves }));
 vi.mock('@/features/mobile/utils/reloadIntoApp', () => ({ reloadIntoApp: vi.fn() }));
 
 import MobileShelfForm from './MobileShelfForm.vue';
@@ -117,5 +118,21 @@ describe('MobileShelfForm dav entries', () => {
     button(host, 'Check shelf').click();
     await flush();
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('Cannot connect');
+  });
+});
+
+describe('loading the shelves of a server', () => {
+  it('asks that server with the typed token, leaving the active client alone', async () => {
+    mocks.listServerShelves.mockReset().mockResolvedValue([{ id: 'main', name: 'Main', readOnly: false }]);
+    const host = mountForm();
+    await flush();
+
+    type(host.querySelector('input[type="url"]') as HTMLInputElement, 'http://192.168.1.10:20000');
+    type(host.querySelector('input[type="password"]') as HTMLInputElement, 'probe');
+    await flush();
+    button(host, 'Load library').click();
+    await flush();
+
+    expect(mocks.listServerShelves).toHaveBeenCalledWith({ apiBase: 'http://192.168.1.10:20000', token: 'probe' });
   });
 });

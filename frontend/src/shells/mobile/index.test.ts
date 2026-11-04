@@ -7,7 +7,8 @@ const h = vi.hoisted(() => ({
   setApiTransport: vi.fn(),
   registerShell: vi.fn(),
   listServerShelves: vi.fn(),
-  mobileProvider: vi.fn()
+  mobileProvider: vi.fn(),
+  adoptLocalShelves: vi.fn()
 }));
 
 vi.mock('@/api/shelves', () => ({ listServerShelves: h.listServerShelves }));
@@ -41,6 +42,8 @@ vi.mock('./deviceDocumentStorage', () => ({ createMobileDeviceDocumentStorage: v
 vi.mock('./shelfInfo', () => ({ activeMobileShelfInfo: vi.fn() }));
 vi.mock('./routerGuard', () => ({ installMobileRouterGuards: vi.fn() }));
 vi.mock('./shelfPicker', () => ({ createMobileShelfPicker: vi.fn() }));
+vi.mock('./adoptLocalShelves', () => ({ adoptLocalShelves: h.adoptLocalShelves }));
+vi.mock('./shelfUnavailable', () => ({ mobileShelfUnavailable: vi.fn() }));
 
 const { installMobileShell } = await import('./index');
 
@@ -54,7 +57,7 @@ function providerRemote(): unknown {
 beforeEach(() => {
   h.entry = null;
   h.token = '';
-  for (const fn of [h.openShelf, h.setApiTransport, h.registerShell, h.mobileProvider]) {
+  for (const fn of [h.openShelf, h.setApiTransport, h.registerShell, h.mobileProvider, h.adoptLocalShelves]) {
     fn.mockReset();
   }
   h.openShelf.mockResolvedValue(true);
@@ -83,7 +86,16 @@ describe('installMobileShell', () => {
     expect(h.mobileProvider).not.toHaveBeenCalled();
   });
 
-  it('leaves a pCloud entry without its token to the setup form', async () => {
+  it('opens a local shelf adopted from disk at startup', async () => {
+    h.adoptLocalShelves.mockImplementation(async () => {
+      h.entry = { id: 'e1', type: 'local', localShelfId: 'local-1' };
+    });
+    await installMobileShell();
+
+    expect(h.setApiTransport).toHaveBeenCalledWith({ fetch: 'localShelfFetch', allowMobileWrites: true });
+  });
+
+  it('leaves a pCloud entry without its token unopened', async () => {
     h.entry = pcloudEntry;
     await installMobileShell();
 

@@ -1,4 +1,4 @@
-import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
+import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID, type ApiTarget } from './client';
 import { mockListBooks } from './mocks/books';
 import { getMockFolders } from './mocks/folders';
 import { getShell } from '@/providers/shell';
@@ -28,12 +28,14 @@ const mockShelves: ShelfInfo[] = [
   }
 ];
 
-export async function listServerShelves(): Promise<ShelfInfo[]> {
+export async function listServerShelves(target?: ApiTarget): Promise<ShelfInfo[]> {
   if (isMockApiMode()) {
     return mockShelves;
   }
 
-  const shelves = await fetchJson<unknown>('/api/shelves');
+  const shelves = target
+    ? await fetchJson<unknown>('/api/shelves', undefined, { target })
+    : await fetchJson<unknown>('/api/shelves');
   if (!Array.isArray(shelves)) {
     throw new Error('Invalid shelves response from server.');
   }
@@ -65,6 +67,9 @@ export async function listServerShelves(): Promise<ShelfInfo[]> {
 }
 
 export async function listShelves(): Promise<ShelfInfo[]> {
+  if (getShell()?.shelfUnavailable?.()) {
+    return [];
+  }
   const shellShelf = getShell()?.activeShelfInfo?.();
   if (shellShelf) {
     return [await getShell()?.loadActiveShelfInfo?.(shellShelf) ?? shellShelf];

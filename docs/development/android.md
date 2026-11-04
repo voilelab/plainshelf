@@ -55,6 +55,11 @@ The pCloud source needs no server at all, which is the point of it: a phone
 cannot mount cloud storage the way a host can, so a server keeping its shelf on
 pCloud through an rclone mount is no help to the phone.
 
+**Without a shelf.** The app opens normally with an empty list, as the desktop
+client does when it has none. Every page except Settings says no shelf is
+selected and links to **Settings → Shelves**. When the entry in use lacks its
+token or part of its settings, the notice links to that entry's editor instead.
+
 **Switching shelves.** Exactly one entry is in use at a time. Pick another from
 the shelf dropdown in the sidebar, or from the list itself. Switching restarts
 the app, because what the app reads from is decided once at startup.
@@ -340,7 +345,7 @@ app guards against that in these ways, and syncs nothing automatically:
   deleted with the app and shows each one's last export time, or "Not backed up
   yet".
 - With no shelf at all (a fresh install, or a reinstall without kept data) and
-  no local shelf on disk, the shelf list first offers **Restore from a backup
+  no local shelf on disk, **Settings → Shelves** offers **Restore from a backup
   zip**, the same import as above, which then opens the restored shelf. **Skip**
   stores a flag in Capacitor Preferences and the offer does not come back.
   Preferences are excluded from Android backup, so the flag goes with an
@@ -349,14 +354,13 @@ app guards against that in these ways, and syncs nothing automatically:
   in `backup_rules.xml` and the `cloud-backup` section of
   `data_extraction_rules.xml`): PlainShelf does no cloud sync, and a shelf
   larger than Auto Backup's 25 MB quota would stop every later backup of the
-  app. A restore from Google therefore brings no local shelf back, and the
-  shelf list offers the zip restore above.
+  app. A restore from Google therefore brings no local shelf back, and
+  **Settings → Shelves** offers the zip restore above.
 - Device-to-device transfer (Android 12 and later) keeps them: it copies
   directly between phones, with a 2 GB limit instead of 25 MB; past it the
   transfer is refused, so export first. Preferences are excluded from both, so
-  a transferred app finds local shelves with no entry for them. The shelf list
-  then adds an entry for each and opens the first, instead of offering a
-  restore.
+  a transferred app finds local shelves with no entry for them. At startup it
+  adds an entry for each and opens the first, instead of offering a restore.
 
 Neither is a backup PlainShelf guarantees, and on Android 11 and lower a
 transfer follows the cloud rules and leaves local shelves out too. To back up,

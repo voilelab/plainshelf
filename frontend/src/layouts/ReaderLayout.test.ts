@@ -12,7 +12,11 @@ vi.mock('@/api/shelves', async (importOriginal) => ({
   listShelves: listShelvesMock
 }));
 vi.mock('@/api/mode', () => ({ getReadOnlyMode: getReadOnlyModeMock }));
-vi.mock('vue-router', () => ({ RouterLink: { render: () => null }, RouterView: { render: () => null } }));
+vi.mock('vue-router', () => ({
+  RouterLink: { render: () => null },
+  RouterView: { render: () => null },
+  useRoute: () => ({ query: {} })
+}));
 
 const { default: ReaderLayout } = await import('./ReaderLayout.vue');
 const { useWriteAccess } = await import('@/composables/useWriteAccess');
