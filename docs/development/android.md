@@ -297,7 +297,7 @@ and never written back.
 
 ## Read a shelf from another device
 
-**Other device** reads a shelf over WebDAV through the embedded Go server, with
+**Read a shelf on another device** reads a shelf over WebDAV through the embedded Go server, with
 no server of your own: another PlainShelf's LAN share (the desktop app's, the
 server's [`dav_export`](../reference/configuration.md#dav_export), or another
 phone's), or a WebDAV server holding a shelf directory.
@@ -307,9 +307,10 @@ phone's), or a WebDAV server holding a shelf directory.
    `http://<address>:20001/dav/<shelf id>/`.
 2. Enter the token (another PlainShelf) or, for WebDAV, the account and its
    password or token if the server asks for one.
-3. **Check shelf** must pass before the entry can be saved. A refused token
-   says so (`SOURCE_UNAUTHORIZED`); an address that cannot be reached says it
-   cannot connect (`SOURCE_UNAVAILABLE`).
+3. **Save and continue** checks the shelf first and saves nothing if the check
+   fails. A refused token says so (`SOURCE_UNAUTHORIZED`); an address that
+   cannot be reached says it cannot connect (`SOURCE_UNAVAILABLE`). **Check
+   shelf** runs the same check without saving and shows how many books it found.
 
 The secret is stored in Keystore-backed storage under
 `plainshelf.mobile.secret.<entry id>`, the same key a pCloud token uses. Go reads
@@ -494,7 +495,8 @@ npx capacitor-assets generate --android
 
 ## Scan a LAN share QR code
 
-On **Add shelf**, tap **Scan a LAN share QR code** and allow camera access.
+On **Add a shelf**, choose **Scan a LAN share QR code**, tap the scan button
+that replaces the form, and allow camera access.
 Scan the desktop publisher's QR code, check the listed names and URLs, then
 confirm **Import shelves**. Previewing makes no network request and saves no
 credentials. Each confirmed shelf is checked through `LocalShelf.checkSource`

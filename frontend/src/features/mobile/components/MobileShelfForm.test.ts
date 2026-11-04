@@ -51,8 +51,18 @@ function button(host: HTMLElement, text: string): HTMLButtonElement {
   return found;
 }
 
+function selectMode(host: HTMLElement, label: string): void {
+  const found = [...host.querySelectorAll<HTMLElement>('[role="radio"]')].find((radio) =>
+    radio.textContent?.includes(label)
+  );
+  if (!found) {
+    throw new Error(`no mode ${label}`);
+  }
+  found.click();
+}
+
 async function openDavForm(host: HTMLElement): Promise<{ url: HTMLInputElement; secret: HTMLInputElement }> {
-  button(host, 'Another device').click();
+  selectMode(host, 'Read a shelf on another device');
   await flush();
   type(host.querySelector('input[type="text"]') as HTMLInputElement, 'Living room');
   const url = host.querySelector('input[type="url"]') as HTMLInputElement;
@@ -76,17 +86,36 @@ afterEach(() => {
 });
 
 describe('MobileShelfForm dav entries', () => {
-  it('saves only after a check of the values it saves', async () => {
+  it('checks the values on save and saves them when the shelf answers', async () => {
     mocks.checkSource.mockResolvedValue({ books: 2 });
     const host = mountForm();
     await openDavForm(host);
-    const save = button(host, 'Save and continue');
-    expect(save.disabled).toBe(true);
 
-    button(host, 'Check shelf').click();
+    button(host, 'Save and continue').click();
     await flush();
-    expect(host.textContent).toContain('Found 2 books.');
-    expect(save.disabled).toBe(false);
+
+    expect(mocks.checkSource).toHaveBeenCalledWith({
+      source: 'plainshelf',
+      url: 'http://192.168.1.20:20001/dav/a/',
+      username: '',
+      secret: 'tok'
+    });
+    expect(mocks.upsertShelfEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'dav', davUrl: 'http://192.168.1.20:20001/dav/a/' }),
+      'tok'
+    );
+  });
+
+  it('saves nothing when the check on save fails', async () => {
+    mocks.checkSource.mockResolvedValue({ code: 'SOURCE_UNAUTHORIZED', books: 0 });
+    const host = mountForm();
+    await openDavForm(host);
+
+    button(host, 'Save and continue').click();
+    await flush();
+
+    expect(mocks.upsertShelfEntry).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Wrong token');
   });
 
   it('drops a check that answers for values edited since', async () => {
@@ -103,7 +132,6 @@ describe('MobileShelfForm dav entries', () => {
     await flush();
 
     expect(host.textContent).not.toContain('Found 2 books.');
-    expect(button(host, 'Save and continue').disabled).toBe(true);
   });
 
   it('says a refused token apart from no connection', async () => {
@@ -126,6 +154,8 @@ describe('loading the shelves of a server', () => {
     mocks.listServerShelves.mockReset().mockResolvedValue([{ id: 'main', name: 'Main', readOnly: false }]);
     const host = mountForm();
     await flush();
+    selectMode(host, 'PlainShelf server');
+    await flush();
 
     type(host.querySelector('input[type="url"]') as HTMLInputElement, 'http://192.168.1.10:20000');
     type(host.querySelector('input[type="password"]') as HTMLInputElement, 'probe');
@@ -134,5 +164,18 @@ describe('loading the shelves of a server', () => {
     await flush();
 
     expect(mocks.listServerShelves).toHaveBeenCalledWith({ apiBase: 'http://192.168.1.10:20000', token: 'probe' });
+  });
+});
+
+describe('the QR mode', () => {
+  it('shows only the scanner, without the manual form', async () => {
+    const host = mountForm();
+    await flush();
+
+    selectMode(host, 'Scan a LAN share QR code');
+    await flush();
+
+    expect(host.querySelector('form')).toBeNull();
+    expect(button(host, 'Scan a LAN share QR code')).toBeTruthy();
   });
 });
