@@ -5,6 +5,7 @@ const ALWAYS_TABS = ['read-history', 'reader-launch', 'language', 'about', 'shel
 const EDITABLE_TABS = ['cover', 'nsfw', 'import', 'logs'];
 const DEVICE_ONLY_TABS = ['device-nsfw'];
 const DEMO_TABS = ['demo-storage'];
+const DEFAULT_TAB = 'shelves';
 
 export function useSettingsTabs(
   serverSettingsEditable: Ref<boolean> | ComputedRef<boolean>,
@@ -12,8 +13,6 @@ export function useSettingsTabs(
 ): { activeSettingsTab: WritableComputedRef<string> } {
   const route = useRoute();
   const router = useRouter();
-
-  const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
 
   const availableTabs = computed(() => [
     ...ALWAYS_TABS,
@@ -29,7 +28,7 @@ export function useSettingsTabs(
   }
 
   const activeSettingsTab = computed<string>({
-    get: () => requestedTab() ?? defaultSettingsTab.value,
+    get: () => requestedTab() ?? DEFAULT_TAB,
     set: (tab) => {
       if (tab === requestedTab()) {
         return;

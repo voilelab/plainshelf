@@ -30,7 +30,7 @@ const tabs: readonly MobileTab[] = [
   { to: '/books', icon: 'library', labelKey: 'layout.library', exact: false },
   { to: '/read-history', icon: 'recently-read', labelKey: 'layout.recentlyRead', exact: true },
   { to: '/downloads', icon: 'downloads', labelKey: 'layout.downloads', exact: true },
-  { to: '/settings', icon: 'settings', labelKey: 'layout.settings', exact: true }
+  { to: '/settings', icon: 'settings', labelKey: 'layout.settings', exact: false }
 ];
 
 const { t } = useI18n();

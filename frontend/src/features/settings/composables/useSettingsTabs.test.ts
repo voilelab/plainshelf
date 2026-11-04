@@ -34,9 +34,9 @@ async function setup(editable: boolean, initialPath = '/settings', wasmDemo = fa
 }
 
 describe('useSettingsTabs', () => {
-  it('defaults to cover when server settings are editable', async () => {
+  it('defaults to shelves when server settings are editable', async () => {
     const { api, app } = await setup(true);
-    expect(api.activeSettingsTab.value).toBe('cover');
+    expect(api.activeSettingsTab.value).toBe('shelves');
     app.unmount();
   });
 
@@ -64,7 +64,7 @@ describe('useSettingsTabs', () => {
     readOnly.app.unmount();
 
     const editable = await setup(true, '/settings?tab=device-nsfw');
-    expect(editable.api.activeSettingsTab.value).toBe('cover');
+    expect(editable.api.activeSettingsTab.value).toBe('shelves');
     editable.app.unmount();
   });
 
@@ -74,7 +74,7 @@ describe('useSettingsTabs', () => {
     demo.app.unmount();
 
     const server = await setup(true, '/settings?tab=demo-storage');
-    expect(server.api.activeSettingsTab.value).toBe('cover');
+    expect(server.api.activeSettingsTab.value).toBe('shelves');
     server.app.unmount();
   });
 

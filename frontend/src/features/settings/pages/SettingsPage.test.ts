@@ -150,14 +150,14 @@ describe('SettingsPage tabs', () => {
   it('marks exactly the inactive panels hidden', async () => {
     const { host } = await mountSettings();
 
-    expect(panelStates(host).cover).toBe(false);
+    expect(panelStates(host).shelves).toBe(false);
     expect(Object.values(panelStates(host)).filter((hidden) => !hidden)).toHaveLength(1);
 
-    await selectTab(host, 'Shelves');
+    await selectTab(host, 'Cover');
 
     const states = panelStates(host);
-    expect(states.shelves).toBe(false);
-    expect(states.cover).toBe(true);
+    expect(states.cover).toBe(false);
+    expect(states.shelves).toBe(true);
     expect(Object.values(states).filter((hidden) => !hidden)).toHaveLength(1);
   });
 
@@ -166,6 +166,7 @@ describe('SettingsPage tabs', () => {
       [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim());
 
     const server = await mountSettings();
+    expect(tabLabels(server.host)[0]).toBe('Shelves');
     expect(tabLabels(server.host)).not.toContain('Browser storage');
     active?.app.unmount();
     active?.host.remove();

@@ -1,4 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router';
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    shelfOptional?: boolean;
+    backTo?: { path: string; query?: Record<string, string> };
+  }
+}
 import MainLayout from '@/layouts/MainLayout.vue';
 import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
@@ -32,6 +39,8 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'similar-content',
   'not-found'
 ]);
+
+const MANAGE_SHELVES_BACK = { path: '/settings', query: { tab: 'shelves' } };
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -127,13 +136,13 @@ const router = createRouter({
           path: 'settings/shelves/new',
           name: 'mobile-shelf-add',
           component: MobileShelfEditPage,
-          meta: { shelfOptional: true }
+          meta: { shelfOptional: true, backTo: MANAGE_SHELVES_BACK }
         },
         {
           path: 'settings/shelves/:entryId',
           name: 'mobile-shelf-edit',
           component: MobileShelfEditPage,
-          meta: { shelfOptional: true }
+          meta: { shelfOptional: true, backTo: MANAGE_SHELVES_BACK }
         },
         {
           path: ':pathMatch(.*)*',

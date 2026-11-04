@@ -345,6 +345,7 @@
         :narrow="isNarrowViewport"
         :drawer-open="drawerOpen"
         :location-label="currentLocationLabel"
+        :back-to="topbarBackTo"
         @toggle-drawer="drawerOpen = !drawerOpen"
       />
 
@@ -523,6 +524,10 @@ const railNavItems = computed<SidebarRailItem[]>(() => {
   }
   items.push({ to: '/settings', icon: 'settings', label: t('layout.settings') });
   return items;
+});
+const topbarBackTo = computed<RouteLocationRaw | null>(() => {
+  const to = route.meta.backTo;
+  return to ? { path: to.path, query: { ...route.query, ...to.query } } : null;
 });
 const canShowRouteContent = computed(() => route.meta.shelfOptional === true || hasActiveShelf.value);
 const {
