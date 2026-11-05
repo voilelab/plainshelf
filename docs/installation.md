@@ -21,6 +21,10 @@ Release artifacts live on the
 
 ## Option 1 — Homebrew desktop app (macOS, Apple Silicon)
 
+The desktop app and the standalone reader require **macOS 13 (Ventura) or
+later on Apple Silicon**. Intel Macs and earlier macOS versions are not
+supported; macOS refuses to open either app on an older system.
+
 The quickest way to install the desktop app on Apple Silicon Macs is with
 Homebrew:
 
