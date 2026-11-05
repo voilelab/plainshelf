@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"io"
 	"log"
@@ -12,10 +13,8 @@ import (
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/reader/readerapi"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 func main() {
@@ -48,12 +47,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = wails.Run(&options.App{
-		Title:  "PlainShelf Reader",
-		Width:  1100,
-		Height: 900,
-		AssetServer: &assetserver.Options{
-
+	wailsApp := application.New(application.Options{
+		Name:     "PlainShelf Reader",
+		Services: []application.Service{application.NewService(app)},
+		Assets: application.AssetOptions{
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
 					api.ServeHTTP(w, r)
@@ -62,22 +59,30 @@ func main() {
 				spa.ServeHTTP(w, r)
 			}),
 		},
-		Menu:      appMenu,
-		OnStartup: native.attach,
-		// Wails v2.16.0 WailsContext.m presents macOS directory dialogs with
-		// beginSheetModalForWindow:self.mainWindow, so the first book prompt
-		// waits until the window exists.
-		OnDomReady:    app.DomReady,
-		OnBeforeClose: app.beforeClose,
-		OnShutdown:    app.Shutdown,
-		Bind:          []any{app},
-		Mac: &mac.Options{
-			Preferences: &mac.Preferences{
-				FullscreenEnabled: mac.Enabled,
-			},
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		OnShutdown: func() { app.Shutdown(context.Background()) },
 	})
-	if err != nil {
+	wailsApp.Menu.SetApplicationMenu(appMenu)
+
+	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:  "PlainShelf Reader",
+		Width:  1100,
+		Height: 900,
+		URL:    "/",
+	})
+	native.attach(wailsApp, window)
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		if app.beforeClose(context.Background()) {
+			event.Cancel()
+		}
+	})
+	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		app.DomReady(context.Background())
+	})
+
+	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -182,7 +182,13 @@ server field.
 ### Reaching the Wails bindings
 
 Every frontend call into Go goes through `frontend/src/api/wailsBindings.ts`;
-nothing else reads `window.go`. The page learns which Wails app it runs in from
+nothing else reads `window.go` or imports `@wailsio/runtime`. A window that has
+`window.go` is Wails v2 (the desktop) and calls it directly. One without it is
+Wails v3 (the reader), and the module calls `Call.ByName("main.<App>.<Method>")`
+from `@wailsio/runtime`, which it loads with a dynamic import so the web and
+mobile bundles never contain it; the reader shell loads it at startup, because
+v3 reports the page ready (`WindowRuntimeReady`) only once the runtime runs.
+The page learns which Wails app it runs in from
 a marker the Go side injects into `index.html`: `window.__PLAINSHELF_DESKTOP__`
 from `desktop/assets.go`, `window.__PLAINSHELF_READER__` from
 `reader/readerapi/spa.go`. `isWailsRuntime()` is true for either marker or for
@@ -191,9 +197,11 @@ from `desktop/assets.go`, `window.__PLAINSHELF_READER__` from
 `window.go` (its `/wails/ipc.js` and `/wails/runtime.js`) only for `/` and
 `/index.html`, so `internal/wailsshell` adds the two scripts to the page served
 for any other route. A call made inside the right app whose method Go
-does not bind throws an error naming `App.Method`, so a binding lost in a
+does not bind fails with an error naming `App.Method` (on v3 the promise
+rejects, since the method list is only known to Go), so a binding lost in a
 migration fails loudly instead of disabling the feature. The mobile stack may
-not import this module or `src/api/desktop.ts`; `check-boundaries` enforces it.
+not import this module or `src/api/desktop.ts`; `check-boundaries` enforces it,
+and also that `@wailsio/runtime` is only ever imported dynamically from here.
 
 ---
 
