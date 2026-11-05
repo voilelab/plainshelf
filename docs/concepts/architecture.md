@@ -36,10 +36,8 @@ by its own token; it exposes neither the API nor the web UI. See
 through a small `nativeUI` interface, and describe their menus as plain data.
 Only each module's `main.go` and `wails_native.go` import Wails; together they
 hold the Wails context, translate the menu, and decide lifecycle timing such
-as deferring dialogs until the page is up (`OnDomReady` on the desktop,
-`WindowRuntimeReady` in the reader). Tests drive the apps through a fake
-`nativeUI`. The desktop app runs on Wails v2 and the standalone reader on Wails
-v3, so the reader's adapter is the template for the desktop migration.
+as deferring dialogs until the page is up (`WindowRuntimeReady`). Tests drive
+the apps through a fake `nativeUI`. Both apps run on Wails v3.
 
 **The Android app embeds the Go server.** Local shelves, pCloud shelves and
 WebDAV sources (including another PlainShelf's LAN share) are all read through

@@ -57,7 +57,7 @@ build-server-backend: build-server-frontend
 
 # Build desktop app
 build-desktop: build-server-frontend
-	cd desktop && go mod tidy && go tool wails build -ldflags "-X {{version_pkg}}.Version={{version}}"
+	cd desktop && go mod tidy && go tool wails3 task package:darwin VERSION={{version}}
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString {{native_version}}" desktop/build/bin/PlainShelf.app/Contents/Info.plist
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion {{native_version}}" desktop/build/bin/PlainShelf.app/Contents/Info.plist
 	plutil -lint desktop/build/bin/PlainShelf.app/Contents/Info.plist
@@ -80,9 +80,9 @@ run-desktop reader="": build-reader
 	go mod tidy
 	if [[ -n "$reader_app" ]]; then
 		echo "run-desktop: reads open the reader at $reader_app"
-		PLAINSHELF_READER_APP="$reader_app" go tool wails dev
+		PLAINSHELF_READER_APP="$reader_app" go run .
 	else
-		go tool wails dev
+		go run .
 	fi
 
 # Build reader app (standalone .bookpkg reader)

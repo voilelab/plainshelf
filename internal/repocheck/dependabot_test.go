@@ -22,7 +22,8 @@ var ciJobNames = map[string]string{
 	"android-lib": "Android Go library",
 	"vulncheck":   "Go vulnerability scan",
 
-	"vulncheck-reader-darwin": "Go vulnerability scan (reader darwin)",
+	"vulncheck-reader-darwin":  "Go vulnerability scan (reader darwin)",
+	"vulncheck-desktop-darwin": "Go vulnerability scan (desktop darwin)",
 }
 
 var blockingCIJobs = map[string]bool{
@@ -36,10 +37,11 @@ var blockingCIJobs = map[string]bool{
 	"android-lib": false,
 	"vulncheck":   true,
 
-	"vulncheck-reader-darwin": true,
+	"vulncheck-reader-darwin":  true,
+	"vulncheck-desktop-darwin": true,
 }
 
-var vulnScanJobs = []string{"vulncheck", "vulncheck-reader-darwin"}
+var vulnScanJobs = []string{"vulncheck", "vulncheck-reader-darwin", "vulncheck-desktop-darwin"}
 
 // versionUpdatedEcosystem keeps Dependabot version updates: security updates
 // never cover it, as GitHub's advisory database has no Docker ecosystem.
@@ -58,6 +60,7 @@ type dependabotConfig struct {
 type ciWorkflow struct {
 	Jobs map[string]struct {
 		Name            string `yaml:"name"`
+		RunsOn          string `yaml:"runs-on"`
 		ContinueOnError bool   `yaml:"continue-on-error"`
 		Steps           []struct {
 			Name string            `yaml:"name"`
@@ -140,10 +143,7 @@ func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 			if !strings.Contains(run, "govulncheck ./...") {
 				continue
 			}
-			dir := "/"
-			if rest, ok := strings.CutPrefix(run, "cd "); ok {
-				dir = "/" + strings.TrimSpace(strings.SplitN(rest, "&&", 2)[0])
-			}
+			dir := scanDir(run)
 			goos := step.Env["GOOS"]
 			if goos == "" {
 				t.Errorf("ci.yml step %q does not set GOOS, so it silently scans only the runner's platform", step.Name)
@@ -160,6 +160,36 @@ func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 			if !scanned[want.dependabotDirectory+" "+goos] {
 				t.Errorf("ci.yml's vulncheck job does not scan %q (from %s) as GOOS=%s",
 					want.dependabotDirectory, want.sourcePath, goos)
+			}
+		}
+	}
+}
+
+func scanDir(run string) string {
+	if rest, ok := strings.CutPrefix(strings.TrimSpace(run), "cd "); ok {
+		return "/" + strings.TrimSpace(strings.SplitN(rest, "&&", 2)[0])
+	}
+	return "/"
+}
+
+func TestWailsDarwinScansRunOnMacOS(t *testing.T) {
+	root := repoRoot(t)
+	wf := readCIWorkflow(t, root)
+
+	for _, jobID := range vulnScanJobs {
+		job := wf.Jobs[jobID]
+		for _, step := range job.Steps {
+			if !strings.Contains(step.Run, "govulncheck ./...") || step.Env["GOOS"] != "darwin" {
+				continue
+			}
+			dir := scanDir(step.Run)
+			goMod, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(dir), "go.mod"))
+			if err != nil {
+				t.Fatalf("ci.yml step %q scans %q: %v", step.Name, dir, err)
+			}
+			if strings.Contains(string(goMod), "github.com/wailsapp/wails/v3 ") && !strings.HasPrefix(job.RunsOn, "macos") {
+				t.Errorf("ci.yml step %q (job %q) scans Wails v3 module %q as darwin on %q; it only loads with cgo on a macOS runner",
+					step.Name, jobID, dir, job.RunsOn)
 			}
 		}
 	}
