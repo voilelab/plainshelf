@@ -8,7 +8,7 @@ cask "plainshelf" do
   homepage "https://github.com/voilelab/plainshelf"
 
   depends_on arch: :arm64
-  depends_on macos: :sonoma
+  depends_on macos: :ventura
   # Bring in the standalone reader as a cask dependency. The desktop app's
   # "read" action shells out to it (open -n -a PlainShelfReader), so installing
   # plainshelf must also install bookpkg-reader. The reader is deliberately not

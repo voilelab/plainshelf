@@ -57,7 +57,7 @@ build-server-backend: build-server-frontend
 
 # Build desktop app
 build-desktop: build-server-frontend
-	cd desktop && go mod tidy && go tool wails build -ldflags "-X {{version_pkg}}.Version={{version}}"
+	cd desktop && go mod tidy && CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0 MACOSX_DEPLOYMENT_TARGET=13.0 go tool wails build -ldflags "-X {{version_pkg}}.Version={{version}}"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString {{native_version}}" desktop/build/bin/PlainShelf.app/Contents/Info.plist
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion {{native_version}}" desktop/build/bin/PlainShelf.app/Contents/Info.plist
 	plutil -lint desktop/build/bin/PlainShelf.app/Contents/Info.plist
