@@ -10,7 +10,6 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/internal/wailsshell"
 )
 
 type BootConfig struct {
@@ -41,7 +40,7 @@ func NewSPAHandler(assets fs.FS, boot func() BootConfig) http.Handler {
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(wailsshell.WithRuntime(r.URL.Path, page))
+		w.Write(page)
 	})
 }
 

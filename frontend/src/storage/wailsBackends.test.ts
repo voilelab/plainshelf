@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bindWails, unbindWails } from '#testing/wailsRuntime';
 
 const runtime = vi.hoisted(() => ({ preview: false, reader: false }));
 
@@ -10,19 +11,20 @@ vi.mock('@/api/client', () => ({
 
 vi.mock('@/providers/runtime', () => ({
   isWailsRuntime: () => true,
-  isDesktopShellPreview: () => runtime.preview,
   isDesktopHost: () => !runtime.preview && !runtime.reader,
   isReaderRuntime: () => runtime.reader
 }));
 
 vi.mock('@/providers/shell', () => ({ getShell: () => undefined }));
 
+vi.mock('@wailsio/runtime', () => import('#testing/wailsRuntime'));
+
 let localStore: Map<string, string>;
 
 function stubWails(app: Record<string, unknown>): void {
   localStore = new Map();
+  bindWails({ [runtime.reader ? 'ReaderApp' : 'DesktopApp']: app });
   vi.stubGlobal('window', {
-    go: { main: { [runtime.reader ? 'ReaderApp' : 'DesktopApp']: app } },
     localStorage: {
       getItem: (key: string) => localStore.get(key) ?? null,
       setItem: (key: string, value: string) => void localStore.set(key, value)
@@ -47,6 +49,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  unbindWails();
 });
 
 describe('Wails runtime without device storage bindings', () => {
@@ -54,17 +57,15 @@ describe('Wails runtime without device storage bindings', () => {
     stubWails({});
     const storage = await loadStorage();
 
-    await expect(storage.addReadHistory('book-1')).rejects.toThrow('binding not available');
-    await expect(storage.getReadHistoryIDs()).rejects.toThrow('binding not available');
-    await expect(storage.addReadingSeconds('book-1', 30, '2026-11-01')).rejects.toThrow(
-      'binding not available'
-    );
-    await expect(storage.getReadingActivityRange('2026-11-01', '2026-11-01')).rejects.toThrow(
-      'binding not available'
-    );
+    await expect(storage.addReadHistory('book-1')).rejects.toThrow('is missing');
+    await expect(storage.getReadHistoryIDs()).rejects.toThrow('is missing');
+    await expect(storage.addReadingSeconds('book-1', 30, '2026-11-01')).rejects.toThrow('is missing');
+    await expect(
+      storage.getReadingActivityRange('2026-11-01', '2026-11-01')
+    ).rejects.toThrow('is missing');
     await expect(
       storage.saveLocalReadingProgress('book-1', { char_offset: 10, at: 1 })
-    ).rejects.toThrow('binding not available');
+    ).rejects.toThrow('is missing');
     expect(localStore.size).toBe(0);
   });
 
@@ -77,10 +78,8 @@ describe('Wails runtime without device storage bindings', () => {
     });
     const storage = await loadStorage();
 
-    await expect(storage.addReadHistory('book-1')).rejects.toThrow('binding not available');
-    await expect(storage.addReadingSeconds('book-1', 30, '2026-11-01')).rejects.toThrow(
-      'binding not available'
-    );
+    await expect(storage.addReadHistory('book-1')).rejects.toThrow('is missing');
+    await expect(storage.addReadingSeconds('book-1', 30, '2026-11-01')).rejects.toThrow('is missing');
     expect(localStore.size).toBe(0);
   });
 
@@ -145,7 +144,8 @@ describe('Wails runtime with desktop bindings', () => {
 
     const record = storage.addReadHistory('book-1');
     const clear = storage.clearReadHistory();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(calls).toEqual(['record book-1']));
+    await vi.dynamicImportSettled();
     expect(calls).toEqual(['record book-1']);
 
     finishRecord();

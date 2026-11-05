@@ -1,6 +1,6 @@
 import { getActiveShelfID } from './client';
 import { isWailsRuntime } from '@/providers/runtime';
-import { callWails, hasWailsMethod, wailsHost } from './wailsBindings';
+import { callWails, wailsHost } from './wailsBindings';
 import type { ShelfSourceCheck, ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 interface DesktopImportBookResult {
@@ -147,10 +147,6 @@ function inDesktopApp(): boolean {
   return wailsHost() === 'DesktopApp';
 }
 
-function hasDesktopMethods(...methods: (keyof DesktopAppBinding)[]): boolean {
-  return methods.every((method) => hasWailsMethod('DesktopApp', method));
-}
-
 export async function openDesktopBookFiles(): Promise<string[] | null> {
   if (!inDesktopApp()) {
     return null;
@@ -248,7 +244,7 @@ export async function modifyDesktopShelf(params: DesktopModifyShelfParams): Prom
 }
 
 export function hasDesktopLANShareBinding(): boolean {
-  return hasDesktopMethods('GetLANShare', 'SetLANShare');
+  return inDesktopApp();
 }
 
 export async function getDesktopLANShare(): Promise<DesktopLANShareStatus> {
@@ -289,9 +285,8 @@ export async function saveDesktopBookContent(
   await callDesktop('SaveBookContent', shelfID, bookID, suggestedName);
 }
 
-function hostHasMethods(...methods: (keyof DeviceDocumentBinding)[]): boolean {
-  const app = wailsHost();
-  return app !== null && methods.every((method) => hasWailsMethod(app, method));
+function inWailsApp(): boolean {
+  return wailsHost() !== null;
 }
 
 function callDeviceDocument<M extends keyof DeviceDocumentBinding>(
@@ -302,12 +297,7 @@ function callDeviceDocument<M extends keyof DeviceDocumentBinding>(
 }
 
 export function hasDesktopReadHistoryBinding(): boolean {
-  return hostHasMethods(
-    'ReadReadHistory',
-    'RecordReadHistory',
-    'ClearReadHistory',
-    'SetReadHistoryLimit'
-  );
+  return inWailsApp();
 }
 
 export async function readDesktopReadHistory(): Promise<string> {
@@ -327,7 +317,7 @@ export async function setDesktopReadHistoryLimit(limit: number): Promise<void> {
 }
 
 export function hasDesktopReadingProgressBinding(): boolean {
-  return hostHasMethods('ReadReadingProgress', 'WriteReadingProgress');
+  return inWailsApp();
 }
 
 export async function readDesktopReadingProgress(): Promise<string> {
@@ -339,7 +329,7 @@ export async function writeDesktopReadingProgress(doc: string): Promise<void> {
 }
 
 export function hasDesktopReadingStatsBinding(): boolean {
-  return hostHasMethods('ReadReadingStats', 'AddReadingSeconds');
+  return inWailsApp();
 }
 
 export async function readDesktopReadingStats(): Promise<string> {
@@ -355,9 +345,7 @@ export async function addDesktopReadingSeconds(
 }
 
 export function stageDesktopReadingProgress(bookID: string, offset: number, at: number): void {
-  if (
-    !hostHasMethods('ReadReadingProgress', 'WriteReadingProgress', 'StageReadingProgress')
-  ) {
+  if (!inWailsApp()) {
     return;
   }
   void callDeviceDocument('StageReadingProgress', getActiveShelfID(), bookID, offset, at).catch(
@@ -382,7 +370,7 @@ export async function retryDesktopShelf(id: string): Promise<void> {
 }
 
 export function hasDesktopShelfManagementBindings(): boolean {
-  return hasDesktopMethods('ListShelfDetails', 'RetryShelf');
+  return inDesktopApp();
 }
 
 export async function previewDesktopLANShareQR(text: string): Promise<DesktopQRShelf[]> {

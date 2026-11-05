@@ -182,11 +182,10 @@ server field.
 ### Reaching the Wails bindings
 
 Every frontend call into Go goes through `frontend/src/api/wailsBindings.ts`;
-nothing else reads `window.go` or imports `@wailsio/runtime`. A window that has
-`window.go` is Wails v2 and calls it directly. One without it is Wails v3 (the
-desktop and the reader), and the module calls `Call.ByName("main.<App>.<Method>")`
-from `@wailsio/runtime`, which it loads with a dynamic import so the web and
-mobile bundles never contain it; `main.ts` loads it before anything else boots,
+nothing else imports `@wailsio/runtime`. Both apps run on Wails v3, and the
+module calls `Call.ByName("main.<App>.<Method>")` from `@wailsio/runtime`,
+which it loads with a dynamic import so the web and mobile bundles never
+contain it; `main.ts` loads it before anything else boots,
 because v3 reports the page ready (`WindowRuntimeReady`) only once the runtime
 runs.
 The page learns which Wails app it runs in from
@@ -194,12 +193,10 @@ a marker the Go side injects into `index.html`: `window.__PLAINSHELF_DESKTOP__`
 from `desktop/assets.go`, `window.__PLAINSHELF_READER__` from
 `reader/readerapi/spa.go`. `isWailsRuntime()` is true for either marker or for
 `?desktop-shell-preview=1`. Both apps also answer an in-app route such as
-`/books` with that page, so a reload keeps the route. The desktop serves that
-page as is; the reader still passes it through `internal/wailsshell`, a Wails v2
-leftover that adds `/wails/ipc.js` and `/wails/runtime.js`, which v3 does not
-use. A call made inside the right app whose method Go
-does not bind fails with an error naming `App.Method` (on v3 the promise
-rejects, since the method list is only known to Go), so a binding lost in a
+`/books` with that page, so a reload keeps the route; neither adds a Wails
+script tag, since the runtime comes from the bundle. A call made inside the
+right app whose method Go does not bind rejects with an error naming
+`App.Method`, since the method list is only known to Go, so a binding lost in a
 migration fails loudly instead of disabling the feature. The mobile stack may
 not import this module or `src/api/desktop.ts`; `check-boundaries` enforces it,
 and also that `@wailsio/runtime` is only ever imported dynamically from here.

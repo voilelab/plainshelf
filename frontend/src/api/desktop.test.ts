@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { bindWails, unbindWails } from '#testing/wailsRuntime';
 import {
   hasDesktopReadingProgressBinding,
   openDesktopBookFiles,
@@ -7,53 +8,34 @@ import {
   writeDesktopReadingProgress
 } from './desktop';
 
+vi.mock('@wailsio/runtime', () => import('#testing/wailsRuntime'));
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  unbindWails();
 });
 
 type Host = '__PLAINSHELF_DESKTOP__' | '__PLAINSHELF_READER__';
 
-function stubMain(main: Record<string, unknown>, host: Host = '__PLAINSHELF_DESKTOP__'): void {
-  vi.stubGlobal('window', { go: { main }, [host]: {} });
+function stubMain(main: Parameters<typeof bindWails>[0], host: Host = '__PLAINSHELF_DESKTOP__'): void {
+  bindWails(main);
+  vi.stubGlobal('window', { [host]: {} });
 }
 
 describe('reading-progress binding resolution', () => {
-  it('reports no binding when neither app is present', () => {
+  it('reports no binding outside both app windows', () => {
+    vi.stubGlobal('window', {});
+    expect(hasDesktopReadingProgressBinding()).toBe(false);
+  });
+
+  it('uses the binding in the desktop window', () => {
     stubMain({});
-    expect(hasDesktopReadingProgressBinding()).toBe(false);
-  });
-
-  it('detects the desktop app binding', () => {
-    stubMain({
-      DesktopApp: {
-        ReadReadingProgress: async () => '',
-        WriteReadingProgress: async () => undefined
-      }
-    });
     expect(hasDesktopReadingProgressBinding()).toBe(true);
   });
 
-  it('detects the standalone reader binding in the reader window', () => {
-    stubMain(
-      {
-        ReaderApp: {
-          ReadReadingProgress: async () => '',
-          WriteReadingProgress: async () => undefined
-        }
-      },
-      '__PLAINSHELF_READER__'
-    );
+  it('uses the binding in the reader window', () => {
+    stubMain({}, '__PLAINSHELF_READER__');
     expect(hasDesktopReadingProgressBinding()).toBe(true);
-  });
-
-  it('ignores the reader binding inside the desktop window', () => {
-    stubMain({
-      ReaderApp: {
-        ReadReadingProgress: async () => '',
-        WriteReadingProgress: async () => undefined
-      }
-    });
-    expect(hasDesktopReadingProgressBinding()).toBe(false);
   });
 
   it('routes read and write to the reader binding in the reader window', async () => {
@@ -86,23 +68,21 @@ describe('reading-progress binding resolution', () => {
 });
 
 describe('stageDesktopReadingProgress', () => {
-  it('forwards the position to the reader binding', () => {
+  it('forwards the position to the reader binding', async () => {
     const stage = vi.fn(async () => undefined);
-    stubMain(
-      {
-        ReaderApp: {
-          ReadReadingProgress: async () => '',
-          WriteReadingProgress: async () => undefined,
-          StageReadingProgress: stage
-        }
-      },
-      '__PLAINSHELF_READER__'
-    );
+    stubMain({ ReaderApp: { StageReadingProgress: stage } }, '__PLAINSHELF_READER__');
 
     stageDesktopReadingProgress('book-a', 120, 2000);
 
-    expect(stage).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(stage).toHaveBeenCalledOnce());
     expect(stage).toHaveBeenCalledWith(expect.any(String), 'book-a', 120, 2000);
+  });
+
+  it('swallows a missing binding', async () => {
+    stubMain({ ReaderApp: {} }, '__PLAINSHELF_READER__');
+
+    expect(() => stageDesktopReadingProgress('book-a', 120, 2000)).not.toThrow();
+    await vi.dynamicImportSettled();
   });
 });
 
@@ -114,8 +94,11 @@ describe('desktop calls', () => {
   });
 
   it('returns null outside the desktop window', async () => {
-    vi.stubGlobal('window', { go: { main: { DesktopApp: { OpenBookFiles: async () => ['a'] } } } });
+    const openBookFiles = vi.fn(async () => ['a']);
+    bindWails({ DesktopApp: { OpenBookFiles: openBookFiles } });
+    vi.stubGlobal('window', {});
 
     expect(await openDesktopBookFiles()).toBeNull();
+    expect(openBookFiles).not.toHaveBeenCalled();
   });
 });

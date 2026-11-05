@@ -1,5 +1,4 @@
-import { callWails, hasWailsMethod, wailsHost } from '@/api/wailsBindings';
-import { isDesktopShellPreview, isWailsRuntime } from '@/providers/runtime';
+import { callWails, wailsHost } from '@/api/wailsBindings';
 
 type PreferenceListener = (value: string | null) => void;
 
@@ -120,11 +119,6 @@ function bindStorageEvents(): void {
 
 bindStorageEvents();
 
-function hasPreferenceBinding(): boolean {
-  const app = wailsHost();
-  return app !== null && hasWailsMethod(app, 'GetPreferences') && hasWailsMethod(app, 'SetPreference');
-}
-
 async function readHostPreferences(): Promise<Record<string, string>> {
   const app = wailsHost() ?? 'DesktopApp';
   return (await callWails<PreferenceBinding, 'GetPreferences'>(app, 'GetPreferences')) ?? {};
@@ -140,18 +134,13 @@ async function readInitialHostPreferences(): Promise<Record<string, string>> {
 }
 
 export async function loadPreferences(): Promise<void> {
-  if (hasPreferenceBinding()) {
-    const app = wailsHost() ?? 'DesktopApp';
+  const app = wailsHost();
+  if (app !== null) {
     backend = createSnapshotBackend(await readInitialHostPreferences(), {
       read: readHostPreferences,
       persist: (key, value) => callWails<PreferenceBinding, 'SetPreference'>(app, 'SetPreference', key, value)
     });
     window.addEventListener('focus', () => void backend.refresh?.());
-    return;
-  }
-  if (isWailsRuntime() && !isDesktopShellPreview()) {
-    console.error('Preferences binding not available; preferences will not be saved.');
-    backend = createSnapshotBackend({});
   }
 }
 

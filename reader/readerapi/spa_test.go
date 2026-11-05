@@ -84,27 +84,17 @@ func TestSPAServesInAppRoutes(t *testing.T) {
 	}
 }
 
-func TestSPARouteCarriesWailsRuntime(t *testing.T) {
+func TestSPARoutesOmitV2Runtime(t *testing.T) {
 	boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID}
 
-	body := serveSPA(t, boot, "/reader/"+testBookID).Body.String()
-	head := body[:strings.Index(body, "</head>")]
-	for _, want := range []string{
-		"window.__PLAINSHELF_READER__",
-		`<script src="/wails/ipc.js"></script>`,
-		`<script src="/wails/runtime.js"></script>`,
-	} {
-		if !strings.Contains(head, want) {
-			t.Errorf("%q missing from <head>:\n%s", want, body)
+	for _, path := range []string{"/", "/reader/" + testBookID} {
+		body := serveSPA(t, boot, path).Body.String()
+		if strings.Contains(body, "/wails/") {
+			t.Errorf("%s: unexpected Wails script in the shell:\n%s", path, body)
 		}
-	}
-}
-
-func TestSPARootLeavesRuntimeToWails(t *testing.T) {
-	boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID}
-
-	if body := serveSPA(t, boot, "/").Body.String(); strings.Contains(body, "/wails/") {
-		t.Errorf("Wails injects its runtime at / itself, got:\n%s", body)
+		if !strings.Contains(body, "window.__PLAINSHELF_READER__") {
+			t.Errorf("%s: boot config missing:\n%s", path, body)
+		}
 	}
 }
 

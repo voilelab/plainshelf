@@ -4,11 +4,9 @@ import {
   hasDesktopReadingStatsBinding,
   readDesktopReadingStats
 } from '@/api/desktop';
-import { isDesktopShellPreview, isWailsRuntime } from '@/providers/runtime';
 import { getShell } from '@/providers/shell';
 import {
   buildDeviceDocumentKey,
-  createUnavailableDocumentStorage,
   DeviceDocumentStore
 } from '@/storage/deviceDocument';
 import {
@@ -93,13 +91,8 @@ function createReadingStatsBackend(): ReadingStatsBackend {
     return new ReadingStatsStore(createMockReadingStatsStorage());
   }
 
-  if (isWailsRuntime()) {
-    if (hasDesktopReadingStatsBinding()) {
-      return new DesktopReadingStats();
-    }
-    if (!isDesktopShellPreview()) {
-      return new ReadingStatsStore(createUnavailableDocumentStorage('Reading stats'));
-    }
+  if (hasDesktopReadingStatsBinding()) {
+    return new DesktopReadingStats();
   }
 
   const fromShell = getShell()?.createDeviceDocumentStorage?.(MOBILE_READING_STATS_PATH);

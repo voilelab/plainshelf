@@ -116,10 +116,6 @@ describe('isWailsRuntime', () => {
     expect(await withGlobal('__PLAINSHELF_READER__', '/books')).toBe(true);
   });
 
-  it('ignores window.go', async () => {
-    expect(await withGlobal('go', '/books')).toBe(false);
-  });
-
   it('is true under the desktop shell preview', async () => {
     const runtime = await loadRuntime('/books?desktop-shell-preview=1', false);
     expect(runtime.isWailsRuntime()).toBe(true);

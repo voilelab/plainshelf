@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { bindWails, unbindWails } from '#testing/wailsRuntime';
 
 const { openDesktopReaderMock } = vi.hoisted(() => ({
   openDesktopReaderMock: vi.fn()
@@ -11,6 +12,8 @@ vi.mock('@/api/desktop', async (importOriginal) => {
     openDesktopReader: openDesktopReaderMock
   };
 });
+
+vi.mock('@wailsio/runtime', () => import('#testing/wailsRuntime'));
 
 import { createWailsPlatform } from './wailsBookshelfProvider';
 
@@ -44,10 +47,8 @@ it('exposes virtual-shelf management only when the native bindings exist', async
 
     const ListShelfDetails = vi.fn().mockResolvedValue([]);
     const RetryShelf = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal('window', {
-      __PLAINSHELF_DESKTOP__: true,
-      go: { main: { DesktopApp: { ListShelfDetails, RetryShelf } } }
-    });
+    bindWails({ DesktopApp: { ListShelfDetails, RetryShelf } });
+    vi.stubGlobal('window', { __PLAINSHELF_DESKTOP__: true });
     const native = createWailsPlatform();
     await expect(native.shelves?.listShelfDetails?.()).resolves.toEqual([]);
     await native.shelves?.retryShelf?.('remote');
@@ -55,5 +56,6 @@ it('exposes virtual-shelf management only when the native bindings exist', async
     expect(RetryShelf).toHaveBeenCalledWith('remote');
   } finally {
     vi.unstubAllGlobals();
+    unbindWails();
   }
 });

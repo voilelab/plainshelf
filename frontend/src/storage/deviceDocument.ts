@@ -35,11 +35,6 @@ export function createDesktopDocumentStorage(bindings: {
   };
 }
 
-export function createUnavailableDocumentStorage(label: string): DeviceDocumentStorage {
-  const fail = () => Promise.reject(new Error(`${label} binding not available`));
-  return { load: fail, save: fail };
-}
-
 export function createInMemoryDocumentStorage(
   initial: string | null = null
 ): DeviceDocumentStorage {
