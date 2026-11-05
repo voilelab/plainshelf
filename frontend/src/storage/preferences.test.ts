@@ -2,15 +2,17 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bindWails, unbindWails } from '#testing/wailsRuntime';
 
 const runtime = vi.hoisted(() => ({ host: 'browser' as 'browser' | 'desktop' | 'reader' | 'preview' }));
 
 vi.mock('@/providers/runtime', () => ({
   isDesktopHost: () => runtime.host === 'desktop',
   isReaderRuntime: () => runtime.host === 'reader',
-  isWailsRuntime: () => runtime.host !== 'browser',
-  isDesktopShellPreview: () => runtime.host === 'preview'
+  isWailsRuntime: () => runtime.host !== 'browser'
 }));
+
+vi.mock('@wailsio/runtime', () => import('#testing/wailsRuntime'));
 
 type Binding = {
   GetPreferences: ReturnType<typeof vi.fn>;
@@ -18,7 +20,7 @@ type Binding = {
 };
 
 function stubHost(app: 'DesktopApp' | 'ReaderApp', binding: Partial<Binding>): void {
-  (window as unknown as { go?: unknown }).go = { main: { [app]: binding } };
+  bindWails({ [app]: binding });
 }
 
 function hostBinding(initial: Record<string, string>): Binding {
@@ -41,7 +43,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete (window as unknown as { go?: unknown }).go;
+  unbindWails();
   vi.restoreAllMocks();
 });
 

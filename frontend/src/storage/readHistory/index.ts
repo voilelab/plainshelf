@@ -7,11 +7,9 @@ import {
   setDesktopReadHistoryLimit
 } from '@/api/desktop';
 import { mockBooks } from '@/api/mocks/books';
-import { isDesktopShellPreview, isWailsRuntime } from '@/providers/runtime';
 import { getShell } from '@/providers/shell';
 import {
   buildDeviceDocumentKey,
-  createUnavailableDocumentStorage,
   DeviceDocumentStore
 } from '@/storage/deviceDocument';
 import {
@@ -124,13 +122,8 @@ function createReadHistoryBackend(): ReadHistoryBackend {
     return new ReadHistoryStore(createMockReadHistoryStorage());
   }
 
-  if (isWailsRuntime()) {
-    if (hasDesktopReadHistoryBinding()) {
-      return new DesktopReadHistory();
-    }
-    if (!isDesktopShellPreview()) {
-      return new ReadHistoryStore(createUnavailableDocumentStorage('Read history'));
-    }
+  if (hasDesktopReadHistoryBinding()) {
+    return new DesktopReadHistory();
   }
 
   const fromShell = getShell()?.createDeviceDocumentStorage?.(MOBILE_READ_HISTORY_PATH);

@@ -1,11 +1,11 @@
-import { callWails, hasWailsMethod } from '@/api/wailsBindings';
+import { callWails, wailsHost } from '@/api/wailsBindings';
 
 interface OpenBookBinding {
   OpenBookPackage: () => Promise<string>;
 }
 
 export function hasOpenBookBinding(): boolean {
-  return hasWailsMethod('ReaderApp', 'OpenBookPackage');
+  return wailsHost() === 'ReaderApp';
 }
 
 export async function openBookPackage(): Promise<void> {
