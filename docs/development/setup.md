@@ -108,7 +108,8 @@ actually verify. It is not part of the checks above.
 
 Dependency vulnerability scanning is CI-only and not in the table either.
 `govulncheck ./...` runs in each of the three Go modules under both `GOOS=linux`
-and `GOOS=darwin`, and gates the merge; npm advisories come from GitHub's
+and `GOOS=darwin`, and gates the merge. The reader's darwin scan runs on a macOS
+runner, because Wails v3 cannot load for darwin without cgo; npm advisories come from GitHub's
 Dependabot alerts instead of a CI job. To reproduce a `govulncheck` failure
 locally, install it with a Go at least as new as the one `go.mod` targets — built by an older Go it
 fails while loading packages, with `requires newer Go version`, before it scans

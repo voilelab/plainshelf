@@ -21,6 +21,8 @@ var ciJobNames = map[string]string{
 	"android":     "Android build",
 	"android-lib": "Android Go library",
 	"vulncheck":   "Go vulnerability scan",
+
+	"vulncheck-reader-darwin": "Go vulnerability scan (reader darwin)",
 }
 
 var blockingCIJobs = map[string]bool{
@@ -33,7 +35,11 @@ var blockingCIJobs = map[string]bool{
 	"android":     false,
 	"android-lib": false,
 	"vulncheck":   true,
+
+	"vulncheck-reader-darwin": true,
 }
+
+var vulnScanJobs = []string{"vulncheck", "vulncheck-reader-darwin"}
 
 // versionUpdatedEcosystem keeps Dependabot version updates: security updates
 // never cover it, as GitHub's advisory database has no Docker ecosystem.
@@ -126,21 +132,24 @@ var releasedGOOS = []string{"linux", "darwin"}
 func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 	root := repoRoot(t)
 
+	wf := readCIWorkflow(t, root)
 	scanned := map[string]bool{}
-	for _, step := range readCIWorkflow(t, root).Jobs["vulncheck"].Steps {
-		run := strings.TrimSpace(step.Run)
-		if !strings.Contains(run, "govulncheck ./...") {
-			continue
+	for _, jobID := range vulnScanJobs {
+		for _, step := range wf.Jobs[jobID].Steps {
+			run := strings.TrimSpace(step.Run)
+			if !strings.Contains(run, "govulncheck ./...") {
+				continue
+			}
+			dir := "/"
+			if rest, ok := strings.CutPrefix(run, "cd "); ok {
+				dir = "/" + strings.TrimSpace(strings.SplitN(rest, "&&", 2)[0])
+			}
+			goos := step.Env["GOOS"]
+			if goos == "" {
+				t.Errorf("ci.yml step %q does not set GOOS, so it silently scans only the runner's platform", step.Name)
+			}
+			scanned[dir+" "+goos] = true
 		}
-		dir := "/"
-		if rest, ok := strings.CutPrefix(run, "cd "); ok {
-			dir = "/" + strings.TrimSpace(strings.SplitN(rest, "&&", 2)[0])
-		}
-		goos := step.Env["GOOS"]
-		if goos == "" {
-			t.Errorf("ci.yml step %q does not set GOOS, so it silently scans only the runner's platform", step.Name)
-		}
-		scanned[dir+" "+goos] = true
 	}
 
 	for _, want := range discoverManifests(t, root) {
@@ -164,7 +173,7 @@ func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 func TestScanStepsSurviveAnEarlierFailure(t *testing.T) {
 	wf := readCIWorkflow(t, repoRoot(t))
 
-	for _, jobID := range []string{"vulncheck"} {
+	for _, jobID := range vulnScanJobs {
 		seenFallible := false
 		for _, step := range wf.Jobs[jobID].Steps {
 			run := step.Run
