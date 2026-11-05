@@ -1,111 +1,118 @@
 package main
 
 import (
-	"context"
-
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-var errNativeNotReady = util.NewError("desktop context not ready")
+var errNativeNotReady = util.NewError("desktop window not ready")
 
 type wailsNative struct {
-	ctx context.Context
+	app    *application.App
+	window *application.WebviewWindow
 }
 
-func (w *wailsNative) attach(ctx context.Context) {
-	w.ctx = ctx
+func (w *wailsNative) attach(app *application.App, window *application.WebviewWindow) {
+	w.app = app
+	w.window = window
 }
 
 func (w *wailsNative) openFiles(title string, filters []fileFilter) ([]string, error) {
-	if w.ctx == nil {
+	if w.window == nil {
 		return nil, nil
 	}
-	return wailsruntime.OpenMultipleFilesDialog(w.ctx, wailsruntime.OpenDialogOptions{
-		Title:   title,
-		Filters: toWailsFilters(filters),
-	})
+	dialog := w.app.Dialog.OpenFile().
+		SetTitle(title).
+		CanChooseFiles(true).
+		CanChooseDirectories(false).
+		AttachToWindow(w.window)
+	for _, f := range filters {
+		dialog.AddFilter(f.label, f.pattern)
+	}
+	return dialog.PromptForMultipleSelection()
 }
 
 func (w *wailsNative) openDirectory(title string) (string, error) {
-	if w.ctx == nil {
+	if w.window == nil {
 		return "", nil
 	}
-	return wailsruntime.OpenDirectoryDialog(w.ctx, wailsruntime.OpenDialogOptions{Title: title})
+	return w.app.Dialog.OpenFile().
+		SetTitle(title).
+		CanChooseDirectories(true).
+		CanChooseFiles(false).
+		AttachToWindow(w.window).
+		PromptForSingleSelection()
 }
 
 func (w *wailsNative) saveFile(title, defaultName string, filters []fileFilter) (string, error) {
-	if w.ctx == nil {
+	if w.window == nil {
 		return "", errNativeNotReady
 	}
-	return wailsruntime.SaveFileDialog(w.ctx, wailsruntime.SaveDialogOptions{
-		Title:           title,
-		DefaultFilename: defaultName,
-		Filters:         toWailsFilters(filters),
+	dialog := w.app.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
+		Title:                title,
+		Filename:             defaultName,
+		CanCreateDirectories: true,
+		Window:               w.window,
 	})
+	for _, f := range filters {
+		dialog.AddFilter(f.label, f.pattern)
+	}
+	return dialog.PromptForSingleSelection()
 }
 
 func (w *wailsNative) showMessage(kind dialogKind, title, message string) error {
-	if w.ctx == nil {
+	if w.window == nil {
 		return errNativeNotReady
 	}
-	dialogType := wailsruntime.ErrorDialog
+	dialog := w.app.Dialog.Error()
 	if kind == warningDialog {
-		dialogType = wailsruntime.WarningDialog
+		dialog = w.app.Dialog.Warning()
 	}
-	_, err := wailsruntime.MessageDialog(w.ctx, wailsruntime.MessageDialogOptions{
-		Type:    dialogType,
-		Title:   title,
-		Message: message,
-	})
-	return err
+	dismissed := make(chan struct{})
+	dialog.SetTitle(title).SetMessage(message).AttachToWindow(w.window)
+	dialog.AddButton("OK").SetAsDefault().OnClick(func() { close(dismissed) })
+	dialog.Show()
+	<-dismissed
+	return nil
 }
 
 func (w *wailsNative) openURL(rawURL string) {
-	if w.ctx != nil {
-		wailsruntime.BrowserOpenURL(w.ctx, rawURL)
+	if w.app != nil {
+		if err := w.app.Browser.OpenURL(rawURL); err != nil {
+			w.app.Logger.Error("failed to open external URL", "url", rawURL, "error", err)
+		}
 	}
 }
 
 func (w *wailsNative) execJS(script string) {
-	if w.ctx != nil {
-		wailsruntime.WindowExecJS(w.ctx, script)
+	if w.window != nil {
+		w.window.ExecJS(script)
 	}
 }
 
 func (w *wailsNative) quit() {
-	if w.ctx != nil {
-		wailsruntime.Quit(w.ctx)
+	if w.app != nil {
+		w.app.Quit()
 	}
 }
 
-func toWailsFilters(filters []fileFilter) []wailsruntime.FileFilter {
-	out := make([]wailsruntime.FileFilter, 0, len(filters))
-	for _, f := range filters {
-		out = append(out, wailsruntime.FileFilter{DisplayName: f.label, Pattern: f.pattern})
-	}
-	return out
-}
-
-func toWailsMenu(specs []menuSpec) (*menu.Menu, error) {
-	root := menu.NewMenu()
+func toWailsMenu(specs []menuSpec) (*application.Menu, error) {
+	root := application.NewMenu()
 	for _, spec := range specs {
 		switch spec.role {
 		case appMenuRole:
-			root.Append(menu.AppMenu())
+			root.AddRole(application.AppMenu)
 		case editMenuRole:
-			root.Append(menu.EditMenu())
+			root.AddRole(application.EditMenu)
 		default:
 			sub := root.AddSubmenu(spec.label)
 			for _, item := range spec.items {
-				accel, err := keys.Parse(item.accel)
-				if err != nil {
-					return nil, util.Errorf("menu item %q: %w", item.label, err)
+				entry := sub.Add(item.label).SetAccelerator(item.accel)
+				if entry.GetAccelerator() == "" {
+					return nil, util.Errorf("menu item %q: invalid accelerator %q", item.label, item.accel)
 				}
 				action := item.action
-				sub.AddText(item.label, accel, func(*menu.CallbackData) { action() })
+				entry.OnClick(func(*application.Context) { action() })
 			}
 		}
 	}

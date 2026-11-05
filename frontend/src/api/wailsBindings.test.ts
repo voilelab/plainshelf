@@ -131,6 +131,15 @@ describe('startWailsRuntime', () => {
     expect(loaded).not.toHaveBeenCalled();
   });
 
+  it('loads the v3 runtime in a desktop window without window.go', async () => {
+    const loaded = vi.fn();
+    const startWailsRuntime = await freshStart(loaded);
+    stubWindow({ __PLAINSHELF_DESKTOP__: true });
+    startWailsRuntime();
+
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+  });
+
   it('loads the v3 runtime in a window without window.go', async () => {
     const loaded = vi.fn();
     const startWailsRuntime = await freshStart(loaded);

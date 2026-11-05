@@ -24,8 +24,8 @@ func serveAsset(t *testing.T, path string) *httptest.ResponseRecorder {
 	return rec
 }
 
-func TestIndexCarriesDesktopMarker(t *testing.T) {
-	for _, path := range []string{"/", "/index.html"} {
+func TestAppRoutesCarryDesktopMarker(t *testing.T) {
+	for _, path := range []string{"/", "/index.html", "/books", "/settings", "/reader/0123abcd"} {
 		rec := serveAsset(t, path)
 		body := rec.Body.String()
 		marker := strings.Index(body, "window.__PLAINSHELF_DESKTOP__")
@@ -33,35 +33,15 @@ func TestIndexCarriesDesktopMarker(t *testing.T) {
 			t.Fatalf("%s: marker missing from <head>: %s", path, body)
 		}
 		if got := rec.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/html") {
-			t.Fatalf("%s: Content-Type = %q, want text/html for Wails runtime injection", path, got)
-		}
-	}
-}
-
-func TestIndexOmitsRuntimeWailsInjects(t *testing.T) {
-	for _, path := range []string{"/", "/index.html"} {
-		if body := serveAsset(t, path).Body.String(); strings.Contains(body, "/wails/") {
-			t.Fatalf("%s: Wails injects its runtime there itself, got %s", path, body)
-		}
-	}
-}
-
-func TestSPARouteCarriesMarkerAndRuntime(t *testing.T) {
-	for _, path := range []string{"/books", "/settings", "/reader/0123abcd"} {
-		rec := serveAsset(t, path)
-		body := rec.Body.String()
-		head := body[:strings.Index(body, "</head>")]
-		for _, want := range []string{
-			"window.__PLAINSHELF_DESKTOP__",
-			`<script src="/wails/ipc.js"></script>`,
-			`<script src="/wails/runtime.js"></script>`,
-		} {
-			if !strings.Contains(head, want) {
-				t.Fatalf("%s: %q missing from <head>: %s", path, want, body)
-			}
-		}
-		if got := rec.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/html") {
 			t.Fatalf("%s: Content-Type = %q, want text/html", path, got)
+		}
+	}
+}
+
+func TestAppRoutesOmitV2Runtime(t *testing.T) {
+	for _, path := range []string{"/", "/index.html", "/books", "/reader/0123abcd"} {
+		if body := serveAsset(t, path).Body.String(); strings.Contains(body, "/wails/") {
+			t.Fatalf("%s: v3 loads its runtime from the bundle, got %s", path, body)
 		}
 	}
 }

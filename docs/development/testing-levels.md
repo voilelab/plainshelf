@@ -354,6 +354,7 @@ parallel behind it.
 | Android Go library | — | — | — | — | 10 § |
 | Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 10 ‖ |
 | Go vulnerability scan (reader darwin) | — | — | — | — | 10 ‖ |
+| Go vulnerability scan (desktop darwin) | — | — | — | — | 10 ‖ |
 | **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
 
 † The E2E row measures the job as it was: 101 cases, one worker. The
@@ -381,10 +382,11 @@ terms as E2E's.
 cloud container; unlike the others it does not wait on `frontend`.
 
 ‖ Raised from 5 when the reader moved to Wails v3, which needs GTK 4 and
-WebKitGTK 6.0 to compile on Linux. Installing them took 1:55 on one run and
+WebKitGTK 6.0 to compile on Linux; the desktop module needs them too since it
+moved. Installing them took 1:55 on one run and
 was cancelled at the 5-minute cap after over four minutes on the next, so the
-measured medians above no longer describe these jobs. The reader's darwin
-vulnerability scan runs on `macos-15` and has no baseline; the caps are
+measured medians above no longer describe these jobs. The reader's and the desktop's darwin
+vulnerability scans run on `macos-15` and have no baseline; the caps are
 provisional on the same terms as E2E's.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`

@@ -24,11 +24,10 @@ import with `Cannot read properties of undefined (reading 'getItem')`. The unit
 suite passes on Node.js 22, which CI runs, and on 23; it fails on 26. Node.js 24
 and 25 have not been tried.
 
-Desktop development also needs the
-[Wails platform dependencies](https://wails.io/docs/gettingstarted/installation).
-The standalone reader is built with Wails v3, which links GTK 4 and WebKitGTK
-6.0 through cgo on Linux whenever the `reader` module compiles, so even its
-`go test` and `golangci-lint` need them there (`libgtk-4-dev` and
+The desktop app and the standalone reader are both built with Wails v3, which
+links GTK 4 and WebKitGTK 6.0 through cgo on Linux whenever the `desktop` or
+`reader` module compiles, so even their `go test` and `golangci-lint` need them
+there (`libgtk-4-dev` and
 `libwebkitgtk-6.0-dev` on Ubuntu 24.04); see the
 [Wails v3 installation guide](https://v3.wails.io/getting-started/installation/).
 Android development has [additional prerequisites](android.md).
@@ -108,8 +107,8 @@ actually verify. It is not part of the checks above.
 
 Dependency vulnerability scanning is CI-only and not in the table either.
 `govulncheck ./...` runs in each of the three Go modules under both `GOOS=linux`
-and `GOOS=darwin`, and gates the merge. The reader's darwin scan runs on a macOS
-runner, because Wails v3 cannot load for darwin without cgo; npm advisories come from GitHub's
+and `GOOS=darwin`, and gates the merge. The desktop and reader darwin scans run on
+macOS runners, because Wails v3 cannot load for darwin without cgo; npm advisories come from GitHub's
 Dependabot alerts instead of a CI job. To reproduce a `govulncheck` failure
 locally, install it with a Go at least as new as the one `go.mod` targets — built by an older Go it
 fails while loading packages, with `requires newer Go version`, before it scans
@@ -152,7 +151,10 @@ path/name is launched via `open -a`); an already-set `PLAINSHELF_READER_APP` tak
 precedence. Because the dev and brew readers share a bundle id, keep only the one
 you want registered with LaunchServices if `open -a` activates the wrong copy.
 
-Create a release-style desktop build with `just build-desktop`.
+`just run-desktop` is a plain `go run .`: Wails v3 has no zero-config `wails
+dev`, so a frontend change needs `npm --prefix frontend run build` and a
+restart. Create a release-style desktop build with `just build-desktop`, which
+runs `go tool wails3 task package:darwin` from `desktop/Taskfile.yml`.
 
 The standalone reader accepts `-book`, `-shelf`, and `-section` using Go's flag
 syntax. String flags consume the next argument as their value, even if it begins

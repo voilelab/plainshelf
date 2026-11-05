@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/internal/wailsshell"
 )
 
 const desktopMarker = "<script>window.__PLAINSHELF_DESKTOP__ = true;</script>"
@@ -21,7 +20,7 @@ func assetMiddleware(assets fs.FS, api func() http.Handler) func(http.Handler) h
 			case strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api":
 				api().ServeHTTP(w, r)
 			case r.Method == http.MethodGet && isAppRoute(assets, r.URL.Path):
-				serveDesktopIndex(w, assets, r.URL.Path)
+				serveDesktopIndex(w, assets)
 			default:
 				next.ServeHTTP(w, r)
 			}
@@ -40,14 +39,14 @@ func isAppRoute(assets fs.FS, urlPath string) bool {
 	return err != nil
 }
 
-func serveDesktopIndex(w http.ResponseWriter, assets fs.FS, urlPath string) {
+func serveDesktopIndex(w http.ResponseWriter, assets fs.FS) {
 	page, err := desktopIndexHTML(assets)
 	if err != nil {
 		http.Error(w, "failed to render the app shell", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(wailsshell.WithRuntime(urlPath, page))
+	w.Write(page)
 }
 
 func desktopIndexHTML(assets fs.FS) ([]byte, error) {

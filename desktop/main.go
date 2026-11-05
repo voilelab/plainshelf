@@ -6,10 +6,8 @@ import (
 	"runtime"
 
 	"github.com/voilelab/plainshelf/frontend"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 func main() {
@@ -20,36 +18,40 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = wails.Run(&options.App{
-		Title:  "PlainShelf",
-		Width:  1600,
-		Height: 1200,
-		AssetServer: &assetserver.Options{
-			Assets:     frontend.WebFS,
+	app.Startup(context.Background())
+
+	wailsApp := application.New(application.Options{
+		Name:     "PlainShelf",
+		Services: []application.Service{application.NewService(app)},
+		Assets: application.AssetOptions{
+			Handler:    application.AssetFileServerFS(frontend.WebFS),
 			Middleware: assetMiddleware(frontend.WebFS, app.GetAPIHandler),
 		},
-		Menu: appMenu,
-		OnStartup: func(ctx context.Context) {
-			native.attach(ctx)
-			app.Startup(ctx)
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
-		// Dialogs wait for DomReady: from OnStartup the window is not ready and
-		// MessageDialog panics on Windows (wailsapp/wails#1660).
-		OnDomReady:    app.DomReady,
-		OnBeforeClose: app.beforeClose,
-		OnShutdown: func(context.Context) {
-			app.Shutdown()
-		},
+		OnShutdown: app.Shutdown,
+	})
+	wailsApp.Menu.SetApplicationMenu(appMenu)
 
-		Bind: []any{app},
-		Mac: &mac.Options{
-			Preferences: &mac.Preferences{
-				FullscreenEnabled: mac.Enabled,
-			},
-		},
+	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:                 "PlainShelf",
+		Width:                 1600,
+		Height:                1200,
+		URL:                   "/",
+		FullscreenButtonState: application.ButtonEnabled,
+	})
+	native.attach(wailsApp, window)
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		if app.beforeClose(context.Background()) {
+			event.Cancel()
+		}
+	})
+	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		app.DomReady(context.Background())
 	})
 
-	if err != nil {
+	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
