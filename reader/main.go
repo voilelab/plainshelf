@@ -62,9 +62,18 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: singleInstanceID,
+			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
+				logForwardError(app.OpenForwardedLaunch(data.Args, data.WorkingDir))
+			},
+		},
 		OnShutdown: func() { app.Shutdown(context.Background()) },
 	})
 	wailsApp.Menu.SetApplicationMenu(appMenu)
+	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationOpenedWithFile, func(event *application.ApplicationEvent) {
+		logForwardError(app.OpenFinderFile(event.Context().Filename()))
+	})
 
 	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:  "PlainShelf Reader",

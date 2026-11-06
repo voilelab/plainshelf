@@ -130,6 +130,10 @@ not the API; see [the read-only WebDAV export](#the-read-only-webdav-export). Wh
   serves its own `readerapi` handler from the Wails asset server
   (`reader/main.go`), so it has no `security.mode` to set, and likewise no token
   and no origin check.
+  Its single-instance hand-off is a macOS distributed notification that any
+  program running as you can post, unencrypted. The reader treats the forwarded
+  arguments as untrusted: it opens a path only if it resolves to a folder
+  containing a regular `book.json`, and otherwise shows an error.
 
 What protects them is the process boundary rather than a mode: the API answers
 only inside the app's own webview, and a browser you open separately cannot reach

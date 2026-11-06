@@ -161,6 +161,12 @@ syntax. String flags consume the next argument as their value, even if it begins
 with `-`. Parsing errors stop startup before the window opens. Omit `-section` or
 use a negative value to resume saved progress; `-section 0` opens the first section.
 
+Only one reader process runs at a time. A second launch, such as the desktop's
+`open -n` read action, forwards its arguments to the running reader and exits;
+the running reader parses them with the same flags, checks that `-book` names a
+folder containing `book.json`, and replaces the open book with it. A forwarded
+path that is not a book package shows an error and leaves the current book open.
+
 ## Android app
 
 The Android client is experimental and reuses the Vue frontend through
