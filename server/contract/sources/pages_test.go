@@ -107,4 +107,11 @@ func TestAPIFingerprintSkipsImagesBooks(t *testing.T) {
 	if status.Total != 1 || status.Fingerprinted != 1 || status.Missing != 0 {
 		t.Fatalf("status = %+v, want the images book left out of coverage", status)
 	}
+
+	apitest.PatchBook(t, env, comic.Meta.ID, `{"format":"txt"}`, http.StatusOK)
+	apitest.PatchBook(t, env, prose.Meta.ID, `{"format":"images"}`, http.StatusOK)
+	status = apitest.GetJSON[fingerprintStatusResponse](t, env, apitest.FingerprintStatusURL())
+	if status.Total != 1 || status.Fingerprinted != 1 {
+		t.Fatalf("status after patching book.json format = %+v, want coverage to follow the current source", status)
+	}
 }

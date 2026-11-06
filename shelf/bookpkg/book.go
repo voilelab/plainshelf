@@ -507,19 +507,19 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 	return source, nil
 }
 
-func (b *Book) CurrentSourceStat() (charCount int, md5 string) {
+func (b *Book) CurrentSourceStat() (charCount int, md5, format string) {
 	sourceID := b.CurrentSource()
 	if err := shelfutil.ValidateSourceID(sourceID); err != nil {
-		return 0, ""
+		return 0, "", ""
 	}
 
 	source, err := openSource(b.root, path.Join(b.folderPath, SourcesFolder, sourceID))
 	if err != nil {
-		return 0, ""
+		return 0, "", ""
 	}
 
 	meta := source.GetMeta()
-	return meta.CharCount, meta.MD5Hash
+	return meta.CharCount, meta.MD5Hash, meta.Format
 }
 
 func (b *Book) ResolveCurrentSource() (*Source, error) {

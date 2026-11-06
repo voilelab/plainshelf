@@ -18,7 +18,8 @@ type BookListing struct {
 
 	Folders FolderPath
 
-	CharCount int
+	CharCount    int
+	SourceFormat string
 }
 
 func (s *Shelf) ListBooks() ([]*Book, error) {

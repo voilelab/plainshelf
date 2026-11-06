@@ -240,7 +240,7 @@ func (h *fingerprintHandlers) recordedSketches(shelfData *shelf.ShelfData, cache
 
 func withoutImageBooks(books []shelf.BookListing) []shelf.BookListing {
 	return slices.DeleteFunc(books, func(listing shelf.BookListing) bool {
-		return listing.Book.GetMeta().Format == shelf.BookFormatImages
+		return listing.SourceFormat == shelf.BookFormatImages
 	})
 }
 
