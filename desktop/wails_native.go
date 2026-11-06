@@ -101,6 +101,8 @@ func (w *wailsNative) openReaderWindow(spec readerWindow) {
 		return
 	}
 	if existing, ok := w.app.Window.GetByName(spec.name); ok {
+		spec.onReuse()
+		existing.SetURL(spec.url)
 		existing.Restore()
 		existing.Show()
 		existing.Focus()

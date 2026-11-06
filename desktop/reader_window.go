@@ -13,6 +13,7 @@ type readerWindow struct {
 	name    string
 	title   string
 	url     string
+	onReuse func()
 	onClose func()
 }
 
@@ -37,6 +38,7 @@ func (a *DesktopApp) OpenReaderWindow(shelfID, bookID string, section int) error
 		name:    readerWindowName(shelfID, bookID),
 		title:   title,
 		url:     readerWindowURL(shelfID, bookID, section),
+		onReuse: func() { a.progressStager.PersistBookOnClose(shelfID, bookID) },
 		onClose: func() { a.closeReaderWindow(shelfID, bookID) },
 	})
 	return nil

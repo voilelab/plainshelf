@@ -95,6 +95,22 @@ func TestReaderWindowNameIsPerBook(t *testing.T) {
 	}
 }
 
+func TestReaderWindowReuseSavesItsBook(t *testing.T) {
+	env := newReaderWindowEnv(t)
+	again := env.open(t, env.bookA, 2)
+	env.app.StageReadingProgress("main", env.bookA, 420, 1000)
+	env.app.StageReadingProgress("main", env.bookB, 77, 1000)
+
+	again.onReuse()
+
+	if got := diskOffset(t, env.store, "main", env.bookA); got != 420 {
+		t.Fatalf("reused book offset = %d, want 420 before its window reloads", got)
+	}
+	if got := diskOffset(t, env.store, "main", env.bookB); got != 0 {
+		t.Fatalf("other book offset = %d, want it left staged", got)
+	}
+}
+
 func TestReaderWindowRejectsUnknownBook(t *testing.T) {
 	env := newReaderWindowEnv(t)
 

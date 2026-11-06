@@ -165,7 +165,9 @@ The desktop's default way to open a book (reading setting "Open in a new
 window", `reader-launch-mode` `new-window`) is another window of the same
 process. `OpenReaderWindow` names the window after the shelf and book, so
 reading a book that already has a window brings that window forward instead of
-opening a second one. The window loads the reader route with `?shelf=` and the
+opening a second one. It first writes that book's staged position, then points
+the window back at the reader route, because the window may have navigated to
+the book's detail page or the request may name a chapter. The window loads the reader route with `?shelf=` and the
 optional `?section=`; the frontend takes its active shelf from that parameter
 for that window only and leaves the saved shelf alone.
 
