@@ -1346,8 +1346,8 @@ const en = {
       title: 'Import Book',
       closeLabel: 'Close import dialog',
       description:
-        'Upload a TXT, Markdown or EPUB file to create a new book entry, or drag-and-drop files here.',
-      fileLabel: 'Book File (.txt, .md, .epub)',
+        'Upload a TXT, Markdown, EPUB or CBZ file to create a new book entry, or drag-and-drop files here.',
+      fileLabel: 'Book File (.txt, .md, .epub, .cbz)',
       epubTitle: 'EPUB Conversion',
       epubDescription:
         'EPUB files are converted into a source. The original file is not kept; supported illustrations are retained by the Markdown preset.',
@@ -1373,8 +1373,8 @@ const en = {
         cancelled: 'Cancelled'
       },
       errors: {
-        noFiles: 'Please choose at least one TXT, Markdown or EPUB file.',
-        unsupportedExtension: 'Book file must be .txt, .md or .epub.',
+        noFiles: 'Please choose at least one TXT, Markdown, EPUB or CBZ file.',
+        unsupportedExtension: 'Book file must be .txt, .md, .epub or .cbz.',
         allFailed: 'Import failed.',
         someFailed: '{count} file(s) failed.',
         cancelled: 'Import cancelled.'

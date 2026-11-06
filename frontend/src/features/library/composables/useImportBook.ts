@@ -12,7 +12,7 @@ import {
 import { notifyImportFinished } from '@/utils/importNotification';
 import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy } from '@/types/book';
 
-const bookExtPattern = /\.(txt|md|epub)$/i;
+const bookExtPattern = /\.(txt|md|epub|cbz)$/i;
 const epubExtPattern = /\.epub$/i;
 const txtExtPattern = /\.txt$/i;
 

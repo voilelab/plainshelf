@@ -65,7 +65,7 @@ deployment, review [Local Shelf File Source](configuring-local-shelf.md).
 
 ## 3. Add a book
 
-Open the library, choose **Import**, and select a `.txt`, `.md` or `.epub` file.
+Open the library, choose **Import**, and select a `.txt`, `.md`, `.epub` or `.cbz` file.
 You can then edit its metadata, add a cover, place it in a folder, and open the
 reader.
 
@@ -98,6 +98,9 @@ such as `·` and `・` match a space. It does not search book contents.
 An EPUB is converted to text as it is imported; see
 [EPUB import](epub-import.md) for what is kept, what is dropped, and how to
 choose the output layout.
+
+A CBZ is extracted into an ordered image source; see [CBZ import](cbz-import.md)
+for supported images, metadata, and limits.
 
 PlainShelf creates a `.bookpkg` directory in the shelf and assigns a stable book
 ID. Renaming the title or moving the book between folders does not change that

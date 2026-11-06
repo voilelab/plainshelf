@@ -32,6 +32,18 @@ describe('useImportBook', () => {
     vi.clearAllMocks();
   });
 
+  it('accepts CBZ files from selection and drop without EPUB options', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'comic' });
+    const book = useImportBook();
+    book.setBookFiles([new File(['zip'], 'Comic.CBZ', { type: 'application/zip' })]);
+    expect(book.error.value).toBe('');
+    expect(book.files.value[0].title).toBe('Comic');
+    expect(book.hasEpubFile()).toBe(false);
+    const result = await book.submitFiles('/');
+    expect(result?.successCount).toBe(1);
+    expect(mocks.importBook).toHaveBeenCalledTimes(1);
+  });
+
   it('advances the N / M progress as each file finishes', async () => {
     const resolvers: Array<(value: { id: string }) => void> = [];
     mocks.importBook.mockImplementation(

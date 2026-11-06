@@ -34,7 +34,7 @@ func TestValidateImportFileHeader(t *testing.T) {
 		},
 		{
 			name:        "reject unsupported extension",
-			filename:    "book.cbz",
+			filename:    "book.cbr",
 			contentType: "text/plain",
 			wantErr:     true,
 		},

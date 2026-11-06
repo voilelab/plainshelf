@@ -1329,8 +1329,8 @@ const zhHant = {
     importBook: {
       title: '匯入書籍',
       closeLabel: '關閉匯入對話框',
-      description: '上傳 TXT、Markdown 或 EPUB 檔案來建立新書，也可以把檔案拖曳到這裡。',
-      fileLabel: '書籍檔案（.txt、.md、.epub）',
+      description: '上傳 TXT、Markdown、EPUB 或 CBZ 檔案來建立新書，也可以把檔案拖曳到這裡。',
+      fileLabel: '書籍檔案（.txt、.md、.epub、.cbz）',
       epubTitle: 'EPUB 轉換',
       epubDescription:
         'EPUB 匯入時會轉換成 source，不保留原始檔案；Markdown 預設可保留支援的圖片。',
@@ -1356,8 +1356,8 @@ const zhHant = {
         cancelled: '已取消'
       },
       errors: {
-        noFiles: '請至少選擇一個 TXT、Markdown 或 EPUB 檔案。',
-        unsupportedExtension: '書籍檔案必須是 .txt、.md 或 .epub。',
+        noFiles: '請至少選擇一個 TXT、Markdown、EPUB 或 CBZ 檔案。',
+        unsupportedExtension: '書籍檔案必須是 .txt、.md、.epub 或 .cbz。',
         allFailed: '匯入失敗。',
         someFailed: '有 {count} 個檔案失敗。',
         cancelled: '匯入已取消。'

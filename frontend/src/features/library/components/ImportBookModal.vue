@@ -59,7 +59,7 @@
             ref="bookInput"
             class="input file-input"
             type="file"
-            accept=".txt,.md,.epub,text/plain,text/markdown,application/epub+zip"
+            accept=".txt,.md,.epub,.cbz,text/plain,text/markdown,application/epub+zip,application/vnd.comicbook+zip,application/x-cbz"
             :disabled="submitting"
             multiple
             @change="onBookFileChange"
