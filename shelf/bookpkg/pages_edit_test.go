@@ -277,3 +277,52 @@ func keys(snapshot assetSnapshot) []string {
 	}
 	return names
 }
+
+func TestInsertPageKeepsImageListedOnFail(t *testing.T) {
+	source, libRoot := newEditableComic(t, "a.png\n", "a.png")
+	md5Hash := currentPages(t, source).MD5Hash
+	metaPath := filepath.Join(libRoot, source.FolderPath(), SourceMetaFile)
+	if err := os.Remove(metaPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(metaPath, "blocker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := source.InsertPage(md5Hash, 1, []byte("new"), ".png"); err == nil {
+		t.Fatal("InsertPage succeeded with meta.json unwritable")
+	}
+
+	names := parsePageNames([]byte(readPageListFile(t, source)))
+	if len(names) != 2 {
+		t.Fatalf("source.txt names = %v, want the new page written before meta.json failed", names)
+	}
+	if _, ok := snapshotAssets(t, libRoot, source)[names[1]]; !ok {
+		t.Errorf("image %q was deleted although source.txt lists it", names[1])
+	}
+}
+
+func TestInsertPageCleansUpUnlistedOnFail(t *testing.T) {
+	source, libRoot := newEditableComic(t, "a.png\n", "a.png")
+	md5Hash := currentPages(t, source).MD5Hash
+	listPath := filepath.Join(libRoot, source.FolderPath(), SourceFile)
+	if err := os.Chmod(filepath.Dir(listPath), 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Dir(listPath), 0o755) })
+	if f, err := os.CreateTemp(filepath.Dir(listPath), "probe"); err == nil {
+		f.Close()
+		t.Skip("directory permissions are not enforced for this user")
+	}
+
+	if _, err := source.InsertPage(md5Hash, 1, []byte("new"), ".png"); err == nil {
+		t.Fatal("InsertPage succeeded with source.txt unwritable")
+	}
+
+	if got := readPageListFile(t, source); got != "a.png\n" {
+		t.Errorf("source.txt = %q, want it untouched", got)
+	}
+	if got := keys(snapshotAssets(t, libRoot, source)); !reflect.DeepEqual(got, []string{"a.png"}) {
+		t.Errorf("assets = %v, want the unlisted new image removed", got)
+	}
+}

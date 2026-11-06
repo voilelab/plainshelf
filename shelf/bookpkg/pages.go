@@ -153,12 +153,23 @@ func (r *Source) InsertPage(baseMD5 string, position int, data []byte, ext strin
 	}
 	list, err := r.writePageNames(slices.Insert(names, position, name))
 	if err != nil {
-		if cleanupErr := r.DeleteAsset(name); cleanupErr != nil {
-			return nil, util.Errorf("%w (and the new page %s stays unlisted: %w)", err, name, cleanupErr)
+		if cleanupErr := r.removeUnlistedAsset(name); cleanupErr != nil {
+			return nil, util.Errorf("%w (and the new page %s was not cleaned up: %w)", err, name, cleanupErr)
 		}
 		return nil, util.Errorf("%w", err)
 	}
 	return list, nil
+}
+
+func (r *Source) removeUnlistedAsset(name string) error {
+	content, err := r.readPageList()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	if slices.Contains(parsePageNames(content), name) {
+		return nil
+	}
+	return r.DeleteAsset(name)
 }
 
 func (r *Source) DeletePage(baseMD5, name string) (*PageList, error) {

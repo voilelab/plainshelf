@@ -52,7 +52,7 @@
     </div>
 
     <div v-if="loading" class="loading page-loading">{{ t('sources.editor.loading') }}</div>
-    <div v-else-if="pageList" class="page-scroll">
+    <div v-else-if="pageList" ref="scrollEl" class="page-scroll">
       <p v-if="writesEnabled" class="meta page-hint">{{ t('sources.pages.hint') }}</p>
       <ol class="page-grid" data-testid="page-grid">
         <li
@@ -81,6 +81,7 @@
               :name="page.name"
               :missing="page.missing"
               :alt="t('sources.pages.pageLabel', { number: index + 1 })"
+              :scroll-root="scrollEl"
             />
           </button>
           <div class="page-actions">
@@ -98,7 +99,7 @@
         <p class="meta">{{ t('sources.pages.unlistedHelp') }}</p>
         <ul class="page-grid">
           <li v-for="name in pageList.unlisted" :key="name" class="page-cell" :data-page-name="name">
-            <PageThumb :book-id="bookId" :source-id="sourceId" :name="name" :alt="name" />
+            <PageThumb :book-id="bookId" :source-id="sourceId" :name="name" :alt="name" :scroll-root="scrollEl" />
             <div class="page-actions">
               <button class="button" type="button" :disabled="!canEdit" @click="appendUnlisted(name)">{{ t('sources.pages.addToList') }}</button>
               <button class="icon-button danger" type="button" :disabled="!canEdit" :aria-label="t('sources.pages.delete')" @click="pendingDelete = { name, missing: false }">×</button>
@@ -134,6 +135,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const fileInput = ref<HTMLInputElement | null>(null);
+const scrollEl = ref<HTMLElement | null>(null);
 const pendingDelete = ref<{ name: string; missing: boolean } | null>(null);
 const dragIndex = ref<number | null>(null);
 const dropIndex = ref<number | null>(null);
