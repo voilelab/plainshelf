@@ -300,6 +300,10 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$NATIVE_VERSION"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "com.voilelab.plainshelf-reader"
           test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")" = "13.0.0"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :UTExportedTypeDeclarations:0:UTTypeIdentifier' "$plist")" = "com.voilelab.plainshelf.bookpkg"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :UTExportedTypeDeclarations:0:UTTypeTagSpecification:public.filename-extension:0' "$plist")" = "bookpkg"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:0' "$plist")" = "com.voilelab.plainshelf.bookpkg"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSTypeIsPackage' "$plist")" = "true"
 
       - name: Package .app as zip
         env:

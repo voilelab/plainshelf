@@ -11,6 +11,7 @@ type fakeNative struct {
 	prompts int
 	errors  []string
 	reloads int
+	focuses int
 }
 
 func (f *fakeNative) openDirectory(string) (string, error) {
@@ -24,6 +25,8 @@ func (f *fakeNative) showError(title, _ string) error {
 }
 
 func (f *fakeNative) reloadApp() { f.reloads++ }
+
+func (f *fakeNative) focus() { f.focuses++ }
 
 func newReaderAppWithNative(t *testing.T, native nativeUI) *ReaderApp {
 	t.Helper()

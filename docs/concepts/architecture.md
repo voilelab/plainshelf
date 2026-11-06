@@ -161,8 +161,9 @@ the read-history and reading-stats stores.
 
 ### Reader progress reaches the desktop library
 
-The standalone reader is a separate process with its own window. How it keys a
-book's progress depends on how it was launched:
+The standalone reader is a separate, single-instance process with one window: a
+later launch hands its arguments to the running reader, which swaps in the new
+book. How it keys a book's progress depends on how it was launched:
 
 - **Launched from the desktop app** (macOS), reading a book shells out to the
   installed `PlainShelfReader` with the book's `.bookpkg` path (`-book`) and its
