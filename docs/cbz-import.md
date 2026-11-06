@@ -48,6 +48,27 @@ download of an available page does not mark the book as downloaded. pCloud
 shelves remain read-only; their embedded Go backend downloads the whole book
 package. Both paths preserve page order and reading direction offline.
 
+## Editing pages
+
+Open the book's sources editor and select an `images` source to see its pages
+as a grid of thumbnails. Every change saves at once:
+
+- Drag a page, or use its arrow buttons, to move it. Only `source.txt` is
+  rewritten; no image is renamed.
+- Choose **Add pages** to upload one or more images. They go after the selected
+  page, or at the end when no page is selected, and each is stored under a new
+  random name in its original format.
+- Choose **×** on a page to delete it and its image file. A missing page shows
+  as a placeholder and **×** only removes it from the list.
+- Images in the source folder that the list does not name, such as files copied
+  in by hand, appear under **Not in the page list**. Add one to the end of the
+  list or delete it.
+- **Reading direction** switches between left to right and right to left, and
+  rewrites only the source's `meta.json`.
+
+If `source.txt` changed since the editor loaded it, for example through a sync
+tool, the edit is refused and the editor asks you to reload the pages.
+
 ## Limits
 
 | Limit | Maximum |
@@ -57,6 +78,8 @@ package. Both paths preserve page order and reading direction offline.
 | Uncompressed size of any entry, including skipped files | 20 MiB |
 | Total declared uncompressed size of all entries | 2 GiB |
 | Pixels per image, checked from its header | 100 million |
+
+An image added in the editor has the same 20 MiB and 100-million-pixel limits.
 
 The importer rejects absolute paths, Windows drive paths, `..` path components,
 and symbolic links. No archive entry is extracted to its original path.

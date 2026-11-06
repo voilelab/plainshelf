@@ -1449,6 +1449,41 @@ const zhHant = {
         }
       }
     },
+    pages: {
+      title: '頁面',
+      direction: '翻頁方向',
+      ltr: '由左到右',
+      rtl: '由右到左',
+      addAtEnd: '在最後加入頁面',
+      addAfter: '在第 {number} 頁之後加入頁面',
+      count: '共 {count} 頁',
+      saving: '儲存中...',
+      autosave: '頁面變更會立即儲存',
+      hint: '拖曳頁面可調整順序。選取一頁後，新加入的頁面會放在它後面。',
+      pageLabel: '第 {number} 頁',
+      missing: '缺頁',
+      moveEarlier: '往前移',
+      moveLater: '往後移',
+      delete: '刪除頁面',
+      removeMissing: '移除缺頁',
+      deleteTitle: '刪除頁面',
+      deleteConfirm: '刪除',
+      deleteQuestion: '要刪除這一頁和它的圖檔嗎？',
+      removeMissingQuestion: '要把這個缺頁從清單移除嗎？',
+      empty: '這個來源還沒有頁面。',
+      unlistedTitle: '未排入',
+      unlistedHelp: '這些圖片在來源資料夾裡，但不在閱讀順序中。',
+      addToList: '加到最後',
+      reload: '重新載入頁面',
+      errors: {
+        load: '載入頁面失敗',
+        save: '儲存頁面順序失敗',
+        add: '加入頁面失敗',
+        delete: '刪除頁面失敗',
+        direction: '變更翻頁方向失敗',
+        conflict: '頁面清單在載入後被改過了，請重新載入後再編輯。'
+      }
+    },
     conversion: {
       confirm: '建立來源',
       busy: '建立中...',

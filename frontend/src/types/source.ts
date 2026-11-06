@@ -28,4 +28,7 @@ export interface SourcePage {
 export interface SourcePageList {
   pages: SourcePage[];
   unlisted: string[];
+  md5_hash?: string;
 }
+
+export type PageDirection = 'ltr' | 'rtl';

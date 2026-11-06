@@ -450,6 +450,23 @@ book, and an image in `assets/` that the list does not name reads as unlisted.
 The `GET …/sources/{source-id}/pages` route returns that reading, so no client
 parses `source.txt` itself.
 
+That reading carries `md5_hash`, the hash of `source.txt` as it was read. Every
+edit to the list sends it back, and the server refuses the edit with `409
+PAGE_LIST_CONFLICT` when `source.txt` no longer matches, so a sync tool's or
+another window's change is never silently overwritten:
+
+| Route | Effect |
+|---|---|
+| `PUT …/pages` with `{"pages": [...], "md5_hash": "..."}` | Replaces the list; reorders, appends unlisted images, drops missing pages |
+| `POST …/pages?position=N&md5_hash=...` with the image as the body | Stores one image under a random name and inserts it at index `N` |
+| `DELETE …/pages/{name}?md5_hash=...` | Removes the name from the list and deletes its image; also removes a missing page or deletes an unlisted image |
+| `PUT …/page-direction` with `{"page_direction": "rtl"}` | Rewrites `meta.json` only |
+
+Each returns the new reading. An added image has the same 20 MiB limit as any
+asset upload and the 100-million-pixel limit of [CBZ import](../cbz-import.md),
+read from its header; only JPEG, PNG, GIF and WebP are accepted, and the bytes
+are stored unchanged.
+
 `page_direction` is how the pages turn: `"rtl"` for right to left, as in most
 manga. It is written only for that value; absent means left to right, and only
 an `images` source may carry it.

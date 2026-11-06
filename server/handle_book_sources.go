@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -14,6 +15,8 @@ import (
 
 type sourceHandlers struct {
 	*apiCore
+
+	pageEdits sync.Mutex
 }
 
 type createSourceJSONRequest struct {

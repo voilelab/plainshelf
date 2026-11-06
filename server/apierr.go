@@ -127,6 +127,16 @@ var apiErrorTable = []struct {
 		status:  http.StatusConflict,
 		message: "source is not an images source",
 	}},
+	{shelf.ErrPageListConflict, apiError{
+		code:    "PAGE_LIST_CONFLICT",
+		status:  http.StatusConflict,
+		message: "the page list changed since it was read; reload it and try again",
+	}},
+	{shelf.ErrInvalidPagePosition, apiError{
+		code:    "INVALID_PAGE_POSITION",
+		status:  http.StatusBadRequest,
+		message: "page position is outside the page list",
+	}},
 	{shelf.ErrInvalidAssetName, apiError{
 		code:    "INVALID_ASSET_NAME",
 		status:  http.StatusBadRequest,

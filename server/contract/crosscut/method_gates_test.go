@@ -75,7 +75,9 @@ func TestAPIMutatingRoutesAreGatedContract(t *testing.T) {
 	env := apitest.New(t, apitest.WithSecondShelf(t.TempDir()))
 	book := apitest.ImportTextBook(t, env, "Gated", "fiction", "gated.txt", "body")
 	bookID := book.Meta.ID
-	assetPath := apitest.AssetURL(bookID, env.CurrentSourceID(t, bookID), "img-0001.png")
+	sourceID := env.CurrentSourceID(t, bookID)
+	assetPath := apitest.AssetURL(bookID, sourceID, "img-0001.png")
+	pagesPath := apitest.SourceURL(bookID, sourceID, "pages")
 
 	cases := []struct {
 		name   string
@@ -96,6 +98,11 @@ func TestAPIMutatingRoutesAreGatedContract(t *testing.T) {
 		{"empty trash", http.MethodPost, apitest.EmptyTrashURL(), nil},
 		{"asset write", http.MethodPut, assetPath, []byte("x")},
 		{"asset delete", http.MethodDelete, assetPath, nil},
+		{"page list write", http.MethodPut, pagesPath, []byte(`{"pages":[],"md5_hash":"x"}`)},
+		{"page insert", http.MethodPost, pagesPath + "?position=0&md5_hash=x", []byte("x")},
+		{"page delete", http.MethodDelete, pagesPath + "/img-0001.png?md5_hash=x", nil},
+		{"page direction", http.MethodPut, apitest.SourceURL(bookID, sourceID, "page-direction"),
+			[]byte(`{"page_direction":"rtl"}`)},
 	}
 
 	for _, tc := range cases {

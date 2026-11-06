@@ -57,6 +57,10 @@ func TestAPIImagesSourcePagesContract(t *testing.T) {
 	want := shelf.PageList{
 		Pages:    []shelf.Page{{Name: "p-b.png", Missing: true}, {Name: "p-a.jpg"}},
 		Unlisted: []string{"p-stray.gif"},
+		MD5Hash:  got.MD5Hash,
+	}
+	if got.MD5Hash == "" {
+		t.Error("pages carries no md5_hash for an edit to send back")
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("pages = %+v, want %+v", got, want)
