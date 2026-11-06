@@ -84,7 +84,10 @@ func (a *ReaderApp) StageReadingProgress(shelfID, bookID string, offset, at int6
 }
 
 func (a *ReaderApp) DomReady(context.Context) {
-	if a.promptedForBook || a.library.BookID() != "" {
+	a.openMu.Lock()
+	hasBook := a.library.BookID() != ""
+	a.openMu.Unlock()
+	if a.promptedForBook || hasBook {
 		return
 	}
 	a.promptedForBook = true
@@ -140,6 +143,9 @@ func (a *ReaderApp) openBook(dir, shelfID string, section int) (string, error) {
 	a.openMu.Lock()
 	defer a.openMu.Unlock()
 
+	if err := checkBookPackageDir(dir); err != nil {
+		return "", err
+	}
 	bookID, err := a.library.Open(dir)
 	if err != nil {
 		return "", err

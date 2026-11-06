@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/reader/readerapi"
 )
@@ -117,5 +119,33 @@ func TestFinderFileOpensStandalone(t *testing.T) {
 	}
 	if native.reloads != 1 || native.focuses != 1 {
 		t.Fatalf("native calls = %+v, want one reload and focus", native)
+	}
+}
+
+func TestDomReadyWaitsForInFlightOpen(t *testing.T) {
+	native := &fakeNative{}
+	app := newReaderAppWithNative(t, native)
+	dir := writeBookPackage(t, "finderbook")
+
+	app.openMu.Lock()
+	done := make(chan struct{})
+	go func() {
+		app.DomReady(context.Background())
+		close(done)
+	}()
+	select {
+	case <-done:
+		app.openMu.Unlock()
+		t.Fatal("DomReady did not wait for the in-flight open")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if _, err := app.library.Open(dir); err != nil {
+		t.Fatal(err)
+	}
+	app.openMu.Unlock()
+	<-done
+
+	if native.prompts != 0 {
+		t.Fatalf("DomReady prompted %d times after a Finder open, want 0", native.prompts)
 	}
 }

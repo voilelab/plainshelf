@@ -38,11 +38,7 @@ func (a *ReaderApp) OpenFinderFile(path string) error {
 }
 
 func (a *ReaderApp) openForwardedBook(dir, shelfID string, section int) error {
-	err := checkBookPackageDir(dir)
-	if err == nil {
-		_, err = a.openBook(dir, shelfID, section)
-	}
-	if err != nil {
+	if _, err := a.openBook(dir, shelfID, section); err != nil {
 		a.showNotABook()
 		return util.Errorf("%w", err)
 	}
