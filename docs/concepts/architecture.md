@@ -137,11 +137,10 @@ The frontend autosaves reading progress every 10 seconds. To narrow what closing
 a Wails window between two saves can lose, the frontend also stages its latest
 position in Go memory, and the app's single close function waits for it to be
 written (`internal/readingclose`); a flush request over an async event proved
-unreliable during window teardown. The main window's `WindowClosing` hook and
-`OnShutdown` both call that function, which runs once whichever fires first: it
-writes every staged position, then stops LAN sharing (desktop), then closes the
-server or the open book package. On the desktop, closing the main window then
-quits the app, so no reader window outlives it. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
+unreliable during window teardown. Closing the last window and `OnShutdown`
+both call that function, which runs once whichever fires first: it writes every
+staged position, then stops LAN sharing (desktop), then closes the server or the
+open book package, and the desktop then quits. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
 seconds) and best-effort: if the cross-process file lock is held longer, or the
 write fails, the window closes anyway and that position can still be lost. The
 staged write merges newest-wins, so it never overwrites a newer entry from the
@@ -174,6 +173,15 @@ for that window only and leaves the saved shelf alone.
 Every window shares the one server, preference store and document files, so the
 merging above covers them without anything window-specific. Closing a reader
 window writes only that book's staged position and leaves the app running.
+
+Reader windows behave like separate apps: closing the main window while one is
+open only hides the main window, and the app keeps its server, LAN sharing and
+the other windows running. **Window → Library** (`CmdOrCtrl+Shift+L`) and, on
+macOS, clicking the Dock icon show it again. When the last reader window closes
+while the main window is hidden, the close function above runs and the app
+quits, so the process never runs on without a window. Reader windows take the
+application menu on Windows and Linux too (`UseApplicationMenu`), which is
+where that menu item lives.
 After each reading-data write, Go emits the `plainshelf:reading-data-changed`
 event to every window, and the dashboard refetches on it, so "recent reading"
 in the main window updates while a reader window is still open beside it.

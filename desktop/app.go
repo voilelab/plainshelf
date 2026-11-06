@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/preferences"
@@ -37,6 +38,8 @@ type DesktopApp struct {
 	progressStager      *readingclose.Stager
 	lanShare            *lanShare
 	closeOnce           sync.Once
+	shuttingDown        atomic.Bool
+	windows             windowSet
 
 	secrets secretStore
 
@@ -108,6 +111,7 @@ func (a *DesktopApp) warnShelfOpenErrs() {
 }
 
 func (a *DesktopApp) Shutdown() {
+	a.shuttingDown.Store(true)
 	a.closeOnce.Do(a.closeInOrder)
 }
 

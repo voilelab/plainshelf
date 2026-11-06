@@ -21,12 +21,26 @@ type fakeNative struct {
 	quits    int
 	events   []string
 	windows  []readerWindow
+
+	mainHidden bool
 }
 
 func (f *fakeNative) openReaderWindow(w readerWindow) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.windows = append(f.windows, w)
+}
+
+func (f *fakeNative) hideMain() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mainHidden = true
+}
+
+func (f *fakeNative) showMain() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mainHidden = false
 }
 
 func (f *fakeNative) emit(event string) {

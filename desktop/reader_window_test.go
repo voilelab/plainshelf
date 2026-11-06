@@ -151,23 +151,73 @@ func TestReaderWindowCloseKeepsAppRunning(t *testing.T) {
 	}
 }
 
-func TestMainWindowCloseQuitsWithReaders(t *testing.T) {
+func TestMainCloseHidesWhileReading(t *testing.T) {
 	env := newReaderWindowEnv(t)
-	env.open(t, env.bookA, -1)
-	env.open(t, env.bookB, -1)
+	a := env.open(t, env.bookA, -1)
+	b := env.open(t, env.bookB, -1)
 	env.app.StageReadingProgress("main", env.bookA, 420, 1000)
 	env.app.StageReadingProgress("main", env.bookB, 77, 1000)
 
-	env.app.closeMainWindow()
-
-	if env.native.quits != 1 {
-		t.Fatalf("quits = %d, want 1 so no reader window outlives the main window", env.native.quits)
+	if !env.app.closeMainWindow() {
+		t.Fatal("closing the main window with readers open must keep it, hidden")
 	}
-	if got := diskOffset(t, env.store, "main", env.bookA); got != 420 {
-		t.Fatalf("book A offset = %d, want 420", got)
+	if !env.native.mainHidden || env.native.quits != 0 {
+		t.Fatalf("hidden = %v, quits = %d; want hidden and still running", env.native.mainHidden, env.native.quits)
+	}
+	if _, err := env.app.ListShelfDetails(); err != nil {
+		t.Fatalf("backend stopped while reader windows are open: %v", err)
+	}
+
+	a.onClose()
+	if env.native.quits != 0 {
+		t.Fatal("app quit while a reader window is still open")
+	}
+
+	b.onClose()
+	if env.native.quits != 1 {
+		t.Fatalf("quits = %d, want 1 once the last window closes", env.native.quits)
 	}
 	if got := diskOffset(t, env.store, "main", env.bookB); got != 77 {
-		t.Fatalf("book B offset = %d, want 77", got)
+		t.Fatalf("last book offset = %d, want 77", got)
+	}
+}
+
+func TestMainCloseWithoutReadersQuits(t *testing.T) {
+	env := newReaderWindowEnv(t)
+	a := env.open(t, env.bookA, -1)
+	a.onClose()
+
+	if env.app.closeMainWindow() {
+		t.Fatal("closing the only window must let it close")
+	}
+	if env.native.quits != 1 {
+		t.Fatalf("quits = %d, want 1", env.native.quits)
+	}
+}
+
+func TestShownLibraryOutlivesReaders(t *testing.T) {
+	env := newReaderWindowEnv(t)
+	a := env.open(t, env.bookA, -1)
+	env.app.closeMainWindow()
+
+	env.app.showLibrary()
+	a.onClose()
+
+	if env.native.mainHidden || env.native.quits != 0 {
+		t.Fatalf("hidden = %v, quits = %d; want the shown library to keep the app running", env.native.mainHidden, env.native.quits)
+	}
+}
+
+func TestReaderCloseDuringQuitIsQuiet(t *testing.T) {
+	env := newReaderWindowEnv(t)
+	a := env.open(t, env.bookA, -1)
+	env.app.closeMainWindow()
+
+	env.app.Shutdown()
+	a.onClose()
+
+	if env.native.quits != 0 {
+		t.Fatalf("quits = %d, want none while the app is already quitting", env.native.quits)
 	}
 }
 

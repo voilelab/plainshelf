@@ -3,6 +3,7 @@ package main
 import (
 	"net/url"
 	"strconv"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
@@ -34,12 +35,14 @@ func (a *DesktopApp) OpenReaderWindow(shelfID, bookID string, section int) error
 	if err != nil {
 		return err
 	}
+	name := readerWindowName(shelfID, bookID)
+	a.windows.opened(name)
 	a.native.openReaderWindow(readerWindow{
-		name:    readerWindowName(shelfID, bookID),
+		name:    name,
 		title:   title,
 		url:     readerWindowURL(shelfID, bookID, section),
 		onReuse: func() { a.progressStager.PersistBookOnClose(shelfID, bookID) },
-		onClose: func() { a.closeReaderWindow(shelfID, bookID) },
+		onClose: func() { a.closeReaderWindow(name, shelfID, bookID) },
 	})
 	return nil
 }
@@ -62,12 +65,70 @@ func (a *DesktopApp) bookTitle(shelfID, bookID string) (string, error) {
 	return "PlainShelf", nil
 }
 
-func (a *DesktopApp) closeReaderWindow(shelfID, bookID string) {
+func (a *DesktopApp) closeReaderWindow(name, shelfID, bookID string) {
 	a.progressStager.PersistBookOnClose(shelfID, bookID)
 	a.native.emit(readingDataChangedEvent)
+	if a.windows.closed(name) {
+		a.quitApp()
+	}
 }
 
-func (a *DesktopApp) closeMainWindow() {
+func (a *DesktopApp) closeMainWindow() (keepWindow bool) {
+	if a.shuttingDown.Load() {
+		return false
+	}
+	if a.windows.hideMain() {
+		a.native.hideMain()
+		return true
+	}
+	a.quitApp()
+	return false
+}
+
+func (a *DesktopApp) showLibrary() {
+	a.windows.showMain()
+	a.native.showMain()
+}
+
+func (a *DesktopApp) quitApp() {
+	if a.shuttingDown.Load() {
+		return
+	}
 	a.Shutdown()
 	a.native.quit()
+}
+
+type windowSet struct {
+	mu         sync.Mutex
+	readers    map[string]struct{}
+	mainHidden bool
+}
+
+func (s *windowSet) opened(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.readers == nil {
+		s.readers = map[string]struct{}{}
+	}
+	s.readers[name] = struct{}{}
+}
+
+func (s *windowSet) closed(name string) (lastWindow bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.readers, name)
+	return s.mainHidden && len(s.readers) == 0
+}
+
+func (s *windowSet) hideMain() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mainHidden = len(s.readers) > 0
+	return s.mainHidden
+}
+
+func (s *windowSet) showMain() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mainHidden = false
 }

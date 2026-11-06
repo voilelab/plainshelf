@@ -42,8 +42,13 @@ func main() {
 		FullscreenButtonState: application.ButtonEnabled,
 	})
 	native.attach(wailsApp, window)
-	window.RegisterHook(events.Common.WindowClosing, func(*application.WindowEvent) {
-		app.closeMainWindow()
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		if app.closeMainWindow() {
+			event.Cancel()
+		}
+	})
+	wailsApp.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
+		app.showLibrary()
 	})
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		app.DomReady(context.Background())

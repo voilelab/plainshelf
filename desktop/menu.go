@@ -34,6 +34,9 @@ func applicationMenu(app *DesktopApp, goos string) []menuSpec {
 			{label: "Zoom Out", accel: "CmdOrCtrl+-", action: app.ZoomOut},
 			{label: "Reset Zoom", accel: "CmdOrCtrl+0", action: app.ResetZoom},
 		}},
+		menuSpec{role: submenuRole, label: "Window", items: []menuItem{
+			{label: "Library", accel: "CmdOrCtrl+Shift+L", action: app.showLibrary},
+		}},
 	)
 }
 

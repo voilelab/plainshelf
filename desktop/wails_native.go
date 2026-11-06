@@ -115,10 +115,25 @@ func (w *wailsNative) openReaderWindow(spec readerWindow) {
 		Height:                1200,
 		URL:                   spec.url,
 		FullscreenButtonState: application.ButtonEnabled,
+		UseApplicationMenu:    true,
 	})
 	window.RegisterHook(events.Common.WindowClosing, func(*application.WindowEvent) {
 		spec.onClose()
 	})
+}
+
+func (w *wailsNative) hideMain() {
+	if w.window != nil {
+		w.window.Hide()
+	}
+}
+
+func (w *wailsNative) showMain() {
+	if w.window != nil {
+		w.window.Restore()
+		w.window.Show()
+		w.window.Focus()
+	}
 }
 
 func (w *wailsNative) emit(event string) {

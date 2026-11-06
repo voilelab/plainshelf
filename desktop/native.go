@@ -20,6 +20,8 @@ type nativeUI interface {
 	openURL(rawURL string)
 	execJS(script string)
 	openReaderWindow(w readerWindow)
+	hideMain()
+	showMain()
 	emit(event string)
 	quit()
 }

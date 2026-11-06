@@ -54,6 +54,7 @@ func TestApplicationMenuAccelerators(t *testing.T) {
 		{goos: "windows", label: "Next Page", wantAccel: "OptionOrAlt+Right"},
 		{goos: "windows", label: "Zoom In", wantAccel: "CmdOrCtrl+="},
 		{goos: "darwin", label: "Reset Zoom", wantAccel: "CmdOrCtrl+0"},
+		{goos: "windows", label: "Library", wantAccel: "CmdOrCtrl+Shift+L"},
 	}
 
 	for _, tc := range tests {
