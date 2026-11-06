@@ -52,9 +52,10 @@ var ErrInvalidLanguageTag = util.NewError("language must be a BCP 47 tag")
 const (
 	BookFormatText     = shelfutil.BookFormatText
 	BookFormatMarkdown = shelfutil.BookFormatMarkdown
+	BookFormatImages   = shelfutil.BookFormatImages
 )
 
-var ErrInvalidBookFormat = util.NewError(`format must be "txt" or "md"`)
+var ErrInvalidBookFormat = util.NewError(`format must be "txt", "md" or "images"`)
 
 var ErrUnsupportedBookSchemaVersion = util.NewError("book.json schema version is newer than this build supports")
 
@@ -423,8 +424,9 @@ func (b *Book) setMeta(meta *BookMeta) error {
 }
 
 type NewSourceOptions struct {
-	Format  string
-	Comment string
+	Format        string
+	Comment       string
+	PageDirection string
 }
 
 func (b *Book) NewSource(source io.Reader) (*Source, error) {
@@ -458,7 +460,7 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 	tempSourcePath := path.Join(b.folderPath, SourcesFolder, fsutil.TempDirName(sourceID))
 	defer root.RemoveAll(tempSourcePath)
 
-	src, err := createSource(root, tempSourcePath, sourceID, source, options.Format, options.Comment)
+	src, err := createSource(root, tempSourcePath, sourceID, source, options)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

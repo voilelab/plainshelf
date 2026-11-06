@@ -185,10 +185,6 @@ func (t *fingerprintSourcesTask) fingerprintBook(cache *shelf.FingerprintCache, 
 		return
 	}
 
-	t.mu.Lock()
-	t.sources += len(sourceIDs)
-	t.mu.Unlock()
-
 	resolve := cache.Resolve
 	if t.force {
 		resolve = cache.Rebuild
@@ -196,6 +192,12 @@ func (t *fingerprintSourcesTask) fingerprintBook(cache *shelf.FingerprintCache, 
 
 	for _, sourceID := range sourceIDs {
 		source, err := book.GetSource(sourceID)
+		if err == nil && !source.HoldsText() {
+			continue
+		}
+		t.mu.Lock()
+		t.sources++
+		t.mu.Unlock()
 		if err != nil {
 			t.recordFailure(bookID, sourceID, util.Errorf("%w", err))
 			continue

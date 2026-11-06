@@ -63,6 +63,8 @@ of the shelf observes:
 | `books[].sources[]` | `Book.ListSource` |
 | `books[].sources[].schema_version`, `created_at`, `comment`, `format`, `md5_hash`, `line_count`, `char_count` | `Source.GetMeta` |
 | `books[].sources[].assets` | `Source.AssetPath` / `OpenAsset` |
+| `books[].sources[].page_direction` | `Source.GetMeta` |
+| `books[].sources[].pages`, `unlisted` | `Source.Pages`, for an `images` source; `[]` otherwise |
 | `book_caches[]` | `Shelf.readBookCacheFile` |
 
 A case's `shelf.json`, when it has one, is part of the input rather than a field

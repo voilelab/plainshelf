@@ -15,6 +15,7 @@ import (
 const (
 	BookFormatText     = "txt"
 	BookFormatMarkdown = "md"
+	BookFormatImages   = "images"
 )
 
 // 255 bytes is the common per-component filesystem limit, so a segment that
@@ -204,7 +205,7 @@ func ValidateBCP47(lang string) bool {
 
 func ValidateBookFormat(format string) bool {
 	switch format {
-	case "", BookFormatText, BookFormatMarkdown:
+	case "", BookFormatText, BookFormatMarkdown, BookFormatImages:
 		return true
 	default:
 		return false

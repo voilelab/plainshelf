@@ -1,0 +1,102 @@
+{
+  "folders": [
+    "/",
+    "Comics"
+  ],
+  "folder_meta": {},
+  "books": [
+    {
+      "path": "books/Comics/night-train.bookpkg",
+      "folders": [
+        "Comics"
+      ],
+      "id": "n7t3qw5bx2kd9rjm",
+      "title": "Night Train",
+      "format": "images",
+      "authors": [
+        "K. Aoi"
+      ],
+      "tags": [
+        "manga"
+      ],
+      "identifiers": {},
+      "language": "ja",
+      "comments": "",
+      "star": 0,
+      "created_at": "2026-04-02T09:00:00Z",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "20260402-090000",
+      "current_source": "20260402-090000",
+      "sources": [
+        {
+          "id": "20260402-090000",
+          "schema_version": 1,
+          "created_at": "2026-04-02T09:00:00Z",
+          "comment": "",
+          "format": "images",
+          "page_direction": "rtl",
+          "md5_hash": "76c64f17a0335cf3263ea4495a9b2be6",
+          "has_content": true,
+          "line_count": 4,
+          "char_count": 0,
+          "assets": [
+            "p-7qxm.png",
+            "p-c4hd.webp",
+            "p-k2v9.jpg",
+            "p-stray.gif"
+          ],
+          "pages": [
+            {
+              "name": "p-k2v9.jpg",
+              "missing": false
+            },
+            {
+              "name": "p-7qxm.png",
+              "missing": false
+            },
+            {
+              "name": "p-gone.webp",
+              "missing": true
+            },
+            {
+              "name": "p-c4hd.webp",
+              "missing": false
+            }
+          ],
+          "unlisted": [
+            "p-stray.gif"
+          ]
+        },
+        {
+          "id": "20260402-091500",
+          "schema_version": 1,
+          "created_at": "2026-04-02T09:15:00Z",
+          "comment": "",
+          "format": "images",
+          "page_direction": "",
+          "md5_hash": "270760bc83c52a4440f8d8410ccb1ddc",
+          "has_content": true,
+          "line_count": 1,
+          "char_count": 0,
+          "assets": [
+            "p-r1aa.png"
+          ],
+          "pages": [
+            {
+              "name": "p-r1aa.png",
+              "missing": false
+            }
+          ],
+          "unlisted": []
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

@@ -53,6 +53,21 @@ func (h *sourceHandlers) getSource(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, source.GetMeta())
 }
 
+func (h *sourceHandlers) getPages(w http.ResponseWriter, r *http.Request) {
+	_, _, source, ok := h.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	pages, err := source.Pages()
+	if err != nil {
+		h.writeErr(w, r, err, "failed to read source pages")
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, pages)
+}
+
 func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 	shelfData, book, ok := h.loadBook(w, r)
 	if !ok {

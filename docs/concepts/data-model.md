@@ -273,15 +273,16 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 | `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data format versioning](data-format-versioning.md). |
 | `CURRENT_SOURCE.txt` | Human-readable hint, in English, that points to the active source. The server writes it whenever the current source changes and never parses it back — `current_source` in `book.json` is the source of truth — so deleting it is safe. Shelves written by older builds carry the same hint as `CURRENT_VERSION_LOCATION.txt`; the next write replaces it with `CURRENT_SOURCE.txt` rather than leaving both. |
 | `cover.(jpg\|png\|webp)` | Optional cover image |
-| `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure |
+| `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure; for an `images` source, the ordered page list |
 | `sources/{source-id}/meta.json` | Source-level metadata, including `schema_version` and authoritative `format` for new sources |
-| `sources/{source-id}/assets/` | Optional illustrations this source's text references |
+| `sources/{source-id}/assets/` | Optional illustrations this source's text references; for an `images` source, its pages |
 
 ### Source format and chapters
 
 For schema-versioned sources, `sources/{source-id}/meta.json` records `format`
-as `txt` or `md`. `book.json.format` is only a compatibility mirror of the
-current source for older clients. Readers resolve format in this order:
+as `txt`, `md` or `images` (see [Image sources](#image-sources)).
+`book.json.format` is only a compatibility mirror of the current source for
+older clients. Readers resolve format in this order:
 
 1. current source `meta.json.format`;
 2. legacy `book.json.format`;
@@ -406,6 +407,52 @@ leaves the text alone — a link to a removed file renders as its alt text rathe
 than the prose being rewritten underneath you.
 
 The app has no screen for this yet; the routes are there for a client to use.
+
+### Image sources
+
+A source whose `format` is `images` is a book of pages rather than text, such as
+a comic. Its pages are ordinary [source assets](#source-assets), and
+`source.txt` lists them in reading order, one file name per line:
+
+```text
+p-k2v9.jpg
+p-7qxm.png
+p-c4hd.webp
+```
+
+```text
+sources/{source-id}/
+├─ meta.json      format: "images", optional page_direction: "rtl"
+├─ source.txt     the page list
+└─ assets/
+   ├─ p-k2v9.jpg
+   ├─ p-7qxm.png
+   └─ p-c4hd.webp
+```
+
+Order lives only in that list, never in the file names. PlainShelf names a page
+it adds with a stable random name and keeps its original image type, so
+reordering, inserting or deleting a page rewrites one small text file and adds
+or removes at most one image. Nothing is renamed, which matters to a sync tool:
+to most of them a rename is a delete plus a fresh upload.
+
+Each line names a file directly inside `assets/`, with the same rules as any
+other asset name. Blank lines and surrounding spaces are ignored, as are CRLF
+line endings and a leading byte order mark, so the list survives an editor. A
+write through PlainShelf is refused when a line could not name an asset. A list
+edited by hand is still read: a line naming a file that is not there, or that
+could not be an asset at all, reads as a missing page rather than failing the
+book, and an image in `assets/` that the list does not name reads as unlisted.
+The `GET …/sources/{source-id}/pages` route returns that reading, so no client
+parses `source.txt` itself.
+
+`page_direction` is how the pages turn: `"rtl"` for right to left, as in most
+manga. It is written only for that value; absent means left to right, and only
+an `images` source may carry it.
+
+An `images` source has no text, so its `char_count` stays `0`, and fingerprints
+and the Similar Books page leave it out. `md5_hash` and `line_count` still
+describe `source.txt`, the same as for any other source.
 
 ### Book IDs
 
