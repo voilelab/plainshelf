@@ -380,12 +380,23 @@ async function onSubmit(): Promise<void> {
   await finishImport(await submitFiles(props.currentFolderPath));
 }
 
+let queuedLocalPaths: string[] = [];
+
 async function runLocalPathsImport(): Promise<void> {
   const paths = props.localPaths ?? [];
-  if (paths.length === 0 || submitting.value) {
+  if (paths.length === 0) {
     return;
   }
-  await finishImport(await submitLocalPaths(paths, props.currentFolderPath));
+  if (submitting.value) {
+    queuedLocalPaths = paths;
+    return;
+  }
+  let next = paths;
+  while (next.length > 0 && props.open) {
+    queuedLocalPaths = [];
+    await finishImport(await submitLocalPaths(next, props.currentFolderPath));
+    next = queuedLocalPaths;
+  }
 }
 
 watch(
@@ -420,6 +431,7 @@ watch(
     }
 
     isDropTarget.value = false;
+    queuedLocalPaths = [];
     clearFileInputs();
     selectedFiles.value = [];
     reset();
