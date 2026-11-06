@@ -20,4 +20,8 @@ type nativeUI interface {
 	openURL(rawURL string)
 	execJS(script string)
 	quit()
+	copyText(text string)
+	showWindow()
+	emit(name string, data any)
+	setTrayMenu(items []menuItem)
 }

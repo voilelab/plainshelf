@@ -42,6 +42,7 @@ func main() {
 		FullscreenButtonState: application.ButtonEnabled,
 	})
 	native.attach(wailsApp, window)
+	app.watchLANShare()
 	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		if app.beforeClose(context.Background()) {
 			event.Cancel()
