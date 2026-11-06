@@ -51,6 +51,9 @@ test('reads ltr and rtl comics, preserves missing pages and restores page progre
     await expect(image).toHaveAttribute('alt', 'Page 3');
     await expect(page.locator('.comic-progress')).toContainText('100%');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.goto(`${baseUrl}/books/comic${direction}`);
+    await expect(page.locator('.progress-percent')).toHaveText('100%');
+    await expect(page.getByRole('button', { name: 'Read again', exact: true })).toBeVisible();
     await page.goto(`${baseUrl}/reader/comic${direction}`);
     await expect(counter).toHaveText('3 / 3');
     await page.keyboard.press(direction === 'ltr' ? 'ArrowLeft' : 'ArrowRight');
