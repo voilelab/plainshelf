@@ -7,7 +7,7 @@ import { tinyPngBase64 } from './support/books';
 const getServer = useServer();
 const sourceID = '20260402-090000';
 
-test('reads ltr and rtl comics, preserves missing pages and restores page progress', { tag: '@smoke' }, async ({ page }) => {
+test('reads ltr and rtl comics, restores page progress, and edits pages touching only source.txt and one image', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl, shelfDir } = getServer();
   await page.goto(`${baseUrl}/books`);
   await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
@@ -59,4 +59,37 @@ test('reads ltr and rtl comics, preserves missing pages and restores page progre
     await page.keyboard.press(direction === 'ltr' ? 'ArrowLeft' : 'ArrowRight');
     await expect(counter).toHaveText('2 / 3');
   }
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const sourceDir = path.join(shelfDir, 'books', 'comicltr.bookpkg', 'sources', sourceID);
+  const assetsDir = path.join(sourceDir, 'assets');
+  const readList = async () => fs.readFile(path.join(sourceDir, 'source.txt'), 'utf8');
+  const assetStats = async () => Promise.all((await fs.readdir(assetsDir)).sort()
+    .map(async (name) => [name, (await fs.stat(path.join(assetsDir, name))).mtimeMs]));
+  await page.goto(`${baseUrl}/books/comicltr/sources`);
+  const cells = page.getByTestId('page-grid').locator('> li');
+  await expect(cells).toHaveCount(3);
+  await expect(cells.nth(1)).toContainText('Missing page');
+  const before = await assetStats();
+
+  await cells.nth(2).dragTo(cells.nth(0));
+  await expect.poll(readList).toBe('random-a.png\nrandom-z.png\nlost.png\n');
+  expect(await assetStats()).toEqual(before);
+
+  await page.getByRole('button', { name: 'Page 1', exact: true }).click();
+  await page.getByTestId('page-upload').setInputFiles({ name: 'new.png', mimeType: 'image/png', buffer: Buffer.from(tinyPngBase64, 'base64') });
+  await expect(cells).toHaveCount(4);
+  await expect.poll(async () => (await readList()).split('\n').length).toBe(5);
+  const added = (await readList()).split('\n')[1];
+  expect(added).toMatch(/^[A-Z2-7]+\.png$/);
+  expect((await fs.readdir(assetsDir)).sort()).toEqual(['random-a.png', 'random-z.png', added].sort());
+
+  await page.locator('li[data-page-name="random-z.png"]').getByRole('button', { name: 'Delete page' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(cells).toHaveCount(3);
+  await expect.poll(readList).toBe(`random-a.png\n${added}\nlost.png\n`);
+  expect((await fs.readdir(assetsDir)).sort()).toEqual(['random-a.png', added].sort());
+
+  await page.goto(`${baseUrl}/reader/comicltr`);
+  await expect(page.locator('.comic-count')).toHaveText(/\/ 3$/);
 });
