@@ -258,38 +258,88 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 	return nil
 }
 
-const readerUnsupportedPlatformCode = "reader_unsupported_platform"
-
 func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
 	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
 	if err != nil {
 		return err
 	}
 
-	if runtime.GOOS != "darwin" {
-		return util.NewError(readerUnsupportedPlatformCode + ": opening the standalone reader is only supported on macOS")
+	launch, err := readerLaunchFor(runtime.GOOS, targetDir, shelfID, section)
+	if err != nil {
+		return err
 	}
+	return launch.run()
+}
 
-	name, args := readerLaunchCommand(targetDir, shelfID, section)
-	if err := exec.Command(name, args...).Run(); err != nil {
+const readerExecutableName = "PlainShelfReader"
+
+type readerLaunch struct {
+	name   string
+	args   []string
+	detach bool
+}
+
+func (l readerLaunch) run() error {
+	cmd := exec.Command(l.name, l.args...)
+	if !l.detach {
+		if err := cmd.Run(); err != nil {
+			return util.Errorf("launching PlainShelfReader: %w", err)
+		}
+		return nil
+	}
+	if err := cmd.Start(); err != nil {
 		return util.Errorf("launching PlainShelfReader: %w", err)
 	}
+	go func() { _ = cmd.Wait() }()
 	return nil
 }
 
 // macOS LaunchServices open(1) needs -n to create a new reader process;
 // otherwise it reactivates the existing app without applying new startup args.
-func readerLaunchCommand(bookPath, shelfID string, section int) (string, []string) {
-	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
-	if app == "" {
-		app = "PlainShelfReader"
+func readerLaunchFor(goos, bookPath, shelfID string, section int) (readerLaunch, error) {
+	args := readerArgs(bookPath, shelfID, section)
+	override := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
+	if goos == "darwin" {
+		app := override
+		if app == "" {
+			app = readerExecutableName
+		}
+		return readerLaunch{name: "open", args: append([]string{"-n", "-a", app, "--args"}, args...)}, nil
 	}
-	readerArgs := []string{"-book", bookPath}
+
+	exe := override
+	if exe == "" {
+		found, err := findReaderExecutable()
+		if err != nil {
+			return readerLaunch{}, err
+		}
+		exe = found
+	}
+	return readerLaunch{name: exe, args: args, detach: true}, nil
+}
+
+func readerArgs(bookPath, shelfID string, section int) []string {
+	args := []string{"-book", bookPath}
 	if shelfID = strings.TrimSpace(shelfID); shelfID != "" {
-		readerArgs = append(readerArgs, "-shelf", shelfID)
+		args = append(args, "-shelf", shelfID)
 	}
 	if section >= 0 {
-		readerArgs = append(readerArgs, "-section", strconv.Itoa(section))
+		args = append(args, "-section", strconv.Itoa(section))
 	}
-	return "open", append([]string{"-n", "-a", app, "--args"}, readerArgs...)
+	return args
+}
+
+var desktopExecutable = os.Executable
+
+func findReaderExecutable() (string, error) {
+	if self, err := desktopExecutable(); err == nil {
+		if sibling, err := exec.LookPath(filepath.Join(filepath.Dir(self), readerExecutableName)); err == nil {
+			return sibling, nil
+		}
+	}
+	path, err := exec.LookPath(readerExecutableName)
+	if err != nil {
+		return "", util.Errorf("PlainShelfReader is neither next to the desktop app nor on PATH: %w", err)
+	}
+	return path, nil
 }
