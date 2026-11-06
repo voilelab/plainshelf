@@ -46,6 +46,7 @@ func newShutdownApp(t *testing.T, timeout time.Duration) (*DesktopApp, *readingp
 	}
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	app := &DesktopApp{
+		native:         &fakeNative{},
 		app:            env.serverApp,
 		lanShare:       env.share,
 		progressStager: readingclose.NewStager(store, timeout),
@@ -58,9 +59,7 @@ func TestShutdownWritesProgressThenStopsLAN(t *testing.T) {
 	app, store, addr := newShutdownApp(t, time.Second)
 	app.StageReadingProgress("a", "book-a", 420, 1000)
 
-	if prevent := app.beforeClose(t.Context()); prevent {
-		t.Fatal("beforeClose must allow the close")
-	}
+	app.closeMainWindow()
 
 	if got := diskOffset(t, store, "a", "book-a"); got != 420 {
 		t.Fatalf("persisted offset = %d, want 420", got)
@@ -73,7 +72,7 @@ func TestShutdownWritesProgressThenStopsLAN(t *testing.T) {
 func TestShutdownTwiceIsNoop(t *testing.T) {
 	app, store, _ := newShutdownApp(t, time.Second)
 	app.StageReadingProgress("a", "book-a", 420, 1000)
-	app.beforeClose(t.Context())
+	app.closeMainWindow()
 
 	app.StageReadingProgress("a", "book-a", 999, 2000)
 	app.Shutdown()

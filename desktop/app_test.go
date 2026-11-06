@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -690,7 +691,7 @@ func deviceDocuments() []deviceDocument {
 		{
 			name:     "read history",
 			fileName: "read_history.json",
-			newApp:   func(path string) *DesktopApp { return &DesktopApp{readHistoryPath: path} },
+			newApp:   func(path string) *DesktopApp { return &DesktopApp{native: &fakeNative{}, readHistoryPath: path} },
 			read:     (*DesktopApp).ReadReadHistory,
 			write:    func(a *DesktopApp) error { return a.RecordReadHistory("main", "book-1") },
 			want:     `{"version":1,"limit":100,"shelves":{"main":["book-1"]}}`,
@@ -698,7 +699,7 @@ func deviceDocuments() []deviceDocument {
 		{
 			name:     "reading progress",
 			fileName: "reading_progress.json",
-			newApp:   func(path string) *DesktopApp { return &DesktopApp{readingProgressPath: path} },
+			newApp:   func(path string) *DesktopApp { return &DesktopApp{native: &fakeNative{}, readingProgressPath: path} },
 			read:     (*DesktopApp).ReadReadingProgress,
 			write: func(a *DesktopApp) error {
 				return a.WriteReadingProgress(`{"version":1,"shelves":{"main":{"book-1":42}}}`)
@@ -708,7 +709,7 @@ func deviceDocuments() []deviceDocument {
 		{
 			name:     "reading stats",
 			fileName: "reading_stats.json",
-			newApp:   func(path string) *DesktopApp { return &DesktopApp{readingStatsPath: path} },
+			newApp:   func(path string) *DesktopApp { return &DesktopApp{native: &fakeNative{}, readingStatsPath: path} },
 			read:     (*DesktopApp).ReadReadingStats,
 			write:    func(a *DesktopApp) error { return a.AddReadingSeconds("main", yesterday, 45) },
 			want:     `{"version":1,"shelves":{"main":{"` + yesterday + `":45}}}`,
@@ -749,6 +750,9 @@ func TestDeviceDocumentWriteAndReadRoundTrip(t *testing.T) {
 			if got != doc.want {
 				t.Fatalf("read = %q, want %q", got, doc.want)
 			}
+			if events := app.native.(*fakeNative).events; !slices.Equal(events, []string{readingDataChangedEvent}) {
+				t.Fatalf("events after write = %v, want one %q", events, readingDataChangedEvent)
+			}
 
 			entries, err := os.ReadDir(filepath.Dir(path))
 			if err != nil {
@@ -764,7 +768,7 @@ func TestDeviceDocumentWriteAndReadRoundTrip(t *testing.T) {
 }
 
 func TestReadingProgressRejectsInvalidWrite(t *testing.T) {
-	app := &DesktopApp{readingProgressPath: filepath.Join(t.TempDir(), "reading_progress.json")}
+	app := &DesktopApp{native: &fakeNative{}, readingProgressPath: filepath.Join(t.TempDir(), "reading_progress.json")}
 	valid := `{"version":1,"shelves":{}}`
 	if err := app.WriteReadingProgress(valid); err != nil {
 		t.Fatalf("write: %v", err)
@@ -804,6 +808,7 @@ func TestDeviceDocumentNeedsStoragePath(t *testing.T) {
 func TestDeviceDocumentsAreIndependent(t *testing.T) {
 	dir := t.TempDir()
 	app := &DesktopApp{
+		native:              &fakeNative{},
 		readHistoryPath:     filepath.Join(dir, "read_history.json"),
 		readingProgressPath: filepath.Join(dir, "reading_progress.json"),
 		readingStatsPath:    filepath.Join(dir, "reading_stats.json"),

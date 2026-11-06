@@ -345,7 +345,8 @@ const zhHant = {
       title: '閱讀開啟方式',
       label: '按下「閱讀」時',
       description:
-        '決定按下「閱讀」時如何開啟。「開新 reader」在網頁版會開新分頁，在桌面版會啟動獨立的 reader 應用程式；「在目前視窗開」則直接在目前視窗切換。此偏好只保存在這台裝置。',
+        '決定按下「閱讀」時如何開啟。「開新視窗」在桌面版會把書開在另一個 PlainShelf 視窗，可以多本並排；「開新 reader」在網頁版會開新分頁，在桌面版會啟動獨立的 reader 應用程式；「在目前視窗開」則直接在目前視窗切換。此偏好只保存在這台裝置。',
+      newWindow: '開新視窗',
       newReader: '開新 reader',
       inWindow: '在目前視窗開'
     },
@@ -781,7 +782,8 @@ const zhHant = {
       exported: '已匯出至 {location}',
       downloadRequired: '請先將這本書下載到裝置，才能開始閱讀。',
       readerUnsupportedPlatform: '這台裝置沒有獨立 reader，已改在目前視窗開啟這本書。',
-      readerLaunchFailed: '獨立 reader 沒有開啟，已改在目前視窗開啟這本書。請確認已安裝 PlainShelf Reader。'
+      readerLaunchFailed: '獨立 reader 沒有開啟，已改在目前視窗開啟這本書。請確認已安裝 PlainShelf Reader。',
+      readerWindowFailed: '閱讀器視窗沒有開啟，已改在目前視窗開啟這本書。'
     },
     errors: {
       restartReading: '無法重新開始閱讀。',

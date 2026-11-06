@@ -9,6 +9,7 @@ async function loadProviders(active: BookshelfProvider) {
   vi.resetModules();
   vi.doMock('./runtime', () => ({
     isMobileRuntime: () => false,
+    isDesktopHost: () => false,
     isWailsRuntime: () => false
   }));
   vi.doMock('./serverBookshelfProvider', () => ({

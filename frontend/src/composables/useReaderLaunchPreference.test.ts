@@ -1,18 +1,24 @@
 /**
  * @vitest-environment jsdom
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  DEFAULT_READER_LAUNCH_MODE,
   getReaderLaunchMode,
   parseReaderLaunchMode,
+  readerLaunchModes,
   setReaderLaunchMode
 } from './useReaderLaunchPreference';
+
+type DesktopWindow = Window & { __PLAINSHELF_DESKTOP__?: boolean };
 
 describe('parseReaderLaunchMode', () => {
   it('defaults to opening a new reader when never set', () => {
     expect(parseReaderLaunchMode(null)).toBe('new-reader');
-    expect(DEFAULT_READER_LAUNCH_MODE).toBe('new-reader');
+  });
+
+  it('does not offer a new window outside the desktop app', () => {
+    expect(readerLaunchModes()).not.toContain('new-window');
+    expect(parseReaderLaunchMode('new-window')).toBe('new-reader');
   });
 
   it('falls back to the default on an unknown stored value', () => {
@@ -49,5 +55,28 @@ describe('setReaderLaunchMode / getReaderLaunchMode', () => {
     window.localStorage.setItem('reader-launch-mode', 'in-window');
 
     expect(getReaderLaunchMode()).toBe('in-window');
+  });
+});
+
+describe('reader launch mode in the desktop app', () => {
+  beforeEach(() => {
+    (window as DesktopWindow).__PLAINSHELF_DESKTOP__ = true;
+  });
+
+  afterEach(() => {
+    delete (window as DesktopWindow).__PLAINSHELF_DESKTOP__;
+  });
+
+  it('defaults to a new window when never set', () => {
+    expect(parseReaderLaunchMode(null)).toBe('new-window');
+  });
+
+  it('keeps an explicit earlier choice', () => {
+    expect(parseReaderLaunchMode('new-reader')).toBe('new-reader');
+    expect(parseReaderLaunchMode('in-window')).toBe('in-window');
+  });
+
+  it('lists the new window first', () => {
+    expect(readerLaunchModes()).toEqual(['new-window', 'new-reader', 'in-window']);
   });
 });

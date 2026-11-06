@@ -49,6 +49,7 @@ import DashboardSkeleton from '@/features/dashboard/components/DashboardSkeleton
 import EmptyShelf from '@/features/dashboard/components/EmptyShelf.vue';
 import { useDashboardData } from '@/features/dashboard/composables/useDashboardData';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
@@ -74,20 +75,24 @@ const {
 
 useDocumentTitle(() => [t('dashboard.title'), 'PlainShelf']);
 
-function refetchOnFocus(): void {
+function refetchUnlessLoading(): void {
   if (loading.value) {
     return;
   }
   void fetchDashboardData();
 }
 
+let stopReadingDataListener: (() => void) | undefined;
+
 onMounted(() => {
   void fetchDashboardData();
-  window.addEventListener('focus', refetchOnFocus);
+  window.addEventListener('focus', refetchUnlessLoading);
+  stopReadingDataListener = getPlatformCapabilities().onReadingDataChanged?.(refetchUnlessLoading);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('focus', refetchOnFocus);
+  window.removeEventListener('focus', refetchUnlessLoading);
+  stopReadingDataListener?.();
 });
 </script>
 

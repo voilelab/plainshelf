@@ -5,7 +5,8 @@ const { isMobileRuntimeMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/providers/runtime', () => ({
-  isMobileRuntime: isMobileRuntimeMock
+  isMobileRuntime: isMobileRuntimeMock,
+  isDesktopHost: () => false
 }));
 
 const storage = new Map<string, string>();

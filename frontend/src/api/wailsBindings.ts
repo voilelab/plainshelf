@@ -46,3 +46,17 @@ export function callWails<B extends Record<keyof B, BindingMethod>, M extends ke
   }
   return callBound(app, method, args) as ReturnType<B[M]>;
 }
+
+export function onWailsEvent(name: string, listener: () => void): () => void {
+  let unsubscribe: (() => void) | undefined;
+  let cancelled = false;
+  void loadWailsRuntime().then(({ Events }) => {
+    if (!cancelled) {
+      unsubscribe = Events.On(name, listener);
+    }
+  });
+  return () => {
+    cancelled = true;
+    unsubscribe?.();
+  };
+}

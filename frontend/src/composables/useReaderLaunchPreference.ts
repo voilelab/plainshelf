@@ -1,19 +1,24 @@
 import { ref } from 'vue';
 import { getPreference, setPreference, subscribePreference } from '@/storage/preferences';
+import { isDesktopHost } from '@/providers/runtime';
 
 const STORAGE_KEY = 'reader-launch-mode';
 
-const READER_LAUNCH_MODES = ['new-reader', 'in-window'] as const;
+const READER_LAUNCH_MODES = ['new-window', 'new-reader', 'in-window'] as const;
 
 export type ReaderLaunchMode = (typeof READER_LAUNCH_MODES)[number];
 
-export const DEFAULT_READER_LAUNCH_MODE: ReaderLaunchMode = 'new-reader';
+export function readerLaunchModes(): readonly ReaderLaunchMode[] {
+  return isDesktopHost() ? READER_LAUNCH_MODES : READER_LAUNCH_MODES.filter((mode) => mode !== 'new-window');
+}
+
+function defaultReaderLaunchMode(): ReaderLaunchMode {
+  return readerLaunchModes()[0];
+}
 
 export function parseReaderLaunchMode(rawValue: string | null): ReaderLaunchMode {
-  if (rawValue && (READER_LAUNCH_MODES as readonly string[]).includes(rawValue)) {
-    return rawValue as ReaderLaunchMode;
-  }
-  return DEFAULT_READER_LAUNCH_MODE;
+  const mode = readerLaunchModes().find((candidate) => candidate === rawValue);
+  return mode ?? defaultReaderLaunchMode();
 }
 
 const launchMode = ref<ReaderLaunchMode>(parseReaderLaunchMode(getPreference(STORAGE_KEY)));

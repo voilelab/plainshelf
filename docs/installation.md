@@ -45,8 +45,9 @@ Upgrade with `brew upgrade --cask plainshelf`, uninstall with
 
 The desktop cask **depends on** the standalone reader cask
 (`bookpkg-reader`), so `brew install`/`brew upgrade` of `plainshelf` also
-installs the reader. That is what lets the desktop app's "read" action open a
-book: it shells out to the installed `PlainShelfReader` app. The reader is
+installs the reader. The desktop app opens a book in its own reader window by
+default; the reader is what the "Open a new reader" reading setting launches,
+by shelling out to the installed `PlainShelfReader` app. The reader is
 **not** bundled inside `PlainShelf.app` — it is installed as its own cask
 alongside the desktop app. See
 [the reader section below](#experimental-standalone-book-package-reader) for

@@ -92,7 +92,7 @@ func TestWriteProgressPreservesNewerEntry(t *testing.T) {
 		return out
 	})
 
-	app := &DesktopApp{readingProgressSync: store}
+	app := &DesktopApp{native: &fakeNative{}, readingProgressSync: store}
 
 	if err := app.WriteReadingProgress(
 		`{"version":2,"shelves":{"real-shelf":{"book-a":{"offset":260,"at":3000}},"book":{"book-a":{"offset":1,"at":500}}}}`,
@@ -129,7 +129,7 @@ func TestWriteProgressRejectsCorruptJSON(t *testing.T) {
 		return out
 	})
 
-	app := &DesktopApp{readingProgressSync: store}
+	app := &DesktopApp{native: &fakeNative{}, readingProgressSync: store}
 	if err := app.WriteReadingProgress("{not json"); err == nil {
 		t.Fatalf("expected corrupt JSON to be rejected")
 	}

@@ -56,11 +56,18 @@ func (a *DesktopApp) ReadReadHistory() (string, error) {
 }
 
 func (a *DesktopApp) RecordReadHistory(shelfKey, bookID string) error {
-	return readhistory.NewStore(a.readHistoryPath).Record(shelfKey, bookID)
+	return a.announceReadingData(readhistory.NewStore(a.readHistoryPath).Record(shelfKey, bookID))
 }
 
 func (a *DesktopApp) ClearReadHistory(shelfKey string) error {
-	return readhistory.NewStore(a.readHistoryPath).Clear(shelfKey)
+	return a.announceReadingData(readhistory.NewStore(a.readHistoryPath).Clear(shelfKey))
+}
+
+func (a *DesktopApp) announceReadingData(err error) error {
+	if err == nil {
+		a.native.emit(readingDataChangedEvent)
+	}
+	return err
 }
 
 func (a *DesktopApp) SetReadHistoryLimit(limit int) error {
@@ -119,7 +126,7 @@ func persistProjection(store *readingprogress.Store, resolve readingprogress.Res
 
 func (a *DesktopApp) WriteReadingProgress(doc string) error {
 	if a.readingProgressSync == nil {
-		return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
+		return a.announceReadingData(writeDeviceDocument(a.readingProgressPath, "reading progress", doc))
 	}
 
 	incoming, err := readingprogress.ParseStrict(doc)
@@ -129,7 +136,7 @@ func (a *DesktopApp) WriteReadingProgress(doc string) error {
 	_, err = a.readingProgressSync.Mutate(func(disk readingprogress.Document) readingprogress.Document {
 		return readingprogress.MergeNewest(disk, incoming)
 	})
-	return err
+	return a.announceReadingData(err)
 }
 
 func (a *DesktopApp) resolveUniqueBookShelf(bookID string) (string, bool) {
@@ -182,5 +189,5 @@ func (a *DesktopApp) ReadReadingStats() (string, error) {
 }
 
 func (a *DesktopApp) AddReadingSeconds(key, date string, seconds float64) error {
-	return readingstats.NewStore(a.readingStatsPath).Add(key, date, seconds, time.Now)
+	return a.announceReadingData(readingstats.NewStore(a.readingStatsPath).Add(key, date, seconds, time.Now))
 }

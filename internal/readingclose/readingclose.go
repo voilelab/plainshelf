@@ -45,9 +45,20 @@ func (s *Stager) PersistOnClose() {
 	if s == nil {
 		return
 	}
+	s.persistWithin(s.snapshot())
+}
+
+func (s *Stager) PersistBookOnClose(shelfID, bookID string) {
+	if s == nil {
+		return
+	}
+	s.persistWithin(s.bookSnapshot(shelfID, bookID))
+}
+
+func (s *Stager) persistWithin(staged readingprogress.Document) {
 	done := make(chan struct{})
 	go func() {
-		s.persist()
+		s.persist(staged)
 		close(done)
 	}()
 	select {
@@ -56,11 +67,10 @@ func (s *Stager) PersistOnClose() {
 	}
 }
 
-func (s *Stager) persist() {
+func (s *Stager) persist(staged readingprogress.Document) {
 	if s.store == nil {
 		return
 	}
-	staged := s.snapshot()
 	if len(staged.Shelves) == 0 {
 		return
 	}
@@ -80,6 +90,16 @@ func (s *Stager) snapshot() readingprogress.Document {
 			continue
 		}
 		doc.Shelves[shelfID] = maps.Clone(books)
+	}
+	return doc
+}
+
+func (s *Stager) bookSnapshot(shelfID, bookID string) readingprogress.Document {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	doc := readingprogress.New()
+	if entry, ok := s.staged[shelfID][bookID]; ok {
+		doc.Shelves[shelfID] = map[string]readingprogress.Entry{bookID: entry}
 	}
 	return doc
 }

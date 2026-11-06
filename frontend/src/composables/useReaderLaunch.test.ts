@@ -17,8 +17,9 @@ const mocks = vi.hoisted(() => ({
   })),
   showToast: vi.fn(),
   isWebRuntime: vi.fn(() => false),
-  getReaderLaunchMode: vi.fn(() => 'new-reader' as 'new-reader' | 'in-window'),
-  openDesktopReader: undefined as undefined | ((bookId: string, section?: number) => Promise<void>)
+  getReaderLaunchMode: vi.fn(() => 'new-reader' as 'new-window' | 'new-reader' | 'in-window'),
+  openDesktopReader: undefined as undefined | ((bookId: string, section?: number) => Promise<void>),
+  openReaderWindow: undefined as undefined | ((bookId: string, section?: number) => Promise<void>)
 }));
 
 vi.mock('vue-router', () => ({
@@ -51,7 +52,48 @@ describe('useReaderLaunch launchReader', () => {
     mocks.isWebRuntime.mockReturnValue(false);
     mocks.getReaderLaunchMode.mockReturnValue('new-reader');
     mocks.openDesktopReader = undefined;
+    mocks.openReaderWindow = undefined;
     openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window);
+  });
+
+  it('opens a reader window at the chapter under the new-window preference', () => {
+    const openWindow = vi.fn().mockResolvedValue(undefined);
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    mocks.openReaderWindow = openWindow;
+    mocks.openDesktopReader = openReader;
+    mocks.getReaderLaunchMode.mockReturnValue('new-window');
+    const { launchReader } = useReaderLaunch();
+
+    launchReader('book-1', 3);
+
+    expect(openWindow).toHaveBeenCalledWith('book-1', 3);
+    expect(openReader).not.toHaveBeenCalled();
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.showToast).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the in-app reader when the reader window will not open', async () => {
+    mocks.openReaderWindow = vi.fn().mockRejectedValue(new Error('shelf "x" not found'));
+    mocks.getReaderLaunchMode.mockReturnValue('new-window');
+    const { launchReader } = useReaderLaunch();
+
+    launchReader('book-1');
+
+    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
+    expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerWindowFailed');
+  });
+
+  it('keeps the standalone reader under the new-reader preference', () => {
+    const openWindow = vi.fn().mockResolvedValue(undefined);
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    mocks.openReaderWindow = openWindow;
+    mocks.openDesktopReader = openReader;
+    const { launchReader } = useReaderLaunch();
+
+    launchReader('book-1');
+
+    expect(openReader).toHaveBeenCalledWith('book-1', undefined);
+    expect(openWindow).not.toHaveBeenCalled();
   });
 
   it('opens the reader in a new tab on a web build instead of navigating in place', () => {
@@ -257,4 +299,9 @@ describe('useReaderLaunch onReaderLinkClick', () => {
   });
 });
 
-vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ openReader: mocks.openDesktopReader }) }));
+vi.mock('@/providers/platformCapabilities', () => ({
+  getPlatformCapabilities: () => ({
+    openReader: mocks.openDesktopReader,
+    openReaderWindow: mocks.openReaderWindow
+  })
+}));

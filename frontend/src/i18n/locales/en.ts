@@ -357,7 +357,8 @@ const en = {
       title: 'Reading',
       label: 'How to open the reader',
       description:
-        'What pressing Read does. "Open a new reader" launches a new tab on the web, or the standalone reader app on desktop. "Open in this window" navigates in place instead. This preference is stored only on this device.',
+        'What pressing Read does. "Open in a new window" opens the book in another PlainShelf window on desktop, so several books can sit side by side. "Open a new reader" launches a new tab on the web, or the standalone reader app on desktop. "Open in this window" navigates in place instead. This preference is stored only on this device.',
+      newWindow: 'Open in a new window',
       newReader: 'Open a new reader',
       inWindow: 'Open in this window'
     },
@@ -798,7 +799,8 @@ const en = {
       readerUnsupportedPlatform:
         'This device has no standalone reader, so the book opened in this window instead.',
       readerLaunchFailed:
-        'The standalone reader did not open, so the book opened in this window instead. Check that PlainShelf Reader is installed.'
+        'The standalone reader did not open, so the book opened in this window instead. Check that PlainShelf Reader is installed.',
+      readerWindowFailed: 'The reader window did not open, so the book opened in this window instead.'
     },
     errors: {
       restartReading: 'Failed to restart the book.',

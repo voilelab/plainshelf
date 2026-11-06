@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 var errNativeNotReady = util.NewError("desktop window not ready")
@@ -85,8 +86,42 @@ func (w *wailsNative) openURL(rawURL string) {
 }
 
 func (w *wailsNative) execJS(script string) {
-	if w.window != nil {
-		w.window.ExecJS(script)
+	if w.app == nil {
+		return
+	}
+	if focused := w.app.Window.Current(); focused != nil {
+		focused.ExecJS(script)
+		return
+	}
+	w.window.ExecJS(script)
+}
+
+func (w *wailsNative) openReaderWindow(spec readerWindow) {
+	if w.app == nil {
+		return
+	}
+	if existing, ok := w.app.Window.GetByName(spec.name); ok {
+		existing.Restore()
+		existing.Show()
+		existing.Focus()
+		return
+	}
+	window := w.app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:                  spec.name,
+		Title:                 spec.title,
+		Width:                 1000,
+		Height:                1200,
+		URL:                   spec.url,
+		FullscreenButtonState: application.ButtonEnabled,
+	})
+	window.RegisterHook(events.Common.WindowClosing, func(*application.WindowEvent) {
+		spec.onClose()
+	})
+}
+
+func (w *wailsNative) emit(event string) {
+	if w.app != nil {
+		w.app.Event.Emit(event)
 	}
 }
 

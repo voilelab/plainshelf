@@ -123,11 +123,6 @@ func (a *DesktopApp) closeInOrder() {
 	}
 }
 
-func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
-	a.Shutdown()
-	return false
-}
-
 func (a *DesktopApp) GetAPIHandler() http.Handler {
 	if a.apiHandler == nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

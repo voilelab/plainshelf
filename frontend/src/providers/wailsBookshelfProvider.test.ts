@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindWails, unbindWails } from '#testing/wailsRuntime';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bindWails, emitWailsEvent, unbindWails } from '#testing/wailsRuntime';
 
 const { openDesktopReaderMock } = vi.hoisted(() => ({
   openDesktopReaderMock: vi.fn()
@@ -58,4 +58,42 @@ it('exposes virtual-shelf management only when the native bindings exist', async
     vi.unstubAllGlobals();
     unbindWails();
   }
+});
+
+describe('desktop reader windows', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    unbindWails();
+  });
+
+  it('are offered only inside the desktop app', () => {
+    vi.stubGlobal('window', { location: { search: '?desktop-shell-preview=1' } });
+    const preview = createWailsPlatform();
+
+    expect(preview.openReaderWindow).toBeUndefined();
+    expect(preview.onReadingDataChanged).toBeUndefined();
+  });
+
+  it('open the book and section in a new window', async () => {
+    const OpenReaderWindow = vi.fn().mockResolvedValue(undefined);
+    bindWails({ DesktopApp: { OpenReaderWindow } });
+    vi.stubGlobal('window', { __PLAINSHELF_DESKTOP__: true });
+
+    await createWailsPlatform().openReaderWindow!('book-1', 3);
+
+    expect(OpenReaderWindow).toHaveBeenCalledWith(expect.any(String), 'book-1', 3);
+  });
+
+  it('relay reading-data changes until unsubscribed', async () => {
+    vi.stubGlobal('window', { __PLAINSHELF_DESKTOP__: true });
+    const listener = vi.fn();
+
+    const stop = createWailsPlatform().onReadingDataChanged!(listener);
+    await vi.dynamicImportSettled();
+    emitWailsEvent('plainshelf:reading-data-changed');
+    stop();
+    emitWailsEvent('plainshelf:reading-data-changed');
+
+    expect(listener).toHaveBeenCalledOnce();
+  });
 });

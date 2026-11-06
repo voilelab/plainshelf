@@ -1,6 +1,6 @@
 import { getActiveShelfID } from './client';
 import { isWailsRuntime } from '@/providers/runtime';
-import { callWails, wailsHost } from './wailsBindings';
+import { callWails, onWailsEvent, wailsHost } from './wailsBindings';
 import type { ShelfSourceCheck, ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 interface DesktopImportBookResult {
@@ -95,6 +95,7 @@ interface DesktopAppBinding {
   OpenFolderDirectory: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory: (shelfID: string, bookID: string) => Promise<void>;
   OpenReader: (shelfID: string, bookID: string, section: number) => Promise<void>;
+  OpenReaderWindow: (shelfID: string, bookID: string, section: number) => Promise<void>;
   AddShelf: (params: DesktopAddShelfParams) => Promise<void>;
   CheckShelfSource: (params: DesktopShelfSourceParams) => Promise<ShelfSourceCheck>;
   RemoveShelf: (shelfID: string) => Promise<void>;
@@ -209,10 +210,22 @@ export function isReaderUnsupportedPlatform(error: unknown): boolean {
   return message.includes(READER_UNSUPPORTED_PLATFORM_CODE);
 }
 
+function sectionArgument(section?: number): number {
+  return typeof section === 'number' && Number.isFinite(section) ? Math.trunc(section) : -1;
+}
+
 export async function openDesktopReader(bookID: string, section?: number): Promise<void> {
-  const sectionArg =
-    typeof section === 'number' && Number.isFinite(section) ? Math.trunc(section) : -1;
-  await callDesktop('OpenReader', getActiveShelfID(), bookID, sectionArg);
+  await callDesktop('OpenReader', getActiveShelfID(), bookID, sectionArgument(section));
+}
+
+export async function openDesktopReaderWindow(bookID: string, section?: number): Promise<void> {
+  await callDesktop('OpenReaderWindow', getActiveShelfID(), bookID, sectionArgument(section));
+}
+
+const READING_DATA_CHANGED_EVENT = 'plainshelf:reading-data-changed';
+
+export function onDesktopReadingDataChanged(listener: () => void): () => void {
+  return onWailsEvent(READING_DATA_CHANGED_EVENT, listener);
 }
 
 export async function openDesktopFolder(folderPath: string): Promise<void> {
@@ -370,6 +383,10 @@ export async function retryDesktopShelf(id: string): Promise<void> {
 }
 
 export function hasDesktopShelfManagementBindings(): boolean {
+  return inDesktopApp();
+}
+
+export function hasDesktopReaderWindows(): boolean {
   return inDesktopApp();
 }
 

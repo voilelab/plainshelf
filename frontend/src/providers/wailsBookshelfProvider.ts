@@ -1,6 +1,9 @@
 import {
   openDesktopExternalURL,
   hasDesktopShelfManagementBindings,
+  hasDesktopReaderWindows,
+  onDesktopReadingDataChanged,
+  openDesktopReaderWindow,
   listDesktopShelfDetails,
   retryDesktopShelf,
   previewDesktopLANShareQR,
@@ -117,6 +120,9 @@ export function createWailsPlatform(): PlatformCapabilities {
     openFolder: host.openDesktopFolder.bind(host),
     openBookFolder: host.openDesktopBookFolder.bind(host),
     openReader: host.openDesktopReader.bind(host),
+    ...(hasDesktopReaderWindows()
+      ? { openReaderWindow: openDesktopReaderWindow, onReadingDataChanged: onDesktopReadingDataChanged }
+      : {}),
     chooseShelfDirectory: host.openDesktopShelfDirectory.bind(host),
     openShelfFolder: host.openDesktopShelfFolder.bind(host),
     saveBookContentToFile: host.saveBookContentToFile.bind(host),

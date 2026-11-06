@@ -22,3 +22,20 @@ export const Call = {
     return bound(...args);
   }
 };
+
+const eventListeners = new Map<string, Set<() => void>>();
+
+export const Events = {
+  On(name: string, listener: () => void): () => void {
+    const set = eventListeners.get(name) ?? new Set();
+    set.add(listener);
+    eventListeners.set(name, set);
+    return () => set.delete(listener);
+  }
+};
+
+export function emitWailsEvent(name: string): void {
+  for (const listener of eventListeners.get(name) ?? []) {
+    listener();
+  }
+}

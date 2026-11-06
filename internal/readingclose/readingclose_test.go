@@ -58,3 +58,31 @@ func TestPersistOnClose_EmptyIsNoop(t *testing.T) {
 		t.Fatalf("empty close wrote %q (err %v), want no file", raw, err)
 	}
 }
+
+func TestPersistBookOnCloseWritesOnlyThatBook(t *testing.T) {
+	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
+	s := NewStager(store, time.Second)
+
+	s.Stage("real-shelf", "book-a", 420, 1000)
+	s.Stage("real-shelf", "book-b", 77, 1000)
+	s.PersistBookOnClose("real-shelf", "book-a")
+
+	if got := offsetOf(t, store, "real-shelf", "book-a"); got != 420 {
+		t.Fatalf("book-a offset = %d, want 420", got)
+	}
+	if got := offsetOf(t, store, "real-shelf", "book-b"); got != 0 {
+		t.Fatalf("book-b offset = %d, want 0 until its own window closes", got)
+	}
+}
+
+func TestPersistBookOnCloseUnstagedIsNoop(t *testing.T) {
+	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
+	s := NewStager(store, time.Second)
+
+	s.Stage("real-shelf", "book-b", 77, 1000)
+	s.PersistBookOnClose("real-shelf", "book-a")
+
+	if _, raw, err := store.Read(); err != nil || raw != "" {
+		t.Fatalf("closing an unstaged book wrote %q (err %v), want no file", raw, err)
+	}
+}

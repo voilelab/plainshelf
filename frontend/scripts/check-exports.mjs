@@ -62,7 +62,6 @@ const ALLOWED = new Set([
   'src/composables/useFolderManagement.ts#createdFolderDestination',
   'src/composables/useFolderManagement.ts#movedFolderDestination',
   'src/composables/useFolderManagement.ts#renamedFolderDestination',
-  'src/composables/useReaderLaunchPreference.ts#DEFAULT_READER_LAUNCH_MODE',
   'src/composables/useReaderLaunchPreference.ts#parseReaderLaunchMode',
   'src/composables/useSafeBackNavigation.ts#isSafePlainShelfBackTarget',
   'src/composables/useSafeBackNavigation.ts#navigateBackSafely',

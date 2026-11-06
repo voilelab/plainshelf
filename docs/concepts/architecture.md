@@ -137,11 +137,11 @@ The frontend autosaves reading progress every 10 seconds. To narrow what closing
 a Wails window between two saves can lose, the frontend also stages its latest
 position in Go memory, and the app's single close function waits for it to be
 written (`internal/readingclose`); a flush request over an async event proved
-unreliable during window teardown. The window-close hook (`OnBeforeClose` on the
-desktop, the main window's `WindowClosing` hook in the reader) and `OnShutdown`
-both call that function, which runs once whichever fires first: it writes the staged
-position, then stops LAN sharing (desktop), then closes the server or the open
-book package. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
+unreliable during window teardown. The main window's `WindowClosing` hook and
+`OnShutdown` both call that function, which runs once whichever fires first: it
+writes every staged position, then stops LAN sharing (desktop), then closes the
+server or the open book package. On the desktop, closing the main window then
+quits the app, so no reader window outlives it. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
 seconds) and best-effort: if the cross-process file lock is held longer, or the
 write fails, the window closes anyway and that position can still be lost. The
 staged write merges newest-wins, so it never overwrites a newer entry from the
@@ -159,12 +159,34 @@ The Capacitor backend lives in `frontend/src/shells/mobile/`, not in
 `@capacitor/filesystem` from being pulled into the web and desktop bundles by
 the read-history and reading-stats stores.
 
+### Desktop reader windows
+
+The desktop's default way to open a book (reading setting "Open in a new
+window", `reader-launch-mode` `new-window`) is another window of the same
+process. `OpenReaderWindow` names the window after the shelf and book, so
+reading a book that already has a window brings that window forward instead of
+opening a second one. The window loads the reader route with `?shelf=` and the
+optional `?section=`; the frontend takes its active shelf from that parameter
+for that window only and leaves the saved shelf alone.
+
+Every window shares the one server, preference store and document files, so the
+merging above covers them without anything window-specific. Closing a reader
+window writes only that book's staged position and leaves the app running.
+After each reading-data write, Go emits the `plainshelf:reading-data-changed`
+event to every window, and the dashboard refetches on it, so "recent reading"
+in the main window updates while a reader window is still open beside it.
+
+The mode is offered only inside the desktop app. The standalone reader remains
+the "Open a new reader" choice and the way to open a `.bookpkg` without the
+desktop app installed.
+
 ### Reader progress reaches the desktop library
 
 The standalone reader is a separate process with its own window. How it keys a
 book's progress depends on how it was launched:
 
-- **Launched from the desktop app** (macOS), reading a book shells out to the
+- **Launched from the desktop app** (macOS, under the "Open a new reader"
+  setting), reading a book shells out to the
   installed `PlainShelfReader` with the book's `.bookpkg` path (`-book`) and its
   real shelf id (`-shelf <realShelfID>`). The reader reports that real shelf as
   its active shelf, so it opens at, and writes back to, the same

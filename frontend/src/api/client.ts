@@ -1,5 +1,5 @@
 import { reportIncident } from '@/composables/useErrorIncident';
-import { isMobileRuntime } from '@/providers/runtime';
+import { isDesktopHost, isMobileRuntime } from '@/providers/runtime';
 import { getPreference, setPreference } from '@/storage/preferences';
 
 export class ApiError extends Error {
@@ -86,7 +86,14 @@ export function setApiBase(base: string): void {
 const SHELF_STORAGE_KEY = 'plainshelf.shelf';
 let activeShelfID = '';
 
-const storedShelfID = getPreference(SHELF_STORAGE_KEY)?.trim();
+function readerWindowShelfID(): string {
+  if (!isDesktopHost()) {
+    return '';
+  }
+  return new URLSearchParams(window.location.search).get('shelf')?.trim() ?? '';
+}
+
+const storedShelfID = readerWindowShelfID() || getPreference(SHELF_STORAGE_KEY)?.trim();
 if (storedShelfID) {
   activeShelfID = storedShelfID;
 }

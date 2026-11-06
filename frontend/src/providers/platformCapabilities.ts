@@ -40,6 +40,8 @@ export interface PlatformCapabilities {
   chooseShelfDirectory?(): Promise<string | null>;
   saveBookContentToFile?(id: string, name: string): Promise<string | void>;
   openReader?(id: string, section?: number): Promise<void>;
+  openReaderWindow?(id: string, section?: number): Promise<void>;
+  onReadingDataChanged?(listener: () => void): () => void;
   openExternalUrl?(url: string): Promise<void>;
   getStorageEstimate?(): Promise<StorageEstimateResult>;
   coversMustBeFetchedAsBlob?: boolean;

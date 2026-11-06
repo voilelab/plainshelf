@@ -19,6 +19,20 @@ type fakeNative struct {
 	scripts  []string
 	urls     []string
 	quits    int
+	events   []string
+	windows  []readerWindow
+}
+
+func (f *fakeNative) openReaderWindow(w readerWindow) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.windows = append(f.windows, w)
+}
+
+func (f *fakeNative) emit(event string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.events = append(f.events, event)
 }
 
 func (f *fakeNative) openFiles(string, []fileFilter) ([]string, error) { return nil, nil }

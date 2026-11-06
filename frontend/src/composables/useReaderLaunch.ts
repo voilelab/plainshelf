@@ -20,11 +20,12 @@ export function useReaderLaunch() {
       ? { path: readerRoutePath(id), query: { section: String(Math.trunc(sectionIndex)) } }
       : { path: readerRoutePath(id) };
 
-    const openInNewReader = getReaderLaunchMode() === 'new-reader';
+    const mode = getReaderLaunchMode();
+    const section = hasSection ? Math.trunc(sectionIndex) : undefined;
 
     // HTML Standard window.open returns null with noopener even when opening succeeds.
     if (isWebRuntime()) {
-      if (openInNewReader) {
+      if (mode !== 'in-window') {
         window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
         return;
       }
@@ -33,8 +34,16 @@ export function useReaderLaunch() {
     }
 
     const platform = getPlatformCapabilities();
-    if (platform.openReader && openInNewReader) {
-      platform.openReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch((err) => {
+    if (platform.openReaderWindow && mode === 'new-window') {
+      platform.openReaderWindow(id, section).catch(() => {
+        void router.push(to);
+        showToast(t('bookDetail.messages.readerWindowFailed'));
+      });
+      return;
+    }
+
+    if (platform.openReader && mode === 'new-reader') {
+      platform.openReader(id, section).catch((err) => {
         void router.push(to);
         showToast(
           isReaderUnsupportedPlatform(err)
