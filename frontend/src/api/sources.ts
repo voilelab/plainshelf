@@ -1,5 +1,5 @@
 import { buildShelfApiPath, fetchBlob, fetchJson, fetchText, isMockApiMode } from './client';
-import type { CreateSourceOptions, SourceMeta } from '@/types/source';
+import type { CreateSourceOptions, SourceMeta, SourcePageList } from '@/types/source';
 
 interface SourceStoreItem {
   meta: SourceMeta;
@@ -39,8 +39,12 @@ function normalizeSourceMeta(raw: unknown): SourceMeta {
     meta.schema_version = Math.trunc(record.schema_version);
   }
 
-  if (record.format === 'txt' || record.format === 'md') {
+  if (record.format === 'txt' || record.format === 'md' || record.format === 'images') {
     meta.format = record.format;
+  }
+
+  if (record.page_direction === 'ltr' || record.page_direction === 'rtl') {
+    meta.page_direction = record.page_direction;
   }
 
   if (typeof record.line_count === 'number' && Number.isFinite(record.line_count)) {
@@ -292,5 +296,11 @@ export async function updateSourceContent(bookId: string, sourceId: string, cont
       },
       body: content
     }
+  );
+}
+
+export async function getSourcePages(bookId: string, sourceId: string): Promise<SourcePageList> {
+  return fetchJson<SourcePageList>(
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/pages`)
   );
 }

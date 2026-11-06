@@ -9,7 +9,7 @@ import type {
   TrashedBook,
   TrashedBookListing
 } from '@/types/book';
-import type { SourceMeta } from '@/types/source';
+import type { SourceMeta, SourcePageList } from '@/types/source';
 import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
 import { ApiError, getActiveShelfID } from '@/api/client';
 import {
@@ -318,6 +318,13 @@ export class MobileBookshelfProvider implements BookshelfReader {
     throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
   }
 
+  async getSourcePages(bookId: string, sourceId: string): Promise<SourcePageList> {
+    const cached = await this.cache.getCachedSource(bookId, sourceId);
+    if (cached?.page_list) return cached.page_list;
+    if (this.isOnline()) return this.remote.getSourcePages(bookId, sourceId);
+    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+  }
+
   async getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
     const cached = await this.cache.getCachedAsset(bookId, sourceId, name);
     if (cached) {
@@ -380,14 +387,22 @@ export class MobileBookshelfProvider implements BookshelfReader {
       throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
     }
 
+    const imageAssets = await Promise.all(sources.filter((source) => source.format === 'images').map(async (source) => {
+      const pageList = await this.remote.getSourcePages(bookId, source.id);
+      source.page_list = pageList;
+      return { sourceId: source.id, names: [...new Set(pageList.pages.filter((page) => !page.missing).map((page) => page.name))] };
+    }));
+    if (currentCacheScopeKey() !== scopeAtStart) throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
     const currentSource = sources.find((source) => source.id === book.current_source);
     const effectiveFormat = currentSource?.format ?? book.format ?? 'txt';
     const currentSourceContent = book.current_source
       ? sourceContents.filter(({ sourceId }) => sourceId === book.current_source)
       : sourceContents;
-    const assetsSize = effectiveFormat === 'md'
-      ? await this.storeSourceAssets(bookId, currentSourceContent)
-      : 0;
+    const markdownAssets = effectiveFormat === 'md'
+      ? currentSourceContent.map(({ sourceId, content }) => ({ sourceId, names: referencedAssetNames(content) }))
+      : [];
+    const assetsSize = await this.storeSourceAssets(bookId, markdownAssets)
+      + await this.storeSourceAssets(bookId, imageAssets, true);
 
     if (currentCacheScopeKey() !== scopeAtStart) {
       throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
@@ -427,13 +442,16 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
   private async storeSourceAssets(
     bookId: string,
-    sourceContents: { sourceId: string; content: string }[]
+    sourceAssets: { sourceId: string; names: string[] }[],
+    requireComplete = false
   ): Promise<number> {
+    if (!sourceAssets.some((source) => source.names.length)) return 0;
     try {
       return await this.storeSourceAssetsViaBundle(
         bookId,
-        sourceContents,
-        this.remote.getSourceAssetsBundle.bind(this.remote)
+        sourceAssets,
+        this.remote.getSourceAssetsBundle.bind(this.remote),
+        requireComplete
       );
     } catch (err) {
       console.warn(
@@ -444,18 +462,20 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
     return this.storeSourceAssetsPerFile(
       bookId,
-      sourceContents,
-      this.remote.getSourceAsset.bind(this.remote)
+      sourceAssets,
+      this.remote.getSourceAsset.bind(this.remote),
+      requireComplete
     );
   }
 
   private async storeSourceAssetsPerFile(
     bookId: string,
-    sourceContents: { sourceId: string; content: string }[],
-    fetchAsset: (bookId: string, sourceId: string, name: string) => Promise<Blob>
+    sourceAssets: { sourceId: string; names: string[] }[],
+    fetchAsset: (bookId: string, sourceId: string, name: string) => Promise<Blob>,
+    requireComplete: boolean
   ): Promise<number> {
-    const pending = sourceContents.flatMap(({ sourceId, content }) =>
-      referencedAssetNames(content).map((name) => ({ sourceId, name }))
+    const pending = sourceAssets.flatMap(({ sourceId, names }) =>
+      names.map((name) => ({ sourceId, name }))
     );
 
     let stored = 0;
@@ -465,6 +485,7 @@ export class MobileBookshelfProvider implements BookshelfReader {
         await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
         stored += blob.size;
       } catch (err) {
+        if (requireComplete) throw err;
         console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
       }
     });
@@ -474,16 +495,16 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
   private async storeSourceAssetsViaBundle(
     bookId: string,
-    sourceContents: { sourceId: string; content: string }[],
-    fetchBundle: (bookId: string, sourceId: string, names: string[]) => Promise<Blob>
+    sourceAssets: { sourceId: string; names: string[] }[],
+    fetchBundle: (bookId: string, sourceId: string, names: string[]) => Promise<Blob>,
+    requireComplete: boolean
   ): Promise<number> {
     let stored = 0;
 
-    for (const { sourceId, content } of sourceContents) {
-      const names = referencedAssetNames(content);
+    for (const { sourceId, names } of sourceAssets) {
       for (let offset = 0; offset < names.length; offset += ASSET_BUNDLE_CHUNK_SIZE) {
         const chunk = names.slice(offset, offset + ASSET_BUNDLE_CHUNK_SIZE);
-        stored += await this.storeAssetChunkViaBundle(bookId, sourceId, chunk, fetchBundle);
+        stored += await this.storeAssetChunkViaBundle(bookId, sourceId, chunk, fetchBundle, requireComplete);
       }
     }
 
@@ -494,7 +515,8 @@ export class MobileBookshelfProvider implements BookshelfReader {
     bookId: string,
     sourceId: string,
     names: string[],
-    fetchBundle: (bookId: string, sourceId: string, names: string[]) => Promise<Blob>
+    fetchBundle: (bookId: string, sourceId: string, names: string[]) => Promise<Blob>,
+    requireComplete: boolean
   ): Promise<number> {
     const zipBlob = await fetchBundle(bookId, sourceId, names);
     const archive = new Uint8Array(await zipBlob.arrayBuffer());
@@ -503,6 +525,7 @@ export class MobileBookshelfProvider implements BookshelfReader {
     for (const name of names) {
       const bytes = unzipSync(archive, { filter: (file) => file.name === name })[name];
       if (!bytes) {
+        if (requireComplete) throw new Error(`Asset missing from bundle: ${name}`);
         continue;
       }
       try {
@@ -510,6 +533,7 @@ export class MobileBookshelfProvider implements BookshelfReader {
         await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
         stored += blob.size;
       } catch (err) {
+        if (requireComplete) throw err;
         console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
       }
     }

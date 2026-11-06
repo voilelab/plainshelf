@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getBookContent: vi.fn(),
   getSource: vi.fn(),
   getSourceContent: vi.fn(),
+  getSourcePages: vi.fn(),
   getReadProgress: vi.fn(),
   addReadHistory: vi.fn(),
   saveReadProgress: vi.fn()
@@ -264,5 +265,57 @@ describe('useReader chapter boundaries', () => {
 
     expect(reader.currentSectionIndex.value).toBe(1);
     expect(reader.progress.value?.char_offset).toBe(content.length);
+  });
+});
+
+
+describe('useReader comics', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getBook.mockResolvedValue({ id: 'comic', title: 'Comic', format: 'images', current_source: 'pages' });
+    mocks.getSource.mockResolvedValue({ id: 'pages', format: 'images', page_direction: 'rtl' });
+    mocks.getSourceContent.mockResolvedValue('long-random-name.jpg\nmissing.png\nlast.webp\n');
+    mocks.getSourcePages.mockResolvedValue({ pages: [
+      { name: 'long-random-name.jpg', missing: false },
+      { name: 'missing.png', missing: true },
+      { name: 'last.webp', missing: false }
+    ], unlisted: ['unused.png'] });
+    mocks.getReadProgress.mockResolvedValue({ char_offset: 1, percent: 99 });
+    mocks.addReadHistory.mockResolvedValue(undefined);
+    mocks.saveReadProgress.mockResolvedValue(undefined);
+  });
+
+  it('restores and saves page indices, includes missing pages and reaches 100% on the last page', async () => {
+    const reader = useReader(() => 'comic');
+    await reader.fetchReaderData();
+    expect(mocks.getSourcePages).toHaveBeenCalledWith('comic', 'pages');
+    expect(reader.pageDirection.value).toBe('rtl');
+    expect(reader.sections.value).toHaveLength(3);
+    expect(reader.currentSectionIndex.value).toBe(1);
+    expect(reader.progress.value).toEqual({ char_offset: 1, percent: 67 });
+    reader.onScroll();
+    expect(reader.progress.value?.char_offset).toBe(1);
+    await reader.goNextSection();
+    await reader.flushReadingProgress();
+    expect(reader.progress.value).toMatchObject({ char_offset: 2, percent: 100 });
+    expect(mocks.saveReadProgress).toHaveBeenLastCalledWith('comic', expect.objectContaining({ char_offset: 2 }));
+    await reader.goNextSection();
+    expect(reader.currentSectionIndex.value).toBe(2);
+    await reader.goToSection(0);
+    expect(reader.progress.value?.percent).toBe(33);
+  });
+
+  it('clamps stale indices and handles empty and single-page comics', async () => {
+    mocks.getReadProgress.mockResolvedValue({ char_offset: 100 });
+    const reader = useReader(() => 'comic');
+    await reader.fetchReaderData();
+    expect(reader.currentSectionIndex.value).toBe(2);
+    mocks.getSourcePages.mockResolvedValue({ pages: [{ name: 'one.png', missing: false }], unlisted: [] });
+    await reader.fetchReaderData();
+    expect(reader.progress.value).toMatchObject({ char_offset: 0, percent: 100 });
+    mocks.getSourcePages.mockResolvedValue({ pages: [], unlisted: [] });
+    await reader.fetchReaderData();
+    expect(reader.sections.value).toEqual([]);
+    expect(reader.progress.value).toMatchObject({ char_offset: 0, percent: 0 });
   });
 });

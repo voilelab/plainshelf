@@ -139,6 +139,7 @@ export class EmbeddedPCloudReader implements BookshelfReader {
   listFolderMeta = this.reader.listFolderMeta.bind(this.reader);
   listSources = this.reader.listSources.bind(this.reader);
   getSource = this.reader.getSource.bind(this.reader);
+  getSourcePages = this.reader.getSourcePages.bind(this.reader);
   getSourceContent = this.reader.getSourceContent.bind(this.reader);
   getSourceAsset = this.reader.getSourceAsset.bind(this.reader);
   getSourceAssetsBundle = this.reader.getSourceAssetsBundle.bind(this.reader);

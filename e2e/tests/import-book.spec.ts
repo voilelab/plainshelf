@@ -5,45 +5,28 @@ import { openReaderTab } from './support/reader';
 
 const getServer = useServer();
 
-test('should import a txt book from the UI and render it in the reader', { tag: '@smoke' }, async ({ page }) => {
+test('should import text and markdown books and render each format', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
-
-  await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloFixturePath, 'import-txt-render');
-  const bookTitle = page.locator('.book-list-row').getByRole('heading', { name: 'import-txt-render', exact: true });
-  await bookTitle.click();
-
-  await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  await expect(page.getByRole('button', { name: 'Start reading' })).toBeVisible();
-  const reader = await openReaderTab(page, () =>
-    page.getByRole('button', { name: 'Start reading' }).click()
-  );
-
-  await expect(reader.getByRole('heading', { name: 'import-txt-render', exact: true })).toBeVisible();
-  await expect(reader.getByText('Hello from PlainShelf E2E.')).toBeVisible();
-  await expect(reader.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
-});
-
-test('should import a markdown book from the UI and render it as formatted markdown', { tag: '@smoke' }, async ({ page }) => {
-  const { baseUrl } = getServer();
-
-  await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloMarkdownFixturePath, 'import-md-render');
-
-  const bookTitle = page.locator('.book-list-row').getByRole('heading', { name: 'import-md-render', exact: true });
-  await expect(bookTitle).toBeVisible();
-  await bookTitle.click();
-
-  await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  await expect(page.getByRole('button', { name: 'Start reading' })).toBeVisible();
-  const reader = await openReaderTab(page, () =>
-    page.getByRole('button', { name: 'Start reading' }).click()
-  );
-
-  await expect(reader.getByRole('heading', { name: 'import-md-render', exact: true })).toBeVisible();
-  await expect(reader.getByRole('heading', { name: 'Hello Markdown' })).toBeVisible();
-  await expect(reader.getByText('# Hello Markdown')).not.toBeVisible();
-  await expect(reader.getByText('This text came from a real uploaded MD file.')).toBeVisible();
+  for (const item of [
+    { path: helloFixturePath, title: 'import-txt-render', markdown: false },
+    { path: helloMarkdownFixturePath, title: 'import-md-render', markdown: true }
+  ]) {
+    await page.goto(`${baseUrl}/books`);
+    await importBookAs(page, item.path, item.title);
+    await page.locator('.book-list-row').getByRole('heading', { name: item.title, exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    const reader = await openReaderTab(page, () => page.getByRole('button', { name: 'Start reading' }).click());
+    await expect(reader.getByRole('heading', { name: item.title, exact: true })).toBeVisible();
+    if (item.markdown) {
+      await expect(reader.getByRole('heading', { name: 'Hello Markdown' })).toBeVisible();
+      await expect(reader.getByText('# Hello Markdown')).not.toBeVisible();
+      await expect(reader.getByText('This text came from a real uploaded MD file.')).toBeVisible();
+    } else {
+      await expect(reader.getByText('Hello from PlainShelf E2E.')).toBeVisible();
+      await expect(reader.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
+    }
+    await reader.close();
+  }
 });
 
 test('should render allow-listed HTML without executing or loading active content', { tag: '@smoke' }, async ({ page }) => {
