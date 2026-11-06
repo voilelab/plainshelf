@@ -46,3 +46,15 @@ export function callWails<B extends Record<keyof B, BindingMethod>, M extends ke
   }
   return callBound(app, method, args) as ReturnType<B[M]>;
 }
+
+export function onWailsEvent(name: string, callback: (data: unknown) => void): () => void {
+  let off: (() => void) | undefined;
+  let stopped = false;
+  void loadWailsRuntime().then(({ Events }) => {
+    if (!stopped) off = Events.On(name, (event) => callback(event.data));
+  });
+  return () => {
+    stopped = true;
+    off?.();
+  };
+}

@@ -1,6 +1,6 @@
 import { getActiveShelfID } from './client';
 import { isWailsRuntime } from '@/providers/runtime';
-import { callWails, wailsHost } from './wailsBindings';
+import { callWails, onWailsEvent, wailsHost } from './wailsBindings';
 import type { ShelfSourceCheck, ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 interface DesktopImportBookResult {
@@ -259,6 +259,13 @@ export async function setDesktopLANShare(
 
 export async function rotateDesktopLANShareToken(): Promise<DesktopLANShareStatus> {
   return callDesktop('RotateLANShareToken');
+}
+
+export function onDesktopLANShareChanged(
+  callback: (status: DesktopLANShareStatus) => void
+): () => void {
+  if (!inDesktopApp()) return () => {};
+  return onWailsEvent('lan-share-changed', (data) => callback(data as DesktopLANShareStatus));
 }
 
 export async function importDesktopBookFromLocalPath(

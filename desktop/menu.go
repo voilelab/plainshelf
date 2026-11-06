@@ -9,9 +9,11 @@ const (
 )
 
 type menuItem struct {
-	label  string
-	accel  string
-	action func()
+	label     string
+	accel     string
+	action    func()
+	disabled  bool
+	separator bool
 }
 
 type menuSpec struct {
