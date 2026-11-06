@@ -1,6 +1,6 @@
 import { getActiveShelfID } from './client';
 import { isWailsRuntime } from '@/providers/runtime';
-import { callWails, wailsHost } from './wailsBindings';
+import { callWails, onWailsEvent, wailsHost } from './wailsBindings';
 import type { ShelfSourceCheck, ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 interface DesktopImportBookResult {
@@ -202,14 +202,6 @@ export async function openDesktopBookFolder(bookID: string): Promise<void> {
   await callDesktop('OpenBookDirectory', getActiveShelfID(), bookID);
 }
 
-const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
-
-export function isReaderUnsupportedPlatform(error: unknown): boolean {
-  const message =
-    error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
-  return message.includes(READER_UNSUPPORTED_PLATFORM_CODE);
-}
-
 export async function openDesktopReader(bookID: string, section?: number): Promise<void> {
   const sectionArg =
     typeof section === 'number' && Number.isFinite(section) ? Math.trunc(section) : -1;
@@ -260,6 +252,13 @@ export async function setDesktopLANShare(
 
 export async function rotateDesktopLANShareToken(): Promise<DesktopLANShareStatus> {
   return callDesktop('RotateLANShareToken');
+}
+
+export function onDesktopLANShareChanged(
+  callback: (status: DesktopLANShareStatus) => void
+): () => void {
+  if (!inDesktopApp()) return () => {};
+  return onWailsEvent('lan-share-changed', (data) => callback(data as DesktopLANShareStatus));
 }
 
 export async function importDesktopBookFromLocalPath(

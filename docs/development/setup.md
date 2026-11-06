@@ -141,8 +141,8 @@ depends on stay in sync.
 just run-desktop
 ```
 
-On macOS the desktop app's **read** action opens the standalone reader in its own
-window (it shells out to it). To test against the reader you are developing rather
+The desktop app's **read** action opens the standalone reader in its own
+window (it shells out to it). On macOS, to test against the reader you are developing rather
 than the brew-installed one, build it first with `just build-reader`; `just
 run-desktop` then auto-detects `reader/build/bin/PlainShelfReader.app` and opens
 reads with it. Override the target explicitly with `just run-desktop
@@ -150,6 +150,13 @@ reads with it. Override the target explicitly with `just run-desktop
 path/name is launched via `open -a`); an already-set `PLAINSHELF_READER_APP` takes
 precedence. Because the dev and brew readers share a bundle id, keep only the one
 you want registered with LaunchServices if `open -a` activates the wrong copy.
+
+On Windows and Linux the **read** action starts the reader executable directly,
+without waiting for it to exit. It uses `PLAINSHELF_READER_APP` when set (the
+executable's path), otherwise a `PlainShelfReader` executable next to the
+desktop executable, otherwise `PlainShelfReader` on `PATH`. Build one with
+`(cd reader && go build -o PlainShelfReader .)` (`PlainShelfReader.exe` on
+Windows). Without one, reading falls back to the in-app reader with a message.
 
 `just run-desktop` is a plain `go run .`: Wails v3 has no zero-config `wails
 dev`, so a frontend change needs `npm --prefix frontend run build` and a
@@ -160,6 +167,12 @@ The standalone reader accepts `-book`, `-shelf`, and `-section` using Go's flag
 syntax. String flags consume the next argument as their value, even if it begins
 with `-`. Parsing errors stop startup before the window opens. Omit `-section` or
 use a negative value to resume saved progress; `-section 0` opens the first section.
+
+Only one reader process runs at a time. A second launch, such as the desktop's
+`open -n` read action, forwards its arguments to the running reader and exits;
+the running reader parses them with the same flags, checks that `-book` names a
+folder containing `book.json`, and replaces the open book with it. A forwarded
+path that is not a book package shows an error and leaves the current book open.
 
 ## Android app
 

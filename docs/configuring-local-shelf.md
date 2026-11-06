@@ -216,6 +216,12 @@ read-only, to other devices on the same network. It is the server's
 - The switch, the ticked shelves and the token are kept in the app's data
   directory (`lan_share.json`, `lan_share.token`), not in any shelf, and
   survive a restart. The port is `20001` unless `lan_share.json` sets `port`.
+- On macOS, a PlainShelf icon sits in the menu bar while sharing is running and
+  disappears when it stops. Its menu lists the shared shelves and the address,
+  and offers **Copy URL** (the same address the settings page shows),
+  **Stop Sharing** and **Open PlainShelf**. It never shows the token. The icon
+  lives only as long as the app: closing the last window still quits
+  PlainShelf and stops sharing.
 
 The URL reveals the computer's network address and shelf identifiers; the token
 and QR payload grant read access to the selected shelves. Treat the connection

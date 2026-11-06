@@ -31,7 +31,7 @@ describe('WailsPlatform.openReader', () => {
   });
 
   it('rethrows the launch error unchanged', async () => {
-    const launchError = new Error('reader_unsupported_platform');
+    const launchError = new Error('PlainShelfReader is neither next to the desktop app nor on PATH');
     openDesktopReaderMock.mockRejectedValue(launchError);
 
     await expect(createWailsPlatform().openReader!('book-1')).rejects.toBe(launchError);

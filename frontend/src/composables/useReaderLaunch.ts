@@ -2,7 +2,6 @@ import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { useRouter } from 'vue-router';
 import { useToasts } from '@/composables/useToasts';
 import { getReaderLaunchMode } from '@/composables/useReaderLaunchPreference';
-import { isReaderUnsupportedPlatform } from '@/api/desktop';
 import { isWebRuntime } from '@/providers';
 import { t } from '@/i18n';
 
@@ -34,13 +33,9 @@ export function useReaderLaunch() {
 
     const platform = getPlatformCapabilities();
     if (platform.openReader && openInNewReader) {
-      platform.openReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch((err) => {
+      platform.openReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch(() => {
         void router.push(to);
-        showToast(
-          isReaderUnsupportedPlatform(err)
-            ? t('bookDetail.messages.readerUnsupportedPlatform')
-            : t('bookDetail.messages.readerLaunchFailed')
-        );
+        showToast(t('bookDetail.messages.readerLaunchFailed'));
       });
       return;
     }

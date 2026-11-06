@@ -90,6 +90,11 @@ You can also install the reader on its own — macOS on Apple Silicon
 brew install --cask voilelab/plainshelf/bookpkg-reader
 ```
 
+The reader registers `.bookpkg` as a document package on macOS: Finder shows
+each one as a single item, and double-clicking it opens it in PlainShelf Reader.
+If the reader is already open, it replaces the current book instead of starting
+a second copy.
+
 The reader `.app` is also unsigned and unnotarized; its `postflight_steps`
 clears the quarantine attribute the same way. Uninstall with
 `brew uninstall --cask bookpkg-reader`.

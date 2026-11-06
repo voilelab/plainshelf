@@ -13,12 +13,21 @@ type shownMessage struct {
 	message string
 }
 
+type emittedEvent struct {
+	name string
+	data any
+}
+
 type fakeNative struct {
 	mu       sync.Mutex
 	messages []shownMessage
 	scripts  []string
 	urls     []string
 	quits    int
+	copied   []string
+	shown    int
+	events   []emittedEvent
+	tray     []menuItem
 	focused  bool
 	notified []string
 }
@@ -62,6 +71,36 @@ func (f *fakeNative) quit() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.quits++
+}
+
+func (f *fakeNative) copyText(text string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.copied = append(f.copied, text)
+}
+
+func (f *fakeNative) showWindow() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.shown++
+}
+
+func (f *fakeNative) emit(name string, data any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.events = append(f.events, emittedEvent{name: name, data: data})
+}
+
+func (f *fakeNative) setTrayMenu(items []menuItem) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.tray = items
+}
+
+func (f *fakeNative) trayItems() []menuItem {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.tray
 }
 
 func TestDomReadyStartupErrorShowsAndQuits(t *testing.T) {

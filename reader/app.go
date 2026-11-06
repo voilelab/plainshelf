@@ -32,25 +32,18 @@ type ReaderApp struct {
 	preferences   *preferences.Store
 
 	promptedForBook bool
+	openMu          sync.Mutex
 
 	progressStager *readingclose.Stager
 	closeOnce      sync.Once
 }
 
 func NewReaderApp(native nativeUI, logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
-	shelfID = strings.TrimSpace(shelfID)
-	standalone := shelfID == ""
-	if standalone {
-		shelfID = readerapi.ShelfID
-	}
-
 	app := &ReaderApp{
-		native:        native,
-		library:       readerapi.NewLibrary(logger),
-		shelfID:       shelfID,
-		standalone:    standalone,
-		launchSection: launchSection,
+		native:  native,
+		library: readerapi.NewLibrary(logger),
 	}
+	app.setLaunch(shelfID, launchSection)
 
 	if path, err := readingprogress.DefaultProgressPath(); err != nil {
 		log.Println("reading progress will not be persisted:", err)
@@ -91,7 +84,10 @@ func (a *ReaderApp) StageReadingProgress(shelfID, bookID string, offset, at int6
 }
 
 func (a *ReaderApp) DomReady(context.Context) {
-	if a.promptedForBook || a.library.BookID() != "" {
+	a.openMu.Lock()
+	hasBook := a.library.BookID() != ""
+	a.openMu.Unlock()
+	if a.promptedForBook || hasBook {
 		return
 	}
 	a.promptedForBook = true
@@ -123,11 +119,7 @@ func (a *ReaderApp) OpenBookPackage() (string, error) {
 
 	bookID, err := a.openStandaloneBook(dir)
 	if err != nil {
-		dialogErr := a.native.showError("Cannot open this folder",
-			"That folder is not a book package: it has no readable book.json.")
-		if dialogErr != nil {
-			log.Println("failed to show book-open error dialog:", dialogErr)
-		}
+		a.showNotABook()
 		return "", util.Errorf("%w", err)
 	}
 
@@ -135,15 +127,41 @@ func (a *ReaderApp) OpenBookPackage() (string, error) {
 	return bookID, nil
 }
 
+func (a *ReaderApp) showNotABook() {
+	err := a.native.showError("Cannot open this folder",
+		"That folder is not a book package: it has no readable book.json.")
+	if err != nil {
+		log.Println("failed to show book-open error dialog:", err)
+	}
+}
+
 func (a *ReaderApp) openStandaloneBook(dir string) (string, error) {
+	return a.openBook(dir, "", noLaunchSection)
+}
+
+func (a *ReaderApp) openBook(dir, shelfID string, section int) (string, error) {
+	a.openMu.Lock()
+	defer a.openMu.Unlock()
+
+	if err := checkBookPackageDir(dir); err != nil {
+		return "", err
+	}
 	bookID, err := a.library.Open(dir)
 	if err != nil {
 		return "", err
 	}
-	a.shelfID = readerapi.ShelfID
-	a.standalone = true
-	a.launchSection = noLaunchSection
+	a.setLaunch(shelfID, section)
 	return bookID, nil
+}
+
+func (a *ReaderApp) setLaunch(shelfID string, section int) {
+	shelfID = strings.TrimSpace(shelfID)
+	a.standalone = shelfID == ""
+	if a.standalone {
+		shelfID = readerapi.ShelfID
+	}
+	a.shelfID = shelfID
+	a.launchSection = section
 }
 
 func (a *ReaderApp) BootConfig() readerapi.BootConfig {

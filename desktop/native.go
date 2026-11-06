@@ -22,4 +22,8 @@ type nativeUI interface {
 	windowFocused() bool
 	notify(title, body string) error
 	quit()
+	copyText(text string)
+	showWindow()
+	emit(name string, data any)
+	setTrayMenu(items []menuItem)
 }

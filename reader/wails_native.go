@@ -47,6 +47,13 @@ func (w *wailsNative) reloadApp() {
 	}
 }
 
+func (w *wailsNative) focus() {
+	if w.window != nil {
+		w.window.Show()
+		w.window.Focus()
+	}
+}
+
 func toWailsMenu(specs []menuSpec) (*application.Menu, error) {
 	root := application.NewMenu()
 	for _, spec := range specs {
