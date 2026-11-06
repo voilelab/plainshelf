@@ -1,6 +1,6 @@
 import { getActiveShelfID } from './client';
 import { isWailsRuntime } from '@/providers/runtime';
-import { callWails, wailsHost } from './wailsBindings';
+import { callWails, onWailsEvent, wailsHost } from './wailsBindings';
 import type { ShelfSourceCheck, ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 interface DesktopImportBookResult {
@@ -145,6 +145,29 @@ function callDesktop<M extends keyof DesktopAppBinding>(
 
 function inDesktopApp(): boolean {
   return wailsHost() === 'DesktopApp';
+}
+
+export interface DesktopDroppedFiles {
+  paths: string[];
+  unsupported: string[];
+}
+
+export function onDesktopFilesDropped(handler: (drop: DesktopDroppedFiles) => void): () => void {
+  if (!inDesktopApp()) {
+    return () => {};
+  }
+  let active = true;
+  let off: (() => void) | undefined;
+  void onWailsEvent<DesktopDroppedFiles>('plainshelf:files-dropped', (drop) => {
+    if (active) handler(drop);
+  }).then((unsubscribe) => {
+    if (active) off = unsubscribe;
+    else unsubscribe();
+  });
+  return () => {
+    active = false;
+    off?.();
+  };
 }
 
 export async function openDesktopBookFiles(): Promise<string[] | null> {

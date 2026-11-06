@@ -7,6 +7,10 @@ import (
 
 var errNativeNotReady = util.NewError("desktop window not ready")
 
+func init() {
+	application.RegisterEvent[droppedBookFiles](filesDroppedEvent)
+}
+
 type wailsNative struct {
 	app    *application.App
 	window *application.WebviewWindow
@@ -87,6 +91,12 @@ func (w *wailsNative) openURL(rawURL string) {
 func (w *wailsNative) execJS(script string) {
 	if w.window != nil {
 		w.window.ExecJS(script)
+	}
+}
+
+func (w *wailsNative) emitEvent(name string, data any) {
+	if w.app != nil {
+		w.app.Event.Emit(name, data)
 	}
 }
 

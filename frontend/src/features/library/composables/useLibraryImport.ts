@@ -1,6 +1,8 @@
 import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue';
-import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
+import { basenameFromPath, hasFileTransfer, readDroppedFiles } from '@/utils/file';
+import { t } from '@/i18n';
+import type { DesktopDroppedFiles } from '@/api/desktop';
 
 interface LibraryImportOptions {
   readOnly: Ref<boolean>;
@@ -16,6 +18,9 @@ export function useLibraryImport(options: LibraryImportOptions) {
   const isNewEmptyBookModalOpen = ref(false);
   const droppedFiles = ref<File[]>([]);
   const desktopImportPaths = ref<string[]>([]);
+  const dropError = ref('');
+  const nativeFileDrop = getPlatformCapabilities().onLocalFilesDropped !== undefined;
+  let stopNativeFileDrop: (() => void) | undefined;
 
   async function openImportFromFiles(): Promise<void> {
     if (readOnly.value) {
@@ -23,6 +28,7 @@ export function useLibraryImport(options: LibraryImportOptions) {
     }
     droppedFiles.value = [];
     desktopImportPaths.value = [];
+    dropError.value = '';
 
     let desktopFiles: string[] | null = null;
     try {
@@ -91,6 +97,24 @@ export function useLibraryImport(options: LibraryImportOptions) {
     }
   }
 
+  function onNativeFilesDropped(drop: DesktopDroppedFiles): void {
+    if (readOnly.value) {
+      return;
+    }
+    dropError.value = drop.unsupported.length > 0
+      ? t('library.fileDrop.unsupported', { files: drop.unsupported.map(basenameFromPath).join(', ') })
+      : '';
+    if (drop.paths.length === 0) {
+      return;
+    }
+
+    droppedFiles.value = [];
+    desktopImportPaths.value = [...drop.paths];
+    if (!isImportModalOpen.value) {
+      void openImportModalQuery();
+    }
+  }
+
   function closeImportModal(): void {
     if (!isImportModalOpen.value) {
       return;
@@ -108,11 +132,16 @@ export function useLibraryImport(options: LibraryImportOptions) {
   }
 
   onMounted(() => {
+    if (nativeFileDrop) {
+      stopNativeFileDrop = getPlatformCapabilities().onLocalFilesDropped?.(onNativeFilesDropped);
+      return;
+    }
     document.addEventListener('dragover', onDocumentDragOver);
     document.addEventListener('drop', onDocumentDrop);
   });
 
   onBeforeUnmount(() => {
+    stopNativeFileDrop?.();
     document.removeEventListener('dragover', onDocumentDragOver);
     document.removeEventListener('drop', onDocumentDrop);
   });
@@ -121,6 +150,8 @@ export function useLibraryImport(options: LibraryImportOptions) {
     isNewEmptyBookModalOpen,
     droppedFiles,
     desktopImportPaths,
+    dropError,
+    nativeFileDrop,
     openImportFromFiles,
     openNewEmptyBookModal,
     closeNewEmptyBookModal,

@@ -69,6 +69,12 @@ Open the library, choose **Import**, and select a `.txt`, `.md` or `.epub` file.
 You can then edit its metadata, add a cover, place it in a folder, and open the
 reader.
 
+In the desktop app you can also drag one or more `.txt`, `.md` or `.epub` files
+from Finder onto the library. They are imported into the shelf and folder you
+are viewing, read from disk rather than uploaded, and the import dialog lists
+which succeeded and why any failed. Other files and folders are named as not
+imported. A read-only shelf does not accept drops.
+
 A Markdown book's detail page also lists the chapters its source splits into,
 the same H2 headings the reader navigates by. Selecting one opens the reader at
 that chapter instead of your last position. Plain text has no chapters, so the

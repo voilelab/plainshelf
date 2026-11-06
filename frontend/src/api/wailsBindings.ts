@@ -36,6 +36,11 @@ async function callBound(app: WailsApp, method: string, args: unknown[]): Promis
   }
 }
 
+export async function onWailsEvent<T>(name: string, callback: (data: T) => void): Promise<() => void> {
+  const { Events } = await loadWailsRuntime();
+  return Events.On(name, (event) => callback(event.data as T));
+}
+
 export function callWails<B extends Record<keyof B, BindingMethod>, M extends keyof B & string>(
   app: WailsApp,
   method: M,

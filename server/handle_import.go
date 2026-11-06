@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -292,6 +293,9 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderP
 	shelfData, ok := h.shelves.GetShelf(targetShelfID)
 	if !ok {
 		return nil, util.Errorf("shelf not found: %s", targetShelfID)
+	}
+	if shelfData.ReadOnly() {
+		return nil, util.Errorf("shelf %s: %w", targetShelfID, fsutil.ErrReadOnly)
 	}
 
 	fp, err := os.Open(cleanPath)

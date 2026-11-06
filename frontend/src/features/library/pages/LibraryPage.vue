@@ -1,5 +1,9 @@
 <template>
-  <div>
+  <div
+    class="library-drop-zone"
+    :data-file-drop-target="fileDropEnabled ? '' : undefined"
+    :data-drop-hint="fileDropEnabled ? t('library.fileDrop.hint') : undefined"
+  >
     <MetaEditorModal
       :open="metadataEditorOpen"
       :book-id="selectedMetadataBookId"
@@ -56,6 +60,7 @@
       @cancel="cancelDelete"
       @confirm="confirmDelete"
     />
+    <p v-if="dropError && !readOnly" class="error" role="alert">{{ dropError }}</p>
     <p v-if="actionError && !deleteTarget" class="error" role="alert">{{ actionError }}</p>
     <p v-if="shelfRefresh.error.value" class="error" role="alert">{{ shelfRefresh.error.value }}</p>
     <p v-if="charCountError" class="error" role="alert">{{ charCountError }}</p>
@@ -428,6 +433,8 @@ const {
   isNewEmptyBookModalOpen,
   droppedFiles,
   desktopImportPaths,
+  dropError,
+  nativeFileDrop,
   openImportFromFiles,
   openNewEmptyBookModal,
   closeNewEmptyBookModal,
@@ -440,6 +447,8 @@ const {
   closeImportModalQuery,
   reloadAfterImport: reloadBooksAfterImport
 });
+
+const fileDropEnabled = computed(() => nativeFileDrop && !readOnly.value);
 
 const {
   isRootFolderSelected,
@@ -652,6 +661,28 @@ watch(
 </script>
 
 <style scoped>
+.library-drop-zone {
+  min-height: 100%;
+  position: relative;
+}
+
+.library-drop-zone.file-drop-target-active::after {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  color: var(--accent);
+  content: attr(data-drop-hint);
+  display: flex;
+  font-size: 18px;
+  font-weight: 600;
+  inset: 0;
+  justify-content: center;
+  padding-top: 160px;
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+}
 
 .download-batch-modal {
   display: grid;

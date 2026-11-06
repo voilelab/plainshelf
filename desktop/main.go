@@ -40,12 +40,16 @@ func main() {
 		Height:                1200,
 		URL:                   "/",
 		FullscreenButtonState: application.ButtonEnabled,
+		EnableFileDrop:        true,
 	})
 	native.attach(wailsApp, window)
 	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		if app.beforeClose(context.Background()) {
 			event.Cancel()
 		}
+	})
+	window.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
+		app.filesDropped(event.Context().DroppedFiles())
 	})
 	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		app.DomReady(context.Background())

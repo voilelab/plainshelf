@@ -19,5 +19,6 @@ type nativeUI interface {
 	showMessage(kind dialogKind, title, message string) error
 	openURL(rawURL string)
 	execJS(script string)
+	emitEvent(name string, data any)
 	quit()
 }

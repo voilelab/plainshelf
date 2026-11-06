@@ -21,6 +21,43 @@ type DesktopImportBookResult struct {
 	Error string `json:"error,omitempty"`
 }
 
+const filesDroppedEvent = "plainshelf:files-dropped"
+
+type droppedBookFiles struct {
+	Paths       []string `json:"paths"`
+	Unsupported []string `json:"unsupported"`
+}
+
+func (a *DesktopApp) filesDropped(paths []string) {
+	drop := splitDroppedFiles(paths)
+	if len(drop.Paths) == 0 && len(drop.Unsupported) == 0 {
+		return
+	}
+	a.native.emitEvent(filesDroppedEvent, drop)
+}
+
+func splitDroppedFiles(paths []string) droppedBookFiles {
+	drop := droppedBookFiles{Paths: []string{}, Unsupported: []string{}}
+	for _, path := range normalizeSelectedLocalPaths(paths) {
+		if isImportableBookFile(path) {
+			drop.Paths = append(drop.Paths, path)
+		} else {
+			drop.Unsupported = append(drop.Unsupported, path)
+		}
+	}
+	return drop
+}
+
+func isImportableBookFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".txt", ".md", ".epub":
+	default:
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
+}
+
 func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 	paths, err := a.native.openFiles("Select books to import", bookFileFilters())
 	if err != nil {

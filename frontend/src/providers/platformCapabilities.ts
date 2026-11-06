@@ -1,6 +1,7 @@
 import type {
   DesktopAddShelfParams, DesktopModifyShelfParams, DesktopShelfDetails,
-  DesktopShelfIDPreview, DesktopShelfSourceParams, DesktopQRShelf, DesktopQRResult
+  DesktopShelfIDPreview, DesktopShelfSourceParams, DesktopQRShelf, DesktopQRResult,
+  DesktopDroppedFiles
 } from '@/api/desktop';
 import type { ShelfSourceCheck } from '@/utils/shelfSourceCheck';
 import { getShell } from './shell';
@@ -34,6 +35,7 @@ export interface PlatformCapabilities {
   };
   openLocalBookFiles?(): Promise<string[] | null>;
   importBookFromLocalPath?(path: string, folder: string): Promise<DesktopImportBookResult | null>;
+  onLocalFilesDropped?(handler: (drop: DesktopDroppedFiles) => void): () => void;
   openFolder?(path: string): Promise<void>;
   openBookFolder?(id: string): Promise<void>;
   openShelfFolder?(id: string): Promise<void>;

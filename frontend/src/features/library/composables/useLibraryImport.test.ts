@@ -2,8 +2,11 @@
 import { createApp, defineComponent, h, ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+type DroppedFiles = { paths: string[]; unsupported: string[] };
+
 const mocks = vi.hoisted(() => ({
-  openLocalBookFiles: undefined as undefined | (() => Promise<string[]>)
+  openLocalBookFiles: undefined as undefined | (() => Promise<string[]>),
+  onLocalFilesDropped: undefined as undefined | ((handler: (drop: DroppedFiles) => void) => () => void)
 }));
 
 vi.mock('@/providers', () => ({
@@ -60,7 +63,17 @@ function unmount(): void {
 afterEach(() => {
   unmount();
   mocks.openLocalBookFiles = undefined;
+  mocks.onLocalFilesDropped = undefined;
 });
+
+function stubNativeFileDrop() {
+  const native = { handler: null as null | ((drop: DroppedFiles) => void), stop: vi.fn() };
+  mocks.onLocalFilesDropped = (handler) => {
+    native.handler = handler;
+    return native.stop;
+  };
+  return native;
+}
 
 describe('useLibraryImport', () => {
   it('opens the import modal seeded with files dropped anywhere on the document', () => {
@@ -99,6 +112,47 @@ describe('useLibraryImport', () => {
     expect(openImportModalQuery).toHaveBeenCalledTimes(1);
   });
 
+  it('imports natively dropped book paths through the modal and leaves the document drop alone', () => {
+    const native = stubNativeFileDrop();
+    const { api, openImportModalQuery } = mountImport();
+
+    expect(api.nativeFileDrop).toBe(true);
+    const htmlDrop = dropEvent('drop', [new File(['x'], 'a.txt')]);
+    document.dispatchEvent(htmlDrop);
+    expect(htmlDrop.defaultPrevented).toBe(false);
+    expect(openImportModalQuery).not.toHaveBeenCalled();
+
+    native.handler!({ paths: ['/books/a.txt', '/books/b.epub'], unsupported: [] });
+    expect(api.desktopImportPaths.value).toEqual(['/books/a.txt', '/books/b.epub']);
+    expect(api.dropError.value).toBe('');
+    expect(openImportModalQuery).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(native.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports unsupported dropped files by name and imports nothing when none are books', () => {
+    const native = stubNativeFileDrop();
+    const { api, openImportModalQuery } = mountImport();
+
+    native.handler!({ paths: [], unsupported: ['/books/scan.pdf', '/books/Series'] });
+
+    expect(openImportModalQuery).not.toHaveBeenCalled();
+    expect(api.desktopImportPaths.value).toEqual([]);
+    expect(api.dropError.value).toContain('scan.pdf, Series');
+  });
+
+  it('ignores native drops on a read-only shelf', () => {
+    const native = stubNativeFileDrop();
+    const { api, openImportModalQuery } = mountImport(true);
+
+    native.handler!({ paths: ['/books/a.txt'], unsupported: ['/books/b.pdf'] });
+
+    expect(openImportModalQuery).not.toHaveBeenCalled();
+    expect(api.desktopImportPaths.value).toEqual([]);
+    expect(api.dropError.value).toBe('');
+  });
+
   it('reloads only when an import added at least one book', async () => {
     const { api, reloadAfterImport } = mountImport();
 
@@ -109,4 +163,9 @@ describe('useLibraryImport', () => {
   });
 });
 
-vi.mock('@/providers/platformCapabilities', () => ({ getPlatformCapabilities: () => ({ openLocalBookFiles: mocks.openLocalBookFiles }) }));
+vi.mock('@/providers/platformCapabilities', () => ({
+  getPlatformCapabilities: () => ({
+    openLocalBookFiles: mocks.openLocalBookFiles,
+    onLocalFilesDropped: mocks.onLocalFilesDropped
+  })
+}));

@@ -644,6 +644,10 @@ const zhHant = {
     },
     import: '匯入 ▾',
     importFromFiles: '從檔案匯入',
+    fileDrop: {
+      hint: '放開以匯入 .txt、.md 或 .epub 檔案',
+      unsupported: '未匯入：只能匯入 .txt、.md、.epub 檔案（{files}）。'
+    },
     newEmptyBook: '建立空白書籍',
     empty: {
       noBooksFound: '找不到「{query}」相關書籍{folderSuffix}。',

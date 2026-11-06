@@ -19,6 +19,12 @@ type fakeNative struct {
 	scripts  []string
 	urls     []string
 	quits    int
+	events   []emittedEvent
+}
+
+type emittedEvent struct {
+	name string
+	data any
 }
 
 func (f *fakeNative) openFiles(string, []fileFilter) ([]string, error) { return nil, nil }
@@ -45,6 +51,12 @@ func (f *fakeNative) execJS(script string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.scripts = append(f.scripts, script)
+}
+
+func (f *fakeNative) emitEvent(name string, data any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.events = append(f.events, emittedEvent{name: name, data: data})
 }
 
 func (f *fakeNative) quit() {

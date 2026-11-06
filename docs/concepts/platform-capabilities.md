@@ -43,6 +43,7 @@ The implemented migration from the optional methods formerly on `BookshelfProvid
 | `coversMustBeFetchedAsBlob` | mobile | Platform boolean, retained on Android: direct WebView image requests bypass CapacitorHttp and can be blocked as mixed content |
 | `getStorageEstimate` | mobile | Platform interface |
 | `openLocalBookFiles`, `importBookFromLocalPath` | desktop | Platform interface |
+| *(new)* `onLocalFilesDropped` | — | Platform interface: Finder drops arrive as paths split into book files and unsupported ones |
 | `openDesktopFolder`, `openDesktopBookFolder`, `openDesktopShelfFolder`, `openDesktopShelfDirectory` | desktop | Platform interface, renamed without `Desktop` |
 | `openDesktopReader` | desktop | Platform interface |
 | `saveBookContentToFile` | desktop, mobile | Platform interface |
@@ -145,6 +146,7 @@ interface PlatformCapabilities {
   // Files and folders on the device.
   openLocalBookFiles?(): Promise<string[] | null>;
   importBookFromLocalPath?(localPath: string, folderPath: string): Promise<ImportBookResult | null>;
+  onLocalFilesDropped?(handler: (drop: DroppedFiles) => void): () => void; // Desktop native file drop.
   openFolder?(folderPath: string): Promise<void>;
   openBookFolder?(bookId: string): Promise<void>;
   openShelfFolder?(shelfID: string): Promise<void>;

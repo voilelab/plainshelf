@@ -1,12 +1,14 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -131,4 +133,18 @@ func TestReadOnlySafeRequestRoutes(t *testing.T) {
 		}
 	}
 
+}
+
+func TestImportLocalPathReadOnlyShelf(t *testing.T) {
+	app := newReadOnlyTestApp(t)
+
+	srcPath := filepath.Join(t.TempDir(), "book.txt")
+	if err := os.WriteFile(srcPath, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("write source book: %v", err)
+	}
+
+	_, err := app.ImportFromLocalPath("default_shelf", srcPath, nil)
+	if !errors.Is(err, fsutil.ErrReadOnly) {
+		t.Fatalf("ImportFromLocalPath error = %v, want fsutil.ErrReadOnly", err)
+	}
 }

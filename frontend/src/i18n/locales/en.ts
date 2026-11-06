@@ -659,6 +659,10 @@ const en = {
     },
     import: 'Import ▾',
     importFromFiles: 'Import from files',
+    fileDrop: {
+      hint: 'Drop .txt, .md or .epub files to import',
+      unsupported: 'Not imported: only .txt, .md and .epub files can be imported ({files}).'
+    },
     newEmptyBook: 'New empty book',
     empty: {
       noBooksFound: 'No books found for "{query}"{folderSuffix}.',

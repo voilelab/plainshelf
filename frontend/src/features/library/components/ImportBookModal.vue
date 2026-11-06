@@ -3,6 +3,7 @@
     <section
       class="panel import-modal"
       :class="{ 'is-drop-target': isDropTarget }"
+      :data-file-drop-target="nativeFileDrop ? '' : undefined"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
       @drop="onDrop"
@@ -172,6 +173,7 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/file';
 import { getEpubImportStrategySetting } from '@/api/settings';
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import type { EpubImportPreset } from '@/types/book';
 
 import { useI18n } from '@/i18n';
@@ -231,6 +233,7 @@ const {
 const { fetchBooks } = useBookStore();
 const { fetchFolders } = useFolderStore();
 
+const nativeFileDrop = getPlatformCapabilities().onLocalFilesDropped !== undefined;
 const bookInput = ref<HTMLInputElement | null>(null);
 const isDropTarget = ref(false);
 const selectedFiles = ref<File[]>([]);
@@ -482,7 +485,8 @@ watch(
   width: min(100%, 620px);
 }
 
-.import-modal.is-drop-target {
+.import-modal.is-drop-target,
+.import-modal.file-drop-target-active {
   border: 2px dashed #1d4ed8;
   box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.18);
 }
