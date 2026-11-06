@@ -56,6 +56,10 @@
     {
       "name": "images-source",
       "covers": "A book whose sources are format images: source.txt lists the pages in order and assets/ holds them under stable random names with mixed extensions. The current source reads right to left; a page the list names but assets/ lacks reads as missing, an image the list does not name reads as unlisted, and char_count stays 0. A second images source without page_direction reads as the default left to right."
+    },
+    {
+      "name": "cbz-imported",
+      "covers": "An imported CBZ shape: a current images source with random asset names, RTL direction, original image cover, and no retained archive."
     }
   ]
 }

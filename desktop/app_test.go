@@ -47,7 +47,7 @@ func TestBookFileFilters(t *testing.T) {
 	}
 
 	filter := filters[0]
-	if filter.pattern != "*.txt;*.md;*.epub" {
+	if filter.pattern != "*.txt;*.md;*.epub;*.cbz" {
 		t.Fatalf("expected txt+md+epub filter pattern, got %q", filter.pattern)
 	}
 }

@@ -56,7 +56,7 @@ app, with nothing to install and nothing uploaded.
 ## Project boundaries
 
 PlainShelf prioritizes readable local files, stable internal IDs, backup-friendly
-storage, and a focused reading experience. PDF, comic archives, DRM, OCR,
+storage, and a focused reading experience. PDF, CBR/CB7 archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are not part of the
 current scope. The Android client can read a shelf held on pCloud
 ([Android Development](development/android.md#read-a-shelf-from-pcloud)), but
@@ -66,7 +66,11 @@ other client is aware of it.
 EPUB is an import format, not a storage format. An imported EPUB is converted to
 plain text or Markdown and stored like any other book; the original `.epub` is
 not retained. What survives the conversion, illustrations included, is in [EPUB
-import](epub-import.md). Everything on the shelf stays readable in a text editor.
+import](epub-import.md).
+
+[CBZ import](cbz-import.md) extracts images without retaining the archive.
+An images source stores its ordered page list as text and its original images
+as separate assets. Comic reading in the UI is not available yet.
 
 ## Repository map
 

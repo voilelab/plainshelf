@@ -57,7 +57,7 @@ func parseImportFolderParts(rawFolder string) []string {
 }
 
 func isSupportedImportExt(ext string) bool {
-	return ext == ".txt" || ext == ".md" || ext == ".epub"
+	return ext == ".txt" || ext == ".md" || ext == ".epub" || ext == ".cbz"
 }
 
 func isEPUBExt(ext string) bool {
@@ -92,10 +92,24 @@ func validateImportFileHeader(header *multipart.FileHeader) (string, error) {
 	filename := strings.TrimSpace(header.Filename)
 	ext := strings.ToLower(filepath.Ext(filename))
 	if !isSupportedImportExt(ext) {
-		return reject("book file must be a .txt, .md or .epub file")
+		return reject("book file must be a .txt, .md, .epub or .cbz file")
 	}
 
 	contentType := strings.TrimSpace(header.Header.Get("Content-Type"))
+
+	if ext == ".cbz" {
+		if contentType == "" {
+			return "", nil
+		}
+		mediaType, _, err := mime.ParseMediaType(contentType)
+		if err == nil {
+			switch strings.ToLower(mediaType) {
+			case "application/vnd.comicbook+zip", "application/x-cbz", importZipMediaType, importOctetStreamMediaType:
+				return "", nil
+			}
+		}
+		return reject("book file content type must be application/vnd.comicbook+zip")
+	}
 
 	if ext == ".epub" {
 
@@ -150,7 +164,7 @@ func validateLocalImportPath(localPath string) (string, error) {
 		return "", util.NewError("book file path is required")
 	}
 	if !isSupportedImportExt(strings.ToLower(filepath.Ext(cleanPath))) {
-		return "", util.NewError("book file must be a .txt, .md or .epub file")
+		return "", util.NewError("book file must be a .txt, .md, .epub or .cbz file")
 	}
 
 	info, err := os.Stat(cleanPath)
@@ -242,6 +256,20 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.EqualFold(filepath.Ext(header.Filename), ".cbz") {
+		book, err := h.importCBZ(shelfData, f, header.Size, header.Filename, r.FormValue("title"), folderParts)
+		if err != nil {
+			if _, ok := errors.AsType[*cbzInputError](err); ok {
+				http.Error(w, "failed to import cbz: "+err.Error(), http.StatusBadRequest)
+			} else {
+				h.writeErr(w, r, err, "failed to import cbz")
+			}
+			return
+		}
+		h.writeImportedBook(w, shelfData, book, folderParts)
+		return
+	}
+
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
 		if unsupported, ok := errors.AsType[*util.UnsupportedEncodingError](err); ok {
@@ -307,6 +335,14 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderP
 		}
 
 		return h.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", folderParts, h.settings.epubImportStrategy())
+	}
+
+	if strings.EqualFold(filepath.Ext(cleanPath), ".cbz") {
+		info, err := fp.Stat()
+		if err != nil {
+			return nil, err
+		}
+		return h.importCBZ(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", folderParts)
 	}
 
 	utf8Reader, _, err := util.ReEncodeToUTF8(fp)

@@ -34,6 +34,7 @@ nav:
   - Installation: installation.md
   - Getting started: getting-started.md
   - EPUB import: epub-import.md
+  - CBZ import: cbz-import.md
   - Finding similar books: finding-similar-books.md
   - Logs: logs.md
   - Backup & restore: backup-and-restore.md

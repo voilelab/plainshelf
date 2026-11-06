@@ -33,7 +33,7 @@ func TestAPIImportBookContract(t *testing.T) {
 	})
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 
-	rec = apitest.PostBookImport(t, env, apitest.BookUpload("book.cbz", "text/plain", "not a supported upload"))
+	rec = apitest.PostBookImport(t, env, apitest.BookUpload("book.cbr", "text/plain", "not a supported upload"))
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
 }
 

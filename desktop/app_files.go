@@ -61,7 +61,7 @@ func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) erro
 }
 
 func bookFileFilters() []fileFilter {
-	return []fileFilter{{label: "Books (*.txt, *.md, *.epub)", pattern: "*.txt;*.md;*.epub"}}
+	return []fileFilter{{label: "Books (*.txt, *.md, *.epub, *.cbz)", pattern: "*.txt;*.md;*.epub;*.cbz"}}
 }
 
 func normalizeSelectedLocalPaths(paths []string) []string {
