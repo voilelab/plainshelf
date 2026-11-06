@@ -105,6 +105,15 @@ type BookCacheEntry struct {
 	// source: an edit in place rewrites the source's meta.json, not book.json.
 	// Omitted when unknown; a reader treats absent as "no hash to compare".
 	CurrentSourceMD5 string `json:"current_source_md5,omitempty"`
+
+	CurrentSourceFormat string `json:"current_source_format,omitempty"`
+}
+
+func formatUnlessMirrored(sourceFormat, mirrored string) string {
+	if sourceFormat == mirrored {
+		return ""
+	}
+	return sourceFormat
 }
 
 func (s *Shelf) bookCacheFileName() string {
@@ -270,10 +279,11 @@ func (s *Shelf) collectExportBooksLocked() map[string]BookCacheEntry {
 	for bookID, entry := range s.bookCache.cache {
 		meta := entry.book.GetMeta()
 		books[bookID] = BookCacheEntry{
-			Path:             entry.path,
-			Meta:             meta,
-			NSFW:             s.IsBookNSFW(entry.folders, meta),
-			CurrentSourceMD5: entry.sourceMD5,
+			Path:                entry.path,
+			Meta:                meta,
+			NSFW:                s.IsBookNSFW(entry.folders, meta),
+			CurrentSourceMD5:    entry.sourceMD5,
+			CurrentSourceFormat: formatUnlessMirrored(entry.sourceFormat, meta.Format),
 		}
 	}
 	return books

@@ -450,8 +450,9 @@ parses `source.txt` itself.
 manga. It is written only for that value; absent means left to right, and only
 an `images` source may carry it.
 
-An `images` source has no text, so its `char_count` stays `0`, and fingerprints
-and the Similar Books page leave it out. `md5_hash` and `line_count` still
+An `images` source has no text, so its `char_count` stays `0`, and fingerprints,
+the Similar Books page and duplicate detection leave it out: two comics can
+share a page list without sharing a single image. `md5_hash` and `line_count` still
 describe `source.txt`, the same as for any other source.
 
 ### Book IDs

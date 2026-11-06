@@ -211,12 +211,16 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 }
 
 func (s *Shelf) newRemoteBookIDCacheEntry(entry BookCacheEntry) *bookIDCacheEntry {
+	sourceFormat := entry.CurrentSourceFormat
+	if sourceFormat == "" {
+		sourceFormat = entry.Meta.Format
+	}
 	return &bookIDCacheEntry{
 		folders:      bookFolderPath(entry.Path),
 		path:         entry.Path,
 		book:         bookpkg.FromSnapshot(s.dbRoot, s.Logger, entry.Path, entry.Meta),
 		sourceMD5:    entry.CurrentSourceMD5,
-		sourceFormat: entry.Meta.Format,
+		sourceFormat: sourceFormat,
 	}
 }
 

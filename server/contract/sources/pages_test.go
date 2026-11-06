@@ -115,3 +115,24 @@ func TestAPIFingerprintSkipsImagesBooks(t *testing.T) {
 		t.Fatalf("status after patching book.json format = %+v, want coverage to follow the current source", status)
 	}
 }
+
+func TestAPIDuplicatesSkipImagesBooks(t *testing.T) {
+	env := apitest.New(t)
+	first := apitest.ImportTextBook(t, env, "Night Train", "", "first.txt", "same prose")
+	second := apitest.ImportTextBook(t, env, "Day Train", "", "second.txt", "same prose")
+
+	groups := apitest.GetJSON[[][]string](t, env, apitest.ShelfURL("books", "duplicate"))
+	if len(groups) != 1 {
+		t.Fatalf("duplicate groups = %v, want the two identical text books grouped", groups)
+	}
+
+	for _, book := range []server.Book{first, second} {
+		sourceID := createImagesSource(t, env, book.Meta.ID, "001.jpg\n002.jpg\n")
+		env.WriteSourceAsset(t, book.Meta.ID, sourceID, "001.jpg", []byte(book.Meta.Title))
+	}
+
+	groups = apitest.GetJSON[[][]string](t, env, apitest.ShelfURL("books", "duplicate"))
+	if len(groups) != 0 {
+		t.Fatalf("duplicate groups = %v, want images books with the same page list but different pages left out", groups)
+	}
+}
