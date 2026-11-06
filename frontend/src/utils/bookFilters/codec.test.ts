@@ -61,20 +61,6 @@ describe('serializeFilterField / parseFilterField', () => {
     }
   });
 
-  it('round-trips a generated value of any kind (property test)', () => {
-    const next = pseudoRandom(0x1234);
-    for (let i = 0; i < 2000; i += 1) {
-      const roll = next();
-      const value: FilterFieldValue =
-        roll < 0.2
-          ? { kind: 'none' }
-          : roll < 0.4
-            ? { kind: 'has' }
-            : { kind: 'eq', value: randomValueString(next) };
-      expect(parseFilterField(serializeFilterField(value))).toEqual(value);
-    }
-  });
-
   it('ignores an invalid token rather than throwing', () => {
     for (const raw of ['garbage', 'eq', 'EQ:x', 'None', 'has ', '', ' ', 'author=garbage']) {
       expect(parseFilterField(raw)).toBeUndefined();

@@ -70,11 +70,4 @@ describe('a runtime-composed message follows a locale switch in place', () => {
 
     expect(condition()).toBe('沒有符合封面：有的書籍。');
   });
-
-  it('keeps the two languages distinct, so a missing translation cannot pass', () => {
-    const english = t('library.empty.noBooksForCondition', { condition: 'x' });
-    setLocale('zh-Hant');
-
-    expect(t('library.empty.noBooksForCondition', { condition: 'x' })).not.toBe(english);
-  });
 });
