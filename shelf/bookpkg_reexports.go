@@ -8,6 +8,8 @@ type (
 	Source           = bookpkg.Source
 	SourceMeta       = bookpkg.SourceMeta
 	NewSourceOptions = bookpkg.NewSourceOptions
+	PageList         = bookpkg.PageList
+	Page             = bookpkg.Page
 )
 
 const (
@@ -23,6 +25,7 @@ const (
 const (
 	BookFormatText     = bookpkg.BookFormatText
 	BookFormatMarkdown = bookpkg.BookFormatMarkdown
+	BookFormatImages   = bookpkg.BookFormatImages
 )
 
 var (
@@ -36,6 +39,9 @@ var (
 	ErrAssetNotFound                  = bookpkg.ErrAssetNotFound
 	ErrInvalidAssetName               = bookpkg.ErrInvalidAssetName
 	ErrMalformedMetadata              = bookpkg.ErrMalformedMetadata
+	ErrNotImageSource                 = bookpkg.ErrNotImageSource
+	ErrInvalidPageList                = bookpkg.ErrInvalidPageList
+	ErrInvalidPageDirection           = bookpkg.ErrInvalidPageDirection
 )
 
 type MalformedMetadataError = bookpkg.MalformedMetadataError

@@ -18,28 +18,37 @@ type bookIDCacheEntry struct {
 
 	charCount int
 
-	sourceMD5 string
+	sourceMD5    string
+	sourceFormat string
 
 	charCountAt time.Time
 }
 
 func readBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCacheEntry {
-	charCount, sourceMD5, charCountAt := readSourceStat(book)
+	stat := readSourceStat(book)
 
 	return &bookIDCacheEntry{
-		folders:     folders,
-		path:        path,
-		book:        book,
-		charCount:   charCount,
-		sourceMD5:   sourceMD5,
-		charCountAt: charCountAt,
+		folders:      folders,
+		path:         path,
+		book:         book,
+		charCount:    stat.charCount,
+		sourceMD5:    stat.md5,
+		sourceFormat: stat.format,
+		charCountAt:  stat.readAt,
 	}
 }
 
-func readSourceStat(book *Book) (int, string, time.Time) {
+type sourceStat struct {
+	charCount int
+	md5       string
+	format    string
+	readAt    time.Time
+}
+
+func readSourceStat(book *Book) sourceStat {
 	readAt := time.Now()
-	charCount, md5 := book.CurrentSourceStat()
-	return charCount, md5, readAt
+	charCount, md5, format := book.CurrentSourceStat()
+	return sourceStat{charCount: charCount, md5: md5, format: format, readAt: readAt}
 }
 
 func keepNewerCharCount(entry, published *bookIDCacheEntry) *bookIDCacheEntry {
@@ -50,6 +59,7 @@ func keepNewerCharCount(entry, published *bookIDCacheEntry) *bookIDCacheEntry {
 	merged := *entry
 	merged.charCount = published.charCount
 	merged.sourceMD5 = published.sourceMD5
+	merged.sourceFormat = published.sourceFormat
 	merged.charCountAt = published.charCountAt
 	return &merged
 }
@@ -293,9 +303,10 @@ func (s *Shelf) listBookListingsFromCache() []BookListing {
 	var listings []BookListing
 	for _, cacheEntry := range s.bookCache.cache {
 		listings = append(listings, BookListing{
-			Book:      cacheEntry.book,
-			Folders:   slices.Clone(cacheEntry.folders),
-			CharCount: cacheEntry.charCount,
+			Book:         cacheEntry.book,
+			Folders:      slices.Clone(cacheEntry.folders),
+			CharCount:    cacheEntry.charCount,
+			SourceFormat: cacheEntry.sourceFormat,
 		})
 	}
 
@@ -464,20 +475,21 @@ func (s *Shelf) RefreshBookCharCount(bookID string) {
 		return
 	}
 
-	charCount, sourceMD5, charCountAt := readSourceStat(cacheEntry.book)
+	stat := readSourceStat(cacheEntry.book)
 
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
 	published := s.bookCache.cache[bookID]
-	if published == nil || published.charCountAt.After(charCountAt) {
+	if published == nil || published.charCountAt.After(stat.readAt) {
 		return
 	}
 
 	refreshed := *published
-	refreshed.charCount = charCount
-	refreshed.sourceMD5 = sourceMD5
-	refreshed.charCountAt = charCountAt
+	refreshed.charCount = stat.charCount
+	refreshed.sourceMD5 = stat.md5
+	refreshed.sourceFormat = stat.format
+	refreshed.charCountAt = stat.readAt
 	s.bookCache.cache[bookID] = &refreshed
 }
 

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server/contract/apitest"
@@ -127,6 +128,24 @@ func TestAPIRefreshContentStatsNoop(t *testing.T) {
 	}
 	if result := apitest.TaskResult[task.RefreshContentStatsResult](t, chain); result.Total != 0 || result.Refreshed != 0 {
 		t.Errorf("result = %+v, want an empty sweep", result)
+	}
+}
+
+func TestAPIRefreshContentStatsSkipsImages(t *testing.T) {
+	env := apitest.New(t)
+	comic := apitest.ImportTextBook(t, env, "Night Train", "", "night.txt", "prose first")
+
+	rec := env.RequestTyped(http.MethodPost, apitest.BookURL(comic.Meta.ID, "sources"), "application/json",
+		strings.NewReader(`{"content":"p-a.png\n","format":"images","set_current":true}`))
+	apitest.AssertStatus(t, rec, http.StatusOK)
+
+	accepted := refreshContentStats(t, env, http.StatusAccepted)
+	chain := apitest.WaitForTaskChain(t, env, accepted.TaskChainID)
+	if result := apitest.TaskResult[task.RefreshContentStatsResult](t, chain); result.Total != 0 {
+		t.Errorf("result = %+v, want the images book, whose char_count is always 0, left alone", result)
+	}
+	if got := charCountByBookID(t, env)[comic.Meta.ID]; got != 0 {
+		t.Errorf("char_count = %d, want 0 for a book whose current source is images", got)
 	}
 }
 

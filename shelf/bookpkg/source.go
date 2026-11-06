@@ -36,6 +36,8 @@ type SourceMeta struct {
 	Comment   string        `json:"comment"`
 	Format    string        `json:"format,omitempty"`
 
+	PageDirection string `json:"page_direction,omitempty"`
+
 	MD5Hash   string `json:"md5_hash,omitempty"`
 	LineCount int    `json:"line_count,omitzero"`
 	CharCount int    `json:"char_count,omitzero"`
@@ -115,6 +117,10 @@ func (r *Source) UpdateContent(newContent io.Reader) error {
 	}
 	sourceDestPath := path.Join(r.folderPath, SourceFile)
 
+	newContent, err = checkedContent(r.meta.Format, newContent)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	if err := fsutil.WriteAtomic(root, sourceDestPath, newContent); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -142,7 +148,7 @@ func (r *Source) refreshContentMetadata() error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	stats, readErr := measureContent(f)
+	stats, readErr := measureContent(f, r.meta.Format)
 	closeErr := f.Close()
 	if readErr != nil {
 		return util.Errorf("%w", readErr)
@@ -229,11 +235,20 @@ func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 	}, nil
 }
 
-func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader, format, comment string) (*Source, error) {
+func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader, options NewSourceOptions) (*Source, error) {
+	format := options.Format
 	if !shelfutil.ValidateBookFormat(format) || format == "" {
 		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, format)
 	}
-	err := rt.MkdirAll(sourcePath)
+	pageDirection, err := normalizePageDirection(format, options.PageDirection)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	source, err = checkedContent(format, source)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	err = rt.MkdirAll(sourcePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -247,7 +262,7 @@ func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader, format,
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	stats, readErr := measureContent(destFile)
+	stats, readErr := measureContent(destFile, format)
 	readCloseErr := destFile.Close()
 	if readErr != nil {
 		return nil, util.Errorf("%w", readErr)
@@ -262,10 +277,12 @@ func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader, format,
 		CreatedAt:     util.JSONTime(time.Now()),
 		Format:        format,
 
+		PageDirection: pageDirection,
+
 		MD5Hash:   stats.md5Hash,
 		LineCount: stats.lineCount,
 		CharCount: stats.charCount,
-		Comment:   comment,
+		Comment:   options.Comment,
 	}
 
 	metaFilePath := path.Join(sourcePath, SourceMetaFile)
@@ -293,15 +310,19 @@ type contentStats struct {
 	charCount int
 }
 
-func measureContent(r io.Reader) (contentStats, error) {
+func measureContent(r io.Reader, format string) (contentStats, error) {
 	var text util.TextCounter
 	md5Hash, err := hashutil.MD5Hash(io.TeeReader(r, &text))
 	if err != nil {
 		return contentStats{}, util.Errorf("%w", err)
 	}
-	return contentStats{
+	stats := contentStats{
 		md5Hash:   md5Hash,
 		lineCount: text.Lines(),
 		charCount: text.Chars(),
-	}, nil
+	}
+	if format == BookFormatImages {
+		stats.charCount = 0
+	}
+	return stats, nil
 }
