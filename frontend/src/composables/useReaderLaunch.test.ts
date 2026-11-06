@@ -109,38 +109,6 @@ describe('useReaderLaunch launchReader', () => {
     expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerLaunchFailed');
   });
 
-  it('explains the platform when the standalone reader is unsupported here', async () => {
-    const openReader = vi
-      .fn()
-      .mockRejectedValue(
-        new Error(
-          'main.(*DesktopApp).OpenReader: reader_unsupported_platform: opening the standalone reader is only supported on macOS'
-        )
-      );
-    mocks.openDesktopReader = openReader;
-    const { launchReader } = useReaderLaunch();
-
-    launchReader('book-1');
-
-    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
-    expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerUnsupportedPlatform');
-  });
-
-  it('explains the platform when Wails rejects with a bare error string', async () => {
-    const openReader = vi
-      .fn()
-      .mockRejectedValue(
-        'main.(*DesktopApp).OpenReader: reader_unsupported_platform: opening the standalone reader is only supported on macOS'
-      );
-    mocks.openDesktopReader = openReader;
-    const { launchReader } = useReaderLaunch();
-
-    launchReader('book-1');
-
-    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
-    expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerUnsupportedPlatform');
-  });
-
   it('opens the standalone reader at the chapter on a desktop chapter jump', () => {
     const openReader = vi.fn().mockResolvedValue(undefined);
     mocks.openDesktopReader = openReader;

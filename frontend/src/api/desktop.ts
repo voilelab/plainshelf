@@ -201,14 +201,6 @@ export async function openDesktopBookFolder(bookID: string): Promise<void> {
   await callDesktop('OpenBookDirectory', getActiveShelfID(), bookID);
 }
 
-const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
-
-export function isReaderUnsupportedPlatform(error: unknown): boolean {
-  const message =
-    error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
-  return message.includes(READER_UNSUPPORTED_PLATFORM_CODE);
-}
-
 export async function openDesktopReader(bookID: string, section?: number): Promise<void> {
   const sectionArg =
     typeof section === 'number' && Number.isFinite(section) ? Math.trunc(section) : -1;

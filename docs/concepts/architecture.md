@@ -164,8 +164,9 @@ the read-history and reading-stats stores.
 The standalone reader is a separate process with its own window. How it keys a
 book's progress depends on how it was launched:
 
-- **Launched from the desktop app** (macOS), reading a book shells out to the
-  installed `PlainShelfReader` with the book's `.bookpkg` path (`-book`) and its
+- **Launched from the desktop app**, reading a book shells out to the
+  installed `PlainShelfReader` (through `open -n -a` on macOS, as a direct child
+  process on Windows and Linux) with the book's `.bookpkg` path (`-book`) and its
   real shelf id (`-shelf <realShelfID>`). The reader reports that real shelf as
   its active shelf, so it opens at, and writes back to, the same
   `shelves.<realShelfID>.<bookID>` position the desktop library already holds,

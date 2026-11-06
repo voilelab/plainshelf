@@ -30,7 +30,6 @@ var longNamesBeforeTheCap = map[string]bool{
 	"writeDownloadsUnderDownloadMu":      true,
 	"collectExportFolderMetaLocked":      true,
 	"ValidateSecurityForListenAddr":      true,
-	"readerUnsupportedPlatformCode":      true,
 	"desktopLegacyDefaultShelfName":      true,
 	"cjkSymbolsAndPunctuationStart":      true,
 	"halfwidthAndFullwidthFormsStart":    true,
