@@ -1,6 +1,16 @@
 <template>
+  <ComicReaderView
+    v-if="bookFormat === 'images'"
+    :key="`${id}:${currentSourceId}`"
+    :book-id="id" :source-id="currentSourceId" :title="title"
+    :pages="pages" :index="currentSectionIndex" :direction="pageDirection"
+    :percent="progress?.percent ?? 0" :loading="loading" :error="error" :save-error="saveError"
+    :show-back-navigation="showBackNavigation"
+    @back="goBack" @retry="loadBookAndApplySectionDeepLink"
+    @previous="goPrevSection" @next="goNextSection" @select="goToSection"
+  />
   <DesktopReaderView
-    v-if="!isMobileReader"
+    v-else-if="!isMobileReader"
     :style="readerStyleVars"
     :book-id="id"
     :title="title"
@@ -76,6 +86,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute } from 'vue-router';
+import ComicReaderView from '@/features/reader/components/ComicReaderView.vue';
 import ChapterModal from '@/features/reader/components/ChapterModal.vue';
 import DesktopReaderView from '@/features/reader/components/DesktopReaderView.vue';
 import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
@@ -103,6 +114,8 @@ const isMobileReader = useMobileReaderPresentation();
 const {
   title,
   bookFormat,
+  pages,
+  pageDirection,
   currentSourceId,
   sections,
   currentSectionIndex,
@@ -191,9 +204,10 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   // macOS WKWebView/AppKit beeps on unhandled arrow keys, including chapter boundaries (d0c64e0c).
   event.preventDefault();
 
-  if (event.key === 'ArrowLeft' && currentSectionIndex.value > 0) {
+  const previousKey = bookFormat.value === 'images' && pageDirection.value === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
+  if (event.key === previousKey && currentSectionIndex.value > 0) {
     void goPrevSection();
-  } else if (event.key === 'ArrowRight' && currentSectionIndex.value < sections.value.length - 1) {
+  } else if (event.key !== previousKey && currentSectionIndex.value < sections.value.length - 1) {
     void goNextSection();
   }
 }

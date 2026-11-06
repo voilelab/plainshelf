@@ -234,13 +234,17 @@ them and are not synchronized between devices:
 | Standalone reader | The desktop's `reading_progress.json` (shared), under a synthetic `book` shelf key |
 | Android | App-private `progress.json` files scoped by connection, shelf, and book |
 
-Each position is a JavaScript UTF-16 character offset. Moving or renaming a
-book does not lose it because records use the persistent book ID rather than a
-filesystem path.
+For text sources, each position is a JavaScript UTF-16 character offset. For
+`images` sources, the same per-device integer stores the zero-based page index.
+Moving or renaming a book does not lose its position because records use the
+persistent book ID rather than a filesystem path.
 
-The dashboard estimates completion by dividing this UTF-16 offset by the
-source's rune count. Supplementary characters occupy two UTF-16 units but one
+For text, the dashboard estimates completion by dividing the UTF-16 offset by
+the source's rune count. Supplementary characters occupy two UTF-16 units but one
 rune, so this estimate can reach 100% before the end of the source.
+For images, the reader and dashboard divide the displayed page number by the
+parsed page count, including missing pages. The last page is 100%. Empty page
+lists have 0% completion.
 
 The standalone reader writes into the desktop app's `reading_progress.json` so a
 book read there shows the same position in the desktop library. Because the

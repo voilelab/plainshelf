@@ -1065,6 +1065,14 @@ const zhHant = {
     openFailed: '無法以書籍格式開啟這個資料夾。'
   },
   reader: {
+    comic: {
+      page: '第 {page} 頁',
+      unavailable: '第 {page} 頁無法顯示，可以繼續翻到下一頁。',
+      empty: '此來源沒有頁面。',
+      choosePage: '選擇頁面',
+      hintLtr: '下一頁：點右側、按 → 或向左滑。',
+      hintRtl: '下一頁：點左側、按 ← 或向右滑。',
+    },
     title: '閱讀器',
     progress: '進度：{percent}%',
     loadingContent: '內容載入中...',

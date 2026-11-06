@@ -26,8 +26,27 @@ filename without `.cbz` is the title. `Manga=YesAndRightToLeft` sets
 `page_direction` to `rtl`; otherwise the source defaults to left to right.
 Malformed ComicInfo XML fails the import.
 
-This import stores pages and reading direction. The existing text reader does
-not display an `images` source as a comic reader yet.
+## Reading comics
+
+The web, desktop, standalone reader, and Android clients display one page at a
+time, fitted to the available space. Tap the left or right edge, use the arrow
+keys, or swipe horizontally to turn pages. The bottom controls also let you
+choose a page.
+
+For left-to-right books, tap right, press Right Arrow, or swipe left for the
+next page. For right-to-left books, tap left, press Left Arrow, or swipe right.
+The reader preloads two pages in each direction. Missing or unreadable images
+show their page number, and you can continue reading.
+
+Progress saves the zero-based page index on the current device. Completion is
+based on the displayed page's number divided by the number of listed pages;
+the final page is 100%, and missing pages still count.
+
+On Android, download a book before going offline. Server connections download
+listed images through asset bundles and cache the parsed page list. A failed
+download of an available page does not mark the book as downloaded. pCloud
+shelves remain read-only; their embedded Go backend downloads the whole book
+package. Both paths preserve page order and reading direction offline.
 
 ## Limits
 

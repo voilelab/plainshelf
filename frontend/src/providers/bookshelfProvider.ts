@@ -13,7 +13,7 @@ import type {
   TrashedBook,
   TrashedBookListing
 } from '@/types/book';
-import type { CreateSourceOptions, SourceMeta } from '@/types/source';
+import type { CreateSourceOptions, SourceMeta, SourcePageList } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 
 export type { DownloadState } from '@/types/book';
@@ -61,6 +61,7 @@ export interface BookshelfReader {
 
   listSources(bookId: string): Promise<SourceMeta[]>;
   getSource(bookId: string, sourceId: string): Promise<SourceMeta>;
+  getSourcePages(bookId: string, sourceId: string): Promise<SourcePageList>;
   getSourceContent(bookId: string, sourceId: string): Promise<string>;
 
   getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob>;

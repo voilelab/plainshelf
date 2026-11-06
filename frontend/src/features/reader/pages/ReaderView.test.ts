@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const reader = vi.hoisted(() => {
   return {
+    bookFormat: undefined as unknown as Ref<string>,
+    pageDirection: undefined as unknown as Ref<string>,
     currentSectionIndex: undefined as unknown as Ref<number>,
     sections: undefined as unknown as Ref<unknown[]>,
     goPrevSection: vi.fn(),
@@ -20,20 +22,24 @@ const router = vi.hoisted(() => ({
 
 vi.mock('@/features/reader/composables/useReader', async () => {
   const { ref: makeRef } = await vi.importActual<typeof import('vue')>('vue');
+  reader.bookFormat = makeRef('txt');
+  reader.pageDirection = makeRef('ltr');
   reader.currentSectionIndex = makeRef(1);
   reader.sections = makeRef([{}, {}, {}]);
   return {
     useReader: () => ({
       title: makeRef(''),
-      bookFormat: makeRef('txt'),
+      bookFormat: reader.bookFormat,
+      pages: makeRef([]),
+      pageDirection: reader.pageDirection,
       currentSourceId: makeRef(''),
       sections: reader.sections,
       currentSectionIndex: reader.currentSectionIndex,
       currentSection: makeRef(null),
       progress: makeRef(null),
       loading: makeRef(false),
-      error: makeRef(null),
-      saveError: makeRef(null),
+      error: makeRef(''),
+      saveError: makeRef(''),
       readerRef: makeRef(null),
       fetchReaderData: vi.fn().mockResolvedValue(undefined),
       onScroll: vi.fn(),
@@ -187,6 +193,8 @@ beforeEach(() => {
   router.replace.mockReset();
   reader.goPrevSection.mockReset();
   reader.goNextSection.mockReset();
+  reader.bookFormat.value = 'txt';
+  reader.pageDirection.value = 'ltr';
   reader.currentSectionIndex.value = 1;
   reader.sections.value = [{}, {}, {}];
 });
@@ -331,4 +339,22 @@ describe('ReaderView keyboard chapter navigation', () => {
     expect(reader.goPrevSection).not.toHaveBeenCalled();
     expect(reader.goNextSection).not.toHaveBeenCalled();
   });
+});
+
+
+it('reverses comic arrow keys for rtl while retaining page boundaries', async () => {
+  reader.bookFormat.value = 'images';
+  reader.pageDirection.value = 'rtl';
+  mount();
+  await flush();
+  press('ArrowLeft');
+  expect(reader.goNextSection).toHaveBeenCalledOnce();
+  press('ArrowRight');
+  expect(reader.goPrevSection).toHaveBeenCalledOnce();
+  reader.currentSectionIndex.value = 0;
+  press('ArrowRight');
+  expect(reader.goPrevSection).toHaveBeenCalledOnce();
+  reader.currentSectionIndex.value = 2;
+  press('ArrowLeft');
+  expect(reader.goNextSection).toHaveBeenCalledOnce();
 });

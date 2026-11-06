@@ -32,6 +32,7 @@ import {
   getSourceAsset,
   getSourceAssetsBundle,
   getSourceContent,
+  getSourcePages,
   listSource,
   refreshSourceMeta,
   setCurrentSource,
@@ -63,7 +64,7 @@ import type {
   TrashedBookListing
 } from '@/types/book';
 import type { BookTransferMode, FingerprintStatus, SimilarBookPair } from '@/api/books';
-import type { CreateSourceOptions, SourceMeta } from '@/types/source';
+import type { CreateSourceOptions, SourceMeta, SourcePageList } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 import type {
   BookshelfReader,
@@ -237,6 +238,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   getSource(bookId: string, sourceId: string): Promise<SourceMeta> {
     return getSource(bookId, sourceId);
+  }
+
+  getSourcePages(bookId: string, sourceId: string): Promise<SourcePageList> {
+    return getSourcePages(bookId, sourceId);
   }
 
   getSourceContent(bookId: string, sourceId: string): Promise<string> {

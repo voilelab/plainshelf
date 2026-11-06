@@ -4,6 +4,8 @@ import { getBookshelfProvider } from '@/providers';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
 import { resolveReadingFormat } from '@/utils/bookFormat';
 import { buildMarkdownH2Sections } from '@/utils/markdownChapters';
+import type { SourcePage } from '@/types/source';
+import { comicReadingPercent } from '@/utils/comicProgress';
 import type { ReaderSection, ReadingProgress } from '@/types/book';
 import { t } from '@/i18n';
 
@@ -47,6 +49,12 @@ export function useReader(bookID: () => string) {
   const bookFormat = ref('txt');
   const currentSourceId = ref('');
   const content = ref('');
+  const pages = ref<SourcePage[]>([]);
+  const pageDirection = ref<'ltr' | 'rtl'>('ltr');
+  const totalOffset = computed(() => bookFormat.value === 'images' ? Math.max(0, pages.value.length - 1) : content.value.length);
+  const percentAt = (offset: number) => bookFormat.value === 'images'
+    ? comicReadingPercent(offset, pages.value.length)
+    : (totalOffset.value > 0 ? Math.max(0, Math.min(100, Math.round(offset / totalOffset.value * 100))) : 0);
   const sections = ref<ReaderSection[]>([]);
   const currentSectionIndex = ref(0);
   const currentSection = computed<ReaderSection | null>(
@@ -74,11 +82,9 @@ export function useReader(bookID: () => string) {
   );
 
   function normalizeProgress(next: ReadingProgress): ReadingProgress {
-    const total = content.value.length;
+    const total = totalOffset.value;
     const clampedOffset = clampOffset(next.char_offset, total);
-    const percent =
-      next.percent ??
-      (total > 0 ? Math.max(0, Math.min(100, Math.round((clampedOffset / total) * 100))) : 0);
+    const percent = percentAt(clampedOffset);
 
     return {
       ...next,
@@ -88,9 +94,9 @@ export function useReader(bookID: () => string) {
   }
 
   function updateProgressByOffset(nextOffset: number): void {
-    const total = content.value.length;
+    const total = totalOffset.value;
     const clamped = clampOffset(nextOffset, total);
-    const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((clamped / total) * 100))) : 0;
+    const percent = percentAt(clamped);
 
     currentOffset.value = clamped;
     updateAutosaveOffset(clamped);
@@ -110,6 +116,7 @@ export function useReader(bookID: () => string) {
   }
 
   async function syncScrollToOffset(offset: number): Promise<void> {
+    if (bookFormat.value === 'images') return;
     await nextTick();
 
     const section = currentSection.value;
@@ -135,7 +142,7 @@ export function useReader(bookID: () => string) {
   }
 
   async function syncSectionAndScrollByOffset(offset: number): Promise<void> {
-    const safeOffset = clampOffset(offset, content.value.length);
+    const safeOffset = clampOffset(offset, totalOffset.value);
     const sectionIdx = findSectionIndexByOffset(sections.value, safeOffset);
     currentSectionIndex.value = sectionIdx;
     updateProgressByOffset(safeOffset);
@@ -182,7 +189,19 @@ export function useReader(bookID: () => string) {
 
       bookFormat.value = resolveReadingFormat(sourceMeta?.format, book.format);
 
-      sections.value = bookFormat.value === 'md'
+      pageDirection.value = sourceMeta?.page_direction === 'rtl' ? 'rtl' : 'ltr';
+      const pageList = bookFormat.value === 'images'
+        ? await provider.getSourcePages(requestedBookID, sourceID)
+        : null;
+      if (generation !== fetchGeneration) return;
+      pages.value = pageList?.pages ?? [];
+
+      sections.value = bookFormat.value === 'images'
+        ? pages.value.map((_, index) => ({
+            index, startOffset: index, endOffset: index + 1,
+            title: t('reader.comic.page', { page: index + 1 }), text: ''
+          }))
+        : bookFormat.value === 'md'
         ? buildMarkdownH2Sections(content.value)
         : buildSingleSection(content.value);
 
@@ -213,6 +232,7 @@ export function useReader(bookID: () => string) {
   }
 
   function onScroll(): void {
+    if (bookFormat.value === 'images') return;
     const el = readerRef.value;
     const section = currentSection.value;
     if (!el || !section) {
@@ -259,6 +279,8 @@ export function useReader(bookID: () => string) {
     bookFormat,
     currentSourceId,
     content,
+    pages,
+    pageDirection,
     sections,
     currentSectionIndex,
     currentSection,

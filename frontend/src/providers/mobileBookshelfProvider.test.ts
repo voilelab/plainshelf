@@ -1078,3 +1078,65 @@ describe('MobileBookshelfProvider shelf fallback', () => {
     expect(provider.getPersistedShelfID()).toBe(SHELF_B);
   });
 });
+
+
+describe('MobileBookshelfProvider comics', () => {
+  beforeEach(() => connectTo(SERVER_A, SHELF_A));
+
+  function setup() {
+    const cache = new InMemoryMobileBookCache();
+    let online = true;
+    const pages = [
+      { name: 'random-z.png', missing: false },
+      { name: 'lost.png', missing: true },
+      { name: 'random-a.webp', missing: false }
+    ];
+    const remote = {
+      getBook: vi.fn().mockResolvedValue(makeBook('comic', { format: 'images', current_source: 'pages' })),
+      listSources: vi.fn().mockResolvedValue([{ ...makeSource('pages'), format: 'images', page_direction: 'rtl' }]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'random-z.png\nlost.png\nrandom-a.webp' }),
+      getSourceContent: vi.fn().mockResolvedValue('random-z.png\nlost.png\nrandom-a.webp'),
+      getSourcePages: vi.fn().mockResolvedValue({ pages, unlisted: ['unused.png'] }),
+      getSourceAssetsBundle: vi.fn().mockResolvedValue(new Blob([zipSync({
+        'random-z.png': strToU8('first'), 'random-a.webp': strToU8('last')
+      })])),
+      getSourceAsset: vi.fn().mockRejectedValue(new Error('network failed'))
+    };
+    const provider = new MobileBookshelfProvider(remote as unknown as BookshelfReader, cache, () => online);
+    return { cache, provider, remote, pages, offline: () => { online = false; } };
+  }
+
+  it('downloads the ordered page list and assets.zip, then reads every available page and progress offline', async () => {
+    const { provider, remote, pages, offline, cache } = setup();
+    await provider.downloadBook('comic');
+    expect(remote.getSourceAssetsBundle).toHaveBeenCalledWith('comic', 'pages', ['random-z.png', 'random-a.webp']);
+    expect(remote.getSourceAsset).not.toHaveBeenCalled();
+    offline();
+    expect(await provider.getSourcePages('comic', 'pages')).toEqual({ pages, unlisted: ['unused.png'] });
+    expect((await provider.getSource('comic', 'pages')).page_direction).toBe('rtl');
+    expect(await (await provider.getSourceAsset('comic', 'pages', 'random-z.png')).text()).toBe('first');
+    expect(await (await provider.getSourceAsset('comic', 'pages', 'random-a.webp')).text()).toBe('last');
+    await expect(provider.getSourceAsset('comic', 'pages', 'lost.png')).rejects.toThrow();
+    await provider.saveReadProgress('comic', { char_offset: 2 });
+    expect(await provider.getReadProgress('comic')).toMatchObject({ char_offset: 2 });
+    expect((await cache.listDownloadedManifests())[0].size_breakdown?.assets).toBe(9);
+  });
+
+  it('does not report a complete download if a present page is absent from the bundle and cannot be fetched', async () => {
+    const { provider, remote, cache } = setup();
+    remote.getSourceAssetsBundle.mockResolvedValue(new Blob([zipSync({ 'random-z.png': strToU8('first') })]));
+    await expect(provider.downloadBook('comic')).rejects.toThrow('network failed');
+    expect(await cache.getDownloadState('comic')).toBe('not_downloaded');
+  });
+
+  it('rejects a shelf switch while fetching the page list before writing any assets', async () => {
+    const { provider, remote, cache } = setup();
+    remote.getSourcePages.mockImplementation(async () => {
+      connectTo(SERVER_A, SHELF_B);
+      return { pages: [{ name: 'first.png', missing: false }], unlisted: [] };
+    });
+    await expect(provider.downloadBook('comic')).rejects.toThrow(DOWNLOAD_SHELF_CHANGED_ERROR);
+    expect(remote.getSourceAssetsBundle).not.toHaveBeenCalled();
+    expect(await cache.listDownloadedManifests()).toEqual([]);
+  });
+});

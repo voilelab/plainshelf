@@ -6,6 +6,8 @@ import { getReadHistoryIDs } from '@/storage/readHistory';
 import { getLocalReadingEntries, getLocalReadingEntry } from '@/storage/readingProgress';
 import type { ProgressEntry } from '@/storage/readingProgress';
 import type { Book } from '@/types/book';
+import { mapWithConcurrency } from '@/utils/concurrency';
+import { comicReadingPercent } from '@/utils/comicProgress';
 import { t } from '@/i18n';
 
 const READING_ACTIVITY_RANGE_DAYS = 365;
@@ -55,6 +57,8 @@ export function useDashboardData() {
   const loading = ref(false);
   const error = ref('');
   const readingActivity = ref<Record<string, number>>({});
+  const comicOffsets = ref<Record<string, number>>({});
+  const comicPageCounts = ref<Record<string, number>>({});
   const readingProgress = ref<Record<string, ProgressEntry>>({});
   const recentReading = ref<RecentReadingItem[]>([]);
   const shelfInitializing = ref(false);
@@ -67,8 +71,13 @@ export function useDashboardData() {
   const inProgress = computed<number>(() => {
     let count = 0;
     for (const book of books.value) {
-      const entry = readingProgress.value[book.id];
-      if (!entry || entry.offset <= 0) {
+      const entry = book.id in comicOffsets.value ? { offset: comicOffsets.value[book.id] } : readingProgress.value[book.id];
+      if (!entry || (book.format !== 'images' && entry.offset <= 0)) {
+        continue;
+      }
+      if (book.format === 'images') {
+        const pageCount = comicPageCounts.value[book.id];
+        if (pageCount && entry.offset < pageCount - 1) count += 1;
         continue;
       }
       const charCount = book.char_count;
@@ -143,6 +152,7 @@ export function useDashboardData() {
         ids.add(id);
       }
     }
+    for (const id of Object.keys(comicOffsets.value)) ids.add(id);
     return ids;
   });
 
@@ -183,7 +193,9 @@ export function useDashboardData() {
         const entry = await getLocalReadingEntry(book.id);
         return {
           book,
-          percent: entry ? estimateReadingPercent(entry.offset, book.char_count) : null,
+          percent: book.format === 'images'
+            ? (book.id in comicPageCounts.value ? comicReadingPercent(comicOffsets.value[book.id] ?? 0, comicPageCounts.value[book.id]) : null)
+            : entry ? estimateReadingPercent(entry.offset, book.char_count) : null,
           lastReadAt: entry?.at ?? null
         };
       })
@@ -211,14 +223,31 @@ export function useDashboardData() {
       books.value = data.items;
       readingActivity.value = activity;
       try {
-        recentReading.value = await loadRecentReading(data.items);
-      } catch {
-        recentReading.value = [];
-      }
-      try {
         readingProgress.value = await getLocalReadingEntries();
       } catch {
         readingProgress.value = {};
+      }
+      comicPageCounts.value = {};
+      comicOffsets.value = {};
+      const comics = data.items.filter((book) => book.format === 'images');
+      const historyIDs = new Set(comics.length ? await getReadHistoryIDs().catch(() => []) : []);
+      const startedComics = comics.filter((book) => book.current_source &&
+        (historyIDs.has(book.id) || book.id in readingProgress.value));
+      await mapWithConcurrency(startedComics, 3, async (book) => {
+        try {
+          const provider = getBookshelfProvider();
+          const [pages, progress] = await Promise.all([
+            provider.getSourcePages(book.id, book.current_source!), provider.getReadProgress(book.id)
+          ]);
+          comicPageCounts.value[book.id] = pages.pages.length;
+          comicOffsets.value[book.id] = progress.char_offset;
+        } catch {
+        }
+      });
+      try {
+        recentReading.value = await loadRecentReading(data.items);
+      } catch {
+        recentReading.value = [];
       }
       shelfInitializing.value = false;
       initRetry.reset();

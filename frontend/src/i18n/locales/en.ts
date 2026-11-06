@@ -1081,6 +1081,14 @@ const en = {
     openFailed: 'That folder could not be opened as a book.'
   },
   reader: {
+    comic: {
+      page: 'Page {page}',
+      unavailable: 'Page {page} is unavailable. You can continue to the next page.',
+      empty: 'This source has no pages.',
+      choosePage: 'Choose page',
+      hintLtr: 'Next: tap right, press →, or swipe left.',
+      hintRtl: 'Next: tap left, press ←, or swipe right.',
+    },
     title: 'Reader',
     progress: 'Progress: {percent}%',
     loadingContent: 'Loading content...',
