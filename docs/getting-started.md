@@ -69,6 +69,14 @@ Open the library, choose **Import**, and select a `.txt`, `.md` or `.epub` file.
 You can then edit its metadata, add a cover, place it in a folder, and open the
 reader.
 
+In the macOS desktop app you can select or drop several files at once, and
+switch to another app while they import. When an import of two or more books, or
+an import of shelves from another device's LAN share, finishes while PlainShelf
+is in the background, macOS shows a notification with how many were added and
+how many failed; clicking it brings PlainShelf back. macOS asks for permission
+the first time, and if you decline, imports carry on without notifications. Turn
+them off under **Settings → Import & covers → Notify when an import finishes**.
+
 A Markdown book's detail page also lists the chapters its source splits into,
 the same H2 headings the reader navigates by. Selecting one opens the reader at
 that chapter instead of your last position. Plain text has no chapters, so the

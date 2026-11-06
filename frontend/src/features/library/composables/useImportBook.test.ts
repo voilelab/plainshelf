@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   importBook: vi.fn(),
   importBookFromLocalPath: vi.fn(),
+  notifyImportFinished: vi.fn(async () => undefined),
   createSource: vi.fn(),
   getBookContent: vi.fn()
 }));
@@ -213,6 +214,42 @@ describe('useImportBook', () => {
     expect(book.files.value[1].error).toBe('unsupported file');
     expect(book.success.value).toBe('libraryForms.importBook.results.partial');
     expect(book.error.value).toBe('libraryForms.importBook.errors.someFailed');
+  });
+
+  it('notifies the counts once a multi-book import finishes', async () => {
+    mocks.importBookFromLocalPath
+      .mockResolvedValueOnce({ id: 'id-a', path: '/books/a.txt' })
+      .mockResolvedValueOnce({ path: '/books/b.txt', error: 'unsupported file' });
+
+    await useImportBook().submitLocalPaths(['/books/a.txt', '/books/b.txt'], '/');
+
+    expect(mocks.notifyImportFinished).toHaveBeenCalledTimes(1);
+    expect(mocks.notifyImportFinished).toHaveBeenCalledWith(
+      'importNotification.title',
+      'importNotification.booksWithFailures'
+    );
+  });
+
+  it('does not notify for a single-book import', async () => {
+    mocks.importBookFromLocalPath.mockResolvedValueOnce({ id: 'id-a', path: '/books/a.txt' });
+
+    await useImportBook().submitLocalPaths(['/books/a.txt'], '/');
+
+    expect(mocks.notifyImportFinished).not.toHaveBeenCalled();
+  });
+
+  it('does not notify for a cancelled import', async () => {
+    const book = useImportBook();
+    const done = book.submit(
+      [{ filename: 'x', title: 'X' }, { filename: 'y', title: 'Y' }],
+      async () => {
+        book.abort();
+        return 'id-x';
+      }
+    );
+
+    expect((await done)?.cancelled).toBe(true);
+    expect(mocks.notifyImportFinished).not.toHaveBeenCalled();
   });
 
   it('drives an arbitrary executor without touching File uploads', async () => {

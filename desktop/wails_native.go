@@ -8,6 +8,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
 //go:embed tray_template.png
@@ -16,8 +17,9 @@ var trayTemplateIcon []byte
 var errNativeNotReady = util.NewError("desktop window not ready")
 
 type wailsNative struct {
-	app    *application.App
-	window *application.WebviewWindow
+	app      *application.App
+	window   *application.WebviewWindow
+	notifier *lazyNotifier
 
 	trayMu sync.Mutex
 	tray   *application.SystemTray
@@ -26,6 +28,24 @@ type wailsNative struct {
 func (w *wailsNative) attach(app *application.App, window *application.WebviewWindow) {
 	w.app = app
 	w.window = window
+	service := notifications.New()
+	service.OnNotificationResponse(func(result notifications.NotificationResult) {
+		if result.Error == nil {
+			w.showWindow()
+		}
+	})
+	w.notifier = &lazyNotifier{backend: wailsNotifications{service: service}}
+}
+
+func (w *wailsNative) windowFocused() bool {
+	return w.window != nil && w.window.IsFocused()
+}
+
+func (w *wailsNative) notify(title, body string) error {
+	if w.notifier == nil {
+		return errNativeNotReady
+	}
+	return w.notifier.send(title, body)
 }
 
 func (w *wailsNative) openFiles(title string, filters []fileFilter) ([]string, error) {

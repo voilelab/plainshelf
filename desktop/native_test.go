@@ -28,6 +28,8 @@ type fakeNative struct {
 	shown    int
 	events   []emittedEvent
 	tray     []menuItem
+	focused  bool
+	notified []string
 }
 
 func (f *fakeNative) openFiles(string, []fileFilter) ([]string, error) { return nil, nil }
@@ -54,6 +56,15 @@ func (f *fakeNative) execJS(script string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.scripts = append(f.scripts, script)
+}
+
+func (f *fakeNative) windowFocused() bool { return f.focused }
+
+func (f *fakeNative) notify(title, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.notified = append(f.notified, title+"|"+body)
+	return nil
 }
 
 func (f *fakeNative) quit() {

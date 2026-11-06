@@ -289,6 +289,12 @@ const zhHant = {
     cover: {
       title: '封面'
     },
+    importNotifications: {
+      title: '通知',
+      label: '匯入完成時通知',
+      description:
+        'PlainShelf 不在前景時，一次匯入多本書或區網匯入結束後，會用系統通知告訴你加入了幾本書或幾個書架。此偏好只保存在這台裝置。'
+    },
     coverToJpg: {
       label: '將上傳封面轉為 JPG',
       description: '啟用後，封面圖片上傳時會轉換為 JPEG。'
@@ -1247,6 +1253,13 @@ const zhHant = {
       ended: '分享已停止：{reason}',
       noWifi: '請先連上 Wi-Fi：只能在區網內分享。'
     }
+  },
+  importNotification: {
+    title: '匯入完成',
+    books: '已匯入 {count} 本。',
+    booksWithFailures: '已匯入 {count} 本，{failed} 本失敗。',
+    shelves: '已加入 {count} 個書架。',
+    shelvesWithFailures: '已加入 {count} 個書架，{failed} 個失敗。'
   },
   libraryForms: {
     editBook: {

@@ -530,7 +530,8 @@ vi.mock('@/providers/platformCapabilities', () => ({
       removeShelf: provider.value.removeDesktopShelf
     },
     openShelfFolder: provider.value.openDesktopShelfFolder,
-    chooseShelfDirectory: provider.value.openDesktopShelfDirectory
+    chooseShelfDirectory: provider.value.openDesktopShelfDirectory,
+    notifyImportFinished: provider.value.notifyImportFinished
   })
 }));
 
@@ -571,8 +572,13 @@ describe('LAN QR import', () => {
   const listed = [{ id: 'one', name: 'One', url: 'http://lan/dav/one/' }];
   it('previews without importing, requires confirmation, and clears secret text after results', async () => {
     const previewLANShareQR = vi.fn().mockResolvedValue(listed);
-    const importLANShareQR = vi.fn().mockResolvedValue([{ name: 'One', url: listed[0].url, status: 'added' }]);
-    provider.value = { previewLANShareQR, importLANShareQR };
+    const importLANShareQR = vi.fn().mockResolvedValue([
+      { name: 'One', url: listed[0].url, status: 'added' },
+      { name: 'Two', url: 'http://lan/dav/two/', status: 'exists' },
+      { name: 'Three', url: 'http://lan/dav/three/', status: 'failed' }
+    ]);
+    const notifyImportFinished = vi.fn().mockResolvedValue(undefined);
+    provider.value = { previewLANShareQR, importLANShareQR, notifyImportFinished };
     const form = useShelfForm();
     form.openAddShelfModal();
     form.pickShelfLocation('qr');
@@ -586,6 +592,8 @@ describe('LAN QR import', () => {
     expect(importLANShareQR).toHaveBeenCalledWith('secret JSON');
     expect(form.qrText.value).toBe('');
     expect(form.qrResults.value[0].status).toBe('added');
+    expect(notifyImportFinished).toHaveBeenCalledWith('Import finished', 'Added 1 shelf(s), 1 failed.');
+    expect(notifyImportFinished.mock.calls[0][1]).not.toContain('lan/dav');
     expect(form.showAddShelfModal.value).toBe(true);
     form.closeAddShelfModal();
     expect(form.qrResults.value).toEqual([]);

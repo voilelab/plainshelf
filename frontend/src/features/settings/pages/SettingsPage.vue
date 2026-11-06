@@ -62,6 +62,7 @@
           @save="onSaveEpubImportStrategy"
         />
         <CoverPanel :value="coverToJpg" :disabled="loading || saving" @change="onCoverToJpgChange" />
+        <ImportNotificationsPanel v-if="importNotificationsAvailable" />
       </TabsContent>
 
       <TabsContent value="shelves" class="settings-tab-content">
@@ -91,6 +92,7 @@ import CoverPanel from '@/features/settings/components/CoverPanel.vue';
 import DemoStoragePanel from '@/features/settings/components/DemoStoragePanel.vue';
 import DeviceNsfwPanel from '@/features/settings/components/DeviceNsfwPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
+import ImportNotificationsPanel from '@/features/settings/components/ImportNotificationsPanel.vue';
 import LanSharePanel from '@/features/settings/components/LanSharePanel.vue';
 import LanguagePanel from '@/features/settings/components/LanguagePanel.vue';
 import LogRetentionPanel from '@/features/settings/components/LogRetentionPanel.vue';
@@ -99,6 +101,7 @@ import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vu
 import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
 import { hasDesktopLANShareBinding } from '@/api/desktop';
+import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -111,6 +114,7 @@ const { t } = useI18n();
 const { serverSettingsEditable } = useWriteAccess();
 const wasmDemo = isWasmDemo();
 const lanShareAvailable = hasDesktopLANShareBinding();
+const importNotificationsAvailable = getPlatformCapabilities().notifyImportFinished !== undefined;
 const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable);
 const { showNsfw: showNsfwOnDevice, setShowNsfw: setShowNsfwOnDevice } = useDeviceNsfwPreference();
 

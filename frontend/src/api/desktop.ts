@@ -83,6 +83,7 @@ export interface DesktopQRResult {
 interface DesktopAppBinding {
   PreviewLANShareQR: (text: string) => Promise<DesktopQRShelf[]>;
   ImportLANShareQR: (text: string) => Promise<DesktopQRResult[]>;
+  NotifyImportFinished: (title: string, body: string) => Promise<void>;
   OpenBookFiles: () => Promise<string[]>;
   ImportBookFromLocalPath: (
     shelfID: string,
@@ -378,4 +379,8 @@ export async function previewDesktopLANShareQR(text: string): Promise<DesktopQRS
 
 export async function importDesktopLANShareQR(text: string): Promise<DesktopQRResult[]> {
   return callDesktop('ImportLANShareQR', text);
+}
+
+export async function notifyDesktopImportFinished(title: string, body: string): Promise<void> {
+  await callDesktop('NotifyImportFinished', title, body);
 }
