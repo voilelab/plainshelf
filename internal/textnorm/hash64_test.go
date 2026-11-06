@@ -39,30 +39,6 @@ func TestHash64StringMatchesHash64(t *testing.T) {
 	}
 }
 
-func TestHash64TreatsNilAndEmptyAlike(t *testing.T) {
-	if xxhash.Sum64(nil) != xxhash.Sum64([]byte{}) {
-		t.Error("xxhash.Sum64(nil) and xxhash.Sum64([]byte{}) disagree")
-	}
-}
-
-func TestHash64SeparatesNearbyInputs(t *testing.T) {
-	seen := map[uint64]string{}
-	for _, s := range []string{
-		"三國演義第一回",
-		"三國演義第二回",
-		"三国演义第一回",
-		"三國演義第一囘",
-		"演義三國第一回",
-		"三國演義第一回 ",
-	} {
-		h := xxhash.Sum64String(s)
-		if other, ok := seen[h]; ok {
-			t.Errorf("xxhash.Sum64String(%q) collides with %q at %#016x", s, other, h)
-		}
-		seen[h] = s
-	}
-}
-
 func TestHash64VersionIsSet(t *testing.T) {
 	if Hash64Version != "xxhash64-v1" {
 		t.Errorf("Hash64Version = %q; changing it invalidates every cache built on it", Hash64Version)

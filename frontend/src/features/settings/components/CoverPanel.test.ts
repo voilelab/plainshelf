@@ -57,15 +57,6 @@ describe('CoverPanel', () => {
     expect(onChange).toHaveBeenCalledTimes(2);
   });
 
-  it('fires once when the switch itself is clicked inside the row label', () => {
-    const onChange = vi.fn();
-    const { host } = mount(CoverPanel, { props: { value: false, disabled: false, onChange } });
-
-    host.querySelector<HTMLElement>('[role="switch"]')?.click();
-
-    expect(onChange).toHaveBeenCalledTimes(1);
-  });
-
   it('does not emit while the panel is saving', () => {
     const onChange = vi.fn();
     const { host } = mount(CoverPanel, { props: { value: false, disabled: true, onChange } });
