@@ -34,6 +34,7 @@ export interface PlatformCapabilities {
   };
   openLocalBookFiles?(): Promise<string[] | null>;
   importBookFromLocalPath?(path: string, folder: string): Promise<DesktopImportBookResult | null>;
+  notifyImportFinished?(title: string, body: string): Promise<void>;
   openFolder?(path: string): Promise<void>;
   openBookFolder?(id: string): Promise<void>;
   openShelfFolder?(id: string): Promise<void>;

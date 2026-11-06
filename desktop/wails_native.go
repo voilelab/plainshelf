@@ -3,18 +3,47 @@ package main
 import (
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
 var errNativeNotReady = util.NewError("desktop window not ready")
 
 type wailsNative struct {
-	app    *application.App
-	window *application.WebviewWindow
+	app      *application.App
+	window   *application.WebviewWindow
+	notifier *lazyNotifier
 }
 
 func (w *wailsNative) attach(app *application.App, window *application.WebviewWindow) {
 	w.app = app
 	w.window = window
+	service := notifications.New()
+	service.OnNotificationResponse(func(result notifications.NotificationResult) {
+		if result.Error == nil {
+			w.bringToFront()
+		}
+	})
+	w.notifier = &lazyNotifier{backend: wailsNotifications{service: service}}
+}
+
+func (w *wailsNative) windowFocused() bool {
+	return w.window != nil && w.window.IsFocused()
+}
+
+func (w *wailsNative) notify(title, body string) error {
+	if w.notifier == nil {
+		return errNativeNotReady
+	}
+	return w.notifier.send(title, body)
+}
+
+func (w *wailsNative) bringToFront() {
+	if w.window == nil {
+		return
+	}
+	w.window.UnMinimise()
+	w.window.Show()
+	w.window.Focus()
 }
 
 func (w *wailsNative) openFiles(title string, filters []fileFilter) ([]string, error) {

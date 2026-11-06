@@ -299,6 +299,12 @@ const en = {
     cover: {
       title: 'Cover'
     },
+    importNotifications: {
+      title: 'Notifications',
+      label: 'Notify when an import finishes',
+      description:
+        'When PlainShelf is in the background, a system notification reports how many books or LAN shelves were added after a multi-book or LAN import. This preference is stored only on this device.'
+    },
     coverToJpg: {
       label: 'Convert uploaded covers to JPG',
       description: 'Enable this to convert cover images to JPEG when uploading.'
@@ -1265,6 +1271,13 @@ const en = {
       ended: 'Sharing stopped: {reason}',
       noWifi: 'Connect to Wi-Fi first: sharing works only on a local network.'
     }
+  },
+  importNotification: {
+    title: 'Import finished',
+    books: 'Imported {count} book(s).',
+    booksWithFailures: 'Imported {count} book(s), {failed} failed.',
+    shelves: 'Added {count} shelf(s).',
+    shelvesWithFailures: 'Added {count} shelf(s), {failed} failed.'
   },
   libraryForms: {
     editBook: {

@@ -1,5 +1,6 @@
 import type { DesktopQRShelf, DesktopQRResult } from '@/api/desktop';
 import { getPlatformCapabilities } from '@/providers/platformCapabilities';
+import { notifyImportFinished } from '@/utils/importNotification';
 import type { DesktopShelfDetails } from '@/api/desktop';
 import { computed, ref, watch } from 'vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
@@ -346,6 +347,11 @@ export function useShelfManagement() {
         qrText.value = '';
         qrShelves.value = [];
         qrResults.value = results;
+        notifyImportFinished(
+          'shelves',
+          results.filter((r) => r.status === 'added').length,
+          results.filter((r) => r.status !== 'added' && r.status !== 'exists').length
+        );
         await fetchShelves();
         return;
       }
