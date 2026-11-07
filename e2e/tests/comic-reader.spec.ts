@@ -45,13 +45,16 @@ async function writeComic(shelfDir: string, id: string, direction: string, liste
   return bookDir;
 }
 
-test('reads ltr and rtl comics, restores page progress, and edits pages touching only source.txt and one image', { tag: '@smoke' }, async ({ page }) => {
+test('reads ltr and rtl comics, restores page progress, sizes pages, and edits pages touching only source.txt and one image', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl, shelfDir } = getServer();
   await page.goto(`${baseUrl}/books`);
   await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
   for (const direction of ['ltr', 'rtl']) {
     await writeComic(shelfDir, `comic${direction}`, direction, ['random-z.png', 'lost.png', 'random-a.png'], ['random-z.png', 'random-a.png']);
   }
+  const fitBookDir = await writeComic(shelfDir, 'comicfit', 'rtl', ['a.png', 'b.png'], ['a.png', 'b.png'], portraitPng());
+  const fitShelfFiles = async () => Promise.all(['book.json', `sources/${sourceID}/meta.json`].map((name) => fs.readFile(path.join(fitBookDir, name), 'utf8')));
+  const fitShelfBefore = await fitShelfFiles();
   await page.getByRole('button', { name: 'Update book list' }).click();
   await expect(page.locator('.book-list-row').getByRole('heading', { name: 'comicrtl', exact: true })).toBeVisible();
 
@@ -83,6 +86,43 @@ test('reads ltr and rtl comics, restores page progress, and edits pages touching
     await page.keyboard.press(direction === 'ltr' ? 'ArrowLeft' : 'ArrowRight');
     await expect(counter).toHaveText('2 / 3');
   }
+
+  const fitViewport = page.locator('.comic-viewport');
+  const fitImage = page.locator('.comic-page-image:visible img');
+  const fitCounter = page.locator('.comic-count');
+  const scroll = () => fitViewport.evaluate((el) => ({
+    top: el.scrollTop, maxTop: el.scrollHeight - el.clientHeight, width: el.clientWidth
+  }));
+  for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(size);
+    await page.goto(`${baseUrl}/reader/comicfit`);
+    await expect(fitCounter).toHaveText(/^\d \/ 2$/);
+    await expect.poll(() => fitImage.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    if (size.width === 1280) {
+      await expect(page.getByRole('combobox', { name: 'Page size' })).toHaveValue('fit-height');
+      expect((await scroll()).maxTop).toBe(0);
+      await page.keyboard.press('+');
+      await expect(page.locator('.comic-zoom')).toHaveText('125%');
+      await page.keyboard.press('0');
+      await expect(page.locator('.comic-zoom')).toHaveText('100%');
+      await page.getByRole('combobox', { name: 'Page size' }).selectOption('fit-width');
+    }
+    await expect(page.getByRole('combobox', { name: 'Page size' })).toHaveValue('fit-width');
+    await expect.poll(async () => Math.round((await fitImage.boundingBox())!.width)).toBe((await scroll()).width);
+    const start = await scroll();
+    expect(start.maxTop).toBeGreaterThan(0);
+    expect(start.top).toBe(0);
+    await fitViewport.hover();
+    await page.mouse.wheel(0, start.maxTop + 500);
+    await expect.poll(async () => (await scroll()).top).toBe(start.maxTop);
+    await expect(fitCounter).toHaveText(size.width === 1280 ? '1 / 2' : '2 / 2');
+    if (size.width === 1280) {
+      await page.keyboard.press('ArrowLeft');
+      await expect(fitCounter).toHaveText('2 / 2');
+      await expect.poll(async () => (await scroll()).top).toBe(0);
+    }
+  }
+  expect(await fitShelfFiles()).toEqual(fitShelfBefore);
 
   await page.setViewportSize({ width: 1280, height: 720 });
   const sourceDir = path.join(shelfDir, 'books', 'comicltr.bookpkg', 'sources', sourceID);
@@ -116,52 +156,4 @@ test('reads ltr and rtl comics, restores page progress, and edits pages touching
 
   await page.goto(`${baseUrl}/reader/comicltr`);
   await expect(page.locator('.comic-count')).toHaveText(/\/ 3$/);
-});
-
-test('fit width fills the viewport, scrolls to the page bottom, and persists without touching the shelf', async ({ page }) => {
-  const { baseUrl, shelfDir } = getServer();
-  const bookDir = await writeComic(shelfDir, 'comicfit', 'rtl', ['a.png', 'b.png'], ['a.png', 'b.png'], portraitPng());
-  const shelfFiles = async () => Promise.all(['book.json', `sources/${sourceID}/meta.json`].map((name) => fs.readFile(path.join(bookDir, name), 'utf8')));
-  const before = await shelfFiles();
-  await page.goto(`${baseUrl}/books`);
-  await page.getByRole('button', { name: 'Update book list' }).click();
-  await expect(page.locator('.book-list-row').getByRole('heading', { name: 'comicfit', exact: true })).toBeVisible();
-
-  const viewport = page.locator('.comic-viewport');
-  const image = page.locator('.comic-page-image:visible img');
-  const counter = page.locator('.comic-count');
-  const scroll = () => viewport.evaluate((el) => ({
-    top: el.scrollTop, left: el.scrollLeft, maxTop: el.scrollHeight - el.clientHeight,
-    maxLeft: el.scrollWidth - el.clientWidth, width: el.clientWidth
-  }));
-  for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
-    await page.setViewportSize(size);
-    await page.goto(`${baseUrl}/reader/comicfit`);
-    await expect(counter).toHaveText(/^\d \/ 2$/);
-    await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
-    if (size.width === 1280) {
-      await expect(page.getByRole('combobox', { name: 'Page size' })).toHaveValue('fit-height');
-      expect((await scroll()).maxTop).toBe(0);
-      await page.keyboard.press('+');
-      await expect(page.locator('.comic-zoom')).toHaveText('125%');
-      await page.keyboard.press('0');
-      await expect(page.locator('.comic-zoom')).toHaveText('100%');
-      await page.getByRole('combobox', { name: 'Page size' }).selectOption('fit-width');
-    }
-    await expect(page.getByRole('combobox', { name: 'Page size' })).toHaveValue('fit-width');
-    await expect.poll(async () => Math.round((await image.boundingBox())!.width)).toBe((await scroll()).width);
-    const start = await scroll();
-    expect(start.maxTop).toBeGreaterThan(0);
-    expect(start.top).toBe(0);
-    await viewport.hover();
-    await page.mouse.wheel(0, start.maxTop + 500);
-    await expect.poll(async () => (await scroll()).top).toBe(start.maxTop);
-    await expect(counter).toHaveText(size.width === 1280 ? '1 / 2' : '2 / 2');
-    if (size.width === 1280) {
-      await page.keyboard.press('ArrowLeft');
-      await expect(counter).toHaveText('2 / 2');
-      await expect.poll(async () => (await scroll()).top).toBe(0);
-    }
-  }
-  expect(await shelfFiles()).toEqual(before);
 });
