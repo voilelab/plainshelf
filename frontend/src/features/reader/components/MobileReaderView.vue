@@ -127,7 +127,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Icon from '@/components/Icon.vue';
-import { useWriteAccess } from '@/composables/useWriteAccess';
 import ReaderContent from '@/features/reader/components/ReaderContent.vue';
 import {
   classifyReaderGesture,
@@ -181,7 +180,6 @@ interface ActivePointer {
 }
 
 const { t } = useI18n();
-const { writesEnabled } = useWriteAccess();
 const pageRef = ref<HTMLElement | null>(null);
 const chromeVisible = ref(false);
 const showGestureHint = ref(false);

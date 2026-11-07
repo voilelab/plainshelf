@@ -10,7 +10,6 @@ import type {
   NsfwMarks,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook,
   TrashedBookListing
 } from '@/types/book';
 import type { CreateSourceOptions, PageDirection, SourceMeta, SourcePageList } from '@/types/source';

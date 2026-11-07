@@ -298,7 +298,6 @@ import {
 import { filterValueLabel } from '@/features/library/utils/filterLabels';
 import { isCharCountRangeActive } from '@/utils/charCountFilter';
 import { useI18n } from '@/i18n';
-import { getBookshelfProvider } from '@/providers';
 import { isMobileRuntime } from '@/providers/runtime';
 import '@/styles/toolbar-controls.css';
 

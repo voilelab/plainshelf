@@ -164,7 +164,7 @@ interface BgConfig {
   paint: (ctx: CanvasRenderingContext2D) => void;
 }
 
-function getBgConfig(ctx: CanvasRenderingContext2D, style: BgStyle): BgConfig {
+function getBgConfig(style: BgStyle): BgConfig {
   const w = CANVAS_W;
   const h = CANVAS_H;
 
@@ -300,7 +300,7 @@ function renderCover(): void {
   const h = CANVAS_H;
   const title = titleText.value.trim() || t('bookDetail.cover.generator.noTitle');
   const author = authorText.value.trim();
-  const cfg = getBgConfig(ctx, bgStyle.value);
+  const cfg = getBgConfig(bgStyle.value);
 
   cfg.paint(ctx);
 

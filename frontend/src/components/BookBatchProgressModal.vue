@@ -30,7 +30,7 @@ import { useI18n } from '@/i18n';
 import type { BookBatchFailureCode } from '@/types/task';
 
 const { t } = useI18n();
-const { open, chain, status, percentage, error, titleById, running, finished, result, close } = useBookBatchOperations();
+const { open, percentage, error, titleById, running, finished, result, close } = useBookBatchOperations();
 const failures = computed(() => result.value?.failures ?? []);
 const title = computed(() => result.value?.operation === 'trash'
   ? t('bookCollection.selection.trashTitle')
