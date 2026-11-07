@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/reader/readerapi"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 type fakeNative struct {
@@ -88,6 +89,7 @@ func TestDomReadyPromptsForBookOnce(t *testing.T) {
 }
 
 func TestApplicationMenuOpenBook(t *testing.T) {
+	application.New(application.Options{Name: "PlainShelf Reader"})
 	native := &fakeNative{}
 	specs := applicationMenu(newReaderAppWithNative(t, native))
 

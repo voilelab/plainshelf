@@ -42,11 +42,6 @@ func main() {
 
 	api := readerapi.NewHandler(app.Library(), version.Version)
 	spa := readerapi.NewSPAHandler(frontend.WebFS, app.BootConfig)
-	appMenu, err := toWailsMenu(applicationMenu(app))
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	wailsApp := application.New(application.Options{
 		Name:     "PlainShelf Reader",
 		Services: []application.Service{application.NewService(app)},
@@ -70,6 +65,10 @@ func main() {
 		},
 		OnShutdown: func() { app.Shutdown(context.Background()) },
 	})
+	appMenu, err := toWailsMenu(applicationMenu(app))
+	if err != nil {
+		log.Fatal(err)
+	}
 	wailsApp.Menu.SetApplicationMenu(appMenu)
 	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationOpenedWithFile, func(event *application.ApplicationEvent) {
 		logForwardError(app.OpenFinderFile(event.Context().Filename()))

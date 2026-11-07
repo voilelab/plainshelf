@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 func TestHistoryNavigationScript(t *testing.T) {
@@ -110,8 +112,7 @@ func TestApplicationMenuActionsRunScripts(t *testing.T) {
 }
 
 func TestApplicationMenuTranslates(t *testing.T) {
-	t.Parallel()
-
+	application.New(application.Options{Name: "PlainShelf"})
 	for _, goos := range []string{"darwin", "linux", "windows"} {
 		if _, err := toWailsMenu(applicationMenu(NewDesktopApp(&fakeNative{}), goos)); err != nil {
 			t.Fatalf("toWailsMenu on %s: %v", goos, err)
