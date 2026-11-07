@@ -77,6 +77,12 @@ how many failed; clicking it brings PlainShelf back. macOS asks for permission
 the first time, and if you decline, imports carry on without notifications. Turn
 them off under **Settings → Import & covers → Notify when an import finishes**.
 
+The book detail page shows the current source's size, including `source.txt`
+and all files in its `assets/` directory. Other sources, metadata and the cover
+are excluded. Images sources show their listed page count instead of line and
+character counts. Size is measured when opening the detail page, including on
+read-only shelves; if it cannot be measured, the size row is hidden.
+
 A Markdown book's detail page also lists the chapters its source splits into,
 the same H2 headings the reader navigates by. Selecting one opens the reader at
 that chapter instead of your last position. Plain text has no chapters, so the

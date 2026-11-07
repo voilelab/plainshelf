@@ -180,6 +180,9 @@ describe('useBookDetail', () => {
     expect(getReadingAction(percent)).toBe('reread');
     expect(detail.progress.value?.char_offset).toBe(2);
     expect(mocks.getSourcePages).toHaveBeenCalledWith('book-1', 'source-1');
+    expect(mocks.getSourcePages).toHaveBeenCalledTimes(1);
+    expect(mocks.getSource).toHaveBeenCalledTimes(1);
+    expect(detail.currentSource.value?.page_list?.pages).toHaveLength(3);
     expect(mocks.getSourceContent).not.toHaveBeenCalled();
     expect(mocks.getBookContent).not.toHaveBeenCalled();
 

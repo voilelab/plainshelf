@@ -53,7 +53,16 @@ func (h *sourceHandlers) getSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, source.GetMeta())
+	response := struct {
+		*shelf.SourceMeta
+		SizeBytes *int64 `json:"size_bytes,omitzero"`
+	}{SourceMeta: source.GetMeta()}
+	if size, err := source.SizeBytes(); err == nil {
+		response.SizeBytes = &size
+	} else {
+		h.Warn("failed to measure source size", "source_id", source.ID(), "error", err)
+	}
+	h.writeJSON(w, http.StatusOK, response)
 }
 
 func (h *sourceHandlers) getPages(w http.ResponseWriter, r *http.Request) {

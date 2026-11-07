@@ -153,3 +153,38 @@ describe('BookDetail import note removal', () => {
     expect(textRows(host).map((dd) => dd.textContent)).toEqual(['轉換備註']);
   });
 });
+
+
+describe('BookDetail source facts', () => {
+  function facts(host: HTMLElement) {
+    return Array.from(host.querySelectorAll('.detail-definition-row'))
+      .map(row => [row.querySelector('dt')?.textContent, row.querySelector('dd')?.textContent]);
+  }
+
+  it('shows listed pages including missing pages and size for images without text counts', () => {
+    const host = mount({ book: book(''), currentSource: {
+      ...source(''), format: 'images', char_count: 0, line_count: 2, size_bytes: 2048,
+      page_list: { pages: [{ name: 'a.png', missing: false }, { name: 'b.png', missing: true }], unlisted: ['stray.png'] }
+    }});
+    expect(facts(host)).toEqual([['Pages', '2'], ['Size', '2.0 KB']]);
+  });
+
+  it('keeps text counts and adds the source size', () => {
+    const host = mount({ book: book(''), currentSource: {
+      ...source(''), format: 'txt', char_count: 123, line_count: 2, size_bytes: 512
+    }});
+    expect(facts(host)).toEqual([['Lines', '2'], ['Characters', '123'], ['Size', '512 B']]);
+  });
+
+  it('hides unavailable size and pages on a read-only shelf', () => {
+    const host = mount({ book: { ...book(''), format: 'images' }, readOnly: true,
+      currentSource: { ...source(''), char_count: 0, line_count: 2 }
+    });
+    expect(facts(host)).toEqual([]);
+  });
+
+  it('shows a known empty size', () => {
+    const host = mount({ book: book(''), currentSource: { ...source(''), format: 'txt', size_bytes: 0 } });
+    expect(facts(host)).toEqual([['Size', '0 B']]);
+  });
+});

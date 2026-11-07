@@ -55,6 +55,10 @@ function normalizeSourceMeta(raw: unknown): SourceMeta {
     meta.char_count = Math.trunc(record.char_count);
   }
 
+  if (typeof record.size_bytes === 'number' && Number.isFinite(record.size_bytes) && record.size_bytes >= 0) {
+    meta.size_bytes = Math.trunc(record.size_bytes);
+  }
+
   return meta;
 }
 

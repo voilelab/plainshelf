@@ -740,6 +740,8 @@ const zhHant = {
       tags: '標籤',
       lines: '行數',
       characters: '字數',
+      pages: '頁數',
+      size: '大小',
       comment: '書籍備註',
       importNotes: '匯入備註'
     },

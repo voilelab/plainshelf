@@ -62,6 +62,7 @@ of the shelf observes:
 | `books[].current_source` | `Book.ResolveCurrentSource` |
 | `books[].sources[]` | `Book.ListSource` |
 | `books[].sources[].schema_version`, `created_at`, `comment`, `format`, `md5_hash`, `line_count`, `char_count` | `Source.GetMeta` |
+| `books[].sources[].size_bytes` | `Source.SizeBytes`; omitted when unavailable, includes all assets even when unlisted |
 | `books[].sources[].assets` | `Source.AssetPath` / `OpenAsset` |
 | `books[].sources[].page_direction` | `Source.GetMeta` |
 | `books[].sources[].pages`, `unlisted` | `Source.Pages`, for an `images` source; `[]` otherwise |

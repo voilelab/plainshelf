@@ -755,6 +755,8 @@ const en = {
       tags: 'Tags',
       lines: 'Lines',
       characters: 'Characters',
+      pages: 'Pages',
+      size: 'Size',
       comment: 'Book note',
       importNotes: 'Import note'
     },

@@ -19,7 +19,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-const conformanceDatasetVersion = 5
+const conformanceDatasetVersion = 6
 
 const conformanceRoot = "testdata/conformance"
 
@@ -71,6 +71,7 @@ type conformanceBook struct {
 }
 
 type conformanceSource struct {
+	SizeBytes     *int64   `json:"size_bytes,omitzero"`
 	ID            string   `json:"id"`
 	SchemaVersion int      `json:"schema_version"`
 	CreatedAt     string   `json:"created_at"`
@@ -403,8 +404,13 @@ func readConformanceSources(t *testing.T, s *Shelf, book *Book) []conformanceSou
 
 		meta := source.GetMeta()
 		pages, unlisted := readConformancePages(t, source)
+		var sizeBytes *int64
+		if size, err := source.SizeBytes(); err == nil {
+			sizeBytes = &size
+		}
 		observed = append(observed, conformanceSource{
 			ID:            source.ID(),
+			SizeBytes:     sizeBytes,
 			SchemaVersion: meta.SchemaVersion,
 			CreatedAt:     formatConformanceTime(meta.CreatedAt),
 			Comment:       meta.Comment,

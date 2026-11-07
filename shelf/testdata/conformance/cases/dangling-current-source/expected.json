@@ -40,7 +40,8 @@
           "char_count": 15,
           "assets": [],
           "pages": [],
-          "unlisted": []
+          "unlisted": [],
+          "size_bytes": 15
         },
         {
           "id": "20260316-090000",
@@ -55,7 +56,8 @@
           "char_count": 16,
           "assets": [],
           "pages": [],
-          "unlisted": []
+          "unlisted": [],
+          "size_bytes": 16
         }
       ]
     }
