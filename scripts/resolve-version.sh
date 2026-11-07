@@ -3,7 +3,7 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 <display|native|android-name|android-code|validate-tag|validate-next|release-branch|latest-tag|previous-tag> [version]" >&2
+  echo "Usage: $0 <display|native|android-name|android-code|validate-next-android|validate-tag|validate-next|release-branch|latest-tag|previous-tag> [version]" >&2
   exit 2
 }
 
@@ -228,6 +228,15 @@ case "$mode" in
     ;;
   android-code)
     android_version_code "$raw_version"
+    ;;
+  validate-next-android)
+    next_code=$(android_version_code "$raw_version") || exit 1
+    latest=$(latest_release_tag)
+    if [ -n "$latest" ] && latest_code=$(android_version_code "$latest" 2>/dev/null) &&
+      [ "$next_code" -le "$latest_code" ]; then
+      echo "Android versionCode $next_code for $raw_version is not above $latest_code for $latest" >&2
+      exit 1
+    fi
     ;;
   latest-tag)
     latest_release_tag

@@ -144,7 +144,10 @@ MAJOR × 1,000,000 + MINOR × 10,000 + PATCH × 100 + slot
 The slot is `99` for a stable tag and `N` for an `rcN` or `rc.N` prerelease
 (N from 1 to 98), so `v1.0.0-rc1` is `1000001` and `v1.0.0` is `1000099`.
 MINOR and PATCH must stay below 100. Any other prerelease, such as `beta.1`,
-has no code: Prepare release refuses the tag instead of opening a release PR.
+has no code. Prepare release refuses such a tag, and a tag whose code is not
+above the latest release's (`v1.0.0-rc1` after `v1.0.0-rc.2`, or `rc2` after
+`rc10`, both newer by SemVer), instead of opening a release PR
+(`resolve-version.sh validate-next-android`).
 The commit count a local debug build uses is far below every release code, so
 a release always installs over one, once the signature matches.
 

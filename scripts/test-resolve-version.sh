@@ -103,7 +103,24 @@ for stale in v0.8.0 v0.7.0 v0.8.0-beta.2 v0.7.9 dev; do
   fi
 done
 
+for next in v0.8.1 v1.0.0-rc1; do
+  if ! (cd "$temp_repo" && "$resolver" validate-next-android "$next" >/dev/null 2>&1); then
+    echo "validate-next-android rejected '$next' after v0.8.0" >&2
+    exit 1
+  fi
+done
+
 git -C "$temp_repo" tag v1.0.0-rc.2
+for stale in v1.0.0-rc1 v1.0.0-rc.2 v1.0.0-beta.9; do
+  if (cd "$temp_repo" && "$resolver" validate-next-android "$stale" >/dev/null 2>&1); then
+    echo "validate-next-android accepted '$stale' after v1.0.0-rc.2" >&2
+    exit 1
+  fi
+done
+if ! (cd "$temp_repo" && "$resolver" validate-next-android v1.0.0-rc3 >/dev/null 2>&1); then
+  echo "validate-next-android rejected 'v1.0.0-rc3' after v1.0.0-rc.2" >&2
+  exit 1
+fi
 for next in v1.0.0-rc.10 v1.0.0-rc.2.1 v1.0.0-rcx v1.0.0; do
   if ! (cd "$temp_repo" && "$resolver" validate-next "$next" >/dev/null 2>&1); then
     echo "validate-next rejected '$next' after v1.0.0-rc.2" >&2

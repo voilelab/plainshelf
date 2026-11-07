@@ -18,9 +18,10 @@ It stops before creating anything when:
 
 - the tag is not `vMAJOR.MINOR.PATCH[-prerelease]`, already exists, or is not
   newer than the latest release tag (`scripts/resolve-version.sh validate-next`);
-- the tag has no Android version code: a prerelease other than `rcN` or
-  `rc.N`, or a MINOR or PATCH of 100 or more
-  ([Release builds](android.md#release-builds));
+- the tag has no Android version code (a prerelease other than `rcN` or
+  `rc.N`, or a MINOR or PATCH of 100 or more), or its code is not above the
+  latest release tag's (`scripts/resolve-version.sh validate-next-android`;
+  [Release builds](android.md#release-builds));
 - `ci.yml` on `dev`'s current commit, or the latest completed nightly on `dev`,
   is not green (a CI run still in progress, as right after a merge, is waited
   for);

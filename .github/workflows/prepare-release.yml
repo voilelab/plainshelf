@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           ./scripts/resolve-version.sh validate-next "$VERSION"
-          ./scripts/resolve-version.sh android-code "$VERSION" >/dev/null
+          ./scripts/resolve-version.sh validate-next-android "$VERSION"
           {
             echo "latest=$(./scripts/resolve-version.sh latest-tag)"
             echo "branch=$(./scripts/resolve-version.sh release-branch "$VERSION")"
