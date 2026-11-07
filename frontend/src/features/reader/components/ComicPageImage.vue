@@ -7,8 +7,9 @@
       v-else-if="src"
       :src="src"
       :alt="t('reader.comic.page', { page: index + 1 })"
+      :style="sizeStyle"
       draggable="false"
-      @load="emit('ready')"
+      @load="onLoad"
       @error="handleError"
     />
     <p v-else role="status">{{ t('reader.loadingContent') }}</p>
@@ -16,12 +17,16 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useAssetSrc } from '@/composables/useAssetSrc';
 import { useI18n } from '@/i18n';
 import type { SourcePage } from '@/types/source';
+import { comicPageSize, type ComicFit } from '@/features/reader/utils/comicPageSize';
 
-const props = defineProps<{ bookId: string; sourceId: string; page: SourcePage; index: number }>();
+const props = defineProps<{
+  bookId: string; sourceId: string; page: SourcePage; index: number;
+  viewport: { width: number; height: number }; fit: ComicFit; zoom: number;
+}>();
 const emit = defineEmits<{ ready: [] }>();
 const { t } = useI18n();
 const { src, failed, handleError } = useAssetSrc(
@@ -29,23 +34,32 @@ const { src, failed, handleError } = useAssetSrc(
   () => props.sourceId,
   () => props.page.missing ? '' : props.page.name
 );
+const natural = ref({ width: 0, height: 0 });
+const sizeStyle = computed(() => {
+  const size = comicPageSize(natural.value, props.viewport, props.fit, props.zoom);
+  return size ? { width: `${size.width}px`, height: `${size.height}px` } : undefined;
+});
+function onLoad(event: Event): void {
+  const img = event.target as HTMLImageElement;
+  natural.value = { width: img.naturalWidth, height: img.naturalHeight };
+  emit('ready');
+}
 watch(failed, (value) => { if (value) emit('ready'); }, { immediate: true });
 </script>
 
 <style scoped>
 .comic-page-image {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: grid;
   color: #eee;
 }
 
+.comic-page-image > * {
+  margin: auto;
+}
+
 .comic-page-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  display: block;
+  max-width: none;
   user-select: none;
 }
 

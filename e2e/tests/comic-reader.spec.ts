@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { crc32, deflateSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
 import { useServer } from './support/server';
 import { tinyPngBase64 } from './support/books';
@@ -7,26 +8,49 @@ import { tinyPngBase64 } from './support/books';
 const getServer = useServer();
 const sourceID = '20260402-090000';
 
+function portraitPng(): Buffer {
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc32(body), body.length + 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(2, 4);
+  header.set([8, 0, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header), chunk('IDAT', deflateSync(Buffer.from([0, 255, 0, 128]))), chunk('IEND', Buffer.alloc(0))
+  ]);
+}
+
+async function writeComic(shelfDir: string, id: string, direction: string, listed: string[], files: string[], image = Buffer.from(tinyPngBase64, 'base64')): Promise<string> {
+  const bookDir = path.join(shelfDir, 'books', `${id}.bookpkg`);
+  const sourceDir = path.join(bookDir, 'sources', sourceID);
+  await fs.mkdir(path.join(sourceDir, 'assets'), { recursive: true });
+  await fs.writeFile(path.join(bookDir, 'book.json'), JSON.stringify({
+    schema_version: 1, id, title: id, format: 'images', current_source: sourceID
+  }));
+  await fs.writeFile(path.join(sourceDir, 'meta.json'), JSON.stringify({
+    schema_version: 1, id: sourceID, format: 'images', page_direction: direction,
+    md5_hash: 'abc', created_at: '2026-04-02T09:00:00Z'
+  }));
+  await fs.writeFile(path.join(sourceDir, 'source.txt'), listed.map((name) => `${name}\n`).join(''));
+  for (const name of files) {
+    await fs.writeFile(path.join(sourceDir, 'assets', name), image);
+  }
+  return bookDir;
+}
+
 test('reads ltr and rtl comics, restores page progress, and edits pages touching only source.txt and one image', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl, shelfDir } = getServer();
   await page.goto(`${baseUrl}/books`);
   await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
   for (const direction of ['ltr', 'rtl']) {
-    const id = `comic${direction}`;
-    const bookDir = path.join(shelfDir, 'books', `${id}.bookpkg`);
-    const sourceDir = path.join(bookDir, 'sources', sourceID);
-    await fs.mkdir(path.join(sourceDir, 'assets'), { recursive: true });
-    await fs.writeFile(path.join(bookDir, 'book.json'), JSON.stringify({
-      schema_version: 1, id, title: id, format: 'images', current_source: sourceID
-    }));
-    await fs.writeFile(path.join(sourceDir, 'meta.json'), JSON.stringify({
-      schema_version: 1, id: sourceID, format: 'images', page_direction: direction,
-      md5_hash: 'abc', created_at: '2026-04-02T09:00:00Z'
-    }));
-    await fs.writeFile(path.join(sourceDir, 'source.txt'), 'random-z.png\nlost.png\nrandom-a.png\n');
-    for (const name of ['random-z.png', 'random-a.png']) {
-      await fs.writeFile(path.join(sourceDir, 'assets', name), Buffer.from(tinyPngBase64, 'base64'));
-    }
+    await writeComic(shelfDir, `comic${direction}`, direction, ['random-z.png', 'lost.png', 'random-a.png'], ['random-z.png', 'random-a.png']);
   }
   await page.getByRole('button', { name: 'Update book list' }).click();
   await expect(page.locator('.book-list-row').getByRole('heading', { name: 'comicrtl', exact: true })).toBeVisible();
@@ -92,4 +116,52 @@ test('reads ltr and rtl comics, restores page progress, and edits pages touching
 
   await page.goto(`${baseUrl}/reader/comicltr`);
   await expect(page.locator('.comic-count')).toHaveText(/\/ 3$/);
+});
+
+test('fit width fills the viewport, scrolls to the page bottom, and persists without touching the shelf', async ({ page }) => {
+  const { baseUrl, shelfDir } = getServer();
+  const bookDir = await writeComic(shelfDir, 'comicfit', 'rtl', ['a.png', 'b.png'], ['a.png', 'b.png'], portraitPng());
+  const shelfFiles = async () => Promise.all(['book.json', `sources/${sourceID}/meta.json`].map((name) => fs.readFile(path.join(bookDir, name), 'utf8')));
+  const before = await shelfFiles();
+  await page.goto(`${baseUrl}/books`);
+  await page.getByRole('button', { name: 'Update book list' }).click();
+  await expect(page.locator('.book-list-row').getByRole('heading', { name: 'comicfit', exact: true })).toBeVisible();
+
+  const viewport = page.locator('.comic-viewport');
+  const image = page.locator('.comic-page-image:visible img');
+  const counter = page.locator('.comic-count');
+  const scroll = () => viewport.evaluate((el) => ({
+    top: el.scrollTop, left: el.scrollLeft, maxTop: el.scrollHeight - el.clientHeight,
+    maxLeft: el.scrollWidth - el.clientWidth, width: el.clientWidth
+  }));
+  for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(size);
+    await page.goto(`${baseUrl}/reader/comicfit`);
+    await expect(counter).toHaveText(/^\d \/ 2$/);
+    await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    if (size.width === 1280) {
+      await expect(page.getByRole('combobox', { name: 'Page size' })).toHaveValue('fit-height');
+      expect((await scroll()).maxTop).toBe(0);
+      await page.keyboard.press('+');
+      await expect(page.locator('.comic-zoom')).toHaveText('125%');
+      await page.keyboard.press('0');
+      await expect(page.locator('.comic-zoom')).toHaveText('100%');
+      await page.getByRole('combobox', { name: 'Page size' }).selectOption('fit-width');
+    }
+    await expect(page.getByRole('combobox', { name: 'Page size' })).toHaveValue('fit-width');
+    await expect.poll(async () => Math.round((await image.boundingBox())!.width)).toBe((await scroll()).width);
+    const start = await scroll();
+    expect(start.maxTop).toBeGreaterThan(0);
+    expect(start.top).toBe(0);
+    await viewport.hover();
+    await page.mouse.wheel(0, start.maxTop + 500);
+    await expect.poll(async () => (await scroll()).top).toBe(start.maxTop);
+    await expect(counter).toHaveText(size.width === 1280 ? '1 / 2' : '2 / 2');
+    if (size.width === 1280) {
+      await page.keyboard.press('ArrowLeft');
+      await expect(counter).toHaveText('2 / 2');
+      await expect.poll(async () => (await scroll()).top).toBe(0);
+    }
+  }
+  expect(await shelfFiles()).toEqual(before);
 });

@@ -7,7 +7,10 @@ import ComicReaderView from './ComicReaderView.vue';
 const { getSourceAsset } = vi.hoisted(() => ({ getSourceAsset: vi.fn() }));
 vi.mock('@/providers', () => ({ getBookshelfProvider: () => ({ getSourceAsset }) }));
 
+let resize: () => void = () => {};
 beforeEach(() => {
+  window.localStorage.clear();
+  vi.stubGlobal('ResizeObserver', class { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() {} });
   getSourceAsset.mockReset().mockResolvedValue(new Blob(['image']));
   vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:comic'), revokeObjectURL: vi.fn() });
 });
@@ -24,7 +27,25 @@ function setup(direction: 'ltr' | 'rtl' = 'ltr', missing = false) {
   }) });
   const viewport = view.host.querySelector<HTMLElement>('.comic-viewport')!;
   vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 400 } as DOMRect);
-  return { ...view, viewport, state, next, previous };
+  const box = { clientWidth: 400, clientHeight: 300, scrollWidth: 400, scrollTop: 0, scrollLeft: 0 };
+  for (const key of Object.keys(box) as (keyof typeof box)[]) {
+    Object.defineProperty(viewport, key, { configurable: true, get: () => box[key], set: (value: number) => { box[key] = value; } });
+  }
+  resize();
+  return { ...view, viewport, box, state, next, previous };
+}
+
+function loadPage(host: Element, alt: string, width = 200, height = 300): HTMLImageElement {
+  const img = host.querySelector<HTMLImageElement>(`img[alt="${alt}"]`)!;
+  Object.defineProperties(img, { naturalWidth: { value: width }, naturalHeight: { value: height } });
+  img.dispatchEvent(new Event('load'));
+  return img;
+}
+
+function press(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', { key, cancelable: true, ...init });
+  document.dispatchEvent(event);
+  return event;
 }
 
 async function settle() { await Promise.resolve(); await Promise.resolve(); await nextTick(); }
@@ -98,5 +119,82 @@ describe('ComicReaderView', () => {
     } });
     expect(host.textContent).toContain('This source has no pages.');
     expect(host.querySelector('img')).toBeNull();
+  });
+
+  it('keeps the fit-height default without writing a preference', async () => {
+    const { host } = setup();
+    await settle();
+    const img = loadPage(host, 'Page 3');
+    await nextTick();
+    expect(host.querySelector<HTMLSelectElement>('.comic-fit')!.value).toBe('fit-height');
+    expect(img.style.width).toBe('200px');
+    expect(img.style.height).toBe('300px');
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('switches fit modes and zooms with the toolbar and +, -, 0 keys, saving device preferences', async () => {
+    const { host } = setup();
+    await settle();
+    const img = loadPage(host, 'Page 3');
+    const select = host.querySelector<HTMLSelectElement>('.comic-fit')!;
+    select.value = 'fit-width';
+    select.dispatchEvent(new Event('change'));
+    await nextTick();
+    expect(img.style.width).toBe('400px');
+    expect(img.style.height).toBe('600px');
+    select.value = 'original';
+    select.dispatchEvent(new Event('change'));
+    select.focus();
+    expect(press('+').defaultPrevented).toBe(true);
+    press('=');
+    await nextTick();
+    expect(img.style.width).toBe('300px');
+    expect(host.querySelector('.comic-zoom')!.textContent).toBe('150%');
+    expect(press('+', { ctrlKey: true }).defaultPrevented).toBe(false);
+    press('-');
+    await nextTick();
+    expect(window.localStorage.getItem('reader-comic-fit')).toBe('original');
+    expect(window.localStorage.getItem('reader-comic-zoom')).toBe('125');
+    press('0');
+    await nextTick();
+    expect(host.querySelector('.comic-zoom')!.textContent).toBe('100%');
+    for (let i = 0; i < 12; i++) host.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+    await nextTick();
+    expect(host.querySelector('.comic-zoom')!.textContent).toBe('300%');
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.disabled).toBe(true);
+  });
+
+  it('restores the saved size when a reader opens', async () => {
+    window.localStorage.setItem('reader-comic-fit', 'fit-width');
+    window.localStorage.setItem('reader-comic-zoom', '200');
+    const { host } = setup();
+    await settle();
+    const img = loadPage(host, 'Page 3');
+    await nextTick();
+    expect(img.style.width).toBe('800px');
+    expect(host.querySelector('.comic-zoom')!.textContent).toBe('200%');
+  });
+
+  it.each([['ltr', 0], ['rtl', 600]] as const)('returns a %s page turn to the top start corner', async (direction, left) => {
+    const { host, viewport, box, state } = setup(direction);
+    await settle();
+    loadPage(host, 'Page 3');
+    loadPage(host, 'Page 4');
+    box.scrollWidth = 1000;
+    viewport.scrollTop = 500;
+    viewport.scrollLeft = 300;
+    state.index = 3;
+    await settle();
+    expect(box.scrollTop).toBe(0);
+    expect(box.scrollLeft).toBe(left);
+  });
+
+  it('pans instead of turning on a horizontal swipe when the page overflows the width', async () => {
+    const { viewport, box, next, previous } = setup();
+    box.scrollWidth = 900;
+    touch(viewport, 300, 100);
+    touch(viewport, 100, 300);
+    expect(next).not.toHaveBeenCalled();
+    expect(previous).not.toHaveBeenCalled();
   });
 });

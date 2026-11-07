@@ -29,12 +29,24 @@ Malformed ComicInfo XML fails the import.
 ## Reading comics
 
 The web, desktop, standalone reader, and Android clients display one page at a
-time, fitted to the available space. Tap the left or right edge, use the arrow
+time. Tap the left or right edge, use the arrow
 keys, or swipe horizontally to turn pages. The bottom controls also let you
 choose a page.
 
 For left-to-right books, tap right, press Right Arrow, or swipe left for the
 next page. For right-to-left books, tap left, press Left Arrow, or swipe right.
+
+The page size menu in the reader toolbar offers **Fit height** (the default,
+which shows the whole page), **Fit width**, and **Original size**. The zoom
+buttons scale any of them from 50% to 300%; `+` and `-` change the zoom and `0`
+resets it to 100%. A page larger than the screen scrolls with the mouse wheel or
+by dragging, and scrolling past its end does not turn the page. Each new page
+starts at its top corner on the reading side. Horizontal swipes pan instead of
+turning while the page is wider than the screen, and tapping or swiping does not
+turn pages while the browser itself is pinch-zoomed; use the buttons or arrow
+keys then. The size and zoom are saved on the device for every comic, not in the
+shelf.
+
 The reader preloads two pages in each direction. Missing or unreadable images
 show their page number, and you can continue reading.
 
