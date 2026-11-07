@@ -14,7 +14,7 @@ vi.mock('./client', async () => {
   };
 });
 
-const { createSource } = await import('./sources');
+const { createSource, getSource, listSource, getSourcePages } = await import('./sources');
 
 describe('createSource', () => {
   beforeEach(() => {
@@ -61,4 +61,17 @@ describe('createSource', () => {
       { timeoutMs: 300_000 }
     );
   });
+});
+
+
+it('preserves images format and direction and fetches Go-parsed pages', async () => {
+  const meta = { id: 'pages', format: 'images', page_direction: 'rtl', size_bytes: 2048 };
+  fetchJsonMock.mockResolvedValue(meta);
+  expect(await getSource('book/one', 'pages')).toMatchObject(meta);
+  fetchJsonMock.mockResolvedValue([meta]);
+  expect(await listSource('book/one')).toEqual([expect.objectContaining(meta)]);
+  const pages = { pages: [{ name: 'random.png', missing: true }], unlisted: [] };
+  fetchJsonMock.mockResolvedValue(pages);
+  expect(await getSourcePages('book/one', 'source/id')).toEqual(pages);
+  expect(fetchJsonMock).toHaveBeenLastCalledWith('/books/book%2Fone/sources/source%2Fid/pages');
 });

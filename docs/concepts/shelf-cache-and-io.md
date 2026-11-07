@@ -390,6 +390,13 @@ not `book.json`, so without it a client holding an
 [offline copy](shelf-sources.md#offline-copies) could not tell the text had
 changed without reading every source. It is omitted when unknown.
 
+An entry carries `current_source_format` only when the current source's
+`format` differs from the `format` mirrored in `book.json`, which a metadata
+edit can change on its own. A remote reader uses it to tell an
+[images source](data-model.md#image-sources) from a text one, and falls back to
+the mirror when it is absent, so a shelf whose mirrors agree exports the bytes
+it did before the field existed.
+
 ### When it is written
 
 - after the initial scan, so a client that arrives before anything else has read

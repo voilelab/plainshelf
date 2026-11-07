@@ -3,54 +3,55 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
-	"strings"
+	"runtime"
 
 	"github.com/voilelab/plainshelf/frontend"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 func main() {
-	app := NewDesktopApp()
+	native := &wailsNative{}
+	app := NewDesktopApp(native)
+	app.Startup(context.Background())
 
-	err := wails.Run(&options.App{
-		Title:  "PlainShelf",
-		Width:  1600,
-		Height: 1200,
-		AssetServer: &assetserver.Options{
-			Assets: frontend.WebFS,
-			Middleware: func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-					if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
-						app.GetAPIHandler().ServeHTTP(w, r)
-						return
-					}
-
-					next.ServeHTTP(w, r)
-				})
-			},
+	wailsApp := application.New(application.Options{
+		Name:     "PlainShelf",
+		Services: []application.Service{application.NewService(app)},
+		Assets: application.AssetOptions{
+			Handler:    application.AssetFileServerFS(frontend.WebFS),
+			Middleware: assetMiddleware(frontend.WebFS, app.GetAPIHandler),
 		},
-		Menu:          newApplicationMenu(app),
-		OnStartup:     app.Startup,
-		OnDomReady:    app.DomReady,
-		OnBeforeClose: app.beforeClose,
-		OnShutdown: func(context.Context) {
-			app.Shutdown()
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		OnShutdown: app.Shutdown,
+	})
+	appMenu, err := toWailsMenu(applicationMenu(app, runtime.GOOS))
+	if err != nil {
+		log.Fatal(err)
+	}
+	wailsApp.Menu.SetApplicationMenu(appMenu)
 
-		Bind: []any{app},
-		Mac: &mac.Options{
-			Preferences: &mac.Preferences{
-				FullscreenEnabled: mac.Enabled,
-			},
-		},
+	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:                 "PlainShelf",
+		Width:                 1600,
+		Height:                1200,
+		URL:                   "/",
+		FullscreenButtonState: application.ButtonEnabled,
+	})
+	native.attach(wailsApp, window)
+	app.watchLANShare()
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		if app.beforeClose(context.Background()) {
+			event.Cancel()
+		}
+	})
+	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		app.DomReady(context.Background())
 	})
 
-	if err != nil {
+	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
 	}
 }

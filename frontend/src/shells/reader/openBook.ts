@@ -1,25 +1,13 @@
-interface ReaderBindingWindow extends Window {
-  go?: {
-    main?: {
-      ReaderApp?: {
-        OpenBookPackage?: () => Promise<string>;
-      };
-    };
-  };
+import { callWails, wailsHost } from '@/api/wailsBindings';
+
+interface OpenBookBinding {
+  OpenBookPackage: () => Promise<string>;
 }
 
 export function hasOpenBookBinding(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-  return Boolean((window as ReaderBindingWindow).go?.main?.ReaderApp?.OpenBookPackage);
+  return wailsHost() === 'ReaderApp';
 }
 
 export async function openBookPackage(): Promise<void> {
-  const open = (window as ReaderBindingWindow).go?.main?.ReaderApp?.OpenBookPackage;
-  if (!open) {
-    throw new Error('OpenBookPackage binding not available');
-  }
-
-  await open();
+  await callWails<OpenBookBinding, 'OpenBookPackage'>('ReaderApp', 'OpenBookPackage');
 }

@@ -215,7 +215,9 @@ const en = {
       empty: 'No shelves configured',
       unavailableTitle: 'No shelf selected',
       unavailableDescription: 'Configure at least one shelf to browse and read books.',
-      manage: 'Manage shelves'
+      unusableDescription: 'The shelf in use is missing its settings or its token. Fix it to keep reading.',
+      manage: 'Manage shelves',
+      fix: 'Fix this shelf'
     },
     dashboard: 'Home',
     library: 'Library',
@@ -297,6 +299,12 @@ const en = {
     cover: {
       title: 'Cover'
     },
+    importNotifications: {
+      title: 'Notifications',
+      label: 'Notify when an import finishes',
+      description:
+        'When PlainShelf is in the background, a system notification reports how many books or LAN shelves were added after a multi-book or LAN import. This preference is stored only on this device.'
+    },
     coverToJpg: {
       label: 'Convert uploaded covers to JPG',
       description: 'Enable this to convert cover images to JPEG when uploading.'
@@ -365,8 +373,12 @@ const en = {
       description:
         'The language of the interface. This preference is stored only on this device.'
     },
-    import: {
-      title: 'Import'
+    tabs: {
+      general: 'General',
+      reading: 'Reading',
+      importCovers: 'Import & covers',
+      shelves: 'Shelves',
+      system: 'System'
     },
     epubImport: {
       title: 'EPUB conversion',
@@ -415,11 +427,6 @@ const en = {
       licenseLoadFailed: 'The bundled license text could not be loaded.',
       licenseClose: 'Close'
     },
-    mobileConnect: {
-      title: 'Shelves',
-      description: 'Every library this device can open, from PlainShelf servers or from pCloud.',
-      open: 'Manage shelves'
-    },
     downloads: {
       title: 'Downloaded books',
       description: 'Manage books saved to this device for offline reading.',
@@ -446,35 +453,31 @@ const en = {
       removeFailed: 'Failed to remove shelf',
       removeShelfTitle: 'Delete shelf',
       removeConfirmDescription: 'This only removes the shelf from PlainShelf; the directory will not be deleted.',
-      addShelf: 'Create shelf',
-      addShelfTitle: 'Create shelf',
+      addShelf: 'Add a shelf',
+      addShelfTitle: 'Add a shelf',
       addShelfCloseLabel: 'Close create shelf dialog',
       addShelfNameLabel: 'Shelf name',
       addShelfNamePlaceholder: 'Novels',
       addShelfDirectoryLabel: 'Folder path',
       addShelfDirectoryPlaceholder: '/home/you/Books',
       addShelfBrowse: 'Browse...',
-      addShelfSubmit: 'Create shelf',
+      addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Creating...',
       addShelfFailed: 'Failed to create shelf',
       addShelfIDPreview: 'Shelf ID:',
       addShelfLocationLabel: 'Shelf location',
-      addShelfLocationNew: 'Create a new folder',
-      addShelfLocationNewHelp: "PlainShelf creates the folder in its own shelves directory. Nothing else on your disk is touched.",
-      addShelfLocationExisting: 'Use a folder I already have',
-      addShelfLocationExistingHelp:
-        'Point PlainShelf at a folder you choose, anywhere on your disk. It is opened as it is.',
+      addShelfLocationNew: 'New folder',
+      addShelfLocationNewHelp: 'Created in PlainShelf’s shelves directory',
+      addShelfLocationExisting: 'Existing folder',
+      addShelfLocationExistingHelp: 'Point at your own folder, opened as is',
       qrConfirm: 'Import shelves',
-      qrTitle: 'Paste a LAN share QR payload',
+      qrTitle: 'Paste QR content to add them all',
       qrPaste: 'QR JSON content',
       qrPreview: 'Preview shelves',
       qrHelp: 'Preview first, then confirm to add all listed shelves as read-only PlainShelf sources. Failed sources are not saved. Existing sources and their tokens are kept.',
       qrAdded: 'Added',
       qrExists: 'Already exists; skipped',
       qrFailed: 'Could not import this shelf',
-      addShelfLocationRemote: 'Read a shelf from another device',
-      addShelfLocationRemoteHelp:
-        'Another PlainShelf’s LAN share or a WebDAV server such as a NAS. Opened read-only; the token is kept in the system keychain.',
       addShelfDefaultPath: 'Folder to create:',
       addShelfDirectoryNotAbsolute: 'Enter a full path, starting from the root of the drive.',
       removeConfirmYes: 'Delete shelf',
@@ -752,6 +755,8 @@ const en = {
       tags: 'Tags',
       lines: 'Lines',
       characters: 'Characters',
+      pages: 'Pages',
+      size: 'Size',
       comment: 'Book note',
       importNotes: 'Import note'
     },
@@ -798,8 +803,6 @@ const en = {
       copied: 'Book copied.',
       exported: 'Exported to {location}',
       downloadRequired: 'Download this book to your device before you can read it.',
-      readerUnsupportedPlatform:
-        'This device has no standalone reader, so the book opened in this window instead.',
       readerLaunchFailed:
         'The standalone reader did not open, so the book opened in this window instead. Check that PlainShelf Reader is installed.'
     },
@@ -1080,6 +1083,21 @@ const en = {
     openFailed: 'That folder could not be opened as a book.'
   },
   reader: {
+    comic: {
+      page: 'Page {page}',
+      unavailable: 'Page {page} is unavailable. You can continue to the next page.',
+      empty: 'This source has no pages.',
+      choosePage: 'Choose page',
+      hintLtr: 'Next: tap right, press →, or swipe left.',
+      hintRtl: 'Next: tap left, press ←, or swipe right.',
+      pageSize: 'Page size',
+      fitHeight: 'Fit height',
+      fitWidth: 'Fit width',
+      original: 'Original size',
+      zoomIn: 'Zoom in',
+      zoomOut: 'Zoom out',
+      resetZoom: 'Zoom {zoom}%, reset to 100%',
+    },
     title: 'Reader',
     progress: 'Progress: {percent}%',
     loadingContent: 'Loading content...',
@@ -1131,6 +1149,15 @@ const en = {
     }
   },
   shelfSource: {
+    modeRemote: 'Another device',
+    modeRemoteHelp: 'Another PlainShelf’s LAN share, or a NAS',
+    modeQRHelp: 'Another PlainShelf’s LAN share shows it',
+    pickPrompt: 'Where does the shelf live?',
+    groupThisDevice: 'On this device',
+    groupThisComputer: 'On this computer',
+    groupElsewhere: 'Read from elsewhere (read-only)',
+    change: 'Change',
+    optional: '(optional)',
     kindLabel: 'Source',
     plainshelf: 'Another PlainShelf',
     webdav: 'WebDAV',
@@ -1141,22 +1168,22 @@ const en = {
     usernameLabel: 'Username (optional)',
     passwordLabel: 'Password or token (optional)',
     secretHint: 'Kept in this device’s secure storage, never in the shelf list.',
-    check: 'Check shelf',
     checking: 'Checking…',
     shelfFound: 'Found {count} books.',
     unauthorized: 'Wrong token: the source refused it.',
     unavailable: 'Cannot connect to the source.',
     notAShelf: 'That address has no books/ folder, so it is not a PlainShelf shelf.',
-    checkRequired: 'Check the shelf before saving.',
     readOnlyHint: 'Opened read-only. Books can be downloaded to this device for offline reading.'
   },
-  mobileConnect: {
-    title: 'Connect to PlainShelf',
-    description: 'Choose where your library lives so you can browse and read it on this device. The app never changes a library on a server or pCloud; a local shelf lives on this device and can be edited.',
-    modeLabel: 'Library source',
+  mobileShelfForm: {
+    title: 'Add a shelf',
     modeServer: 'PlainShelf server',
     modePCloud: 'pCloud',
     modeLocal: 'Local shelf',
+    modeLocalHelp: 'Kept in this app; works offline and can be edited',
+    modeServerHelp: 'A server you run yourself',
+    modePCloudHelp: 'A shelf folder in your pCloud account',
+    modeQR: 'Scan a QR code to add them all',
     modeRemote: 'Another device',
     localHint: 'Kept in this app’s own storage and works offline. Uninstalling the app or removing the shelf deletes its books.',
     localNameRequired: 'Name the shelf first.',
@@ -1204,14 +1231,15 @@ const en = {
     loadingShelves: 'Connecting…',
     shelfLabel: 'Shelf',
     shelfPlaceholder: 'Select a shelf',
-    save: 'Save and continue',
+    save: 'Add shelf',
+    saveEdit: 'Save',
     saving: 'Saving…',
     serverUrlRequired: 'Enter a server URL first.',
     shelfRequired: 'Select a shelf to continue.',
     editTitle: 'Edit shelf',
     nameLabel: 'Name',
     namePlaceholder: 'Living room server',
-    nameHint: 'What this shelf is called on this device. Optional.',
+    nameHint: 'What this shelf is called on this device.',
     cancel: 'Cancel',
     retargetHint: 'Changing where this shelf lives leaves books already downloaded from it stranded on this device.'
   },
@@ -1258,6 +1286,13 @@ const en = {
       ended: 'Sharing stopped: {reason}',
       noWifi: 'Connect to Wi-Fi first: sharing works only on a local network.'
     }
+  },
+  importNotification: {
+    title: 'Import finished',
+    books: 'Imported {count} book(s).',
+    booksWithFailures: 'Imported {count} book(s), {failed} failed.',
+    shelves: 'Added {count} shelf(s).',
+    shelvesWithFailures: 'Added {count} shelf(s), {failed} failed.'
   },
   libraryForms: {
     editBook: {
@@ -1328,8 +1363,8 @@ const en = {
       title: 'Import Book',
       closeLabel: 'Close import dialog',
       description:
-        'Upload a TXT, Markdown or EPUB file to create a new book entry, or drag-and-drop files here.',
-      fileLabel: 'Book File (.txt, .md, .epub)',
+        'Upload a TXT, Markdown, EPUB or CBZ file to create a new book entry, or drag-and-drop files here.',
+      fileLabel: 'Book File (.txt, .md, .epub, .cbz)',
       epubTitle: 'EPUB Conversion',
       epubDescription:
         'EPUB files are converted into a source. The original file is not kept; supported illustrations are retained by the Markdown preset.',
@@ -1355,8 +1390,8 @@ const en = {
         cancelled: 'Cancelled'
       },
       errors: {
-        noFiles: 'Please choose at least one TXT, Markdown or EPUB file.',
-        unsupportedExtension: 'Book file must be .txt, .md or .epub.',
+        noFiles: 'Please choose at least one TXT, Markdown, EPUB or CBZ file.',
+        unsupportedExtension: 'Book file must be .txt, .md, .epub or .cbz.',
         allFailed: 'Import failed.',
         someFailed: '{count} file(s) failed.',
         cancelled: 'Import cancelled.'
@@ -1438,6 +1473,41 @@ const en = {
           replacedOnLine: 'replaced match on line $',
           replacedMatches: 'replaced $ matches'
         }
+      }
+    },
+    pages: {
+      title: 'Pages',
+      direction: 'Reading direction',
+      ltr: 'Left to right',
+      rtl: 'Right to left',
+      addAtEnd: 'Add pages at end',
+      addAfter: 'Add pages after page {number}',
+      count: '{count} pages',
+      saving: 'Saving...',
+      autosave: 'Page changes save immediately',
+      hint: 'Drag pages to reorder them. Select a page to add new pages after it.',
+      pageLabel: 'Page {number}',
+      missing: 'Missing page',
+      moveEarlier: 'Move earlier',
+      moveLater: 'Move later',
+      delete: 'Delete page',
+      removeMissing: 'Remove missing page',
+      deleteTitle: 'Delete page',
+      deleteConfirm: 'Delete',
+      deleteQuestion: 'Delete this page and its image file?',
+      removeMissingQuestion: 'Remove this missing page from the list?',
+      empty: 'This source has no pages yet.',
+      unlistedTitle: 'Not in the page list',
+      unlistedHelp: 'These images are in the source folder but not in the reading order.',
+      addToList: 'Add to end',
+      reload: 'Reload pages',
+      errors: {
+        load: 'Failed to load pages.',
+        save: 'Failed to save the page order.',
+        add: 'Failed to add the page.',
+        delete: 'Failed to delete the page.',
+        direction: 'Failed to change the reading direction.',
+        conflict: 'The page list changed since it was loaded. Reload it before editing again.'
       }
     },
     conversion: {

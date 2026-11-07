@@ -1,41 +1,42 @@
 package main
 
-import (
-	"runtime"
+type menuRole int
 
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
+const (
+	submenuRole menuRole = iota
+	appMenuRole
+	editMenuRole
 )
 
-func newApplicationMenu(app *DesktopApp) *menu.Menu {
-	root := menu.NewMenu()
+type menuItem struct {
+	label     string
+	accel     string
+	action    func()
+	disabled  bool
+	separator bool
+}
 
-	if runtime.GOOS == "darwin" {
-		root.Append(menu.AppMenu())
+type menuSpec struct {
+	role  menuRole
+	label string
+	items []menuItem
+}
+
+func applicationMenu(app *DesktopApp, goos string) []menuSpec {
+	var specs []menuSpec
+	if goos == "darwin" {
+		specs = append(specs, menuSpec{role: appMenuRole})
 	}
-
-	root.Append(menu.EditMenu())
-
-	viewMenu := root.AddSubmenu("View")
-
-	viewMenu.AddText("Previous Page", historyMenuAcceleratorFor(runtime.GOOS, "left"), func(*menu.CallbackData) {
-		app.PreviousPage()
-	})
-	viewMenu.AddText("Next Page", historyMenuAcceleratorFor(runtime.GOOS, "right"), func(*menu.CallbackData) {
-		app.NextPage()
-	})
-
-	viewMenu.AddText("Zoom In", keys.CmdOrCtrl("="), func(*menu.CallbackData) {
-		app.ZoomIn()
-	})
-	viewMenu.AddText("Zoom Out", keys.CmdOrCtrl("-"), func(*menu.CallbackData) {
-		app.ZoomOut()
-	})
-	viewMenu.AddText("Reset Zoom", keys.CmdOrCtrl("0"), func(*menu.CallbackData) {
-		app.ResetZoom()
-	})
-
-	return root
+	return append(specs,
+		menuSpec{role: editMenuRole},
+		menuSpec{role: submenuRole, label: "View", items: []menuItem{
+			{label: "Previous Page", accel: historyAccelerator(goos, "Left"), action: app.PreviousPage},
+			{label: "Next Page", accel: historyAccelerator(goos, "Right"), action: app.NextPage},
+			{label: "Zoom In", accel: "CmdOrCtrl+=", action: app.ZoomIn},
+			{label: "Zoom Out", accel: "CmdOrCtrl+-", action: app.ZoomOut},
+			{label: "Reset Zoom", accel: "CmdOrCtrl+0", action: app.ResetZoom},
+		}},
+	)
 }
 
 func historyNavigationScript(step int) string {
@@ -62,10 +63,9 @@ func zoomScript(action string) string {
 	}
 }
 
-func historyMenuAcceleratorFor(goos string, key string) *keys.Accelerator {
+func historyAccelerator(goos string, key string) string {
 	if goos == "darwin" {
-		return keys.CmdOrCtrl(key)
+		return "CmdOrCtrl+" + key
 	}
-
-	return keys.OptionOrAlt(key)
+	return "OptionOrAlt+" + key
 }

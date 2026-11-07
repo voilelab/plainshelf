@@ -13,7 +13,6 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type DesktopImportBookResult struct {
@@ -23,11 +22,7 @@ type DesktopImportBookResult struct {
 }
 
 func (a *DesktopApp) OpenBookFiles() ([]string, error) {
-	if a.ctx == nil {
-		return []string{}, nil
-	}
-
-	paths, err := wailsruntime.OpenMultipleFilesDialog(a.ctx, bookOpenDialogOptions())
+	paths, err := a.native.openFiles("Select books to import", bookFileFilters())
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -35,19 +30,8 @@ func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 }
 
 func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) error {
-	if a.ctx == nil {
-		return util.NewError("desktop context not ready")
-	}
-
-	savePath, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
-		DefaultFilename: suggestedName,
-		Title:           "Save book",
-		Filters: []wailsruntime.FileFilter{
-			{
-				DisplayName: "Text Files (*.txt)",
-				Pattern:     "*.txt",
-			},
-		},
+	savePath, err := a.native.saveFile("Save book", suggestedName, []fileFilter{
+		{label: "Text Files (*.txt)", pattern: "*.txt"},
 	})
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -60,7 +44,7 @@ func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) erro
 	if err != nil {
 		return util.Errorf("building content path: %w", err)
 	}
-	req := httptest.NewRequest(http.MethodGet, apiPath, nil).WithContext(a.ctx)
+	req := httptest.NewRequest(http.MethodGet, apiPath, nil)
 
 	rec := httptest.NewRecorder()
 	a.GetAPIHandler().ServeHTTP(rec, req)
@@ -76,16 +60,8 @@ func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) erro
 	return nil
 }
 
-func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
-	return wailsruntime.OpenDialogOptions{
-		Title: "Select books to import",
-		Filters: []wailsruntime.FileFilter{
-			{
-				DisplayName: "Books (*.txt, *.md, *.epub)",
-				Pattern:     "*.txt;*.md;*.epub",
-			},
-		},
-	}
+func bookFileFilters() []fileFilter {
+	return []fileFilter{{label: "Books (*.txt, *.md, *.epub, *.cbz)", pattern: "*.txt;*.md;*.epub;*.cbz"}}
 }
 
 func normalizeSelectedLocalPaths(paths []string) []string {
@@ -128,12 +104,7 @@ func (a *DesktopApp) ImportBookFromLocalPath(shelfID string, localPath string, f
 }
 
 func (a *DesktopApp) OpenShelfDirectory() (string, error) {
-	if a.ctx == nil {
-		return "", nil
-	}
-	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "Select shelf directory",
-	})
+	dir, err := a.native.openDirectory("Select shelf directory")
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
@@ -287,38 +258,88 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 	return nil
 }
 
-const readerUnsupportedPlatformCode = "reader_unsupported_platform"
-
 func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
 	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
 	if err != nil {
 		return err
 	}
 
-	if runtime.GOOS != "darwin" {
-		return util.NewError(readerUnsupportedPlatformCode + ": opening the standalone reader is only supported on macOS")
+	launch, err := readerLaunchFor(runtime.GOOS, targetDir, shelfID, section)
+	if err != nil {
+		return err
 	}
+	return launch.run()
+}
 
-	name, args := readerLaunchCommand(targetDir, shelfID, section)
-	if err := exec.Command(name, args...).Run(); err != nil {
+const readerExecutableName = "PlainShelfReader"
+
+type readerLaunch struct {
+	name   string
+	args   []string
+	detach bool
+}
+
+func (l readerLaunch) run() error {
+	cmd := exec.Command(l.name, l.args...)
+	if !l.detach {
+		if err := cmd.Run(); err != nil {
+			return util.Errorf("launching PlainShelfReader: %w", err)
+		}
+		return nil
+	}
+	if err := cmd.Start(); err != nil {
 		return util.Errorf("launching PlainShelfReader: %w", err)
 	}
+	go func() { _ = cmd.Wait() }()
 	return nil
 }
 
 // macOS LaunchServices open(1) needs -n to create a new reader process;
 // otherwise it reactivates the existing app without applying new startup args.
-func readerLaunchCommand(bookPath, shelfID string, section int) (string, []string) {
-	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
-	if app == "" {
-		app = "PlainShelfReader"
+func readerLaunchFor(goos, bookPath, shelfID string, section int) (readerLaunch, error) {
+	args := readerArgs(bookPath, shelfID, section)
+	override := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
+	if goos == "darwin" {
+		app := override
+		if app == "" {
+			app = readerExecutableName
+		}
+		return readerLaunch{name: "open", args: append([]string{"-n", "-a", app, "--args"}, args...)}, nil
 	}
-	readerArgs := []string{"-book", bookPath}
+
+	exe := override
+	if exe == "" {
+		found, err := findReaderExecutable()
+		if err != nil {
+			return readerLaunch{}, err
+		}
+		exe = found
+	}
+	return readerLaunch{name: exe, args: args, detach: true}, nil
+}
+
+func readerArgs(bookPath, shelfID string, section int) []string {
+	args := []string{"-book", bookPath}
 	if shelfID = strings.TrimSpace(shelfID); shelfID != "" {
-		readerArgs = append(readerArgs, "-shelf", shelfID)
+		args = append(args, "-shelf", shelfID)
 	}
 	if section >= 0 {
-		readerArgs = append(readerArgs, "-section", strconv.Itoa(section))
+		args = append(args, "-section", strconv.Itoa(section))
 	}
-	return "open", append([]string{"-n", "-a", app, "--args"}, readerArgs...)
+	return args
+}
+
+var desktopExecutable = os.Executable
+
+func findReaderExecutable() (string, error) {
+	if self, err := desktopExecutable(); err == nil {
+		if sibling, err := exec.LookPath(filepath.Join(filepath.Dir(self), readerExecutableName)); err == nil {
+			return sibling, nil
+		}
+	}
+	path, err := exec.LookPath(readerExecutableName)
+	if err != nil {
+		return "", util.Errorf("PlainShelfReader is neither next to the desktop app nor on PATH: %w", err)
+	}
+	return path, nil
 }

@@ -345,14 +345,16 @@ parallel behind it.
 | Job | #1382 | #1383 | #1385 | Median | `timeout-minutes` |
 |---|---:|---:|---:|---:|---:|
 | Frontend build | 1:30 | 1:19 | 1:23 | **1:23** | 5 |
-| Go lint | 0:30 | 0:26 | 0:49 | **0:30** | 5 |
-| Go tests | 0:28 | 0:36 | 0:35 | **0:35** | 5 |
+| Go lint | 0:30 | 0:26 | 0:49 | **0:30** | 10 ‖ |
+| Go tests | 0:28 | 0:36 | 0:35 | **0:35** | 10 ‖ |
 | Frontend E2E | 3:34 | 6:27 | 3:22 | **3:34** | 10 † |
 | Wasm demo smoke | — | — | — | — | 10 ‡ |
 | Docs build | — | — | — | — | 5 ¶ |
 | Android build | 1:29 | 1:24 | 1:05 | **1:24** | 5 |
 | Android Go library | — | — | — | — | 10 § |
-| Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
+| Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 10 ‖ |
+| Go vulnerability scan (reader darwin) | — | — | — | — | 10 ‖ |
+| Go vulnerability scan (desktop darwin) | — | — | — | — | 10 ‖ |
 | **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
 
 † The E2E row measures the job as it was: 101 cases, one worker. The
@@ -378,6 +380,14 @@ terms as E2E's.
 ¶ Added after this measurement, with no baseline. It installs
 `requirements.txt` and runs `mkdocs build --strict`, which took about 1s in the
 cloud container; unlike the others it does not wait on `frontend`.
+
+‖ Raised from 5 when the reader moved to Wails v3, which needs GTK 4 and
+WebKitGTK 6.0 to compile on Linux; the desktop module needs them too since it
+moved. Installing them took 1:55 on one run and
+was cancelled at the 5-minute cap after over four minutes on the next, so the
+measured medians above no longer describe these jobs. The reader's and the desktop's darwin
+vulnerability scans run on `macos-15` and have no baseline; the caps are
+provisional on the same terms as E2E's.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a

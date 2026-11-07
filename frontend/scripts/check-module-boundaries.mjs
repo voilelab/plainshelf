@@ -28,7 +28,7 @@
  * resolve it at the boundary.
  *
  * Only *static* imports are refused by the import rules. A dynamic `import()` is
- * the sanctioned way to reach this code — it is what `main.ts` uses for the
+ * the sanctioned way to reach this code — it is what `bootstrap.ts` uses for the
  * shell itself, what the router uses for the mobile pages, and what puts the
  * module in its own chunk rather than the eagerly loaded graph. Refusing those
  * too would force a second route table into the shell, which is worse than the
@@ -39,7 +39,7 @@
  * for `check-licenses` to vet — would cost more than they explain.
  */
 import { readdir, readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, posix, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const SRC = 'src';
@@ -61,9 +61,18 @@ const MOBILE_SIDE = [
   /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookExport|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|secureStorage|cacheScope|localShelf|embeddedPCloud)\.ts$/
 ];
 
+const WAILS_ONLY = [/^(@|src)\/api\/(wailsBindings|desktop)(\.ts)?$/];
+
+const MOBILE_STACK = [
+  /^src\/shells\/mobile\//,
+  /^src\/features\/mobile\//,
+  /^src\/api\/pcloud\//,
+  /^src\/providers\/(mobileConfig|mobileBookshelfProvider|mobileBookExport|mobileBookCache|mobileCacheFs|mobileCoverCache|filesystemMobileBookCache|filesystemMobileCoverCache|visibleMobileBookCache|secureStorage|cacheScope|localShelf|embeddedPCloud)\.ts$/
+];
+
 /**
  * providers/runtime.ts is the one shared module that may touch Capacitor: it
- * answers "are we in a native shell?", which main.ts must ask before it can
+ * answers "are we in a native shell?", which bootstrap.ts must ask before it can
  * decide whether to load the shell at all. It imports only @capacitor/core.
  */
 const CAPACITOR_EXEMPT = new Map([['src/providers/runtime.ts', new Set(['@capacitor/core'])]]);
@@ -134,6 +143,9 @@ function importViolations(rule, file, source) {
   if (rule.side.some((pattern) => pattern.test(file))) {
     return [];
   }
+  if (rule.only && !rule.only.some((pattern) => pattern.test(file))) {
+    return [];
+  }
 
   const exempt = rule.exempt.get(file) ?? new Set();
   const violations = [];
@@ -143,7 +155,10 @@ function importViolations(rule, file, source) {
     if (exempt.has(specifier)) {
       continue;
     }
-    if (rule.restricted.some((restricted) => restricted.test(specifier))) {
+    const target = specifier.startsWith('.')
+      ? posix.join(posix.dirname(file), specifier)
+      : specifier;
+    if (rule.restricted.some((restricted) => restricted.test(specifier) || restricted.test(target))) {
       violations.push(`${file} imports ${specifier}`);
     }
   }
@@ -169,6 +184,23 @@ function readerRouteViolations(rule, file, source) {
   return violations;
 }
 
+const WAILS_RUNTIME = '@wailsio/runtime';
+const WAILS_RUNTIME_SIDE = 'src/api/wailsBindings.ts';
+const WAILS_RUNTIME_REFERENCE = /['"]@wailsio\/runtime['"]/;
+const SIDE_EFFECT_IMPORT_PATTERN = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
+
+function wailsRuntimeViolations(rule, file, source) {
+  const code = blankComments(source);
+  const imported = [...code.matchAll(STATIC_IMPORT_PATTERN), ...code.matchAll(SIDE_EFFECT_IMPORT_PATTERN)];
+  if (imported.some((match) => match[1] === WAILS_RUNTIME)) {
+    return [`${file} imports ${WAILS_RUNTIME} statically`];
+  }
+  if (file !== WAILS_RUNTIME_SIDE && WAILS_RUNTIME_REFERENCE.test(code)) {
+    return [`${file} references ${WAILS_RUNTIME}`];
+  }
+  return [];
+}
+
 const RULES = [
   {
     restricted: MOBILE_ONLY,
@@ -192,6 +224,18 @@ const RULES = [
       'src/utils/safeHtml.ts and src/components/SafeHtml.vue.'
   },
   {
+    restricted: WAILS_ONLY,
+    side: [],
+    only: MOBILE_STACK,
+    exempt: new Map(),
+    find: importViolations,
+    problem: 'The mobile stack must not import the Wails bindings:',
+    hint:
+      'The Android app never runs inside Wails. Reach platform behaviour through a\n' +
+      'RuntimeShell member (src/providers/shell.ts) instead of src/api/desktop.ts or\n' +
+      'src/api/wailsBindings.ts.'
+  },
+  {
     side: READER_LAUNCH_SIDE,
     find: readerRouteViolations,
     problem: 'A reading entry must open the reader through useReaderLaunch, not a /reader/:id link:',
@@ -200,6 +244,14 @@ const RULES = [
       'preference. Render the entry as a RouterLink `custom` slot whose click runs\n' +
       "useReaderLaunch().onReaderLinkClick, and take its :to from readerRoutePath(id)\n" +
       '(src/composables/useReaderLaunch.ts) so the path stays in one place.'
+  },
+  {
+    find: wailsRuntimeViolations,
+    problem: 'The Wails v3 runtime must load only through a dynamic import in src/api/wailsBindings.ts:',
+    hint:
+      'Importing @wailsio/runtime starts the v3 runtime and its DOM listeners. A static\n' +
+      'import, or one from another module, puts it in the web and mobile bundles. Call\n' +
+      'callWails or startWailsRuntime (src/api/wailsBindings.ts) instead.'
   }
 ];
 

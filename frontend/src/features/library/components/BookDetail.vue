@@ -113,6 +113,8 @@ import { isBookNsfw, type Book, type ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { MarkdownChapterListItem } from '@/utils/markdownChapters';
 import { formatLanguage } from '@/utils/language';
+import { formatBytes } from '@/utils/bytes';
+import { resolveReadingFormat } from '@/utils/bookFormat';
 import { formatDateLabel } from '@/utils/date';
 import { renderDescription } from '@/utils/safeHtml';
 import { useI18n } from '@/i18n';
@@ -205,11 +207,22 @@ const publicationRows = computed<DetailRow[]>(() =>
 
 const contentRows = computed<DetailRow[]>(() => {
   const rows: DetailRow[] = [];
-  if (typeof props.currentSource?.line_count === 'number') {
-    rows.push({ label: t('bookDetail.fields.lines'), value: formatNumber(props.currentSource.line_count) });
+  const source = props.currentSource;
+  const format = resolveReadingFormat(source?.format, props.book.format);
+  if (format === 'images') {
+    if (source?.page_list) {
+      rows.push({ label: t('bookDetail.fields.pages'), value: formatNumber(source.page_list.pages.length) });
+    }
+  } else {
+    if (typeof source?.line_count === 'number') {
+      rows.push({ label: t('bookDetail.fields.lines'), value: formatNumber(source.line_count) });
+    }
+    if (typeof source?.char_count === 'number') {
+      rows.push({ label: t('bookDetail.fields.characters'), value: formatNumber(source.char_count) });
+    }
   }
-  if (typeof props.currentSource?.char_count === 'number') {
-    rows.push({ label: t('bookDetail.fields.characters'), value: formatNumber(props.currentSource.char_count) });
+  if (typeof source?.size_bytes === 'number' && Number.isFinite(source.size_bytes) && source.size_bytes >= 0) {
+    rows.push({ label: t('bookDetail.fields.size'), value: formatBytes(source.size_bytes) });
   }
   return rows;
 });

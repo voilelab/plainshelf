@@ -7,13 +7,15 @@ import { ApiError } from '@/api/client';
 import type { Book, PaginatedBooks } from '@/types/book';
 
 const listBooks = vi.fn();
+const getSourcePages = vi.fn();
+const getReadProgress = vi.fn();
 const getReadingActivityRange = vi.fn();
 const getReadHistoryIDs = vi.fn();
 const getLocalReadingEntry = vi.fn();
 const getLocalReadingEntries = vi.fn();
 
 vi.mock('@/providers', () => ({
-  getBookshelfProvider: () => ({ listBooks })
+  getBookshelfProvider: () => ({ listBooks, getSourcePages, getReadProgress })
 }));
 
 vi.mock('@/storage/readingStats', () => ({
@@ -432,4 +434,24 @@ describe('useDashboardData', () => {
     await vi.runAllTimersAsync();
     expect(listBooks).toHaveBeenCalledTimes(2);
   });
+});
+
+
+it('uses comic page counts for completion, including first and last pages and mobile provider progress', async () => {
+  listBooks.mockResolvedValue(page([
+    makeBook({ id: 'comic', format: 'images', current_source: 'pages' }),
+    makeBook({ id: 'unread', format: 'images', current_source: 'pages' })
+  ]));
+  getReadHistoryIDs.mockResolvedValue(['comic']);
+  getSourcePages.mockResolvedValue({ pages: [{}, {}, {}] });
+  getReadProgress.mockResolvedValue({ char_offset: 0 });
+  const store = useDashboardData();
+  await store.fetchDashboardData();
+  expect(store.recentReading.value[0].percent).toBe(33);
+  expect(store.inProgress.value).toBe(1);
+  expect(getSourcePages).not.toHaveBeenCalledWith('unread', 'pages');
+  getReadProgress.mockResolvedValue({ char_offset: 2 });
+  await store.fetchDashboardData();
+  expect(store.recentReading.value[0].percent).toBe(100);
+  expect(store.inProgress.value).toBe(0);
 });

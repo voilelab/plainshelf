@@ -1,5 +1,6 @@
 import { ref, watch } from 'vue';
 import { isWailsRuntime } from '@/providers/runtime';
+import { getPreference, setPreference } from '@/storage/preferences';
 
 const STORAGE_KEY = 'app-zoom-level';
 const DEFAULT_ZOOM = 1;
@@ -46,11 +47,7 @@ function parseZoomLevel(rawValue: string | null): number {
   return clampZoomLevel(parsed);
 }
 
-const appZoom = ref(DEFAULT_ZOOM);
-
-if (typeof window !== 'undefined') {
-  appZoom.value = parseZoomLevel(window.localStorage.getItem(STORAGE_KEY));
-}
+const appZoom = ref(parseZoomLevel(getPreference(STORAGE_KEY)));
 
 function applyZoom(zoom: number): void {
   if (typeof document === 'undefined') {
@@ -66,11 +63,7 @@ watch(
   appZoom,
   (value) => {
     applyZoom(value);
-
-    if (typeof window === 'undefined') {
-      return;
-    }
-    window.localStorage.setItem(STORAGE_KEY, String(clampZoomLevel(value)));
+    setPreference(STORAGE_KEY, String(clampZoomLevel(value)));
   },
   { immediate: false }
 );

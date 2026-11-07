@@ -1,15 +1,13 @@
 import { ref } from 'vue';
 import type { LocationQueryValue } from 'vue-router';
+import { getPreference, setPreference } from '@/storage/preferences';
 
 const PAGE_SIZE_STORAGE_KEY = 'plainshelf.books.pageSize';
 export const PAGE_SIZE_OPTIONS: number[] = [10, 20, 50, 100, 200];
 const DEFAULT_PAGE_SIZE = 50;
 
 function loadPageSize(): number {
-  if (typeof window === 'undefined') {
-    return DEFAULT_PAGE_SIZE;
-  }
-  const raw = window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY);
+  const raw = getPreference(PAGE_SIZE_STORAGE_KEY);
   if (!raw) {
     return DEFAULT_PAGE_SIZE;
   }
@@ -24,9 +22,7 @@ export function setPageSize(newSize: number): void {
     return;
   }
   pageSize.value = newSize;
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(newSize));
-  }
+  setPreference(PAGE_SIZE_STORAGE_KEY, String(newSize));
 }
 
 export function toSingleQueryValue(

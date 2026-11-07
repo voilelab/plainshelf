@@ -20,7 +20,7 @@ env:
 jobs:
   frontend:
     name: Frontend build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     defaults:
       run:
@@ -71,8 +71,8 @@ jobs:
 
   lint:
     name: Go lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: frontend
     steps:
       - name: Checkout
@@ -95,6 +95,9 @@ jobs:
         with:
           version: latest
 
+      - name: Install Wails v3 Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+
       - name: Lint desktop module
         uses: golangci/golangci-lint-action@v9
         with:
@@ -109,7 +112,7 @@ jobs:
 
   docs:
     name: Docs build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -130,8 +133,8 @@ jobs:
 
   go:
     name: Go tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: frontend
     steps:
       - name: Checkout
@@ -153,6 +156,9 @@ jobs:
       - name: Run tests
         run: go test -timeout 2m ./...
 
+      - name: Install Wails v3 Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+
       - name: Run desktop tests
         run: cd desktop && go test -timeout 2m ./...
 
@@ -161,7 +167,7 @@ jobs:
 
   e2e:
     name: Frontend E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
     steps:
@@ -202,7 +208,7 @@ jobs:
 
   wasm-demo:
     name: Wasm demo smoke
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
     steps:
@@ -275,7 +281,7 @@ jobs:
 
   android:
     name: Android build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     needs: [frontend, android-lib]
     continue-on-error: true
@@ -331,7 +337,7 @@ jobs:
 
   android-lib:
     name: Android Go library
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
     continue-on-error: true
@@ -372,8 +378,8 @@ jobs:
 
   vulncheck:
     name: Go vulnerability scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: frontend
     # govulncheck default symbol scanning uses call-graph reachability and can report conservative false positives (govulncheck doc.go).
     steps:
@@ -412,18 +418,15 @@ jobs:
           GOARCH: arm64
         run: govulncheck ./...
 
+      - name: Install Wails v3 Linux dependencies
+        if: ${{ !cancelled() }}
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+
       - name: Scan desktop module (linux)
         if: ${{ !cancelled() }}
         env:
           GOOS: linux
           GOARCH: amd64
-        run: cd desktop && govulncheck ./...
-
-      - name: Scan desktop module (darwin)
-        if: ${{ !cancelled() }}
-        env:
-          GOOS: darwin
-          GOARCH: arm64
         run: cd desktop && govulncheck ./...
 
       - name: Scan reader module (linux)
@@ -433,6 +436,32 @@ jobs:
           GOARCH: amd64
         run: cd reader && govulncheck ./...
 
+  vulncheck-reader-darwin:
+    name: Go vulnerability scan (reader darwin)
+    runs-on: macos-15
+    timeout-minutes: 10
+    needs: frontend
+    # Wails v3 has no cgo-free darwin backend outside its experimental purego tag, so a scan cross-compiled without cgo cannot load the reader (wails v3.1.0 internal/buildguard).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: reader/go.mod
+          cache: true
+          cache-dependency-path: reader/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
       - name: Scan reader module (darwin)
         if: ${{ !cancelled() }}
         env:
@@ -440,3 +469,35 @@ jobs:
           GOARCH: arm64
         run: cd reader && govulncheck ./...
 
+  vulncheck-desktop-darwin:
+    name: Go vulnerability scan (desktop darwin)
+    runs-on: macos-15
+    timeout-minutes: 10
+    needs: frontend
+    # Wails v3 has no cgo-free darwin backend outside its experimental purego tag, so a scan cross-compiled without cgo cannot load the desktop app (wails v3.1.0 internal/buildguard).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache: true
+          cache-dependency-path: desktop/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Scan desktop module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: cd desktop && govulncheck ./...

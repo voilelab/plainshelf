@@ -1,13 +1,13 @@
 <template>
   <BaseDialog
     :open="open"
-    :title="t('mobileConnect.pcloud.picker.title')"
+    :title="t('mobileShelfForm.pcloud.picker.title')"
     :described-by="descriptionId"
     @close="emit('close')"
   >
     <section class="panel pcloud-picker">
       <header class="pcloud-picker-header">
-        <h2>{{ t('mobileConnect.pcloud.picker.title') }}</h2>
+        <h2>{{ t('mobileShelfForm.pcloud.picker.title') }}</h2>
         <button
           class="pcloud-picker-close"
           type="button"
@@ -18,9 +18,9 @@
         </button>
       </header>
 
-      <nav class="pcloud-picker-crumbs" :aria-label="t('mobileConnect.pcloud.picker.breadcrumbLabel')">
+      <nav class="pcloud-picker-crumbs" :aria-label="t('mobileShelfForm.pcloud.picker.breadcrumbLabel')">
         <button type="button" class="pcloud-picker-crumb" @click="goTo(-1)">
-          {{ t('mobileConnect.pcloud.picker.rootLabel') }}
+          {{ t('mobileShelfForm.pcloud.picker.rootLabel') }}
         </button>
         <template v-for="(level, index) in trail" :key="level.folderid">
           <span class="pcloud-picker-crumb-separator" aria-hidden="true">›</span>
@@ -44,11 +44,11 @@
           class="pcloud-picker-row pcloud-picker-up"
           @click="goTo(trail.length - 2)"
         >
-          {{ t('mobileConnect.pcloud.picker.up') }}
+          {{ t('mobileShelfForm.pcloud.picker.up') }}
         </button>
 
         <p v-if="loading" class="pcloud-picker-note" role="status">
-          {{ t('mobileConnect.pcloud.picker.loading') }}
+          {{ t('mobileShelfForm.pcloud.picker.loading') }}
         </p>
 
         <template v-else-if="!error">
@@ -64,32 +64,32 @@
           </button>
 
           <p v-if="folders.length === 0" class="pcloud-picker-note">
-            {{ t('mobileConnect.pcloud.picker.empty') }}
+            {{ t('mobileShelfForm.pcloud.picker.empty') }}
           </p>
         </template>
 
         <template v-else>
           <p class="pcloud-picker-error" role="alert">{{ error }}</p>
           <button type="button" class="button" @click="retry">
-            {{ t('mobileConnect.pcloud.picker.retry') }}
+            {{ t('mobileShelfForm.pcloud.picker.retry') }}
           </button>
         </template>
       </div>
 
       <footer class="pcloud-picker-footer">
         <p :id="descriptionId" class="pcloud-picker-path">
-          {{ t('mobileConnect.pcloud.picker.currentPath', { path: currentPath }) }}
+          {{ t('mobileShelfForm.pcloud.picker.currentPath', { path: currentPath }) }}
         </p>
         <p class="pcloud-picker-verdict" :class="{ 'is-shelf': isShelf }" role="status">
           {{
             isShelf
-              ? t('mobileConnect.pcloud.picker.isShelf')
-              : t('mobileConnect.pcloud.picker.notShelf')
+              ? t('mobileShelfForm.pcloud.picker.isShelf')
+              : t('mobileShelfForm.pcloud.picker.notShelf')
           }}
         </p>
         <div class="pcloud-picker-actions">
           <button type="button" class="button" @click="emit('close')">
-            {{ t('mobileConnect.pcloud.picker.cancel') }}
+            {{ t('mobileShelfForm.pcloud.picker.cancel') }}
           </button>
           <button
             type="button"
@@ -97,7 +97,7 @@
             :disabled="!isShelf || loading"
             @click="emit('select', currentPath)"
           >
-            {{ t('mobileConnect.pcloud.picker.confirm') }}
+            {{ t('mobileShelfForm.pcloud.picker.confirm') }}
           </button>
         </div>
       </footer>
@@ -172,7 +172,7 @@ onBeforeUnmount(close);
   /* Capped rather than fixed: a folder with three children gets a short dialog,
      while a long listing scrolls inside the list instead of pushing the confirm
      button off the bottom of a phone screen. First line is the fallback for
-     engines without dvh, as in mobile-connect.css. */
+     engines without dvh. */
   max-height: min(560px, calc(100vh / var(--app-zoom, 1) - 64px));
   max-height: min(560px, calc(100dvh / var(--app-zoom, 1) - 64px));
   box-sizing: border-box;

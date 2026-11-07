@@ -4,7 +4,7 @@
     <section v-else class="reader-no-shelf" role="status">
       <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
       <p>{{ shelfUnavailableMessage }}</p>
-      <RouterLink to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
+      <RouterLink :to="shelfUnavailableActionTo" class="button">{{ shelfUnavailableActionLabel }}</RouterLink>
     </section>
   </div>
 </template>
@@ -13,6 +13,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useServerMode } from '@/composables/useServerMode';
 import { useShelvesStore } from '@/composables/useShelvesStore';
+import { useShelfUnavailableNotice } from '@/composables/useShelfUnavailableNotice';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
@@ -25,11 +26,11 @@ const booting = ref(true);
 const hasActiveShelf = computed(
   () => !booting.value && shelvesLoaded.value && selectedShelfID.value.length > 0
 );
-const shelfUnavailableMessage = computed(() =>
-  booting.value || shelvesLoading.value
-    ? t('layout.shelf.loading')
-    : t('layout.shelf.unavailableDescription')
-);
+const {
+  message: shelfUnavailableMessage,
+  actionLabel: shelfUnavailableActionLabel,
+  actionTo: shelfUnavailableActionTo
+} = useShelfUnavailableNotice(computed(() => booting.value || shelvesLoading.value));
 
 onMounted(async () => {
   try {

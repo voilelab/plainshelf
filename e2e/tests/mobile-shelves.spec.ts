@@ -1,17 +1,35 @@
 import { expect, test } from '@playwright/test';
 import { useServer } from './support/server';
-import { addMobileShelf, connectMobile, reopenMobileAt, waitForMobileApp } from './support/mobile';
+import {
+  addMobileShelf,
+  connectMobile,
+  MOBILE_PREVIEW_QUERY,
+  reopenMobileAt,
+  waitForMobileApp
+} from './support/mobile';
 
 
 const getServer = useServer();
 
-test('keeps several shelves on the device and switches between them', async ({ page }) => {
+test('starts without a shelf, then keeps several and switches between them', async ({ page }) => {
   const { baseUrl } = getServer();
+
+  await page.goto(`${baseUrl}/books?${MOBILE_PREVIEW_QUERY}`);
+  await expect(page.getByRole('heading', { name: 'No shelf selected' })).toBeVisible();
+  await page.locator('.no-shelf-panel').getByRole('link', { name: 'Manage shelves' }).click();
+  await expect(page).toHaveURL(/\/settings\?.*tab=shelves/);
+  await expect(page.locator('.mobile-shelves-empty')).toBeVisible();
+  await page.getByRole('button', { name: 'Add a shelf' }).click();
+  await expect(page.getByRole('heading', { name: 'Add a shelf' })).toBeVisible();
+  await expect(page.locator('.mobile-tab.active')).toHaveText('Settings');
+  await page.getByRole('link', { name: 'Back' }).click();
+  await expect(page).toHaveURL(new RegExp(`/settings\\?.*${MOBILE_PREVIEW_QUERY}`));
+  await expect(page.locator('.mobile-shelves-empty')).toBeVisible();
 
   await connectMobile(page, baseUrl);
   await addMobileShelf(page, baseUrl, { name: 'Second shelf', shelfName: 'Default Shelf' });
 
-  await reopenMobileAt(page, baseUrl, '/connect');
+  await reopenMobileAt(page, baseUrl, '/settings?tab=shelves');
   const rows = page.locator('.mobile-shelves-item');
   await expect(rows).toHaveCount(2);
   await expect(rows.filter({ hasText: 'Second shelf' })).toContainText('In use');
@@ -23,7 +41,7 @@ test('keeps several shelves on the device and switches between them', async ({ p
   await waitForMobileApp(page);
   await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
 
-  await reopenMobileAt(page, baseUrl, '/connect');
+  await reopenMobileAt(page, baseUrl, '/settings?tab=shelves');
   await expect(
     page.locator('.mobile-shelves-item').filter({ hasText: 'Second shelf' })
   ).not.toContainText('In use');

@@ -76,6 +76,10 @@ function buildManagement(overrides: Record<string, unknown> = {}): Record<string
     showAddShelfModal: ref(false),
     newShelfName: ref(''),
     newShelfLocationMode: ref('new'),
+    addShelfStep: ref('form'),
+    pickShelfLocation: vi.fn(),
+    backToShelfLocations: vi.fn(),
+    remoteCheck: { status: ref('idle'), books: ref(0), error: ref('') },
     newShelfDirectory: ref(''),
     newShelfDirectoryError: ref(''),
     newShelfReadOnly: ref(false),
@@ -148,7 +152,7 @@ describe('ShelvesPanel', () => {
     const actionCell = host.querySelector('.shelf-action-cell');
     expect(actionCell).not.toBeNull();
     expect(actionCell?.textContent).toContain('Open folder');
-    expect(hasButton(host, 'Create shelf')).toBe(true);
+    expect(hasButton(host, 'Add a shelf')).toBe(true);
     expect(host.textContent).not.toContain('managed by the server');
 
     app.unmount();
@@ -159,7 +163,7 @@ describe('ShelvesPanel', () => {
     const { host, app } = mount();
 
     expect(host.querySelector('.shelf-action-cell')).toBeNull();
-    expect(hasButton(host, 'Create shelf')).toBe(false);
+    expect(hasButton(host, 'Add a shelf')).toBe(false);
     expect(host.textContent).toContain('managed by the server');
 
     app.unmount();
@@ -226,15 +230,37 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 
-  it('switches the location branch when the other option is picked', async () => {
+  it('picks a source from the tiles before showing its fields', async () => {
     state.desktop = true;
-    const newShelfLocationMode = ref('new');
-    mgmt.value = buildManagement({ showAddShelfModal: ref(true), newShelfLocationMode });
+    const pickShelfLocation = vi.fn();
+    mgmt.value = buildManagement({
+      showAddShelfModal: ref(true),
+      addShelfStep: ref('pick'),
+      pickShelfLocation
+    });
     const { host, app } = mount();
 
+    expect(host.querySelector('[data-testid="shelf-name-input"]')).toBeNull();
     host.querySelector<HTMLElement>('[data-testid="shelf-location-existing"]')!.click();
     await Promise.resolve();
-    expect(newShelfLocationMode.value).toBe('existing');
+    expect(pickShelfLocation).toHaveBeenCalledWith('existing');
+
+    app.unmount();
+  });
+
+  it('shows the picked source with a way back to the picker', async () => {
+    state.desktop = true;
+    const backToShelfLocations = vi.fn();
+    mgmt.value = buildManagement({
+      showAddShelfModal: ref(true),
+      newShelfLocationMode: ref('existing'),
+      backToShelfLocations
+    });
+    const { host, app } = mount();
+
+    expect(host.querySelector('.shelf-source-chosen')?.textContent).toContain('Existing folder');
+    Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Change')!.click();
+    expect(backToShelfLocations).toHaveBeenCalled();
 
     app.unmount();
   });
@@ -333,16 +359,30 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 
-  it('opens the create-shelf dialog with the caret in the name field', async () => {
+  it('opens the create-shelf dialog with focus on the first source', async () => {
     state.desktop = true;
-    mgmt.value = buildManagement({ showAddShelfModal: ref(true) });
+    mgmt.value = buildManagement({ showAddShelfModal: ref(true), addShelfStep: ref('pick') });
     const { host, app } = mount();
     await nextTick();
     await nextTick();
 
-    const nameInput = host.querySelector<HTMLInputElement>('[data-testid="shelf-name-input"]');
-    expect(nameInput).not.toBeNull();
-    expect(document.activeElement).toBe(nameInput);
+    expect(document.activeElement).toBe(host.querySelector('[data-testid="shelf-location-new"]'));
+
+    app.unmount();
+  });
+
+  it('moves the caret to the name field once a source is picked', async () => {
+    state.desktop = true;
+    const addShelfStep = ref('pick');
+    mgmt.value = buildManagement({ showAddShelfModal: ref(true), addShelfStep });
+    const { host, app } = mount();
+    await nextTick();
+
+    addShelfStep.value = 'form';
+    await nextTick();
+    await nextTick();
+
+    expect(document.activeElement).toBe(host.querySelector('[data-testid="shelf-name-input"]'));
 
     app.unmount();
   });
@@ -372,11 +412,11 @@ describe('ShelvesPanel', () => {
 
     const primary = host.querySelector<HTMLButtonElement>('.shelf-empty-add');
     expect(primary).not.toBeNull();
-    expect(primary!.textContent?.trim()).toBe('Create shelf');
+    expect(primary!.textContent?.trim()).toBe('Add a shelf');
     expect(primary!.classList.contains('primary')).toBe(true);
     expect(
       Array.from(host.querySelectorAll('.shelf-add-toggle')).some(
-        (b) => b.textContent?.trim() === 'Create shelf'
+        (b) => b.textContent?.trim() === 'Add a shelf'
       )
     ).toBe(false);
 
@@ -390,7 +430,7 @@ describe('ShelvesPanel', () => {
     expect(host.querySelector('.shelf-empty-add')).toBeNull();
     expect(
       Array.from(host.querySelectorAll('.shelf-add-toggle')).some(
-        (b) => b.textContent?.trim() === 'Create shelf'
+        (b) => b.textContent?.trim() === 'Add a shelf'
       )
     ).toBe(true);
 
@@ -508,7 +548,7 @@ it('renders the QR preview and per-source results in the add dialog', async () =
   });
   const { host } = mount();
   await nextTick();
-  expect(host.querySelector('[data-testid="shelf-location-qr"]')).not.toBeNull();
+  expect(host.querySelector('.shelf-source-chosen')?.textContent).toContain('Paste QR content');
   expect(host.querySelector('[data-testid="shelf-qr-json"]')).not.toBeNull();
   expect(host.querySelector('[data-testid="shelf-qr-preview"]')?.textContent).toContain('One — http://lan/dav/one/');
   expect(host.querySelector('[data-testid="shelf-qr-results"]')?.textContent).toContain('Two — SOURCE_UNAVAILABLE');

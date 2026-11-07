@@ -1,9 +1,17 @@
 # wails
 /frontend/
 
-/build/bin/
-/build/darwin/
-/build/windows/
+# Wails build output, except the committed macOS packaging assets: the app
+# icon and the Info.plist that pins the bundle identifier
+# (com.voilelab.plainshelf), which the Homebrew cask relies on.
+/build/*
+!/build/appicon.png
+!/build/darwin
+/build/darwin/*
+!/build/darwin/Info.plist
+
+# go-task checksums from wails3 task
+/.task/
 
 # go build ./... output (binary named after the module dir)
 /desktop

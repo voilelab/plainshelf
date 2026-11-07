@@ -208,7 +208,9 @@ const zhHant = {
       empty: '尚未設定書架',
       unavailableTitle: '尚未選擇書架',
       unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
-      manage: '管理書架'
+      unusableDescription: '目前使用的書架缺少設定或 token，修正後才能繼續閱讀。',
+      manage: '管理書架',
+      fix: '修正這個書架'
     },
     dashboard: '首頁',
     library: '書庫',
@@ -287,6 +289,12 @@ const zhHant = {
     cover: {
       title: '封面'
     },
+    importNotifications: {
+      title: '通知',
+      label: '匯入完成時通知',
+      description:
+        'PlainShelf 不在前景時，一次匯入多本書或區網匯入結束後，會用系統通知告訴你加入了幾本書或幾個書架。此偏好只保存在這台裝置。'
+    },
     coverToJpg: {
       label: '將上傳封面轉為 JPG',
       description: '啟用後，封面圖片上傳時會轉換為 JPEG。'
@@ -352,8 +360,12 @@ const zhHant = {
       label: '介面語言',
       description: '介面顯示的語言。此偏好只保存在這台裝置。'
     },
-    import: {
-      title: '匯入'
+    tabs: {
+      general: '一般',
+      reading: '閱讀',
+      importCovers: '匯入與封面',
+      shelves: '書架',
+      system: '系統'
     },
     epubImport: {
       title: 'EPUB 轉換',
@@ -401,11 +413,6 @@ const zhHant = {
       licenseLoadFailed: '無法載入隨附的授權條款。',
       licenseClose: '關閉'
     },
-    mobileConnect: {
-      title: '書架',
-      description: '這台裝置可以開啟的所有書庫，來源可以是 PlainShelf 伺服器或 pCloud。',
-      open: '管理書架'
-    },
     downloads: {
       title: '已下載書籍',
       description: '管理已下載到這台裝置、供離線閱讀的書籍。',
@@ -432,33 +439,31 @@ const zhHant = {
       removeFailed: '移除書架失敗',
       removeShelfTitle: '刪除書架',
       removeConfirmDescription: '此操作只會從 PlainShelf 中移除書架，不會刪除目錄。',
-      addShelf: '建立書架',
-      addShelfTitle: '建立書架',
+      addShelf: '新增書架',
+      addShelfTitle: '新增書架',
       addShelfCloseLabel: '關閉建立書架對話框',
       addShelfNameLabel: '書架名稱',
       addShelfNamePlaceholder: '小說',
       addShelfDirectoryLabel: '資料夾路徑',
       addShelfDirectoryPlaceholder: '/home/you/Books',
       addShelfBrowse: '瀏覽…',
-      addShelfSubmit: '建立書架',
+      addShelfSubmit: '加入書架',
       addShelfAdding: '建立中...',
       addShelfFailed: '建立書架失敗',
       addShelfIDPreview: '書架 ID：',
       addShelfLocationLabel: '書架位置',
-      addShelfLocationNew: '建立新資料夾',
-      addShelfLocationNewHelp: 'PlainShelf 會在自己的書架目錄下建立資料夾，不會動到硬碟上的其他東西。',
-      addShelfLocationExisting: '使用我已經有的資料夾',
-      addShelfLocationExistingHelp: '讓 PlainShelf 指向你自己選定的資料夾，硬碟上任何位置都可以，直接照原樣開啟。',
+      addShelfLocationNew: '新資料夾',
+      addShelfLocationNewHelp: '在 PlainShelf 的書架目錄建立',
+      addShelfLocationExisting: '現有資料夾',
+      addShelfLocationExistingHelp: '指向你自己的資料夾，原樣開啟',
       qrConfirm: '匯入書架',
-      qrTitle: '貼上區網分享 QR 內容',
+      qrTitle: '貼上 QR 內容一次加入',
       qrPaste: 'QR JSON 內容',
       qrPreview: '預覽書架',
       qrHelp: '先預覽，再確認新增所有列出的唯讀 PlainShelf 來源。失敗項目不儲存；已存在的來源與 token 保持原樣。',
       qrAdded: '已新增',
       qrExists: '已存在，已略過',
       qrFailed: '無法匯入此書架',
-      addShelfLocationRemote: '讀取其他裝置上的書架',
-      addShelfLocationRemoteHelp: '另一台 PlainShelf 的區網分享，或 NAS 這類 WebDAV 伺服器。以唯讀方式開啟；token 存在系統鑰匙圈。',
       addShelfDefaultPath: '將建立的資料夾：',
       addShelfDirectoryNotAbsolute: '請輸入從磁碟根目錄開始的完整路徑。',
       removeConfirmYes: '刪除書架',
@@ -735,6 +740,8 @@ const zhHant = {
       tags: '標籤',
       lines: '行數',
       characters: '字數',
+      pages: '頁數',
+      size: '大小',
       comment: '書籍備註',
       importNotes: '匯入備註'
     },
@@ -781,7 +788,6 @@ const zhHant = {
       copied: '書籍已複製。',
       exported: '已匯出至 {location}',
       downloadRequired: '請先將這本書下載到裝置，才能開始閱讀。',
-      readerUnsupportedPlatform: '這台裝置沒有獨立 reader，已改在目前視窗開啟這本書。',
       readerLaunchFailed: '獨立 reader 沒有開啟，已改在目前視窗開啟這本書。請確認已安裝 PlainShelf Reader。'
     },
     errors: {
@@ -1061,6 +1067,21 @@ const zhHant = {
     openFailed: '無法以書籍格式開啟這個資料夾。'
   },
   reader: {
+    comic: {
+      page: '第 {page} 頁',
+      unavailable: '第 {page} 頁無法顯示，可以繼續翻到下一頁。',
+      empty: '此來源沒有頁面。',
+      choosePage: '選擇頁面',
+      hintLtr: '下一頁：點右側、按 → 或向左滑。',
+      hintRtl: '下一頁：點左側、按 ← 或向右滑。',
+      pageSize: '頁面大小',
+      fitHeight: '適合高度',
+      fitWidth: '適合寬度',
+      original: '原始大小',
+      zoomIn: '放大',
+      zoomOut: '縮小',
+      resetZoom: '縮放 {zoom}%，重設為 100%',
+    },
     title: '閱讀器',
     progress: '進度：{percent}%',
     loadingContent: '內容載入中...',
@@ -1112,6 +1133,15 @@ const zhHant = {
     }
   },
   shelfSource: {
+    modeRemote: '其他裝置',
+    modeRemoteHelp: '另一台 PlainShelf 的區網分享，或 NAS',
+    modeQRHelp: '另一台 PlainShelf 的區網分享會顯示',
+    pickPrompt: '書架放在哪裡？',
+    groupThisDevice: '建立在這台裝置',
+    groupThisComputer: '建立在這台電腦',
+    groupElsewhere: '讀取其他地方（唯讀）',
+    change: '更換',
+    optional: '（選填）',
     kindLabel: '來源',
     plainshelf: '另一台 PlainShelf',
     webdav: 'WebDAV',
@@ -1122,22 +1152,22 @@ const zhHant = {
     usernameLabel: '帳號（選填）',
     passwordLabel: '密碼或 token（選填）',
     secretHint: '存在這台裝置的安全儲存區，不會寫進書架清單。',
-    check: '檢查書架',
     checking: '檢查中…',
     shelfFound: '找到 {count} 本書。',
     unauthorized: 'token 錯誤：來源拒絕了這組憑證。',
     unavailable: '連不上這個來源。',
     notAShelf: '這個網址沒有 books/ 資料夾，不是 PlainShelf 書架。',
-    checkRequired: '請先檢查書架再儲存。',
     readOnlyHint: '以唯讀方式開啟。可以把書下載到這台裝置離線閱讀。'
   },
-  mobileConnect: {
-    title: '連線到 PlainShelf',
-    description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。App 不會變更伺服器或 pCloud 上的書庫；本機書庫存在這台裝置上，可以編輯。',
-    modeLabel: '書庫來源',
+  mobileShelfForm: {
+    title: '新增書架',
     modeServer: 'PlainShelf 伺服器',
     modePCloud: 'pCloud',
     modeLocal: '本機書庫',
+    modeLocalHelp: '存在這個 App 裡，離線可用、可編輯',
+    modeServerHelp: '你自己架設的伺服器',
+    modePCloudHelp: 'pCloud 帳號裡的書架資料夾',
+    modeQR: '掃描 QR code 一次加入',
     modeRemote: '其他裝置',
     localHint: '存在這個 App 自己的儲存空間，離線也能用。解除安裝 App 或移除書庫時，裡面的書會一起刪除。',
     localNameRequired: '請先為書庫命名。',
@@ -1185,14 +1215,15 @@ const zhHant = {
     loadingShelves: '連線中…',
     shelfLabel: '書架',
     shelfPlaceholder: '選擇書架',
-    save: '儲存並繼續',
+    save: '加入書架',
+    saveEdit: '儲存',
     saving: '儲存中…',
     serverUrlRequired: '請先輸入伺服器網址。',
     shelfRequired: '請選擇一個書架。',
     editTitle: '編輯書架',
     nameLabel: '名稱',
     namePlaceholder: '客廳的伺服器',
-    nameHint: '這個書架在這台裝置上顯示的名稱，可留空。',
+    nameHint: '這個書架在這台裝置上顯示的名稱。',
     cancel: '取消',
     retargetHint: '更改書架的位置後，先前從它下載的書會留在裝置上但無法再開啟。'
   },
@@ -1239,6 +1270,13 @@ const zhHant = {
       ended: '分享已停止：{reason}',
       noWifi: '請先連上 Wi-Fi：只能在區網內分享。'
     }
+  },
+  importNotification: {
+    title: '匯入完成',
+    books: '已匯入 {count} 本。',
+    booksWithFailures: '已匯入 {count} 本，{failed} 本失敗。',
+    shelves: '已加入 {count} 個書架。',
+    shelvesWithFailures: '已加入 {count} 個書架，{failed} 個失敗。'
   },
   libraryForms: {
     editBook: {
@@ -1308,8 +1346,8 @@ const zhHant = {
     importBook: {
       title: '匯入書籍',
       closeLabel: '關閉匯入對話框',
-      description: '上傳 TXT、Markdown 或 EPUB 檔案來建立新書，也可以把檔案拖曳到這裡。',
-      fileLabel: '書籍檔案（.txt、.md、.epub）',
+      description: '上傳 TXT、Markdown、EPUB 或 CBZ 檔案來建立新書，也可以把檔案拖曳到這裡。',
+      fileLabel: '書籍檔案（.txt、.md、.epub、.cbz）',
       epubTitle: 'EPUB 轉換',
       epubDescription:
         'EPUB 匯入時會轉換成 source，不保留原始檔案；Markdown 預設可保留支援的圖片。',
@@ -1335,8 +1373,8 @@ const zhHant = {
         cancelled: '已取消'
       },
       errors: {
-        noFiles: '請至少選擇一個 TXT、Markdown 或 EPUB 檔案。',
-        unsupportedExtension: '書籍檔案必須是 .txt、.md 或 .epub。',
+        noFiles: '請至少選擇一個 TXT、Markdown、EPUB 或 CBZ 檔案。',
+        unsupportedExtension: '書籍檔案必須是 .txt、.md、.epub 或 .cbz。',
         allFailed: '匯入失敗。',
         someFailed: '有 {count} 個檔案失敗。',
         cancelled: '匯入已取消。'
@@ -1418,6 +1456,41 @@ const zhHant = {
           replacedOnLine: '已取代第 $ 行的符合項目',
           replacedMatches: '已取代 $ 處'
         }
+      }
+    },
+    pages: {
+      title: '頁面',
+      direction: '翻頁方向',
+      ltr: '由左到右',
+      rtl: '由右到左',
+      addAtEnd: '在最後加入頁面',
+      addAfter: '在第 {number} 頁之後加入頁面',
+      count: '共 {count} 頁',
+      saving: '儲存中...',
+      autosave: '頁面變更會立即儲存',
+      hint: '拖曳頁面可調整順序。選取一頁後，新加入的頁面會放在它後面。',
+      pageLabel: '第 {number} 頁',
+      missing: '缺頁',
+      moveEarlier: '往前移',
+      moveLater: '往後移',
+      delete: '刪除頁面',
+      removeMissing: '移除缺頁',
+      deleteTitle: '刪除頁面',
+      deleteConfirm: '刪除',
+      deleteQuestion: '要刪除這一頁和它的圖檔嗎？',
+      removeMissingQuestion: '要把這個缺頁從清單移除嗎？',
+      empty: '這個來源還沒有頁面。',
+      unlistedTitle: '未排入',
+      unlistedHelp: '這些圖片在來源資料夾裡，但不在閱讀順序中。',
+      addToList: '加到最後',
+      reload: '重新載入頁面',
+      errors: {
+        load: '載入頁面失敗',
+        save: '儲存頁面順序失敗',
+        add: '加入頁面失敗',
+        delete: '刪除頁面失敗',
+        direction: '變更翻頁方向失敗',
+        conflict: '頁面清單在載入後被改過了，請重新載入後再編輯。'
       }
     },
     conversion: {

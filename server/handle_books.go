@@ -342,6 +342,9 @@ func (h *bookHandlers) findDuplicateBooks(w http.ResponseWriter, r *http.Request
 			h.Warn("failed to get source for book", "book_id", b.ID(), "error", err)
 			continue
 		}
+		if !source.HoldsText() {
+			continue
+		}
 		meta := source.GetMeta()
 		md5Groups[meta.MD5Hash] = append(md5Groups[meta.MD5Hash], b.ID())
 	}

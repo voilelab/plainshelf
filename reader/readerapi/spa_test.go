@@ -84,6 +84,20 @@ func TestSPAServesInAppRoutes(t *testing.T) {
 	}
 }
 
+func TestSPARoutesOmitV2Runtime(t *testing.T) {
+	boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID}
+
+	for _, path := range []string{"/", "/reader/" + testBookID} {
+		body := serveSPA(t, boot, path).Body.String()
+		if strings.Contains(body, "/wails/") {
+			t.Errorf("%s: unexpected Wails script in the shell:\n%s", path, body)
+		}
+		if !strings.Contains(body, "window.__PLAINSHELF_READER__") {
+			t.Errorf("%s: boot config missing:\n%s", path, body)
+		}
+	}
+}
+
 func TestSPAServesAssetsUntouched(t *testing.T) {
 	response := serveSPA(t, readerapi.BootConfig{}, "/assets/app.js")
 	if response.Code != http.StatusOK {

@@ -24,8 +24,12 @@ import with `Cannot read properties of undefined (reading 'getItem')`. The unit
 suite passes on Node.js 22, which CI runs, and on 23; it fails on 26. Node.js 24
 and 25 have not been tried.
 
-Desktop development also needs the
-[Wails platform dependencies](https://wails.io/docs/gettingstarted/installation).
+The desktop app and the standalone reader are both built with Wails v3, which
+links GTK 4 and WebKitGTK 6.0 through cgo on Linux whenever the `desktop` or
+`reader` module compiles, so even their `go test` and `golangci-lint` need them
+there (`libgtk-4-dev` and
+`libwebkitgtk-6.0-dev` on Ubuntu 24.04); see the
+[Wails v3 installation guide](https://v3.wails.io/getting-started/installation/).
 Android development has [additional prerequisites](android.md).
 
 ## Install dependencies
@@ -88,7 +92,7 @@ record it in the allowlist at the top of `frontend/scripts/check-exports.mjs`.
 Every frontend build, the Wasm demo's included, also emits
 `licenses/third-party.txt` into its output directory with
 `rollup-plugin-license`: the license text of every npm package the bundle
-actually contains, linked from Settings → About. It does not see inlined icons,
+actually contains, linked from Settings → System → About. It does not see inlined icons,
 fonts, Android native libraries or data a package licenses separately from its
 code, so those keep hand-maintained notices in `frontend/public/licenses/`.
 
@@ -103,7 +107,8 @@ actually verify. It is not part of the checks above.
 
 Dependency vulnerability scanning is CI-only and not in the table either.
 `govulncheck ./...` runs in each of the three Go modules under both `GOOS=linux`
-and `GOOS=darwin`, and gates the merge; npm advisories come from GitHub's
+and `GOOS=darwin`, and gates the merge. The desktop and reader darwin scans run on
+macOS runners, because Wails v3 cannot load for darwin without cgo; npm advisories come from GitHub's
 Dependabot alerts instead of a CI job. To reproduce a `govulncheck` failure
 locally, install it with a Go at least as new as the one `go.mod` targets — built by an older Go it
 fails while loading packages, with `requires newer Go version`, before it scans
@@ -136,8 +141,8 @@ depends on stay in sync.
 just run-desktop
 ```
 
-On macOS the desktop app's **read** action opens the standalone reader in its own
-window (it shells out to it). To test against the reader you are developing rather
+The desktop app's **read** action opens the standalone reader in its own
+window (it shells out to it). On macOS, to test against the reader you are developing rather
 than the brew-installed one, build it first with `just build-reader`; `just
 run-desktop` then auto-detects `reader/build/bin/PlainShelfReader.app` and opens
 reads with it. Override the target explicitly with `just run-desktop
@@ -146,12 +151,28 @@ path/name is launched via `open -a`); an already-set `PLAINSHELF_READER_APP` tak
 precedence. Because the dev and brew readers share a bundle id, keep only the one
 you want registered with LaunchServices if `open -a` activates the wrong copy.
 
-Create a release-style desktop build with `just build-desktop`.
+On Windows and Linux the **read** action starts the reader executable directly,
+without waiting for it to exit. It uses `PLAINSHELF_READER_APP` when set (the
+executable's path), otherwise a `PlainShelfReader` executable next to the
+desktop executable, otherwise `PlainShelfReader` on `PATH`. Build one with
+`(cd reader && go build -o PlainShelfReader .)` (`PlainShelfReader.exe` on
+Windows). Without one, reading falls back to the in-app reader with a message.
+
+`just run-desktop` is a plain `go run .`: Wails v3 has no zero-config `wails
+dev`, so a frontend change needs `npm --prefix frontend run build` and a
+restart. Create a release-style desktop build with `just build-desktop`, which
+runs `go tool wails3 task package:darwin` from `desktop/Taskfile.yml`.
 
 The standalone reader accepts `-book`, `-shelf`, and `-section` using Go's flag
 syntax. String flags consume the next argument as their value, even if it begins
 with `-`. Parsing errors stop startup before the window opens. Omit `-section` or
 use a negative value to resume saved progress; `-section 0` opens the first section.
+
+Only one reader process runs at a time. A second launch, such as the desktop's
+`open -n` read action, forwards its arguments to the running reader and exits;
+the running reader parses them with the same flags, checks that `-book` names a
+folder containing `book.json`, and replaces the open book with it. A forwarded
+path that is not a book package shows an error and leaves the current book open.
 
 ## Android app
 

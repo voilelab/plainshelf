@@ -65,9 +65,23 @@ deployment, review [Local Shelf File Source](configuring-local-shelf.md).
 
 ## 3. Add a book
 
-Open the library, choose **Import**, and select a `.txt`, `.md` or `.epub` file.
+Open the library, choose **Import**, and select a `.txt`, `.md`, `.epub` or `.cbz` file.
 You can then edit its metadata, add a cover, place it in a folder, and open the
 reader.
+
+In the macOS desktop app you can select or drop several files at once, and
+switch to another app while they import. When an import of two or more books, or
+an import of shelves from another device's LAN share, finishes while PlainShelf
+is in the background, macOS shows a notification with how many were added and
+how many failed; clicking it brings PlainShelf back. macOS asks for permission
+the first time, and if you decline, imports carry on without notifications. Turn
+them off under **Settings → Import & covers → Notify when an import finishes**.
+
+The book detail page shows the current source's size, including `source.txt`
+and all files in its `assets/` directory. Other sources, metadata and the cover
+are excluded. Images sources show their listed page count instead of line and
+character counts. Size is measured when opening the detail page, including on
+read-only shelves; if it cannot be measured, the size row is hidden.
 
 A Markdown book's detail page also lists the chapters its source splits into,
 the same H2 headings the reader navigates by. Selecting one opens the reader at
@@ -90,6 +104,9 @@ such as `·` and `・` match a space. It does not search book contents.
 An EPUB is converted to text as it is imported; see
 [EPUB import](epub-import.md) for what is kept, what is dropped, and how to
 choose the output layout.
+
+A CBZ is extracted into an ordered image source; see [CBZ import](cbz-import.md)
+for supported images, metadata, and limits.
 
 PlainShelf creates a `.bookpkg` directory in the shelf and assigns a stable book
 ID. Renaming the title or moving the book between folders does not change that

@@ -96,6 +96,8 @@ type lanShare struct {
 	startErr, saveErr string
 
 	shared atomic.Pointer[map[string]bool]
+
+	onChange atomic.Pointer[func(LANShareStatus)]
 }
 
 func newLANShare(app *server.App, dataRoot, shelvesConfigPath string) *lanShare {
@@ -228,7 +230,35 @@ func (s *lanShare) stop() {
 	s.close()
 }
 
+func (s *lanShare) watch(fn func(LANShareStatus)) {
+	s.onChange.Store(&fn)
+}
+
+func (s *lanShare) changed() {
+	fn := s.onChange.Load()
+	if fn == nil {
+		return
+	}
+	st, err := s.status()
+	if err != nil {
+		log.Println("Failed to read LAN share status:", err)
+		return
+	}
+	(*fn)(st)
+}
+
+func (s *lanShare) disable() error {
+	defer s.changed()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.close()
+	next := s.conf
+	next.Enabled = false
+	return s.applyThenSave(next)
+}
+
 func (s *lanShare) apply(params LANShareParams) (LANShareStatus, error) {
+	defer s.changed()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -330,6 +360,7 @@ func (s *lanShare) statusLocked(shelves *desktopShelvesConfig) LANShareStatus {
 }
 
 func (s *lanShare) rotateToken() (LANShareStatus, error) {
+	defer s.changed()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, err := server.RotateDAVExportToken(s.tokenFile); err != nil {
@@ -343,6 +374,7 @@ func (s *lanShare) rotateToken() (LANShareStatus, error) {
 }
 
 func (s *lanShare) forgetShelf(shelfID string) error {
+	defer s.changed()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !slices.Contains(s.conf.ShelfIDs, shelfID) {

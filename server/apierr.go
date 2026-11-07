@@ -48,7 +48,7 @@ var apiErrorTable = []struct {
 	{shelf.ErrInvalidBookFormat, apiError{
 		code:    "INVALID_BOOK_FORMAT",
 		status:  http.StatusBadRequest,
-		message: `format must be "txt" or "md"`,
+		message: `format must be "txt", "md" or "images"`,
 	}},
 	{shelf.ErrIgnoredFolderName, apiError{
 		code:    codeIgnoredFolderName,
@@ -111,6 +111,31 @@ var apiErrorTable = []struct {
 		code:    "SOURCE_NOT_FOUND",
 		status:  http.StatusNotFound,
 		message: "source not found",
+	}},
+	{shelf.ErrInvalidPageList, apiError{
+		code:    "INVALID_PAGE_LIST",
+		status:  http.StatusBadRequest,
+		message: "every page must name an image file directly inside assets/",
+	}},
+	{shelf.ErrInvalidPageDirection, apiError{
+		code:    "INVALID_PAGE_DIRECTION",
+		status:  http.StatusBadRequest,
+		message: `page_direction must be "ltr" or "rtl", and "rtl" only on an images source`,
+	}},
+	{shelf.ErrNotImageSource, apiError{
+		code:    "NOT_IMAGE_SOURCE",
+		status:  http.StatusConflict,
+		message: "source is not an images source",
+	}},
+	{shelf.ErrPageListConflict, apiError{
+		code:    "PAGE_LIST_CONFLICT",
+		status:  http.StatusConflict,
+		message: "the page list changed since it was read; reload it and try again",
+	}},
+	{shelf.ErrInvalidPagePosition, apiError{
+		code:    "INVALID_PAGE_POSITION",
+		status:  http.StatusBadRequest,
+		message: "page position is outside the page list",
 	}},
 	{shelf.ErrInvalidAssetName, apiError{
 		code:    "INVALID_ASSET_NAME",

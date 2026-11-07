@@ -33,11 +33,15 @@
           "created_at": "2025-01-02T03:04:05Z",
           "comment": "",
           "format": "",
+          "page_direction": "",
           "md5_hash": "",
           "has_content": true,
           "line_count": 0,
           "char_count": 0,
-          "assets": []
+          "assets": [],
+          "pages": [],
+          "unlisted": [],
+          "size_bytes": 18
         }
       ]
     }

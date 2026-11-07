@@ -84,6 +84,16 @@ export const CONTRACTS = [
       'horizontal drag to the reader, which turns the chapter instead of scrolling the code.'
   },
   {
+    name: 'a zoomed comic page pans sideways',
+    file: 'src/features/reader/components/ComicReaderView.vue',
+    selector: '.comic-viewport',
+    property: 'touch-action',
+    must: /\bpan-x\b/,
+    why:
+      'Fit width and zoom make a page wider than the screen. Without pan-x a horizontal drag ' +
+      'cannot scroll the page, and the left or right part of it stays out of reach on touch.'
+  },
+  {
     name: 'toolbar controls stay thumb-sized',
     file: 'src/features/reader/components/MobileReaderView.vue',
     selector: '.mobile-reader-tool',

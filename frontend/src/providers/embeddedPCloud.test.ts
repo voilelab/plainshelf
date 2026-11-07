@@ -232,7 +232,14 @@ describe('Go offline downloads', () => {
     await mod.openEmbeddedPCloudShelf(entry);
     const reader = new mod.EmbeddedPCloudReader();
     expect(isWritableProvider(reader)).toBe(false);
-    const book = { meta: { id: 'b', title: 'Book', authors: [], language: 'en', format: 'txt' }, folder: [], download_state: 'downloaded' };
+    const pages = { pages: [{ name: 'random.png', missing: false }, { name: 'lost.png', missing: true }], unlisted: [] };
+    localFetch.mockResolvedValueOnce(Response.json(pages));
+    expect(await reader.getSourcePages('b', 'pages')).toEqual(pages);
+    expect(localFetch.mock.lastCall?.[0]).toBe('https://localhost/__plainshelf_local/api/shelves/pcloud/books/b/sources/pages/pages');
+    localFetch.mockResolvedValueOnce(new Response('image', { headers: { 'Content-Type': 'image/png' } }));
+    expect(await (await reader.getSourceAsset('b', 'pages', 'random.png')).text()).toBe('image');
+
+    const book = { meta: { id: 'b', title: 'Book', authors: [], language: 'en', format: 'images' }, folder: [], download_state: 'downloaded' };
     localFetch.mockResolvedValueOnce(Response.json(book));
     expect(await reader.getDownloadState('b')).toBe('downloaded');
     localFetch.mockResolvedValueOnce(Response.json({ book }));

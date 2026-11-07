@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { comicReadingPercent } from '@/utils/comicProgress';
 import { resolveReadingFormat } from '@/utils/bookFormat';
 import { buildMarkdownChapterList, type MarkdownChapterListItem } from '@/utils/markdownChapters';
 import type { Book, ReadingProgress } from '@/types/book';
@@ -44,10 +45,13 @@ export function useBookDetail(bookID: () => string) {
 
       const format = resolveReadingFormat(currentSourceData?.format, bookData.format);
       const needsProgressContentLength =
-        progressData.percent === undefined && progressData.char_offset > 0;
+        format !== 'images' && progressData.percent === undefined && progressData.char_offset > 0;
       const bookContent = () =>
         provider.getBookContent(currentBookID).then(({ content }) => content);
       const sourceID = bookData.current_source ?? '';
+      const pageList = format === 'images' && sourceID
+        ? await provider.getSourcePages(currentBookID, sourceID).catch(() => null)
+        : null;
       const contentText =
         needsProgressContentLength || format === 'md'
           ? await (sourceID
@@ -57,10 +61,17 @@ export function useBookDetail(bookID: () => string) {
           : null;
 
       book.value = bookData;
-      progress.value = progressData;
+      progress.value = format === 'images'
+        ? {
+            ...progressData,
+            percent: pageList ? comicReadingPercent(progressData.char_offset, pageList.pages.length) : undefined
+          }
+        : progressData;
       progressContentLength.value =
         needsProgressContentLength && contentText !== null ? contentText.length : null;
-      currentSource.value = currentSourceData;
+      currentSource.value = currentSourceData
+        ? { ...currentSourceData, page_list: pageList ?? undefined }
+        : null;
       chapters.value = readChapters(format, contentText);
     } catch (err) {
       book.value = null;

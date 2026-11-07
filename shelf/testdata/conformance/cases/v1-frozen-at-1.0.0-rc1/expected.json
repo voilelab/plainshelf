@@ -43,11 +43,15 @@
           "created_at": "2026-03-15T08:30:00Z",
           "comment": "initial import",
           "format": "md",
+          "page_direction": "",
           "md5_hash": "d389878279d739d436074bb274e643ba",
           "has_content": true,
           "line_count": 9,
           "char_count": 102,
-          "assets": []
+          "assets": [],
+          "pages": [],
+          "unlisted": [],
+          "size_bytes": 102
         }
       ]
     }

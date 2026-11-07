@@ -13,10 +13,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
-func TestShelfNewShelf(t *testing.T) {
-	_ = newTestShelf(t, &ShelfConf{LibRoot: path.Join("testdata", "lib")})
-}
-
 func TestOpenLocalShelfReturnsOpenRootError(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := path.Join(tmpDir, "not-a-directory")

@@ -19,7 +19,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-const conformanceDatasetVersion = 4
+const conformanceDatasetVersion = 6
 
 const conformanceRoot = "testdata/conformance"
 
@@ -71,16 +71,20 @@ type conformanceBook struct {
 }
 
 type conformanceSource struct {
+	SizeBytes     *int64   `json:"size_bytes,omitzero"`
 	ID            string   `json:"id"`
 	SchemaVersion int      `json:"schema_version"`
 	CreatedAt     string   `json:"created_at"`
 	Comment       string   `json:"comment"`
 	Format        string   `json:"format"`
+	PageDirection string   `json:"page_direction"`
 	MD5Hash       string   `json:"md5_hash"`
 	HasContent    bool     `json:"has_content"`
 	LineCount     int      `json:"line_count"`
 	CharCount     int      `json:"char_count"`
 	Assets        []string `json:"assets"`
+	Pages         []Page   `json:"pages"`
+	Unlisted      []string `json:"unlisted"`
 }
 
 type conformanceBookCache struct {
@@ -399,20 +403,42 @@ func readConformanceSources(t *testing.T, s *Shelf, book *Book) []conformanceSou
 		}
 
 		meta := source.GetMeta()
+		pages, unlisted := readConformancePages(t, source)
+		var sizeBytes *int64
+		if size, err := source.SizeBytes(); err == nil {
+			sizeBytes = &size
+		}
 		observed = append(observed, conformanceSource{
 			ID:            source.ID(),
+			SizeBytes:     sizeBytes,
 			SchemaVersion: meta.SchemaVersion,
 			CreatedAt:     formatConformanceTime(meta.CreatedAt),
 			Comment:       meta.Comment,
 			Format:        meta.Format,
+			PageDirection: meta.PageDirection,
 			MD5Hash:       meta.MD5Hash,
 			HasContent:    hasContent,
 			LineCount:     meta.LineCount,
 			CharCount:     meta.CharCount,
 			Assets:        readConformanceAssets(t, s, source),
+			Pages:         pages,
+			Unlisted:      unlisted,
 		})
 	}
 	return observed
+}
+
+func readConformancePages(t *testing.T, source *Source) ([]Page, []string) {
+	t.Helper()
+
+	if source.HoldsText() {
+		return []Page{}, []string{}
+	}
+	list, err := source.Pages()
+	if err != nil {
+		t.Fatalf("Pages(%s): %v", source.ID(), err)
+	}
+	return list.Pages, list.Unlisted
 }
 
 func readConformanceAssets(t *testing.T, s *Shelf, source *Source) []string {

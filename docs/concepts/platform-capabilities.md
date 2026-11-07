@@ -169,7 +169,7 @@ in one place instead of spread over the provider.
 | Host | `shelves` | Files and folders | `openExternalUrl` |
 |---|---|---|---|
 | Server (browser) | absent: shelves come only from the YAML file | absent | browser `window.open` |
-| Desktop (Wails) | Wails bindings | Wails bindings | Wails `BrowserOpenURL` |
+| Desktop (Wails) | Wails bindings | Wails bindings | Wails `Browser.OpenURL` |
 | Android (Capacitor) | absent from the shared desktop management form; the mobile entry editor uses its existing Go plugin | Documents export, storage estimate, blob covers | Capacitor `Browser` (browser preview uses `window.open`) |
 | wasm demo | absent in the shared app; the host toolbar manages the engine | absent | `window.open` |
 
@@ -178,6 +178,28 @@ capability, as [Who holds the shelf list](shelf-sources.md#who-holds-the-shelf-l
 requires: `server.App`'s handler has no shelf-management route, so "can this
 client manage shelves" is answered by whether `shelves` is present, never by a
 server field.
+
+### Reaching the Wails bindings
+
+Every frontend call into Go goes through `frontend/src/api/wailsBindings.ts`;
+nothing else imports `@wailsio/runtime`. Both apps run on Wails v3, and the
+module calls `Call.ByName("main.<App>.<Method>")` from `@wailsio/runtime`,
+which it loads with a dynamic import so the web and mobile bundles never
+contain it; `main.ts` loads it before anything else boots,
+because v3 reports the page ready (`WindowRuntimeReady`) only once the runtime
+runs.
+The page learns which Wails app it runs in from
+a marker the Go side injects into `index.html`: `window.__PLAINSHELF_DESKTOP__`
+from `desktop/assets.go`, `window.__PLAINSHELF_READER__` from
+`reader/readerapi/spa.go`. `isWailsRuntime()` is true for either marker or for
+`?desktop-shell-preview=1`. Both apps also answer an in-app route such as
+`/books` with that page, so a reload keeps the route; neither adds a Wails
+script tag, since the runtime comes from the bundle. A call made inside the
+right app whose method Go does not bind rejects with an error naming
+`App.Method`, since the method list is only known to Go, so a binding lost in a
+migration fails loudly instead of disabling the feature. The mobile stack may
+not import this module or `src/api/desktop.ts`; `check-boundaries` enforces it,
+and also that `@wailsio/runtime` is only ever imported dynamically from here.
 
 ---
 

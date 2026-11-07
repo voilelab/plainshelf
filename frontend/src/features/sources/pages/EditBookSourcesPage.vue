@@ -81,13 +81,16 @@
 
       <div class="topbar-spacer"></div>
 
-      <p v-if="saveSuccess" class="topbar-message success" role="status">{{ saveSuccess }}</p>
-      <p v-else-if="isDirty" class="topbar-message dirty">{{ t('sources.editor.dirty') }}</p>
-      <p v-else class="topbar-message">{{ t('sources.editor.clean') }}</p>
+      <template v-if="!isImagesSource">
+        <p v-if="saveSuccess" class="topbar-message success" role="status">{{ saveSuccess }}</p>
+        <p v-else-if="isDirty" class="topbar-message dirty">{{ t('sources.editor.dirty') }}</p>
+        <p v-else class="topbar-message">{{ t('sources.editor.clean') }}</p>
 
-      <button class="button primary" type="button" :disabled="disableSave" @click="onSave">
-        {{ saving ? t('sources.page.saving') : isDirty ? t('sources.page.saveDirty') : t('sources.page.save') }}
-      </button>
+        <button class="button primary" type="button" :disabled="disableSave" @click="onSave">
+          {{ saving ? t('sources.page.saving') : isDirty ? t('sources.page.saveDirty') : t('sources.page.save') }}
+        </button>
+      </template>
+      <p v-else class="topbar-message">{{ t('sources.pages.autosave') }}</p>
     </header>
 
     <nav class="mobile-pane-tabs" :aria-label="t('sources.page.panelsLabel')">
@@ -132,6 +135,17 @@
           <p>{{ loadError }}</p>
           <button class="button" type="button" @click="fetchInitial">{{ t('common.retry') }}</button>
         </div>
+        <PageListEditor
+          v-else-if="isImagesSource && activeSourceId"
+          :book-id="bookId"
+          :source-id="activeSourceId"
+          :initial-direction="activeSourceMeta?.page_direction === 'rtl' ? 'rtl' : 'ltr'"
+          :writes-enabled="writesEnabled"
+          :is-current="activeSourceId === book?.current_source"
+          :setting-current="settingCurrent"
+          @changed="reloadSourceMeta"
+          @set-current="onSetCurrentSource"
+        />
         <template v-else>
           <SourceFormatActions
             v-if="activeSourceId"
@@ -201,6 +215,7 @@ import {
   type MarkdownEditorSection
 } from '@/utils/markdownChapters';
 import ChapterOutline from '@/features/sources/components/ChapterOutline.vue';
+import PageListEditor from '@/features/sources/components/PageListEditor.vue';
 import SourceConversionModal, {
   type SourceConversionKind
 } from '@/features/sources/components/SourceConversionModal.vue';
@@ -258,6 +273,7 @@ const {
   disableSave,
   fetchInitial,
   loadSource,
+  reloadSourceMeta,
   save: saveSource,
   setCurrentSource: onSetCurrentSource,
   createSource,
@@ -286,6 +302,7 @@ const pendingMergeChapterIndex = ref<number | null>(null);
 const isChapterFocused = ref(false);
 const caretOffset = ref(0);
 
+const isImagesSource = computed(() => activeSourceMeta.value?.format === 'images');
 const markdownSections = computed(() =>
   activeFormat.value === 'md'
     ? buildMarkdownEditorSections(content.value)

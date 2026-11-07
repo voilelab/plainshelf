@@ -6,7 +6,6 @@ import type {
   BookUpdateRequest,
   NsfwFolderRule,
   PaginatedBooks,
-  TrashedBook,
   TrashedBookListing,
 } from '@/types/book';
 import {

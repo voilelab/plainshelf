@@ -392,6 +392,7 @@ export function useSourceEditorSession(
     disableSave,
     fetchInitial,
     loadSource,
+    reloadSourceMeta: () => reloadSourceMeta(),
     save,
     setCurrentSource,
     createSource,

@@ -1,4 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router';
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    shelfOptional?: boolean;
+    backTo?: { path: string; query?: Record<string, string> };
+  }
+}
 import MainLayout from '@/layouts/MainLayout.vue';
 import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
@@ -13,8 +20,7 @@ const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
 const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
 const AdminLogsPage = () => import('@/features/settings/pages/AdminLogsPage.vue');
 const SettingsPage = () => import('@/features/settings/pages/SettingsPage.vue');
-const MobileShelvesPage = () => import('@/features/mobile/pages/MobileShelvesPage.vue');
-const MobileConnectPage = () => import('@/features/mobile/pages/MobileConnectPage.vue');
+const MobileShelfEditPage = () => import('@/features/mobile/pages/MobileShelfEditPage.vue');
 const ReaderPage = () => import('@/features/reader/pages/ReaderView.vue');
 const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
 const NotFoundPage = () => import('@/pages/NotFoundPage.vue');
@@ -34,27 +40,14 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'not-found'
 ]);
 
+const MANAGE_SHELVES_BACK = { path: '/settings', query: { tab: 'shelves' } };
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
       redirect: '/home'
-    },
-    {
-      path: '/connect',
-      name: 'mobile-shelves',
-      component: MobileShelvesPage
-    },
-    {
-      path: '/connect/new',
-      name: 'mobile-shelf-add',
-      component: MobileConnectPage
-    },
-    {
-      path: '/connect/:entryId',
-      name: 'mobile-shelf-edit',
-      component: MobileConnectPage
     },
     {
       path: '/',
@@ -136,7 +129,20 @@ const router = createRouter({
         {
           path: 'settings',
           name: 'settings',
-          component: SettingsPage
+          component: SettingsPage,
+          meta: { shelfOptional: true }
+        },
+        {
+          path: 'settings/shelves/new',
+          name: 'mobile-shelf-add',
+          component: MobileShelfEditPage,
+          meta: { shelfOptional: true, backTo: MANAGE_SHELVES_BACK }
+        },
+        {
+          path: 'settings/shelves/:entryId',
+          name: 'mobile-shelf-edit',
+          component: MobileShelfEditPage,
+          meta: { shelfOptional: true, backTo: MANAGE_SHELVES_BACK }
         },
         {
           path: ':pathMatch(.*)*',

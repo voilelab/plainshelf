@@ -1,15 +1,13 @@
 import type { DesktopQRShelf, DesktopQRResult } from '@/api/desktop';
 import { getPlatformCapabilities } from '@/providers/platformCapabilities';
+import { notifyImportFinished } from '@/utils/importNotification';
 import type { DesktopShelfDetails } from '@/api/desktop';
 import { computed, ref, watch } from 'vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useI18n } from '@/i18n';
 import { isAbsoluteShelfPath } from '@/features/settings/utils/shelfPath';
-import {
-  shelfSourceCheckMessageKey,
-  shelfSourceNeedsSecret,
-  type ShelfSourceKind
-} from '@/utils/shelfSourceCheck';
+import { useSourceCheck } from '@/composables/useSourceCheck';
+import { shelfSourceCheckMessageKey, type ShelfSourceKind } from '@/utils/shelfSourceCheck';
 
 interface ShelfRef {
   id: string;
@@ -17,6 +15,7 @@ interface ShelfRef {
 }
 
 type ShelfLocationMode = 'new' | 'existing' | 'remote' | 'qr';
+type AddShelfStep = 'pick' | 'form';
 
 export function useShelfManagement() {
   const { t } = useI18n();
@@ -94,6 +93,16 @@ export function useShelfManagement() {
   const newShelfSourceURL = ref('');
   const newShelfSourceUsername = ref('');
   const newShelfSourceSecret = ref('');
+  const addShelfStep = ref<AddShelfStep>('pick');
+  const remoteCheck = useSourceCheck(
+    {
+      kind: newShelfSourceKind,
+      url: newShelfSourceURL,
+      username: newShelfSourceUsername,
+      secret: newShelfSourceSecret
+    },
+    (params) => getPlatformCapabilities().shelves!.checkShelfSource!(params)
+  );
   const addingShelf = ref(false);
   const qrText = ref('');
   const qrShelves = ref<DesktopQRShelf[]>([]);
@@ -155,16 +164,13 @@ export function useShelfManagement() {
   });
 
   const canSubmitAddShelf = computed(() => {
+    if (addShelfStep.value === 'pick') return false;
     if (newShelfLocationMode.value === 'qr') return qrShelves.value.length > 0;
     if (newShelfName.value.trim().length === 0) {
       return false;
     }
     if (newShelfLocationMode.value === 'remote') {
-      return (
-        newShelfSourceURL.value.trim().length > 0 &&
-        (!shelfSourceNeedsSecret(newShelfSourceKind.value, sourceUsername()) ||
-          newShelfSourceSecret.value.trim().length > 0)
-      );
+      return remoteCheck.ready.value;
     }
     const dir = newShelfEffectiveDirectory.value;
     return dir.length > 0 && isAbsoluteShelfPath(dir);
@@ -256,6 +262,7 @@ export function useShelfManagement() {
     qrShelves.value = [];
     qrResults.value = [];
     newShelfName.value = '';
+    addShelfStep.value = 'pick';
     newShelfLocationMode.value = 'new';
     newShelfDirectory.value = '';
     newShelfReadOnly.value = false;
@@ -263,6 +270,7 @@ export function useShelfManagement() {
     newShelfSourceURL.value = '';
     newShelfSourceUsername.value = '';
     newShelfSourceSecret.value = '';
+    remoteCheck.reset();
     addShelfError.value = '';
     shelfIDPreviewToken++;
     newShelfIDPreview.value = '';
@@ -286,6 +294,20 @@ export function useShelfManagement() {
   function openAddShelfModal(): void {
     resetAddShelfForm();
     showAddShelfModal.value = true;
+  }
+
+  function pickShelfLocation(mode: ShelfLocationMode): void {
+    newShelfLocationMode.value = mode;
+    addShelfError.value = '';
+    addShelfStep.value = 'form';
+  }
+
+  function backToShelfLocations(): void {
+    if (addingShelf.value) {
+      return;
+    }
+    addShelfError.value = '';
+    addShelfStep.value = 'pick';
   }
 
   function closeAddShelfModal(): void {
@@ -325,6 +347,11 @@ export function useShelfManagement() {
         qrText.value = '';
         qrShelves.value = [];
         qrResults.value = results;
+        notifyImportFinished(
+          'shelves',
+          results.filter((r) => r.status === 'added').length,
+          results.filter((r) => r.status !== 'added' && r.status !== 'exists').length
+        );
         await fetchShelves();
         return;
       }
@@ -358,10 +385,7 @@ export function useShelfManagement() {
       username: sourceUsername(),
       secret: newShelfSourceSecret.value.trim()
     };
-    const check = await platform.shelves!.checkShelfSource!(remote);
-    const messageKey = shelfSourceCheckMessageKey(check);
-    if (messageKey) {
-      addShelfError.value = t(messageKey);
+    if (!(await remoteCheck.ensureChecked())) {
       return;
     }
     await platform.shelves!.addShelf!({
@@ -486,6 +510,10 @@ export function useShelfManagement() {
     showAddShelfModal,
     newShelfName,
     newShelfLocationMode,
+    addShelfStep,
+    pickShelfLocation,
+    backToShelfLocations,
+    remoteCheck,
     newShelfDirectory,
     newShelfDirectoryError,
     newShelfReadOnly,

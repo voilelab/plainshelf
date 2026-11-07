@@ -4,37 +4,46 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/preferences"
+	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
+	"github.com/voilelab/plainshelf/internal/readingstats"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/reader/readerapi"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type ReaderApp struct {
-	ctx     context.Context
+	native  nativeUI
 	library *readerapi.Library
 
-	shelfID string
+	shelfID    string
+	standalone bool
 
 	launchSection int
 
 	progressStore *readingprogress.Store
+	historyStore  *readhistory.Store
+	statsStore    *readingstats.Store
+	preferences   *preferences.Store
 
 	promptedForBook bool
+	openMu          sync.Mutex
 
 	progressStager *readingclose.Stager
+	closeOnce      sync.Once
 }
 
-func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
-	shelfID = strings.TrimSpace(shelfID)
-	if shelfID == "" {
-		shelfID = readerapi.ShelfID
+func NewReaderApp(native nativeUI, logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
+	app := &ReaderApp{
+		native:  native,
+		library: readerapi.NewLibrary(logger),
 	}
-
-	app := &ReaderApp{library: readerapi.NewLibrary(logger), shelfID: shelfID, launchSection: launchSection}
+	app.setLaunch(shelfID, launchSection)
 
 	if path, err := readingprogress.DefaultProgressPath(); err != nil {
 		log.Println("reading progress will not be persisted:", err)
@@ -42,17 +51,31 @@ func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *Re
 		app.progressStore = readingprogress.NewStore(path)
 	}
 
+	historyPath, err := readhistory.DefaultPath()
+	if err != nil {
+		log.Println("read history will not be persisted:", err)
+	}
+	app.historyStore = readhistory.NewStore(historyPath)
+
+	statsPath, err := readingstats.DefaultPath()
+	if err != nil {
+		log.Println("reading stats will not be persisted:", err)
+	}
+	app.statsStore = readingstats.NewStore(statsPath)
+
+	preferencesPath, err := preferences.DefaultPath()
+	if err != nil {
+		log.Println("preferences will not be persisted:", err)
+	}
+	app.preferences = preferences.NewStore(preferencesPath, preferences.AppReader)
+
 	app.progressStager = readingclose.NewStager(app.progressStore, readingclose.DefaultTimeout)
 
 	return app
 }
 
-func (a *ReaderApp) Startup(ctx context.Context) {
-	a.ctx = ctx
-}
-
-func (a *ReaderApp) beforeClose(context.Context) (prevent bool) {
-	a.progressStager.PersistOnClose()
+func (a *ReaderApp) beforeClose(ctx context.Context) (prevent bool) {
+	a.Shutdown(ctx)
 	return false
 }
 
@@ -60,10 +83,11 @@ func (a *ReaderApp) StageReadingProgress(shelfID, bookID string, offset, at int6
 	a.progressStager.Stage(shelfID, bookID, offset, at)
 }
 
-// Wails v2.16.0 WailsContext.m presents macOS directory dialogs with
-// beginSheetModalForWindow:self.mainWindow, so the window must exist first.
 func (a *ReaderApp) DomReady(context.Context) {
-	if a.promptedForBook || a.library.BookID() != "" {
+	a.openMu.Lock()
+	hasBook := a.library.BookID() != ""
+	a.openMu.Unlock()
+	if a.promptedForBook || hasBook {
 		return
 	}
 	a.promptedForBook = true
@@ -74,19 +98,18 @@ func (a *ReaderApp) DomReady(context.Context) {
 }
 
 func (a *ReaderApp) Shutdown(context.Context) {
+	a.closeOnce.Do(a.closeInOrder)
+}
+
+func (a *ReaderApp) closeInOrder() {
+	a.progressStager.PersistOnClose()
 	if err := a.library.Close(); err != nil {
 		log.Println("failed to close the open book package:", err)
 	}
 }
 
 func (a *ReaderApp) OpenBookPackage() (string, error) {
-	if a.ctx == nil {
-		return "", nil
-	}
-
-	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "Open a book",
-	})
+	dir, err := a.native.openDirectory("Open a book")
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
@@ -96,29 +119,49 @@ func (a *ReaderApp) OpenBookPackage() (string, error) {
 
 	bookID, err := a.openStandaloneBook(dir)
 	if err != nil {
-		_, dialogErr := wailsruntime.MessageDialog(a.ctx, wailsruntime.MessageDialogOptions{
-			Type:    wailsruntime.ErrorDialog,
-			Title:   "Cannot open this folder",
-			Message: "That folder is not a book package: it has no readable book.json.",
-		})
-		if dialogErr != nil {
-			log.Println("failed to show book-open error dialog:", dialogErr)
-		}
+		a.showNotABook()
 		return "", util.Errorf("%w", err)
 	}
 
-	wailsruntime.WindowReloadApp(a.ctx)
+	a.native.reloadApp()
 	return bookID, nil
 }
 
+func (a *ReaderApp) showNotABook() {
+	err := a.native.showError("Cannot open this folder",
+		"That folder is not a book package: it has no readable book.json.")
+	if err != nil {
+		log.Println("failed to show book-open error dialog:", err)
+	}
+}
+
 func (a *ReaderApp) openStandaloneBook(dir string) (string, error) {
+	return a.openBook(dir, "", noLaunchSection)
+}
+
+func (a *ReaderApp) openBook(dir, shelfID string, section int) (string, error) {
+	a.openMu.Lock()
+	defer a.openMu.Unlock()
+
+	if err := checkBookPackageDir(dir); err != nil {
+		return "", err
+	}
 	bookID, err := a.library.Open(dir)
 	if err != nil {
 		return "", err
 	}
-	a.shelfID = readerapi.ShelfID
-	a.launchSection = noLaunchSection
+	a.setLaunch(shelfID, section)
 	return bookID, nil
+}
+
+func (a *ReaderApp) setLaunch(shelfID string, section int) {
+	shelfID = strings.TrimSpace(shelfID)
+	a.standalone = shelfID == ""
+	if a.standalone {
+		shelfID = readerapi.ShelfID
+	}
+	a.shelfID = shelfID
+	a.launchSection = section
 }
 
 func (a *ReaderApp) BootConfig() readerapi.BootConfig {
@@ -164,4 +207,44 @@ func (a *ReaderApp) WriteReadingProgress(doc string) error {
 		return readingprogress.MergeNewest(disk, incoming)
 	})
 	return err
+}
+
+func (a *ReaderApp) GetPreferences() (map[string]string, error) {
+	return a.preferences.Read()
+}
+
+func (a *ReaderApp) SetPreference(key, value string) error {
+	return a.preferences.Set(key, value)
+}
+
+func (a *ReaderApp) ReadReadHistory() (string, error) {
+	return a.historyStore.Read()
+}
+
+func (a *ReaderApp) RecordReadHistory(shelfKey, bookID string) error {
+	return a.historyStore.Record(shelfKey, bookID)
+}
+
+func (a *ReaderApp) ClearReadHistory(shelfKey string) error {
+	return a.historyStore.Clear(shelfKey)
+}
+
+func (a *ReaderApp) SetReadHistoryLimit(limit int) error {
+	return a.historyStore.SetLimit(limit)
+}
+
+func (a *ReaderApp) ReadReadingStats() (string, error) {
+	return a.statsStore.Read()
+}
+
+func (a *ReaderApp) AddReadingSeconds(key, date string, seconds float64) error {
+	return a.statsStore.Add(a.readingStatsKey(key), date, seconds, time.Now)
+}
+
+func (a *ReaderApp) readingStatsKey(key string) string {
+	bookID := a.library.BookID()
+	if !a.standalone || key != readerapi.ShelfID || bookID == "" {
+		return key
+	}
+	return readingstats.ReaderBookKey(key, bookID)
 }

@@ -31,7 +31,7 @@ describe('findViolations', () => {
         'src/features/reader/components/ReaderSafeHtml.vue':
           "<script setup lang=\"ts\">\nimport SafeHtml from '@/components/SafeHtml.vue';\n</script>\n"
       })
-    ).toEqual([[], [], []]);
+    ).toEqual([[], [], [], [], []]);
   });
 
   // The repository writes named imports across several lines as often as one.
@@ -52,6 +52,8 @@ describe('findViolations', () => {
     ).toEqual([
       ['src/utils/probe.ts imports @capacitor/preferences'],
       ['src/utils/probe.ts imports @/features/reader/utils/renderMarkdownBlocks'],
+      [],
+      [],
       []
     ]);
   });
@@ -77,6 +79,8 @@ describe('findViolations', () => {
     ).toEqual([
       ['src/utils/after.ts imports @capacitor/preferences'],
       ['src/utils/reexport.ts imports @/features/reader/utils/renderMarkdownBlocks'],
+      [],
+      [],
       []
     ]);
   });
@@ -92,7 +96,7 @@ describe('findViolations', () => {
           ''
         ].join('\n')
       })
-    ).toEqual([[], [], []]);
+    ).toEqual([[], [], [], [], []]);
   });
 
   it('keeps the reader and the mobile shell free inside their own side', async () => {
@@ -102,7 +106,7 @@ describe('findViolations', () => {
           "import { renderMarkdownBlocks } from '@/features/reader/utils/renderMarkdownBlocks';\n",
         'src/shells/mobile/index.ts': "import { Preferences } from '@capacitor/preferences';\n"
       })
-    ).toEqual([[], [], []]);
+    ).toEqual([[], [], [], [], []]);
   });
 
   it('honors the runtime.ts exemption without widening it', async () => {
@@ -115,7 +119,7 @@ describe('findViolations', () => {
           ''
         ].join('\n')
       })
-    ).toEqual([['src/providers/runtime.ts imports @capacitor/preferences'], [], []]);
+    ).toEqual([['src/providers/runtime.ts imports @capacitor/preferences'], [], [], [], []]);
   });
 
   it('skips unit tests, which may import anything they exercise', async () => {
@@ -124,7 +128,7 @@ describe('findViolations', () => {
         'src/utils/probe.test.ts':
           "import { renderMarkdownBlocks } from '@/features/reader/utils/renderMarkdownBlocks';\n"
       })
-    ).toEqual([[], [], []]);
+    ).toEqual([[], [], [], [], []]);
   });
 
   // The reader-launch rule: the launch preference lives only in useReaderLaunch,
@@ -141,7 +145,7 @@ describe('findViolations', () => {
           ''
         ].join('\n')
       })
-    ).toEqual([[], [], ['src/features/dashboard/components/RandomBook.vue:2 points a link at /reader/:id']]);
+    ).toEqual([[], [], [], ['src/features/dashboard/components/RandomBook.vue:2 points a link at /reader/:id'], []]);
   });
 
   it('flags a router.push target too, not only a RouterLink', async () => {
@@ -155,7 +159,7 @@ describe('findViolations', () => {
           ''
         ].join('\n')
       })
-    ).toEqual([[], [], ['src/features/library/openReader.ts:3 points a link at /reader/:id']]);
+    ).toEqual([[], [], [], ['src/features/library/openReader.ts:3 points a link at /reader/:id'], []]);
   });
 
   it('lets the launch path, the router and the shells name the route', async () => {
@@ -166,7 +170,7 @@ describe('findViolations', () => {
         'src/shells/reader/openBook.ts': 'export const to = `/reader/${id}`;\n',
         'src/shells/mobile/routerGuard.ts': "export const target = '/reader/' + id;\n"
       })
-    ).toEqual([[], [], []]);
+    ).toEqual([[], [], [], [], []]);
   });
 
   it('does not mistake a comment that names the route for a link', async () => {
@@ -187,6 +191,52 @@ describe('findViolations', () => {
           ''
         ].join('\n')
       })
-    ).toEqual([[], [], []]);
+    ).toEqual([[], [], [], [], []]);
+  });
+
+  it('refuses the Wails bindings to the mobile stack only', async () => {
+    expect(
+      await check({
+        'src/shells/mobile/index.ts': "import { callWails } from '@/api/wailsBindings';\n",
+        'src/api/pcloud/probe.ts': "import { openDesktopReader } from '../desktop';\n",
+        'src/providers/mobileConfig.ts': "import { openDesktopReader } from '../api/desktop';\n",
+        'src/shells/mobile/pages/probe.ts': "import { callWails } from '../../../api/wailsBindings';\n",
+        'src/shells/reader/openBook.ts': "import { callWails } from '@/api/wailsBindings';\n",
+        'src/providers/wailsBookshelfProvider.ts': "import { addDesktopShelf } from '@/api/desktop';\n"
+      })
+    ).toEqual([
+      [],
+      [],
+      [
+        'src/api/pcloud/probe.ts imports ../desktop',
+        'src/providers/mobileConfig.ts imports ../api/desktop',
+        'src/shells/mobile/index.ts imports @/api/wailsBindings',
+        'src/shells/mobile/pages/probe.ts imports ../../../api/wailsBindings'
+      ],
+      [],
+      []
+    ]);
+  });
+
+  it('loads the Wails v3 runtime only dynamically from the bindings', async () => {
+    const results = await check({
+      'src/api/wailsBindings.ts': "type R = typeof import('@wailsio/runtime');\nconst load = () => import('@wailsio/runtime');\n",
+      'src/api/desktop.ts': "const load = () => import('@wailsio/runtime');\n",
+      'src/storage/preferences.ts': "import { Call } from '@wailsio/runtime';\n",
+      'src/shells/reader/index.ts': "import '@wailsio/runtime';\n",
+      'src/providers/runtime.ts': "// '@wailsio/runtime' is not imported here\n"
+    });
+    expect(results.at(-1)).toEqual([
+      'src/api/desktop.ts references @wailsio/runtime',
+      'src/shells/reader/index.ts imports @wailsio/runtime statically',
+      'src/storage/preferences.ts imports @wailsio/runtime statically'
+    ]);
+  });
+
+  it('refuses a static Wails v3 runtime import in the bindings too', async () => {
+    const results = await check({
+      'src/api/wailsBindings.ts': "import { Call } from '@wailsio/runtime';\n"
+    });
+    expect(results.at(-1)).toEqual(['src/api/wailsBindings.ts imports @wailsio/runtime statically']);
   });
 });

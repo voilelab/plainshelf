@@ -1,10 +1,16 @@
 import type { PlatformCapabilities } from './platformCapabilities';
-import type { Router } from 'vue-router';
+import type { RouteLocationRaw, Router } from 'vue-router';
 
 import type { BookshelfProvider } from './bookshelfProvider';
 import type { ShelfInfo } from '@/api/shelves';
 import type { ShelfPicker } from '@/types/shelfPicker';
 import type { DeviceDocumentStorage } from '@/storage/deviceDocument';
+
+export interface ShelfUnavailable {
+  messageKey: string;
+  actionKey: string;
+  fixTo: RouteLocationRaw;
+}
 
 export interface RuntimeShell {
   platform?: PlatformCapabilities;
@@ -13,6 +19,7 @@ export interface RuntimeShell {
   createDeviceDocumentStorage?(path: string): DeviceDocumentStorage;
 
   activeShelfInfo?(): ShelfInfo | null;
+  shelfUnavailable?(): ShelfUnavailable | null;
   loadActiveShelfInfo?(shelf: ShelfInfo): Promise<ShelfInfo>;
 
   createShelfPicker?(): ShelfPicker;

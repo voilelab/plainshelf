@@ -4,9 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import LanSharePanel from './LanSharePanel.vue';
 import { mount } from '#testing/mount';
+import { bindWails, emitWails, unbindWails } from '#testing/wailsRuntime';
 import { setLocale } from '@/i18n';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import type { DesktopLANShareStatus, setDesktopLANShare } from '@/api/desktop';
+
+vi.mock('@wailsio/runtime', () => import('#testing/wailsRuntime'));
 
 type DesktopLANShareParams = Parameters<typeof setDesktopLANShare>[0];
 
@@ -42,17 +45,14 @@ function installBinding(state: DesktopLANShareStatus) {
     return { ...state };
   });
   const getLANShare = vi.fn(async () => ({ ...state }));
-  (window as unknown as { go: unknown }).go = {
-    main: {
-      DesktopApp: { GetLANShare: getLANShare, SetLANShare: setLANShare }
-    }
-  };
+  bindWails({ DesktopApp: { GetLANShare: getLANShare, SetLANShare: setLANShare } });
+  Object.assign(window, { __PLAINSHELF_DESKTOP__: true });
   return { setLANShare, getLANShare };
 }
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) {
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await nextTick();
   }
 }
@@ -68,7 +68,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete (window as unknown as { go?: unknown }).go;
+  unbindWails();
+  delete (window as unknown as { __PLAINSHELF_DESKTOP__?: unknown }).__PLAINSHELF_DESKTOP__;
 });
 
 describe('LanSharePanel', () => {
@@ -118,6 +119,25 @@ describe('LanSharePanel', () => {
       shelfIDs: ['b']
     });
     expect(host.querySelector('[data-testid="lan-share-connect"]')).toBeNull();
+  });
+
+  it('follows a stop made from the menu bar', async () => {
+    const state = offStatus();
+    const { setLANShare } = installBinding(state);
+    const { host } = mount(LanSharePanel);
+    await settle();
+    click(host, 'lan-share-enabled');
+    await settle();
+    expect(host.querySelector('[data-testid="lan-share-connect"]')).not.toBeNull();
+
+    emitWails('lan-share-changed', { ...state, enabled: false, running: false, url: '', token: '' });
+    await settle();
+
+    expect(host.querySelector<HTMLInputElement>('[data-testid="lan-share-enabled"]')?.checked).toBe(
+      false
+    );
+    expect(host.querySelector('[data-testid="lan-share-connect"]')).toBeNull();
+    expect(setLANShare).toHaveBeenCalledTimes(1);
   });
 
   it('shows why the switch did not turn on', async () => {

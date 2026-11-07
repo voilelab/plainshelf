@@ -10,10 +10,9 @@ import type {
   NsfwMarks,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook,
   TrashedBookListing
 } from '@/types/book';
-import type { CreateSourceOptions, SourceMeta } from '@/types/source';
+import type { CreateSourceOptions, PageDirection, SourceMeta, SourcePageList } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 
 export type { DownloadState } from '@/types/book';
@@ -61,6 +60,7 @@ export interface BookshelfReader {
 
   listSources(bookId: string): Promise<SourceMeta[]>;
   getSource(bookId: string, sourceId: string): Promise<SourceMeta>;
+  getSourcePages(bookId: string, sourceId: string): Promise<SourcePageList>;
   getSourceContent(bookId: string, sourceId: string): Promise<string>;
 
   getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob>;
@@ -119,6 +119,10 @@ export interface BookshelfWriter {
   setCurrentSource(bookId: string, sourceId: string): Promise<void>;
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void>;
   refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta>;
+  replaceSourcePages(bookId: string, sourceId: string, md5Hash: string, names: string[]): Promise<SourcePageList>;
+  insertSourcePage(bookId: string, sourceId: string, md5Hash: string, position: number, image: Blob): Promise<SourcePageList>;
+  deleteSourcePage(bookId: string, sourceId: string, md5Hash: string, name: string): Promise<SourcePageList>;
+  setSourcePageDirection(bookId: string, sourceId: string, direction: PageDirection): Promise<SourceMeta>;
 }
 
 export type WritableBookshelfProvider = BookshelfReader & BookshelfWriter;

@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 func TestHistoryNavigationScript(t *testing.T) {
@@ -42,76 +42,95 @@ func TestHistoryNavigationScript(t *testing.T) {
 	}
 }
 
-func TestHistoryMenuAcceleratorFor(t *testing.T) {
+func TestApplicationMenuAccelerators(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		goos string
-		key  string
-		want *keys.Accelerator
+		goos      string
+		label     string
+		wantAccel string
 	}{
-		{
-			name: "mac uses cmd",
-			goos: "darwin",
-			key:  "left",
-			want: keys.CmdOrCtrl("left"),
-		},
-		{
-			name: "linux uses alt",
-			goos: "linux",
-			key:  "right",
-			want: keys.OptionOrAlt("right"),
-		},
-		{
-			name: "windows uses alt",
-			goos: "windows",
-			key:  "left",
-			want: keys.OptionOrAlt("left"),
-		},
+		{goos: "darwin", label: "Previous Page", wantAccel: "CmdOrCtrl+Left"},
+		{goos: "darwin", label: "Next Page", wantAccel: "CmdOrCtrl+Right"},
+		{goos: "linux", label: "Previous Page", wantAccel: "OptionOrAlt+Left"},
+		{goos: "windows", label: "Next Page", wantAccel: "OptionOrAlt+Right"},
+		{goos: "windows", label: "Zoom In", wantAccel: "CmdOrCtrl+="},
+		{goos: "darwin", label: "Reset Zoom", wantAccel: "CmdOrCtrl+0"},
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.goos+" "+tc.label, func(t *testing.T) {
 			t.Parallel()
 
-			got := historyMenuAcceleratorFor(tc.goos, tc.key)
-			if got.Key != tc.want.Key {
-				t.Fatalf("historyMenuAcceleratorFor(%q, %q) key = %q, want %q", tc.goos, tc.key, got.Key, tc.want.Key)
-			}
-
-			if len(got.Modifiers) != len(tc.want.Modifiers) {
-				t.Fatalf(
-					"historyMenuAcceleratorFor(%q, %q) modifiers length = %d, want %d",
-					tc.goos,
-					tc.key,
-					len(got.Modifiers),
-					len(tc.want.Modifiers),
-				)
-			}
-
-			for index := range got.Modifiers {
-				if got.Modifiers[index] != tc.want.Modifiers[index] {
-					t.Fatalf(
-						"historyMenuAcceleratorFor(%q, %q) modifier[%d] = %q, want %q",
-						tc.goos,
-						tc.key,
-						index,
-						got.Modifiers[index],
-						tc.want.Modifiers[index],
-					)
-				}
+			item := findMenuItem(t, applicationMenu(NewDesktopApp(&fakeNative{}), tc.goos), tc.label)
+			if item.accel != tc.wantAccel {
+				t.Fatalf("%s on %s accelerator = %q, want %q", tc.label, tc.goos, item.accel, tc.wantAccel)
 			}
 		})
 	}
 }
 
-func TestHistoryNavigationWithNilContext(t *testing.T) {
+func TestApplicationMenuAppRoleOnMacOnly(t *testing.T) {
 	t.Parallel()
 
-	app := NewDesktopApp()
-	app.PreviousPage()
-	app.NextPage()
+	app := NewDesktopApp(&fakeNative{})
+	if got := applicationMenu(app, "darwin")[0].role; got != appMenuRole {
+		t.Fatalf("darwin first menu role = %v, want app menu", got)
+	}
+	for _, spec := range applicationMenu(app, "windows") {
+		if spec.role == appMenuRole {
+			t.Fatal("windows menu includes the macOS app menu")
+		}
+	}
+}
+
+func TestApplicationMenuActionsRunScripts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		label string
+		want  string
+	}{
+		{label: "Previous Page", want: historyNavigationScript(-1)},
+		{label: "Next Page", want: historyNavigationScript(1)},
+		{label: "Zoom In", want: zoomScript("in")},
+		{label: "Zoom Out", want: zoomScript("out")},
+		{label: "Reset Zoom", want: zoomScript("reset")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.label, func(t *testing.T) {
+			t.Parallel()
+
+			native := &fakeNative{}
+			findMenuItem(t, applicationMenu(NewDesktopApp(native), "linux"), tc.label).action()
+			if len(native.scripts) != 1 || native.scripts[0] != tc.want {
+				t.Fatalf("%s ran scripts %q, want [%q]", tc.label, native.scripts, tc.want)
+			}
+		})
+	}
+}
+
+func TestApplicationMenuTranslates(t *testing.T) {
+	application.New(application.Options{Name: "PlainShelf"})
+	for _, goos := range []string{"darwin", "linux", "windows"} {
+		if _, err := toWailsMenu(applicationMenu(NewDesktopApp(&fakeNative{}), goos)); err != nil {
+			t.Fatalf("toWailsMenu on %s: %v", goos, err)
+		}
+	}
+}
+
+func findMenuItem(t *testing.T, specs []menuSpec, label string) menuItem {
+	t.Helper()
+	for _, spec := range specs {
+		for _, item := range spec.items {
+			if item.label == label {
+				return item
+			}
+		}
+	}
+	t.Fatalf("menu item %q not found", label)
+	return menuItem{}
 }
 
 func TestZoomScript(t *testing.T) {
@@ -153,13 +172,4 @@ func TestZoomScript(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestZoomWithNilContext(t *testing.T) {
-	t.Parallel()
-
-	app := NewDesktopApp()
-	app.ZoomIn()
-	app.ZoomOut()
-	app.ResetZoom()
 }

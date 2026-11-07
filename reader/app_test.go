@@ -101,12 +101,14 @@ func newReaderAppWithBook(t *testing.T, shelfID string) *ReaderApp {
 		t.Fatalf("Open: %v", err)
 	}
 
-	if shelfID == "" {
+	standalone := shelfID == ""
+	if standalone {
 		shelfID = readerapi.ShelfID
 	}
 	return &ReaderApp{
 		library:       library,
 		shelfID:       shelfID,
+		standalone:    standalone,
 		progressStore: readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json")),
 	}
 }
@@ -201,22 +203,22 @@ func TestProgressDefaultsToSyntheticShelf(t *testing.T) {
 
 func TestNewReaderAppShelfIDFallback(t *testing.T) {
 	for _, shelfID := range []string{"", "   "} {
-		if got := NewReaderApp(nil, shelfID, noLaunchSection).shelfID; got != readerapi.ShelfID {
+		if got := NewReaderApp(nil, nil, shelfID, noLaunchSection).shelfID; got != readerapi.ShelfID {
 			t.Errorf("NewReaderApp shelfID for %q = %q, want %q", shelfID, got, readerapi.ShelfID)
 		}
 	}
-	if got := NewReaderApp(nil, "shelf-real", noLaunchSection).shelfID; got != "shelf-real" {
+	if got := NewReaderApp(nil, nil, "shelf-real", noLaunchSection).shelfID; got != "shelf-real" {
 		t.Errorf("NewReaderApp shelfID = %q, want shelf-real", got)
 	}
 }
 
 func TestBootConfigSection(t *testing.T) {
-	if boot := NewReaderApp(nil, "shelf-real", noLaunchSection).BootConfig(); boot.Section != nil {
+	if boot := NewReaderApp(nil, nil, "shelf-real", noLaunchSection).BootConfig(); boot.Section != nil {
 		t.Errorf("BootConfig().Section for no launch section = %v, want nil", *boot.Section)
 	}
 
 	for _, want := range []int{0, 3} {
-		boot := NewReaderApp(nil, "shelf-real", want).BootConfig()
+		boot := NewReaderApp(nil, nil, "shelf-real", want).BootConfig()
 		if boot.Section == nil {
 			t.Fatalf("BootConfig().Section for launch section %d = nil, want %d", want, want)
 		}

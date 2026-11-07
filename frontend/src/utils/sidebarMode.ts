@@ -1,3 +1,5 @@
+import { getPreference, setPreference } from '@/storage/preferences';
+
 export type SidebarMode = 'expanded' | 'rail';
 
 export const SIDEBAR_MODE_STORAGE_KEY = 'plainshelf.sidebar.mode';
@@ -13,20 +15,12 @@ export function isSidebarMode(value: string | null | undefined): value is Sideba
 }
 
 export function getStoredSidebarMode(): SidebarMode {
-  if (typeof window === 'undefined') {
-    return 'expanded';
-  }
-
-  const value = window.localStorage.getItem(SIDEBAR_MODE_STORAGE_KEY);
+  const value = getPreference(SIDEBAR_MODE_STORAGE_KEY);
   return isSidebarMode(value) ? value : 'expanded';
 }
 
 export function setStoredSidebarMode(mode: SidebarMode): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, mode);
+  setPreference(SIDEBAR_MODE_STORAGE_KEY, mode);
 }
 
 function isExpandedSidebarWidth(value: number): boolean {
@@ -34,11 +28,7 @@ function isExpandedSidebarWidth(value: number): boolean {
 }
 
 export function getStoredSidebarExpandedWidth(): number | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const raw = window.localStorage.getItem(SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY);
+  const raw = getPreference(SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY);
   if (raw === null) {
     return null;
   }
@@ -48,9 +38,9 @@ export function getStoredSidebarExpandedWidth(): number | null {
 }
 
 export function setStoredSidebarExpandedWidth(width: number): void {
-  if (typeof window === 'undefined' || !isExpandedSidebarWidth(width)) {
+  if (!isExpandedSidebarWidth(width)) {
     return;
   }
 
-  window.localStorage.setItem(SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY, String(width));
+  setPreference(SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY, String(width));
 }

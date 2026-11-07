@@ -42,11 +42,15 @@
           "created_at": "2026-04-01T12:00:00Z",
           "comment": "imported from \"A & B\" <draft>",
           "format": "txt",
+          "page_direction": "",
           "md5_hash": "f3ef309581fbad6368843c19297c889f",
           "has_content": true,
           "line_count": 3,
           "char_count": 23,
-          "assets": []
+          "assets": [],
+          "pages": [],
+          "unlisted": [],
+          "size_bytes": 23
         }
       ]
     },

@@ -21,6 +21,11 @@ Release artifacts live on the
 
 ## Option 1 — Homebrew desktop app (macOS, Apple Silicon)
 
+The desktop app and the standalone reader require **macOS 13 (Ventura) or
+later on Apple Silicon**. Intel Macs and earlier macOS versions are not
+supported: Homebrew refuses to install either cask there, and macOS refuses
+to open either app.
+
 The quickest way to install the desktop app on Apple Silicon Macs is with
 Homebrew:
 
@@ -51,6 +56,19 @@ The bundled `.app` is unsigned and unnotarized; the cask's `postflight_steps`
 clears Gatekeeper's quarantine attribute so the app opens normally on
 first launch.
 
+The desktop app's bundle identifier is `com.voilelab.plainshelf`, pinned in
+`desktop/build/darwin/Info.plist` so it no longer depends on the Wails build
+template. Releases up to 0.12 shipped as `com.wails.plainshelf`, the Wails v2
+template default; the identifier changed before `1.0.0-rc1` to match the
+reader's `com.voilelab.plainshelf-reader`. macOS keys permissions to the
+identifier, so after upgrading from one of those releases macOS asks again for
+**Local Network** access the first time you turn on
+[Share on local network](configuring-local-shelf.md#share-shelves-on-your-local-network-desktop-app).
+Your library, settings, and saved SMB and pCloud passwords are unaffected:
+they are stored under `PlainShelf`, not under the bundle identifier.
+`brew zap --cask plainshelf` removes the caches and preferences of both
+identifiers.
+
 For other platforms, build the desktop client from source — see
 [Local Setup](development/setup.md).
 
@@ -71,6 +89,11 @@ You can also install the reader on its own — macOS on Apple Silicon
 ```bash
 brew install --cask voilelab/plainshelf/bookpkg-reader
 ```
+
+The reader registers `.bookpkg` as a document package on macOS: Finder shows
+each one as a single item, and double-clicking it opens it in PlainShelf Reader.
+If the reader is already open, it replaces the current book instead of starting
+a second copy.
 
 The reader `.app` is also unsigned and unnotarized; its `postflight_steps`
 clears the quarantine attribute the same way. Uninstall with

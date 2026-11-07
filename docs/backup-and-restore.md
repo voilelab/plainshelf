@@ -176,6 +176,7 @@ shelf:
 ```text
 ~/Library/Application Support/PlainShelf/
 ├─ shelves.json            the shelves you added, and their settings
+├─ preferences.json        language, zoom, reader font and other UI preferences
 ├─ store/                  the application store
 ├─ logs/
 ├─ reading_progress.json   per-device — this machine's reading positions
@@ -330,8 +331,8 @@ files, so Git kept it.
 
 ### Restoring into the Android app
 
-After a reinstall, the app offers **Restore from a backup zip** on first launch
-when it has no shelf yet; it imports the zip as below and opens it.
+After a reinstall, **Settings → Shelves** offers **Restore from a backup zip**
+while the app has no shelf; it imports the zip as below and opens it.
 
 **Settings → Shelves → Import from zip** takes a zip exported above, or a
 desktop or server `lib_root` zipped from a file manager (one wrapping folder is

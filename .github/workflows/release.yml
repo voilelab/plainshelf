@@ -32,7 +32,7 @@ env:
 jobs:
   prepare:
     name: Resolve version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       native_version: ${{ steps.resolve.outputs.native_version }}
@@ -63,7 +63,7 @@ jobs:
 
   frontend:
     name: Build frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -93,7 +93,7 @@ jobs:
   test:
     name: Go tests
     needs: frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -115,13 +115,16 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      - name: Install Wails v3 Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+
       - name: Run desktop tests
         run: cd desktop && go test ./...
 
   binaries:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     needs: [prepare, frontend, test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -215,14 +218,14 @@ jobs:
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
           NATIVE_VERSION: ${{ needs.prepare.outputs.native_version }}
+          CGO_CFLAGS: -mmacosx-version-min=13.0
+          CGO_LDFLAGS: -mmacosx-version-min=13.0
+          MACOSX_DEPLOYMENT_TARGET: '13.0'
         working-directory: desktop
         run: |
           set -euo pipefail
           go mod tidy
-          go tool wails build \
-            -platform darwin/arm64 \
-            -trimpath \
-            -ldflags "-s -w -X ${VERSION_PKG}.Version=${VERSION}"
+          go tool wails3 task package:darwin VERSION="${VERSION}"
 
           plist="build/bin/PlainShelf.app/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${NATIVE_VERSION}" "$plist"
@@ -230,6 +233,9 @@ jobs:
           plutil -lint "$plist"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$NATIVE_VERSION"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$NATIVE_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "com.voilelab.plainshelf"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")" = "13.0.0"
+          test "$(vtool -show-build build/bin/PlainShelf.app/Contents/MacOS/plainshelf | awk '$1 == "minos" {print $2}')" = "13.0"
 
       - name: Package .app as zip
         env:
@@ -284,10 +290,7 @@ jobs:
         run: |
           set -euo pipefail
           go mod tidy
-          go tool wails build \
-            -platform darwin/arm64 \
-            -trimpath \
-            -ldflags "-s -w -X ${VERSION_PKG}.Version=${VERSION}"
+          go tool wails3 task package:darwin VERSION="${VERSION}"
 
           plist="build/bin/PlainShelfReader.app/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${NATIVE_VERSION}" "$plist"
@@ -296,6 +299,11 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$NATIVE_VERSION"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$NATIVE_VERSION"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "com.voilelab.plainshelf-reader"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")" = "13.0.0"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :UTExportedTypeDeclarations:0:UTTypeIdentifier' "$plist")" = "com.voilelab.plainshelf.bookpkg"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :UTExportedTypeDeclarations:0:UTTypeTagSpecification:public.filename-extension:0' "$plist")" = "bookpkg"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:0' "$plist")" = "com.voilelab.plainshelf.bookpkg"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSTypeIsPackage' "$plist")" = "true"
 
       - name: Package .app as zip
         env:
@@ -318,7 +326,7 @@ jobs:
     name: Build and push Docker image
     needs: [prepare, test, release]
     if: ${{ !cancelled() && !failure() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -366,7 +374,7 @@ jobs:
     name: Publish GitHub Release
     needs: [prepare, binaries, desktop-mac, reader-mac]
     if: inputs.publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

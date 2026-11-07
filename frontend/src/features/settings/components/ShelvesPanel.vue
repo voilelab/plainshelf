@@ -79,12 +79,29 @@
     :busy-text="t('settings.shelves.addShelfAdding')"
     :busy="addingShelf"
     :confirm-disabled="!canSubmitAddShelf"
+    :confirm-hidden="addShelfStep === 'pick'"
     :close-label="t('settings.shelves.addShelfCloseLabel')"
-    :initial-focus="`#${addShelfNameId}`"
+    initial-focus=".shelf-source-tile"
     @cancel="closeAddShelfModal"
     @confirm="onSubmitAddShelf"
   >
-    <form class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
+    <form class="shelf-add-form shelf-create-form" @submit.prevent="onSubmitAddShelf">
+      <ShelfSourcePicker
+        v-if="addShelfStep === 'pick'"
+        :prompt="t('shelfSource.pickPrompt')"
+        :groups="locationGroups"
+        :shortcut="qrShortcut"
+        :disabled="addingShelf"
+        @pick="pickShelfLocation"
+      />
+      <template v-else>
+      <ShelfSourceChosen
+        :icon="chosenLocation.icon"
+        :label="chosenLocation.label"
+        :change-label="t('shelfSource.change')"
+        :disabled="addingShelf"
+        @change="backToShelfLocations"
+      />
       <div v-if="newShelfLocationMode !== 'qr'" class="shelf-field">
         <label class="shelf-field-label" :for="addShelfNameId">
           {{ t('settings.shelves.addShelfNameLabel') }}
@@ -99,49 +116,6 @@
           :disabled="addingShelf"
         />
       </div>
-      <RadioGroupRoot
-        v-model="newShelfLocationMode"
-        class="shelf-location-modes"
-        :disabled="addingShelf"
-        :aria-label="t('settings.shelves.addShelfLocationLabel')"
-      >
-        <RadioGroupItem class="shelf-location-mode" value="new" data-testid="shelf-location-new">
-          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
-          <span class="shelf-location-copy">
-            <strong>{{ t('settings.shelves.addShelfLocationNew') }}</strong>
-            <span class="shelf-add-help">{{ t('settings.shelves.addShelfLocationNewHelp') }}</span>
-          </span>
-        </RadioGroupItem>
-        <RadioGroupItem
-          class="shelf-location-mode"
-          value="existing"
-          data-testid="shelf-location-existing"
-        >
-          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
-          <span class="shelf-location-copy">
-            <strong>{{ t('settings.shelves.addShelfLocationExisting') }}</strong>
-            <span class="shelf-add-help">{{
-              t('settings.shelves.addShelfLocationExistingHelp')
-            }}</span>
-          </span>
-        </RadioGroupItem>
-        <RadioGroupItem class="shelf-location-mode" value="remote" data-testid="shelf-location-remote">
-          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
-          <span class="shelf-location-copy">
-            <strong>{{ t('settings.shelves.addShelfLocationRemote') }}</strong>
-            <span class="shelf-add-help">{{ t('settings.shelves.addShelfLocationRemoteHelp') }}</span>
-          </span>
-        </RadioGroupItem>
-        <RadioGroupItem
-          v-if="getPlatformCapabilities().shelves?.previewLANShareQR"
-          class="shelf-location-mode"
-          value="qr"
-          data-testid="shelf-location-qr"
-        >
-          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
-          <span class="shelf-location-copy"><strong>{{ t('settings.shelves.qrTitle') }}</strong></span>
-        </RadioGroupItem>
-      </RadioGroupRoot>
       <template v-if="newShelfLocationMode === 'qr'">
         <label class="shelf-field-label" :for="addShelfQRId">{{ t('settings.shelves.qrPaste') }}</label>
         <textarea
@@ -170,70 +144,20 @@
         </ul>
       </template>
 
-      <template v-if="newShelfLocationMode === 'remote'">
-        <div class="shelf-field">
-          <label class="shelf-field-label" :for="addShelfSourceKindId">
-            {{ t('shelfSource.kindLabel') }}
-          </label>
-          <select
-            :id="addShelfSourceKindId"
-            v-model="newShelfSourceKind"
-            class="shelf-add-input"
-            :disabled="addingShelf"
-            data-testid="shelf-source-kind"
-          >
-            <option value="plainshelf">{{ t('shelfSource.plainshelf') }}</option>
-            <option value="webdav">{{ t('shelfSource.webdav') }}</option>
-          </select>
-        </div>
-        <div class="shelf-field">
-          <label class="shelf-field-label" :for="addShelfSourceURLId">
-            {{ t('shelfSource.urlLabel') }}
-          </label>
-          <input
-            :id="addShelfSourceURLId"
-            v-model="newShelfSourceURL"
-            class="shelf-add-input"
-            type="url"
-            spellcheck="false"
-            :placeholder="t('shelfSource.urlPlaceholder')"
-            :disabled="addingShelf"
-            data-testid="shelf-source-url"
-          />
-          <span class="shelf-add-help">{{ t('shelfSource.urlHint') }}</span>
-        </div>
-        <div v-if="newShelfSourceKind === 'webdav'" class="shelf-field">
-          <label class="shelf-field-label" :for="addShelfSourceUsernameId">
-            {{ t('shelfSource.usernameLabel') }}
-          </label>
-          <input
-            :id="addShelfSourceUsernameId"
-            v-model="newShelfSourceUsername"
-            class="shelf-add-input"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            :disabled="addingShelf"
-          />
-        </div>
-        <div class="shelf-field">
-          <label class="shelf-field-label" :for="addShelfSourceSecretId">
-            {{
-              newShelfSourceKind === 'webdav' ? t('shelfSource.passwordLabel') : t('shelfSource.tokenLabel')
-            }}
-          </label>
-          <input
-            :id="addShelfSourceSecretId"
-            v-model="newShelfSourceSecret"
-            class="shelf-add-input"
-            type="password"
-            autocomplete="off"
-            :disabled="addingShelf"
-            data-testid="shelf-source-secret"
-          />
-          <span class="shelf-add-help">{{ t('shelfSource.secretHint') }}</span>
-        </div>
-      </template>
+      <RemoteSourceFields
+        v-if="newShelfLocationMode === 'remote'"
+        v-model:kind="newShelfSourceKind"
+        v-model:url="newShelfSourceURL"
+        v-model:username="newShelfSourceUsername"
+        v-model:secret="newShelfSourceSecret"
+        :disabled="addingShelf"
+      />
+      <ShelfSourceStatus
+        v-if="newShelfLocationMode === 'remote'"
+        :status="remoteCheck.status.value"
+        :books="remoteCheck.books.value"
+        :error="remoteCheck.error.value"
+      />
 
       <template v-if="newShelfLocationMode === 'existing'">
         <div class="shelf-field">
@@ -288,26 +212,21 @@
       <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
         {{ addShelfError }}
       </p>
+      </template>
     </form>
   </ConfirmModal>
 
-  <section v-if="isMobileEnv" class="panel settings-group">
-    <h3>{{ t('settings.mobileConnect.title') }}</h3>
-    <p class="setting-description">{{ t('settings.mobileConnect.description') }}</p>
-    <RouterLink to="/connect" class="button mobile-connect-link">
-      {{ t('settings.mobileConnect.open') }}
-    </RouterLink>
-  </section>
+  <MobileShelvesPanel v-if="isMobileEnv" />
 
   <section v-if="isMobileEnv" class="panel settings-group">
     <h3>{{ t('settings.downloads.title') }}</h3>
     <p class="setting-description">{{ t('settings.downloads.description') }}</p>
-    <RouterLink to="/downloads" class="button mobile-connect-link">
+    <RouterLink to="/downloads" class="button mobile-downloads-link">
       {{ t('settings.downloads.open') }}
     </RouterLink>
   </section>
 
-  <section class="panel settings-group">
+  <section v-if="!isMobileEnv" class="panel settings-group">
     <h3>{{ t('settings.shelves.title') }}</h3>
 
     <p v-if="shelvesError || shelfOpError" class="settings-message settings-message-error" role="alert">
@@ -435,9 +354,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, useId } from 'vue';
-import { RadioGroupIndicator, RadioGroupItem, RadioGroupRoot } from 'reka-ui';
+import { computed, defineAsyncComponent, nextTick, onMounted, ref, useId, watch } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import RemoteSourceFields from '@/components/shelfSource/RemoteSourceFields.vue';
+import type { IconName } from '@/components/icons/registry';
+import ShelfSourceChosen from '@/components/shelfSource/ShelfSourceChosen.vue';
+import ShelfSourcePicker from '@/components/shelfSource/ShelfSourcePicker.vue';
+import ShelfSourceStatus from '@/components/shelfSource/ShelfSourceStatus.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import ScanIntervalField from '@/features/settings/components/ScanIntervalField.vue';
 import BookCheckIntervalField from '@/features/settings/components/BookCheckIntervalField.vue';
@@ -449,6 +372,10 @@ import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { isMobileRuntime } from '@/providers';
 import { useShelfManagement } from '@/features/settings/composables/useShelfManagement';
 
+const MobileShelvesPanel = defineAsyncComponent(
+  () => import('@/features/mobile/components/MobileShelvesPanel.vue')
+);
+
 const { t } = useI18n();
 const { serverSettingsEditable } = useWriteAccess();
 const isDesktopEnv = computed(() => Boolean(getPlatformCapabilities().shelves));
@@ -457,10 +384,6 @@ const isMobileEnv = computed(() => isMobileRuntime());
 const addShelfQRId = `shelf-add-qr-${useId()}`;
 const addShelfNameId = `shelf-add-name-${useId()}`;
 const addShelfDirectoryId = `shelf-add-directory-${useId()}`;
-const addShelfSourceKindId = `shelf-add-source-kind-${useId()}`;
-const addShelfSourceURLId = `shelf-add-source-url-${useId()}`;
-const addShelfSourceUsernameId = `shelf-add-source-username-${useId()}`;
-const addShelfSourceSecretId = `shelf-add-source-secret-${useId()}`;
 const modifyShelfNameId = `shelf-modify-name-${useId()}`;
 
 const bookCacheExporting = ref(false);
@@ -489,6 +412,10 @@ const {
   showAddShelfModal,
   newShelfName,
   newShelfLocationMode,
+  addShelfStep,
+  pickShelfLocation,
+  backToShelfLocations,
+  remoteCheck,
   newShelfDirectory,
   newShelfDirectoryError,
   newShelfReadOnly,
@@ -522,6 +449,77 @@ const {
   onSubmitModifyShelf
 } = useShelfManagement();
 
+interface LocationOption {
+  value: 'new' | 'existing' | 'remote';
+  label: string;
+  help: string;
+  icon: IconName;
+  testId: string;
+}
+
+const locationGroups = computed<Array<{ label: string; local?: boolean; options: LocationOption[] }>>(() => [
+  {
+    label: t('shelfSource.groupThisComputer'),
+    local: true,
+    options: [
+      {
+        value: 'new',
+        label: t('settings.shelves.addShelfLocationNew'),
+        help: t('settings.shelves.addShelfLocationNewHelp'),
+        icon: 'folder-plus',
+        testId: 'shelf-location-new'
+      },
+      {
+        value: 'existing',
+        label: t('settings.shelves.addShelfLocationExisting'),
+        help: t('settings.shelves.addShelfLocationExistingHelp'),
+        icon: 'folder',
+        testId: 'shelf-location-existing'
+      }
+    ]
+  },
+  {
+    label: t('shelfSource.groupElsewhere'),
+    options: [
+      {
+        value: 'remote',
+        label: t('shelfSource.modeRemote'),
+        help: t('shelfSource.modeRemoteHelp'),
+        icon: 'devices',
+        testId: 'shelf-location-remote'
+      }
+    ]
+  }
+]);
+
+const qrShortcut = computed(() =>
+  getPlatformCapabilities().shelves?.previewLANShareQR
+    ? {
+        value: 'qr' as const,
+        label: t('settings.shelves.qrTitle'),
+        help: t('shelfSource.modeQRHelp'),
+        testId: 'shelf-location-qr'
+      }
+    : null
+);
+
+const chosenLocation = computed(() => {
+  const mode = newShelfLocationMode.value;
+  if (mode === 'qr') {
+    return { icon: 'qrcode' as const, label: t('settings.shelves.qrTitle') };
+  }
+  const option = locationGroups.value.flatMap((group) => group.options).find((o) => o.value === mode);
+  return { icon: option?.icon ?? ('folder' as IconName), label: option?.label ?? '' };
+});
+
+watch(addShelfStep, async (step) => {
+  if (step !== 'form') {
+    return;
+  }
+  await nextTick();
+  document.querySelector<HTMLElement>(`#${addShelfNameId}, #${addShelfQRId}`)?.focus();
+});
+
 const exportableShelves = computed(() => shelves.value.filter((shelf) => !shelf.readOnly));
 
 async function onExportBookCache(): Promise<void> {
@@ -549,7 +547,7 @@ onMounted(() => {
 <style scoped src="../styles/settings-form.css"></style>
 
 <style scoped>
-.mobile-connect-link {
+.mobile-downloads-link {
   justify-self: start;
   text-decoration: none;
 }
@@ -707,20 +705,36 @@ onMounted(() => {
   gap: 8px;
 }
 
+.shelf-create-form {
+  gap: 14px;
+}
+
 .shelf-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/* Same small-caps field label the interval controls and the modify dialog's
-   read-only rows already use. */
 .shelf-field-label {
   color: #64748b;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.shelf-create-form .shelf-field-label {
+  color: var(--text);
+  font-size: 0.85rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.shelf-create-form .shelf-add-input {
+  border-color: var(--border);
+  border-radius: 9px;
+  font-size: 14px;
+  padding: 8px 10px;
 }
 
 .shelf-add-input {
@@ -749,48 +763,6 @@ onMounted(() => {
 
 .shelf-preview-path {
   overflow-wrap: anywhere;
-}
-
-.shelf-location-modes {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.shelf-location-mode {
-  align-items: flex-start;
-  background: transparent;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  gap: 8px;
-  padding: 8px 10px;
-  text-align: left;
-  width: 100%;
-}
-
-.shelf-location-mode[data-state='checked'] {
-  border-color: #64748b;
-}
-
-.shelf-location-mode:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.shelf-location-check {
-  color: #334155;
-  font-size: 12px;
-  line-height: 18px;
-  min-width: 10px;
-}
-
-.shelf-location-copy {
-  display: flex;
-  flex-direction: column;
-  font-size: 13px;
-  gap: 2px;
 }
 
 .shelf-add-dir-row {

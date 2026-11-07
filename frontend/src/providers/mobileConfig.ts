@@ -1,4 +1,5 @@
 import { Preferences } from '@capacitor/preferences';
+import { shallowRef, type ShallowRef } from 'vue';
 
 import { normalizeApiBase, setActiveShelfID, setApiBase } from '@/api/client';
 import { LOCAL_API_BASE } from '@/providers/localShelf';
@@ -22,10 +23,10 @@ const LEGACY_KEY_PCLOUD_SHELF_ROOT = 'plainshelf.mobile.pcloud.shelfRoot';
 export type ShelfSourceType = 'server' | 'pcloud' | 'local' | 'dav';
 
 export const SOURCE_TYPE_LABEL_KEYS: Record<ShelfSourceType, string> = {
-  server: 'mobileConnect.modeServer',
-  pcloud: 'mobileConnect.modePCloud',
-  local: 'mobileConnect.modeLocal',
-  dav: 'mobileConnect.modeRemote'
+  server: 'mobileShelfForm.modeServer',
+  pcloud: 'mobileShelfForm.modePCloud',
+  local: 'mobileShelfForm.modeLocal',
+  dav: 'mobileShelfForm.modeRemote'
 };
 
 interface ShelfEntryBase {
@@ -66,6 +67,11 @@ const DAV_SHELF_ID = 'shelf';
 let entries: ShelfEntry[] = [];
 let activeEntryID = '';
 let activeEntryToken = '';
+const shelfEntryList = shallowRef<ShelfEntry[]>([]);
+
+export function watchedShelfEntries(): Readonly<ShallowRef<ShelfEntry[]>> {
+  return shelfEntryList;
+}
 
 async function read(key: string): Promise<string> {
   const { value } = await Preferences.get({ key });
@@ -354,16 +360,26 @@ export function isShelfEntryConfigured(entry: ShelfEntry | null | undefined): bo
   return Boolean(entry.serverUrl && entry.shelfId);
 }
 
+function shelfEntryNeedsToken(entry: ShelfEntry): boolean {
+  return entry.type === 'pcloud' || (entry.type === 'dav' && shelfSourceNeedsSecret(entry.davSource, entry.davUsername));
+}
+
 export async function isShelfEntryUsable(entry: ShelfEntry | null | undefined): Promise<boolean> {
   if (!isShelfEntryConfigured(entry) || !entry) {
     return false;
   }
-  const needsToken =
-    entry.type === 'pcloud' || (entry.type === 'dav' && shelfSourceNeedsSecret(entry.davSource, entry.davUsername));
-  if (!needsToken) {
+  if (!shelfEntryNeedsToken(entry)) {
     return true;
   }
   return Boolean(await getShelfEntryToken(entry.id));
+}
+
+export function isActiveShelfEntryUsable(): boolean {
+  const entry = getActiveShelfEntry();
+  if (!entry || !isShelfEntryConfigured(entry)) {
+    return false;
+  }
+  return !shelfEntryNeedsToken(entry) || Boolean(activeEntryToken);
 }
 
 export async function loadShelfEntries(): Promise<{
@@ -396,7 +412,7 @@ export function getActiveShelfEntryID(): string {
   return activeEntryID;
 }
 
-export async function applyActiveShelfEntry(): Promise<void> {
+async function applyActiveShelfEntry(): Promise<void> {
   const entry = getActiveShelfEntry();
   const { apiBase, shelfID } = shelfEntryTarget(entry);
   setApiBase(apiBase);
@@ -418,6 +434,7 @@ async function commit(next: ShelfEntry[], nextActiveID: string): Promise<void> {
   await persistShelfEntries(next, nextActiveID);
   entries = next;
   activeEntryID = nextActiveID;
+  shelfEntryList.value = next;
   await applyActiveShelfEntry();
 }
 
@@ -487,5 +504,6 @@ export async function initMobileConfig(): Promise<void> {
   const loaded = await loadShelfEntries();
   entries = loaded.entries;
   activeEntryID = loaded.activeEntryID;
+  shelfEntryList.value = loaded.entries;
   await applyActiveShelfEntry();
 }

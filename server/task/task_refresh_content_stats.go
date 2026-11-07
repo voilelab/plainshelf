@@ -114,7 +114,7 @@ func (t *refreshContentStatsTask) collectBookIDsNeedingContentStats(books []*she
 			ids = append(ids, book.ID())
 			continue
 		}
-		if source.GetMeta().CharCount == 0 {
+		if source.HoldsText() && source.GetMeta().CharCount == 0 {
 			ids = append(ids, book.ID())
 		}
 	}

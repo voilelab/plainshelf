@@ -159,6 +159,7 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
+	books = withoutImageBooks(books)
 
 	cache, err := shelfData.OpenFingerprintCache(task.FingerprintAlgo())
 	if err != nil {
@@ -194,6 +195,7 @@ func (h *fingerprintHandlers) getFingerprintStatus(w http.ResponseWriter, r *htt
 		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
+	books = withoutImageBooks(books)
 
 	refs := make([]shelf.FingerprintBookSource, 0, len(books))
 	for _, listing := range books {
@@ -234,6 +236,12 @@ func (h *fingerprintHandlers) recordedSketches(shelfData *shelf.ShelfData, cache
 		})
 	}
 	return prints
+}
+
+func withoutImageBooks(books []shelf.BookListing) []shelf.BookListing {
+	return slices.DeleteFunc(books, func(listing shelf.BookListing) bool {
+		return listing.SourceFormat == shelf.BookFormatImages
+	})
 }
 
 func pairwiseMergeWork(prints []bookSketch) int {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"io"
 	"log"
@@ -12,12 +13,8 @@ import (
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/reader/readerapi"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 func main() {
@@ -34,7 +31,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	app := NewReaderApp(logger, launch.shelfID, launch.section)
+	native := &wailsNative{}
+	app := NewReaderApp(native, logger, launch.shelfID, launch.section)
 
 	if launch.bookPath != "" {
 		if _, err := app.Library().Open(launch.bookPath); err != nil {
@@ -44,13 +42,10 @@ func main() {
 
 	api := readerapi.NewHandler(app.Library(), version.Version)
 	spa := readerapi.NewSPAHandler(frontend.WebFS, app.BootConfig)
-
-	err = wails.Run(&options.App{
-		Title:  "PlainShelf Reader",
-		Width:  1100,
-		Height: 900,
-		AssetServer: &assetserver.Options{
-
+	wailsApp := application.New(application.Options{
+		Name:     "PlainShelf Reader",
+		Services: []application.Service{application.NewService(app)},
+		Assets: application.AssetOptions{
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
 					api.ServeHTTP(w, r)
@@ -59,19 +54,43 @@ func main() {
 				spa.ServeHTTP(w, r)
 			}),
 		},
-		Menu:          newApplicationMenu(app),
-		OnStartup:     app.Startup,
-		OnDomReady:    app.DomReady,
-		OnBeforeClose: app.beforeClose,
-		OnShutdown:    app.Shutdown,
-		Bind:          []any{app},
-		Mac: &mac.Options{
-			Preferences: &mac.Preferences{
-				FullscreenEnabled: mac.Enabled,
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
+		},
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: singleInstanceID,
+			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
+				logForwardError(app.OpenForwardedLaunch(data.Args, data.WorkingDir))
 			},
 		},
+		OnShutdown: func() { app.Shutdown(context.Background()) },
 	})
+	appMenu, err := toWailsMenu(applicationMenu(app))
 	if err != nil {
+		log.Fatal(err)
+	}
+	wailsApp.Menu.SetApplicationMenu(appMenu)
+	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationOpenedWithFile, func(event *application.ApplicationEvent) {
+		logForwardError(app.OpenFinderFile(event.Context().Filename()))
+	})
+
+	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:  "PlainShelf Reader",
+		Width:  1100,
+		Height: 900,
+		URL:    "/",
+	})
+	native.attach(wailsApp, window)
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		if app.beforeClose(context.Background()) {
+			event.Cancel()
+		}
+	})
+	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		app.DomReady(context.Background())
+	})
+
+	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -96,19 +115,4 @@ func parseLaunchArgs(args []string) (launchArgs, error) {
 		return launchArgs{}, err
 	}
 	return launchArgs{bookPath: *book, shelfID: *shelf, section: *section}, nil
-}
-
-func newApplicationMenu(app *ReaderApp) *menu.Menu {
-	root := menu.NewMenu()
-	root.Append(menu.AppMenu())
-
-	fileMenu := root.AddSubmenu("File")
-	fileMenu.AddText("Open Book…", keys.CmdOrCtrl("o"), func(*menu.CallbackData) {
-		if _, err := app.OpenBookPackage(); err != nil {
-			log.Println("failed to open a book package:", err)
-		}
-	})
-
-	root.Append(menu.EditMenu())
-	return root
 }

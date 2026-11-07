@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootEl" class="reader-block-window">
+  <div class="reader-block-window">
     <div
       v-for="(item, index) in items"
       :key="index"
@@ -28,7 +28,6 @@ const props = withDefaults(
 const active = ref<boolean[]>([]);
 const heights = ref<number[]>([]);
 
-const rootEl = ref<HTMLDivElement | null>(null);
 const wrappers = new Map<number, HTMLElement>();
 let observer: IntersectionObserver | null = null;
 

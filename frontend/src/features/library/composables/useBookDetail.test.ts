@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getSource: vi.fn(),
   getBookContent: vi.fn(),
   getSourceContent: vi.fn(),
+  getSourcePages: vi.fn(),
   deleteBook: vi.fn()
 }));
 
@@ -14,6 +15,7 @@ vi.mock('@/providers', () => ({
   bookshelfWriter: () => mocks
 }));
 
+import { getReadingAction, resolveReadingPercent } from '@/features/library/utils/bookDetail';
 import { useBookDetail } from './useBookDetail';
 
 describe('useBookDetail', () => {
@@ -154,6 +156,39 @@ describe('useBookDetail', () => {
 
     expect(detail.chapters.value).toEqual([{ index: 0, title: 'Survivor' }]);
     expect(detail.error.value).toBe('');
+  });
+
+  it('uses parsed comic pages for completion and the reread action', async () => {
+    mocks.getBook.mockResolvedValue({ id: 'book-1', title: 'Comic', format: 'images', current_source: 'source-1' });
+    mocks.getSource.mockResolvedValue({ id: 'source-1', format: 'images' });
+    mocks.getReadProgress.mockResolvedValue({ char_offset: 2 });
+    mocks.getSourceContent.mockResolvedValue('a.png\nb.png\nc.png\n');
+    mocks.getSourcePages.mockResolvedValue({
+      pages: [
+        { name: 'a.png', missing: false },
+        { name: 'b.png', missing: true },
+        { name: 'c.png', missing: false }
+      ],
+      unlisted: ['unused.png']
+    });
+
+    const detail = useBookDetail(() => 'book-1');
+    await detail.fetchDetail();
+
+    const percent = resolveReadingPercent(detail.progress.value, detail.progressContentLength.value ?? undefined);
+    expect(percent).toBe(100);
+    expect(getReadingAction(percent)).toBe('reread');
+    expect(detail.progress.value?.char_offset).toBe(2);
+    expect(mocks.getSourcePages).toHaveBeenCalledWith('book-1', 'source-1');
+    expect(mocks.getSourcePages).toHaveBeenCalledTimes(1);
+    expect(mocks.getSource).toHaveBeenCalledTimes(1);
+    expect(detail.currentSource.value?.page_list?.pages).toHaveLength(3);
+    expect(mocks.getSourceContent).not.toHaveBeenCalled();
+    expect(mocks.getBookContent).not.toHaveBeenCalled();
+
+    mocks.getReadProgress.mockResolvedValue({ char_offset: 0, percent: 0 });
+    await detail.fetchDetail();
+    expect(detail.progress.value?.percent).toBe(33);
   });
 
   it('reports an error when the book itself cannot be fetched', async () => {

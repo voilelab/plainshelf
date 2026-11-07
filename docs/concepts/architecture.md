@@ -31,6 +31,14 @@ separate listener for the selected shelves' read-only WebDAV export, protected
 by its own token; it exposes neither the API nor the web UI. See
 [the read-only WebDAV export](../deployment-and-threat-model.md#the-read-only-webdav-export).
 
+**Wails stays at the edge of the desktop and reader apps.** `DesktopApp` and
+`ReaderApp` reach dialogs, the browser, script execution, reload and quit
+through a small `nativeUI` interface, and describe their menus as plain data.
+Only each module's `main.go` and `wails_native.go` import Wails; together they
+hold the Wails context, translate the menu, and decide lifecycle timing such
+as deferring dialogs until the page is up (`WindowRuntimeReady`). Tests drive
+the apps through a fake `nativeUI`. Both apps run on Wails v3.
+
 **The Android app embeds the Go server.** Local shelves, pCloud shelves and
 WebDAV sources (including another PlainShelf's LAN share) are all read through
 that server, reached in-process through the native bridge and WebView request
@@ -90,6 +98,19 @@ and save **one string**; parsing, merging and trimming live in each feature's ow
 document module, so every platform shares one implementation and a new backend
 only has to persist text.
 
+The Wails desktop and the standalone reader are the exception for read history
+and reading stats. Another
+process can write the same files, and neither document can be merged after the
+fact: read history is an ordered list without timestamps, and reading stats are
+summed seconds, so taking the newer copy drops an update and taking the union
+counts one twice. Both therefore send each change as one operation
+(`RecordReadHistory`, `ClearReadHistory`, `SetReadHistoryLimit`,
+`AddReadingSeconds`), and Go applies it inside the cross-process file lock
+(`internal/readhistory`, `internal/readingstats`, both on
+`internal/lockedfile`), including the history limit and the 400-day stats
+retention. Reading progress keeps whole-document writes, which Go merges
+newest-wins under the same lock.
+
 ### Which backend a document actually gets
 
 The backend is resolved per document, not per platform, so the table is not
@@ -98,25 +119,29 @@ uniform:
 | Document | Browser | Android shell | Wails desktop | Standalone reader |
 |---|---|---|---|---|
 | `readingProgress` | localStorage | localStorage | JSON file | JSON file (shared with desktop) |
-| `readHistory` | localStorage | Capacitor Filesystem | JSON file | localStorage |
-| `readingStats` | localStorage | Capacitor Filesystem | JSON file | localStorage |
+| `readHistory` | localStorage | Capacitor Filesystem | JSON file | JSON file (shared with desktop) |
+| `readingStats` | localStorage | Capacitor Filesystem | JSON file | JSON file (shared with desktop) |
 
 Mock API mode and unit tests use the in-memory backend for all three.
 
-The standalone reader binds only the reading-progress methods, so its read
-history and reading stats fall back to WebView localStorage; its reading
-progress goes to the same JSON file the desktop app uses, which is what lets it
-reach the desktop library (below). The reader's read history still lives in its
-own localStorage, but when the desktop shells out to it the launching side
-(`WailsBookshelfProvider.openDesktopReader`) writes the entry into the desktop's
-own `readHistory` after the launch succeeds, so the desktop app's "recent
-reading" sees a book read this way.
+Inside a Wails window, a document whose binding is missing is an error, not a
+reason to fall back to WebView localStorage: every read and write rejects. Only
+the `?desktop-shell-preview=1` browser preview keeps browser storage.
+
+The standalone reader binds the same methods for all three documents and writes
+the same JSON files as the desktop app, through the same operations and lock.
+That is what lets a book read in the reader reach the desktop library's progress,
+"recent reading" and reading time (below).
 
 The frontend autosaves reading progress every 10 seconds. To narrow what closing
 a Wails window between two saves can lose, the frontend also stages its latest
-position in Go memory, and `OnBeforeClose` waits for it to be written
-(`internal/readingclose`); a flush request over an async event proved unreliable
-during window teardown. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
+position in Go memory, and the app's single close function waits for it to be
+written (`internal/readingclose`); a flush request over an async event proved
+unreliable during window teardown. The window-close hook (`OnBeforeClose` on the
+desktop, the main window's `WindowClosing` hook in the reader) and `OnShutdown`
+both call that function, which runs once whichever fires first: it writes the staged
+position, then stops LAN sharing (desktop), then closes the server or the open
+book package. The wait is bounded (`readingclose.DefaultTimeout`, 1.5
 seconds) and best-effort: if the cross-process file lock is held longer, or the
 write fails, the window closes anyway and that position can still be lost. The
 staged write merges newest-wins, so it never overwrites a newer entry from the
@@ -136,11 +161,13 @@ the read-history and reading-stats stores.
 
 ### Reader progress reaches the desktop library
 
-The standalone reader is a separate process with its own window. How it keys a
-book's progress depends on how it was launched:
+The standalone reader is a separate, single-instance process with one window: a
+later launch hands its arguments to the running reader, which swaps in the new
+book. How it keys a book's progress depends on how it was launched:
 
-- **Launched from the desktop app** (macOS), reading a book shells out to the
-  installed `PlainShelfReader` with the book's `.bookpkg` path (`-book`) and its
+- **Launched from the desktop app**, reading a book shells out to the
+  installed `PlainShelfReader` (through `open -n -a` on macOS, as a direct child
+  process on Windows and Linux) with the book's `.bookpkg` path (`-book`) and its
   real shelf id (`-shelf <realShelfID>`). The reader reports that real shelf as
   its active shelf, so it opens at, and writes back to, the same
   `shelves.<realShelfID>.<bookID>` position the desktop library already holds,
@@ -193,6 +220,25 @@ namespace folded in by projection; progress recorded in the desktop app does not
 appear there because it never carried that book's real shelf id. Nothing here is
 written into the shelf; reading progress stays device-local convenience state.
 
+Read history and reading time follow the same keying. A desktop-launched reader
+records both under the real shelf id, so the desktop sees them directly; the
+reader's own record moves the book to the front of "recent reading" once, and
+the desktop no longer records a launch itself. A standalone reader records:
+
+- **Read history** under `book`. Whenever the desktop reads history, it moves
+  each `book` entry that resolves to exactly one real shelf to the front of that
+  shelf's list, in reader order, and removes it from `book`. History carries no
+  timestamps, so a copy left under `book` would be moved to the front again on
+  every read; moving it is what keeps the order stable.
+- **Reading time** under `book/<bookID>`, because a stats entry is only shelf,
+  date and seconds and would otherwise lose which book it was for. Whenever the
+  desktop reads stats, it adds each such key's seconds to the book's real shelf,
+  capped per day as usual, and removes the key.
+
+Both use the same rule as progress: a book found on no shelf, or on more than one,
+stays under the reader key until it can be placed. When a real shelf is itself
+called `book`, the desktop projects neither document, as for progress.
+
 The diagram cannot show either of these:
 
 - **Mutations are queued.** Every change is a read-modify-write chained behind
@@ -204,6 +250,44 @@ The diagram cannot show either of these:
   `{apiBase}|{shelfID}`, because two servers commonly both call a shelf
   `default_shelf` while their book IDs mean entirely different things.
   Same-origin clients (web, desktop) keep the bare shelf ID.
+
+## UI preferences
+
+Language, zoom, reader font and the other UI preferences go through one
+synchronous key/value store, `frontend/src/storage/preferences.ts`, instead of
+each module calling `window.localStorage`. Components that show the same
+preference subscribe to it, so a change in one updates the others in the same
+app.
+
+| Client | Where |
+|---|---|
+| Browser | `localStorage`, per origin |
+| Android shell | WebView `localStorage` |
+| Wails desktop and standalone reader | `preferences.json` in the app data directory, beside `shelves.json` |
+
+The desktop and the reader share one `preferences.json`, so a font size chosen in
+the reader is what the desktop's in-app reader uses next. Only the selected shelf
+(`plainshelf.shelf`) is kept per app, under `apps.desktop` or `apps.reader`;
+every other key is under `shared`. Go decides which keys are per app
+(`internal/preferences`), and writes one key at a time inside the same
+cross-process file lock the reading documents use, so the two apps writing
+different keys at once keep both.
+
+`frontend/src/main.ts` loads the whole file through `GetPreferences()` before it
+imports the rest of the app, because the locale, the zoom and the selected shelf
+are read when their modules load; the first paint already uses the stored
+values. After that, reads come from the in-memory copy and each change is sent
+as `SetPreference(key, value)`, in call order. An empty value removes the key.
+When the window regains focus the copy is reloaded, so a font size changed in
+the reader reaches a desktop that stayed open. Components subscribed to a
+changed key update then; one that read its value only at load, such as the
+locale or the zoom, picks it up on the next start.
+Like the reading documents, a Wails window without the binding does not fall
+back to WebView storage: preferences then last only until the window closes. The
+`?desktop-shell-preview=1` browser preview keeps `localStorage`.
+
+The mobile reader's one-time gesture hint (`reader-mobile-gesture-hint-seen`)
+is not a preference and stays in `localStorage`.
 
 ---
 

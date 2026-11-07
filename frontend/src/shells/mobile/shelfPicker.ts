@@ -4,19 +4,19 @@ import type { ShelfPicker, ShelfPickerItem } from '@/types/shelfPicker';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
 import { t } from '@/i18n';
+import { MANAGE_SHELVES_ROUTE } from './shelfUnavailable';
 import {
   getActiveShelfEntryID,
-  getShelfEntries,
   setActiveShelfEntry,
   shelfEntryDisplayName,
   SOURCE_TYPE_LABEL_KEYS,
-  type ShelfEntry
+  watchedShelfEntries
 } from '@/providers/mobileConfig';
 
 export function createMobileShelfPicker(): ShelfPicker {
   const { loading: shelvesLoading } = useShelvesStore();
 
-  const entries = ref<ShelfEntry[]>(getShelfEntries());
+  const entries = watchedShelfEntries();
   const activeID = ref(getActiveShelfEntryID());
 
   return {
@@ -32,7 +32,7 @@ export function createMobileShelfPicker(): ShelfPicker {
     loading: shelvesLoading,
     error: computed(() => ''),
     placeholder: computed(() => (entries.value.length === 0 ? t('layout.shelf.empty') : '')),
-    manageTo: { path: '/connect' },
+    manageTo: MANAGE_SHELVES_ROUTE,
     select: async (id: string) => {
       await setActiveShelfEntry(id);
       reloadIntoApp();

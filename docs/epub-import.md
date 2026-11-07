@@ -147,7 +147,7 @@ additionally writes it at the start of the text, before the first chapter.
 ## Setting the default
 
 Import options chosen in the dialog apply to that batch only. To change the
-default, open **Settings → Import**.
+default, open **Settings → Import & covers**.
 
 The default also governs imports that never open the dialog — notably the
 desktop app's file picker, which imports immediately.

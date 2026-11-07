@@ -1,6 +1,5 @@
 import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
 import { hasDesktopReadingProgressBinding } from '@/api/desktop';
-import { isWailsRuntime } from '@/providers/runtime';
 import type { BookmarkPayload, ReadingProgress } from '@/types/book';
 import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
 import {
@@ -73,7 +72,7 @@ function createReadingProgressStorage(): ReadingProgressStorage {
     return createMockReadingProgressStorage();
   }
 
-  if (isWailsRuntime() && hasDesktopReadingProgressBinding()) {
+  if (hasDesktopReadingProgressBinding()) {
     return createDesktopReadingProgressStorage();
   }
 

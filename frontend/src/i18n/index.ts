@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import en from '@/i18n/locales/en';
 import zhHant from '@/i18n/locales/zh-Hant';
+import { getPreference, setPreference } from '@/storage/preferences';
 
 interface Messages {
   [key: string]: string | Messages;
@@ -79,15 +80,7 @@ function interpolate(template: string, params?: Record<string, string | number>)
 }
 
 function getStoredLocale(): SupportedLocale | undefined {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  try {
-    return normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
-  } catch {
-    return undefined;
-  }
+  return normalizeLocale(getPreference(LOCALE_STORAGE_KEY));
 }
 
 function getBrowserLocale(): SupportedLocale | undefined {
@@ -123,14 +116,7 @@ function applyDocumentLanguage(locale: SupportedLocale): void {
 applyDocumentLanguage(localeRef.value);
 
 function persistLocale(locale: SupportedLocale): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
-  } catch {
-  }
+  setPreference(LOCALE_STORAGE_KEY, locale);
 }
 
 export function setLocale(locale: SupportedLocale): void {

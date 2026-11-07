@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 6,
   "cases": [
     {
       "name": "plain-book",
@@ -52,6 +52,14 @@
     {
       "name": "folder-metadata",
       "covers": "folder.json in folder directories: a supported icon is read; an icon a newer build offers reads as the default while its value is still read, beside unknown nested members; finite sort_key values including zero and negatives survive local and remote cache reads; a file with no schema_version reads as v1; a malformed file and a newer schema_version read as no metadata and refuse writes; a folder holding only folder.json is still a folder; books/folder.json gives the root nothing; and none of these files is a book or a folder."
+    },
+    {
+      "name": "images-source",
+      "covers": "A book whose sources are format images: source.txt lists the pages in order and assets/ holds them under stable random names with mixed extensions. The current source reads right to left; a page the list names but assets/ lacks reads as missing, an image the list does not name reads as unlisted, and char_count stays 0. A second images source without page_direction reads as the default left to right."
+    },
+    {
+      "name": "cbz-imported",
+      "covers": "An imported CBZ shape: a current images source with random asset names, RTL direction, original image cover, and no retained archive."
     }
   ]
 }

@@ -56,7 +56,7 @@ schema v1, the first key in that file records the format version:
 | `schema_version` | On-disk format version of this file. Managed by PlainShelf. |
 | `id` | Stable book ID: a version 4 UUID, generated once when the book is created and never recomputed. Shelves from earlier versions carry 8-character hex IDs or 16-character base32 words, which are kept unchanged. See [Book IDs](data-model.md#book-ids) |
 | `title` | Display title |
-| `format` | Compatibility mirror of the current source format (`txt` or `md`) |
+| `format` | Compatibility mirror of the current source format (`txt`, `md` or `images`) |
 | `tags` | Free-form tags |
 | `identifiers` | External identifiers such as `isbn` |
 | `cover` | Cover filename relative to the book folder |
@@ -110,11 +110,18 @@ Which means:
 ## Source metadata schema v1
 
 New `sources/{id}/meta.json` files also carry `schema_version: 1` and an
-authoritative `format` (`txt` or `md`). A source without those fields is a
+authoritative `format` (`txt`, `md` or `images`). A source without those fields is a
 legacy source. It is still listed and still readable, but nothing interprets its
 `split_config` any more: it renders as `book.json`'s `format` says, which means
 one plain-text section unless the book is Markdown. To give it chapters again,
 convert it in the source editor (see below).
+
+An `images` source may also carry `page_direction`, written only as `"rtl"`;
+absent means left to right. `images` and `page_direction` are part of schema v1
+as `1.0-rc1` freezes it, not later additions. A build from before them reads an
+`images` source's page list as plain text, and refuses any metadata edit to a
+book whose `book.json` mirrors `format: "images"`, because it validates `format`
+on every write. See [Image sources](data-model.md#image-sources).
 
 Source schema v1 is written only when creating a new source, including imports
 and explicit TXT/Markdown conversions. A source whose schema version is newer
@@ -342,7 +349,8 @@ exclusions are deliberate:
   any mismatch. Nothing of yours is lost when one is thrown away, so nothing
   about them is frozen. See [What is versioned today](#what-is-versioned-today).
 - **Per-device reading state**, which is not shelf data at all: the desktop and
-  standalone reader's `reading_progress.json` in the application store, the
+  standalone reader's `reading_progress.json`, `read_history.json` and
+  `reading_stats.json` in the application store, the
   browser's `localStorage`, and the Android client's per-book `progress.json`.
   [Backup and restore](../backup-and-restore.md) says where each one lives.
 

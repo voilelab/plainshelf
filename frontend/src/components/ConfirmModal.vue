@@ -36,6 +36,7 @@
         </button>
         <!-- Reka UI 2.10.5 AlertDialogAction wraps DialogClose and closes on click. -->
         <button
+          v-if="!confirmHidden"
           ref="confirmButton"
           class="button"
           :class="confirmVariant"
@@ -69,6 +70,7 @@ const props = withDefaults(
     busyText?: string;
     busy?: boolean;
     confirmDisabled?: boolean;
+    confirmHidden?: boolean;
     closeOnBackdrop?: boolean;
     closeLabel?: string;
     variant?: 'primary' | 'danger';
@@ -78,6 +80,7 @@ const props = withDefaults(
     message: '',
     busy: false,
     confirmDisabled: false,
+    confirmHidden: false,
     closeOnBackdrop: true,
     variant: 'primary',
     initialFocus: undefined

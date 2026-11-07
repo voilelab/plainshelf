@@ -39,8 +39,9 @@ export async function connectMobile(
 ): Promise<void> {
   const shelfName = opts.shelfName ?? 'Default Shelf';
 
-  await page.goto(`${baseUrl}${withMobilePreview('/connect')}`);
-  await expect(page.getByRole('heading', { name: 'Connect to PlainShelf' })).toBeVisible();
+  await page.goto(`${baseUrl}${withMobilePreview('/settings/shelves/new')}`);
+  await expect(page.getByRole('heading', { name: 'Add a shelf' })).toBeVisible();
+  await page.getByRole('button', { name: /^PlainShelf server/ }).click();
 
   await page.locator('input[type="url"]').fill(baseUrl);
   if (opts.token) {
@@ -50,13 +51,13 @@ export async function connectMobile(
   await page.getByRole('button', { name: 'Load library' }).click();
 
   // Reka UI 2.10.5 SelectPortal teleports to body by default; SelectTrigger renders a combobox button.
-  const shelfTrigger = page.locator('.mobile-connect-shelf-select');
+  const shelfTrigger = page.locator('.mobile-shelf-form-shelf-select');
   await expect(shelfTrigger).toBeEnabled();
   await shelfTrigger.click();
   await page.getByRole('option', { name: shelfName }).click();
   await expect(shelfTrigger).toHaveText(shelfName);
 
-  const saveButton = page.getByRole('button', { name: 'Save and continue' });
+  const saveButton = page.getByRole('button', { name: 'Add shelf', exact: true });
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
   await expect(page).toHaveURL(/\/books(\?|$)/);
@@ -72,19 +73,20 @@ export async function addMobileShelf(
   baseUrl: string,
   opts: { name: string; shelfName: string }
 ): Promise<void> {
-  await reopenMobileAt(page, baseUrl, '/connect');
+  await reopenMobileAt(page, baseUrl, '/settings?tab=shelves');
   await page.getByRole('button', { name: 'Add a shelf' }).click();
+  await page.getByRole('button', { name: /^PlainShelf server/ }).click();
 
   await page.getByLabel('Name').fill(opts.name);
   await page.locator('input[type="url"]').fill(baseUrl);
   await page.getByRole('button', { name: 'Load library' }).click();
 
-  const shelfTrigger = page.locator('.mobile-connect-shelf-select');
+  const shelfTrigger = page.locator('.mobile-shelf-form-shelf-select');
   await expect(shelfTrigger).toBeEnabled();
   await shelfTrigger.click();
   await page.getByRole('option', { name: opts.shelfName }).click();
 
-  await page.getByRole('button', { name: 'Save and continue' }).click();
+  await page.getByRole('button', { name: 'Add shelf', exact: true }).click();
   await expect(page).toHaveURL(/\/books(\?|$)/);
   await waitForMobileApp(page);
 }
@@ -94,7 +96,7 @@ export async function openMobileShelfEditor(
   baseUrl: string,
   shelfName?: string
 ): Promise<void> {
-  await reopenMobileAt(page, baseUrl, '/connect');
+  await reopenMobileAt(page, baseUrl, '/settings?tab=shelves');
   const row = shelfName
     ? page.locator('.mobile-shelves-item').filter({ hasText: shelfName })
     : page.locator('.mobile-shelves-item').first();

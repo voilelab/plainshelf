@@ -55,6 +55,11 @@ The pCloud source needs no server at all, which is the point of it: a phone
 cannot mount cloud storage the way a host can, so a server keeping its shelf on
 pCloud through an rclone mount is no help to the phone.
 
+**Without a shelf.** The app opens normally with an empty list, as the desktop
+client does when it has none. Every page except Settings says no shelf is
+selected and links to **Settings → Shelves**. When the entry in use lacks its
+token or part of its settings, the notice links to that entry's editor instead.
+
 **Switching shelves.** Exactly one entry is in use at a time. Pick another from
 the shelf dropdown in the sidebar, or from the list itself. Switching restarts
 the app, because what the app reads from is decided once at startup.
@@ -292,7 +297,7 @@ and never written back.
 
 ## Read a shelf from another device
 
-**Other device** reads a shelf over WebDAV through the embedded Go server, with
+**Another device** reads a shelf over WebDAV through the embedded Go server, with
 no server of your own: another PlainShelf's LAN share (the desktop app's, the
 server's [`dav_export`](../reference/configuration.md#dav_export), or another
 phone's), or a WebDAV server holding a shelf directory.
@@ -302,9 +307,11 @@ phone's), or a WebDAV server holding a shelf directory.
    `http://<address>:20001/dav/<shelf id>/`.
 2. Enter the token (another PlainShelf) or, for WebDAV, the account and its
    password or token if the server asks for one.
-3. **Check shelf** must pass before the entry can be saved. A refused token
-   says so (`SOURCE_UNAUTHORIZED`); an address that cannot be reached says it
-   cannot connect (`SOURCE_UNAVAILABLE`).
+3. The form checks the shelf once the address and token are filled in and
+   shows how many books it found; **Add shelf** checks again if needed and saves
+   nothing if the check fails. A refused token says so (`SOURCE_UNAUTHORIZED`);
+   an address that cannot be reached says it cannot connect
+   (`SOURCE_UNAVAILABLE`).
 
 The secret is stored in Keystore-backed storage under
 `plainshelf.mobile.secret.<entry id>`, the same key a pCloud token uses. Go reads
@@ -340,7 +347,7 @@ app guards against that in these ways, and syncs nothing automatically:
   deleted with the app and shows each one's last export time, or "Not backed up
   yet".
 - With no shelf at all (a fresh install, or a reinstall without kept data) and
-  no local shelf on disk, the shelf list first offers **Restore from a backup
+  no local shelf on disk, **Settings → Shelves** offers **Restore from a backup
   zip**, the same import as above, which then opens the restored shelf. **Skip**
   stores a flag in Capacitor Preferences and the offer does not come back.
   Preferences are excluded from Android backup, so the flag goes with an
@@ -349,14 +356,13 @@ app guards against that in these ways, and syncs nothing automatically:
   in `backup_rules.xml` and the `cloud-backup` section of
   `data_extraction_rules.xml`): PlainShelf does no cloud sync, and a shelf
   larger than Auto Backup's 25 MB quota would stop every later backup of the
-  app. A restore from Google therefore brings no local shelf back, and the
-  shelf list offers the zip restore above.
+  app. A restore from Google therefore brings no local shelf back, and
+  **Settings → Shelves** offers the zip restore above.
 - Device-to-device transfer (Android 12 and later) keeps them: it copies
   directly between phones, with a 2 GB limit instead of 25 MB; past it the
   transfer is refused, so export first. Preferences are excluded from both, so
-  a transferred app finds local shelves with no entry for them. The shelf list
-  then adds an entry for each and opens the first, instead of offering a
-  restore.
+  a transferred app finds local shelves with no entry for them. At startup it
+  adds an entry for each and opens the first, instead of offering a restore.
 
 Neither is a backup PlainShelf guarantees, and on Android 11 and lower a
 transfer follows the cloud rules and leaves local shelves out too. To back up,
@@ -490,7 +496,8 @@ npx capacitor-assets generate --android
 
 ## Scan a LAN share QR code
 
-On **Add shelf**, tap **Scan a LAN share QR code** and allow camera access.
+On **Add a shelf**, choose **Scan a QR code to add them all** below the source
+list, tap **Scan a LAN share QR code**, and allow camera access.
 Scan the desktop publisher's QR code, check the listed names and URLs, then
 confirm **Import shelves**. Previewing makes no network request and saves no
 credentials. Each confirmed shelf is checked through `LocalShelf.checkSource`

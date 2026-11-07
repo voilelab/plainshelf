@@ -4,9 +4,12 @@ import (
 	"encoding/json/jsontext"
 	"log"
 	"slices"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/readhistory"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
+	"github.com/voilelab/plainshelf/internal/readingstats"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -40,11 +43,28 @@ func writeDeviceDocument(path, label, doc string) error {
 }
 
 func (a *DesktopApp) ReadReadHistory() (string, error) {
-	return readDeviceDocument(a.readHistoryPath)
+	store := readhistory.NewStore(a.readHistoryPath)
+	if a.readerNamespaceIsRealShelf() {
+		return store.Read()
+	}
+	text, err := store.ProjectReader(readingprogress.ReaderShelfID, a.resolveUniqueBookShelf)
+	if err != nil {
+		log.Println("failed to project reader read history:", err)
+		return store.Read()
+	}
+	return text, nil
 }
 
-func (a *DesktopApp) WriteReadHistory(doc string) error {
-	return writeDeviceDocument(a.readHistoryPath, "read history", doc)
+func (a *DesktopApp) RecordReadHistory(shelfKey, bookID string) error {
+	return readhistory.NewStore(a.readHistoryPath).Record(shelfKey, bookID)
+}
+
+func (a *DesktopApp) ClearReadHistory(shelfKey string) error {
+	return readhistory.NewStore(a.readHistoryPath).Clear(shelfKey)
+}
+
+func (a *DesktopApp) SetReadHistoryLimit(limit int) error {
+	return readhistory.NewStore(a.readHistoryPath).SetLimit(limit)
 }
 
 func (a *DesktopApp) ReadReadingProgress() (string, error) {
@@ -149,9 +169,18 @@ func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
 }
 
 func (a *DesktopApp) ReadReadingStats() (string, error) {
-	return readDeviceDocument(a.readingStatsPath)
+	store := readingstats.NewStore(a.readingStatsPath)
+	if a.readerNamespaceIsRealShelf() {
+		return store.Read()
+	}
+	text, err := store.ProjectReader(readingprogress.ReaderShelfID, a.resolveUniqueBookShelf)
+	if err != nil {
+		log.Println("failed to project reader reading stats:", err)
+		return store.Read()
+	}
+	return text, nil
 }
 
-func (a *DesktopApp) WriteReadingStats(doc string) error {
-	return writeDeviceDocument(a.readingStatsPath, "reading stats", doc)
+func (a *DesktopApp) AddReadingSeconds(key, date string, seconds float64) error {
+	return readingstats.NewStore(a.readingStatsPath).Add(key, date, seconds, time.Now)
 }

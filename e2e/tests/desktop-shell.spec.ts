@@ -20,7 +20,7 @@ test('desktop shell stays engaged across in-app navigation', async ({ page }) =>
   await expectDesktopShellEngaged(page);
 
   await page.getByRole('tab', { name: 'Shelves' }).click();
-  await expect(page.getByRole('button', { name: 'Create shelf' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add a shelf' })).toBeVisible();
   await expect(
     page.getByText('Shelves are managed by the server configuration.')
   ).toHaveCount(0);

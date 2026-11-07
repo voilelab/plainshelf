@@ -9,6 +9,9 @@ export interface SourceMeta {
   format?: BookFormat;
   line_count?: number;
   char_count?: number;
+  size_bytes?: number;
+  page_direction?: 'ltr' | 'rtl';
+  page_list?: SourcePageList;
 }
 
 export interface CreateSourceOptions {
@@ -17,3 +20,16 @@ export interface CreateSourceOptions {
   comment?: string;
   setCurrent?: boolean;
 }
+
+export interface SourcePage {
+  name: string;
+  missing: boolean;
+}
+
+export interface SourcePageList {
+  pages: SourcePage[];
+  unlisted: string[];
+  md5_hash?: string;
+}
+
+export type PageDirection = 'ltr' | 'rtl';

@@ -6,7 +6,6 @@ import type { ShelfSourceCheck } from '@/utils/shelfSourceCheck';
 import { getShell } from './shell';
 import { isWailsRuntime } from './runtime';
 import { createWailsPlatform } from './wailsBookshelfProvider';
-import { getBookshelfProvider } from './index';
 
 export interface DesktopImportBookResult {
   path?: string;
@@ -35,6 +34,7 @@ export interface PlatformCapabilities {
   };
   openLocalBookFiles?(): Promise<string[] | null>;
   importBookFromLocalPath?(path: string, folder: string): Promise<DesktopImportBookResult | null>;
+  notifyImportFinished?(title: string, body: string): Promise<void>;
   openFolder?(path: string): Promise<void>;
   openBookFolder?(id: string): Promise<void>;
   openShelfFolder?(id: string): Promise<void>;
@@ -60,7 +60,7 @@ export function getPlatformCapabilities(): PlatformCapabilities {
   const fromShell = getShell()?.platform;
   if (fromShell) return fromShell;
   if (isWailsRuntime()) {
-    desktop ??= createWailsPlatform(getBookshelfProvider());
+    desktop ??= createWailsPlatform();
     return desktop;
   }
   return browser;

@@ -9,9 +9,10 @@ import {
   countTextChapters,
   textToMarkdownByRegex
 } from '@/features/sources/utils/sourceConversions';
+import { notifyImportFinished } from '@/utils/importNotification';
 import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy } from '@/types/book';
 
-const bookExtPattern = /\.(txt|md|epub)$/i;
+const bookExtPattern = /\.(txt|md|epub|cbz)$/i;
 const epubExtPattern = /\.epub$/i;
 const txtExtPattern = /\.txt$/i;
 
@@ -380,6 +381,9 @@ export function useImportBook() {
         firstImportedId
       };
       applyResultMessages(result);
+      if (result.total > 1 && !result.cancelled) {
+        notifyImportFinished('books', successCount, failedCount);
+      }
       return result;
     } finally {
       submitting.value = false;

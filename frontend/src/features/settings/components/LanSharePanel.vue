@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   SelectContent,
   SelectItem,
@@ -118,6 +118,7 @@ import {
 } from 'reka-ui';
 import {
   getDesktopLANShare,
+  onDesktopLANShareChanged,
   rotateDesktopLANShareToken,
   setDesktopLANShare,
   type DesktopLANShareStatus
@@ -193,8 +194,18 @@ function onRotate(): void {
   void run(rotateDesktopLANShareToken);
 }
 
+let stopListening = (): void => {};
+
 onMounted(() => {
   void run(getDesktopLANShare);
+  stopListening = onDesktopLANShareChanged((next) => {
+    status.value = next;
+    error.value = next.error;
+  });
+});
+
+onUnmounted(() => {
+  stopListening();
 });
 
 const { shelves } = useShelvesStore();

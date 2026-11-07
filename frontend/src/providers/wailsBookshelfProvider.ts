@@ -1,4 +1,3 @@
-import type { BookshelfProvider } from './bookshelfProvider';
 import {
   openDesktopExternalURL,
   hasDesktopShelfManagementBindings,
@@ -11,6 +10,7 @@ import {
   getDesktopShelfDetails,
   importDesktopBookFromLocalPath,
   modifyDesktopShelf,
+  notifyDesktopImportFinished,
   openDesktopBookFiles,
   openDesktopBookFolder,
   openDesktopFolder,
@@ -37,7 +37,6 @@ import type { ShelfSourceCheck } from '@/utils/shelfSourceCheck';
 export class WailsBookshelfProvider extends ServerBookshelfProvider {}
 
 class WailsPlatform {
-  constructor(private readonly provider: BookshelfProvider) {}
   openLocalBookFiles(): Promise<string[] | null> {
     return openDesktopBookFiles();
   }
@@ -57,13 +56,8 @@ class WailsPlatform {
     return openDesktopBookFolder(bookId);
   }
 
-  async openDesktopReader(bookId: string, section?: number): Promise<void> {
-    await openDesktopReader(bookId, section);
-    try {
-      await this.provider.addReadHistory(bookId);
-    } catch (err) {
-      console.warn('Failed to update read history', err);
-    }
+  openDesktopReader(bookId: string, section?: number): Promise<void> {
+    return openDesktopReader(bookId, section);
   }
 
   openDesktopShelfDirectory(): Promise<string | null> {
@@ -103,8 +97,8 @@ class WailsPlatform {
   }
 }
 
-export function createWailsPlatform(provider: BookshelfProvider): PlatformCapabilities {
-  const host = new WailsPlatform(provider);
+export function createWailsPlatform(): PlatformCapabilities {
+  const host = new WailsPlatform();
   return {
     shelves: {
       ...(hasDesktopShelfManagementBindings()
@@ -121,6 +115,7 @@ export function createWailsPlatform(provider: BookshelfProvider): PlatformCapabi
     },
     openLocalBookFiles: host.openLocalBookFiles.bind(host),
     importBookFromLocalPath: host.importBookFromLocalPath.bind(host),
+    notifyImportFinished: notifyDesktopImportFinished,
     openFolder: host.openDesktopFolder.bind(host),
     openBookFolder: host.openDesktopBookFolder.bind(host),
     openReader: host.openDesktopReader.bind(host),

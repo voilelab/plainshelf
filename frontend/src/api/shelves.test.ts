@@ -56,6 +56,19 @@ describe('listShelves', () => {
     expect(fetchJsonMock).not.toHaveBeenCalled();
   });
 
+  it('lists nothing without a request while the shell has no usable shelf', async () => {
+    registerShell({
+      createProvider: () => {
+        throw new Error('not used by these tests');
+      },
+      activeShelfInfo: () => null,
+      shelfUnavailable: () => ({ messageKey: 'm', actionKey: 'a', fixTo: '/settings' })
+    });
+
+    await expect(listShelves()).resolves.toEqual([]);
+    expect(fetchJsonMock).not.toHaveBeenCalled();
+  });
+
   it('asks the server everywhere else', async () => {
     fetchJsonMock.mockResolvedValue([{ id: 'main', name: 'Main', read_only: false }]);
 

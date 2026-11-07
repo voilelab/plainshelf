@@ -337,7 +337,7 @@ Three boundaries are deliberate:
   then asks about "everything in the trash" rather than naming a count. The
   header reports only that something was withheld, never what or how much.
 
-Switch it in **Settings → Adult content**. Turning it on or off refetches the
+Switch it in **Settings → General → Adult content**. Turning it on or off refetches the
 library listing and the folder tree straight away, so the sidebar and the book
 list agree with the setting without a page reload.
 
@@ -360,7 +360,7 @@ the page, or pasting the book's address into a new tab, lands on the same
 
 The Android client can read a shelf straight out of pCloud, with no PlainShelf
 server between it and the files. There is no `show_nsfw` to ask for on that path,
-so the app keeps its own answer: **Settings → Adult content** on such a client
+so the app keeps its own answer: **Settings → General → Adult content** on such a client
 offers a **Show adult content on this device** switch, off by default and stored
 only on that device.
 

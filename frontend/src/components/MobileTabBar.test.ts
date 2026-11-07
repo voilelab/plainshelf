@@ -12,7 +12,8 @@ const routes = [
   { path: '/books/:id', name: 'book-detail', component: { template: '<div />' } },
   { path: '/read-history', name: 'read-history', component: { template: '<div />' } },
   { path: '/downloads', name: 'downloads', component: { template: '<div />' } },
-  { path: '/settings', name: 'settings', component: { template: '<div />' } }
+  { path: '/settings', name: 'settings', component: { template: '<div />' } },
+  { path: '/settings/shelves/new', name: 'mobile-shelf-add', component: { template: '<div />' } }
 ];
 
 const mounted: Array<{ app: App; host: HTMLElement }> = [];
@@ -77,5 +78,9 @@ describe('MobileTabBar', () => {
     expect(activeTargets(await mountAt('/downloads'))).toEqual(['/downloads']);
     expect(activeTargets(await mountAt('/settings'))).toEqual(['/settings']);
     expect(activeTargets(await mountAt('/books/abc123'))).toEqual(['/books']);
+  });
+
+  it('keeps Settings active on the shelf pages under it', async () => {
+    expect(activeTargets(await mountAt('/settings/shelves/new'))).toEqual(['/settings']);
   });
 });

@@ -38,11 +38,15 @@
           "created_at": "2026-06-20T07:00:00Z",
           "comment": "",
           "format": "txt",
+          "page_direction": "",
           "md5_hash": "4550559c4fd5c5a1d78b9a3d23fc970d",
           "has_content": true,
           "line_count": 3,
           "char_count": 14,
-          "assets": []
+          "assets": [],
+          "pages": [],
+          "unlisted": [],
+          "size_bytes": 36
         }
       ]
     }
