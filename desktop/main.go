@@ -13,11 +13,6 @@ import (
 func main() {
 	native := &wailsNative{}
 	app := NewDesktopApp(native)
-	appMenu, err := toWailsMenu(applicationMenu(app, runtime.GOOS))
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	app.Startup(context.Background())
 
 	wailsApp := application.New(application.Options{
@@ -32,6 +27,10 @@ func main() {
 		},
 		OnShutdown: app.Shutdown,
 	})
+	appMenu, err := toWailsMenu(applicationMenu(app, runtime.GOOS))
+	if err != nil {
+		log.Fatal(err)
+	}
 	wailsApp.Menu.SetApplicationMenu(appMenu)
 
 	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
