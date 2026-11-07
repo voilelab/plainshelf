@@ -50,6 +50,7 @@ The Go build embeds `frontend/dist`; build the frontend before Go builds or test
 | Frontend unused exports | `npm --prefix frontend run check-exports` |
 | Frontend dependency licenses | `npm --prefix frontend run check-licenses` |
 | Version resolver | `./scripts/test-resolve-version.sh` |
+| CI change detection | `./scripts/test-ci-changes.sh` |
 | Main Go module | `go test ./...` |
 | Desktop and reader Go modules | `(cd desktop && go test ./...)`, `(cd reader && go test ./...)` |
 | Go lint (all three modules) | `golangci-lint run`, `(cd desktop && golangci-lint run)`, `(cd reader && golangci-lint run)` |
@@ -58,7 +59,7 @@ The Go build embeds `frontend/dist`; build the frontend before Go builds or test
 | Wasm demo smoke | `just test-wasm-demo` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
 
-The boundary, export, license, version-resolver, docs build (`mkdocs build
+The boundary, export, license, version-resolver, CI change detection, docs build (`mkdocs build
 --strict`), and wasm demo smoke checks are pull-request gates in `.github/workflows/ci.yml`; its Android build and Android
 Go library jobs are not gates yet.
 

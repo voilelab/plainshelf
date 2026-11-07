@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   NPM_CONFIG_PREFER_OFFLINE: "true"
   NPM_CONFIG_FETCH_TIMEOUT: "30000"
@@ -25,9 +29,36 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+      go: ${{ steps.changes.outputs.go }}
+      desktop: ${{ steps.changes.outputs.desktop }}
+      reader: ${{ steps.changes.outputs.reader }}
+      e2e: ${{ steps.changes.outputs.e2e }}
+      android: ${{ steps.changes.outputs.android }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Test CI change detection
+        working-directory: .
+        run: ./scripts/test-ci-changes.sh
+
+      - name: Detect changed areas
+        id: changes
+        working-directory: .
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
+            ./scripts/ci-changes.sh < "$RUNNER_TEMP/changed.txt" | tee -a "$GITHUB_OUTPUT"
+          else
+            ./scripts/ci-changes.sh --all | tee -a "$GITHUB_OUTPUT"
+          fi
 
       - name: Test version resolver
         working-directory: .
@@ -45,21 +76,26 @@ jobs:
         run: npm ci
 
       - name: Run unit tests
+        if: steps.changes.outputs.frontend == 'true'
         run: npm test
 
       - name: Build frontend
         run: npm run build
 
       - name: Check module boundaries
+        if: steps.changes.outputs.frontend == 'true'
         run: npm run check-boundaries
 
       - name: Check unused exports
+        if: steps.changes.outputs.frontend == 'true'
         run: npm run check-exports
 
       - name: Check style contracts
+        if: steps.changes.outputs.frontend == 'true'
         run: npm run check-style-contracts
 
       - name: Check dependency licenses
+        if: steps.changes.outputs.frontend == 'true'
         run: npm run check-licenses
 
       - name: Upload frontend dist
@@ -74,6 +110,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
+    if: >-
+      needs.frontend.outputs.go == 'true' ||
+      needs.frontend.outputs.desktop == 'true' ||
+      needs.frontend.outputs.reader == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -91,20 +131,24 @@ jobs:
           cache: true
 
       - name: Lint main module
+        if: needs.frontend.outputs.go == 'true'
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
 
       - name: Install Wails v3 Linux dependencies
+        if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true' || needs.frontend.outputs.reader == 'true'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Lint desktop module
+        if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true'
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           working-directory: desktop
 
       - name: Lint reader module
+        if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.reader == 'true'
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
@@ -117,8 +161,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed areas
+        id: changes
+        working-directory: .
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
+            ./scripts/ci-changes.sh < "$RUNNER_TEMP/changed.txt" | tee -a "$GITHUB_OUTPUT"
+          else
+            ./scripts/ci-changes.sh --all | tee -a "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Python
+        if: steps.changes.outputs.docs == 'true'
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -126,9 +187,11 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
+        if: steps.changes.outputs.docs == 'true'
         run: pip install -r requirements.txt
 
       - name: Build site
+        if: steps.changes.outputs.docs == 'true'
         run: mkdocs build --strict
 
   go:
@@ -157,12 +220,15 @@ jobs:
         run: go test -timeout 2m ./...
 
       - name: Install Wails v3 Linux dependencies
+        if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true' || needs.frontend.outputs.reader == 'true'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Run desktop tests
+        if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true'
         run: cd desktop && go test -timeout 2m ./...
 
       - name: Run reader tests
+        if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.reader == 'true'
         run: cd reader && go test -timeout 2m ./...
 
   e2e:
@@ -170,6 +236,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
+    if: >-
+      needs.frontend.outputs.frontend == 'true' ||
+      needs.frontend.outputs.go == 'true' ||
+      needs.frontend.outputs.e2e == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -211,6 +281,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
+    if: >-
+      needs.frontend.outputs.frontend == 'true' ||
+      needs.frontend.outputs.go == 'true' ||
+      needs.frontend.outputs.e2e == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -284,6 +358,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     needs: [frontend, android-lib]
+    if: >-
+      needs.frontend.outputs.frontend == 'true' ||
+      needs.frontend.outputs.go == 'true' ||
+      needs.frontend.outputs.android == 'true'
     continue-on-error: true
     steps:
       - name: Checkout
@@ -340,6 +418,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
+    if: >-
+      needs.frontend.outputs.frontend == 'true' ||
+      needs.frontend.outputs.go == 'true' ||
+      needs.frontend.outputs.android == 'true'
     continue-on-error: true
     steps:
       - name: Checkout
@@ -381,6 +463,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: frontend
+    if: >-
+      needs.frontend.outputs.go == 'true' ||
+      needs.frontend.outputs.desktop == 'true' ||
+      needs.frontend.outputs.reader == 'true'
     # govulncheck default symbol scanning uses call-graph reachability and can report conservative false positives (govulncheck doc.go).
     steps:
       - name: Checkout
@@ -441,6 +527,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 10
     needs: frontend
+    if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.reader == 'true'
     # Wails v3 has no cgo-free darwin backend outside its experimental purego tag, so a scan cross-compiled without cgo cannot load the reader (wails v3.1.0 internal/buildguard).
     steps:
       - name: Checkout
@@ -474,6 +561,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 10
     needs: frontend
+    if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true'
     # Wails v3 has no cgo-free darwin backend outside its experimental purego tag, so a scan cross-compiled without cgo cannot load the desktop app (wails v3.1.0 internal/buildguard).
     steps:
       - name: Checkout
