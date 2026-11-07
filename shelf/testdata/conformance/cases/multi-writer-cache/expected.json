@@ -45,7 +45,8 @@
           "char_count": 18,
           "assets": [],
           "pages": [],
-          "unlisted": []
+          "unlisted": [],
+          "size_bytes": 18
         }
       ]
     },
@@ -85,7 +86,8 @@
           "char_count": 16,
           "assets": [],
           "pages": [],
-          "unlisted": []
+          "unlisted": [],
+          "size_bytes": 16
         }
       ]
     }

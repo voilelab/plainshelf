@@ -65,7 +65,7 @@ describe('createSource', () => {
 
 
 it('preserves images format and direction and fetches Go-parsed pages', async () => {
-  const meta = { id: 'pages', format: 'images', page_direction: 'rtl' };
+  const meta = { id: 'pages', format: 'images', page_direction: 'rtl', size_bytes: 2048 };
   fetchJsonMock.mockResolvedValue(meta);
   expect(await getSource('book/one', 'pages')).toMatchObject(meta);
   fetchJsonMock.mockResolvedValue([meta]);

@@ -69,7 +69,9 @@ export function useBookDetail(bookID: () => string) {
         : progressData;
       progressContentLength.value =
         needsProgressContentLength && contentText !== null ? contentText.length : null;
-      currentSource.value = currentSourceData;
+      currentSource.value = currentSourceData
+        ? { ...currentSourceData, page_list: pageList ?? undefined }
+        : null;
       chapters.value = readChapters(format, contentText);
     } catch (err) {
       book.value = null;

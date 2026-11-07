@@ -71,7 +71,8 @@
           ],
           "unlisted": [
             "p-stray.gif"
-          ]
+          ],
+          "size_bytes": 870
         },
         {
           "id": "20260402-091500",
@@ -93,7 +94,8 @@
               "missing": false
             }
           ],
-          "unlisted": []
+          "unlisted": [],
+          "size_bytes": 88
         }
       ]
     }

@@ -9,6 +9,7 @@ export interface SourceMeta {
   format?: BookFormat;
   line_count?: number;
   char_count?: number;
+  size_bytes?: number;
   page_direction?: 'ltr' | 'rtl';
   page_list?: SourcePageList;
 }
