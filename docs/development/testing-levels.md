@@ -151,7 +151,7 @@ A pull request does not run the whole suite. It runs the cases tagged
 
 | Tier | What runs | Browsers | Where | What it gates |
 |---|---|---|---|---|
-| Smoke | `@smoke`, 13 cases | chromium | `ci.yml`, every pull request | the merge |
+| Smoke | `@smoke`, 13 cases | chromium | `ci.yml`, pull requests touching `frontend/`, Go or `e2e/` | the merge |
 | Full | all 37 cases | chromium, webkit | `nightly.yml`, 03:00 UTC on `dev` | the release |
 
 The split exists because the wait before a merge should not grow with the
@@ -159,6 +159,18 @@ suite. It costs one thing, and this is it: **a green pull request no longer
 means the E2E suite passed.** A change outside the smoke set is checked by
 `just test-e2e` before pushing, and by the night after merging; when the night
 is red, the workflow opens (or comments on) one issue on this repository.
+
+#### The gate skips what a pull request cannot break
+
+`scripts/ci-changes.sh` maps a pull request's changed files to areas
+(`frontend`, `go`, `desktop`, `reader`, `e2e`, `android`, `docs`), and each
+`ci.yml` job or step runs only for the areas it checks. A docs-only change runs
+the docs build and the Go tests, which read the whole repository; a desktop-only
+change skips the E2E and wasm jobs. A path the script does not know, including
+anything under `.github/`, runs everything, and so does every push to `dev`. A
+skipped job still reports success, so branch protection keeps the same required
+checks. Add a path to the script, with a case in `scripts/test-ci-changes.sh`,
+when a new directory belongs to one area.
 
 #### The browser matrix is the nightly's, not the gate's
 
