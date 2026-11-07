@@ -6,7 +6,6 @@ import type {
   DownloadState,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook,
   TrashedBookListing
 } from '@/types/book';
 import type { SourceMeta, SourcePageList } from '@/types/source';

@@ -64,7 +64,6 @@ import type {
   BookUpdateRequest,
   PaginatedBooks,
   ReadingProgress,
-  TrashedBook,
   TrashedBookListing
 } from '@/types/book';
 import type { BookTransferMode, FingerprintStatus, SimilarBookPair } from '@/api/books';

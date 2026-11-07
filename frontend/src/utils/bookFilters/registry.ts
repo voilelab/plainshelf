@@ -3,7 +3,6 @@ import type { LocationQuery } from 'vue-router';
 import type { Book } from '@/types/book';
 import { toSingleQueryValue } from '@/composables/useBookPagination';
 import { useCharCountIndex } from '@/composables/useCharCountIndex';
-import { getBookshelfProvider } from '@/providers';
 import { getFolderPath, folderPathEquals } from '@/utils/folders';
 import { bookMatchesSearch } from '@/utils/bookSearch';
 import {

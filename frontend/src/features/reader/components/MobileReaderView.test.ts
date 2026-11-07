@@ -8,11 +8,6 @@ vi.mock('@/features/reader/components/ReaderContent.vue', () => ({
   default: { name: 'ReaderContentStub', render: () => null }
 }));
 
-vi.mock('@/composables/useWriteAccess', async () => {
-  const { ref } = await vi.importActual<typeof import('vue')>('vue');
-  return { useWriteAccess: () => ({ writesEnabled: ref(true) }) };
-});
-
 const HINT_KEY = 'reader-mobile-gesture-hint-seen';
 const HINT_TEXT = 'Tap the center for controls · Swipe left or right to change chapters';
 
