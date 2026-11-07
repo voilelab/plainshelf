@@ -146,7 +146,9 @@ watch(() => props.index, (index) => {
 });
 function pageReady(index: number): void {
   readyPages.add(index);
-  if (props.index === index) displayedIndex.value = index;
+  if (props.index !== index) return;
+  displayedIndex.value = index;
+  void nextTick(scrollToPageStart);
 }
 function turn(next: boolean): void {
   if (props.loading || props.error) return;

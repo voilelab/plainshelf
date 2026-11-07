@@ -189,6 +189,15 @@ describe('ComicReaderView', () => {
     expect(box.scrollLeft).toBe(left);
   });
 
+  it('starts the first rtl page at its top-right corner once it loads', async () => {
+    const { host, box } = setup('rtl');
+    await settle();
+    box.scrollWidth = 1000;
+    loadPage(host, 'Page 3');
+    await settle();
+    expect(box.scrollLeft).toBe(600);
+  });
+
   it('pans instead of turning on a horizontal swipe when the page overflows the width', async () => {
     const { viewport, box, next, previous } = setup();
     box.scrollWidth = 900;
