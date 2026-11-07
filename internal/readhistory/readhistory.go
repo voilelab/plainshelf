@@ -4,7 +4,6 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"math"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -225,26 +224,11 @@ func Project(doc Document, readerShelfID string, resolve func(bookID string) (st
 }
 
 func (s *Store) ProjectReader(readerShelfID string, resolve func(bookID string) (string, bool)) (string, error) {
-	raw, err := s.file.Read()
-	if err != nil {
-		return "", err
-	}
-	if len(Parse(raw).Shelves[readerShelfID]) == 0 {
-		return raw, nil
-	}
-	doc, err := lockedfile.Mutate(s.file, Parse, Serialize, func(doc Document) Document {
-		return Project(doc, readerShelfID, resolve)
-	})
-	if err != nil {
-		return "", err
-	}
-	return Serialize(doc)
+	return lockedfile.MutateIf(s.file, Parse, Serialize,
+		func(doc Document) bool { return len(doc.Shelves[readerShelfID]) > 0 },
+		func(doc Document) Document { return Project(doc, readerShelfID, resolve) })
 }
 
 func DefaultPath() (string, error) {
-	dir, err := readingprogress.SharedDataDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "read_history.json"), nil
+	return readingprogress.SharedDataPath("read_history.json")
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/json/v2"
 	"maps"
 	"math"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -190,20 +189,9 @@ func Project(doc Document, readerShelfID string, resolve func(bookID string) (st
 }
 
 func (s *Store) ProjectReader(readerShelfID string, resolve func(bookID string) (string, bool)) (string, error) {
-	raw, err := s.file.Read()
-	if err != nil {
-		return "", err
-	}
-	if !hasReaderBookKeys(Parse(raw), readerShelfID) {
-		return raw, nil
-	}
-	doc, err := lockedfile.Mutate(s.file, Parse, Serialize, func(doc Document) Document {
-		return Project(doc, readerShelfID, resolve)
-	})
-	if err != nil {
-		return "", err
-	}
-	return Serialize(doc)
+	return lockedfile.MutateIf(s.file, Parse, Serialize,
+		func(doc Document) bool { return hasReaderBookKeys(doc, readerShelfID) },
+		func(doc Document) Document { return Project(doc, readerShelfID, resolve) })
 }
 
 func hasReaderBookKeys(doc Document, readerShelfID string) bool {
@@ -217,9 +205,5 @@ func hasReaderBookKeys(doc Document, readerShelfID string) bool {
 }
 
 func DefaultPath() (string, error) {
-	dir, err := readingprogress.SharedDataDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "reading_stats.json"), nil
+	return readingprogress.SharedDataPath("reading_stats.json")
 }
