@@ -15,6 +15,7 @@ import {
 const SETTINGS_PAGE = 'src/features/settings/pages/SettingsPage.vue';
 const READER_CSS = 'src/features/reader/styles/reader-content.css';
 const MOBILE_READER = 'src/features/reader/components/MobileReaderView.vue';
+const COMIC_READER = 'src/features/reader/components/ComicReaderView.vue';
 
 /** A tree that honours every contract, for a test to break one field of. */
 function healthyTree() {
@@ -53,6 +54,10 @@ function healthyTree() {
 .mobile-reader-page :deep(.reader-md-code) {
   touch-action: pan-x pan-y pinch-zoom;
 }
+</style>
+`,
+    [COMIC_READER]: `<style scoped>
+.comic-viewport { overflow: auto; touch-action: pan-x pan-y pinch-zoom; }
 </style>
 `,
     [READER_CSS]: `.reader-text {
@@ -183,6 +188,14 @@ describe('the mobile reader contracts', () => {
       )
     });
     expect(found['a code block pans on its own axis']).toHaveLength(1);
+  });
+
+  it('catches a comic page that stops panning sideways', async () => {
+    const tree = healthyTree();
+    const found = await check({
+      [COMIC_READER]: tree[COMIC_READER].replace('touch-action: pan-x pan-y pinch-zoom;', 'touch-action: pan-y pinch-zoom;')
+    });
+    expect(found['a zoomed comic page pans sideways']).toHaveLength(1);
   });
 
   // .mobile-reader-toolbar is declared first and contains the tool's own name,

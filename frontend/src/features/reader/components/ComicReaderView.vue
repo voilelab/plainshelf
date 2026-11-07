@@ -4,6 +4,14 @@
       <button v-if="showBackNavigation" class="button" type="button" @click="emit('back')">{{ t('common.back') }}</button>
       <strong>{{ title }}</strong>
       <span class="comic-count" aria-live="polite">{{ pages.length ? index + 1 : 0 }} / {{ pages.length }}</span>
+      <div class="comic-size" role="group" :aria-label="t('reader.comic.pageSize')">
+        <select class="input comic-fit" :value="fit" :aria-label="t('reader.comic.pageSize')" @change="setFit(($event.target as HTMLSelectElement).value)">
+          <option v-for="option in fitOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+        </select>
+        <button class="button" type="button" :disabled="zoom <= COMIC_ZOOM_MIN" :aria-label="t('reader.comic.zoomOut')" @click="zoomOut">−</button>
+        <button class="button comic-zoom" type="button" :aria-label="t('reader.comic.resetZoom', { zoom })" @click="resetZoom">{{ zoom }}%</button>
+        <button class="button" type="button" :disabled="zoom >= COMIC_ZOOM_MAX" :aria-label="t('reader.comic.zoomIn')" @click="zoomIn">+</button>
+      </div>
     </header>
     <p v-if="saveError" role="status">{{ t('reader.autosaveFailed') }}</p>
     <div v-if="loading" class="comic-status" role="status">{{ t('reader.loadingContent') }}</div>
@@ -30,6 +38,9 @@
         :source-id="sourceId"
         :page="pages[pageIndex]"
         :index="pageIndex"
+        :viewport="viewportSize"
+        :fit="fit"
+        :zoom="zoom"
         @ready="pageReady(pageIndex)"
       />
     </div>
@@ -52,9 +63,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ComicPageImage from './ComicPageImage.vue';
 import type { SourcePage } from '@/types/source';
+import { useComicPageSize } from '@/features/reader/composables/useComicPageSize';
+import { COMIC_ZOOM_MAX, COMIC_ZOOM_MIN } from '@/features/reader/utils/comicPageSize';
 import { classifyReaderGesture } from '@/features/reader/utils/mobileReaderGestures';
 import { useI18n } from '@/i18n';
 
@@ -67,6 +80,57 @@ const emit = defineEmits<{ back: []; retry: []; previous: []; next: []; select: 
 const { t } = useI18n();
 const viewport = ref<HTMLElement | null>(null);
 const displayedIndex = ref(props.index);
+const viewportSize = ref({ width: 0, height: 0 });
+const { fit, zoom, setFit, zoomIn, zoomOut, resetZoom } = useComicPageSize();
+const fitOptions = computed(() => [
+  { value: 'fit-height', label: t('reader.comic.fitHeight') },
+  { value: 'fit-width', label: t('reader.comic.fitWidth') },
+  { value: 'original', label: t('reader.comic.original') }
+]);
+function measureViewport(): void {
+  if (viewport.value) viewportSize.value = { width: viewport.value.clientWidth, height: viewport.value.clientHeight };
+}
+let resizeObserver: ResizeObserver | null = null;
+watch(viewport, (element) => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  if (!element) return;
+  measureViewport();
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(measureViewport);
+    resizeObserver.observe(element);
+  }
+}, { flush: 'post' });
+function scrollToPageStart(): void {
+  const element = viewport.value;
+  if (!element) return;
+  element.scrollTop = 0;
+  element.scrollLeft = props.direction === 'rtl' ? element.scrollWidth - element.clientWidth : 0;
+}
+watch([displayedIndex, fit], () => { void nextTick(scrollToPageStart); });
+function isTextEntry(element: Element | null): boolean {
+  return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
+    || element?.getAttribute('contenteditable') === 'true';
+}
+function onKeydown(event: KeyboardEvent): void {
+  if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(document.activeElement)) return;
+  if (event.key === '+' || event.key === '=') zoomIn();
+  else if (event.key === '-') zoomOut();
+  else if (event.key === '0') resetZoom();
+  else return;
+  event.preventDefault();
+}
+onMounted(() => document.addEventListener('keydown', onKeydown));
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown);
+  resizeObserver?.disconnect();
+});
+function browserZoomed(): boolean {
+  return (window.visualViewport?.scale ?? 1) > 1.01;
+}
+function pansHorizontally(): boolean {
+  return !!viewport.value && viewport.value.scrollWidth > viewport.value.clientWidth + 1;
+}
 const readyPages = new Set<number>();
 const windowIndices = computed(() => {
   const indices = new Set<number>();
@@ -82,7 +146,9 @@ watch(() => props.index, (index) => {
 });
 function pageReady(index: number): void {
   readyPages.add(index);
-  if (props.index === index) displayedIndex.value = index;
+  if (props.index !== index) return;
+  displayedIndex.value = index;
+  void nextTick(scrollToPageStart);
 }
 function turn(next: boolean): void {
   if (props.loading || props.error) return;
@@ -90,7 +156,7 @@ function turn(next: boolean): void {
   else if (props.index > 0) emit('previous');
 }
 function onClick(event: MouseEvent): void {
-  if (performance.now() < ignoreClickUntil || !viewport.value) return;
+  if (performance.now() < ignoreClickUntil || !viewport.value || browserZoomed()) return;
   const bounds = viewport.value.getBoundingClientRect();
   const x = (event.clientX - bounds.left) / bounds.width;
   if (x < 0.3 || x > 0.7) turn((x < 0.3) === (props.direction === 'rtl'));
@@ -115,12 +181,12 @@ function onTouchEnd(event: TouchEvent): void {
   cancelTouch();
   if (!start || event.touches.length) return;
   const end = Array.from(event.changedTouches).find((item) => item.identifier === start.id);
-  if (!end || !viewport.value) return;
+  if (!end || !viewport.value || browserZoomed()) return;
   const dx = end.clientX - start.x;
   const dy = end.clientY - start.y;
   const gesture = classifyReaderGesture({ deltaX: dx, deltaY: dy, maxMovement: Math.max(start.maxMovement, Math.hypot(dx, dy)), durationMs: performance.now() - start.time });
   if (gesture === 'next' || gesture === 'previous') {
-    turn((gesture === 'next') === (props.direction === 'ltr'));
+    if (!pansHorizontally()) turn((gesture === 'next') === (props.direction === 'ltr'));
   } else if (gesture === 'tap') {
     const bounds = viewport.value.getBoundingClientRect();
     const x = (end.clientX - bounds.left) / bounds.width;
@@ -139,10 +205,14 @@ function onTouchEnd(event: TouchEvent): void {
   color: #eee;
 }
 .comic-toolbar, .comic-navigation { padding: 8px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left)); }
-.comic-toolbar { display: flex; align-items: center; gap: 12px; padding-top: max(8px, env(safe-area-inset-top)); }
+.comic-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
 .comic-toolbar strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comic-count { white-space: nowrap; }
-.comic-viewport { flex: 1; min-height: 0; position: relative; touch-action: pan-y pinch-zoom; }
+.comic-viewport { flex: 1; min-height: 0; display: grid; overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y pinch-zoom; }
+.comic-size { display: flex; align-items: center; gap: 4px; }
+.comic-size .input { width: auto; padding: 6px 8px; }
+.comic-size .button { min-width: 36px; }
+.comic-zoom { font-variant-numeric: tabular-nums; }
 .comic-status { margin: auto; text-align: center; }
 .comic-buttons { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .comic-buttons-rtl { flex-direction: row-reverse; }
