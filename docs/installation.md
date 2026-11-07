@@ -8,6 +8,7 @@ Every tagged release publishes:
 - A Homebrew cask for the macOS desktop client
 - Prebuilt server archives for Linux and macOS
 - A multi-architecture Docker image on the GitHub Container Registry (GHCR)
+- An experimental Android APK for arm64 phones
 
 Release artifacts live on the
 [GitHub Releases](https://github.com/voilelab/plainshelf/releases) page.
@@ -214,6 +215,29 @@ docker run --rm \
 
 For custom configuration and the bundled defaults, see the
 [Docker](development/docker.md) page.
+
+---
+
+## Option 4 — Android APK (experimental)
+
+The Android client is experimental; see [Android](development/android.md) for
+what it does. It needs **Android 7.0 or later on a 64-bit ARM (`arm64-v8a`)
+device**, which covers current phones. x86_64 emulators, most Chromebooks and
+32-bit phones are not supported.
+
+1. Download `plainshelf-android_<tag>_arm64.apk` and `SHA256SUMS` from the
+   [Releases](https://github.com/voilelab/plainshelf/releases) page and check
+   it as in [Verify the download](#2-verify-the-download-recommended).
+2. Open the APK on the phone and allow the browser or file manager to install
+   unknown apps when Android asks.
+3. To upgrade, install the next release's APK over it; local shelves and
+   downloads are kept.
+
+Every release is signed with the same key, and Android refuses an update signed
+with any other. A copy you built yourself or downloaded from a CI run is signed
+with a different key, so uninstall it before the first release install. That
+deletes its local shelves unless the uninstall dialog keeps the app's data:
+[export them](backup-and-restore.md#android-local-shelf) first.
 
 ---
 

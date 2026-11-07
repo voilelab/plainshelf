@@ -3,7 +3,7 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 <display|native|android-name|validate-tag|validate-next|release-branch|latest-tag|previous-tag> [version]" >&2
+  echo "Usage: $0 <display|native|android-name|android-code|validate-tag|validate-next|release-branch|latest-tag|previous-tag> [version]" >&2
   exit 2
 }
 
@@ -139,6 +139,35 @@ version_gt() {
   done
 }
 
+android_version_code() {
+  if ! split_version "$1"; then
+    echo "Invalid version: $1" >&2
+    return 1
+  fi
+  old_ifs=$IFS
+  IFS=.
+  set -- $core_version
+  IFS=$old_ifs
+  if [ "$2" -gt 99 ] || [ "$3" -gt 99 ] || [ "$1" -gt 2000 ]; then
+    echo "Android versionCode cannot encode $core_version" >&2
+    return 1
+  fi
+  if [ "$has_version_suffix" = false ]; then
+    slot=99
+  else
+    case "$version_suffix" in
+      rc.*) slot=${version_suffix#rc.} ;;
+      rc*) slot=${version_suffix#rc} ;;
+      *) slot= ;;
+    esac
+    if ! is_numeric_identifier "$slot" || [ "$slot" -lt 1 ] || [ "$slot" -gt 98 ]; then
+      echo "Android versionCode supports only rcN prereleases (N 1-98): $version_suffix" >&2
+      return 1
+    fi
+  fi
+  printf '%s\n' $(($1 * 1000000 + $2 * 10000 + $3 * 100 + slot))
+}
+
 resolve_display_version() {
   exact_tag=$(
     for tag in $(git -c versionsort.suffix=- -c versionsort.suffix= tag --points-at HEAD --sort=-version:refname 2>/dev/null); do
@@ -196,6 +225,9 @@ case "$mode" in
     else
       printf '%s\n' '0.0.0-dev'
     fi
+    ;;
+  android-code)
+    android_version_code "$raw_version"
     ;;
   latest-tag)
     latest_release_tag
