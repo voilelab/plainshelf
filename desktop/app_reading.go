@@ -43,16 +43,7 @@ func writeDeviceDocument(path, label, doc string) error {
 }
 
 func (a *DesktopApp) ReadReadHistory() (string, error) {
-	store := readhistory.NewStore(a.readHistoryPath)
-	if a.readerNamespaceIsRealShelf() {
-		return store.Read()
-	}
-	text, err := store.ProjectReader(readingprogress.ReaderShelfID, a.resolveUniqueBookShelf)
-	if err != nil {
-		log.Println("failed to project reader read history:", err)
-		return store.Read()
-	}
-	return text, nil
+	return a.readProjected(readhistory.NewStore(a.readHistoryPath), "read history")
 }
 
 func (a *DesktopApp) RecordReadHistory(shelfKey, bookID string) error {
@@ -169,13 +160,21 @@ func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
 }
 
 func (a *DesktopApp) ReadReadingStats() (string, error) {
-	store := readingstats.NewStore(a.readingStatsPath)
+	return a.readProjected(readingstats.NewStore(a.readingStatsPath), "reading stats")
+}
+
+type readerProjectable interface {
+	Read() (string, error)
+	ProjectReader(readerShelfID string, resolve func(bookID string) (string, bool)) (string, error)
+}
+
+func (a *DesktopApp) readProjected(store readerProjectable, label string) (string, error) {
 	if a.readerNamespaceIsRealShelf() {
 		return store.Read()
 	}
 	text, err := store.ProjectReader(readingprogress.ReaderShelfID, a.resolveUniqueBookShelf)
 	if err != nil {
-		log.Println("failed to project reader reading stats:", err)
+		log.Println("failed to project reader "+label+":", err)
 		return store.Read()
 	}
 	return text, nil

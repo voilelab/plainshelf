@@ -16,9 +16,13 @@ func SharedDataDir() (string, error) {
 }
 
 func DefaultProgressPath() (string, error) {
+	return SharedDataPath("reading_progress.json")
+}
+
+func SharedDataPath(name string) (string, error) {
 	dir, err := SharedDataDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "reading_progress.json"), nil
+	return filepath.Join(dir, name), nil
 }
