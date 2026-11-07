@@ -28,14 +28,18 @@ import {
   createSource,
   deleteSource,
   deleteSourceComment,
+  deleteSourcePage,
   getSource,
   getSourceAsset,
   getSourceAssetsBundle,
   getSourceContent,
   getSourcePages,
+  insertSourcePage,
   listSource,
   refreshSourceMeta,
+  replaceSourcePages,
   setCurrentSource,
+  setSourcePageDirection,
   updateSourceContent
 } from '@/api/sources';
 import { type FolderChangeOptions, type FolderMetaListing, getFolderMeta, getFolders, transferFolder } from '@/api/folders';
@@ -64,7 +68,7 @@ import type {
   TrashedBookListing
 } from '@/types/book';
 import type { BookTransferMode, FingerprintStatus, SimilarBookPair } from '@/api/books';
-import type { CreateSourceOptions, SourceMeta, SourcePageList } from '@/types/source';
+import type { CreateSourceOptions, PageDirection, SourceMeta, SourcePageList } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 import type {
   BookshelfReader,
@@ -278,6 +282,22 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta> {
     return refreshSourceMeta(bookId, sourceId);
+  }
+
+  replaceSourcePages(bookId: string, sourceId: string, md5Hash: string, names: string[]): Promise<SourcePageList> {
+    return replaceSourcePages(bookId, sourceId, md5Hash, names);
+  }
+
+  insertSourcePage(bookId: string, sourceId: string, md5Hash: string, position: number, image: Blob): Promise<SourcePageList> {
+    return insertSourcePage(bookId, sourceId, md5Hash, position, image);
+  }
+
+  deleteSourcePage(bookId: string, sourceId: string, md5Hash: string, name: string): Promise<SourcePageList> {
+    return deleteSourcePage(bookId, sourceId, md5Hash, name);
+  }
+
+  setSourcePageDirection(bookId: string, sourceId: string, direction: PageDirection): Promise<SourceMeta> {
+    return setSourcePageDirection(bookId, sourceId, direction);
   }
 
 

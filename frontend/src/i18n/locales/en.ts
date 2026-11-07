@@ -1466,6 +1466,41 @@ const en = {
         }
       }
     },
+    pages: {
+      title: 'Pages',
+      direction: 'Reading direction',
+      ltr: 'Left to right',
+      rtl: 'Right to left',
+      addAtEnd: 'Add pages at end',
+      addAfter: 'Add pages after page {number}',
+      count: '{count} pages',
+      saving: 'Saving...',
+      autosave: 'Page changes save immediately',
+      hint: 'Drag pages to reorder them. Select a page to add new pages after it.',
+      pageLabel: 'Page {number}',
+      missing: 'Missing page',
+      moveEarlier: 'Move earlier',
+      moveLater: 'Move later',
+      delete: 'Delete page',
+      removeMissing: 'Remove missing page',
+      deleteTitle: 'Delete page',
+      deleteConfirm: 'Delete',
+      deleteQuestion: 'Delete this page and its image file?',
+      removeMissingQuestion: 'Remove this missing page from the list?',
+      empty: 'This source has no pages yet.',
+      unlistedTitle: 'Not in the page list',
+      unlistedHelp: 'These images are in the source folder but not in the reading order.',
+      addToList: 'Add to end',
+      reload: 'Reload pages',
+      errors: {
+        load: 'Failed to load pages.',
+        save: 'Failed to save the page order.',
+        add: 'Failed to add the page.',
+        delete: 'Failed to delete the page.',
+        direction: 'Failed to change the reading direction.',
+        conflict: 'The page list changed since it was loaded. Reload it before editing again.'
+      }
+    },
     conversion: {
       confirm: 'Create source',
       busy: 'Creating...',

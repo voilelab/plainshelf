@@ -179,6 +179,7 @@ func TestPagesReportsMissingAndUnlisted(t *testing.T) {
 			{Name: "p-a.png"},
 		},
 		Unlisted: []string{"p-extra.gif"},
+		MD5Hash:  source.GetMeta().MD5Hash,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Pages() = %+v, want %+v", got, want)

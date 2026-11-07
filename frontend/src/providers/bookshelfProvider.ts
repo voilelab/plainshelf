@@ -13,7 +13,7 @@ import type {
   TrashedBook,
   TrashedBookListing
 } from '@/types/book';
-import type { CreateSourceOptions, SourceMeta, SourcePageList } from '@/types/source';
+import type { CreateSourceOptions, PageDirection, SourceMeta, SourcePageList } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 
 export type { DownloadState } from '@/types/book';
@@ -120,6 +120,10 @@ export interface BookshelfWriter {
   setCurrentSource(bookId: string, sourceId: string): Promise<void>;
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void>;
   refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta>;
+  replaceSourcePages(bookId: string, sourceId: string, md5Hash: string, names: string[]): Promise<SourcePageList>;
+  insertSourcePage(bookId: string, sourceId: string, md5Hash: string, position: number, image: Blob): Promise<SourcePageList>;
+  deleteSourcePage(bookId: string, sourceId: string, md5Hash: string, name: string): Promise<SourcePageList>;
+  setSourcePageDirection(bookId: string, sourceId: string, direction: PageDirection): Promise<SourceMeta>;
 }
 
 export type WritableBookshelfProvider = BookshelfReader & BookshelfWriter;

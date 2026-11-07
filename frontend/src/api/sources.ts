@@ -1,5 +1,5 @@
 import { buildShelfApiPath, fetchBlob, fetchJson, fetchText, isMockApiMode } from './client';
-import type { CreateSourceOptions, SourceMeta, SourcePageList } from '@/types/source';
+import type { CreateSourceOptions, PageDirection, SourceMeta, SourcePageList } from '@/types/source';
 
 interface SourceStoreItem {
   meta: SourceMeta;
@@ -303,4 +303,67 @@ export async function getSourcePages(bookId: string, sourceId: string): Promise<
   return fetchJson<SourcePageList>(
     buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/pages`)
   );
+}
+
+function sourcePagesPath(bookId: string, sourceId: string): string {
+  return buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/pages`);
+}
+
+export async function replaceSourcePages(
+  bookId: string,
+  sourceId: string,
+  md5Hash: string,
+  names: string[]
+): Promise<SourcePageList> {
+  return fetchJson<SourcePageList>(sourcePagesPath(bookId, sourceId), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pages: names, md5_hash: md5Hash })
+  });
+}
+
+export async function insertSourcePage(
+  bookId: string,
+  sourceId: string,
+  md5Hash: string,
+  position: number,
+  image: Blob
+): Promise<SourcePageList> {
+  const query = new URLSearchParams({ md5_hash: md5Hash, position: String(position) });
+  return fetchJson<SourcePageList>(`${sourcePagesPath(bookId, sourceId)}?${query.toString()}`, {
+    method: 'POST',
+    headers: { 'Content-Type': image.type || 'application/octet-stream' },
+    body: image
+  }, {
+    timeoutMs: SOURCE_UPLOAD_TIMEOUT_MS
+  });
+}
+
+export async function deleteSourcePage(
+  bookId: string,
+  sourceId: string,
+  md5Hash: string,
+  name: string
+): Promise<SourcePageList> {
+  const query = new URLSearchParams({ md5_hash: md5Hash });
+  return fetchJson<SourcePageList>(
+    `${sourcePagesPath(bookId, sourceId)}/${encodeURIComponent(name)}?${query.toString()}`,
+    { method: 'DELETE' }
+  );
+}
+
+export async function setSourcePageDirection(
+  bookId: string,
+  sourceId: string,
+  direction: PageDirection
+): Promise<SourceMeta> {
+  const data = await fetchJson<unknown>(
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/page-direction`),
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page_direction: direction })
+    }
+  );
+  return normalizeSourceMeta(data);
 }

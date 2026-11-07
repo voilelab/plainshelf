@@ -40,6 +40,8 @@ var (
 	ErrInvalidAssetName               = bookpkg.ErrInvalidAssetName
 	ErrMalformedMetadata              = bookpkg.ErrMalformedMetadata
 	ErrNotImageSource                 = bookpkg.ErrNotImageSource
+	ErrPageListConflict               = bookpkg.ErrPageListConflict
+	ErrInvalidPagePosition            = bookpkg.ErrInvalidPagePosition
 	ErrInvalidPageList                = bookpkg.ErrInvalidPageList
 	ErrInvalidPageDirection           = bookpkg.ErrInvalidPageDirection
 )
