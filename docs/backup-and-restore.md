@@ -21,26 +21,35 @@ of the layout.
 
 ## What a backup has to cover
 
-Your library is not in one place. Four things hold state, and they are not
-equally important or equally replaceable:
+Your library is not in one place. State lives in several places, and they are
+not equally important or equally replaceable:
 
 | What | Where it lives | Holds | If you lose it |
 |---|---|---|---|
-| **Shelf directory** | `lib_root` in the config file | `books/` (your library) and `trash/` (deleted books not yet emptied). `app/` is rebuildable cache. | Your books are gone. Nothing rebuilds them. |
-| **Application store** | `app_conf.store_path` | Three server settings: cover-to-JPG conversion, the EPUB import preset, and log retention. | Those settings return to the values in your config file, or to the built-in defaults. Nothing else. |
-| **Config file** | wherever you pass `-conf` | Shelf list, bind address, security mode, log settings. | You reconfigure by hand — and until you do, PlainShelf does not know where your shelf is. |
+| **Shelf directory** | `lib_root` in the config file | `books/` (your library), `trash/` (deleted books not yet emptied), and the optional [`shelf.json`](concepts/data-model.md#shelfjson) (this shelf's ignored directories and adult-content folders). `app/` is rebuildable cache. | Your books are gone. Nothing rebuilds them. Without `shelf.json` the shelf goes back to the built-in defaults. |
+| **Application store** | `app_conf.store_path` | A settings database: cover-to-JPG conversion, the EPUB import preset, log retention, and whether books marked as adult content are shown. Under `offline/`, each [virtual shelf](concepts/shelf-sources.md#offline-copies)'s last listing and downloaded books. | Settings with a config key return to the value in your config file, or to the built-in default. Adult content goes back to hidden, because that setting has no config key. Downloaded books and the saved listing are gone; while the source is reachable you can download the books again. |
+| **Config file** | wherever you pass `-conf` | Shelf list and each shelf's `source` block, bind address, security mode, log settings. A `credential` here is a reference, not the secret. | You reconfigure by hand — and until you do, PlainShelf does not know where your shelf is. |
+| **Credential secrets** | the environment, a secret file, the OS keychain, or Android Keystore; see [Credentials](#credentials-are-backed-up-separately) | The passwords and tokens that virtual shelves sign in with. | A virtual shelf cannot open its source until you supply the secret again. |
 | **Client device data** | the browser profile, the desktop app's data directory, or the phone | Reading progress, read history, reading time. **Not on the server.** | Every book reopens at the beginning on that device. |
 
-Only the first row is irreplaceable, and only the first row is what most people
-picture when they hear "back up the shelf".
+Only the shelf directory is irreplaceable, and it is what most people picture
+when they hear "back up the shelf". Downloaded books in the store can become
+irreplaceable too: if a virtual shelf's source is gone for good, its offline
+directory holds the only copy of the books you downloaded from it.
 
 ### Do they have to be from the same moment?
 
 Mostly no, and that is a deliberate consequence of the filesystem-first design.
 
-- **The shelf and the store are independent.** Nothing in the store refers to a
-  book, a folder, or an ID. Restoring last week's store beside today's shelf
-  gives you last week's three settings and today's library; nothing breaks.
+- **A local shelf and the store are independent.** The settings in the store
+  refer to no book, folder, or ID. Restoring last week's store beside today's
+  shelf gives you last week's settings and today's library; nothing breaks.
+- **The store's offline directories do refer to books,** by ID and path on a
+  virtual shelf's source. An older copy beside a source that has moved on still
+  opens. The saved listing is replaced at the next successful read from the
+  source. A downloaded book that changed on the source reports an update, and a
+  copy of a book that was since moved or replaced there is no longer used. What
+  an older store cannot give back is a book downloaded after that backup.
 - **The config file is independent too**, as long as its `lib_root` and
   `store_path` still point at where you restored those directories.
 - **The shelf directory must be restored as one unit.** `books/` and `trash/`
@@ -63,18 +72,21 @@ holding.
 
 Restore only the shelf directory and you get back, intact and byte-for-byte:
 every book, every book **ID**, the folder tree including folders that hold no
-book, the trash with its original paths, and every source file. What you do
-**not** get back:
+book, the trash with its original paths, every source file, and `shelf.json`.
+What you do **not** get back:
 
 - **Reading progress, read history, and reading time.** These are per-device and
   have not been on the server since v0.9.0. A server-side backup has never
   contained them and restoring one will not bring them back. This is the single
   most common surprise.
-- **The three stored server settings.** They are in the application store, not
-  the shelf. After a shelf-only restore they silently revert — the value in your
-  config file if it sets one, the built-in default otherwise.
+- **The stored server settings.** They are in the application store, not the
+  shelf. After a shelf-only restore they silently revert: to the value in your
+  config file if it sets one, to the built-in default otherwise. Adult content
+  goes back to hidden.
+- **Offline copies of virtual shelves.** They are in the application store too.
 - **Your configuration**, if the config file lived outside the shelf, which it
   normally does.
+- **Credential secrets**, which are in none of these directories.
 
 None of that is a corruption; a shelf-only restore gives you a working library.
 It just gives you a slightly different one than you had, and it does so without
@@ -128,7 +140,9 @@ rsync -a --delete /path/to/store/ /path/to/backup/store/
 ```
 
 `lib_root` and `app_conf.store_path` in your config file are the two paths to
-substitute. See [Local Shelf File Source](configuring-local-shelf.md).
+substitute. See [Local Shelf File Source](configuring-local-shelf.md). Copying
+the whole store directory also copies `offline/`, so downloaded books come with
+it.
 
 You may exclude `app/`, since it is rebuilt on the next start, but excluding it
 saves little and risks a filter that also drops `trash/`. Copying it is simpler
@@ -177,7 +191,7 @@ shelf:
 ~/Library/Application Support/PlainShelf/
 ├─ shelves.json            the shelves you added, and their settings
 ├─ preferences.json        language, zoom, reader font and other UI preferences
-├─ store/                  the application store
+├─ store/                  the application store, with virtual shelves' downloads in offline/
 ├─ logs/
 ├─ reading_progress.json   per-device — this machine's reading positions
 ├─ read_history.json       per-device
@@ -214,6 +228,9 @@ The zip holds `books/`, `trash/` and, when the shelf has one, the
 a `lib_root` the desktop app or a server opens as is, with the same ignored
 directories and adult-content folders. It does not carry `app/` (rebuildable
 cache) or reading progress, which stay on the device.
+
+The export covers the local shelf only. Books downloaded from a pCloud or WebDAV
+shelf are in the app's private storage and are not in any export.
 
 Android's own backup does not replace this. Google cloud backup leaves local
 shelves out, so restoring a phone from it brings none back. Moving to a new
@@ -255,6 +272,23 @@ Two ways to live with that:
   `books/` holds your files, not the app's.
 
 Use `cp -a` or `rsync` when you want a backup with none of these caveats.
+
+### Credentials are backed up separately
+
+A virtual shelf's `credential` is a [reference](concepts/shelf-sources.md#credentials)
+such as `env:NAME`, `file:/path`, or `host:ID`. The config file and
+`shelves.json` hold only the reference. The secret it names is somewhere a
+PlainShelf backup does not reach:
+
+| Reference | Where the secret is | What to back up or redo |
+|---|---|---|
+| `env:NAME` | an environment variable of the server process | wherever you set it: a service unit, a Compose file, a shell profile |
+| `file:/path` | that file, often outside the config directory | the file itself, or a Docker secret's source |
+| `host:ID` on the desktop | the operating system keychain | keychain backup, or remove the shelf and add it again |
+| `host:ID` on Android | Android Keystore | after a reinstall, authorize pCloud or enter the token again |
+
+The secret is not in the store either: PlainShelf never writes it there. See
+[Where credentials live](deployment-and-threat-model.md#where-credentials-live).
 
 ---
 
@@ -314,7 +348,7 @@ You can skip `app/library.lock`, `app/tmp/`, `app/scan-cache.json`, and
 `app/book-cache-*.json` when restoring, or drop `app/` entirely; the server
 recreates all of it on the next startup. Restore `books/` and `trash/` in full:
 both hold books, and a restored `.trash/` from an older backup is renamed to
-`trash/` on the next start.
+`trash/` on the next start. Restore `shelf.json` too, if the shelf has one.
 
 Book IDs, folders, and the trash come back exactly as they were — an ID is a
 value inside `book.json`, not something derived from a path, so a restore cannot
@@ -356,8 +390,9 @@ only on the device that recorded it:
   open PlainShelf on. Restoring a browser profile backup restores it. Clearing
   site data for that origin destroys it, and no server-side restore brings it
   back.
-- **Android:** progress is per-book on the device; reinstalling the app without
-  a device backup loses it.
+- **Android:** progress, history, and reading time are in the app's private
+  storage and WebView storage on the device; reinstalling the app without a
+  device backup loses them.
 
 ### When a restore fails to start
 
@@ -416,7 +451,7 @@ here is exactly where they are:
 |---|---|---|
 | Browser | `localStorage` keys `plainshelf.readingProgress`, `plainshelf.readHistory`, `plainshelf.readingStats` | Per browser profile **and per origin**. |
 | Desktop | `reading_progress.json`, `read_history.json`, `reading_stats.json` in the app data directory | Deliberately files, not WebView storage, so clearing WebView data does not take them. |
-| Android | On-device, per book | Not covered by a shelf backup. |
+| Android | Read history and reading time in `plainshelf-cache/read-history.json` and `plainshelf-cache/reading-stats.json` in the app's private storage. Reading progress in WebView `localStorage` for a shelf the app opens itself (local, pCloud, WebDAV), and in a per-book `progress.json` in the app's private storage for an external PlainShelf server connection | Not covered by a shelf backup or the shelf export. |
 
 What follows from that:
 
