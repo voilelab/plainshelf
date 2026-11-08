@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ShelfBackdrop, createShelfBackdropStorage } from '@/storage/shelfBackdrops';
 
@@ -132,6 +133,24 @@ describe('useShelfBackdrop', () => {
 
     expect(stored.get('shelf-a')).toEqual({ kind: 'color', swatch: 'sky' });
     expect(layoutStyle.value).toEqual({ '--shelf-backdrop-color': 'var(--shelf-backdrop-sky)' });
+  });
+
+  it('keeps following the shelf after the first component using it unmounts', async () => {
+    stored.set('shelf-b', { kind: 'color', swatch: 'rose' });
+    vi.resetModules();
+    const { createApp, defineComponent, h } = await import('vue');
+    const { useShelvesStore } = await import('@/composables/useShelvesStore');
+    const { useShelfBackdrop } = await import('./useShelfBackdrop');
+    useShelvesStore().selectedShelfID.value = 'shelf-a';
+    const app = createApp(defineComponent({ setup: () => (useShelfBackdrop(), () => h('div')) }));
+    app.mount(document.createElement('div'));
+    await flushPromises();
+    app.unmount();
+
+    useShelvesStore().selectedShelfID.value = 'shelf-b';
+    await flushPromises();
+
+    expect(useShelfBackdrop().layoutStyle.value).toEqual({ '--shelf-backdrop-color': 'var(--shelf-backdrop-rose)' });
   });
 
   it('clears back to the default look', async () => {

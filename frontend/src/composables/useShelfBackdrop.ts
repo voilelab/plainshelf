@@ -1,4 +1,4 @@
-import { computed, ref, watch, type CSSProperties } from 'vue';
+import { computed, effectScope, ref, watch, type CSSProperties } from 'vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { createShelfBackdropStorage, type ShelfBackdrop, type ShelfBackdropSwatch } from '@/storage/shelfBackdrops';
 import { t } from '@/i18n';
@@ -40,7 +40,7 @@ function start(): void {
   if (started) return;
   started = true;
   const { selectedShelfID } = useShelvesStore();
-  watch(selectedShelfID, (id) => void load(id), { immediate: true });
+  effectScope(true).run(() => watch(selectedShelfID, (id) => void load(id), { immediate: true }));
 }
 
 function isQuotaError(err: unknown): boolean {
