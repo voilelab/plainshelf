@@ -595,6 +595,7 @@ What changes:
 | `app/scan-cache.json` | Written at startup and shutdown | Never written; an existing one is still read |
 | `app/book-cache-*.json` | Written when `book_cache_writer_id` is set | Never written; the ID is ignored |
 | `app/fingerprint-cache.json` | Written by the source fingerprint task | Never written; the task is refused with 409, an existing one is still read |
+| `app/page-hash-cache.json` | Written by the comic page hash task | Never written; the task is refused with 409, an existing one is still read |
 | Creating, editing, moving, deleting | Allowed | Refused with HTTP 409 before anything is touched |
 
 What that costs:

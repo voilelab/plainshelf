@@ -30,6 +30,7 @@ A typical shelf looks like this:
    ├─ book-cache-{writer-id}.json
    ├─ scan-cache.json
    ├─ fingerprint-cache.json
+   ├─ page-hash-cache.json
    └─ tmp/
 ```
 
@@ -163,6 +164,15 @@ you build fingerprints, the ones that are gone are simply read and computed
 again. It is also discarded and rebuilt whenever the similarity algorithm
 changes. See [Data format
 versioning](data-format-versioning.md#fingerprint-cache).
+
+`page-hash-cache.json` stores the MD5 of every comic page, so the [Duplicate
+Content](../finding-similar-books.md#duplicate-comics) page can compare comics
+by their images without reading them. Like the fingerprint cache it is one
+shared file keyed by book and source ID, and each page record keeps the image's
+size and modification time, so the next hashing run reads only pages that
+changed. Deleting it is safe: comics drop out of duplicate detection until you
+hash their pages again. See [Data format
+versioning](data-format-versioning.md#page-hash-cache).
 
 Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is
 reading-time history from before it moved onto each device; nothing reads it any
@@ -481,9 +491,11 @@ are stored unchanged.
 manga. It is written only for that value; absent means left to right, and only
 an `images` source may carry it.
 
-An `images` source has no text, so its `char_count` stays `0`, and fingerprints,
-the Similar Books page and duplicate detection leave it out: two comics can
-share a page list without sharing a single image. `md5_hash` and `line_count` still
+An `images` source has no text, so its `char_count` stays `0`, and fingerprints
+and the Similar Books page leave it out. Duplicate detection does not compare
+its `md5_hash` either, because two comics can share a page list without sharing
+a single image; it compares the MD5 of each page image instead, from
+`app/page-hash-cache.json`. `md5_hash` and `line_count` still
 describe `source.txt`, the same as for any other source.
 
 ### Book IDs

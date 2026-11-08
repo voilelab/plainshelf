@@ -9,7 +9,7 @@ import type {
   TrashedBookListing
 } from '@/types/book';
 import type { SourceMeta, SourcePageList } from '@/types/source';
-import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
+import type { ComicOverlapReport, FingerprintStatus, SimilarBookPair } from '@/api/books';
 import { ApiError, getActiveShelfID } from '@/api/client';
 import {
   addReadHistory as addLocalReadHistory,
@@ -255,6 +255,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
   getFingerprintStatus(): Promise<FingerprintStatus> {
     return this.remote.getFingerprintStatus();
+  }
+
+  getComicOverlaps(): Promise<ComicOverlapReport> {
+    return this.remote.getComicOverlaps();
   }
 
   listTrashedBooks(): Promise<TrashedBookListing> {

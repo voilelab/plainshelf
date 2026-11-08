@@ -537,13 +537,23 @@ const zhHant = {
   maintenance: {
     duplicateContent: '重複內容',
     duplicates: {
-      description: '用來檢視內容完全相同的書籍。',
+      description: '用來檢視內容完全相同的書籍，以及幾乎每一頁都相同的漫畫。',
       scanning: '掃描重複內容群組中...',
       empty: '沒有發現重複內容。',
       emptyHint: '你的書庫很乾淨。',
       loadFailed: '載入重複內容失敗',
       groupTitle: '重複群組 #{index}',
       groupSummary: '{count} 本書的內容完全相同',
+      overlapTitle: '可能重複 #{index}',
+      overlapSummary: '有 {shared} 頁相同；「{a}」多 {extraA} 頁，「{b}」多 {extraB} 頁',
+      comicHash: {
+        missingNote: '{total} 本漫畫中有 {missing} 本還沒有頁面雜湊，暫不比對',
+        allHashed: '{total} 本漫畫都已有頁面雜湊',
+        build: '計算漫畫頁面雜湊',
+        building: '計算中… {percent}%',
+        failed: '無法計算漫畫頁面雜湊。',
+        readOnly: '唯讀書庫無法計算漫畫頁面雜湊。'
+      },
       open: '開啟',
       delete: '刪除',
       deleting: '刪除中...',

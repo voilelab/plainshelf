@@ -130,6 +130,7 @@ func TestAPIReadOnlyShelfRefusesWrites(t *testing.T) {
 			body: `{"operation":"trash","book_ids":["book-0001"]}`},
 		{name: "content stat refresh", url: apitest.ShelfURL("content-stat-refreshes")},
 		{name: "source fingerprints", url: apitest.ShelfURL("source-fingerprints")},
+		{name: "comic page hashes", url: apitest.ComicPageHashesURL()},
 		{name: "empty trash", url: apitest.ShelfURL("trash", "empty")},
 		{name: "book cache export", url: apitest.BookCacheExportURL()},
 	}
