@@ -1,6 +1,6 @@
 <template>
   <BaseDialog :open="open" :title="t('reader.fontDialog.title')" @close="emit('close')">
-    <section class="panel font-selection-modal">
+    <section class="panel font-selection-modal reading-surface">
       <header class="font-selection-header">
         <div>
           <h3>{{ t('reader.fontDialog.title') }}</h3>

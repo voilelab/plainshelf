@@ -73,7 +73,9 @@ export async function findRawColors(base = '.') {
 }
 
 function tokenBlock(css, selector) {
-  const rule = rules(css).find((candidate) => candidate.selector === selector);
+  const rule = rules(css).find((candidate) =>
+    candidate.selector.split(',').some((part) => part.trim() === selector)
+  );
   if (!rule) return null;
   return new Map(
     [...rule.body.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)].map(([, name, value]) => [name, value.trim()])

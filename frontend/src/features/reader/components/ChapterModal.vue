@@ -1,6 +1,6 @@
 <template>
   <BaseDialog :open="open" :title="t('reader.chapterDialog.title')" @close="emit('close')">
-    <section class="panel chapter-modal">
+    <section class="panel chapter-modal reading-surface">
       <header class="chapter-modal-header">
         <h3>{{ t('reader.chapterDialog.title') }}</h3>
         <button class="chapter-icon-close" type="button" :aria-label="t('reader.chapterDialog.closeLabel')" @click="emit('close')">×</button>

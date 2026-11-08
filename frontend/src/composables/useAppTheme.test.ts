@@ -80,6 +80,19 @@ describe('theme tokens in styles.css', () => {
     expect(token('--text')).not.toBe(light.text);
   });
 
+  it('keeps the reading surface on the light tokens under the dark theme', () => {
+    const surface = document.createElement('div');
+    surface.className = 'reading-surface';
+    document.body.append(surface);
+
+    useAppTheme().setTheme('dark');
+
+    expect(token('--bg')).not.toBe('#f4f6f8');
+    expect(getComputedStyle(surface).getPropertyValue('--bg').trim()).toBe('#f4f6f8');
+    expect(getComputedStyle(surface).getPropertyValue('--surface').trim()).toBe('#ffffff');
+    surface.remove();
+  });
+
   it('returns to the light values when light is chosen', () => {
     useAppTheme().setTheme('dark');
     useAppTheme().setTheme('light');

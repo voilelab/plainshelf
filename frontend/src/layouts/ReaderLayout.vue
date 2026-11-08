@@ -1,5 +1,5 @@
 <template>
-  <div class="reader-layout">
+  <div class="reader-layout reading-surface">
     <RouterView v-if="hasActiveShelf" />
     <section v-else class="reader-no-shelf" role="status">
       <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
