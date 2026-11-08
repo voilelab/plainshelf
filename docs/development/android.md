@@ -98,7 +98,9 @@ npm --prefix frontend ci
 just build-mobile-android
 ```
 
-`build-mobile-android` first runs `just android-lib`, which binds the embedded
+`build-mobile-android` first runs `just mobile-sync`, which rebuilds the
+frontend and copies it and the native plugins into the Android project, and
+`just android-lib`, which binds the embedded
 server with `scripts/build-android-lib.sh` and copies `plainshelf.aar` into
 `frontend/android/app/libs/`. Gradle refuses to build without it; a direct
 Gradle build needs that step run once, and again after `mobile/` or the server

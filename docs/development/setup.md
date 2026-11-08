@@ -8,21 +8,22 @@ installation, see [Installation](../installation.md).
 | Tool | Version | Purpose |
 |---|---:|---|
 | Go | 1.27.3 or newer | server, core library, desktop backend |
-| Node.js | 22.18 to 23 | frontend and end-to-end tests |
+| Node.js | 22.18+ or 24.11+, below 26 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
 | zsh | recent | shell used by the `justfile` |
 
-The 22.18 floor comes from Babel 8, which the mutation-testing dev dependency
-pulls in; below it `npm ci` warns and fails outright where npm engine
-enforcement is on.
+The floor comes from Babel 8, which the mutation-testing dev dependency pulls
+in. Its `engines` field accepts Node.js 22 from 22.18 and Node.js 24 from 24.11,
+so Node.js 23 and early 24 releases are out too; outside that range `npm ci`
+warns, and fails outright where npm engine enforcement is on.
 
 Node.js has a ceiling as well as a floor. From Node.js 26 the runtime defines
 its own experimental `localStorage` global, which leaves `window.localStorage`
-undefined inside Vitest's jsdom environment; ten unit-test files then fail on
+undefined inside Vitest's jsdom environment; unit-test files then fail on
 import with `Cannot read properties of undefined (reading 'getItem')`. The unit
-suite passes on Node.js 22, which CI runs, and on 23; it fails on 26. Node.js 24
-and 25 have not been tried.
+suite passes on Node.js 22, which CI runs, and on 24, which the Docker image
+builds the frontend with; it fails on 26. Node.js 25 has not been tried.
 
 The desktop app and the standalone reader are both built with Wails v3, which
 links GTK 4 and WebKitGTK 6.0 through cgo on Linux whenever the `desktop` or
@@ -68,13 +69,25 @@ Open <http://127.0.0.1:20000>. The sample config stores data below the current
 working directory and protects mutating API requests with an ephemeral local
 token injected into the served frontend.
 
+`just build-server-backend` builds the same server as a versioned
+`plainshelf-srv` binary in the repository root instead of running it.
+
+## Run the browser-only demo
+
+`just run-wasm-demo` builds the [demo](../try-the-demo.md), the frontend plus
+the server compiled to WebAssembly, with `just build-wasm-demo` into
+`workspace/wasm-demo` and serves it on port 5180. `just test-wasm-demo` runs
+the smoke test CI gates it with. `cmd/plainshelf-wasm/README.md` covers the
+build.
+
 ## Run checks
 
 | Scope | Command |
 |---|---|
 | Frontend unit tests | `npm --prefix frontend test` |
 | Frontend type-check and build | `npm --prefix frontend run build` |
-| Go server and desktop tests | `just test-go` |
+| Go tests for the server, desktop and reader | `just test-go` |
+| Go lint for the same three modules | `golangci-lint run`, `(cd desktop && golangci-lint run)`, `(cd reader && golangci-lint run)` |
 | End-to-end tests | `just test-e2e` |
 
 Run the narrowest relevant check while iterating, then run the full check for
@@ -158,10 +171,14 @@ desktop executable, otherwise `PlainShelfReader` on `PATH`. Build one with
 `(cd reader && go build -o PlainShelfReader .)` (`PlainShelfReader.exe` on
 Windows). Without one, reading falls back to the in-app reader with a message.
 
+Run the standalone reader on its own with `just run-reader`, or
+`just run-reader path/to/book.bookpkg` to open a book straight away.
+
 `just run-desktop` is a plain `go run .`: Wails v3 has no zero-config `wails
 dev`, so a frontend change needs `npm --prefix frontend run build` and a
 restart. Create a release-style desktop build with `just build-desktop`, which
-runs `go tool wails3 task package:darwin` from `desktop/Taskfile.yml`.
+runs `go tool wails3 task package:darwin` from `desktop/Taskfile.yml`;
+`just package-desktop-mac` then zips that app the way the Homebrew cask expects.
 
 The standalone reader accepts `-book`, `-shelf`, and `-section` using Go's flag
 syntax. String flags consume the next argument as their value, even if it begins
