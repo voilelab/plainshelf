@@ -11,6 +11,8 @@
   />
   <DesktopReaderView
     v-else-if="!isMobileReader"
+    class="reading-surface"
+    :data-reader-theme="theme"
     :style="readerStyleVars"
     :book-id="id"
     :title="title"
@@ -40,6 +42,8 @@
 
   <MobileReaderView
     v-else
+    class="reading-surface"
+    :data-reader-theme="theme"
     :style="readerStyleVars"
     :book-id="id"
     :title="title"
@@ -71,6 +75,7 @@
     :open="isChapterModalOpen"
     :sections="sections"
     :current-section-index="currentSectionIndex"
+    :theme="theme"
     @close="closeChapterModal"
     @select-section="selectSectionFromChapterModal"
   />
@@ -78,8 +83,10 @@
   <FontSelectionModal
     :open="isFontModalOpen"
     :font-family="fontFamily"
+    :theme="theme"
     @close="closeFontModal"
     @select="setFontFamily"
+    @select-theme="setTheme"
   />
 </template>
 
@@ -144,11 +151,13 @@ const defaultFontSize = computed(() =>
 const {
   fontSize,
   fontFamily,
+  theme,
   isAtMinFontSize,
   isAtMaxFontSize,
   increaseFontSize,
   decreaseFontSize,
-  setFontFamily
+  setFontFamily,
+  setTheme
 } = useReaderSettings(defaultFontSize);
 const { t } = useI18n();
 const readingHeartbeat = useReadingHeartbeat(() => id.value);

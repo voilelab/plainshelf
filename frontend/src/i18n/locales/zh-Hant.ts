@@ -1110,14 +1110,21 @@ const zhHant = {
     actionsLabel: '閱讀器操作',
     decreaseFontSize: '縮小字體',
     increaseFontSize: '放大字體',
-    chooseFont: '選擇閱讀字型',
+    chooseFont: '選擇閱讀字型與主題',
     fontDialog: {
-      title: '閱讀字型',
+      title: '閱讀字型與主題',
       description: '選擇後會立即套用，並保存在這台裝置上。',
       optionsLabel: '可用閱讀字型',
       close: '關閉字型選擇',
       done: '完成',
       sample: '山海之間，靜靜讀一本好書。',
+      themeHeading: '閱讀主題',
+      themeOptionsLabel: '閱讀主題',
+      themes: {
+        light: '淺色',
+        sepia: '米黃',
+        dark: '深色'
+      },
       fonts: {
         system: {
           label: '系統明體',

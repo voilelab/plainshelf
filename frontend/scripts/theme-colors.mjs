@@ -5,19 +5,14 @@ import { rules, styleSource } from './css-rules.mjs';
 
 export const TOKEN_FILE = 'src/styles.css';
 
-export const RAW_COLOR_EXCEPTIONS = [
-  {
-    prefix: 'src/features/reader/',
-    why: 'Reading-surface colors are themed separately from the app interface, by their own setting.'
-  },
-  {
-    prefix: 'src/layouts/ReaderLayout.vue',
-    why: 'The reader page frame belongs to the reading surface, themed with it rather than with the app.'
-  }
-];
-
 export const DARK_SELECTOR = ":root[data-theme='dark']";
 export const SYSTEM_DARK_SELECTOR = ':root:not([data-theme])';
+
+export const READER_THEME_SELECTORS = {
+  light: '.reading-surface',
+  sepia: ".reading-surface[data-reader-theme='sepia']",
+  dark: ".reading-surface[data-reader-theme='dark']"
+};
 
 const AA_TEXT = 4.5;
 const DISTINGUISHABLE = 3;
@@ -36,6 +31,10 @@ export const CONTRAST_PAIRS = [
   { fg: '--danger', bg: '--surface', min: DISTINGUISHABLE }
 ];
 
+const READER_CONTRAST_PAIRS = ['--reader-ink', '--reader-heading', '--reader-ink-soft', '--reader-muted'].map(
+  (fg) => ({ fg, bg: '--reader-paper', min: AA_TEXT })
+);
+
 const LITERAL_COLOR =
   /#[0-9a-fA-F]{3,8}\b|\b(?:rgb|hsl)a?\(\s*[\d.]|\b(?:white|black|red|green|blue|gray|grey|silver|orange|yellow|purple|pink|brown)\b/;
 
@@ -53,13 +52,16 @@ async function styleFiles(base, dir = 'src') {
 }
 
 function isTokenDefinition(file, selector, property) {
-  return file === TOKEN_FILE && property.startsWith('--') && selector.includes(':root');
+  return (
+    file === TOKEN_FILE &&
+    property.startsWith('--') &&
+    (selector.includes(':root') || selector.trim().startsWith('.reading-surface'))
+  );
 }
 
 export async function findRawColors(base = '.') {
   const violations = [];
   for (const file of await styleFiles(base)) {
-    if (RAW_COLOR_EXCEPTIONS.some((exception) => file.startsWith(exception.prefix))) continue;
     const css = styleSource(await readFile(join(base, file), 'utf8'), file);
     for (const rule of rules(css)) {
       for (const [, property, value] of rule.body.matchAll(/([\w-]+)\s*:\s*([^;]+)/g)) {
@@ -72,9 +74,11 @@ export async function findRawColors(base = '.') {
   return violations;
 }
 
-function tokenBlock(css, selector) {
+function tokenBlock(css, selector, { whole = false } = {}) {
   const rule = rules(css).find((candidate) =>
-    candidate.selector.split(',').some((part) => part.trim() === selector)
+    whole
+      ? candidate.selector.trim() === selector
+      : candidate.selector.split(',').some((part) => part.trim() === selector)
   );
   if (!rule) return null;
   return new Map(
@@ -97,9 +101,9 @@ export function contrastRatio(a, b) {
   return (light + 0.05) / (dark + 0.05);
 }
 
-function contrastViolations(theme, tokens) {
+function contrastViolations(theme, tokens, pairs = CONTRAST_PAIRS) {
   const violations = [];
-  for (const { fg, bg, min } of CONTRAST_PAIRS) {
+  for (const { fg, bg, min } of pairs) {
     const [a, b] = [tokens.get(fg), tokens.get(bg)];
     if (!/^#[0-9a-fA-F]{3,6}$/.test(a ?? '') || !/^#[0-9a-fA-F]{3,6}$/.test(b ?? '')) {
       violations.push(`${theme}: ${fg} on ${bg} needs two opaque hex tokens, got "${a}" and "${b}"`);
@@ -139,5 +143,32 @@ export async function findThemeViolations(base = '.') {
     if (!dark.has(name)) violations.push(`:root defines ${name} with no dark value`);
   }
   violations.push(...contrastViolations('light', light), ...contrastViolations('dark', new Map([...light, ...dark])));
+  violations.push(...readerThemeViolations(css));
+  return violations;
+}
+
+function readerThemeViolations(css) {
+  const blocks = Object.entries(READER_THEME_SELECTORS).map(([theme, selector]) => [
+    theme,
+    selector,
+    tokenBlock(css, selector, { whole: true })
+  ]);
+  const missing = blocks.filter(([, , block]) => !block).map(([, selector]) => selector);
+  if (missing.length > 0) return [`${TOKEN_FILE} needs reader token blocks: ${missing.join(', ')}`];
+
+  const [, , light] = blocks[0];
+  const readerTokens = [...light.keys()].filter((name) => name.startsWith('--reader-'));
+  const violations = [];
+  for (const [theme, selector, block] of blocks.slice(1)) {
+    for (const name of readerTokens) {
+      if (!block.has(name)) violations.push(`${selector} has no ${name}`);
+    }
+    for (const name of block.keys()) {
+      if (!light.has(name)) violations.push(`${selector} defines ${name}, which ${READER_THEME_SELECTORS.light} does not`);
+    }
+  }
+  for (const [theme, , block] of blocks) {
+    violations.push(...contrastViolations(`reader ${theme}`, new Map([...light, ...block]), READER_CONTRAST_PAIRS));
+  }
   return violations;
 }

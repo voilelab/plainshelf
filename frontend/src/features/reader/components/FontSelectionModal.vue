@@ -1,6 +1,6 @@
 <template>
   <BaseDialog :open="open" :title="t('reader.fontDialog.title')" @close="emit('close')">
-    <section class="panel font-selection-modal reading-surface">
+    <section class="panel font-selection-modal reading-surface" :data-reader-theme="theme">
       <header class="font-selection-header">
         <div>
           <h3>{{ t('reader.fontDialog.title') }}</h3>
@@ -31,6 +31,25 @@
         </RadioGroupItem>
       </RadioGroupRoot>
 
+      <h4 class="reader-theme-heading">{{ t('reader.fontDialog.themeHeading') }}</h4>
+      <RadioGroupRoot
+        class="reader-theme-list"
+        orientation="horizontal"
+        :model-value="theme"
+        :aria-label="t('reader.fontDialog.themeOptionsLabel')"
+        @update:model-value="onSelectTheme"
+      >
+        <RadioGroupItem
+          v-for="option in READER_THEMES"
+          :key="option"
+          class="reader-theme-option"
+          :value="option"
+        >
+          <span class="reader-theme-swatch reading-surface" :data-reader-theme="option" aria-hidden="true">Aa</span>
+          <span>{{ t(`reader.fontDialog.themes.${option}`) }}</span>
+        </RadioGroupItem>
+      </RadioGroupRoot>
+
       <button class="button font-selection-done" type="button" @click="emit('close')">
         {{ t('reader.fontDialog.done') }}
       </button>
@@ -43,18 +62,22 @@ import { RadioGroupIndicator, RadioGroupItem, RadioGroupRoot } from 'reka-ui';
 import BaseDialog from '@/components/BaseDialog.vue';
 import {
   READER_FONT_OPTIONS,
-  type ReaderFont
+  READER_THEMES,
+  type ReaderFont,
+  type ReaderTheme
 } from '@/features/reader/composables/useReaderSettings';
 import { useI18n } from '@/i18n';
 
 defineProps<{
   open: boolean;
   fontFamily: ReaderFont;
+  theme: ReaderTheme;
 }>();
 
 const emit = defineEmits<{
   close: [];
   select: [font: ReaderFont];
+  selectTheme: [theme: ReaderTheme];
 }>();
 
 const { t } = useI18n();
@@ -69,6 +92,13 @@ function onSelect(value: unknown): void {
   const option = fontOptions.find((candidate) => candidate.id === value);
   if (option) {
     emit('select', option.id);
+  }
+}
+
+function onSelectTheme(value: unknown): void {
+  const theme = READER_THEMES.find((candidate) => candidate === value);
+  if (theme) {
+    emit('selectTheme', theme);
   }
 }
 </script>

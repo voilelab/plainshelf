@@ -3,6 +3,7 @@ import { getPreference, setPreference, subscribePreference } from '@/storage/pre
 
 const FONT_SIZE_STORAGE_KEY = 'reader-font-size';
 const FONT_FAMILY_STORAGE_KEY = 'reader-font-family';
+const THEME_STORAGE_KEY = 'reader-theme';
 export const DEFAULT_READER_FONT_SIZE = 20;
 export const MOBILE_DEFAULT_FONT_SIZE = 22;
 const MIN_FONT_SIZE = 14;
@@ -30,6 +31,12 @@ export const DEFAULT_READER_FONT: ReaderFont = 'system';
 
 const READER_FONT_IDS = READER_FONT_OPTIONS.map((option) => option.id);
 
+export const READER_THEMES = ['light', 'sepia', 'dark'] as const;
+
+export type ReaderTheme = (typeof READER_THEMES)[number];
+
+const DEFAULT_READER_THEME: ReaderTheme = 'light';
+
 function clampFontSize(value: number): number {
   return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value));
 }
@@ -54,6 +61,13 @@ export function parseReaderFont(rawValue: string | null): ReaderFont {
   return DEFAULT_READER_FONT;
 }
 
+function parseReaderTheme(rawValue: string | null): ReaderTheme {
+  if (rawValue && (READER_THEMES as readonly string[]).includes(rawValue)) {
+    return rawValue as ReaderTheme;
+  }
+  return DEFAULT_READER_THEME;
+}
+
 export function getReaderFontFamily(font: ReaderFont): string {
   return READER_FONT_OPTIONS.find((option) => option.id === font)?.cssFamily ?? READER_FONT_OPTIONS[0].cssFamily;
 }
@@ -61,6 +75,7 @@ export function getReaderFontFamily(font: ReaderFont): string {
 export function useReaderSettings(defaultFontSize: MaybeRefOrGetter<number> = DEFAULT_READER_FONT_SIZE) {
   const fontSize = ref(clampFontSize(toValue(defaultFontSize)));
   const fontFamily = ref<ReaderFont>(parseReaderFont(getPreference(FONT_FAMILY_STORAGE_KEY)));
+  const theme = ref<ReaderTheme>(parseReaderTheme(getPreference(THEME_STORAGE_KEY)));
   const hasExplicitFontSize = ref(false);
 
   function applyStoredFontSize(storedFontSize: string | null): void {
@@ -75,6 +90,9 @@ export function useReaderSettings(defaultFontSize: MaybeRefOrGetter<number> = DE
     subscribePreference(FONT_SIZE_STORAGE_KEY, applyStoredFontSize),
     subscribePreference(FONT_FAMILY_STORAGE_KEY, (value) => {
       fontFamily.value = parseReaderFont(value);
+    }),
+    subscribePreference(THEME_STORAGE_KEY, (value) => {
+      theme.value = parseReaderTheme(value);
     })
   ];
   if (getCurrentScope()) {
@@ -113,13 +131,20 @@ export function useReaderSettings(defaultFontSize: MaybeRefOrGetter<number> = DE
     fontFamily.value = parseReaderFont(value);
   }
 
+  function setTheme(value: ReaderTheme): void {
+    theme.value = parseReaderTheme(value);
+    setPreference(THEME_STORAGE_KEY, theme.value);
+  }
+
   return {
     fontSize,
     fontFamily,
+    theme,
     isAtMinFontSize,
     isAtMaxFontSize,
     increaseFontSize,
     decreaseFontSize,
-    setFontFamily
+    setFontFamily,
+    setTheme
   };
 }

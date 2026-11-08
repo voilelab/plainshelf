@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createApp, defineComponent, h, nextTick, reactive, type App } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ReaderFont } from '@/features/reader/composables/useReaderSettings';
+import type { ReaderFont, ReaderTheme } from '@/features/reader/composables/useReaderSettings';
 
 vi.mock('@/components/BaseDialog.vue', async () => {
   const { defineComponent, h } = await import('vue');
@@ -21,35 +21,43 @@ import FontSelectionModal from './FontSelectionModal.vue';
 interface Mounted {
   app: App;
   host: HTMLElement;
-  props: { open: boolean; fontFamily: ReaderFont };
+  props: { open: boolean; fontFamily: ReaderFont; theme: ReaderTheme };
   selected: ReaderFont[];
+  selectedThemes: ReaderTheme[];
 }
 
 const mounted: Mounted[] = [];
 
-function mountModal(fontFamily: ReaderFont = 'system'): Mounted {
+function mountModal(fontFamily: ReaderFont = 'system', theme: ReaderTheme = 'light'): Mounted {
   const host = document.createElement('div');
   document.body.append(host);
-  const props = reactive({ open: true, fontFamily });
+  const props = reactive({ open: true, fontFamily, theme });
   const selected: ReaderFont[] = [];
+  const selectedThemes: ReaderTheme[] = [];
 
   const app = createApp(defineComponent({
     setup: () => () => h(FontSelectionModal, {
       open: props.open,
       fontFamily: props.fontFamily,
+      theme: props.theme,
       onClose: () => {},
-      onSelect: (font: ReaderFont) => selected.push(font)
+      onSelect: (font: ReaderFont) => selected.push(font),
+      onSelectTheme: (value: ReaderTheme) => selectedThemes.push(value)
     })
   }));
   app.mount(host);
 
-  const entry = { app, host, props, selected };
+  const entry = { app, host, props, selected, selectedThemes };
   mounted.push(entry);
   return entry;
 }
 
 function radios(host: HTMLElement): HTMLElement[] {
-  return [...host.querySelectorAll<HTMLElement>('[role="radio"]')];
+  return [...host.querySelectorAll<HTMLElement>('.font-selection-list [role="radio"]')];
+}
+
+function themeRadios(host: HTMLElement): HTMLElement[] {
+  return [...host.querySelectorAll<HTMLElement>('.reader-theme-list [role="radio"]')];
 }
 
 // Reka UI 2.10.5 RovingFocusItem defers focus with nextTick; RadioGroupItem defers click with setTimeout.
@@ -75,7 +83,7 @@ describe('FontSelectionModal', () => {
     const { host } = mountModal();
     await nextTick();
 
-    const groups = host.querySelectorAll('[role="radiogroup"]');
+    const groups = host.querySelectorAll('.font-selection-list[role="radiogroup"]');
     expect(groups).toHaveLength(1);
     expect(groups[0].getAttribute('aria-label')).toBe('Available reading fonts');
     expect(radios(host).map((radio) => radio.getAttribute('value'))).toEqual([
@@ -105,7 +113,7 @@ describe('FontSelectionModal', () => {
     const { host } = mountModal('noto-sans-tc');
     await nextTick();
 
-    const group = host.querySelector<HTMLElement>('[role="radiogroup"]')!;
+    const group = host.querySelector<HTMLElement>('.font-selection-list[role="radiogroup"]')!;
     expect(group.tabIndex).toBe(0);
     expect(radios(host).map((radio) => radio.tabIndex)).toEqual([-1, -1, -1]);
 
@@ -150,5 +158,25 @@ describe('FontSelectionModal', () => {
     await nextTick();
 
     expect(selected).toEqual(['noto-sans-tc']);
+  });
+
+  it('offers the three reader themes and marks the current one', async () => {
+    const { host } = mountModal('system', 'sepia');
+    await nextTick();
+
+    expect(themeRadios(host).map((radio) => radio.getAttribute('value'))).toEqual(['light', 'sepia', 'dark']);
+    expect(themeRadios(host).map((radio) => radio.dataset.state)).toEqual(['unchecked', 'checked', 'unchecked']);
+    expect(host.querySelector('.font-selection-modal')?.getAttribute('data-reader-theme')).toBe('sepia');
+  });
+
+  it('emits the picked theme without picking a font', async () => {
+    const { host, selected, selectedThemes } = mountModal('noto-serif-tc', 'light');
+    await nextTick();
+
+    themeRadios(host)[2].click();
+    await nextTick();
+
+    expect(selectedThemes).toEqual(['dark']);
+    expect(selected).toEqual([]);
   });
 });

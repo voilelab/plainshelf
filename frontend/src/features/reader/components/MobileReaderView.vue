@@ -383,8 +383,8 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: linear-gradient(180deg, #fffaf0 0%, #fdf8ed 100%);
-  color: #2f2a22;
+  background: var(--reader-page);
+  color: var(--reader-ink);
   touch-action: pan-y pinch-zoom;
 }
 
@@ -446,8 +446,8 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(255, 226, 173, 0.94);
-  color: #6f4c1f;
+  background: rgb(var(--reader-notice-rgb) / 0.94);
+  color: var(--reader-notice-text);
   font-size: 0.88rem;
 }
 
@@ -455,9 +455,9 @@ onBeforeUnmount(() => {
 .mobile-reader-toolbar {
   position: absolute;
   z-index: 40;
-  border: 1px solid rgba(122, 104, 72, 0.18);
-  background: rgba(247, 242, 231, 0.96);
-  box-shadow: 0 10px 28px rgba(73, 57, 34, 0.18);
+  border: 1px solid rgb(var(--reader-line-rgb) / 0.18);
+  background: rgb(var(--reader-chrome-rgb) / 0.96);
+  box-shadow: 0 10px 28px rgb(var(--reader-shadow-rgb) / 0.18);
   backdrop-filter: blur(12px);
 }
 
@@ -479,7 +479,7 @@ onBeforeUnmount(() => {
   border: 0;
   background: none;
   padding: 0;
-  color: #5d513f;
+  color: var(--reader-ink-soft);
   cursor: pointer;
   font: inherit;
   font-size: 0.86rem;
@@ -497,7 +497,7 @@ onBeforeUnmount(() => {
 .mobile-reader-chapter strong {
   max-width: 100%;
   overflow: hidden;
-  color: #3f3529;
+  color: var(--reader-heading);
   font-size: 0.92rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -505,7 +505,7 @@ onBeforeUnmount(() => {
 
 .mobile-reader-chapter span,
 .mobile-reader-progress {
-  color: #6b5f4a;
+  color: var(--reader-muted);
   font-size: 0.76rem;
 }
 
@@ -535,7 +535,7 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   align-items: center;
   justify-content: center;
-  color: #4b3f2f;
+  color: var(--reader-ink-soft);
 }
 
 .mobile-reader-tool:disabled {
@@ -566,8 +566,8 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: 9px 13px;
   border-radius: 999px;
-  background: rgba(63, 53, 41, 0.88);
-  color: #fffdf7;
+  background: rgb(var(--reader-ink-rgb) / 0.88);
+  color: var(--reader-on-ink);
   font-size: 0.84rem;
   text-align: center;
   transform: translateX(-50%);

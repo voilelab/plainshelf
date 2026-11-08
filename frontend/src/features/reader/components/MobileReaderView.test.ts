@@ -184,7 +184,7 @@ describe('MobileReaderView gesture hint', () => {
     expect(labels).toEqual([
       'Decrease font size',
       'Increase font size',
-      'Choose reading font',
+      'Choose reading font and theme',
       'Show chapters',
       'Show reading gestures'
     ]);

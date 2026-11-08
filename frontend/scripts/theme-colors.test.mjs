@@ -18,7 +18,38 @@ const DARK = `
   --danger-soft: #3a1e20;
 `;
 
-function tokens(dark = DARK, systemDark = DARK) {
+const READER_DARK = `
+  --reader-paper: #1e2024;
+  --reader-ink: #dad5c8;
+  --reader-heading: #ece6d8;
+  --reader-ink-soft: #c4beb0;
+  --reader-muted: #a7a194;
+`;
+
+function readerTokens(readerDark = READER_DARK) {
+  return `
+.reading-surface {
+  --reader-paper: #fffdf7;
+  --reader-ink: #2f2a22;
+  --reader-heading: #3f3529;
+  --reader-ink-soft: #4f4639;
+  --reader-muted: #6b5f4a;
+  --comic-bg: #181818;
+}
+
+.reading-surface[data-reader-theme='sepia'] {
+  --reader-paper: #f6ecd5;
+  --reader-ink: #3b2e1e;
+  --reader-heading: #47371f;
+  --reader-ink-soft: #57442c;
+  --reader-muted: #6b5638;
+}
+
+.reading-surface[data-reader-theme='dark'] {${readerDark}}
+`;
+}
+
+function tokens(dark = DARK, systemDark = DARK, readerDark = READER_DARK) {
   return `:root {
   --bg: #f4f6f8;
   --surface: #ffffff;
@@ -39,6 +70,7 @@ function tokens(dark = DARK, systemDark = DARK) {
   :root:not([data-theme]) {${systemDark}}
 }
 
+${readerTokens(readerDark)}
 body { background: var(--bg); }
 `;
 }
@@ -92,9 +124,15 @@ describe('findRawColors', () => {
     expect(await findRawColors(await tree({ 'src/A.vue': vue }))).toEqual([]);
   });
 
-  it('exempts the reading surface', async () => {
+  it('reports a literal color on the reading surface', async () => {
     const css = '.reader-text { color: #3f3529; }';
-    expect(await findRawColors(await tree({ 'src/features/reader/styles/r.css': css }))).toEqual([]);
+    expect(await findRawColors(await tree({ 'src/features/reader/styles/r.css': css }))).toEqual([
+      'src/features/reader/styles/r.css: .reader-text { color: #3f3529 }'
+    ]);
+  });
+
+  it('allows reader token definitions on .reading-surface in the token file', async () => {
+    expect(await findRawColors(await tree({}))).toEqual([]);
   });
 
   it('allows a literal only as a token definition in the token file', async () => {
@@ -132,6 +170,31 @@ describe('findThemeViolations', () => {
     const dim = DARK.replace('--accent: #2f72db', '--accent: #1c2a40');
     const found = await findThemeViolations(await tree({ 'src/styles.css': tokens(dim, dim) }));
     expect(found.some((line) => line.startsWith('dark: --accent #1c2a40 on --bg'))).toBe(true);
+  });
+});
+
+describe('reader themes', () => {
+  it('reports a reader theme missing a reader token', async () => {
+    const found = await findThemeViolations(
+      await tree({ 'src/styles.css': tokens(DARK, DARK, READER_DARK.replace(/ {2}--reader-muted.*\n/, '')) })
+    );
+    expect(found).toContain(".reading-surface[data-reader-theme='dark'] has no --reader-muted");
+  });
+
+  it('reports reader muted text below WCAG AA on its paper', async () => {
+    const dim = READER_DARK.replace('--reader-muted: #a7a194', '--reader-muted: #4a4740');
+    const found = await findThemeViolations(await tree({ 'src/styles.css': tokens(DARK, DARK, dim) }));
+    expect(found.some((line) => line.startsWith('reader dark: --reader-muted #4a4740 on --reader-paper'))).toBe(
+      true
+    );
+  });
+
+  it('reports a missing reader theme block', async () => {
+    const css = tokens().replace(/\.reading-surface\[data-reader-theme='sepia'\] \{[^}]*\}/, '');
+    const found = await findThemeViolations(await tree({ 'src/styles.css': css }));
+    expect(found).toEqual([
+      "src/styles.css needs reader token blocks: .reading-surface[data-reader-theme='sepia']"
+    ]);
   });
 });
 

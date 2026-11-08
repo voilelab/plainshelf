@@ -87,7 +87,8 @@
   --mobile-tab-bar-height: 56px;
 }
 
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+.reading-surface[data-reader-theme='dark'] {
   color-scheme: dark;
   --bg: #11161d;
   --bg-gradient: linear-gradient(180deg, #0e1319 0%, #151b23 100%);
@@ -256,6 +257,80 @@
     --search-match: #5c4d12;
     --search-match-current: #8a4513;
   }
+}
+
+.reading-surface {
+  --reader-backdrop:
+    radial-gradient(circle at top, rgb(255 250 240 / 0.92), rgb(245 241 232 / 0.96) 42%),
+    linear-gradient(180deg, #f7f2e7 0%, #efe7d7 100%);
+  --reader-page: linear-gradient(180deg, #fffaf0 0%, #fdf8ed 100%);
+  --reader-paper-gradient: linear-gradient(180deg, rgb(255 251 242 / 0.98), rgb(253 248 237 / 0.94));
+  --reader-paper: #fffdf7;
+  --reader-surface-rgb: 255 251 242;
+  --reader-chrome-rgb: 247 242 231;
+  --reader-ink: #2f2a22;
+  --reader-heading: #3f3529;
+  --reader-ink-soft: #4f4639;
+  --reader-muted: #6b5f4a;
+  --reader-line-rgb: 122 104 72;
+  --reader-ink-rgb: 63 53 41;
+  --reader-shadow-rgb: 96 75 44;
+  --reader-on-ink: #fffdf7;
+  --reader-notice-rgb: 255 226 173;
+  --reader-notice-text: #6f4c1f;
+  --reader-mark: rgb(255 218 102 / 0.5);
+  --reader-selection: rgb(122 104 72 / 0.24);
+  --comic-bg: #181818;
+  --comic-text: #eeeeee;
+  --comic-muted: #bbbbbb;
+}
+
+.reading-surface[data-reader-theme='sepia'] {
+  --reader-backdrop:
+    radial-gradient(circle at top, rgb(244 233 208 / 0.92), rgb(236 222 192 / 0.96) 42%),
+    linear-gradient(180deg, #eadcbe 0%, #e2d1ae 100%);
+  --reader-page: linear-gradient(180deg, #f5e9cf 0%, #f1e3c5 100%);
+  --reader-paper-gradient: linear-gradient(180deg, rgb(246 236 213 / 0.98), rgb(243 231 205 / 0.94));
+  --reader-paper: #f6ecd5;
+  --reader-surface-rgb: 246 236 213;
+  --reader-chrome-rgb: 236 223 195;
+  --reader-ink: #3b2e1e;
+  --reader-heading: #47371f;
+  --reader-ink-soft: #57442c;
+  --reader-muted: #6b5638;
+  --reader-line-rgb: 128 99 58;
+  --reader-ink-rgb: 74 57 34;
+  --reader-shadow-rgb: 96 70 32;
+  --reader-on-ink: #f6ecd5;
+  --reader-notice-rgb: 238 198 128;
+  --reader-notice-text: #573810;
+  --reader-mark: rgb(226 172 52 / 0.45);
+  --reader-selection: rgb(160 112 44 / 0.3);
+}
+
+.reading-surface[data-reader-theme='dark'] {
+  --reader-backdrop: linear-gradient(180deg, #121417 0%, #17191d 100%);
+  --reader-page: linear-gradient(180deg, #1b1d21 0%, #181a1e 100%);
+  --reader-paper-gradient: linear-gradient(180deg, rgb(30 32 36 / 0.98), rgb(27 29 33 / 0.94));
+  --reader-paper: #1e2024;
+  --reader-surface-rgb: 40 43 48;
+  --reader-chrome-rgb: 32 35 40;
+  --reader-ink: #dad5c8;
+  --reader-heading: #ece6d8;
+  --reader-ink-soft: #c4beb0;
+  --reader-muted: #a7a194;
+  --reader-line-rgb: 168 158 138;
+  --reader-ink-rgb: 220 212 196;
+  --reader-shadow-rgb: 0 0 0;
+  --reader-on-ink: #1e2024;
+  --reader-notice-rgb: 96 72 28;
+  --reader-notice-text: #f0d49e;
+  --reader-mark: rgb(196 156 40 / 0.42);
+  --reader-selection: rgb(120 150 200 / 0.36);
+}
+
+.reading-surface ::selection {
+  background: var(--reader-selection);
 }
 
 * {

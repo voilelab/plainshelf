@@ -223,11 +223,11 @@ onMounted(() => {
 }
 
 .duplicate-comic-muted {
-  color: var(--muted, #888);
+  color: var(--muted);
 }
 
 .duplicate-comic-error {
-  color: var(--danger, #c0392b);
+  color: var(--danger);
 }
 
 .duplicate-error {
