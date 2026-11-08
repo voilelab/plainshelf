@@ -45,8 +45,25 @@ func (c *TextCounter) Write(p []byte) (int, error) {
 			break
 		}
 	}
-	c.chars += utf8.RuneCount(p)
+	c.chars += runeCount(p)
 	return n, nil
+}
+
+// runeCount is utf8.RuneCount without its allocation: past the first non-ASCII
+// byte that copies the rest into a string, so counting a large text through
+// 32 KiB writes produced its whole size in garbage. An invalid byte counts as
+// one rune, as there.
+func runeCount(p []byte) int {
+	n := 0
+	for i := 0; i < len(p); n++ {
+		if p[i] < utf8.RuneSelf {
+			i++
+			continue
+		}
+		_, size := utf8.DecodeRune(p[i:])
+		i += size
+	}
+	return n
 }
 
 func (c *TextCounter) Lines() int {
@@ -57,5 +74,5 @@ func (c *TextCounter) Lines() int {
 }
 
 func (c *TextCounter) Chars() int {
-	return c.chars + utf8.RuneCount(c.partial)
+	return c.chars + runeCount(c.partial)
 }
