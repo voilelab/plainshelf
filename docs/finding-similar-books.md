@@ -83,7 +83,8 @@ comics, the bar at the top of the page says how many still have no page hashes;
 **Hash comic pages** runs a background task that reads each page image once.
 The next run reads only pages whose file changed, and opening the page never
 reads an image. Editing a comic's page list takes it out of the comparison until
-you hash again.
+you hash again, and a comic whose page list names a missing image is left out
+and reported as failed.
 
 The page shows two kinds of result:
 

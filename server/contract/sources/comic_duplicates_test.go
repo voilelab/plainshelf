@@ -180,3 +180,23 @@ func TestAPIComicDuplicateRelations(t *testing.T) {
 		t.Errorf("second run = %+v, want every page answered from the cache", second)
 	}
 }
+
+func TestAPIComicMissingPageLeftOut(t *testing.T) {
+	env := apitest.New(t)
+	complete := addComic(t, env, "Complete", map[string]int{"p1.png": 1})
+	book := apitest.ImportTextBook(t, env, "Gappy", "", "gappy.txt", "placeholder gappy")
+	sourceID := createImagesSource(t, env, book.Meta.ID, "p1.png\np2.png\n")
+	env.WriteSourceAsset(t, book.Meta.ID, sourceID, "p1.png", pagePNG(t, 1))
+
+	accepted := apitest.SubmitTaskChain(t, env, apitest.ComicPageHashesURL(), nil, http.StatusAccepted)
+	chain := apitest.WaitForTaskChain(t, env, accepted.TaskChainID)
+	result := apitest.TaskResult[task.HashComicPagesResult](t, chain)
+	if chain.Status != "partially_completed" || len(result.Failures) != 1 || result.Failures[0].Code != "missing_pages" {
+		t.Fatalf("chain %q, result %+v; want the comic with a missing page reported as missing_pages", chain.Status, result)
+	}
+
+	groups := apitest.GetJSON[[][]string](t, env, apitest.ShelfURL("books", "duplicate"))
+	if groupOf(groups, complete) != nil {
+		t.Fatalf("groups = %v, want a comic with a missing page kept out of exact groups", groups)
+	}
+}

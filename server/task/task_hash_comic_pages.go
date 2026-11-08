@@ -10,6 +10,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
+	"github.com/voilelab/plainshelf/shelf/pagehash"
 )
 
 const HashComicPagesTaskName = "hash_comic_pages"
@@ -97,6 +98,8 @@ func (t *hashComicPagesTask) recordFailure(bookID string, err error) {
 	switch {
 	case errors.Is(err, shelf.ErrBookNotFound), errors.Is(err, shelf.ErrSourceNotFound):
 		code = "not_found"
+	case errors.Is(err, pagehash.ErrMissingPages):
+		code = "missing_pages"
 	case errors.Is(err, shelf.ErrUnsupportedBookSchemaVersion), errors.Is(err, shelf.ErrUnsupportedSourceSchemaVersion):
 		code = "unsupported_schema"
 	}

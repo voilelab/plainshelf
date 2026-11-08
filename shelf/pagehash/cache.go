@@ -26,6 +26,8 @@ const (
 	cacheFileName = "page-hash-cache.json"
 )
 
+var ErrMissingPages = util.NewError("page list names images that are missing")
+
 type pageEntry struct {
 	Size    int64     `json:"size"`
 	ModTime time.Time `json:"mtime"`
@@ -69,6 +71,7 @@ type Cache struct {
 
 	mu      sync.Mutex
 	sources map[string]sourceEntry
+	touched map[string]struct{}
 	stats   Stats
 }
 
@@ -83,6 +86,7 @@ func Open(cfg Config) *Cache {
 		logger:    logger,
 		liveBooks: cfg.LiveBooks,
 		sources:   map[string]sourceEntry{},
+		touched:   map[string]struct{}{},
 	}
 
 	stored, _, err := cache.readFile()
@@ -122,11 +126,16 @@ func (c *Cache) Resolve(bookID string, source *bookpkg.Source) ([]string, error)
 	previous := c.sources[key].Pages
 	c.mu.Unlock()
 
+	if slices.ContainsFunc(list.Pages, func(page bookpkg.Page) bool { return page.Missing }) {
+		c.mu.Lock()
+		delete(c.sources, key)
+		c.touched[key] = struct{}{}
+		c.mu.Unlock()
+		return nil, util.Errorf("%w", ErrMissingPages)
+	}
+
 	pages := make(map[string]pageEntry, len(list.Pages))
 	for _, page := range list.Pages {
-		if page.Missing {
-			continue
-		}
 		entry, err := c.resolvePage(source, page.Name, previous[page.Name])
 		if err != nil {
 			return nil, util.Errorf("%w", err)
@@ -136,6 +145,7 @@ func (c *Cache) Resolve(bookID string, source *bookpkg.Source) ([]string, error)
 
 	c.mu.Lock()
 	c.sources[key] = sourceEntry{ListMD5: source.GetMeta().MD5Hash, Pages: pages}
+	c.touched[key] = struct{}{}
 	c.mu.Unlock()
 	return distinctHashes(pages), nil
 }
@@ -191,9 +201,12 @@ func (c *Cache) Save() error {
 	sources := maps.Clone(c.sources)
 	stored, raw, readErr := c.readFile()
 	if readErr == nil {
-		for key, entry := range stored.Sources {
-			if _, ok := sources[key]; !ok {
+		sources = stored.Sources
+		for key := range c.touched {
+			if entry, ok := c.sources[key]; ok {
 				sources[key] = entry
+			} else {
+				delete(sources, key)
 			}
 		}
 	} else {

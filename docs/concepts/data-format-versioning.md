@@ -750,7 +750,12 @@ next hashing run reads every page again.
   written within the last two seconds is stored without an mtime, so the next
   run reads it again instead of trusting a stat that could still change.
 
-Saving merges records from the file on disk that this run did not touch, drops
+A comic whose page list names an image that is missing gets no record: an
+incomplete page set could match a shorter comic exactly. The task reports it as
+failed with `missing_pages`.
+
+Saving starts from the file on disk and replaces only the records this run
+recomputed, so a concurrent run's newer records survive. It also drops
 records for books that are gone, and writes atomically only when the bytes
 differ. It writes nothing under `books/`.
 

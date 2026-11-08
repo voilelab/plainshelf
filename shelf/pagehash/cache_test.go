@@ -1,6 +1,7 @@
 package pagehash
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path"
@@ -241,5 +242,52 @@ func TestOpenDiscardsOtherSchema(t *testing.T) {
 
 	if _, ok := ts.open(ts.base).Recorded("a", source.ID(), source.GetMeta().MD5Hash); ok {
 		t.Fatal("a cache file of another schema_version was read")
+	}
+}
+
+func TestResolveRefusesMissingPages(t *testing.T) {
+	ts := newTestShelf(t)
+	source := ts.addComic("a", testPage{"001.jpg", "one"})
+	cache := ts.open(ts.base)
+	mustResolve(t, cache, "a", source)
+
+	if err := source.UpdateContent(strings.NewReader("001.jpg\n002.jpg\n")); err != nil {
+		t.Fatalf("UpdateContent: %v", err)
+	}
+
+	if _, err := cache.Resolve("a", source); !errors.Is(err, ErrMissingPages) {
+		t.Fatalf("Resolve = %v, want ErrMissingPages for a listed page with no image", err)
+	}
+	if _, ok := cache.Recorded("a", source.ID(), source.GetMeta().MD5Hash); ok {
+		t.Fatal("a comic with a missing page kept a recorded page set")
+	}
+}
+
+func TestSaveKeepsNewerUntouchedRecords(t *testing.T) {
+	ts := newTestShelf(t)
+	a := ts.addComic("a", testPage{"001.jpg", "one"})
+	b := ts.addComic("b", testPage{"001.jpg", "two"})
+	seed := ts.open(ts.base)
+	mustResolve(t, seed, "a", a)
+	mustResolve(t, seed, "b", b)
+	if err := seed.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	stale := ts.open(ts.base)
+	fresh := ts.open(ts.base)
+	ts.writePage(b, testPage{"001.jpg", "changed"})
+	want := mustResolve(t, fresh, "b", b)
+	if err := fresh.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	mustResolve(t, stale, "a", a)
+	if err := stale.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, ok := ts.open(ts.base).Recorded("b", b.ID(), b.GetMeta().MD5Hash)
+	if !ok || !slices.Equal(got, want) {
+		t.Fatalf("Recorded(b) = %v, %v; want the other run's newer %v", got, ok, want)
 	}
 }
