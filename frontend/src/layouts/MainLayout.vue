@@ -1,5 +1,5 @@
 <template>
-  <div class="layout-root">
+  <div class="layout-root" :class="shelfBackdropClass" :style="shelfBackdropStyle">
     <DeleteModal
       :open="pendingDeleteFolderPath.length > 0"
       :title="t('layout.deleteFolder.title')"
@@ -402,6 +402,7 @@ import { useFolderManagement } from '@/composables/useFolderManagement';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useShelfPicker } from '@/composables/useShelfPicker';
+import { useShelfBackdrop } from '@/composables/useShelfBackdrop';
 import { useServerMode } from '@/composables/useServerMode';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import {
@@ -494,6 +495,7 @@ const {
 const { t } = useI18n();
 const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, ensureShelvesLoaded } = useShelvesStore();
 const { fetchServerMode } = useServerMode();
+const { layoutClass: shelfBackdropClass, layoutStyle: shelfBackdropStyle } = useShelfBackdrop();
 const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdminAvailable } =
   useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
@@ -634,6 +636,16 @@ onMounted(async () => {
   backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
+}
+
+.shelf-backdrop-color .sidebar {
+  background: var(--shelf-backdrop-color);
+}
+
+.shelf-backdrop-image .sidebar {
+  background:
+    linear-gradient(var(--shelf-backdrop-scrim), var(--shelf-backdrop-scrim)),
+    var(--shelf-backdrop-image) center / cover no-repeat;
 }
 
 .collapse-btn {

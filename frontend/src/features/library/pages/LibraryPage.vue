@@ -199,6 +199,14 @@
             </button>
             <span v-if="lastSyncedLabel" class="toolbar-label shelf-refresh-status">{{ lastSyncedLabel }}</span>
           </div>
+          <button
+            v-if="!isMobileEnv"
+            type="button"
+            class="button toolbar-control toolbar-button toolbar-regular shelf-backdrop-button"
+            @click="backdropModalOpen = true"
+          >
+            {{ t('library.backdrop.button') }}
+          </button>
           <DropdownMenuRoot v-if="!readOnly">
             <DropdownMenuTrigger class="button">{{ t('library.import') }}</DropdownMenuTrigger>
             <DropdownMenuPortal>
@@ -224,6 +232,7 @@
       @close="closeImportModal"
       @imported="onImported"
     />
+    <ShelfBackdropModal :open="backdropModalOpen" @close="backdropModalOpen = false" />
     <NewEmptyBookModal
       :open="isNewEmptyBookModalOpen"
       :current-folder-path="selectedFolder"
@@ -262,6 +271,7 @@ import ProgressBar from '@/components/ProgressBar.vue';
 import ImportBookModal from '@/features/library/components/ImportBookModal.vue';
 import MetaEditorModal from '@/features/library/components/MetaEditorModal.vue';
 import NewEmptyBookModal from '@/features/library/components/NewEmptyBookModal.vue';
+import ShelfBackdropModal from '@/features/library/components/ShelfBackdropModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
 import FilterPanel from '@/features/library/components/FilterPanel.vue';
 import ActiveFilterChips from '@/features/library/components/ActiveFilterChips.vue';
@@ -331,6 +341,7 @@ const {
 } = useBooksSearch(searchQuery.value);
 const booksLoaded = ref<boolean>(false);
 const isMobileEnv = computed(() => isMobileRuntime());
+const backdropModalOpen = ref(false);
 const folderOptions = computed(() => sortFolderPaths([...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort(), folderMetadata.value));
 const visibleBookIds = computed(() => visibleBooks.value.map((book) => book.id));
 

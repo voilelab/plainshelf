@@ -296,6 +296,13 @@ Like the reading documents, a Wails window without the binding does not fall
 back to WebView storage: preferences then last only until the window closes. The
 `?desktop-shell-preview=1` browser preview keeps `localStorage`.
 
+A shelf's background (a swatch or an image, chosen from the library page) is
+not a preference either: an image does not fit the 4 KB value limit of
+`preferences.json`. It is kept in the WebView's IndexedDB under the shelf ID, on
+the desktop too, by `frontend/src/storage/shelfBackdrops.ts`, and images are
+capped at 8 MB. Nothing is written to the shelf, so it does not follow the shelf
+to another device; the Android shell offers no control for it.
+
 The mobile reader's one-time gesture hint (`reader-mobile-gesture-hint-seen`)
 is not a preference and stays in `localStorage`.
 

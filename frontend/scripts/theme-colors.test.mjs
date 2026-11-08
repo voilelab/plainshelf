@@ -204,3 +204,33 @@ describe('contrastRatio', () => {
     expect(contrastRatio('#777', '#777777')).toBeCloseTo(1, 5);
   });
 });
+
+describe('shelf backdrop swatches', () => {
+  const SIDEBAR_TEXT = '  --text-emphasis: #334155;\n  --text-subtle: #556273;\n';
+  const DARK_SIDEBAR_TEXT = '  --text-emphasis: #cbd3de;\n  --text-subtle: #a7b1bf;\n';
+
+  function withSwatch(light, dark) {
+    const darkBlock = DARK + DARK_SIDEBAR_TEXT + dark;
+    return tokens(darkBlock, darkBlock).replace(
+      '  --z-modal: 80;\n',
+      `${SIDEBAR_TEXT}${light}  --shelf-backdrop-scrim: rgb(233 237 242 / 0.7);\n  --z-modal: 80;\n`
+    );
+  }
+
+  it('accepts swatches the sidebar text stays readable on', async () => {
+    const css = withSwatch(
+      '  --shelf-backdrop-sky: #dbe7f3;\n',
+      '  --shelf-backdrop-sky: #182433;\n  --shelf-backdrop-scrim: rgb(13 17 23 / 0.72);\n'
+    );
+    expect(await findThemeViolations(await tree({ 'src/styles.css': css }))).toEqual([]);
+  });
+
+  it('reports sidebar text below WCAG AA on a dark swatch', async () => {
+    const css = withSwatch(
+      '  --shelf-backdrop-sky: #dbe7f3;\n',
+      '  --shelf-backdrop-sky: #8a9bb0;\n  --shelf-backdrop-scrim: rgb(13 17 23 / 0.72);\n'
+    );
+    const found = await findThemeViolations(await tree({ 'src/styles.css': css }));
+    expect(found).toContain('dark: --text-subtle #a7b1bf on --shelf-backdrop-sky #8a9bb0 is 1.31:1, want at least 4.5:1');
+  });
+});

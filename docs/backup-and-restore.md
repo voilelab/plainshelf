@@ -84,6 +84,9 @@ What you do **not** get back:
   config file if it sets one, to the built-in default otherwise. Adult content
   goes back to hidden.
 - **Offline copies of virtual shelves.** They are in the application store too.
+- **Shelf backgrounds.** The color or image chosen under **Background** on the
+  library page is kept by the browser or desktop app that set it, never in the
+  shelf, so other devices and a restored shelf show the default look.
 - **Your configuration**, if the config file lived outside the shelf, which it
   normally does.
 - **Credential secrets**, which are in none of these directories.

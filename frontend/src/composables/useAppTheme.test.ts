@@ -4,6 +4,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import '@/styles.css';
 import { initAppTheme, parseAppTheme, useAppTheme } from './useAppTheme';
+import { SHELF_BACKDROP_SWATCHES } from '@/storage/shelfBackdrops';
 
 const root = () => document.documentElement;
 
@@ -91,6 +92,19 @@ describe('theme tokens in styles.css', () => {
     expect(getComputedStyle(surface).getPropertyValue('--bg').trim()).toBe('#f4f6f8');
     expect(getComputedStyle(surface).getPropertyValue('--surface').trim()).toBe('#ffffff');
     surface.remove();
+  });
+
+  it('defines a light and a different dark value for every shelf backdrop swatch', () => {
+    for (const swatch of [...SHELF_BACKDROP_SWATCHES, 'scrim']) {
+      useAppTheme().setTheme('light');
+      const light = token(`--shelf-backdrop-${swatch}`);
+      useAppTheme().setTheme('dark');
+      const dark = token(`--shelf-backdrop-${swatch}`);
+
+      expect(light, swatch).not.toBe('');
+      expect(dark, swatch).not.toBe('');
+      expect(dark, swatch).not.toBe(light);
+    }
   });
 
   it('returns to the light values when light is chosen', () => {

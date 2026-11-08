@@ -31,6 +31,15 @@ export const CONTRAST_PAIRS = [
   { fg: '--danger', bg: '--surface', min: DISTINGUISHABLE }
 ];
 
+function shelfBackdropPairs(tokens) {
+  return [...tokens.keys()]
+    .filter((name) => name.startsWith('--shelf-backdrop-') && name !== '--shelf-backdrop-scrim')
+    .flatMap((bg) => [
+      ...['--text', '--text-emphasis', '--text-subtle'].map((fg) => ({ fg, bg, min: AA_TEXT })),
+      { fg: '--muted', bg, min: DISTINGUISHABLE }
+    ]);
+}
+
 const READER_CONTRAST_PAIRS = ['--reader-ink', '--reader-heading', '--reader-ink-soft', '--reader-muted'].map(
   (fg) => ({ fg, bg: '--reader-paper', min: AA_TEXT })
 );
@@ -142,7 +151,11 @@ export async function findThemeViolations(base = '.') {
     if (/^--(z-|mobile-|shadow$)/.test(name)) continue;
     if (!dark.has(name)) violations.push(`:root defines ${name} with no dark value`);
   }
-  violations.push(...contrastViolations('light', light), ...contrastViolations('dark', new Map([...light, ...dark])));
+  const pairs = [...CONTRAST_PAIRS, ...shelfBackdropPairs(light)];
+  violations.push(
+    ...contrastViolations('light', light, pairs),
+    ...contrastViolations('dark', new Map([...light, ...dark]), pairs)
+  );
   violations.push(...readerThemeViolations(css));
   return violations;
 }
