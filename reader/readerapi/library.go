@@ -13,11 +13,16 @@ const ShelfID = "book"
 type Library struct {
 	mu     sync.RWMutex
 	logger *logutil.Logger
-	pkgs   map[string]*bookpkg.BookPackage
+	pkgs   map[string]*heldBook
+}
+
+type heldBook struct {
+	pkg  *bookpkg.BookPackage
+	refs int
 }
 
 func NewLibrary(logger *logutil.Logger) *Library {
-	return &Library{logger: logger, pkgs: map[string]*bookpkg.BookPackage{}}
+	return &Library{logger: logger, pkgs: map[string]*heldBook{}}
 }
 
 func (l *Library) Open(dir string) (string, error) {
@@ -30,13 +35,14 @@ func (l *Library) Open(dir string) (string, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if _, held := l.pkgs[bookID]; held {
+	if held := l.pkgs[bookID]; held != nil {
+		held.refs++
 		if err := pkg.Close(); err != nil {
 			l.warn("failed to close a duplicate book package", "book_id", bookID, "error", err)
 		}
 		return bookID, nil
 	}
-	l.pkgs[bookID] = pkg
+	l.pkgs[bookID] = &heldBook{pkg: pkg, refs: 1}
 	return bookID, nil
 }
 
@@ -44,9 +50,15 @@ func (l *Library) CloseBook(bookID string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	pkg := l.pkgs[bookID]
+	held := l.pkgs[bookID]
+	if held == nil {
+		return nil
+	}
+	if held.refs--; held.refs > 0 {
+		return nil
+	}
 	delete(l.pkgs, bookID)
-	return l.closePkg(pkg)
+	return l.closePkg(held.pkg)
 }
 
 func (l *Library) Close() error {
@@ -54,9 +66,9 @@ func (l *Library) Close() error {
 	defer l.mu.Unlock()
 
 	var first error
-	for bookID, pkg := range l.pkgs {
+	for bookID, held := range l.pkgs {
 		delete(l.pkgs, bookID)
-		if err := l.closePkg(pkg); err != nil && first == nil {
+		if err := l.closePkg(held.pkg); err != nil && first == nil {
 			first = err
 		}
 	}
@@ -82,12 +94,12 @@ func (l *Library) withBook(bookID string, read func(*bookpkg.Book)) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	pkg := l.pkgs[bookID]
-	if pkg == nil {
+	held := l.pkgs[bookID]
+	if held == nil {
 		return false
 	}
 
-	read(pkg.Book())
+	read(held.pkg.Book())
 	return true
 }
 

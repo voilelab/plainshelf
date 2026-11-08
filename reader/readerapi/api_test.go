@@ -298,6 +298,26 @@ func TestLibraryReopenKeepsHeldPackage(t *testing.T) {
 	}
 }
 
+func TestLibraryCloseBookCountsOpens(t *testing.T) {
+	library := newOpenLibrary(t)
+	if _, err := library.Open(writeBookPackage(t, "Dune", testBookID)); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	if err := library.CloseBook(testBookID); err != nil {
+		t.Fatalf("CloseBook: %v", err)
+	}
+	if !library.Has(testBookID) {
+		t.Fatal("book closed while a second open still holds it")
+	}
+	if err := library.CloseBook(testBookID); err != nil {
+		t.Fatalf("CloseBook: %v", err)
+	}
+	if library.Has(testBookID) {
+		t.Fatal("book still held after every open was closed")
+	}
+}
+
 func TestLibraryKeepsBookWhenOpenFails(t *testing.T) {
 	library := newOpenLibrary(t)
 

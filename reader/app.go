@@ -264,6 +264,9 @@ func (a *ReaderApp) openBook(origin uint, dir, shelfID string, section int) (str
 	}
 
 	if win, _ := a.windowShowing(bookID); win != 0 {
+		if err := a.library.CloseBook(bookID); err != nil {
+			log.Println("failed to release a reopened book package:", err)
+		}
 		a.native.focus(win)
 		return bookID, nil
 	}
