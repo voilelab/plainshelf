@@ -29,8 +29,9 @@ func holdProgressLock(t *testing.T, store *readingprogress.Store) (release func(
 
 func newShutdownReader(t *testing.T, timeout time.Duration) *ReaderApp {
 	t.Helper()
-	app := newReaderAppWithBook(t, "")
-	app.progressStager = readingclose.NewStager(app.progressStore, timeout)
+	app, _ := newTestApp(t)
+	app.closeTimeout = timeout
+	launchBook(t, app, "")
 	app.StageReadingProgress(readerapi.ShelfID, testBookID, 4321, 1000)
 	return app
 }
@@ -48,14 +49,14 @@ func TestReaderShutdownWritesThenCloses(t *testing.T) {
 	if got := stagedOffset(t, app); got != 4321 {
 		t.Fatalf("persisted offset = %d, want 4321", got)
 	}
-	if id := app.library.BookID(); id != "" {
-		t.Fatalf("book %q still open after shutdown", id)
+	if app.library.Has(testBookID) {
+		t.Fatal("book still open after shutdown")
 	}
 }
 
 func TestReaderShutdownTwiceIsNoop(t *testing.T) {
 	app := newShutdownReader(t, time.Second)
-	app.beforeClose(t.Context())
+	app.Shutdown(t.Context())
 
 	app.StageReadingProgress(readerapi.ShelfID, testBookID, 9999, 2000)
 	app.Shutdown(t.Context())
@@ -81,7 +82,7 @@ func TestReaderShutdownWaitsThenCloses(t *testing.T) {
 		t.Fatal("shutdown returned while the progress write was still blocked")
 	default:
 	}
-	if app.library.BookID() == "" {
+	if !app.library.Has(testBookID) {
 		t.Fatal("library closed before the progress write finished")
 	}
 
@@ -90,8 +91,8 @@ func TestReaderShutdownWaitsThenCloses(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("shutdown did not continue after the progress write timed out")
 	}
-	if id := app.library.BookID(); id != "" {
-		t.Fatalf("book %q still open after a timed-out write", id)
+	if app.library.Has(testBookID) {
+		t.Fatal("book still open after a timed-out write")
 	}
 
 	release()

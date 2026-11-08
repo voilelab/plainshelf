@@ -41,16 +41,8 @@ type handlers struct {
 }
 
 func (h *handlers) withBook(w http.ResponseWriter, r *http.Request, read func(*bookpkg.Book)) {
-	held := h.lib.withBook(func(book *bookpkg.Book) {
-		if requested := r.PathValue("book_id"); requested != book.ID() {
-			http.Error(w, "book not found", http.StatusNotFound)
-			return
-		}
-		read(book)
-	})
-
-	if !held {
-		http.Error(w, "no book is open", http.StatusServiceUnavailable)
+	if !h.lib.withBook(r.PathValue("book_id"), read) {
+		http.Error(w, "book not found", http.StatusNotFound)
 	}
 }
 

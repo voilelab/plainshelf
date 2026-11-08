@@ -13,11 +13,11 @@ const ShelfID = "book"
 type Library struct {
 	mu     sync.RWMutex
 	logger *logutil.Logger
-	pkg    *bookpkg.BookPackage
+	pkgs   map[string]*bookpkg.BookPackage
 }
 
 func NewLibrary(logger *logutil.Logger) *Library {
-	return &Library{logger: logger}
+	return &Library{logger: logger, pkgs: map[string]*bookpkg.BookPackage{}}
 }
 
 func (l *Library) Open(dir string) (string, error) {
@@ -25,52 +25,69 @@ func (l *Library) Open(dir string) (string, error) {
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
+	bookID := pkg.Book().ID()
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	_ = l.closeLocked()
-	l.pkg = pkg
+	if _, held := l.pkgs[bookID]; held {
+		if err := pkg.Close(); err != nil {
+			l.warn("failed to close a duplicate book package", "book_id", bookID, "error", err)
+		}
+		return bookID, nil
+	}
+	l.pkgs[bookID] = pkg
+	return bookID, nil
+}
 
-	return pkg.Book().ID(), nil
+func (l *Library) CloseBook(bookID string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	pkg := l.pkgs[bookID]
+	delete(l.pkgs, bookID)
+	return l.closePkg(pkg)
 }
 
 func (l *Library) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return l.closeLocked()
+	var first error
+	for bookID, pkg := range l.pkgs {
+		delete(l.pkgs, bookID)
+		if err := l.closePkg(pkg); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
-func (l *Library) closeLocked() error {
-	pkg := l.pkg
-	l.pkg = nil
-
+func (l *Library) closePkg(pkg *bookpkg.BookPackage) error {
 	if pkg == nil {
 		return nil
 	}
 	if err := pkg.Close(); err != nil {
-		l.warn("failed to close a book package", "error", err)
+		l.warn("failed to close a book package", "book_id", pkg.Book().ID(), "error", err)
 		return util.Errorf("%w", err)
 	}
 	return nil
 }
 
-func (l *Library) BookID() string {
-	bookID := ""
-	l.withBook(func(book *bookpkg.Book) { bookID = book.ID() })
-	return bookID
+func (l *Library) Has(bookID string) bool {
+	return l.withBook(bookID, func(*bookpkg.Book) {})
 }
 
-func (l *Library) withBook(read func(*bookpkg.Book)) bool {
+func (l *Library) withBook(bookID string, read func(*bookpkg.Book)) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	if l.pkg == nil {
+	pkg := l.pkgs[bookID]
+	if pkg == nil {
 		return false
 	}
 
-	read(l.pkg.Book())
+	read(pkg.Book())
 	return true
 }
 

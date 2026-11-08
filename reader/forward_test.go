@@ -1,20 +1,19 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/voilelab/plainshelf/reader/readerapi"
 )
 
-func TestForwardedLaunchOpensBook(t *testing.T) {
-	native := &fakeNative{}
-	app := newReaderAppWithBook(t, "")
-	app.native = native
+func TestForwardedLaunchOpensWindow(t *testing.T) {
+	app, native := newTestApp(t)
+	first := launchBook(t, app, "")
 	const nextBook = "nextbook"
 	argv := []string{"/Applications/PlainShelfReader.app/Contents/MacOS/PlainShelfReader",
 		"-book", writeBookPackage(t, nextBook), "-shelf", "shelf-real", "-section", "2"}
@@ -22,48 +21,51 @@ func TestForwardedLaunchOpensBook(t *testing.T) {
 	if err := app.OpenForwardedLaunch(argv, "/"); err != nil {
 		t.Fatalf("OpenForwardedLaunch: %v", err)
 	}
-	boot := app.BootConfig()
-	if boot.BookID != nextBook || boot.ShelfID != "shelf-real" || boot.Section == nil || *boot.Section != 2 {
-		t.Fatalf("forwarded boot config = %+v, want next book on shelf-real at section 2", boot)
+	if len(native.created) != 2 || len(native.reloads) != 0 || len(native.errors) != 0 {
+		t.Fatalf("native calls = %+v, want a second window and no reload or error", native)
 	}
-	if native.reloads != 1 || native.focuses != 1 || len(native.errors) != 0 {
-		t.Fatalf("native calls = %+v, want one reload and focus and no error", native)
-	}
+	wantBoot(t, app, first, readerapi.ShelfID, testBookID, noLaunchSection)
+	wantBoot(t, app, native.created[1], "shelf-real", nextBook, 2)
 }
 
 func TestForwardedRelativeBookUsesWorkDir(t *testing.T) {
-	app := newReaderAppWithNative(t, &fakeNative{})
+	app, native := newTestApp(t)
+	win := app.Launch(launchArgs{section: noLaunchSection})
 	dir := writeBookPackage(t, "relbook")
 
 	err := app.OpenForwardedLaunch([]string{"reader", "-book", filepath.Base(dir)}, filepath.Dir(dir))
-	if err != nil || app.library.BookID() != "relbook" {
-		t.Fatalf("OpenForwardedLaunch = %v, book %q", err, app.library.BookID())
+	if err != nil {
+		t.Fatalf("OpenForwardedLaunch: %v", err)
+	}
+	wantBoot(t, app, win, readerapi.ShelfID, "relbook", noLaunchSection)
+	if !slices.Equal(native.reloads, []uint{win}) || !slices.Equal(native.focuses, []uint{win}) {
+		t.Fatalf("native calls = %+v, want the empty window reloaded and focused", native)
 	}
 }
 
 func TestForwardedLaunchWithoutBookFocuses(t *testing.T) {
-	native := &fakeNative{}
-	app := newReaderAppWithBook(t, "launch-shelf")
-	app.native = native
+	app, native := newTestApp(t)
+	win := launchBook(t, app, "launch-shelf")
 
 	if err := app.OpenForwardedLaunch([]string{"reader"}, "/"); err != nil {
 		t.Fatalf("OpenForwardedLaunch: %v", err)
 	}
-	if app.library.BookID() != testBookID || native.reloads != 0 || native.focuses != 1 {
-		t.Fatalf("book %q, native %+v; want original book, focus only", app.library.BookID(), native)
+	wantBoot(t, app, win, "launch-shelf", testBookID, noLaunchSection)
+	if len(native.created) != 1 || len(native.reloads) != 0 || !slices.Equal(native.focuses, []uint{0}) {
+		t.Fatalf("native calls = %+v, want only a focus on the front window", native)
 	}
 }
 
 func TestForwardedLaunchBadArgsRejected(t *testing.T) {
-	native := &fakeNative{}
-	app := newReaderAppWithBook(t, "launch-shelf")
-	app.native = native
+	app, native := newTestApp(t)
+	win := launchBook(t, app, "launch-shelf")
 
 	if err := app.OpenForwardedLaunch([]string{"reader", "-unknown"}, "/"); err == nil {
 		t.Fatal("accepted an unknown forwarded flag")
 	}
-	if app.library.BookID() != testBookID || native.reloads != 0 {
-		t.Fatalf("book %q, reloads %d; want original book untouched", app.library.BookID(), native.reloads)
+	wantBoot(t, app, win, "launch-shelf", testBookID, noLaunchSection)
+	if len(native.created) != 1 || len(native.reloads) != 0 {
+		t.Fatalf("native calls = %+v, want the original window untouched", native)
 	}
 }
 
@@ -85,67 +87,76 @@ func TestForwardedNonBookKeepsCurrentBook(t *testing.T) {
 	}
 	for name, path := range tests {
 		t.Run(name, func(t *testing.T) {
-			native := &fakeNative{}
-			app := newReaderAppWithBook(t, "launch-shelf")
-			app.native = native
-			app.launchSection = 3
+			app, native := newTestApp(t)
+			win := launchBookAt(t, app, "launch-shelf", testBookID, 3)
 
 			err := app.OpenFinderFile(path)
 			if !errors.Is(err, errNotBookPackage) {
 				t.Fatalf("OpenFinderFile(%q) = %v, want errNotBookPackage", path, err)
 			}
-			boot := app.BootConfig()
-			if boot.BookID != testBookID || boot.ShelfID != "launch-shelf" || boot.Section == nil || *boot.Section != 3 {
-				t.Fatalf("boot config = %+v, want original book and launch state", boot)
-			}
-			if len(native.errors) != 1 || native.reloads != 0 {
-				t.Fatalf("native calls = %+v, want one error dialog and no reload", native)
+			wantBoot(t, app, win, "launch-shelf", testBookID, 3)
+			if !slices.Equal(native.errorWins, []uint{0}) || len(native.reloads) != 0 || len(native.created) != 1 {
+				t.Fatalf("native calls = %+v, want one error on the front window and no new window", native)
 			}
 		})
 	}
 }
 
-func TestFinderFileOpensStandalone(t *testing.T) {
-	native := &fakeNative{}
-	app := newReaderAppWithBook(t, "launch-shelf")
-	app.native = native
+func TestFinderFileOpensStandaloneWindow(t *testing.T) {
+	app, native := newTestApp(t)
+	first := launchBookAt(t, app, "launch-shelf", testBookID, 3)
 
 	if err := app.OpenFinderFile(writeBookPackage(t, "finderbook")); err != nil {
 		t.Fatalf("OpenFinderFile: %v", err)
 	}
-	boot := app.BootConfig()
-	if boot.BookID != "finderbook" || boot.ShelfID != readerapi.ShelfID || boot.Section != nil {
-		t.Fatalf("Finder boot config = %+v, want standalone book without section", boot)
+	if len(native.created) != 2 {
+		t.Fatalf("windows = %v, want two", native.created)
 	}
-	if native.reloads != 1 || native.focuses != 1 {
-		t.Fatalf("native calls = %+v, want one reload and focus", native)
-	}
+	wantBoot(t, app, first, "launch-shelf", testBookID, 3)
+	wantBoot(t, app, native.created[1], readerapi.ShelfID, "finderbook", noLaunchSection)
 }
 
-func TestDomReadyWaitsForInFlightOpen(t *testing.T) {
-	native := &fakeNative{}
-	app := newReaderAppWithNative(t, native)
+func TestSameBookFocusesExistingWindow(t *testing.T) {
+	app, native := newTestApp(t)
+	first := launchBook(t, app, "shelf-real")
+	if err := app.OpenFinderFile(writeBookPackage(t, "otherbook")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.OpenFinderFile(writeBookPackage(t, testBookID)); err != nil {
+		t.Fatalf("OpenFinderFile: %v", err)
+	}
+	if len(native.created) != 2 || native.focuses[len(native.focuses)-1] != first {
+		t.Fatalf("windows %v, focuses %v; want no third window and window %d focused", native.created, native.focuses, first)
+	}
+	wantBoot(t, app, first, "shelf-real", testBookID, noLaunchSection)
+}
+
+func TestWindowReadyWaitsForInFlightOpen(t *testing.T) {
+	app, native := newTestApp(t)
+	win := app.Launch(launchArgs{section: noLaunchSection})
 	dir := writeBookPackage(t, "finderbook")
 
 	app.openMu.Lock()
 	done := make(chan struct{})
 	go func() {
-		app.DomReady(context.Background())
+		app.windowReady(win)
 		close(done)
 	}()
 	select {
 	case <-done:
 		app.openMu.Unlock()
-		t.Fatal("DomReady did not wait for the in-flight open")
+		t.Fatal("windowReady did not wait for the in-flight open")
 	case <-time.After(50 * time.Millisecond):
 	}
 	if _, err := app.library.Open(dir); err != nil {
 		t.Fatal(err)
 	}
+	app.fillEmptyWindow(win, app.newWindowState("", "finderbook", noLaunchSection))
 	app.openMu.Unlock()
 	<-done
 
-	if native.prompts != 0 {
-		t.Fatalf("DomReady prompted %d times after a Finder open, want 0", native.prompts)
+	if len(native.prompts) != 0 {
+		t.Fatalf("windowReady prompted %v after a Finder open, want none", native.prompts)
 	}
 }

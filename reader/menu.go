@@ -27,7 +27,7 @@ func applicationMenu(app *ReaderApp) []menuSpec {
 		{role: appMenuRole},
 		{role: submenuRole, label: "File", items: []menuItem{
 			{label: "Open Book…", accel: "CmdOrCtrl+O", action: func() {
-				if _, err := app.OpenBookPackage(); err != nil {
+				if _, err := app.openBookPackageIn(app.native.currentWindow()); err != nil {
 					log.Println("failed to open a book package:", err)
 				}
 			}},

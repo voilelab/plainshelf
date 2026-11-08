@@ -34,7 +34,7 @@ func (r *blockingRecorder) Write(data []byte) (int, error) {
 	return r.ResponseRecorder.Write(data)
 }
 
-func TestOpenAnotherBookWaitsForReads(t *testing.T) {
+func TestCloseBookWaitsForReads(t *testing.T) {
 	library := newOpenLibrary(t)
 	handler := readerapi.NewHandler(library, "test")
 
@@ -47,23 +47,23 @@ func TestOpenAnotherBookWaitsForReads(t *testing.T) {
 
 	<-recorder.started
 
-	opened := make(chan struct{})
+	closed := make(chan struct{})
 	go func() {
-		defer close(opened)
-		if _, err := library.Open(writeBookPackage(t, "Emma", "emma5678")); err != nil {
-			t.Errorf("Open: %v", err)
+		defer close(closed)
+		if err := library.CloseBook(testBookID); err != nil {
+			t.Errorf("CloseBook: %v", err)
 		}
 	}()
 
 	select {
-	case <-opened:
-		t.Fatal("opening another book completed while a read was still in flight")
+	case <-closed:
+		t.Fatal("closing the book completed while a read was still in flight")
 	case <-time.After(50 * time.Millisecond):
 	}
 
 	close(recorder.release)
 	<-served
-	<-opened
+	<-closed
 
 	if recorder.Code != http.StatusOK {
 		t.Errorf("in-flight request status = %d, want %d", recorder.Code, http.StatusOK)
@@ -71,7 +71,7 @@ func TestOpenAnotherBookWaitsForReads(t *testing.T) {
 	if body := recorder.Body.String(); body != testContent {
 		t.Errorf("in-flight request body = %q, want the whole source %q", body, testContent)
 	}
-	if library.BookID() != "emma5678" {
-		t.Errorf("open book = %q, want the newly opened one", library.BookID())
+	if library.Has(testBookID) {
+		t.Error("book still held after CloseBook")
 	}
 }

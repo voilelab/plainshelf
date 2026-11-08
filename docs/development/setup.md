@@ -171,8 +171,11 @@ use a negative value to resume saved progress; `-section 0` opens the first sect
 Only one reader process runs at a time. A second launch, such as the desktop's
 `open -n` read action, forwards its arguments to the running reader and exits;
 the running reader parses them with the same flags, checks that `-book` names a
-folder containing `book.json`, and replaces the open book with it. A forwarded
-path that is not a book package shows an error and leaves the current book open.
+folder containing `book.json`, and opens it in a new window. A book that is
+already open focuses its window instead, and a window still waiting for a book
+takes the new one. A forwarded path that is not a book package shows an error
+and leaves every open window as it was. Closing a window saves that book's
+progress and closes only that book; closing the last window quits the reader.
 
 ## Android app
 

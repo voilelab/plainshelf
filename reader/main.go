@@ -32,16 +32,10 @@ func main() {
 	}
 
 	native := &wailsNative{}
-	app := NewReaderApp(native, logger, launch.shelfID, launch.section)
-
-	if launch.bookPath != "" {
-		if _, err := app.Library().Open(launch.bookPath); err != nil {
-			log.Println("failed to open the book package given on the command line:", err)
-		}
-	}
+	app := NewReaderApp(native, logger)
 
 	api := readerapi.NewHandler(app.Library(), version.Version)
-	spa := readerapi.NewSPAHandler(frontend.WebFS, app.BootConfig)
+	spa := readerapi.NewSPAHandler(frontend.WebFS, app.BootFor)
 	wailsApp := application.New(application.Options{
 		Name:     "PlainShelf Reader",
 		Services: []application.Service{application.NewService(app)},
@@ -74,21 +68,8 @@ func main() {
 		logForwardError(app.OpenFinderFile(event.Context().Filename()))
 	})
 
-	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:  "PlainShelf Reader",
-		Width:  1100,
-		Height: 900,
-		URL:    "/",
-	})
-	native.attach(wailsApp, window)
-	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
-		if app.beforeClose(context.Background()) {
-			event.Cancel()
-		}
-	})
-	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
-		app.DomReady(context.Background())
-	})
+	native.attach(wailsApp, app.windowReady, app.windowClosed)
+	app.Launch(launch)
 
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)

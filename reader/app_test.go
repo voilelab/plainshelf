@@ -2,9 +2,13 @@ package main
 
 import (
 	"encoding/json/v2"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/reader/readerapi"
@@ -16,39 +20,140 @@ const (
 	testSourceID = "20260315-a1"
 )
 
-func TestManualOpenClearsLaunchState(t *testing.T) {
-	app := newReaderAppWithBook(t, "launch-shelf")
-	app.launchSection = 3
-	const nextBook = "nextbook"
-	id, err := app.openStandaloneBook(writeBookPackage(t, nextBook))
-	if err != nil || id != nextBook {
-		t.Fatalf("openStandaloneBook = %q, %v", id, err)
+func newTestApp(t *testing.T) (*ReaderApp, *fakeNative) {
+	t.Helper()
+	native := &fakeNative{}
+	app := &ReaderApp{
+		native:        native,
+		library:       readerapi.NewLibrary(nil),
+		progressStore: readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json")),
+		closeTimeout:  time.Second,
+		windows:       map[uint]*readerWindow{},
 	}
-	boot := app.BootConfig()
-	if boot.BookID != nextBook || boot.ShelfID != readerapi.ShelfID || boot.Section != nil {
-		t.Fatalf("manual-open boot config = %+v, want standalone book without launch chapter", boot)
+	t.Cleanup(func() { app.Shutdown(t.Context()) })
+	return app, native
+}
+
+func launchBook(t *testing.T, app *ReaderApp, shelfID string) uint {
+	t.Helper()
+	return launchBookAt(t, app, shelfID, testBookID, noLaunchSection)
+}
+
+func launchBookAt(t *testing.T, app *ReaderApp, shelfID, bookID string, section int) uint {
+	t.Helper()
+	win := app.Launch(launchArgs{bookPath: writeBookPackage(t, bookID), shelfID: shelfID, section: section})
+	if got := app.bootConfig(win).BookID; got != bookID {
+		t.Fatalf("launched window shows %q, want %q", got, bookID)
 	}
-	if err := app.WriteReadingProgress(progressDoc(t, readerapi.ShelfID, nextBook, 42, 100)); err != nil {
-		t.Fatal(err)
+	return win
+}
+
+func wantBoot(t *testing.T, app *ReaderApp, win uint, shelfID, bookID string, section int) {
+	t.Helper()
+	boot := app.bootConfig(win)
+	gotSection := noLaunchSection
+	if boot.Section != nil {
+		gotSection = *boot.Section
 	}
-	doc := diskDoc(t, app)
-	if doc.Shelves[readerapi.ShelfID][nextBook].Offset != 42 {
-		t.Fatal("manually opened book did not persist progress in the standalone namespace")
-	}
-	if _, ok := doc.Shelves["launch-shelf"]; ok {
-		t.Fatal("manual-open progress leaked into the desktop launch namespace")
+	if boot.ShelfID != shelfID || boot.BookID != bookID || gotSection != section {
+		t.Fatalf("window %d boot = {%s %s %d}, want {%s %s %d}",
+			win, boot.ShelfID, boot.BookID, gotSection, shelfID, bookID, section)
 	}
 }
 
-func TestFailedManualOpenKeepsLaunchState(t *testing.T) {
-	app := newReaderAppWithBook(t, "launch-shelf")
-	app.launchSection = 3
-	if _, err := app.openStandaloneBook(t.TempDir()); err == nil {
+func TestMenuOpenAddsWindow(t *testing.T) {
+	app, native := newTestApp(t)
+	first := launchBookAt(t, app, "launch-shelf", testBookID, 3)
+	const nextBook = "nextbook"
+	native.dir = writeBookPackage(t, nextBook)
+
+	if id, err := app.openBookPackageIn(first); err != nil || id != nextBook {
+		t.Fatalf("openBookPackageIn = %q, %v", id, err)
+	}
+	if len(native.created) != 2 || len(native.reloads) != 0 {
+		t.Fatalf("windows %v, reloads %v; want a second window and no reload", native.created, native.reloads)
+	}
+	second := native.created[1]
+	wantBoot(t, app, first, "launch-shelf", testBookID, 3)
+	wantBoot(t, app, second, readerapi.ShelfID, nextBook, noLaunchSection)
+}
+
+func TestFailedOpenKeepsWindowState(t *testing.T) {
+	app, native := newTestApp(t)
+	win := launchBookAt(t, app, "launch-shelf", testBookID, 3)
+	native.dir = t.TempDir()
+
+	if _, err := app.openBookPackageIn(win); err == nil {
 		t.Fatal("opened a directory without book metadata")
 	}
-	boot := app.BootConfig()
-	if boot.BookID != testBookID || boot.ShelfID != "launch-shelf" || boot.Section == nil || *boot.Section != 3 {
-		t.Fatalf("failed-open boot config = %+v, want original book and launch state", boot)
+	wantBoot(t, app, win, "launch-shelf", testBookID, 3)
+	if len(native.created) != 1 {
+		t.Fatalf("windows = %v, want only the original", native.created)
+	}
+}
+
+func TestTwoWindowsKeepOwnBoot(t *testing.T) {
+	app, native := newTestApp(t)
+	desktop := launchBookAt(t, app, "shelf-real", testBookID, 2)
+
+	if err := app.OpenFinderFile(writeBookPackage(t, "finderbook")); err != nil {
+		t.Fatalf("OpenFinderFile: %v", err)
+	}
+	if len(native.created) != 2 {
+		t.Fatalf("windows = %v, want two", native.created)
+	}
+	finder := native.created[1]
+
+	wantBoot(t, app, desktop, "shelf-real", testBookID, 2)
+	wantBoot(t, app, finder, readerapi.ShelfID, "finderbook", noLaunchSection)
+	if !app.library.Has(testBookID) || !app.library.Has("finderbook") {
+		t.Fatal("library does not hold both books")
+	}
+}
+
+func TestBootForReadsWindowHeader(t *testing.T) {
+	app, _ := newTestApp(t)
+	launchBook(t, app, "")
+	second := launchBookAt(t, app, "shelf-real", "nextbook", 1)
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set(windowIDHeader, strconv.FormatUint(uint64(second), 10))
+	if boot := app.BootFor(request); boot.BookID != "nextbook" || boot.ShelfID != "shelf-real" {
+		t.Fatalf("BootFor(window %d) = %+v, want nextbook on shelf-real", second, boot)
+	}
+
+	unknown := httptest.NewRequest(http.MethodGet, "/", nil)
+	unknown.Header.Set(windowIDHeader, "99")
+	if boot := app.BootFor(unknown); boot.BookID != "" || boot.ShelfID != readerapi.ShelfID || boot.Section != nil {
+		t.Fatalf("BootFor(unknown) = %+v, want an empty standalone boot", boot)
+	}
+}
+
+func TestLaunchShelfIDFallback(t *testing.T) {
+	app, _ := newTestApp(t)
+	for shelfID, want := range map[string]string{"": readerapi.ShelfID, "   ": readerapi.ShelfID, "shelf-real": "shelf-real"} {
+		win := app.Launch(launchArgs{shelfID: shelfID, section: noLaunchSection})
+		if got := app.bootConfig(win).ShelfID; got != want {
+			t.Errorf("Launch shelfID for %q = %q, want %q", shelfID, got, want)
+		}
+	}
+}
+
+func TestBootConfigSection(t *testing.T) {
+	app, _ := newTestApp(t)
+	for _, section := range []int{noLaunchSection, 0, 3} {
+		win := app.Launch(launchArgs{shelfID: "shelf-real", section: section})
+		wantBoot(t, app, win, "shelf-real", "", section)
+	}
+}
+
+func TestLaunchBadBookOpensEmptyWindow(t *testing.T) {
+	app, native := newTestApp(t)
+	win := app.Launch(launchArgs{bookPath: t.TempDir(), section: noLaunchSection})
+
+	wantBoot(t, app, win, readerapi.ShelfID, "", noLaunchSection)
+	if len(native.created) != 1 {
+		t.Fatalf("windows = %v, want one", native.created)
 	}
 }
 
@@ -92,27 +197,6 @@ func writeJSON(t *testing.T, path string, value any) {
 	}
 }
 
-func newReaderAppWithBook(t *testing.T, shelfID string) *ReaderApp {
-	t.Helper()
-
-	library := readerapi.NewLibrary(nil)
-	t.Cleanup(func() { library.Close() })
-	if _, err := library.Open(writeBookPackage(t, testBookID)); err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-
-	standalone := shelfID == ""
-	if standalone {
-		shelfID = readerapi.ShelfID
-	}
-	return &ReaderApp{
-		library:       library,
-		shelfID:       shelfID,
-		standalone:    standalone,
-		progressStore: readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json")),
-	}
-}
-
 func progressDoc(t *testing.T, shelfID, bookID string, offset, at int64) string {
 	t.Helper()
 	doc := readingprogress.New()
@@ -135,7 +219,8 @@ func diskDoc(t *testing.T, app *ReaderApp) readingprogress.Document {
 
 func TestReaderProgressUsesRealShelfID(t *testing.T) {
 	const realShelf = "shelf-real"
-	app := newReaderAppWithBook(t, realShelf)
+	app, _ := newTestApp(t)
+	win := launchBook(t, app, realShelf)
 
 	if err := app.WriteReadingProgress(progressDoc(t, realShelf, testBookID, 512, 1000)); err != nil {
 		t.Fatalf("WriteReadingProgress: %v", err)
@@ -149,7 +234,7 @@ func TestReaderProgressUsesRealShelfID(t *testing.T) {
 		t.Errorf("progress must not land under the synthetic shelf %q: %v", readerapi.ShelfID, disk.Shelves)
 	}
 
-	got, err := app.ReadReadingProgress()
+	got, err := app.ReadReadingProgress(windowContext(t, win))
 	if err != nil {
 		t.Fatalf("ReadReadingProgress: %v", err)
 	}
@@ -158,9 +243,34 @@ func TestReaderProgressUsesRealShelfID(t *testing.T) {
 	}
 }
 
+func TestReadProgressPerWindowShelf(t *testing.T) {
+	app, _ := newTestApp(t)
+	desktop := launchBook(t, app, "shelf-real")
+	finder := launchBookAt(t, app, "", "finderbook", noLaunchSection)
+	for _, doc := range []string{
+		progressDoc(t, "shelf-real", testBookID, 10, 1000),
+		progressDoc(t, readerapi.ShelfID, "finderbook", 20, 1000),
+	} {
+		if err := app.WriteReadingProgress(doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for win, want := range map[uint]string{
+		desktop: progressDoc(t, "shelf-real", testBookID, 10, 1000),
+		finder:  progressDoc(t, readerapi.ShelfID, "finderbook", 20, 1000),
+	} {
+		got, err := app.readProgressIn(win)
+		if err != nil || got != want {
+			t.Errorf("readProgressIn(%d) = %q, %v; want %q", win, got, err, want)
+		}
+	}
+}
+
 func TestRealShelfWriteKeepsOtherNamespaces(t *testing.T) {
 	const realShelf = "shelf-real"
-	app := newReaderAppWithBook(t, realShelf)
+	app, _ := newTestApp(t)
+	launchBook(t, app, realShelf)
 
 	seed := readingprogress.New()
 	seed.Shelves["shelf-other"] = map[string]readingprogress.Entry{"other-book": {Offset: 30, At: 500}}
@@ -185,45 +295,11 @@ func TestRealShelfWriteKeepsOtherNamespaces(t *testing.T) {
 	}
 }
 
-func TestProgressDefaultsToSyntheticShelf(t *testing.T) {
-	app := newReaderAppWithBook(t, "")
-	if app.shelfID != readerapi.ShelfID {
-		t.Fatalf("default shelfID = %q, want %q", app.shelfID, readerapi.ShelfID)
+func TestWindowOfReadsBindingContext(t *testing.T) {
+	if got := windowOf(windowContext(t, 7)); got != 7 {
+		t.Errorf("windowOf = %d, want 7", got)
 	}
-
-	if err := app.WriteReadingProgress(progressDoc(t, readerapi.ShelfID, testBookID, 256, 1000)); err != nil {
-		t.Fatalf("WriteReadingProgress: %v", err)
-	}
-
-	disk := diskDoc(t, app)
-	if got := disk.Shelves[readerapi.ShelfID][testBookID].Offset; got != 256 {
-		t.Errorf("shelves[%q][%q] = %d, want 256", readerapi.ShelfID, testBookID, got)
-	}
-}
-
-func TestNewReaderAppShelfIDFallback(t *testing.T) {
-	for _, shelfID := range []string{"", "   "} {
-		if got := NewReaderApp(nil, nil, shelfID, noLaunchSection).shelfID; got != readerapi.ShelfID {
-			t.Errorf("NewReaderApp shelfID for %q = %q, want %q", shelfID, got, readerapi.ShelfID)
-		}
-	}
-	if got := NewReaderApp(nil, nil, "shelf-real", noLaunchSection).shelfID; got != "shelf-real" {
-		t.Errorf("NewReaderApp shelfID = %q, want shelf-real", got)
-	}
-}
-
-func TestBootConfigSection(t *testing.T) {
-	if boot := NewReaderApp(nil, nil, "shelf-real", noLaunchSection).BootConfig(); boot.Section != nil {
-		t.Errorf("BootConfig().Section for no launch section = %v, want nil", *boot.Section)
-	}
-
-	for _, want := range []int{0, 3} {
-		boot := NewReaderApp(nil, nil, "shelf-real", want).BootConfig()
-		if boot.Section == nil {
-			t.Fatalf("BootConfig().Section for launch section %d = nil, want %d", want, want)
-		}
-		if *boot.Section != want {
-			t.Errorf("BootConfig().Section = %d, want %d", *boot.Section, want)
-		}
+	if got := windowOf(t.Context()); got != 0 {
+		t.Errorf("windowOf without a window = %d, want 0", got)
 	}
 }
