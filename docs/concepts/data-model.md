@@ -216,8 +216,9 @@ An entry that cannot name a directory or a folder is skipped rather than fatal:
 one containing a `/` where a name is expected, one whose path names no folder at
 all, or one written as a bare string rather than an object. The rest of the file
 still applies. A file that cannot be read as a single JSON object at all, or one
-larger than 1 MiB, leaves the defaults in place; so does a key this build does
-not know. The server log says what was dropped and why, and warns when your list
+larger than 1 MiB, leaves the defaults in place. A key this build does not know
+is ignored, and the keys it does know still apply. The server log says what was
+dropped and why, and warns when your list
 leaves out a default such as `@eaDir`, because that is how a library grows a
 duplicate folder tree.
 
@@ -231,8 +232,14 @@ them and are not synchronized between devices:
 |---|---|
 | Web | Browser `localStorage`, key `plainshelf.readingProgress` |
 | Desktop | `reading_progress.json` next to `shelves.json` in the app data directory |
-| Standalone reader | The desktop's `reading_progress.json` (shared), under a synthetic `book` shelf key |
-| Android | App-private `progress.json` files scoped by connection, shelf, and book |
+| Standalone reader | The desktop's `reading_progress.json` (shared): under the real shelf key when the desktop launched it, under a synthetic `book` shelf key when opened directly |
+| Android | WebView `localStorage`, key `plainshelf.readingProgress`, for a shelf the app opens itself (local, pCloud, WebDAV). An external PlainShelf server connection writes an app-private `progress.json` per book instead, scoped by the connection |
+
+Read history and reading time sit beside progress on the web (`localStorage`)
+and on the desktop and standalone reader (`read_history.json`,
+`reading_stats.json`). On Android both are app-private files for every shelf.
+See [Which backend a document actually
+gets](architecture.md#which-backend-a-document-actually-gets).
 
 For text sources, each position is a JavaScript UTF-16 character offset. For
 `images` sources, the same per-device integer stores the zero-based page index.
@@ -247,9 +254,12 @@ parsed page count, including missing pages. The last page is 100%. Empty page
 lists have 0% completion.
 
 The standalone reader writes into the desktop app's `reading_progress.json` so a
-book read there shows the same position in the desktop library. Because the
-reader has no real shelf, it stores progress under a synthetic `book` shelf key,
-which the desktop app projects onto the book's real shelf by stable book ID; see
+book read there shows the same position in the desktop library. Launched from the
+desktop app, it receives the book's real shelf ID and reads and writes that
+shelf's entry directly. Opened on its own, it has no real shelf, so it stores
+progress under a synthetic `book` shelf key, which the desktop app projects onto
+the book's real shelf by stable book ID. Both writers stamp each entry with its
+write time, and the newer entry wins per book; see
 [Reading state is not part of the
 shelf](architecture.md#reading-state-is-not-part-of-the-shelf).
 
@@ -263,7 +273,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 {book-folder}.bookpkg/
 ├─ book.json
 ├─ CURRENT_SOURCE.txt
-├─ cover.(jpg|png|webp)
+├─ cover.(jpg|png|webp|gif)
 └─ sources/
    └─ {source-id}/
       ├─ source.txt
@@ -276,7 +286,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 |---|---|
 | `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data format versioning](data-format-versioning.md). |
 | `CURRENT_SOURCE.txt` | Human-readable hint, in English, that points to the active source. The server writes it whenever the current source changes and never parses it back — `current_source` in `book.json` is the source of truth — so deleting it is safe. Shelves written by older builds carry the same hint as `CURRENT_VERSION_LOCATION.txt`; the next write replaces it with `CURRENT_SOURCE.txt` rather than leaving both. |
-| `cover.(jpg\|png\|webp)` | Optional cover image |
+| `cover.(jpg\|png\|webp\|gif)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure; for an `images` source, the ordered page list |
 | `sources/{source-id}/meta.json` | Source-level metadata, including `schema_version` and authoritative `format` for new sources |
 | `sources/{source-id}/assets/` | Optional illustrations this source's text references; for an `images` source, its pages |

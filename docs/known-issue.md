@@ -26,12 +26,10 @@ time.** The per-book refresh that runs on `book_check_interval` stats
 `book.json` and reopens a book only when its size or modification time changed,
 so an edit that leaves both unchanged is not noticed by that check, and neither
 is a change to a cover or a source file, which does not move `book.json` at all.
-A full scan on a shelf a PlainShelf server reads is different: it reopens every
-`book.json` outright rather than trusting its stat, so **Update book list**,
-which forces one, does pick these up. A client that reads a shelf directly is
-the exception: it keeps its own metadata cache keyed on size and modification
-time, so even an update reuses the stale copy; the pCloud client below is the
-one such reader today.
+A full scan is different: it reopens every `book.json` outright rather than
+trusting its stat, so **Update book list**, which forces one, does pick these
+up. A virtual shelf, such as the Android client's pCloud shelf, has no per-book
+check at all; see [below](#a-pcloud-shelf-on-the-android-client).
 
 It takes a full scan to find such an edit, whether the timer starts one or you
 force one with the button. Until that scan the stale reading stands — though the
@@ -62,17 +60,38 @@ realistically hit. Press **Update book list** once the sync has settled.
 
 ### A pCloud shelf on the Android client
 
-- **The book list never updates on its own.** Walking the shelf costs one
-  recursive listing plus a request per book, so the client scans once and then
-  reads the stored copy on the device. A book added, removed, or renamed from
-  another device appears only after **Update book list** on the library toolbar.
-- **A stale list can make a book fail to open.** The stored copy holds the
-  pCloud file references used to open a book. If the book was replaced or moved
-  on pCloud since the last update, opening it fails until the list is updated.
-  Downloaded books are unaffected — they are read from the device.
+The app opens the shelf with the same Go engine as the server, read-only. How
+its book list follows changes depends on whether a PlainShelf server or desktop
+app exports a book cache into the shelf's `app/` directory:
 
-The stat rule above governs the device copy too: an update reuses a book's
-stored metadata while its size and modification time are unchanged.
+- **With an export,** the list comes from the newest
+  `app/book-cache-*.json`. Once `scan_interval` has passed, the next listing
+  checks for a newer export and takes it. A change therefore reaches the phone
+  after the writer next exports it, which its `book_cache_interval` paces
+  (one hour by default), and then within a minute, the default `scan_interval`,
+  which the Android app does not change.
+- **Without an export,** the app lists the shelf from its saved offline snapshot
+  if it has one, and walks pCloud only when it has none. The timer does not walk
+  the shelf again: a book added, removed, or renamed from another device appears
+  only after **Update book list** on the library toolbar.
+- **Update book list** walks pCloud directly in both cases and reopens every
+  `book.json`, so it also picks up edits that an export has not caught up with.
+  Walking costs one recursive listing plus requests per book.
+- **When pCloud cannot be reached,** the app lists the shelf from the saved
+  snapshot. Downloaded books open from the device. A book that was not
+  downloaded answers that it is not downloaded instead of opening.
+- **A stale list can make a book fail to open.** If a book was replaced or
+  moved on pCloud since the list was read, opening it fails until the list is
+  updated. Downloaded books are unaffected, because they are read from the
+  device.
+
+A WebDAV shelf, or another PlainShelf's export, opened as a virtual shelf on the
+server, the desktop, or Android follows the same rules, with that source in
+place of pCloud.
+
+See [Offline copies](concepts/shelf-sources.md#offline-copies) and [Folder
+metadata freshness on remote
+shelves](concepts/shelf-cache-and-io.md#folder-metadata-freshness-on-remote-shelves).
 
 ---
 

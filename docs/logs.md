@@ -18,11 +18,19 @@ reaches further back.
 
 ## Reporting a problem
 
-Every response the server sends carries a request number in the `X-Request-Id`
-header, and every error it answers with repeats that number in the response
-body as `incident`. It is eight characters long and deliberately avoids the
-characters people mix up when reading a number aloud — no `0`, `O`, `1`, `I` or
-`L` appears in one.
+A request that passes the security check gets a request number in the
+`X-Request-Id` response header. An error answered with a JSON error body repeats
+that number as `incident`; an error answered as plain text, such as an
+unsupported cover type, has the header but no `incident`. The number is eight
+characters long and avoids the characters people mix up when reading a number
+aloud: no `0`, `O`, `1`, `I` or `L` appears in one.
+
+A request the security check refuses has no number at all. That covers `401
+unauthorized` for a missing or wrong token and `403 forbidden origin` for a
+request from a page the server does not trust. Neither reaches the log. For
+those, report the time, the route (the method and path, such as `GET
+/api/shelves`), and the HTTP status instead; the browser's developer tools show
+all three.
 
 Include that number in a bug report. Searching a log file for it finds the line
 for that request, and for a failure the server did not expect that line also
@@ -31,7 +39,7 @@ withholds. Background work (a batch move, emptying the trash, fingerprinting) is
 logged under the number of the request that started it, so one number covers the
 whole operation.
 
-When something fails, the number is on screen: a small **Error reference**
+When a failure has a number, it is on screen: a small **Error reference**
 notice appears in the corner of the window with a **Copy** button, so a report
 can quote it without opening developer tools. A failure the interface raised on
 its own, such as a bug in a page or a pCloud shelf read, where there is no
