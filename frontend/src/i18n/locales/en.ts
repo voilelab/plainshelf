@@ -1126,14 +1126,21 @@ const en = {
     actionsLabel: 'Reader actions',
     decreaseFontSize: 'Decrease font size',
     increaseFontSize: 'Increase font size',
-    chooseFont: 'Choose reading font',
+    chooseFont: 'Choose reading font and theme',
     fontDialog: {
-      title: 'Reading font',
+      title: 'Reading font and theme',
       description: 'Changes apply immediately and are saved on this device.',
       optionsLabel: 'Available reading fonts',
       close: 'Close font selection',
       done: 'Done',
       sample: 'A quiet place to read, between mountains and sea.',
+      themeHeading: 'Reading theme',
+      themeOptionsLabel: 'Reading themes',
+      themes: {
+        light: 'Light',
+        sepia: 'Sepia',
+        dark: 'Dark'
+      },
       fonts: {
         system: {
           label: 'System serif',

@@ -263,7 +263,7 @@ The diagram cannot show either of these:
 
 ## UI preferences
 
-Language, zoom, reader font and the other UI preferences go through one
+Language, zoom, reader font and theme, and the other UI preferences go through one
 synchronous key/value store, `frontend/src/storage/preferences.ts`, instead of
 each module calling `window.localStorage`. Components that show the same
 preference subscribe to it, so a change in one updates the others in the same

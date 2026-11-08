@@ -47,6 +47,7 @@ const fallbackText = computed(() => props.alt || t('reader.imageUnavailable'));
 
 .reader-md-image {
   display: block;
+  border: 1px solid rgb(var(--reader-line-rgb) / 0.22);
   max-width: 100%;
   height: auto;
 }

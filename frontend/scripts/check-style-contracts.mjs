@@ -22,7 +22,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { rules, styleSource } from './css-rules.mjs';
-import { RAW_COLOR_EXCEPTIONS, findRawColors, findThemeViolations } from './theme-colors.mjs';
+import { findRawColors, findThemeViolations } from './theme-colors.mjs';
 
 export { rules, styleSource };
 
@@ -218,8 +218,7 @@ async function main() {
       console.error(`  ${violation}`);
     }
     console.error(
-      '\nUse a token from src/styles.css, or add one there with a light and a dark value. ' +
-        `Exempt: ${RAW_COLOR_EXCEPTIONS.map((exception) => exception.prefix).join(', ')}.\n`
+      '\nUse a token from src/styles.css, or add one there with a light and a dark value.\n'
     );
   }
 

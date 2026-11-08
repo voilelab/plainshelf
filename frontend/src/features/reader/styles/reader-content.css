@@ -17,11 +17,11 @@
 }
 
 .reader-document {
-  background: linear-gradient(180deg, rgba(255, 251, 242, 0.98), rgba(253, 248, 237, 0.94));
+  background: var(--reader-paper-gradient);
   border-radius: 18px;
   box-shadow:
-    0 16px 40px rgba(96, 75, 44, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    0 16px 40px rgb(var(--reader-shadow-rgb) / 0.08),
+    inset 0 1px 0 rgb(var(--reader-surface-rgb) / 0.7);
   padding: 22px;
 }
 
@@ -45,13 +45,13 @@
 }
 
 .reader-nav-center strong {
-  color: #3f3529;
+  color: var(--reader-heading);
   font-size: 0.95rem;
 }
 
 .reader-nav-title {
   max-width: 100%;
-  color: #6b5f4a;
+  color: var(--reader-muted);
   font-size: 0.88rem;
   white-space: nowrap;
   overflow: hidden;
@@ -62,8 +62,8 @@
   margin: 0 0 10px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(255, 226, 173, 0.33);
-  color: #6f4c1f;
+  background: rgb(var(--reader-notice-rgb) / 0.33);
+  color: var(--reader-notice-text);
   font-size: 0.9rem;
 }
 
@@ -79,7 +79,7 @@
 }
 
 .reader-content:focus-visible {
-  outline: 2px solid rgba(122, 104, 72, 0.45);
+  outline: 2px solid rgb(var(--reader-line-rgb) / 0.45);
   outline-offset: -2px;
   border-radius: 8px;
 }
@@ -87,7 +87,7 @@
 .reader-text {
   word-break: break-word;
   margin: 0;
-  color: #2f2a22;
+  color: var(--reader-ink);
   font-family: var(--reader-font-family, Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif);
   font-size: var(--reader-font-size, 20px);
   line-height: 1.9;
@@ -118,9 +118,9 @@
 .reader-text-quote {
   margin-left: 0;
   padding: 0.2em 0 0.2em 0.9em;
-  border-left: 3px solid rgba(122, 104, 72, 0.3);
-  color: #4f4639;
-  background: rgba(255, 253, 247, 0.72);
+  border-left: 3px solid rgb(var(--reader-line-rgb) / 0.3);
+  color: var(--reader-ink-soft);
+  background: rgb(var(--reader-surface-rgb) / 0.72);
   border-radius: 0 8px 8px 0;
 }
 
@@ -148,9 +148,9 @@
 .reader-safe-html :deep(blockquote) {
   margin-left: 0;
   padding: 0.2em 0 0.2em 0.9em;
-  border-left: 3px solid rgba(122, 104, 72, 0.3);
-  color: #4f4639;
-  background: rgba(255, 253, 247, 0.72);
+  border-left: 3px solid rgb(var(--reader-line-rgb) / 0.3);
+  color: var(--reader-ink-soft);
+  background: rgb(var(--reader-surface-rgb) / 0.72);
   border-radius: 0 8px 8px 0;
 }
 
@@ -164,7 +164,7 @@
 .reader-safe-html :deep(h5),
 .reader-safe-html :deep(h6) {
   margin: calc(var(--reader-font-size, 20px) * 0.9) 0 calc(var(--reader-font-size, 20px) * 0.5);
-  color: #3f3529;
+  color: var(--reader-heading);
   font-family: var(--reader-font-family, Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif);
   font-weight: 700;
   line-height: 1.4;
@@ -222,8 +222,8 @@
   margin: 0 0 calc(var(--reader-font-size, 20px) * 0.92);
   padding: 0.9em 1em;
   border-radius: 8px;
-  background: rgba(63, 53, 41, 0.06);
-  color: #3f3529;
+  background: rgb(var(--reader-ink-rgb) / 0.06);
+  color: var(--reader-heading);
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: calc(var(--reader-font-size, 20px) * 0.78);
   line-height: 1.6;
@@ -236,7 +236,7 @@
 .reader-safe-html :deep(kbd) {
   padding: 0.1em 0.35em;
   border-radius: 4px;
-  background: rgba(63, 53, 41, 0.08);
+  background: rgb(var(--reader-ink-rgb) / 0.08);
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 0.88em;
 }
@@ -245,20 +245,20 @@
 .reader-safe-html :deep(hr) {
   margin: calc(var(--reader-font-size, 20px) * 0.92) 0;
   border: none;
-  border-top: 1px solid rgba(122, 104, 72, 0.3);
+  border-top: 1px solid rgb(var(--reader-line-rgb) / 0.3);
 }
 
 .reader-safe-html :deep(details) {
   margin: 0 0 calc(var(--reader-font-size, 20px) * 0.92);
   padding: 0.5em 0.75em;
-  border: 1px solid rgba(122, 104, 72, 0.22);
+  border: 1px solid rgb(var(--reader-line-rgb) / 0.22);
   border-radius: 8px;
-  background: rgba(255, 253, 247, 0.55);
+  background: rgb(var(--reader-surface-rgb) / 0.55);
 }
 
 .reader-safe-html :deep(summary) {
   cursor: pointer;
-  color: #3f3529;
+  color: var(--reader-heading);
   font-weight: 700;
   user-select: none;
 }
@@ -284,13 +284,13 @@
 .reader-safe-html :deep(th),
 .reader-safe-html :deep(td) {
   padding: 0.35em 0.6em;
-  border: 1px solid rgba(122, 104, 72, 0.28);
+  border: 1px solid rgb(var(--reader-line-rgb) / 0.28);
   text-align: left;
   vertical-align: top;
 }
 
 .reader-safe-html :deep(mark) {
-  background: rgba(255, 218, 102, 0.5);
+  background: var(--reader-mark);
   color: inherit;
 }
 

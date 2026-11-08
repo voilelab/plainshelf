@@ -50,7 +50,7 @@ watch(failed, (value) => { if (value) emit('ready'); }, { immediate: true });
 <style scoped>
 .comic-page-image {
   display: grid;
-  color: #eee;
+  color: var(--comic-text);
 }
 
 .comic-page-image > * {

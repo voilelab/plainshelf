@@ -6,7 +6,8 @@ import {
   parseReaderFont,
   READER_FONT_OPTIONS,
   useReaderSettings,
-  type ReaderFont
+  type ReaderFont,
+  type ReaderTheme
 } from './useReaderSettings';
 
 function stubWindow(initial: Record<string, string> = {}) {
@@ -142,5 +143,70 @@ describe('reader font reaches the rendered text', () => {
     expect(new Set(READER_FONT_OPTIONS.map((option) => option.cssFamily)).size).toBe(
       READER_FONT_OPTIONS.length
     );
+  });
+});
+
+describe('reader theme settings', () => {
+  it('defaults to light when nothing is stored', () => {
+    stubWindow();
+    const { scope, settings } = setupSettings();
+
+    expect(settings.theme.value).toBe('light');
+
+    scope.stop();
+  });
+
+  it.each<ReaderTheme>(['light', 'sepia', 'dark'])('reads back a stored %s theme', async (theme) => {
+    const { values } = stubWindow();
+    const first = setupSettings();
+
+    first.settings.setTheme(theme);
+    await nextTick();
+    expect(values.get('reader-theme')).toBe(theme);
+    first.scope.stop();
+
+    const reopened = setupSettings();
+    expect(reopened.settings.theme.value).toBe(theme);
+    reopened.scope.stop();
+  });
+
+  it.each(['', 'Dark', 'night', '1'])('falls back to light for the stored value %j', (raw) => {
+    stubWindow({ 'reader-theme': raw });
+    const { scope, settings } = setupSettings();
+
+    expect(settings.theme.value).toBe('light');
+
+    scope.stop();
+  });
+
+  it('leaves stored font settings untouched when the theme changes', async () => {
+    const { values } = stubWindow({ 'reader-font-family': 'noto-serif-tc', 'reader-font-size': '26' });
+    const { scope, settings } = setupSettings();
+
+    settings.setTheme('dark');
+    await nextTick();
+
+    expect(settings.fontFamily.value).toBe('noto-serif-tc');
+    expect(settings.fontSize.value).toBe(26);
+    expect(values.get('reader-font-family')).toBe('noto-serif-tc');
+    expect(values.get('reader-font-size')).toBe('26');
+
+    scope.stop();
+  });
+
+  it('syncs the theme to other readers and ignores the app theme key', async () => {
+    const { values } = stubWindow({ 'app-theme': 'dark' });
+    const first = setupSettings();
+    const second = setupSettings();
+
+    expect(first.settings.theme.value).toBe('light');
+    first.settings.setTheme('sepia');
+    await nextTick();
+
+    expect(second.settings.theme.value).toBe('sepia');
+    expect(values.get('app-theme')).toBe('dark');
+
+    first.scope.stop();
+    second.scope.stop();
   });
 });
