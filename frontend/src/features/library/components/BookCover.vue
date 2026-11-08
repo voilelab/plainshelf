@@ -150,6 +150,15 @@ function hasDraggedFiles(event: DragEvent): boolean {
   return Boolean(event.dataTransfer?.files && event.dataTransfer.files.length > 0);
 }
 
+// The Wails v3 runtime (@wailsio/runtime 3.1.0, window.ts) resets dropEffect to
+// 'none' on documentElement when EnableFileDrop is off, which cancels the drop.
+function claimFileDrag(event: DragEvent): void {
+  event.stopPropagation();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy';
+  }
+}
+
 async function uploadCover(file: File): Promise<boolean> {
   if (props.readOnly) {
     return false;
@@ -218,6 +227,7 @@ function onCoverDragEnter(event: DragEvent): void {
   if (coverBusy.value || !hasDraggedFiles(event)) {
     return;
   }
+  claimFileDrag(event);
   isDragOver.value = true;
 }
 
@@ -228,10 +238,8 @@ function onCoverDragOver(event: DragEvent): void {
   if (coverBusy.value || !hasDraggedFiles(event)) {
     return;
   }
+  claimFileDrag(event);
   isDragOver.value = true;
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'copy';
-  }
 }
 
 function onCoverDragLeave(event: DragEvent): void {
@@ -251,6 +259,7 @@ function onCoverDrop(event: DragEvent): void {
   if (coverBusy.value) {
     return;
   }
+  event.stopPropagation();
 
   const file = event.dataTransfer?.files?.[0];
   if (!file) {
