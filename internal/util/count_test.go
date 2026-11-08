@@ -122,9 +122,6 @@ func TestRuneCountMatchesUTF8(t *testing.T) {
 	}
 }
 
-// A large non-ASCII text streamed in io.Copy-sized writes is counted without
-// allocating per write: utf8.RuneCount copies the rest of each write into a
-// string, which made the whole text garbage while a source was saved.
 func TestTextCounterLargeStreamNoAlloc(t *testing.T) {
 	line := "一行文字 line of text\n"
 	text := strings.Repeat(line, (8<<20)/len(line))
@@ -140,10 +137,9 @@ func TestTextCounterLargeStreamNoAlloc(t *testing.T) {
 		t.Errorf("Lines() = %d, want %d", got, want)
 	}
 
-	// Whole lines, so no rune is left split across writes.
-	chunk := []byte(strings.Repeat(line, (1<<20)/len(line)))
+	wholeLines := []byte(strings.Repeat(line, (1<<20)/len(line)))
 	var stream TextCounter
-	if allocs := testing.AllocsPerRun(10, func() { _, _ = stream.Write(chunk) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(10, func() { _, _ = stream.Write(wholeLines) }); allocs != 0 {
 		t.Errorf("Write of a 1 MiB non-ASCII chunk allocated %v times, want 0", allocs)
 	}
 }

@@ -49,10 +49,8 @@ func (c *TextCounter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// runeCount is utf8.RuneCount without its allocation: past the first non-ASCII
-// byte that copies the rest into a string, so counting a large text through
-// 32 KiB writes produced its whole size in garbage. An invalid byte counts as
-// one rune, as there.
+// Go 1.27's utf8.RuneCount copies its input into a string past the first
+// non-ASCII byte (unicode/utf8/utf8.go), one allocation per write here.
 func runeCount(p []byte) int {
 	n := 0
 	for i := 0; i < len(p); n++ {
