@@ -134,6 +134,21 @@ func (r *Source) OpenAsset(name string) (*Asset, error) {
 	return &Asset{File: assetFile, Info: info, Ext: path.Ext(name)}, nil
 }
 
+func (r *Source) AssetStat(name string) (*FileStat, error) {
+	assetPath, err := r.AssetPath(name)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	stat, err := getFileStat(r.root, assetPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, util.Errorf("%w: %s", ErrAssetNotFound, name)
+		}
+		return nil, util.Errorf("%w", err)
+	}
+	return stat, nil
+}
+
 func (r *Source) ListAssets() ([]string, error) {
 	entries, err := r.root.ReadDir(path.Join(r.folderPath, SourceAssetsFolder))
 	if err != nil {

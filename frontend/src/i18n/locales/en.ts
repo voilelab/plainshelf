@@ -552,13 +552,23 @@ const en = {
   maintenance: {
     duplicateContent: 'Duplicate Content',
     duplicates: {
-      description: 'Maintenance view for books with identical content.',
+      description: 'Maintenance view for books with identical content, and comics that share almost every page.',
       scanning: 'Scanning duplicate content groups...',
       empty: 'No duplicate content found.',
       emptyHint: 'Your library looks clean.',
       loadFailed: 'Failed to load duplicate content',
       groupTitle: 'Duplicate Group #{index}',
       groupSummary: '{count} books share identical content',
+      overlapTitle: 'Possible Duplicate #{index}',
+      overlapSummary: '{shared} pages in common; {a} has {extraA} more, {b} has {extraB} more',
+      comicHash: {
+        missingNote: '{missing} of {total} comics have no page hashes yet and are left out',
+        allHashed: 'All {total} comics have page hashes',
+        build: 'Hash comic pages',
+        building: 'Hashing… {percent}%',
+        failed: 'Could not hash comic pages.',
+        readOnly: 'A read-only shelf cannot hash comic pages.'
+      },
       open: 'Open',
       delete: 'Delete',
       deleting: 'Deleting...',

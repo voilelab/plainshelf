@@ -1,8 +1,8 @@
 <template>
   <article class="duplicate-group-section">
     <header class="duplicate-group-header">
-      <h3 class="duplicate-group-title">{{ t('maintenance.duplicates.groupTitle', { index: groupIndex }) }}</h3>
-      <p class="duplicate-group-subtitle">{{ t('maintenance.duplicates.groupSummary', { count: books.length }) }}</p>
+      <h3 class="duplicate-group-title">{{ title }}</h3>
+      <p class="duplicate-group-subtitle">{{ summary }}</p>
     </header>
 
     <div class="duplicate-group-list">
@@ -19,16 +19,14 @@
 <script setup lang="ts">
 import type { Book } from '@/types/book';
 import DuplicateBookRow from './DuplicateBookRow.vue';
-import { useI18n } from '@/i18n';
-
-const { t } = useI18n();
 
 const emit = defineEmits<{
   deleted: [bookId: string];
 }>();
 
 defineProps<{
-  groupIndex: number;
+  title: string;
+  summary: string;
   books: Book[];
 }>();
 </script>

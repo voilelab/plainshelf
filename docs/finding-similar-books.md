@@ -71,6 +71,35 @@ relate, not a bug.
 
 ---
 
+## Duplicate comics
+
+Comics are left out of Similar Content, but the **Duplicate Content** page finds
+comics imported more than once. It compares the images themselves, not the page
+file names: importing the same CBZ twice gives the pages new random names, and
+two different comics can happen to use the same names.
+
+A comic is compared only after its pages have been hashed. When the shelf has
+comics, the bar at the top of the page says how many still have no page hashes;
+**Hash comic pages** runs a background task that reads each page image once.
+The next run reads only pages whose file changed, and opening the page never
+reads an image. Editing a comic's page list takes it out of the comparison until
+you hash again.
+
+The page shows two kinds of result:
+
+- **Duplicate groups** include comics with exactly the same set of page images,
+  in any order.
+- **Possible duplicates** are pairs where at least 90% of the smaller comic's
+  pages also appear in the other, such as one copy with an extra cover or
+  credits page, or a single volume inside an omnibus. Each card says how many
+  pages the two share and how many more each one has. A duplicate group takes
+  part as one comic, so its copies do not each get a card.
+
+Only identical bytes match. A recompressed or resized copy of the same comic
+does not show up here.
+
+---
+
 ## Reading the difference readout
 
 Each pair shows a similarity percentage and, for most relations, a rough "**≈ N
