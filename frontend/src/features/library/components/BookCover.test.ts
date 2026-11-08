@@ -73,30 +73,3 @@ describe('BookCover options tray', () => {
     expect(toggle(host).getAttribute('aria-expanded')).toBe('true');
   });
 });
-
-function fileDragEvent(type: string): Event & { dataTransfer: { dropEffect: string } } {
-  const event = new Event(type, { bubbles: true, cancelable: true });
-  const dataTransfer = { types: ['Files'], items: [{ kind: 'file' }], files: [], dropEffect: 'none' };
-  Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
-  return event as Event & { dataTransfer: { dropEffect: string } };
-}
-
-describe('BookCover file drag', () => {
-  it.each(['dragenter', 'dragover'])('keeps copy on %s past a root listener', (type) => {
-    const host = mount();
-    const rejectAtRoot = (event: Event): void => {
-      (event as DragEvent).dataTransfer!.dropEffect = 'none';
-    };
-    document.documentElement.addEventListener(type, rejectAtRoot);
-
-    try {
-      const event = fileDragEvent(type);
-      host.querySelector('.cover-drop-target')!.dispatchEvent(event);
-
-      expect(event.dataTransfer.dropEffect, 'a root listener must not cancel the cover drop').toBe('copy');
-      expect(event.defaultPrevented).toBe(true);
-    } finally {
-      document.documentElement.removeEventListener(type, rejectAtRoot);
-    }
-  });
-});

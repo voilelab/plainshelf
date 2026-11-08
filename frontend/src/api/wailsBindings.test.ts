@@ -18,6 +18,10 @@ function stubWindow(win: Record<string, unknown>): void {
   vi.stubGlobal('window', win);
 }
 
+function stubDocument(onListen: (type: string) => void = () => {}): void {
+  vi.stubGlobal('document', { documentElement: { addEventListener: onListen } });
+}
+
 describe('wailsHost', () => {
   it('reads the desktop marker', () => {
     stubWindow({ __PLAINSHELF_DESKTOP__: true });
@@ -98,15 +102,28 @@ describe('startWailsRuntime', () => {
   it('loads the runtime in the desktop window', async () => {
     const loaded = vi.fn();
     const startWailsRuntime = await freshStart(loaded);
+    stubDocument();
     stubWindow({ __PLAINSHELF_DESKTOP__: true });
     startWailsRuntime();
 
     await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
   });
 
+  it('guards file drops before the runtime loads', async () => {
+    const order: string[] = [];
+    const startWailsRuntime = await freshStart(() => order.push('runtime'));
+    stubDocument((type) => order.push(type));
+    stubWindow({ __PLAINSHELF_DESKTOP__: true });
+    startWailsRuntime();
+
+    await vi.waitFor(() => expect(order).toContain('runtime'));
+    expect(order, 'the guard must precede the runtime listeners').toEqual(['dragenter', 'dragover', 'runtime']);
+  });
+
   it('loads the runtime in the reader window', async () => {
     const loaded = vi.fn();
     const startWailsRuntime = await freshStart(loaded);
+    stubDocument();
     stubWindow({ __PLAINSHELF_READER__: {} });
     startWailsRuntime();
 
