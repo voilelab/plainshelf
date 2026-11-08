@@ -124,7 +124,7 @@ watch(
 
 .rename-folder-input:focus {
   border-color: var(--accent);
-  outline: 2px solid rgba(37, 99, 235, 0.18);
+  outline: 2px solid rgb(var(--accent-rgb) / 0.18);
 }
 
 .rename-folder-help {
@@ -134,10 +134,10 @@ watch(
 }
 
 .rename-folder-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--danger-ink);
   margin: 0;
   padding: 10px;
   white-space: pre-line;

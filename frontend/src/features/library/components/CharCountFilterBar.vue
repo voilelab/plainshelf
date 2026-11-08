@@ -147,16 +147,16 @@ function onClear(): void {
 }
 
 .char-count-separator {
-  color: var(--muted, #888);
+  color: var(--muted);
 }
 
 .char-count-clear {
-  color: var(--muted, #888);
+  color: var(--muted);
   line-height: 1;
 }
 
 .char-count-clear:hover {
-  color: var(--text, #333);
+  color: var(--text);
 }
 
 .char-count-refresh {
@@ -168,6 +168,6 @@ function onClear(): void {
 }
 
 .char-count-error {
-  color: var(--danger, #c0392b);
+  color: var(--danger);
 }
 </style>

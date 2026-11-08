@@ -226,7 +226,7 @@ watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true }
   gap: 8px;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
-  background: #fffdf7;
+  background: var(--paper);
 }
 
 .format-badge {
@@ -234,8 +234,8 @@ watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true }
   font-weight: 700;
   border-radius: 999px;
   padding: 3px 8px;
-  background: #e0f2fe;
-  color: #075985;
+  background: var(--info-soft);
+  color: var(--info-text);
 }
 
 .direction-field {
@@ -294,7 +294,7 @@ watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true }
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .page-cell.selected {
@@ -308,7 +308,7 @@ watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true }
 }
 
 .page-cell.missing {
-  background: #fff7ed;
+  background: var(--warning-tint);
 }
 
 .page-select {
@@ -335,11 +335,11 @@ watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true }
   height: 26px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .icon-button.danger {
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .unlisted {

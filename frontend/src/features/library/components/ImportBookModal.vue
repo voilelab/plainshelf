@@ -483,8 +483,8 @@ watch(
 }
 
 .import-modal.is-drop-target {
-  border: 2px dashed #1d4ed8;
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.18);
+  border: 2px dashed var(--accent-strong);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.18);
 }
 
 .import-header {
@@ -581,8 +581,8 @@ watch(
 }
 
 .file-item {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -604,42 +604,42 @@ watch(
 }
 
 .status-pending {
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .status-importing {
-  color: #1d4ed8;
+  color: var(--accent-strong);
 }
 
 .status-success {
-  color: #166534;
+  color: var(--success-text);
 }
 
 .status-failed {
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .status-cancelled {
-  color: #92400e;
+  color: var(--warning-text);
 }
 
 .file-error {
-  color: #b91c1c;
+  color: var(--danger-text);
   font-size: 12px;
   margin: 6px 0 0;
 }
 
 .success {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  background: var(--success-soft);
+  border: 1px solid var(--success-border);
   border-radius: 10px;
-  color: #065f46;
+  color: var(--success-text);
   padding: 14px;
 }
 
 .chapter-suggestion {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
   border-radius: 10px;
   display: grid;
   gap: 10px;
@@ -647,7 +647,7 @@ watch(
 }
 
 .chapter-suggestion-prompt {
-  color: #1e3a8a;
+  color: var(--accent-text);
   font-weight: 600;
   margin: 0;
 }

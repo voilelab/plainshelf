@@ -52,7 +52,7 @@ onBeforeUnmount(() => observer?.disconnect());
   justify-content: center;
   overflow: hidden;
   border-radius: 6px;
-  background: #f1f5f9;
+  background: var(--surface-sunken);
 }
 
 .page-thumb img {

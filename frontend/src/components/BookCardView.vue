@@ -191,8 +191,8 @@ function primaryDateLabel(book: Book): string {
 }
 
 .book-card-view:hover {
-  border-color: #cdd8e6;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+  border-color: var(--border-strong);
+  box-shadow: 0 10px 26px rgb(var(--shadow-rgb) / 0.08);
   transform: translateY(-2px);
 }
 
@@ -207,7 +207,7 @@ function primaryDateLabel(book: Book): string {
   width: 100%;
   height: 220px;
   object-fit: cover;
-  background: #eef3f8;
+  background: var(--surface-sunken);
 }
 
 /* Over the cover, opposite the selection checkbox (top-left, styles.css), so

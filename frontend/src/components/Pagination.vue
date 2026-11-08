@@ -136,7 +136,7 @@ function onPageSizeSelect(value: AcceptableValue): void {
 .page-button[data-selected] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
 }
 
 .page-ellipsis {

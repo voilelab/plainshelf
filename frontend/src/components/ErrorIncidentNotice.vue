@@ -61,7 +61,7 @@ async function copy(): Promise<void> {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / 0.14);
   color: var(--text);
   padding: 8px 10px;
   font-size: 12px;

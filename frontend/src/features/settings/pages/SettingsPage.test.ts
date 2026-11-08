@@ -28,6 +28,7 @@ vi.mock('@/features/settings/components/NsfwPanel.vue', () => stubPanel('nsfw'))
 vi.mock('@/features/settings/components/ReadHistoryPanel.vue', () => stubPanel('read-history'));
 vi.mock('@/features/settings/components/ReaderLaunchPanel.vue', () => stubPanel('reader-launch'));
 vi.mock('@/features/settings/components/ShelvesPanel.vue', () => stubPanel('shelves'));
+vi.mock('@/features/settings/components/ThemePanel.vue', () => stubPanel('theme'));
 
 vi.mock('@/composables/useWriteAccess', async () => {
   const { ref: r } = await import('vue');
@@ -128,7 +129,7 @@ describe('SettingsPage tabs', () => {
     const { host } = await mountSettings();
 
     expect(new Set(mounts.log).size).toBe(mounts.log.length);
-    expect(mounts.log).toHaveLength(9);
+    expect(mounts.log).toHaveLength(10);
 
     const mountedOnce = [...mounts.log];
     for (const label of ['System', 'Shelves', 'System', 'Shelves']) {
@@ -156,7 +157,7 @@ describe('SettingsPage tabs', () => {
     expect(panelsByTab(host).visible).toEqual([['shelves']]);
 
     await selectTab(host, 'General');
-    expect(panelsByTab(host).visible).toEqual([['language', 'nsfw']]);
+    expect(panelsByTab(host).visible).toEqual([['language', 'theme', 'nsfw']]);
 
     await selectTab(host, 'Reading');
     expect(panelsByTab(host).visible).toEqual([['reader-launch', 'read-history']]);

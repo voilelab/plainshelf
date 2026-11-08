@@ -148,7 +148,7 @@ function onSelectionChange(): Promise<void> | undefined {
   display: grid;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--border, #d9d2c4);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -161,7 +161,7 @@ function onSelectionChange(): Promise<void> | undefined {
 .mobile-lan-share-ended {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--text-muted, #666);
+  color: var(--muted);
 }
 
 .mobile-lan-share-shelves {
@@ -196,7 +196,7 @@ function onSelectionChange(): Promise<void> | undefined {
 
 .mobile-lan-share-error {
   margin: 0;
-  color: var(--danger, #b3261e);
+  color: var(--danger);
   font-size: 0.9rem;
 }
 

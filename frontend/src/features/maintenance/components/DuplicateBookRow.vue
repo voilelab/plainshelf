@@ -108,7 +108,7 @@ async function confirmDelete(): Promise<void> {
 <style scoped>
 .duplicate-book-row {
   align-items: center;
-  border: 1px solid #e4ebf3;
+  border: 1px solid var(--border);
   border-radius: 10px;
   display: grid;
   gap: 12px;
@@ -122,7 +122,7 @@ async function confirmDelete(): Promise<void> {
   border-radius: 8px;
   border: 1px solid var(--border);
   object-fit: cover;
-  background: #f4f7fb;
+  background: var(--surface-subtle);
 }
 
 .duplicate-meta {

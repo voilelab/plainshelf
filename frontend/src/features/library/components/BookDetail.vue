@@ -284,7 +284,7 @@ const hasDetailSections = computed(() =>
 
 .detail-authors {
   margin: 0;
-  color: #556273;
+  color: var(--text-subtle);
   font-size: 17px;
   line-height: 1.5;
 }
@@ -297,7 +297,7 @@ const hasDetailSections = computed(() =>
 }
 
 .rating-text {
-  color: #d88a19;
+  color: var(--rating-text);
   flex: none;
   font-size: 19px;
   letter-spacing: 0.08em;
@@ -313,10 +313,10 @@ const hasDetailSections = computed(() =>
 }
 
 .tag-pill {
-  background: #f1efe9;
-  border: 1px solid #e4e0d7;
+  background: var(--paper-sunken);
+  border: 1px solid var(--paper-border);
   border-radius: 999px;
-  color: #53606e;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 650;
   line-height: 1.4;
@@ -332,8 +332,8 @@ const hasDetailSections = computed(() =>
 
 .quick-fact {
   align-items: baseline;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid #e4e0d8;
+  background: rgb(var(--surface-rgb) / 0.62);
+  border: 1px solid var(--paper-border);
   border-radius: 9px;
   display: inline-flex;
   gap: 6px;
@@ -346,13 +346,13 @@ const hasDetailSections = computed(() =>
 }
 
 .quick-fact dt {
-  color: #788391;
+  color: var(--muted-soft);
   font-size: 11px;
   font-weight: 700;
 }
 
 .quick-fact dd {
-  color: #334152;
+  color: var(--text-emphasis);
   font-size: 13px;
   font-weight: 650;
 }
@@ -368,14 +368,14 @@ const hasDetailSections = computed(() =>
 }
 
 .detail-card {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid #e5e1d9;
+  background: rgb(var(--surface-rgb) / 0.72);
+  border: 1px solid var(--paper-border);
   border-radius: 14px;
   padding: 17px 18px;
 }
 
 .detail-card h3 {
-  color: #283544;
+  color: var(--text-body);
   font-size: 14px;
   letter-spacing: 0.02em;
   margin: 0 0 12px;
@@ -400,7 +400,7 @@ const hasDetailSections = computed(() =>
   background: none;
   border: 0;
   border-radius: 8px;
-  color: #334152;
+  color: var(--text-emphasis);
   cursor: pointer;
   display: flex;
   font: inherit;
@@ -412,11 +412,11 @@ const hasDetailSections = computed(() =>
 
 .chapter-item:hover,
 .chapter-item:focus-visible {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgb(var(--surface-rgb) / 0.9);
 }
 
 .chapter-item-index {
-  color: #788391;
+  color: var(--muted-soft);
   flex: none;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -434,7 +434,7 @@ const hasDetailSections = computed(() =>
 .chapter-toggle {
   background: none;
   border: 0;
-  color: #556273;
+  color: var(--text-subtle);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
@@ -446,7 +446,7 @@ const hasDetailSections = computed(() =>
 
 .chapter-toggle:hover,
 .chapter-toggle:focus-visible {
-  color: #283544;
+  color: var(--text-body);
 }
 
 .detail-definition-list {
@@ -467,13 +467,13 @@ const hasDetailSections = computed(() =>
 }
 
 .detail-definition-row dt {
-  color: #788391;
+  color: var(--muted-soft);
   font-size: 12px;
   font-weight: 650;
 }
 
 .detail-definition-row dd {
-  color: #334152;
+  color: var(--text-emphasis);
   font-size: 14px;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -504,7 +504,7 @@ const hasDetailSections = computed(() =>
 .note-remove {
   background: none;
   border: 0;
-  color: #556273;
+  color: var(--text-subtle);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
@@ -515,7 +515,7 @@ const hasDetailSections = computed(() =>
 
 .note-remove:hover:not(:disabled),
 .note-remove:focus-visible {
-  color: #283544;
+  color: var(--text-body);
 }
 
 .note-remove:disabled {
@@ -524,8 +524,8 @@ const hasDetailSections = computed(() =>
 }
 
 .detail-empty {
-  border-top: 1px solid #e5e1d9;
-  color: #788391;
+  border-top: 1px solid var(--paper-border);
+  color: var(--muted-soft);
   grid-column: 1 / -1;
   margin: 0;
   padding-top: 16px;

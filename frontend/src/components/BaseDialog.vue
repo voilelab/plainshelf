@@ -64,7 +64,7 @@ function onPointerDownOutside(event: Event): void {
 .base-dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.38);
+  background: var(--overlay);
   z-index: var(--z-modal);
 }
 

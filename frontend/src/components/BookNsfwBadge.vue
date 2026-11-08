@@ -15,10 +15,10 @@ const { t } = useI18n();
 
 <style scoped>
 .book-nsfw-badge {
-  --badge-color: #b3436b;
+  --badge-color: var(--nsfw);
   align-items: center;
-  background: color-mix(in srgb, var(--badge-color) 10%, white);
-  border: 1px solid color-mix(in srgb, var(--badge-color) 35%, white);
+  background: color-mix(in srgb, var(--badge-color) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--badge-color) 35%, var(--surface));
   border-radius: 999px;
   color: color-mix(in srgb, var(--badge-color) 80%, var(--text));
   display: inline-flex;

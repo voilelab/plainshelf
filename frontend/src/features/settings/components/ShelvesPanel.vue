@@ -556,12 +556,12 @@ onMounted(() => {
    for now) stay out of the way of the common name/directory/scan-interval fields, and
    a first-time user does not trip over them. */
 .shelf-advanced {
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
   padding-top: 8px;
 }
 
 .shelf-advanced-summary {
-  color: #64748b;
+  color: var(--muted);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -581,7 +581,7 @@ onMounted(() => {
 }
 
 .shelves-table th {
-  color: #64748b;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -591,13 +591,13 @@ onMounted(() => {
 }
 
 .shelves-table td {
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
   padding: 8px;
   vertical-align: middle;
 }
 
 .shelf-id-cell {
-  color: #64748b;
+  color: var(--muted);
   font-family: monospace;
   font-size: 12px;
 }
@@ -609,9 +609,9 @@ onMounted(() => {
 
 .shelf-modify-btn {
   background: transparent;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -620,7 +620,7 @@ onMounted(() => {
 }
 
 .shelf-modify-btn:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: var(--surface-sunken);
 }
 
 .shelf-modify-btn:disabled {
@@ -630,9 +630,9 @@ onMounted(() => {
 
 .shelf-remove-btn {
   background: transparent;
-  border: 1px solid #fca5a5;
+  border: 1px solid var(--danger-outline);
   border-radius: 6px;
-  color: #b91c1c;
+  color: var(--danger-text);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -640,7 +640,7 @@ onMounted(() => {
 }
 
 .shelf-remove-btn:hover:not(:disabled) {
-  background: #fef2f2;
+  background: var(--danger-soft);
 }
 
 .shelf-remove-btn:disabled {
@@ -655,7 +655,7 @@ onMounted(() => {
 }
 
 .shelf-modify-label {
-  color: #64748b;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -684,10 +684,10 @@ onMounted(() => {
 }
 
 .shelf-add-toggle {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #334155;
+  color: var(--text-emphasis);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
@@ -716,7 +716,7 @@ onMounted(() => {
 }
 
 .shelf-field-label {
-  color: #64748b;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -738,7 +738,7 @@ onMounted(() => {
 }
 
 .shelf-add-input {
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   font: inherit;
   font-size: 13px;
@@ -750,7 +750,7 @@ onMounted(() => {
 }
 
 .shelf-add-help {
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
   margin: -2px 0 0;
 }
@@ -776,10 +776,10 @@ onMounted(() => {
 }
 
 .shelf-browse-btn {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #334155;
+  color: var(--text-emphasis);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;

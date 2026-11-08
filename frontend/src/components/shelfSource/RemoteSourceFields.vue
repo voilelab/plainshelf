@@ -134,7 +134,7 @@ const secretId = `remote-source-secret-${useId()}`;
 
 .remote-source-kind[aria-checked='true'] {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .remote-source-kind:disabled {
@@ -142,7 +142,7 @@ const secretId = `remote-source-secret-${useId()}`;
 }
 
 .remote-source-hint {
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
 }
 </style>

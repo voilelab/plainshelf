@@ -55,9 +55,9 @@ const emit = defineEmits<{
 }
 
 .base-switch-thumb {
-  background: var(--surface, #fff);
+  background: var(--surface);
   border-radius: 999px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.2);
   display: block;
   height: 16px;
   transition: transform 140ms ease-out;

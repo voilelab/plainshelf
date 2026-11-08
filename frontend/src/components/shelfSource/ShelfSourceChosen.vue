@@ -26,7 +26,7 @@ const emit = defineEmits<{ (event: 'change'): void }>();
 <style scoped>
 .shelf-source-chosen {
   align-items: center;
-  background: #eaf2ff;
+  background: var(--accent-soft);
   border-radius: 12px;
   display: flex;
   gap: 12px;

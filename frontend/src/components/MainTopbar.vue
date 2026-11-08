@@ -130,7 +130,7 @@ function onLocaleSelect(value: AcceptableValue): void {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--topbar-bg);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(8px);
   display: flex;
@@ -149,10 +149,10 @@ function onLocaleSelect(value: AcceptableValue): void {
 
 .menu-btn {
   align-items: center;
-  background: #f6f9fc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: #3e4e66;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   font-size: 16px;
@@ -174,10 +174,10 @@ function onLocaleSelect(value: AcceptableValue): void {
 
 .history-btn {
   align-items: center;
-  background: #f6f9fc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: #3e4e66;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   font-size: 16px;
@@ -188,7 +188,7 @@ function onLocaleSelect(value: AcceptableValue): void {
 }
 
 .history-btn:hover {
-  background: #ecf2f9;
+  background: var(--surface-sunken);
 }
 
 .topbar-controls {

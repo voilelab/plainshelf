@@ -56,5 +56,5 @@ function submit(): void { if (target.value) emit('submit', target.value === '/' 
 .move-books-modal h2 { margin: 0; }
 .move-books-modal label { display: grid; gap: 6px; }
 .move-books-modal footer { display: flex; gap: 8px; justify-content: flex-end; }
-.move-books-error { color: #991b1b; font-size: 13px; margin: 0; }
+.move-books-error { color: var(--danger-ink); font-size: 13px; margin: 0; }
 </style>

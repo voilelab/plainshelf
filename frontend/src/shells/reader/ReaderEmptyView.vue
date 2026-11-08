@@ -41,12 +41,12 @@ async function onOpen(): Promise<void> {
 }
 
 .reader-app-empty-message {
-  color: var(--text-muted, #6b6357);
+  color: var(--muted);
   margin: 0;
 }
 
 .reader-app-empty-error {
-  color: var(--danger, #b3261e);
+  color: var(--danger);
   margin: 0;
 }
 </style>

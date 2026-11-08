@@ -361,14 +361,14 @@ onMounted(() => {
 
 .trash-table th,
 .trash-table td {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   padding: 10px 8px;
   text-align: left;
   vertical-align: top;
 }
 
 .book-id {
-  color: #64748b;
+  color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 13px;
 }
@@ -384,7 +384,7 @@ onMounted(() => {
 }
 
 .progress-value {
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
   margin: 0;
   text-align: right;
@@ -396,8 +396,8 @@ onMounted(() => {
 }
 
 .button.danger {
-  background: var(--danger, #dc2626);
-  border-color: var(--danger, #dc2626);
-  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-accent);
 }
 </style>
