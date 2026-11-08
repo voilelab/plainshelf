@@ -140,7 +140,7 @@ const currentBook = computed<Book | null>(
 
 .random-book-cover {
   border-radius: 6px;
-  background: #f2f2f2;
+  background: var(--surface-sunken);
   flex: 0 0 auto;
   height: 140px;
   object-fit: cover;

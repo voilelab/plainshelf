@@ -191,9 +191,9 @@ function onSlider(value: number[] | undefined): void {
 
 .similarity-segment[data-state='on'],
 .similarity-advanced-toggle[data-state='open'] {
-  background: var(--accent-soft, #e6f0ff);
-  border-color: var(--accent, #3b82f6);
-  color: var(--accent, #2563eb);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
   font-weight: 600;
   position: relative;
   z-index: 1;
@@ -210,7 +210,7 @@ function onSlider(value: number[] | undefined): void {
 }
 
 .similarity-diff-readout {
-  color: var(--muted, #888);
+  color: var(--muted);
   white-space: nowrap;
 }
 

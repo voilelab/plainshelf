@@ -373,6 +373,14 @@ const en = {
       description:
         'The language of the interface. This preference is stored only on this device.'
     },
+    theme: {
+      title: 'Appearance',
+      label: 'Theme',
+      description: 'Light or dark interface colors. System follows your device setting. Stored only on this device.',
+      system: 'System',
+      light: 'Light',
+      dark: 'Dark'
+    },
     tabs: {
       general: 'General',
       reading: 'Reading',

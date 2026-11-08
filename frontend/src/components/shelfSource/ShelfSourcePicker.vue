@@ -115,7 +115,7 @@ const visibleGroups = computed(() => props.groups.filter((group) => group.option
 
 .shelf-source-tile:hover:not(:disabled),
 .shelf-source-shortcut:hover:not(:disabled) {
-  border-color: #b8c4d2;
+  border-color: var(--border-hover);
 }
 
 .shelf-source-tile:disabled,
@@ -126,9 +126,9 @@ const visibleGroups = computed(() => props.groups.filter((group) => group.option
 
 .shelf-source-tile-icon {
   align-items: center;
-  background: #f1f5f9;
+  background: var(--surface-sunken);
   border-radius: 10px;
-  color: #3e4e66;
+  color: var(--text-secondary);
   display: flex;
   flex: none;
   height: 40px;
@@ -137,7 +137,7 @@ const visibleGroups = computed(() => props.groups.filter((group) => group.option
 }
 
 .shelf-source-tile-icon.local {
-  background: #eaf2ff;
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
@@ -163,7 +163,7 @@ const visibleGroups = computed(() => props.groups.filter((group) => group.option
 }
 
 .shelf-source-tile-chevron {
-  color: #a3b0bf;
+  color: var(--text-faint);
   flex: none;
   height: 18px;
   margin-left: auto;
@@ -172,7 +172,7 @@ const visibleGroups = computed(() => props.groups.filter((group) => group.option
 
 .shelf-source-shortcut {
   border-style: dashed;
-  border-color: #b8c4d2;
+  border-color: var(--border-hover);
 }
 
 .shelf-source-shortcut-icon {

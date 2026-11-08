@@ -134,7 +134,7 @@ const now = Date.now();
 
 .recent-reading-cover {
   aspect-ratio: 2 / 3;
-  background: #f2f2f2;
+  background: var(--surface-sunken);
   border-radius: 6px;
   object-fit: cover;
   width: 100%;
@@ -157,7 +157,7 @@ const now = Date.now();
 }
 
 .recent-reading-progress-track {
-  background: var(--border, #e0e0e0);
+  background: var(--border);
   border-radius: 999px;
   flex: 1 1 auto;
   height: 4px;
@@ -165,7 +165,7 @@ const now = Date.now();
 }
 
 .recent-reading-progress-fill {
-  background: var(--primary, #4a7);
+  background: var(--progress-fill);
   height: 100%;
 }
 

@@ -603,8 +603,8 @@ watch(
 }
 
 .drop-target {
-  background: #dbeafe;
-  outline: 1px solid #93c5fd;
+  background: var(--accent-tint);
+  outline: 1px solid var(--accent-outline);
 }
 
 .folder-node {
@@ -622,7 +622,7 @@ watch(
 .tree-toggle-placeholder {
   align-items: center;
   border: 0;
-  color: #5f6a7a;
+  color: var(--text-subtle);
   display: inline-flex;
   flex: 0 0 20px;
   font-size: 11px;
@@ -638,14 +638,14 @@ watch(
 }
 
 .tree-toggle:hover {
-  background: #e6edf8;
+  background: var(--accent-soft);
 }
 
 .folder-drag-preview {
-  background: rgba(15, 23, 42, 0.92);
+  background: var(--tooltip-bg);
   border-radius: 8px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
-  color: #fff;
+  box-shadow: 0 10px 24px rgb(var(--shadow-rgb) / 0.22);
+  color: var(--tooltip-text);
   font-size: 13px;
   font-weight: 700;
   left: 0;

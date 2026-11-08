@@ -354,7 +354,7 @@ onMounted(() => {
 }
 
 .similar-page-header {
-  border-bottom: 1px solid #e6ecf3;
+  border-bottom: 1px solid var(--border);
   margin-bottom: 12px;
   padding-bottom: 8px;
 }
@@ -378,12 +378,12 @@ onMounted(() => {
 }
 
 .similar-fingerprint-readonly {
-  color: var(--muted, #888);
+  color: var(--muted);
 }
 
 /* Secondary next to the primary build button: a quieter, advanced action. */
 .similar-fingerprint-force {
-  color: var(--muted, #666);
+  color: var(--muted);
 }
 
 .similar-fingerprint-force:not(:disabled):hover {
@@ -391,13 +391,13 @@ onMounted(() => {
 }
 
 .similar-fingerprint-error {
-  color: var(--danger, #c0392b);
+  color: var(--danger);
 }
 
 /* Informational, not an error: a forced rebuild that found a sweep already
    running. */
 .similar-fingerprint-note {
-  color: var(--muted, #666);
+  color: var(--muted);
 }
 
 .similar-error {

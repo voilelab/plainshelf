@@ -676,8 +676,8 @@ watch(
 }
 
 .breadcrumb-link:hover {
-  background: #f4f7fb;
-  color: color-mix(in srgb, var(--text) 72%, white);
+  background: var(--surface-subtle);
+  color: color-mix(in srgb, var(--text) 72%, var(--surface));
 }
 
 .breadcrumb-separator {
@@ -696,12 +696,12 @@ watch(
 }
 
 .search-clear-btn {
-  color: var(--muted, #888);
+  color: var(--muted);
   line-height: 1;
 }
 
 .search-clear-btn:hover {
-  color: var(--text, #333);
+  color: var(--text);
 }
 
 .sort-bar {
@@ -748,7 +748,7 @@ watch(
 }
 
 .shelf-refresh-status {
-  color: var(--muted, #888);
+  color: var(--muted);
   white-space: nowrap;
 }
 

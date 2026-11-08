@@ -25,7 +25,7 @@ defineProps<{
 /* Reka UI ships no styles, so the track and fill are ours; only their state
    comes from the primitive's data-state. */
 .progress-bar {
-  background: var(--surface-muted, #e2e8f0);
+  background: var(--surface-strong);
   border-radius: 999px;
   height: 8px;
   overflow: hidden;
@@ -33,7 +33,7 @@ defineProps<{
 }
 
 .progress-bar-fill {
-  background: var(--accent, #2563eb);
+  background: var(--accent);
   border-radius: inherit;
   height: 100%;
   transition: width 160ms ease-out;

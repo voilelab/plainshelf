@@ -293,7 +293,7 @@ watch(() => props.open, async (open) => {
 }
 
 .conversion-preview {
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px;
@@ -323,7 +323,7 @@ watch(() => props.open, async (open) => {
 }
 
 .conversion-error {
-  color: #b91c1c;
+  color: var(--danger-text);
   white-space: pre-line;
 }
 

@@ -35,7 +35,7 @@ defineProps<{
 
 <style scoped>
 .duplicate-group-section {
-  border-top: 1px solid #e6ecf3;
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -43,7 +43,7 @@ defineProps<{
 }
 
 .duplicate-group-header {
-  border-bottom: 1px solid #e6ecf3;
+  border-bottom: 1px solid var(--border);
   padding-bottom: 10px;
 }
 

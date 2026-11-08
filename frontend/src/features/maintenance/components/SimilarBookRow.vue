@@ -128,7 +128,7 @@ function onCoverError(): void {
 <style scoped>
 .similar-book-row {
   align-items: start;
-  border: 1px solid #e4ebf3;
+  border: 1px solid var(--border);
   border-radius: 10px;
   display: grid;
   gap: 12px;
@@ -137,8 +137,8 @@ function onCoverError(): void {
 }
 
 .similar-book-row.is-more-complete {
-  border-color: var(--accent, #2563eb);
-  background: var(--accent-soft, #f2f7ff);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .similar-cover {
@@ -147,7 +147,7 @@ function onCoverError(): void {
   border-radius: 8px;
   border: 1px solid var(--border);
   object-fit: cover;
-  background: #f4f7fb;
+  background: var(--surface-subtle);
 }
 
 .similar-info {
@@ -170,9 +170,9 @@ function onCoverError(): void {
 }
 
 .similar-badge {
-  background: var(--accent, #2563eb);
+  background: var(--accent);
   border-radius: 999px;
-  color: #fff;
+  color: var(--on-accent);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;

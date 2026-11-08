@@ -316,7 +316,7 @@ onMounted(() => {
 }
 
 .page-header p {
-  color: #475569;
+  color: var(--text-secondary);
   margin: 6px 0 0;
 }
 
@@ -334,14 +334,14 @@ onMounted(() => {
 
 .field span,
 .log-meta dt {
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
 
 .field .name-select,
 .field input {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   font: inherit;
@@ -360,17 +360,17 @@ onMounted(() => {
 }
 
 .empty-hint {
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
   max-width: 60ch;
 }
 
 .error {
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .warning {
-  color: #a16207;
+  color: var(--warning);
 }
 
 .log-meta {
@@ -381,7 +381,7 @@ onMounted(() => {
 }
 
 .log-meta div {
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
@@ -394,7 +394,7 @@ onMounted(() => {
 
 .truncation {
   align-items: center;
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 10px;
   display: flex;
@@ -405,14 +405,14 @@ onMounted(() => {
 }
 
 .truncation span {
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .log-content {
-  background: #0f172a;
+  background: var(--text);
   border-radius: 12px;
-  color: #e2e8f0;
+  color: var(--surface-strong);
   font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
   font-size: 13px;
   line-height: 1.5;

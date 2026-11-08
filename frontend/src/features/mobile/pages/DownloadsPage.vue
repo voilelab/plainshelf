@@ -256,8 +256,8 @@ onMounted(() => {
 }
 
 .book-list-row:hover {
-  background: #fbfdff;
-  border-color: #cdd8e6;
+  background: var(--surface);
+  border-color: var(--border-strong);
   transform: translateY(-1px);
 }
 
@@ -267,7 +267,7 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: 10px;
   object-fit: cover;
-  background: #edf2f7;
+  background: var(--surface-sunken);
 }
 
 .book-list-main {
@@ -310,9 +310,9 @@ onMounted(() => {
 
 .downloads-remove-btn {
   background: transparent;
-  border: 1px solid #fca5a5;
+  border: 1px solid var(--danger-outline);
   border-radius: 6px;
-  color: #b91c1c;
+  color: var(--danger-text);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -321,7 +321,7 @@ onMounted(() => {
 }
 
 .downloads-remove-btn:hover {
-  background: #fef2f2;
+  background: var(--danger-soft);
 }
 
 @media (max-width: 760px) {

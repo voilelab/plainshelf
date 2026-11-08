@@ -91,14 +91,14 @@ const emit = defineEmits<{
 }
 
 .font-license-modal-error {
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .font-license-modal-text {
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: #334155;
+  color: var(--text-emphasis);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;

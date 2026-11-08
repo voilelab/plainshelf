@@ -223,12 +223,12 @@ function submit(): void {
 }
 
 .transfer-intro {
-  color: #475569;
+  color: var(--text-secondary);
   margin: 0;
 }
 
 .transfer-empty {
-  color: #475569;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -238,7 +238,7 @@ function submit(): void {
 }
 
 .transfer-modes {
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid var(--border);
   border-radius: 10px;
   margin: 0;
   padding: 12px;
@@ -266,12 +266,12 @@ function submit(): void {
 }
 
 .transfer-mode-hint {
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
 .transfer-hint {
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -280,14 +280,14 @@ function submit(): void {
 }
 
 .transfer-progress-value {
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
   margin: 0;
   text-align: right;
 }
 
 .transfer-error {
-  color: #991b1b;
+  color: var(--danger-ink);
   font-size: 13px;
   margin: 0;
 }

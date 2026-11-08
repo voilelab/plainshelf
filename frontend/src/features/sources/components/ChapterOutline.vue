@@ -82,16 +82,16 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
-.chapter-outline { height: 100%; min-width: 0; overflow: auto; border-left: 1px solid var(--border); background: #fbfdff; }
+.chapter-outline { height: 100%; min-width: 0; overflow: auto; border-left: 1px solid var(--border); background: var(--surface); }
 .chapter-outline header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; border-bottom: 1px solid var(--border); }
 .chapter-outline h3, .chapter-outline p { margin: 0; }
 .chapter-list { list-style: none; padding: 8px; margin: 0; display: grid; gap: 7px; }
-.chapter-list li { border: 1px solid var(--border); border-radius: 8px; background: white; }
-.chapter-list li.selected { border-color: color-mix(in srgb, var(--accent) 62%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, white); }
+.chapter-list li { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.chapter-list li.selected { border-color: color-mix(in srgb, var(--accent) 62%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 .chapter-jump { width: 100%; display: flex; gap: 8px; text-align: left; border: 0; background: transparent; padding: 9px; cursor: pointer; }
 .chapter-jump span { color: var(--muted); min-width: 1.5rem; }
 .chapter-actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); padding: 4px 8px; }
 .text-action { border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 12px; }
-.text-action.danger { color: #b45309; }
+.text-action.danger { color: var(--warning); }
 .empty { padding: 2px 12px 10px; }
 </style>

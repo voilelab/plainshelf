@@ -7,7 +7,7 @@
 }
 
 .settings-message-error {
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .settings-group {
@@ -34,26 +34,26 @@
 }
 
 .setting-value {
-  color: #475569;
+  color: var(--text-secondary);
   font-family: monospace;
   font-size: 13px;
 }
 
 .setting-description {
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
   margin: 4px 0 0;
 }
 
 .setting-link {
-  color: #2563eb;
+  color: var(--accent);
   font-size: 13px;
   overflow-wrap: anywhere;
   text-align: right;
 }
 
 .setting-number {
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   font: inherit;
   max-width: 120px;
@@ -72,7 +72,7 @@
 }
 
 .setting-select {
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   font: inherit;
   font-size: 13px;
@@ -87,7 +87,7 @@
    and left alignment a native <select> had while keeping .setting-select sizing. */
 .select-trigger {
   align-items: center;
-  background: #fff;
+  background: var(--surface);
   color: inherit;
   cursor: pointer;
   display: inline-flex;

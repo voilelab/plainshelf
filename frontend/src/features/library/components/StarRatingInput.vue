@@ -78,14 +78,14 @@ function starLabel(value: number): string {
   padding: 0 2px;
   border: 0;
   background: transparent;
-  color: #c4cad4;
+  color: var(--border-strong);
   cursor: pointer;
   font-size: 28px;
   line-height: 1;
 }
 
 .star-rating :deep(.star-indicator[data-state='active']) {
-  color: #f5a623;
+  color: var(--rating);
 }
 
 .star-rating :deep(.star-indicator:focus-visible),

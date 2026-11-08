@@ -630,7 +630,7 @@ onMounted(async () => {
 /* ── Sidebar ── */
 .sidebar {
   border-right: 1px solid var(--border);
-  background: linear-gradient(180deg, #e9edf2 0%, #e3e8ef 100%);
+  background: var(--sidebar-bg);
   backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
@@ -638,10 +638,10 @@ onMounted(async () => {
 
 .collapse-btn {
   align-items: center;
-  background: #f6f9fc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 999px;
-  color: #3e4e66;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   font-size: 12px;
@@ -653,7 +653,7 @@ onMounted(async () => {
 }
 
 .collapse-btn:hover {
-  background: #ecf2f9;
+  background: var(--surface-sunken);
 }
 
 .reka-resize-handle.rail-hidden {
@@ -684,7 +684,7 @@ onMounted(async () => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: #4f5d72;
+  color: var(--text-subtle);
   cursor: pointer;
   display: flex;
   flex: 1;
@@ -697,12 +697,12 @@ onMounted(async () => {
 }
 
 .sidebar-section-toggle:hover {
-  background: #eef3f9;
-  border-color: #d4deea;
+  background: var(--surface-sunken);
+  border-color: var(--border);
 }
 
 .sidebar-section-toggle:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -711,7 +711,7 @@ onMounted(async () => {
 }
 
 .sidebar-section-toggle-icon {
-  color: #64748b;
+  color: var(--muted);
   flex: 0 0 auto;
   font-size: 12px;
   line-height: 1;
@@ -738,7 +738,7 @@ onMounted(async () => {
 }
 
 .sidebar-error {
-  color: #b91c1c;
+  color: var(--danger-text);
   font-size: 12px;
   line-height: 1.4;
   margin: 8px 8px 0;
@@ -749,7 +749,7 @@ onMounted(async () => {
 }
 
 .sidebar-status {
-  color: #4f5d72;
+  color: var(--text-subtle);
   font-size: 12px;
   line-height: 1.4;
   margin: 2px 8px 0;
@@ -759,7 +759,7 @@ onMounted(async () => {
 .main-content {
   flex: 1;
   max-width: none;
-  background: white;
+  background: var(--surface);
   min-width: 0;
 }
 
@@ -769,9 +769,9 @@ onMounted(async () => {
 }
 
 .read-only-banner {
-  background: #fef3c7;
-  border-bottom: 1px solid #f59e0b;
-  color: #92400e;
+  background: var(--warning-soft);
+  border-bottom: 1px solid var(--warning-border);
+  color: var(--warning-text);
   font-size: 13px;
   font-weight: 700;
   padding: 8px 24px;
@@ -795,7 +795,7 @@ onMounted(async () => {
 }
 
 .no-shelf-panel {
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--text);
@@ -851,7 +851,7 @@ onMounted(async () => {
 /* ── Narrow viewport (mobile): sidebar becomes an off-canvas drawer ── */
 
 .sidebar-backdrop {
-  background: rgba(15, 23, 42, 0.45);
+  background: rgb(var(--shadow-rgb) / 0.45);
   inset: 0;
   position: fixed;
   z-index: 40;
@@ -864,7 +864,7 @@ onMounted(async () => {
      the sidebar stops mattering. Drag/collapse make no sense here. */
   .sidebar {
     bottom: 0;
-    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.25);
+    box-shadow: 4px 0 24px rgb(var(--shadow-rgb) / 0.25);
     left: 0;
     /* Off-canvas and full-height, so it spans the status and gesture bars on
        the edge-to-edge Android shell. box-sizing is border-box globally, so

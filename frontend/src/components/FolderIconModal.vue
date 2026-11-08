@@ -57,10 +57,10 @@ watch(
 
 <style scoped>
 .folder-icon-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--danger-ink);
   margin: 12px 0 0;
   padding: 10px;
   white-space: pre-line;

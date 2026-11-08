@@ -116,15 +116,15 @@ function primaryDateLabel(book: Book): string {
 }
 
 .book-list-row.is-selected {
-  background: color-mix(in srgb, var(--accent) 8%, white);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
   border-color: var(--accent);
 }
 
 .book-list-row.is-dragging { opacity: 0.4; }
 
 .book-list-row:hover {
-  background: #fbfdff;
-  border-color: #cdd8e6;
+  background: var(--surface);
+  border-color: var(--border-strong);
   transform: translateY(-1px);
 }
 
@@ -134,7 +134,7 @@ function primaryDateLabel(book: Book): string {
   border: 1px solid var(--border);
   border-radius: 10px;
   object-fit: cover;
-  background: #edf2f7;
+  background: var(--surface-sunken);
 }
 
 .book-list-main {

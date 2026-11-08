@@ -39,10 +39,10 @@ const { chips, clearAll } = useBookFilters();
 
 .filter-chip {
   align-items: center;
-  background: #f4f7fb;
-  border: 1px solid var(--border, #d0d7e0);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  color: var(--text, #333);
+  color: var(--text);
   display: inline-flex;
   font-size: 12px;
   gap: 6px;
@@ -58,7 +58,7 @@ const { chips, clearAll } = useBookFilters();
   background: transparent;
   border: 0;
   border-radius: 999px;
-  color: var(--muted, #888);
+  color: var(--muted);
   cursor: pointer;
   display: inline-flex;
   font-size: 11px;
@@ -70,14 +70,14 @@ const { chips, clearAll } = useBookFilters();
 }
 
 .filter-chip-remove:hover {
-  background: color-mix(in srgb, var(--text, #333) 12%, transparent);
-  color: var(--text, #333);
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
 }
 
 .filter-chip-clear-all {
   background: transparent;
   border: 0;
-  color: var(--accent, #3b82f6);
+  color: var(--accent);
   cursor: pointer;
   font-size: 12px;
   padding: 3px 6px;

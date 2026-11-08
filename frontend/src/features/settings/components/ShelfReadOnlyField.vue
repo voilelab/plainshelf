@@ -44,7 +44,7 @@ const model = computed({
 }
 
 .shelf-read-only-effects {
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 12px;
   margin: 6px 0 0;
   padding-left: 18px;

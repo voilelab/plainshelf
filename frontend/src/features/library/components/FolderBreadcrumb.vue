@@ -64,7 +64,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   gap: 6px;
   font-size: 13px;
   line-height: 1.5;
-  color: color-mix(in srgb, var(--text) 58%, white);
+  color: color-mix(in srgb, var(--text) 58%, var(--surface));
 }
 
 .breadcrumb-item {
@@ -85,9 +85,9 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
 }
 
 .breadcrumb-item:hover {
-  background: color-mix(in srgb, var(--panel) 92%, white);
+  background: color-mix(in srgb, var(--panel) 92%, var(--surface));
   border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
-  color: color-mix(in srgb, var(--text) 72%, white);
+  color: color-mix(in srgb, var(--text) 72%, var(--surface));
 }
 
 .breadcrumb-separator {

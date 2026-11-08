@@ -224,7 +224,7 @@ async function confirmDelete(): Promise<void> {
 
 <style scoped>
 .similar-pair-card {
-  border: 1px solid #e6ecf3;
+  border: 1px solid var(--border);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -257,9 +257,9 @@ async function confirmDelete(): Promise<void> {
 }
 
 .similar-pair-relation {
-  background: var(--accent-soft, #e6f0ff);
+  background: var(--accent-soft);
   border-radius: 999px;
-  color: var(--accent, #2563eb);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 600;
   padding: 2px 10px;

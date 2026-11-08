@@ -360,6 +360,14 @@ const zhHant = {
       label: '介面語言',
       description: '介面顯示的語言。此偏好只保存在這台裝置。'
     },
+    theme: {
+      title: '外觀',
+      label: '主題',
+      description: '介面使用淺色或深色。「跟隨系統」會依裝置設定切換。此偏好只保存在這台裝置。',
+      system: '跟隨系統',
+      light: '淺色',
+      dark: '深色'
+    },
     tabs: {
       general: '一般',
       reading: '閱讀',

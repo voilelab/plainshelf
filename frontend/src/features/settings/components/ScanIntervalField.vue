@@ -210,7 +210,7 @@ watch(duration, (value) => {
 }
 
 .scan-interval-label {
-  color: #64748b;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -238,12 +238,12 @@ watch(duration, (value) => {
 }
 
 .scan-interval-help {
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
   margin: 0;
 }
 
 .scan-interval-adjusted {
-  color: #b45309;
+  color: var(--warning);
 }
 </style>

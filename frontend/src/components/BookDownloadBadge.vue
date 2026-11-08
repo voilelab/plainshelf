@@ -36,8 +36,8 @@ const label = computed(() => (props.state ? t(LABEL_KEYS[props.state]) : ''));
      is ever added to DownloadState without a colour here. */
   --badge-color: var(--muted);
   align-items: center;
-  background: color-mix(in srgb, var(--badge-color) 10%, white);
-  border: 1px solid color-mix(in srgb, var(--badge-color) 35%, white);
+  background: color-mix(in srgb, var(--badge-color) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--badge-color) 35%, var(--surface));
   border-radius: 999px;
   color: color-mix(in srgb, var(--badge-color) 80%, var(--text));
   display: inline-flex;
@@ -68,8 +68,8 @@ const label = computed(() => (props.state ? t(LABEL_KEYS[props.state]) : ''));
 }
 
 .book-download-badge.is-not_downloaded { --badge-color: var(--muted); }
-.book-download-badge.is-downloaded { --badge-color: #2f8f5b; }
-.book-download-badge.is-update_available { --badge-color: #b26a00; }
+.book-download-badge.is-downloaded { --badge-color: var(--success); }
+.book-download-badge.is-update_available { --badge-color: var(--warning); }
 .book-download-badge.is-downloading { --badge-color: var(--accent); }
 .book-download-badge.is-failed { --badge-color: var(--danger); }
 </style>

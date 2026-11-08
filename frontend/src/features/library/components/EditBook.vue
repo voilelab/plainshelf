@@ -400,7 +400,7 @@ function toFormDateValue(rawValue?: string): string {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fcfdff;
+  background: var(--surface);
 }
 
 .section-block h3 {
@@ -419,7 +419,7 @@ function toFormDateValue(rawValue?: string): string {
 }
 
 .select {
-  background-color: #fff;
+  background-color: var(--surface);
 }
 
 .select-trigger {
@@ -492,7 +492,7 @@ function toFormDateValue(rawValue?: string): string {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
@@ -520,7 +520,7 @@ function toFormDateValue(rawValue?: string): string {
   z-index: 1;
   padding: 12px 0 2px;
   background: var(--surface);
-  box-shadow: 0 -10px 16px -16px rgba(15, 23, 42, 0.45);
+  box-shadow: 0 -10px 16px -16px rgb(var(--shadow-rgb) / 0.45);
 }
 
 @media (max-width: 720px) {
