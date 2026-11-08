@@ -669,6 +669,30 @@ const zhHant = {
     import: '匯入 ▾',
     importFromFiles: '從檔案匯入',
     newEmptyBook: '建立空白書籍',
+    backdrop: {
+      button: '背景',
+      title: '書庫背景',
+      hint: '只在這台裝置的側欄後方顯示，切換書庫時一眼就能分辨。不會寫入書庫。',
+      colors: '背景顏色',
+      swatch: {
+        sage: '鼠尾草綠',
+        sky: '天空藍',
+        lavender: '薰衣草紫',
+        rose: '玫瑰粉',
+        sand: '沙色',
+        slate: '石板灰'
+      },
+      chooseImage: '選擇圖片…',
+      replaceImage: '更換圖片…',
+      reset: '恢復預設',
+      limit: '圖片上限 {max} MB。',
+      done: '完成',
+      close: '關閉書庫背景',
+      notImage: '這個檔案不是圖片。',
+      tooLarge: '圖片超過 {max} MB，請選擇較小的圖片。',
+      quotaExceeded: '這台裝置沒有空間儲存這張圖片。請選擇較小的圖片，或清除其他書庫的背景。',
+      saveFailed: '無法在這台裝置上儲存背景。'
+    },
     empty: {
       noBooksFound: '找不到「{query}」相關書籍{folderSuffix}。',
       noBooksInFolder: '{folder} 目前沒有書籍。',

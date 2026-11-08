@@ -684,6 +684,30 @@ const en = {
     import: 'Import ▾',
     importFromFiles: 'Import from files',
     newEmptyBook: 'New empty book',
+    backdrop: {
+      button: 'Background',
+      title: 'Shelf background',
+      hint: 'Shown behind the sidebar on this device only, so you can tell shelves apart at a glance. Nothing is written to the shelf.',
+      colors: 'Background colors',
+      swatch: {
+        sage: 'Sage',
+        sky: 'Sky',
+        lavender: 'Lavender',
+        rose: 'Rose',
+        sand: 'Sand',
+        slate: 'Slate'
+      },
+      chooseImage: 'Choose image…',
+      replaceImage: 'Replace image…',
+      reset: 'Reset to default',
+      limit: 'Images up to {max} MB.',
+      done: 'Done',
+      close: 'Close shelf background',
+      notImage: 'That file is not an image.',
+      tooLarge: 'The image is larger than {max} MB. Choose a smaller one.',
+      quotaExceeded: 'This device has no room left to store the image. Choose a smaller one or clear another shelf\'s background.',
+      saveFailed: 'Could not save the background on this device.'
+    },
     empty: {
       noBooksFound: 'No books found for "{query}"{folderSuffix}.',
       noBooksInFolder: 'No books in {folder}.',
