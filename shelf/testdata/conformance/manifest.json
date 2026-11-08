@@ -60,6 +60,10 @@
     {
       "name": "cbz-imported",
       "covers": "An imported CBZ shape: a current images source with random asset names, RTL direction, original image cover, and no retained archive."
+    },
+    {
+      "name": "images-source-ttb",
+      "covers": "A current images source whose page_direction is ttb, reserved for vertical-scroll strip comics: it reads as written."
     }
   ]
 }

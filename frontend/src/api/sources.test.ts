@@ -75,3 +75,10 @@ it('preserves images format and direction and fetches Go-parsed pages', async ()
   expect(await getSourcePages('book/one', 'source/id')).toEqual(pages);
   expect(fetchJsonMock).toHaveBeenLastCalledWith('/books/book%2Fone/sources/source%2Fid/pages');
 });
+
+it('keeps a ttb direction and drops an unknown one', async () => {
+  fetchJsonMock.mockResolvedValue({ id: 'pages', format: 'images', page_direction: 'ttb' });
+  expect((await getSource('book', 'pages')).page_direction).toBe('ttb');
+  fetchJsonMock.mockResolvedValue({ id: 'pages', format: 'images', page_direction: 'btt' });
+  expect((await getSource('book', 'pages')).page_direction).toBeUndefined();
+});

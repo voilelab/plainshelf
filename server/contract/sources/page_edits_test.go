@@ -195,6 +195,21 @@ func TestAPISetPageDirectionContract(t *testing.T) {
 	}
 
 	rec = env.RequestTyped(http.MethodPut, directionURL, "application/json", strings.NewReader(`{"page_direction":"ttb"}`))
-	apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest, "INVALID_PAGE_DIRECTION",
-		`page_direction must be "ltr" or "rtl", and "rtl" only on an images source`)
+	apitest.AssertStatus(t, rec, http.StatusOK)
+	if got := apitest.GetJSON[map[string]any](t, env, apitest.SourceURL(bookID, sourceID)); got["page_direction"] != "ttb" {
+		t.Fatalf("reloaded source = %#v, want page_direction ttb", got)
+	}
+
+	rec = env.RequestTyped(http.MethodPut, directionURL, "application/json", strings.NewReader(`{"page_direction":"btt"}`))
+	apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest, "INVALID_PAGE_DIRECTION", invalidPageDirectionMessage)
+}
+
+func TestAPISetPageDirectionTTBOnText(t *testing.T) {
+	env := apitest.New(t)
+	book := apitest.ImportTextBook(t, env, "Night Train", "", "night.txt", "prose")
+	sourceID := apitest.CurrentSourceOf(t, env, book.Meta.ID)
+	directionURL := apitest.SourceURL(book.Meta.ID, sourceID, "page-direction")
+
+	rec := env.RequestTyped(http.MethodPut, directionURL, "application/json", strings.NewReader(`{"page_direction":"ttb"}`))
+	apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest, "INVALID_PAGE_DIRECTION", invalidPageDirectionMessage)
 }

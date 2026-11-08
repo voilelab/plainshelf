@@ -446,7 +446,7 @@ p-c4hd.webp
 
 ```text
 sources/{source-id}/
-├─ meta.json      format: "images", optional page_direction: "rtl"
+├─ meta.json      format: "images", optional page_direction: "rtl" or "ttb"
 ├─ source.txt     the page list
 └─ assets/
    ├─ p-k2v9.jpg
@@ -487,9 +487,17 @@ asset upload and the 100-million-pixel limit of [CBZ import](../cbz-import.md),
 read from its header; only JPEG, PNG, GIF and WebP are accepted, and the bytes
 are stored unchanged.
 
-`page_direction` is how the pages turn: `"rtl"` for right to left, as in most
-manga. It is written only for that value; absent means left to right, and only
-an `images` source may carry it.
+`page_direction` is how the pages read, one of three values:
+
+| Value | Reading |
+|---|---|
+| `"ltr"` | left to right; never written, so absent means this |
+| `"rtl"` | right to left, as in most manga |
+| `"ttb"` | top to bottom, for vertical strip comics |
+
+Only an `images` source may carry `"rtl"` or `"ttb"`. `"ttb"` is reserved in the
+format ahead of a vertical-scroll reader: the current readers turn its pages one
+at a time, left to right.
 
 An `images` source has no text, so its `char_count` stays `0`, and fingerprints
 and the Similar Books page leave it out. Duplicate detection does not compare

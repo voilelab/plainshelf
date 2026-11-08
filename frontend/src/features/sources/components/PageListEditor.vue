@@ -25,6 +25,7 @@
         >
           <option value="ltr">{{ t('sources.pages.ltr') }}</option>
           <option value="rtl">{{ t('sources.pages.rtl') }}</option>
+          <option value="ttb">{{ t('sources.pages.ttb') }}</option>
         </select>
       </label>
       <button class="button" type="button" :disabled="!canEdit" @click="fileInput?.click()">
@@ -117,7 +118,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import PageThumb from '@/features/sources/components/PageThumb.vue';
 import { usePageListEditor } from '@/features/sources/composables/usePageListEditor';
 import { useI18n } from '@/i18n';
-import type { PageDirection } from '@/types/source';
+import { isPageDirection, type PageDirection } from '@/types/source';
 
 const props = defineProps<{
   bookId: string;
@@ -169,7 +170,7 @@ function reload(): void {
 
 function onDirectionChange(event: Event): void {
   const value = (event.target as HTMLSelectElement).value;
-  void setDirection(value === 'rtl' ? 'rtl' : 'ltr');
+  void setDirection(isPageDirection(value) ? value : 'ltr');
 }
 
 async function onFilesChosen(event: Event): Promise<void> {

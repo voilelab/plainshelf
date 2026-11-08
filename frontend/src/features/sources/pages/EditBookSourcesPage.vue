@@ -139,7 +139,7 @@
           v-else-if="isImagesSource && activeSourceId"
           :book-id="bookId"
           :source-id="activeSourceId"
-          :initial-direction="activeSourceMeta?.page_direction === 'rtl' ? 'rtl' : 'ltr'"
+          :initial-direction="activeSourceMeta?.page_direction ?? 'ltr'"
           :writes-enabled="writesEnabled"
           :is-current="activeSourceId === book?.current_source"
           :setting-current="settingCurrent"

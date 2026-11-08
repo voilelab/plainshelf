@@ -71,15 +71,17 @@ func TestImagesSourceStatsSkipCharCount(t *testing.T) {
 	}
 }
 
-func TestPageDirectionWrittenOnlyForRTL(t *testing.T) {
+func TestPageDirectionOmittedForLTR(t *testing.T) {
 	book, _, libRoot := newTestBook(t, "comic-book", "Comic")
 
-	rtl := newImagesSource(t, book, "", PageDirectionRTL)
-	if got := rtl.GetMeta().PageDirection; got != PageDirectionRTL {
-		t.Errorf("page_direction = %q, want rtl", got)
-	}
-	if raw := readSourceMetaKeys(t, libRoot, rtl); !strings.Contains(raw, `"page_direction": "rtl"`) {
-		t.Errorf("meta.json = %s, want page_direction rtl", raw)
+	for _, direction := range []string{PageDirectionRTL, PageDirectionTTB} {
+		source := newImagesSource(t, book, "", direction)
+		if got := source.GetMeta().PageDirection; got != direction {
+			t.Errorf("page_direction = %q, want %q", got, direction)
+		}
+		if raw := readSourceMetaKeys(t, libRoot, source); !strings.Contains(raw, `"page_direction": "`+direction+`"`) {
+			t.Errorf("meta.json = %s, want page_direction %s", raw, direction)
+		}
 	}
 
 	ltr := newImagesSource(t, book, "", PageDirectionLTR)
@@ -100,7 +102,10 @@ func TestPageDirectionRejectsBadValues(t *testing.T) {
 	cases := []NewSourceOptions{
 		{Format: BookFormatText, PageDirection: PageDirectionRTL},
 		{Format: BookFormatMarkdown, PageDirection: PageDirectionRTL},
-		{Format: BookFormatImages, PageDirection: "ttb"},
+		{Format: BookFormatText, PageDirection: PageDirectionTTB},
+		{Format: BookFormatMarkdown, PageDirection: PageDirectionTTB},
+		{Format: BookFormatImages, PageDirection: "btt"},
+		{Format: BookFormatImages, PageDirection: "TTB"},
 	}
 	for _, options := range cases {
 		_, err := book.NewSourceWithOptions(strings.NewReader(""), options)

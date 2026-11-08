@@ -104,4 +104,14 @@ describe('usePageListEditor', () => {
     expect(editor.direction.value).toBe('rtl');
     expect(changed).toHaveBeenCalledOnce();
   });
+
+  it('keeps ttb as the stored direction', async () => {
+    mocks.setSourcePageDirection.mockResolvedValue({ id: 'src', page_direction: 'ttb' });
+    const editor = await loaded();
+
+    await editor.setDirection('ttb');
+
+    expect(mocks.setSourcePageDirection).toHaveBeenCalledWith('book', 'src', 'ttb');
+    expect(editor.direction.value).toBe('ttb');
+  });
 });

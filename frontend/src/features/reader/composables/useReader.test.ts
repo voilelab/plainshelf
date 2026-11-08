@@ -285,6 +285,15 @@ describe('useReader comics', () => {
     mocks.saveReadProgress.mockResolvedValue(undefined);
   });
 
+  it('reads a ttb comic page by page left to right', async () => {
+    mocks.getSource.mockResolvedValue({ id: 'pages', format: 'images', page_direction: 'ttb' });
+    const reader = useReader(() => 'comic');
+    await reader.fetchReaderData();
+    expect(reader.error.value).toBeFalsy();
+    expect(reader.pageDirection.value).toBe('ltr');
+    expect(reader.sections.value).toHaveLength(3);
+  });
+
   it('restores and saves page indices, includes missing pages and reaches 100% on the last page', async () => {
     const reader = useReader(() => 'comic');
     await reader.fetchReaderData();
