@@ -303,8 +303,11 @@ is not a preference and stays in `localStorage`.
 
 | Path | Responsibility |
 |---|---|
+| `cmd/` | Entry points: the `plainshelf-srv` server and the `plainshelf-wasm` browser demo |
 | `shelf/` | Filesystem-backed library core: books, folders, trash, locking, cache |
 | `server/` | HTTP API, routing, security, settings store, worker pool |
 | `frontend/` | Vue UI, device-local storage, Capacitor Android project |
 | `desktop/` | Wails desktop client |
+| `reader/` | Wails standalone reader for `.bookpkg` files, its own Go module |
+| `mobile/` | Embedded server bound with gomobile for the Android app |
 | `internal/epub/` | EPUB parsing and rendering, used only at [import](../epub-import.md) time |

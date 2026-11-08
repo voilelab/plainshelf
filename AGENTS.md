@@ -25,7 +25,7 @@ The Go server embeds a Vue frontend and is also used by Wails desktop and experi
 
 | Path | Responsibility |
 |---|---|
-| `cmd/` | server and migration entry points |
+| `cmd/` | entry points: `plainshelf-srv` server and `plainshelf-wasm` browser demo |
 | `shelf/` | filesystem-backed library core |
 | `server/` | HTTP API, security, and runtime |
 | `internal/` | shared Go internals: EPUB import, hashing, sketches, version |
