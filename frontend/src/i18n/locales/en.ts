@@ -1498,6 +1498,7 @@ const en = {
       direction: 'Reading direction',
       ltr: 'Left to right',
       rtl: 'Right to left',
+      ttb: 'Top to bottom (strip)',
       addAtEnd: 'Add pages at end',
       addAfter: 'Add pages after page {number}',
       count: '{count} pages',

@@ -1481,6 +1481,7 @@ const zhHant = {
       direction: '翻頁方向',
       ltr: '由左到右',
       rtl: '由右到左',
+      ttb: '由上到下（條漫）',
       addAtEnd: '在最後加入頁面',
       addAfter: '在第 {number} 頁之後加入頁面',
       count: '共 {count} 頁',

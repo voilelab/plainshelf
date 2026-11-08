@@ -15,6 +15,8 @@ import (
 
 const invalidPageListMessage = "every page must name an image file directly inside assets/"
 
+const invalidPageDirectionMessage = `page_direction must be "ltr", "rtl" or "ttb", and "rtl" or "ttb" only on an images source`
+
 func createImagesSource(t *testing.T, env *apitest.Env, bookID, pageList string) string {
 	t.Helper()
 

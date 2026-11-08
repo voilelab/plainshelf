@@ -75,8 +75,10 @@ as a grid of thumbnails. Every change saves at once:
 - Images in the source folder that the list does not name, such as files copied
   in by hand, appear under **Not in the page list**. Add one to the end of the
   list or delete it.
-- **Reading direction** switches between left to right and right to left, and
-  rewrites only the source's `meta.json`.
+- **Reading direction** switches between left to right, right to left, and top
+  to bottom, and rewrites only the source's `meta.json`. Top to bottom marks a
+  vertical strip comic; the reader still turns its pages left to right until
+  vertical scrolling is available.
 
 If `source.txt` changed since the editor loaded it, for example through a sync
 tool, the edit is refused and the editor asks you to reload the pages.

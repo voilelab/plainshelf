@@ -10,7 +10,7 @@ export interface SourceMeta {
   line_count?: number;
   char_count?: number;
   size_bytes?: number;
-  page_direction?: 'ltr' | 'rtl';
+  page_direction?: PageDirection;
   page_list?: SourcePageList;
 }
 
@@ -32,4 +32,10 @@ export interface SourcePageList {
   md5_hash?: string;
 }
 
-export type PageDirection = 'ltr' | 'rtl';
+export type PageDirection = 'ltr' | 'rtl' | 'ttb';
+
+const pageDirections: readonly string[] = ['ltr', 'rtl', 'ttb'] satisfies PageDirection[];
+
+export function isPageDirection(value: unknown): value is PageDirection {
+  return typeof value === 'string' && pageDirections.includes(value);
+}

@@ -120,7 +120,7 @@ var apiErrorTable = []struct {
 	{shelf.ErrInvalidPageDirection, apiError{
 		code:    "INVALID_PAGE_DIRECTION",
 		status:  http.StatusBadRequest,
-		message: `page_direction must be "ltr" or "rtl", and "rtl" only on an images source`,
+		message: `page_direction must be "ltr", "rtl" or "ttb", and "rtl" or "ttb" only on an images source`,
 	}},
 	{shelf.ErrNotImageSource, apiError{
 		code:    "NOT_IMAGE_SOURCE",

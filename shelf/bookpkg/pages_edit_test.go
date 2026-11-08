@@ -232,8 +232,10 @@ func TestPageEditsNeedImagesSource(t *testing.T) {
 	if _, err := source.ReplacePages(source.GetMeta().MD5Hash, nil); !errors.Is(err, ErrNotImageSource) {
 		t.Errorf("ReplacePages on text: err = %v, want ErrNotImageSource", err)
 	}
-	if err := source.SetPageDirection(PageDirectionRTL); !errors.Is(err, ErrInvalidPageDirection) {
-		t.Errorf("SetPageDirection(rtl) on text: err = %v, want ErrInvalidPageDirection", err)
+	for _, direction := range []string{PageDirectionRTL, PageDirectionTTB} {
+		if err := source.SetPageDirection(direction); !errors.Is(err, ErrInvalidPageDirection) {
+			t.Errorf("SetPageDirection(%s) on text: err = %v, want ErrInvalidPageDirection", direction, err)
+		}
 	}
 }
 
@@ -257,8 +259,14 @@ func TestSetPageDirectionOnlyRewritesMeta(t *testing.T) {
 	if raw := readSourceMetaKeys(t, libRoot, source); strings.Contains(raw, "page_direction") {
 		t.Errorf("meta.json = %s, want page_direction dropped for ltr", raw)
 	}
-	if err := source.SetPageDirection("ttb"); !errors.Is(err, ErrInvalidPageDirection) {
-		t.Errorf("SetPageDirection(ttb): err = %v, want ErrInvalidPageDirection", err)
+	if err := source.SetPageDirection(PageDirectionTTB); err != nil {
+		t.Fatalf("SetPageDirection(ttb): %v", err)
+	}
+	if raw := readSourceMetaKeys(t, libRoot, source); !strings.Contains(raw, `"page_direction": "ttb"`) {
+		t.Errorf("meta.json = %s, want page_direction ttb", raw)
+	}
+	if err := source.SetPageDirection("btt"); !errors.Is(err, ErrInvalidPageDirection) {
+		t.Errorf("SetPageDirection(btt): err = %v, want ErrInvalidPageDirection", err)
 	}
 
 	info, err := os.Stat(listPath)

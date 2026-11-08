@@ -116,8 +116,8 @@ legacy source. It is still listed and still readable, but nothing interprets its
 one plain-text section unless the book is Markdown. To give it chapters again,
 convert it in the source editor (see below).
 
-An `images` source may also carry `page_direction`, written only as `"rtl"`;
-absent means left to right. `images` and `page_direction` are part of schema v1
+An `images` source may also carry `page_direction`, written only as `"rtl"` or
+`"ttb"`; absent means left to right. `images` and `page_direction` are part of schema v1
 as `1.0-rc1` freezes it, not later additions. A build from before them reads an
 `images` source's page list as plain text, and refuses any metadata edit to a
 book whose `book.json` mirrors `format: "images"`, because it validates `format`

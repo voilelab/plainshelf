@@ -1,4 +1,5 @@
 import { buildShelfApiPath, fetchBlob, fetchJson, fetchText, isMockApiMode } from './client';
+import { isPageDirection } from '@/types/source';
 import type { CreateSourceOptions, PageDirection, SourceMeta, SourcePageList } from '@/types/source';
 
 interface SourceStoreItem {
@@ -43,7 +44,7 @@ function normalizeSourceMeta(raw: unknown): SourceMeta {
     meta.format = record.format;
   }
 
-  if (record.page_direction === 'ltr' || record.page_direction === 'rtl') {
+  if (isPageDirection(record.page_direction)) {
     meta.page_direction = record.page_direction;
   }
 
