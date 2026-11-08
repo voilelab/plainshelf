@@ -21,7 +21,7 @@ type BootConfig struct {
 
 const bootMarker = "window.__PLAINSHELF_READER__"
 
-func NewSPAHandler(assets fs.FS, boot func() BootConfig) http.Handler {
+func NewSPAHandler(assets fs.FS, boot func(*http.Request) BootConfig) http.Handler {
 	files := http.FileServerFS(assets)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +33,7 @@ func NewSPAHandler(assets fs.FS, boot func() BootConfig) http.Handler {
 			}
 		}
 
-		page, err := indexHTML(assets, boot())
+		page, err := indexHTML(assets, boot(r))
 		if err != nil {
 			http.Error(w, "failed to render the app shell", http.StatusInternalServerError)
 			return

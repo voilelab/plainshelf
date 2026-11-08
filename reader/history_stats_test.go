@@ -30,10 +30,11 @@ func readStats(t *testing.T, app *ReaderApp) readingstats.Document {
 }
 
 func TestStandaloneStatsKeyedByBook(t *testing.T) {
-	app := withDeviceStores(t, newReaderAppWithBook(t, ""))
+	app := newStatsApp(t)
+	win := launchBook(t, app, "")
 	today := time.Now().Format(time.DateOnly)
 
-	if err := app.AddReadingSeconds(readerapi.ShelfID, today, 30); err != nil {
+	if err := app.AddReadingSeconds(windowContext(t, win), readerapi.ShelfID, today, 30); err != nil {
 		t.Fatalf("AddReadingSeconds: %v", err)
 	}
 
@@ -47,10 +48,11 @@ func TestStandaloneStatsKeyedByBook(t *testing.T) {
 }
 
 func TestRealShelfStatsKeyedByShelf(t *testing.T) {
-	app := withDeviceStores(t, newReaderAppWithBook(t, "shelf-real"))
+	app := newStatsApp(t)
+	win := launchBook(t, app, "shelf-real")
 	today := time.Now().Format(time.DateOnly)
 
-	if err := app.AddReadingSeconds("shelf-real", today, 30); err != nil {
+	if err := app.addSecondsIn(win, "shelf-real", today, 30); err != nil {
 		t.Fatalf("AddReadingSeconds: %v", err)
 	}
 
@@ -60,10 +62,11 @@ func TestRealShelfStatsKeyedByShelf(t *testing.T) {
 }
 
 func TestRealBookShelfStatsKeyedByShelf(t *testing.T) {
-	app := withDeviceStores(t, newReaderAppWithBook(t, readerapi.ShelfID))
+	app := newStatsApp(t)
+	win := launchBook(t, app, readerapi.ShelfID)
 	today := time.Now().Format(time.DateOnly)
 
-	if err := app.AddReadingSeconds(readerapi.ShelfID, today, 30); err != nil {
+	if err := app.addSecondsIn(win, readerapi.ShelfID, today, 30); err != nil {
 		t.Fatalf("AddReadingSeconds: %v", err)
 	}
 
@@ -72,8 +75,34 @@ func TestRealBookShelfStatsKeyedByShelf(t *testing.T) {
 	}
 }
 
+func TestStandaloneStatsPerWindowBook(t *testing.T) {
+	app := newStatsApp(t)
+	first := launchBook(t, app, "")
+	second := launchBookAt(t, app, "", "otherbook", noLaunchSection)
+	today := time.Now().Format(time.DateOnly)
+
+	for win, seconds := range map[uint]float64{first: 10, second: 20} {
+		if err := app.addSecondsIn(win, readerapi.ShelfID, today, seconds); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	doc := readStats(t, app)
+	for bookID, want := range map[string]int64{testBookID: 10, "otherbook": 20} {
+		if v := doc.Shelves[readingstats.ReaderBookKey(readerapi.ShelfID, bookID)][today]; v != want {
+			t.Errorf("%s seconds = %d, want %d: %v", bookID, v, want, doc.Shelves)
+		}
+	}
+}
+
+func newStatsApp(t *testing.T) *ReaderApp {
+	t.Helper()
+	app, _ := newTestApp(t)
+	return withDeviceStores(t, app)
+}
+
 func TestReaderRecordsReadHistory(t *testing.T) {
-	app := withDeviceStores(t, newReaderAppWithBook(t, "shelf-real"))
+	app := newStatsApp(t)
 
 	if err := app.RecordReadHistory("shelf-real", testBookID); err != nil {
 		t.Fatalf("RecordReadHistory: %v", err)
@@ -92,14 +121,14 @@ func TestReaderUsesDesktopDocumentPaths(t *testing.T) {
 		t.Skip("path isolation uses XDG_CONFIG_HOME")
 	}
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	app := NewReaderApp(nil, nil, "shelf-real", noLaunchSection)
+	app := NewReaderApp(nil, nil)
 	t.Cleanup(func() { app.Shutdown(t.Context()) })
 	today := time.Now().Format(time.DateOnly)
 
 	if err := app.RecordReadHistory("shelf-real", testBookID); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AddReadingSeconds("shelf-real", today, 30); err != nil {
+	if err := app.addSecondsIn(0, "shelf-real", today, 30); err != nil {
 		t.Fatal(err)
 	}
 
