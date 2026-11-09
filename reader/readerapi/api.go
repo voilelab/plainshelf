@@ -26,6 +26,7 @@ func NewHandler(lib *Library, version string) http.Handler {
 	mux.HandleFunc(book+"/sources", h.listSources)
 	mux.HandleFunc(book+"/sources/{source_id}", h.getSource)
 	mux.HandleFunc(book+"/sources/{source_id}/content", h.getSourceContent)
+	mux.HandleFunc(book+"/sources/{source_id}/pages", h.getPages)
 	mux.HandleFunc(book+"/sources/{source_id}/assets/{asset_name}", h.getAsset)
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
@@ -142,6 +143,25 @@ func (h *handlers) getSourceContent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.streamSource(w, book, source)
+	})
+}
+
+func (h *handlers) getPages(w http.ResponseWriter, r *http.Request) {
+	h.withBook(w, r, func(book *bookpkg.Book) {
+		source, ok := h.source(w, r, book)
+		if !ok {
+			return
+		}
+		pages, err := source.Pages()
+		if errors.Is(err, bookpkg.ErrNotImageSource) {
+			http.Error(w, "source is not an images source", http.StatusConflict)
+			return
+		}
+		if err != nil {
+			http.Error(w, "failed to read source pages", http.StatusInternalServerError)
+			return
+		}
+		h.writeJSON(w, pages)
 	})
 }
 
