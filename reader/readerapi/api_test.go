@@ -177,6 +177,67 @@ func TestHandlerServesImagesWithTheirType(t *testing.T) {
 	}
 }
 
+func writeComicPackage(t *testing.T) string {
+	t.Helper()
+
+	dir := filepath.Join(t.TempDir(), "Comic.bookpkg")
+	sourceDir := filepath.Join(dir, bookpkg.SourcesFolder, testSourceID)
+	if err := os.MkdirAll(filepath.Join(sourceDir, "assets"), 0o755); err != nil {
+		t.Fatalf("creating package: %v", err)
+	}
+
+	writeJSONFile(t, filepath.Join(dir, bookpkg.BookMetaFile), bookpkg.BookMeta{
+		SchemaVersion: bookpkg.BookMetaSchemaVersion,
+		ID:            "comic123",
+		Title:         "Comic",
+		Format:        bookpkg.BookFormatImages,
+		CurrentSource: testSourceID,
+	})
+	writeJSONFile(t, filepath.Join(sourceDir, bookpkg.SourceMetaFile), bookpkg.SourceMeta{
+		SchemaVersion: bookpkg.SourceMetaSchemaVersion,
+		ID:            testSourceID,
+		Format:        bookpkg.BookFormatImages,
+	})
+	writeFile(t, filepath.Join(sourceDir, bookpkg.SourceFile), []byte("002.png\n001.png\n"))
+	writeFile(t, filepath.Join(sourceDir, "assets", "001.png"), []byte("one"))
+	writeFile(t, filepath.Join(sourceDir, "assets", "002.png"), []byte("two"))
+
+	return dir
+}
+
+func TestHandlerServesComicPages(t *testing.T) {
+	library := readerapi.NewLibrary(nil)
+	t.Cleanup(func() { library.Close() })
+	bookID, err := library.Open(writeComicPackage(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	handler := readerapi.NewHandler(library, "test")
+
+	response := get(t, handler, bookPath(bookID)+"/sources/"+testSourceID+"/pages")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (%s)", response.Code, http.StatusOK, response.Body)
+	}
+
+	var list bookpkg.PageList
+	if err := json.Unmarshal(response.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decoding pages: %v", err)
+	}
+	want := []bookpkg.Page{{Name: "002.png"}, {Name: "001.png"}}
+	if len(list.Pages) != len(want) || list.Pages[0] != want[0] || list.Pages[1] != want[1] {
+		t.Errorf("pages = %+v, want %+v", list.Pages, want)
+	}
+}
+
+func TestHandlerRefusesPagesOfTextSource(t *testing.T) {
+	handler := readerapi.NewHandler(newOpenLibrary(t), "test")
+
+	response := get(t, handler, bookPath(testBookID)+"/sources/"+testSourceID+"/pages")
+	if response.Code != http.StatusConflict {
+		t.Errorf("status = %d, want %d", response.Code, http.StatusConflict)
+	}
+}
+
 func TestHandlerReportsWhatItDoesNotHave(t *testing.T) {
 	t.Run("no book open", func(t *testing.T) {
 		handler := readerapi.NewHandler(readerapi.NewLibrary(nil), "test")
@@ -224,6 +285,7 @@ func TestHandlerRefusesWrites(t *testing.T) {
 		{http.MethodPut, bookPath(testBookID) + "/cover"},
 		{http.MethodPost, bookPath(testBookID) + "/sources"},
 		{http.MethodPatch, bookPath(testBookID) + "/sources/" + testSourceID + "/content"},
+		{http.MethodPut, bookPath(testBookID) + "/sources/" + testSourceID + "/pages"},
 	}
 	for _, write := range writes {
 		recorder := httptest.NewRecorder()
