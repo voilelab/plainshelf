@@ -116,8 +116,8 @@ legacy source. It is still listed and still readable, but nothing interprets its
 one plain-text section unless the book is Markdown. To give it chapters again,
 convert it in the source editor (see below).
 
-An `images` source may also carry `page_direction`, written only as `"rtl"`;
-absent means left to right. `images` and `page_direction` are part of schema v1
+An `images` source may also carry `page_direction`, written only as `"rtl"` or
+`"ttb"`; absent means left to right. `images` and `page_direction` are part of schema v1
 as `1.0-rc1` freezes it, not later additions. A build from before them reads an
 `images` source's page list as plain text, and refuses any metadata edit to a
 book whose `book.json` mirrors `format: "images"`, because it validates `format`
@@ -344,15 +344,18 @@ exclusions are deliberate:
 - **The HTTP API and the user interface**, which may still change. The freeze is
   a promise about your files, not about the application around them.
 - **The derived caches under `app/`:** `scan-cache.json`,
-  `fingerprint-cache.json`, and `book-cache-{writer-id}.json`. Their
+  `fingerprint-cache.json`, `page-hash-cache.json`, and
+  `book-cache-{writer-id}.json`. Their
   `schema_version` is the opposite kind: no migration, discarded and rebuilt on
   any mismatch. Nothing of yours is lost when one is thrown away, so nothing
   about them is frozen. See [What is versioned today](#what-is-versioned-today).
 - **Per-device reading state**, which is not shelf data at all: the desktop and
   standalone reader's `reading_progress.json`, `read_history.json` and
   `reading_stats.json` in the application store, the
-  browser's `localStorage`, and the Android client's per-book `progress.json`.
-  [Backup and restore](../backup-and-restore.md) says where each one lives.
+  browser's `localStorage`, and the Android client's WebView storage and
+  app-private files.
+  [Backup and restore](../backup-and-restore.md#reading-progress-history-and-time)
+  says where each one lives.
 
 Releases before the freeze are not covered either: v0.8's server-side reading
 history and reading time, in particular, are a documented breaking change, not
@@ -730,6 +733,36 @@ such a record is about 1.5 kB and is never served.
 
 ---
 
+## Page hash cache
+
+`app/page-hash-cache.json`, the cache behind comic duplicate detection on the
+Duplicate Content page, is versioned the same throw-away way as the fingerprint
+cache. It records a `schema_version` and the page hash it uses (`"hash":
+"md5"`); a build that reads either differently discards the whole file, and the
+next hashing run reads every page again.
+
+`sources` maps `{book_id}/{source_id}` to two things:
+
+- `list_md5`, the `md5_hash` of the `source.txt` page list the record was built
+  from. The Duplicate Content page uses a record only while the source's current
+  `md5_hash` still equals it, so adding, removing or reordering pages takes that
+  comic out of the comparison until it is hashed again, without a stat per page.
+- `pages`, each listed page's asset name to its size, mtime and MD5. The hashing
+  task stats every page and reads only those whose size or mtime changed. A page
+  written within the last two seconds is stored without an mtime, so the next
+  run reads it again instead of trusting a stat that could still change.
+
+A comic whose page list names an image that is missing gets no record: an
+incomplete page set could match a shorter comic exactly. The task reports it as
+failed with `missing_pages`.
+
+Saving starts from the file on disk and replaces only the records this run
+recomputed, so a concurrent run's newer records survive. It also drops
+records for books that are gone, and writes atomically only when the bytes
+differ. It writes nothing under `books/`.
+
+---
+
 ## The exported book cache
 
 `app/book-cache-{writer-id}.json` carries a `schema_version` too
@@ -894,8 +927,8 @@ versioned files into three kinds:
   `folder.json`. Losing them loses your library, so the version is a guard: a
   build that meets a newer version refuses to overwrite it, and upgrades are
   lazy and per-book. This is the versioning the rest of this page describes.
-- **Local disposable cache:** `app/scan-cache.json` and
-  `app/fingerprint-cache.json`. They are rebuildable from the shelf and read
+- **Local disposable cache:** `app/scan-cache.json`,
+  `app/fingerprint-cache.json` and `app/page-hash-cache.json`. They are rebuildable from the shelf and read
   only by the same Go implementation that writes them. They are shared across
   the installations that mount one shelf (`scan-cache.json` is one file;
   `fingerprint-cache.json` merges every machine's entries), but no reader
@@ -915,6 +948,7 @@ versioned files into three kinds:
 | `books/**/folder.json` | Yes — `schema_version`; written member by member, so unknown members survive a write — see [`folder.json` schema v1](#folderjson-schema-v1) | User data |
 | `app/scan-cache.json` | Yes — `schema_version` (`schemaVersion` in `shelf/scancache/scancache.go`); v2 added the kept files such as `folder.json`, so a v1 snapshot is not reused; no migration, discarded and rebuilt on any mismatch, unlike `books/` and `trash/` which are upgraded in place | Local cache |
 | `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) | Local cache |
+| `app/page-hash-cache.json` | Yes — `schema_version` and a `hash` name, discarded and rebuilt on any mismatch, never migrated — see [Page hash cache](#page-hash-cache) | Local cache |
 | `app/book-cache-{writer-id}.json` | Yes — `schema_version` (`BookCacheSchemaVersion`); v2 renamed `layers` to `folders`; no migration, discarded and rebuilt on any mismatch, but read across devices — see [The exported book cache](#the-exported-book-cache) | Cross-device contract |
 | `shelf.json` | Yes — `schema_version` versions this file's own contents; optional, never written by PlainShelf, and a higher version is still read for the fields this build knows. It carries no statement about the shelf's layout — see [`shelf.json` is not that manifest](#shelfjson-is-not-that-manifest) | User settings |
 | `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version. This is a decision, not an oversight — see [Shelf layout changes are not versioned](#shelf-layout-changes-are-not-versioned) | — |

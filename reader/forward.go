@@ -19,10 +19,11 @@ func (a *ReaderApp) OpenForwardedLaunch(argv []string, workingDir string) error 
 	}
 	launch, err := parseLaunchArgs(argv)
 	if err != nil {
+		a.native.focus(0)
 		return util.Errorf("forwarded launch arguments: %w", err)
 	}
-	defer a.native.focus()
 	if launch.bookPath == "" {
+		a.native.focus(0)
 		return nil
 	}
 	dir := launch.bookPath
@@ -33,16 +34,15 @@ func (a *ReaderApp) OpenForwardedLaunch(argv []string, workingDir string) error 
 }
 
 func (a *ReaderApp) OpenFinderFile(path string) error {
-	defer a.native.focus()
 	return a.openForwardedBook(path, "", noLaunchSection)
 }
 
 func (a *ReaderApp) openForwardedBook(dir, shelfID string, section int) error {
-	if _, err := a.openBook(dir, shelfID, section); err != nil {
-		a.showNotABook()
+	if _, err := a.openBook(0, dir, shelfID, section); err != nil {
+		a.native.focus(0)
+		a.showNotABook(0)
 		return util.Errorf("%w", err)
 	}
-	a.native.reloadApp()
 	return nil
 }
 

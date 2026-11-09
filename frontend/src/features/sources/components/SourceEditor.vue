@@ -225,7 +225,7 @@ defineExpose<SourceEditorHandle>({
   align-items: center;
   padding: 0 14px;
   border-bottom: 1px solid var(--border);
-  background: #f8fafc;
+  background: var(--surface-subtle);
 }
 
 .source-editor-status p {
@@ -233,7 +233,7 @@ defineExpose<SourceEditorHandle>({
 }
 
 .source-editor-status .dirty {
-  color: #9a3412;
+  color: var(--warning-text);
 }
 
 .status-spacer {
@@ -243,9 +243,9 @@ defineExpose<SourceEditorHandle>({
 .current-badge {
   font-size: 12px;
   font-weight: 600;
-  color: #166534;
-  background: #dcfce7;
-  border: 1px solid #bbf7d0;
+  color: var(--success-text);
+  background: var(--success-soft);
+  border: 1px solid var(--success-border);
   border-radius: 10px;
   padding: 2px 8px;
 }
@@ -267,7 +267,7 @@ defineExpose<SourceEditorHandle>({
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
 }
 
 .editor-find-replace {
@@ -278,7 +278,7 @@ defineExpose<SourceEditorHandle>({
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(140px, auto) auto;
   gap: 8px 10px;
   align-items: end;
-  background: #f8fafc;
+  background: var(--surface-subtle);
 }
 
 .scope-field {
@@ -307,7 +307,7 @@ defineExpose<SourceEditorHandle>({
    left alignment the native <select> had while keeping .control-input sizing. */
 .select-trigger {
   align-items: center;
-  background: var(--bg, #fff);
+  background: var(--bg);
   color: inherit;
   cursor: pointer;
   display: inline-flex;

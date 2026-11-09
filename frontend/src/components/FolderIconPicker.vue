@@ -75,7 +75,7 @@ const options = computed(() => [
 
 .folder-icon-option.selected {
   border-color: var(--accent);
-  outline: 2px solid rgba(37, 99, 235, 0.18);
+  outline: 2px solid rgb(var(--accent-rgb) / 0.18);
 }
 
 .folder-icon-option :deep(.folder-icon) {

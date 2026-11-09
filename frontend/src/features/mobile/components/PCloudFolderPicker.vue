@@ -278,7 +278,7 @@ onBeforeUnmount(close);
 }
 
 .pcloud-picker-row:hover {
-  background: rgba(31, 111, 235, 0.08);
+  background: rgb(var(--accent-rgb) / 0.08);
 }
 
 .pcloud-picker-up {

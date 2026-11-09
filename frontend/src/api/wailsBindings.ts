@@ -1,4 +1,5 @@
 import { isDesktopHost, isReaderRuntime } from '@/providers/runtime';
+import { guardFileDrops } from './wailsDropGuard';
 
 type WailsApp = 'DesktopApp' | 'ReaderApp';
 
@@ -21,6 +22,7 @@ function loadWailsRuntime(): Promise<WailsRuntime> {
 
 export function startWailsRuntime(): void {
   if (wailsHost() !== null) {
+    guardFileDrops(document.documentElement);
     void loadWailsRuntime();
   }
 }

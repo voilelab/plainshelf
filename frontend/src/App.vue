@@ -70,7 +70,7 @@ function reload(): void {
 }
 
 .app-render-error-detail {
-  background: #f8fafc;
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: 8px;
   margin: 0;
@@ -88,9 +88,9 @@ function reload(): void {
   right: 16px;
   bottom: 16px;
   z-index: 1000;
-  background: #7c2d12;
-  color: #fff;
-  border: 1px solid #9a3412;
+  background: var(--warning-strong);
+  color: var(--on-accent);
+  border: 1px solid var(--warning-text);
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 12px;

@@ -12,10 +12,13 @@ func TestReaderPreferencesShareDesktopFile(t *testing.T) {
 		t.Skip("path isolation uses XDG_CONFIG_HOME")
 	}
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	app := NewReaderApp(nil, nil, "shelf-real", noLaunchSection)
+	app := NewReaderApp(nil, nil)
 	t.Cleanup(func() { app.Shutdown(t.Context()) })
 
 	if err := app.SetPreference("reader-font-size", "26"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.SetPreference("reader-theme", "sepia"); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.SetPreference("plainshelf.shelf", "reader-shelf"); err != nil {
@@ -32,6 +35,9 @@ func TestReaderPreferencesShareDesktopFile(t *testing.T) {
 	}
 	if desktop["reader-font-size"] != "26" {
 		t.Errorf("desktop reader-font-size = %q, want 26", desktop["reader-font-size"])
+	}
+	if desktop["reader-theme"] != "sepia" {
+		t.Errorf("desktop reader-theme = %q, want sepia", desktop["reader-theme"])
 	}
 	if _, ok := desktop["plainshelf.shelf"]; ok {
 		t.Errorf("reader shelf leaked into desktop: %v", desktop)

@@ -96,7 +96,7 @@ function compactMeta(book: Book): string {
 }
 
 .book-title-row-container {
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid var(--surface-sunken);
   position: relative;
 }
 
@@ -119,7 +119,7 @@ function compactMeta(book: Book): string {
 }
 
 .book-title-row-container.is-selected .book-title-row {
-  background: color-mix(in srgb, var(--accent) 8%, white);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
 .book-title-row-container.is-dragging { opacity: 0.4; }
@@ -129,11 +129,11 @@ function compactMeta(book: Book): string {
 }
 
 .book-title-row-container:hover .book-title-row {
-  background: #fbfdff;
+  background: var(--surface);
 }
 
 .book-title-row-container.is-selected:hover .book-title-row {
-  background: color-mix(in srgb, var(--accent) 8%, white);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
 .book-title-text {

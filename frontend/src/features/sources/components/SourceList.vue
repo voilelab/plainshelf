@@ -100,7 +100,7 @@ function formatTimestamp(value: string): string {
   overflow-y: auto;
   overflow-x: hidden;
   border-right: 1px solid var(--border);
-  background: #fbfdff;
+  background: var(--surface);
 }
 
 .source-list-header {
@@ -129,18 +129,18 @@ function formatTimestamp(value: string): string {
 .source-item {
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   display: grid;
 }
 
 .source-item:hover {
-  background: #f8fbff;
+  background: var(--surface);
 }
 
 .source-item.active {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
-  background: #eef5ff;
+  background: var(--accent-soft);
 }
 
 .source-item-content {
@@ -156,7 +156,7 @@ function formatTimestamp(value: string): string {
 }
 
 .source-item-content:hover {
-  background: rgba(0, 0, 0, 0.03);
+  background: rgb(var(--shadow-rgb) / 0.03);
 }
 
 .source-delete-btn {
@@ -164,7 +164,7 @@ function formatTimestamp(value: string): string {
   border: none;
   border-top: 1px solid var(--border);
   border-radius: 0 0 10px 10px;
-  color: #b91c1c;
+  color: var(--danger-text);
   cursor: pointer;
   font-size: 12px;
   padding: 5px 10px;
@@ -173,7 +173,7 @@ function formatTimestamp(value: string): string {
 }
 
 .source-delete-btn:hover {
-  background: #fef2f2;
+  background: var(--danger-soft);
 }
 
 .source-new-btn {
@@ -193,11 +193,11 @@ function formatTimestamp(value: string): string {
   margin-left: auto;
   font-size: 10px;
   font-weight: 700;
-  color: #075985;
+  color: var(--info-text);
 }
 
 .source-format.legacy {
-  color: #92400e;
+  color: var(--warning-text);
 }
 
 .source-id {
@@ -207,9 +207,9 @@ function formatTimestamp(value: string): string {
 .current-badge {
   font-size: 11px;
   font-weight: 700;
-  color: #0f4fa8;
-  background: #e1efff;
-  border: 1px solid #bfdbfe;
+  color: var(--accent-text);
+  background: var(--accent-tint);
+  border: 1px solid var(--accent-border);
   border-radius: 999px;
   padding: 2px 8px;
 }

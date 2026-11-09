@@ -116,9 +116,9 @@ const triggerAriaLabel = computed(() =>
 
 .filter-badge {
   align-items: center;
-  background: var(--accent, #3b82f6);
+  background: var(--accent);
   border-radius: 999px;
-  color: #fff;
+  color: var(--on-accent);
   display: inline-flex;
   font-size: 11px;
   font-weight: 600;
@@ -131,10 +131,10 @@ const triggerAriaLabel = computed(() =>
 
 <style>
 .filter-popover {
-  background: var(--bg, #fff);
-  border: 1px solid var(--border, #d0d7e0);
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 12px 32px rgb(var(--shadow-rgb) / 0.18);
   max-height: min(70vh, 560px);
   overflow-y: auto;
   padding: 16px;
@@ -158,7 +158,7 @@ const triggerAriaLabel = computed(() =>
 .filter-popover-close {
   background: transparent;
   border: 0;
-  color: var(--muted, #888);
+  color: var(--muted);
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
@@ -166,21 +166,21 @@ const triggerAriaLabel = computed(() =>
 }
 
 .filter-popover-close:hover {
-  color: var(--text, #333);
+  color: var(--text);
 }
 
 .filter-sheet-overlay {
-  background: rgba(15, 23, 42, 0.38);
+  background: var(--overlay);
   inset: 0;
   position: fixed;
   z-index: var(--z-modal);
 }
 
 .filter-sheet {
-  background: var(--bg, #fff);
+  background: var(--bg);
   border-radius: 16px 16px 0 0;
   bottom: 0;
-  box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 -8px 30px rgb(var(--shadow-rgb) / 0.22);
   left: 0;
   max-height: 80vh;
   overflow: hidden;

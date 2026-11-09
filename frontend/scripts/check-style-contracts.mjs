@@ -21,6 +21,11 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { rules, styleSource } from './css-rules.mjs';
+import { findRawColors, findThemeViolations } from './theme-colors.mjs';
+
+export { rules, styleSource };
+
 /**
  * Each contract names one declaration that has to survive, the file it lives
  * in, and why. `must` is the pattern the value has to match; `mustNot` is the
@@ -111,64 +116,6 @@ export const CONTRACTS = [
     why: 'A proportional reading font mangles indentation, so code must not reach the variable.'
   }
 ];
-
-/** Returns the CSS of a file: a .vue file's <style> blocks, or the whole file. */
-export function styleSource(source, file) {
-  if (!file.endsWith('.vue')) {
-    return source;
-  }
-  return [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((match) => match[1]).join('\n');
-}
-
-/**
- * Returns every leaf rule as `{ selector, body }`, descending into at-rule
- * blocks rather than mis-reading them. A flat regular expression would take
- * `@media (…) {` as a selector and swallow the first rule inside it, which is
- * the kind of silent miss a lint cannot afford.
- */
-export function rules(css) {
-  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  const found = [];
-  let head = '';
-
-  for (let i = 0; i < withoutComments.length; i += 1) {
-    const char = withoutComments[i];
-    if (char === '{') {
-      const body = blockAt(withoutComments, i);
-      if (body.text.includes('{')) {
-        // An at-rule block: its contents are rules of their own.
-        found.push(...rules(body.text));
-      } else {
-        found.push({ selector: head.trim(), body: body.text });
-      }
-      i = body.end;
-      head = '';
-      continue;
-    }
-    if (char === '}') {
-      head = '';
-      continue;
-    }
-    head += char;
-  }
-
-  return found;
-}
-
-/** Returns the text between the brace at `open` and its match, plus that index. */
-function blockAt(css, open) {
-  let depth = 0;
-  for (let i = open; i < css.length; i += 1) {
-    if (css[i] === '{') depth += 1;
-    if (css[i] === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        return { text: css.slice(open + 1, i), end: i };
-      }
-    }
-  }
-  return { text: css.slice(open + 1), end: css.length };
-}
 
 /**
  * Returns the first rule whose selector list names `selector`, or null. The
@@ -263,11 +210,33 @@ async function main() {
     console.error(`\n${contract.why}\n`);
   }
 
+  const rawColors = await findRawColors();
+  if (rawColors.length > 0) {
+    failed = true;
+    console.error('Style contract broken: interface colors come from theme tokens\n');
+    for (const violation of rawColors) {
+      console.error(`  ${violation}`);
+    }
+    console.error(
+      '\nUse a token from src/styles.css, or add one there with a light and a dark value.\n'
+    );
+  }
+
+  const themeViolations = await findThemeViolations();
+  if (themeViolations.length > 0) {
+    failed = true;
+    console.error('Style contract broken: the light and dark themes are complete and readable\n');
+    for (const violation of themeViolations) {
+      console.error(`  ${violation}`);
+    }
+    console.error('');
+  }
+
   if (failed) {
     process.exit(1);
   }
 
-  console.log(`Style contracts OK (${CONTRACTS.length} contracts).`);
+  console.log(`Style contracts OK (${CONTRACTS.length} contracts, theme colors).`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

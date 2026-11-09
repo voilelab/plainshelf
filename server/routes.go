@@ -85,11 +85,13 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-batches", h.batches.bookBatch)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/content-stat-refreshes", h.batches.refreshContentStats)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/source-fingerprints", h.batches.fingerprintSources)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/comic-page-hashes", h.batches.hashComicPages)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/fingerprints/status", h.fps.getFingerprintStatus)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-cache-exports", h.shelves.exportBookCache)
 
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", h.imports.importBook)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", h.books.findDuplicateBooks)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/comic-overlaps", h.books.findComicOverlaps)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/similar", h.fps.findSimilarBooks)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", h.books.getBook)

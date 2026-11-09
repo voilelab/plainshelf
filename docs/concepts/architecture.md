@@ -10,15 +10,16 @@ package it with an embedded Go server. Every client uses the same API surface.
 
 ![Architecture diagram: browsers use HTTP and desktop and Android clients can
 reach an embedded Go server in-process. The HTTP API has a local-token boundary.
-A shelf manager keeps an in-memory book cache over the shelf filesystem that
-holds the library. A separate key-value
+A shelf manager holds the open shelves, each with its own in-memory book cache
+over the shelf filesystem that holds the library. A separate key-value
 store holds application settings. The Go engine also opens read-only virtual
 shelves over WebDAV or, on Android, pCloud.](../assets/plainshelf-architecture.svg)
 
 Three things in that picture are load-bearing.
 
-**The shelf filesystem is the source of truth.** `ShelfManager` holds an
-in-memory book cache, but the cache is only an accelerator — it is rebuilt from
+**The shelf filesystem is the source of truth.** Each `Shelf` that
+`ShelfManager` opens holds its own in-memory book cache, but the cache is only
+an accelerator — it is rebuilt from
 `books/` and never becomes the authority. See
 [Data model](data-model.md) for the on-disk layout and
 [Shelf cache and disk I/O](shelf-cache-and-io.md) for how the cache stays fresh.
@@ -118,7 +119,7 @@ uniform:
 
 | Document | Browser | Android shell | Wails desktop | Standalone reader |
 |---|---|---|---|---|
-| `readingProgress` | localStorage | localStorage | JSON file | JSON file (shared with desktop) |
+| `readingProgress` | localStorage | localStorage, or a per-book file for an external server; see below | JSON file | JSON file (shared with desktop) |
 | `readHistory` | localStorage | Capacitor Filesystem | JSON file | JSON file (shared with desktop) |
 | `readingStats` | localStorage | Capacitor Filesystem | JSON file | JSON file (shared with desktop) |
 
@@ -147,12 +148,19 @@ write fails, the window closes anyway and that position can still be lost. The
 staged write merges newest-wins, so it never overwrites a newer entry from the
 other process.
 
-`readingProgress` has no Android-specific path today: it stays on the WebView's
-localStorage there, while read history and reading stats do not. That matters,
-because the Capacitor backend was chosen precisely to escape WebView storage —
-`Directory.Data` is app-private internal storage, needs no runtime permission,
-and, unlike localStorage or IndexedDB in an Android WebView, is not subject to
-silent storage eviction.
+On Android, `readingProgress` does not use the Capacitor document backend. For a
+shelf the embedded engine opens (the local shelf, pCloud, WebDAV, another
+PlainShelf's export) it stays in the WebView's localStorage. For an entry that
+connects to an external PlainShelf server, the app writes each book's position
+to its own `progress.json` under the connection's cache scope in
+`plainshelf-cache/scopes/` (`frontend/src/providers/filesystemMobileBookCache.ts`),
+and, while online, reads localStorage for a book that has no such file. Read
+history and reading stats use the Capacitor backend for every Android shelf, as
+`plainshelf-cache/read-history.json` and `plainshelf-cache/reading-stats.json`.
+That difference matters, because the Capacitor backend was chosen to escape
+WebView storage: `Directory.Data` is app-private internal storage, needs no
+runtime permission, and, unlike localStorage or IndexedDB in an Android WebView,
+is not subject to silent storage eviction.
 
 The Capacitor backend lives in `frontend/src/shells/mobile/`, not in
 `frontend/src/storage/`, and the seam is deliberate: it is what stops
@@ -161,9 +169,11 @@ the read-history and reading-stats stores.
 
 ### Reader progress reaches the desktop library
 
-The standalone reader is a separate, single-instance process with one window: a
-later launch hands its arguments to the running reader, which swaps in the new
-book. How it keys a book's progress depends on how it was launched:
+The standalone reader is a separate, single-instance process with one window
+per open book: a later launch hands its arguments to the running reader, which
+opens the new book in another window. Each window keeps its own launch
+settings, so how it keys its book's progress depends on how that book was
+opened:
 
 - **Launched from the desktop app**, reading a book shells out to the
   installed `PlainShelfReader` (through `open -n -a` on macOS, as a direct child
@@ -253,7 +263,7 @@ The diagram cannot show either of these:
 
 ## UI preferences
 
-Language, zoom, reader font and the other UI preferences go through one
+Language, zoom, reader font and theme, and the other UI preferences go through one
 synchronous key/value store, `frontend/src/storage/preferences.ts`, instead of
 each module calling `window.localStorage`. Components that show the same
 preference subscribe to it, so a change in one updates the others in the same
@@ -286,6 +296,13 @@ Like the reading documents, a Wails window without the binding does not fall
 back to WebView storage: preferences then last only until the window closes. The
 `?desktop-shell-preview=1` browser preview keeps `localStorage`.
 
+A shelf's background (a swatch or an image, chosen from the library page) is
+not a preference either: an image does not fit the 4 KB value limit of
+`preferences.json`. It is kept in the WebView's IndexedDB under the shelf ID, on
+the desktop too, by `frontend/src/storage/shelfBackdrops.ts`, and images are
+capped at 8 MB. Nothing is written to the shelf, so it does not follow the shelf
+to another device; the Android shell offers no control for it.
+
 The mobile reader's one-time gesture hint (`reader-mobile-gesture-hint-seen`)
 is not a preference and stays in `localStorage`.
 
@@ -295,8 +312,11 @@ is not a preference and stays in `localStorage`.
 
 | Path | Responsibility |
 |---|---|
+| `cmd/` | Entry points: the `plainshelf-srv` server and the `plainshelf-wasm` browser demo |
 | `shelf/` | Filesystem-backed library core: books, folders, trash, locking, cache |
 | `server/` | HTTP API, routing, security, settings store, worker pool |
 | `frontend/` | Vue UI, device-local storage, Capacitor Android project |
 | `desktop/` | Wails desktop client |
+| `reader/` | Wails standalone reader for `.bookpkg` files, its own Go module |
+| `mobile/` | Embedded server bound with gomobile for the Android app |
 | `internal/epub/` | EPUB parsing and rendering, used only at [import](../epub-import.md) time |

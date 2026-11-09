@@ -92,8 +92,9 @@ brew install --cask voilelab/plainshelf/bookpkg-reader
 
 The reader registers `.bookpkg` as a document package on macOS: Finder shows
 each one as a single item, and double-clicking it opens it in PlainShelf Reader.
-If the reader is already open, it replaces the current book instead of starting
-a second copy.
+If the reader is already open, the book opens in a new window of that same
+reader instead of starting a second copy; a book that is already open has its
+window brought to the front.
 
 The reader `.app` is also unsigned and unnotarized; its `postflight_steps`
 clears the quarantine attribute the same way. Uninstall with

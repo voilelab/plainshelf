@@ -30,6 +30,7 @@ A typical shelf looks like this:
    ├─ book-cache-{writer-id}.json
    ├─ scan-cache.json
    ├─ fingerprint-cache.json
+   ├─ page-hash-cache.json
    └─ tmp/
 ```
 
@@ -164,6 +165,15 @@ again. It is also discarded and rebuilt whenever the similarity algorithm
 changes. See [Data format
 versioning](data-format-versioning.md#fingerprint-cache).
 
+`page-hash-cache.json` stores the MD5 of every comic page, so the [Duplicate
+Content](../finding-similar-books.md#duplicate-comics) page can compare comics
+by their images without reading them. Like the fingerprint cache it is one
+shared file keyed by book and source ID, and each page record keeps the image's
+size and modification time, so the next hashing run reads only pages that
+changed. Deleting it is safe: comics drop out of duplicate detection until you
+hash their pages again. See [Data format
+versioning](data-format-versioning.md#page-hash-cache).
+
 Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is
 reading-time history from before it moved onto each device; nothing reads it any
 more and it can be deleted.
@@ -216,8 +226,9 @@ An entry that cannot name a directory or a folder is skipped rather than fatal:
 one containing a `/` where a name is expected, one whose path names no folder at
 all, or one written as a bare string rather than an object. The rest of the file
 still applies. A file that cannot be read as a single JSON object at all, or one
-larger than 1 MiB, leaves the defaults in place; so does a key this build does
-not know. The server log says what was dropped and why, and warns when your list
+larger than 1 MiB, leaves the defaults in place. A key this build does not know
+is ignored, and the keys it does know still apply. The server log says what was
+dropped and why, and warns when your list
 leaves out a default such as `@eaDir`, because that is how a library grows a
 duplicate folder tree.
 
@@ -231,8 +242,14 @@ them and are not synchronized between devices:
 |---|---|
 | Web | Browser `localStorage`, key `plainshelf.readingProgress` |
 | Desktop | `reading_progress.json` next to `shelves.json` in the app data directory |
-| Standalone reader | The desktop's `reading_progress.json` (shared), under a synthetic `book` shelf key |
-| Android | App-private `progress.json` files scoped by connection, shelf, and book |
+| Standalone reader | The desktop's `reading_progress.json` (shared): under the real shelf key when the desktop launched it, under a synthetic `book` shelf key when opened directly |
+| Android | WebView `localStorage`, key `plainshelf.readingProgress`, for a shelf the app opens itself (local, pCloud, WebDAV). An external PlainShelf server connection writes an app-private `progress.json` per book instead, scoped by the connection |
+
+Read history and reading time sit beside progress on the web (`localStorage`)
+and on the desktop and standalone reader (`read_history.json`,
+`reading_stats.json`). On Android both are app-private files for every shelf.
+See [Which backend a document actually
+gets](architecture.md#which-backend-a-document-actually-gets).
 
 For text sources, each position is a JavaScript UTF-16 character offset. For
 `images` sources, the same per-device integer stores the zero-based page index.
@@ -247,9 +264,12 @@ parsed page count, including missing pages. The last page is 100%. Empty page
 lists have 0% completion.
 
 The standalone reader writes into the desktop app's `reading_progress.json` so a
-book read there shows the same position in the desktop library. Because the
-reader has no real shelf, it stores progress under a synthetic `book` shelf key,
-which the desktop app projects onto the book's real shelf by stable book ID; see
+book read there shows the same position in the desktop library. Launched from the
+desktop app, it receives the book's real shelf ID and reads and writes that
+shelf's entry directly. Opened on its own, it has no real shelf, so it stores
+progress under a synthetic `book` shelf key, which the desktop app projects onto
+the book's real shelf by stable book ID. Both writers stamp each entry with its
+write time, and the newer entry wins per book; see
 [Reading state is not part of the
 shelf](architecture.md#reading-state-is-not-part-of-the-shelf).
 
@@ -263,7 +283,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 {book-folder}.bookpkg/
 ├─ book.json
 ├─ CURRENT_SOURCE.txt
-├─ cover.(jpg|png|webp)
+├─ cover.(jpg|png|webp|gif)
 └─ sources/
    └─ {source-id}/
       ├─ source.txt
@@ -276,7 +296,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 |---|---|
 | `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data format versioning](data-format-versioning.md). |
 | `CURRENT_SOURCE.txt` | Human-readable hint, in English, that points to the active source. The server writes it whenever the current source changes and never parses it back — `current_source` in `book.json` is the source of truth — so deleting it is safe. Shelves written by older builds carry the same hint as `CURRENT_VERSION_LOCATION.txt`; the next write replaces it with `CURRENT_SOURCE.txt` rather than leaving both. |
-| `cover.(jpg\|png\|webp)` | Optional cover image |
+| `cover.(jpg\|png\|webp\|gif)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure; for an `images` source, the ordered page list |
 | `sources/{source-id}/meta.json` | Source-level metadata, including `schema_version` and authoritative `format` for new sources |
 | `sources/{source-id}/assets/` | Optional illustrations this source's text references; for an `images` source, its pages |
@@ -426,7 +446,7 @@ p-c4hd.webp
 
 ```text
 sources/{source-id}/
-├─ meta.json      format: "images", optional page_direction: "rtl"
+├─ meta.json      format: "images", optional page_direction: "rtl" or "ttb"
 ├─ source.txt     the page list
 └─ assets/
    ├─ p-k2v9.jpg
@@ -467,13 +487,23 @@ asset upload and the 100-million-pixel limit of [CBZ import](../cbz-import.md),
 read from its header; only JPEG, PNG, GIF and WebP are accepted, and the bytes
 are stored unchanged.
 
-`page_direction` is how the pages turn: `"rtl"` for right to left, as in most
-manga. It is written only for that value; absent means left to right, and only
-an `images` source may carry it.
+`page_direction` is how the pages read, one of three values:
 
-An `images` source has no text, so its `char_count` stays `0`, and fingerprints,
-the Similar Books page and duplicate detection leave it out: two comics can
-share a page list without sharing a single image. `md5_hash` and `line_count` still
+| Value | Reading |
+|---|---|
+| `"ltr"` | left to right; never written, so absent means this |
+| `"rtl"` | right to left, as in most manga |
+| `"ttb"` | top to bottom, for vertical strip comics |
+
+Only an `images` source may carry `"rtl"` or `"ttb"`. `"ttb"` is reserved in the
+format ahead of a vertical-scroll reader: the current readers turn its pages one
+at a time, left to right.
+
+An `images` source has no text, so its `char_count` stays `0`, and fingerprints
+and the Similar Books page leave it out. Duplicate detection does not compare
+its `md5_hash` either, because two comics can share a page list without sharing
+a single image; it compares the MD5 of each page image instead, from
+`app/page-hash-cache.json`. `md5_hash` and `line_count` still
 describe `source.txt`, the same as for any other source.
 
 ### Book IDs

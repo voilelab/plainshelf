@@ -584,10 +584,10 @@ async function onSave(): Promise<void> {
 }
 
 .error-msg {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--danger-ink);
   font-size: 13px;
   padding: 8px 12px;
 }

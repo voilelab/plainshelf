@@ -11,6 +11,8 @@ import {
   getBookCoverUrl,
   getDuplicateBookGroups,
   getFingerprintStatus,
+  getComicOverlaps,
+  startHashComicPages,
   getSimilarBookPairs,
   importBook,
   listBooks,
@@ -66,7 +68,7 @@ import type {
   ReadingProgress,
   TrashedBookListing
 } from '@/types/book';
-import type { BookTransferMode, FingerprintStatus, SimilarBookPair } from '@/api/books';
+import type { BookTransferMode, ComicOverlapReport, FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { CreateSourceOptions, PageDirection, SourceMeta, SourcePageList } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 import type {
@@ -195,6 +197,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return getFingerprintStatus();
   }
 
+  getComicOverlaps(): Promise<ComicOverlapReport> {
+    return getComicOverlaps();
+  }
+
   listTrashedBooks(): Promise<TrashedBookListing> {
     return listTrashedBooks();
   }
@@ -225,6 +231,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   startFingerprintSources(force?: boolean): Promise<string> {
     return startFingerprintSources(force);
+  }
+
+  startHashComicPages(): Promise<string> {
+    return startHashComicPages();
   }
 
   listFolders(): Promise<string[]> {

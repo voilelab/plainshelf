@@ -16,6 +16,7 @@ import (
 const (
 	PageDirectionLTR = "ltr"
 	PageDirectionRTL = "rtl"
+	PageDirectionTTB = "ttb"
 )
 
 const maxPageListBytes = 1 << 20
@@ -28,7 +29,7 @@ var ErrPageListConflict = util.NewError("page list changed since it was read")
 
 var ErrInvalidPagePosition = util.NewError("page position is outside the page list")
 
-var ErrInvalidPageDirection = util.NewError(`page_direction must be "ltr" or "rtl", and "rtl" only on an images source`)
+var ErrInvalidPageDirection = util.NewError(`page_direction must be "ltr", "rtl" or "ttb", and "rtl" or "ttb" only on an images source`)
 
 type Page struct {
 	Name    string `json:"name"`
@@ -254,9 +255,9 @@ func normalizePageDirection(format, direction string) (string, error) {
 	switch direction {
 	case "", PageDirectionLTR:
 		return "", nil
-	case PageDirectionRTL:
+	case PageDirectionRTL, PageDirectionTTB:
 		if format == BookFormatImages {
-			return PageDirectionRTL, nil
+			return direction, nil
 		}
 	}
 	return "", util.Errorf("%w: got %q for a %q source", ErrInvalidPageDirection, direction, format)

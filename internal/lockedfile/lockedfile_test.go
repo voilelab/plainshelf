@@ -68,3 +68,26 @@ func TestFileNeedsPath(t *testing.T) {
 		t.Fatal("mutate succeeded without a path")
 	}
 }
+
+func TestMutateIfSkipsUnneededWrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "counter.txt")
+	if err := os.WriteFile(path, []byte(" 3 "), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	file := New(path, "counter", ".counter-*.txt")
+	increment := func(n int) int { return n + 1 }
+
+	got, err := MutateIf(file, parseCount, formatCount, func(n int) bool { return n > 5 }, increment)
+	if err != nil || got != " 3 " {
+		t.Fatalf("unneeded MutateIf = %q, %v; want raw text unchanged", got, err)
+	}
+
+	got, err = MutateIf(file, parseCount, formatCount, func(n int) bool { return n == 3 }, increment)
+	if err != nil || got != "4" {
+		t.Fatalf("needed MutateIf = %q, %v; want serialized result", got, err)
+	}
+	raw, err := file.Read()
+	if err != nil || raw != "4" {
+		t.Fatalf("file after MutateIf = %q, %v; want written result", raw, err)
+	}
+}

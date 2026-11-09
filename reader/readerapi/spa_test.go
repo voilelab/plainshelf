@@ -23,7 +23,7 @@ func testAssets() fstest.MapFS {
 func serveSPA(t *testing.T, boot readerapi.BootConfig, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	handler := readerapi.NewSPAHandler(testAssets(), func() readerapi.BootConfig { return boot })
+	handler := readerapi.NewSPAHandler(testAssets(), func(*http.Request) readerapi.BootConfig { return boot })
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 	return recorder
@@ -133,5 +133,19 @@ func TestSPAEscapesScriptCloseInTheBootConfig(t *testing.T) {
 	}
 	if !strings.Contains(body, `b\u003c/script`) {
 		t.Errorf("expected the book ID escaped, got:\n%s", body)
+	}
+}
+
+func TestSPABootReadsTheRequest(t *testing.T) {
+	handler := readerapi.NewSPAHandler(testAssets(), func(r *http.Request) readerapi.BootConfig {
+		return readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: r.Header.Get("X-Test-Book")}
+	})
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("X-Test-Book", "emma5678")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if body := recorder.Body.String(); !strings.Contains(body, `"book_id":"emma5678"`) {
+		t.Errorf("boot did not use the request, got:\n%s", body)
 	}
 }

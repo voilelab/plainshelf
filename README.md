@@ -2,7 +2,8 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/voilelab/plainshelf.svg)](https://pkg.go.dev/github.com/voilelab/plainshelf)
 [![License](https://img.shields.io/badge/license-BSD_3--Clause-brightgreen.svg?style=flat)](LICENSE)
-[![Lint](https://github.com/voilelab/plainshelf/actions/workflows/ci.yml/badge.svg)](https://github.com/voilelab/plainshelf/actions/workflows/ci.yml)
+[![CI](https://github.com/voilelab/plainshelf/actions/workflows/ci.yml/badge.svg)](https://github.com/voilelab/plainshelf/actions/workflows/ci.yml)
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/mudream4869/badge.svg)](https://hub.xerj.org/contributors/mudream4869)
 
 PlainShelf is a local-first, single-user reading library for lightweight text
 content. It stores the library in human-readable files and provides web,

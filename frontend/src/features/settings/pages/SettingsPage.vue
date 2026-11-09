@@ -28,6 +28,7 @@
 
       <TabsContent value="general" class="settings-tab-content">
         <LanguagePanel />
+        <ThemePanel />
         <NsfwPanel
           v-if="serverSettingsEditable"
           :value="showNsfw"
@@ -100,6 +101,7 @@ import NsfwPanel from '@/features/settings/components/NsfwPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
 import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
+import ThemePanel from '@/features/settings/components/ThemePanel.vue';
 import { hasDesktopLANShareBinding } from '@/api/desktop';
 import { getPlatformCapabilities } from '@/providers/platformCapabilities';
 import { useDeviceNsfwPreference } from '@/composables/useDeviceNsfwPreference';
@@ -168,7 +170,7 @@ onMounted(() => {
 }
 
 .settings-header p {
-  color: #475569;
+  color: var(--text-secondary);
   margin: 6px 0 0;
 }
 
@@ -190,7 +192,7 @@ onMounted(() => {
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
@@ -200,13 +202,13 @@ onMounted(() => {
 }
 
 .settings-tab-trigger:hover {
-  color: #1e293b;
+  color: var(--text);
 }
 
 .settings-tab-trigger[data-state='active'] {
-  background: var(--surface, #fff);
+  background: var(--surface);
   border-color: var(--border);
-  color: #1e293b;
+  color: var(--text);
 }
 
 .settings-tab-content {

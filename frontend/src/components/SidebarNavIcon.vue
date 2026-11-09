@@ -15,7 +15,7 @@ defineProps<{
 
 <style scoped>
 .sidebar-nav-icon {
-  color: #64748b;
+  color: var(--muted);
   display: inline-flex;
   flex: 0 0 auto;
   height: 16px;

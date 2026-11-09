@@ -1,4 +1,5 @@
 .reader-page {
+  background: var(--reader-backdrop);
   width: 100%;
   min-height: calc(100vh / var(--app-zoom, 1));
   padding: 28px 18px 56px;
@@ -15,7 +16,7 @@
   align-items: center;
   gap: 18px;
   margin-bottom: 18px;
-  color: #6b5f4a;
+  color: var(--reader-muted);
 }
 
 .reader-back {
@@ -24,7 +25,7 @@
   background: none;
   padding: 0;
   justify-self: start;
-  color: #6b5f4a;
+  color: var(--reader-muted);
   cursor: pointer;
   font: inherit;
   text-decoration: none;
@@ -33,7 +34,7 @@
 }
 
 .reader-back:hover {
-  color: #4f4434;
+  color: var(--reader-ink-soft);
 }
 
 .reader-title {
@@ -47,14 +48,14 @@
   font-size: 0.78rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(107, 95, 74, 0.72);
+  color: color-mix(in srgb, var(--reader-muted) 72%, transparent);
 }
 
 .reader-title h2 {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #3f3529;
+  color: var(--reader-heading);
   overflow-wrap: anywhere;
 }
 
@@ -77,7 +78,7 @@
 }
 
 .reader-progress {
-  color: #6b5f4a;
+  color: var(--reader-muted);
   font-size: 0.92rem;
   white-space: nowrap;
 }
@@ -113,7 +114,7 @@
 }
 
 .reader-font-button:hover:not(:disabled) {
-  background: #fffdf7;
+  background: var(--reader-paper);
 }
 
 .reader-icon-button svg {
@@ -179,9 +180,9 @@
     gap: 8px;
     padding: 8px;
     border-radius: 12px;
-    background: rgba(247, 242, 231, 0.96);
-    border: 1px solid rgba(122, 104, 72, 0.18);
-    box-shadow: 0 10px 26px rgba(96, 75, 44, 0.12);
+    background: rgb(var(--reader-chrome-rgb) / 0.96);
+    border: 1px solid rgb(var(--reader-line-rgb) / 0.18);
+    box-shadow: 0 10px 26px rgb(var(--reader-shadow-rgb) / 0.12);
   }
 
   .reader-side-actions.reader-side-actions-writable {

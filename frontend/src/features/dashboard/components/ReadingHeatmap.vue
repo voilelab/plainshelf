@@ -128,19 +128,19 @@ function cellLabel(cell: HeatmapCell): string {
 }
 
 .heatmap-cell.level-1 {
-  background: #9be9a8;
+  background: var(--heat-1);
 }
 
 .heatmap-cell.level-2 {
-  background: #40c463;
+  background: var(--heat-2);
 }
 
 .heatmap-cell.level-3 {
-  background: #30a14e;
+  background: var(--heat-3);
 }
 
 .heatmap-cell.level-4 {
-  background: #216e39;
+  background: var(--heat-4);
 }
 
 .reading-heatmap-legend {

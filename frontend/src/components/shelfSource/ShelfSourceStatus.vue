@@ -22,7 +22,7 @@ const { t } = useI18n();
 <style scoped>
 .shelf-source-status {
   align-items: center;
-  background: #f1f5f9;
+  background: var(--surface-sunken);
   border-radius: 9px;
   color: var(--muted);
   display: flex;
@@ -33,12 +33,12 @@ const { t } = useI18n();
 }
 
 .shelf-source-status.ok {
-  background: #eaf7f0;
-  color: #1a7f4b;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .shelf-source-status.error {
-  background: #fdecec;
+  background: var(--danger-soft);
   color: var(--danger);
 }
 

@@ -201,8 +201,8 @@ function onTouchEnd(event: TouchEvent): void {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: #181818;
-  color: #eee;
+  background: var(--comic-bg);
+  color: var(--comic-text);
 }
 .comic-toolbar, .comic-navigation { padding: 8px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left)); }
 .comic-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
@@ -220,5 +220,5 @@ function onTouchEnd(event: TouchEvent): void {
 .comic-progress { flex: 1; max-width: 600px; text-align: center; font-size: 0.8rem; }
 .comic-progress input { display: block; width: 100%; }
 .comic-navigation { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
-.comic-hint { display: block; text-align: center; font-size: 0.75rem; color: #bbb; margin-top: 4px; }
+.comic-hint { display: block; text-align: center; font-size: 0.75rem; color: var(--comic-muted); margin-top: 4px; }
 </style>

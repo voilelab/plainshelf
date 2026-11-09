@@ -94,7 +94,7 @@ const viewAllTo: RouteLocationRaw = {
 
 .recently-added-cover {
   aspect-ratio: 2 / 3;
-  background: #f2f2f2;
+  background: var(--surface-sunken);
   border-radius: 6px;
   object-fit: cover;
   width: 100%;

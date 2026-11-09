@@ -6,9 +6,10 @@
     ([Offline copies](#offline-copies)). The server reads the `source` block
     and resolves `env:` and `file:` credentials, and opens `plainshelf` and
     `webdav` sources; the desktop and Android hosts add them from their
-    settings and resolve `host:`. It fixes the configuration format and the
-    credential model before `1.0.0-rc1`, because both become compatibility
-    promises at that point. The separate
+    settings and resolve `host:`. The `1.0.0-rc1` freeze does not cover the
+    `source` block or credential references: it covers the shelf's on-disk
+    user data only (see [What the freeze
+    covers](data-format-versioning.md#what-the-freeze-covers)). The separate
     [platform interface](platform-capabilities.md#the-platform-interface)
     remains planned.
 

@@ -48,8 +48,10 @@ npm --prefix frontend exec -- vitest run --coverage \
   --coverage.exclude='**/*.test.ts' --coverage.all
 ```
 
-Configuration lives in `frontend/stryker.conf.json`. Widening `mutate` to the
-whole frontend is not practical: seven files already cost minutes per run.
+Configuration lives in `frontend/stryker.conf.json`, and `internal/repocheck`
+fails when its `mutate` list names a file this page does not. Widening `mutate`
+to the whole frontend is not practical: the pilot scope already costs minutes
+per run.
 
 ## Reading a survivor
 
@@ -92,6 +94,8 @@ Measured on `frontend/src/features/reader/utils/`, which then held all seven
 files (Node 22,
 `concurrency: 2`, `coverageAnalysis: perTest`, 753 mutants, ~3 minutes per run).
 "Before" is the state the pilot found; "after" is the current run.
+`comicPageSize.ts`, `estimateBlockHeight.ts` and `sectionDeepLink.ts` joined the
+reader utils after the pilot: they are in `mutate` but have no measurement here.
 
 | File | Line coverage before → after | Mutation score before → after |
 |---|---|---|

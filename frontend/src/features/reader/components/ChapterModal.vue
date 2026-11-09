@@ -1,6 +1,6 @@
 <template>
   <BaseDialog :open="open" :title="t('reader.chapterDialog.title')" @close="emit('close')">
-    <section class="panel chapter-modal">
+    <section class="panel chapter-modal reading-surface" :data-reader-theme="theme">
       <header class="chapter-modal-header">
         <h3>{{ t('reader.chapterDialog.title') }}</h3>
         <button class="chapter-icon-close" type="button" :aria-label="t('reader.chapterDialog.closeLabel')" @click="emit('close')">×</button>
@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import BaseDialog from '@/components/BaseDialog.vue';
 import { useI18n } from '@/i18n';
+import type { ReaderTheme } from '@/features/reader/composables/useReaderSettings';
 
 const { t } = useI18n();
 
@@ -38,6 +39,7 @@ defineProps<{
   open: boolean;
   sections: ReaderSection[];
   currentSectionIndex: number;
+  theme: ReaderTheme;
 }>();
 
 const emit = defineEmits<{

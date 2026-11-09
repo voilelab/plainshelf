@@ -1,0 +1,65 @@
+{
+  "folders": [
+    "/",
+    "Webtoons"
+  ],
+  "folder_meta": {},
+  "books": [
+    {
+      "path": "books/Webtoons/long-strip.bookpkg",
+      "folders": [
+        "Webtoons"
+      ],
+      "id": "w5s8tr2pq7lm4nxe",
+      "title": "Long Strip",
+      "format": "images",
+      "authors": [],
+      "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
+      "star": 0,
+      "created_at": "2026-04-05T10:00:00Z",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "20260405-100000",
+      "current_source": "20260405-100000",
+      "sources": [
+        {
+          "id": "20260405-100000",
+          "schema_version": 1,
+          "created_at": "2026-04-05T10:00:00Z",
+          "comment": "",
+          "format": "images",
+          "page_direction": "ttb",
+          "md5_hash": "06d6dc4d02ffc26d03913b4a696720dd",
+          "has_content": true,
+          "line_count": 2,
+          "char_count": 0,
+          "assets": [
+            "p-h8ty.jpg",
+            "p-w3ne.png"
+          ],
+          "pages": [
+            {
+              "name": "p-w3ne.png",
+              "missing": false
+            },
+            {
+              "name": "p-h8ty.jpg",
+              "missing": false
+            }
+          ],
+          "unlisted": [],
+          "size_bytes": 732
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

@@ -594,7 +594,7 @@ if (!readOnly.value) {
    the scroll area, while the padding below re-adds the same amount on top of
    the shell's own spacing so the visible content offset is unchanged. */
 .detail-shell {
-  background: linear-gradient(145deg, #fbfaf7 0%, #f6f3ed 100%);
+  background: var(--paper-gradient);
   min-height: calc(100vh - 60px + 16px + env(safe-area-inset-bottom, 0px));
   margin: -16px calc(-24px - env(safe-area-inset-right, 0px)) calc(-16px - env(safe-area-inset-bottom, 0px))
     calc(-24px - env(safe-area-inset-left, 0px));
@@ -642,26 +642,26 @@ if (!readOnly.value) {
 }
 
 .import-note-error {
-  color: #991b1b;
+  color: var(--danger-ink);
   font-size: 13px;
   margin: 8px 0 0;
 }
 
 .download-required-notice {
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid #e1ddd4;
-  border-left: 3px solid #b8842f;
+  background: rgb(var(--surface-rgb) / 0.76);
+  border: 1px solid var(--paper-border);
+  border-left: 3px solid var(--paper-accent);
   border-radius: 12px;
-  color: #5a4a30;
+  color: var(--paper-text);
   font-size: 14px;
   padding: 12px 14px;
 }
 
 .reading-card {
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid #e1ddd4;
+  background: rgb(var(--surface-rgb) / 0.76);
+  border: 1px solid var(--paper-border);
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(61, 50, 35, 0.055);
+  box-shadow: 0 10px 30px rgb(var(--paper-ink-rgb) / 0.055);
   display: grid;
   gap: 12px;
   padding: 17px 18px 18px;
@@ -680,7 +680,7 @@ if (!readOnly.value) {
 }
 
 .progress-eyebrow {
-  color: #788391;
+  color: var(--muted-soft);
   font-size: 11px;
   font-weight: 750;
   letter-spacing: 0.08em;
@@ -688,19 +688,19 @@ if (!readOnly.value) {
 }
 
 .progress-status {
-  color: #283544;
+  color: var(--text-body);
   font-size: 16px;
   font-weight: 720;
   margin-top: 2px;
 }
 
 .progress-percent {
-  color: #556273;
+  color: var(--text-subtle);
   font-size: 18px;
 }
 
 .reading-card :deep(.progress-bar) {
-  --surface-muted: #e8e4dc;
+  --surface-muted: var(--paper-border);
   height: 7px;
 }
 
@@ -744,11 +744,11 @@ if (!readOnly.value) {
 }
 
 .detail-menu-danger {
-  color: var(--danger, #cf3d3d);
+  color: var(--danger);
 }
 
 .offline-download-error {
-  color: #991b1b;
+  color: var(--danger-ink);
   font-size: 13px;
   margin: 0;
 }

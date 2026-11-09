@@ -367,13 +367,13 @@ async function onRemove(): Promise<void> {
 .mobile-shelves-description,
 .mobile-shelves-empty {
   margin: 0;
-  color: var(--text-muted, #666);
+  color: var(--muted);
 }
 
 .mobile-shelves-local-warning {
   margin: 0;
   padding: 8px 12px;
-  border-left: 3px solid var(--danger, #b3261e);
+  border-left: 3px solid var(--danger);
   font-size: 0.9rem;
 }
 
@@ -381,7 +381,7 @@ async function onRemove(): Promise<void> {
   display: grid;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--border, #d9d2c4);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -397,7 +397,7 @@ async function onRemove(): Promise<void> {
   display: grid;
   gap: 6px;
   padding: 12px;
-  border: 1px solid var(--border, #d9d2c4);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -415,18 +415,18 @@ async function onRemove(): Promise<void> {
 .mobile-shelves-type,
 .mobile-shelves-active {
   font-size: 0.75rem;
-  color: var(--text-muted, #666);
+  color: var(--muted);
 }
 
 .mobile-shelves-active {
   font-weight: 600;
-  color: var(--accent, #7a5c2e);
+  color: var(--accent);
 }
 
 .mobile-shelves-detail {
   margin: 0;
   font-size: 0.8rem;
-  color: var(--text-muted, #666);
+  color: var(--muted);
   overflow-wrap: anywhere;
 }
 
@@ -438,7 +438,7 @@ async function onRemove(): Promise<void> {
 
 .mobile-shelves-error {
   margin: 0;
-  color: var(--danger, #b3261e);
+  color: var(--danger);
   font-size: 0.9rem;
 }
 
@@ -451,7 +451,7 @@ async function onRemove(): Promise<void> {
   display: grid;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--danger, #b3261e);
+  border: 1px solid var(--danger);
   border-radius: 8px;
 }
 
@@ -463,6 +463,6 @@ async function onRemove(): Promise<void> {
 .mobile-shelves-confirm-body {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--text-muted, #666);
+  color: var(--muted);
 }
 </style>

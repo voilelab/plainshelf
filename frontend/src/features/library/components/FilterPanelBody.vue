@@ -311,7 +311,7 @@ function toggleMultiValue(filter: AnyBookFilterDef, value: unknown, eqValue: str
 }
 
 .filter-field-note {
-  color: var(--muted, #888);
+  color: var(--muted);
   font-size: 11px;
   margin: 0;
 }
@@ -355,19 +355,19 @@ function toggleMultiValue(filter: AnyBookFilterDef, value: unknown, eqValue: str
 }
 
 .filter-option-count {
-  color: var(--muted, #888);
+  color: var(--muted);
   font-size: 11px;
   flex: 0 0 auto;
 }
 
 .filter-facet-empty {
-  color: var(--muted, #888);
+  color: var(--muted);
   font-size: 12px;
   margin: 0;
 }
 
 .filter-panel-footer {
-  border-top: 1px solid var(--border, #e6ecf3);
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
   padding-top: 12px;

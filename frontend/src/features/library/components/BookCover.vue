@@ -343,8 +343,8 @@ function onGeneratedCoverSaved(): void {
 }
 
 .cover-drop-target.is-drag-over .detail-cover {
-  border-color: var(--primary, #2563eb);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.16);
 }
 
 .cover-drop-overlay {
@@ -357,8 +357,8 @@ function onGeneratedCoverSaved(): void {
   gap: 10px;
   padding: 18px;
   border-radius: 10px;
-  background: rgba(15, 23, 42, 0.64);
-  color: #fff;
+  background: var(--scrim);
+  color: var(--on-accent);
   font-size: 14px;
   font-weight: 600;
   text-align: center;
@@ -368,8 +368,8 @@ function onGeneratedCoverSaved(): void {
 .cover-spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 3px solid color-mix(in srgb, var(--on-accent) 35%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 999px;
   animation: cover-spin 0.8s linear infinite;
 }
@@ -381,8 +381,8 @@ function onGeneratedCoverSaved(): void {
 
 .cover-options-toggle {
   align-items: center;
-  background: rgba(255, 255, 255, 0.66);
-  color: #596676;
+  background: rgb(var(--surface-rgb) / 0.66);
+  color: var(--text-subtle);
   display: flex;
   font-size: 13px;
   font-weight: 650;
@@ -432,14 +432,14 @@ function onGeneratedCoverSaved(): void {
 }
 
 .cover-status.error {
-  color: var(--danger, #dc2626);
+  color: var(--danger);
 }
 
 .cover-modal-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--danger-ink);
   padding: 10px;
 }
 

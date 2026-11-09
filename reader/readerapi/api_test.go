@@ -177,13 +177,74 @@ func TestHandlerServesImagesWithTheirType(t *testing.T) {
 	}
 }
 
+func writeComicPackage(t *testing.T) string {
+	t.Helper()
+
+	dir := filepath.Join(t.TempDir(), "Comic.bookpkg")
+	sourceDir := filepath.Join(dir, bookpkg.SourcesFolder, testSourceID)
+	if err := os.MkdirAll(filepath.Join(sourceDir, "assets"), 0o755); err != nil {
+		t.Fatalf("creating package: %v", err)
+	}
+
+	writeJSONFile(t, filepath.Join(dir, bookpkg.BookMetaFile), bookpkg.BookMeta{
+		SchemaVersion: bookpkg.BookMetaSchemaVersion,
+		ID:            "comic123",
+		Title:         "Comic",
+		Format:        bookpkg.BookFormatImages,
+		CurrentSource: testSourceID,
+	})
+	writeJSONFile(t, filepath.Join(sourceDir, bookpkg.SourceMetaFile), bookpkg.SourceMeta{
+		SchemaVersion: bookpkg.SourceMetaSchemaVersion,
+		ID:            testSourceID,
+		Format:        bookpkg.BookFormatImages,
+	})
+	writeFile(t, filepath.Join(sourceDir, bookpkg.SourceFile), []byte("002.png\n001.png\n"))
+	writeFile(t, filepath.Join(sourceDir, "assets", "001.png"), []byte("one"))
+	writeFile(t, filepath.Join(sourceDir, "assets", "002.png"), []byte("two"))
+
+	return dir
+}
+
+func TestHandlerServesComicPages(t *testing.T) {
+	library := readerapi.NewLibrary(nil)
+	t.Cleanup(func() { library.Close() })
+	bookID, err := library.Open(writeComicPackage(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	handler := readerapi.NewHandler(library, "test")
+
+	response := get(t, handler, bookPath(bookID)+"/sources/"+testSourceID+"/pages")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (%s)", response.Code, http.StatusOK, response.Body)
+	}
+
+	var list bookpkg.PageList
+	if err := json.Unmarshal(response.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decoding pages: %v", err)
+	}
+	want := []bookpkg.Page{{Name: "002.png"}, {Name: "001.png"}}
+	if len(list.Pages) != len(want) || list.Pages[0] != want[0] || list.Pages[1] != want[1] {
+		t.Errorf("pages = %+v, want %+v", list.Pages, want)
+	}
+}
+
+func TestHandlerRefusesPagesOfTextSource(t *testing.T) {
+	handler := readerapi.NewHandler(newOpenLibrary(t), "test")
+
+	response := get(t, handler, bookPath(testBookID)+"/sources/"+testSourceID+"/pages")
+	if response.Code != http.StatusConflict {
+		t.Errorf("status = %d, want %d", response.Code, http.StatusConflict)
+	}
+}
+
 func TestHandlerReportsWhatItDoesNotHave(t *testing.T) {
 	t.Run("no book open", func(t *testing.T) {
 		handler := readerapi.NewHandler(readerapi.NewLibrary(nil), "test")
 
 		response := get(t, handler, bookPath(testBookID))
-		if response.Code != http.StatusServiceUnavailable {
-			t.Errorf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+		if response.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want %d", response.Code, http.StatusNotFound)
 		}
 	})
 
@@ -224,6 +285,7 @@ func TestHandlerRefusesWrites(t *testing.T) {
 		{http.MethodPut, bookPath(testBookID) + "/cover"},
 		{http.MethodPost, bookPath(testBookID) + "/sources"},
 		{http.MethodPatch, bookPath(testBookID) + "/sources/" + testSourceID + "/content"},
+		{http.MethodPut, bookPath(testBookID) + "/sources/" + testSourceID + "/pages"},
 	}
 	for _, write := range writes {
 		recorder := httptest.NewRecorder()
@@ -234,7 +296,7 @@ func TestHandlerRefusesWrites(t *testing.T) {
 	}
 }
 
-func TestLibraryOpensAnotherBook(t *testing.T) {
+func TestLibraryServesTwoBooksAtOnce(t *testing.T) {
 	library := newOpenLibrary(t)
 	handler := readerapi.NewHandler(library, "test")
 
@@ -243,14 +305,78 @@ func TestLibraryOpensAnotherBook(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 
-	if library.BookID() != nextBookID {
-		t.Errorf("open book = %q, want %q", library.BookID(), nextBookID)
+	for bookID, title := range map[string]string{testBookID: "Dune", nextBookID: "Emma"} {
+		response := get(t, handler, bookPath(bookID))
+		if response.Code != http.StatusOK {
+			t.Fatalf("GET %s status = %d, want %d", bookID, response.Code, http.StatusOK)
+		}
+		var payload struct {
+			Meta bookpkg.BookMeta `json:"meta"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decoding %s: %v", bookID, err)
+		}
+		if payload.Meta.ID != bookID || payload.Meta.Title != title {
+			t.Errorf("GET %s = %s %q, want %s %q", bookID, payload.Meta.ID, payload.Meta.Title, bookID, title)
+		}
+	}
+	if response := get(t, handler, bookPath("notopen9")); response.Code != http.StatusNotFound {
+		t.Errorf("unopened book status = %d, want %d", response.Code, http.StatusNotFound)
+	}
+}
+
+func TestLibraryCloseBookKeepsOthers(t *testing.T) {
+	library := newOpenLibrary(t)
+	handler := readerapi.NewHandler(library, "test")
+	const nextBookID = "emma5678"
+	if _, err := library.Open(writeBookPackage(t, "Emma", nextBookID)); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	if err := library.CloseBook(testBookID); err != nil {
+		t.Fatalf("CloseBook: %v", err)
+	}
+
+	if response := get(t, handler, bookPath(testBookID)); response.Code != http.StatusNotFound {
+		t.Errorf("closed book status = %d, want %d", response.Code, http.StatusNotFound)
 	}
 	if response := get(t, handler, bookPath(nextBookID)); response.Code != http.StatusOK {
-		t.Errorf("new book status = %d, want %d", response.Code, http.StatusOK)
+		t.Errorf("remaining book status = %d, want %d", response.Code, http.StatusOK)
 	}
-	if response := get(t, handler, bookPath(testBookID)); response.Code != http.StatusNotFound {
-		t.Errorf("previous book status = %d, want %d", response.Code, http.StatusNotFound)
+}
+
+func TestLibraryReopenKeepsHeldPackage(t *testing.T) {
+	library := newOpenLibrary(t)
+	handler := readerapi.NewHandler(library, "test")
+
+	id, err := library.Open(writeBookPackage(t, "Copy", testBookID))
+	if err != nil || id != testBookID {
+		t.Fatalf("Open = %q, %v", id, err)
+	}
+
+	response := get(t, handler, bookPath(testBookID))
+	if !strings.Contains(response.Body.String(), `"title":"Dune"`) {
+		t.Errorf("book after reopen = %s, want the package held first", response.Body)
+	}
+}
+
+func TestLibraryCloseBookCountsOpens(t *testing.T) {
+	library := newOpenLibrary(t)
+	if _, err := library.Open(writeBookPackage(t, "Dune", testBookID)); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	if err := library.CloseBook(testBookID); err != nil {
+		t.Fatalf("CloseBook: %v", err)
+	}
+	if !library.Has(testBookID) {
+		t.Fatal("book closed while a second open still holds it")
+	}
+	if err := library.CloseBook(testBookID); err != nil {
+		t.Fatalf("CloseBook: %v", err)
+	}
+	if library.Has(testBookID) {
+		t.Fatal("book still held after every open was closed")
 	}
 }
 
@@ -260,8 +386,8 @@ func TestLibraryKeepsBookWhenOpenFails(t *testing.T) {
 	if _, err := library.Open(t.TempDir()); err == nil {
 		t.Fatal("expected opening a folder without book.json to fail")
 	}
-	if library.BookID() != testBookID {
-		t.Errorf("open book = %q, want the previous book %q", library.BookID(), testBookID)
+	if !library.Has(testBookID) {
+		t.Errorf("book %q closed by a failed open", testBookID)
 	}
 }
 

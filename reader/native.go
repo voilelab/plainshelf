@@ -1,8 +1,10 @@
 package main
 
 type nativeUI interface {
-	openDirectory(title string) (string, error)
-	showError(title, message string) error
-	reloadApp()
-	focus()
+	newWindow(prepare func(win uint)) uint
+	currentWindow() uint
+	openDirectory(win uint, title string) (string, error)
+	showError(win uint, title, message string) error
+	reload(win uint)
+	focus(win uint)
 }

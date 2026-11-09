@@ -196,20 +196,23 @@ can.
 | `logger` | [logger block](#logger-blocks) | see below | The application log: API requests, imports, background tasks. |
 | `shelves` | list | empty | The shelves this server serves. See [`shelves[]`](#shelves). |
 | `worker` | mapping | all defaults | Background task queue. See [`worker`](#app_confworker). |
-| `store_path` | string | none (required) | Directory for the application store (Badger DB) holding server settings. Created if missing; an empty value fails startup. |
+| `store_path` | string | none (required) | Directory for the application store: a Badger DB of server settings, plus virtual shelves' offline copies under `offline/`. Created if missing; an empty value fails startup. |
 | `cover_to_jpg` | bool | `false` | Convert every cover PlainShelf stores to JPEG — both uploads and covers extracted from an EPUB — instead of keeping the original encoding. It also makes the upload endpoint accept image types it otherwise rejects. Overridden by a value saved from **Settings**. |
 | `epub_import_strategy` | mapping | built-in default | Default EPUB conversion options. See [`epub_import_strategy`](#app_confepub_import_strategy). |
 | `read_only` | bool | `false` | Serve every shelf read-only, whatever each shelf's own `read_only` says. Mutating API requests are refused with 403 before they reach a shelf; the one exception is the rescan, which only reads. |
 | `security` | mapping | `local_token` defaults | The API access gate. See [`security`](#app_confsecurity). |
 
-`store_path` holds server settings only — the cover-to-JPEG flag, the EPUB
-import default, the log retention window, and whether books marked as adult
-content are shown. It is not the book store: the shelf on disk is. See
-[Backup and restore](../backup-and-restore.md).
+`store_path` holds server settings (the cover-to-JPEG flag, the EPUB import
+default, the log retention window, and whether books marked as adult content are
+shown) and, under `offline/`, each
+[virtual shelf's offline copies](../concepts/shelf-sources.md#offline-copies):
+its last listing and the books downloaded from it. It is not the book store: the
+shelf on disk is. See [Backup and restore](../backup-and-restore.md).
 
-`cover_to_jpg` is one of the three settings that have both a key here and a
-runtime value. A value saved from the settings page wins over the config file;
-deleting it reverts to the config file, and then to `false`.
+`cover_to_jpg` has both a key here and a runtime value, like the EPUB import
+default and the log retention window. A value saved from the settings page wins
+over the config file; deleting it reverts to the config file, and then to
+`false`.
 
 A cover is converted only up to 40 megapixels. A larger upload is refused with
 413, and a larger EPUB cover is skipped, leaving the book without one.
@@ -601,7 +604,12 @@ app_conf:
 
 ## Settings that are not in this file
 
-Three settings are stored in `store_path` and changed from the UI, where they
-override the config file: cover-to-JPEG conversion, the EPUB import default,
-and the log retention window. Reading progress, history and reading time live
-on each client, not on the server.
+These settings are stored in `store_path` and changed from the UI:
+
+- cover-to-JPEG conversion, the EPUB import default, and the log retention
+  window, where a saved value overrides the config file;
+- whether books marked as adult content are shown, which has no key in this
+  file and is hidden until changed.
+
+Reading progress, history and reading time live on each client, not on the
+server.

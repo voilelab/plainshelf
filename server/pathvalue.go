@@ -10,48 +10,19 @@ import (
 )
 
 func readShelfID(r *http.Request) (string, error) {
-	shelfID := strings.TrimSpace(r.PathValue("shelf_id"))
-	if shelfID == "" {
-		return "", errors.New("missing shelf_id")
-	}
-
-	decoded, err := url.PathUnescape(shelfID)
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-
-	return decoded, nil
+	return decodePathID("shelf_id", r.PathValue("shelf_id"))
 }
 
 func readBookID(r *http.Request) (string, error) {
-	bookID := strings.TrimSpace(r.PathValue("book_id"))
-	if bookID == "" {
-		bookID = strings.TrimSpace(r.URL.Query().Get("book_id"))
+	bookID := r.PathValue("book_id")
+	if strings.TrimSpace(bookID) == "" {
+		bookID = r.URL.Query().Get("book_id")
 	}
-	if bookID == "" {
-		return "", errors.New("missing book_id")
-	}
-
-	decoded, err := url.PathUnescape(bookID)
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-
-	return decoded, nil
+	return decodePathID("book_id", bookID)
 }
 
 func readSourceID(r *http.Request) (string, error) {
-	sourceID := strings.TrimSpace(r.PathValue("source_id"))
-	if sourceID == "" {
-		return "", errors.New("missing source_id")
-	}
-
-	decoded, err := url.PathUnescape(sourceID)
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-
-	return decoded, nil
+	return decodePathID("source_id", r.PathValue("source_id"))
 }
 
 // readAssetName deliberately does not url.PathUnescape, unlike its neighbours
@@ -71,26 +42,20 @@ func readAssetName(r *http.Request) (string, error) {
 }
 
 func readLogID(r *http.Request) (string, error) {
-	logID := strings.TrimSpace(r.PathValue("log_id"))
-	if logID == "" {
-		return "", errors.New("missing log_id")
-	}
-
-	decoded, err := url.PathUnescape(logID)
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-
-	return decoded, nil
+	return decodePathID("log_id", r.PathValue("log_id"))
 }
 
 func readTaskChainID(r *http.Request) (string, error) {
-	taskChainID := strings.TrimSpace(r.PathValue("taskchain_id"))
-	if taskChainID == "" {
-		return "", errors.New("missing taskchain_id")
+	return decodePathID("taskchain_id", r.PathValue("taskchain_id"))
+}
+
+func decodePathID(name, raw string) (string, error) {
+	id := strings.TrimSpace(raw)
+	if id == "" {
+		return "", errors.New("missing " + name)
 	}
 
-	decoded, err := url.PathUnescape(taskChainID)
+	decoded, err := url.PathUnescape(id)
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}

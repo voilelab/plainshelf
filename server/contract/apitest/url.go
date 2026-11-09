@@ -55,6 +55,14 @@ func SimilarURL() string {
 	return ShelfURL("books", "similar")
 }
 
+func ComicPageHashesURL() string {
+	return ShelfURL("comic-page-hashes")
+}
+
+func ComicOverlapsURL() string {
+	return ShelfURL("books", "comic-overlaps")
+}
+
 func BookCopiesURL(bookID string) string {
 	return BookURL(bookID, "copies")
 }

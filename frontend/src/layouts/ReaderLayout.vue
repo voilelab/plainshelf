@@ -1,5 +1,5 @@
 <template>
-  <div class="reader-layout">
+  <div class="reader-layout reading-surface">
     <RouterView v-if="hasActiveShelf" />
     <section v-else class="reader-no-shelf" role="status">
       <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
@@ -49,13 +49,11 @@ onMounted(async () => {
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
-  background:
-    radial-gradient(circle at top, rgba(255, 250, 240, 0.92), rgba(245, 241, 232, 0.96) 42%),
-    linear-gradient(180deg, #f7f2e7 0%, #efe7d7 100%);
+  background: var(--reader-backdrop);
 }
 
 .reader-no-shelf {
-  background: rgba(255, 255, 255, 0.86);
+  background: rgb(var(--surface-rgb) / 0.86);
   border: 1px solid var(--border);
   border-radius: 12px;
   display: grid;

@@ -31,6 +31,8 @@ import {
   mockListTrashedBooks,
   mockRefreshContentStats,
   mockStartFingerprintSources,
+  mockStartHashComicPages,
+  mockComicOverlaps,
   mockRestoreTrashedBook,
   mockTransferBook,
   mockUpdateBook,
@@ -184,6 +186,29 @@ export async function getDuplicateBookGroups(): Promise<string[][]> {
   }
 
   return await fetchJson<string[][]>(buildShelfApiPath('/books/duplicate'));
+}
+
+interface ComicOverlap {
+  a: string;
+  b: string;
+  pages_a: number;
+  pages_b: number;
+  shared: number;
+}
+
+export interface ComicOverlapReport {
+  total: number;
+  hashed: number;
+  missing: number;
+  overlaps: ComicOverlap[];
+}
+
+export async function getComicOverlaps(): Promise<ComicOverlapReport> {
+  if (isMockApiMode()) {
+    return delay(mockComicOverlaps());
+  }
+
+  return await fetchJson<ComicOverlapReport>(buildShelfApiPath('/books/comic-overlaps'));
 }
 
 export type SimilarRelation =
@@ -593,6 +618,19 @@ export async function startFingerprintSources(force = false): Promise<string> {
     }
     throw err;
   }
+}
+
+export async function startHashComicPages(): Promise<string> {
+  if (isMockApiMode()) {
+    return mockStartHashComicPages();
+  }
+
+  const res = await fetchJson<BackendTaskChainSubmitResponse>(
+    buildShelfApiPath('/comic-page-hashes'),
+    { method: 'POST' },
+    { acceptStatuses: [409] }
+  );
+  return res.taskchain_id;
 }
 
 export function getBookCoverUrl(id: string, cacheKey?: number): string {

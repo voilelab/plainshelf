@@ -4,7 +4,6 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -166,9 +165,5 @@ func (s *Store) Set(key, value string) error {
 }
 
 func DefaultPath() (string, error) {
-	dir, err := readingprogress.SharedDataDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "preferences.json"), nil
+	return readingprogress.SharedDataPath("preferences.json")
 }

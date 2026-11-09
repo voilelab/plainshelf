@@ -682,7 +682,7 @@ async function onSave(): Promise<void> {
 
 .mobile-shelf-form-hint {
   font-size: 0.8rem;
-  color: var(--text-muted, #666);
+  color: var(--muted);
 }
 
 .mobile-shelf-form-shelf-select {
@@ -692,7 +692,7 @@ async function onSave(): Promise<void> {
 
 .mobile-shelf-form-error {
   margin: 0;
-  color: var(--danger, #b3261e);
+  color: var(--danger);
   font-size: 0.9rem;
 }
 </style>

@@ -80,8 +80,8 @@ with little or no filesystem I/O. That includes the character counts the home
 page shows: they are cached beside each book, so asking for them adds no disk
 operation to a listing.
 
-![Flowchart of a book or folder listing: a book listing issued while the shelf
-is still building its first cache is refused with 503 and Retry-After 3; a dirty
+![Flowchart of a book or folder listing: a listing issued while the shelf is
+still building its first cache is refused with 503 and Retry-After 3; a dirty
 tree or an elapsed scan interval triggers a full synchronous walk that blocks
 the caller; otherwise an elapsed book-check interval spawns a background
 per-book stat that does not block. Every surviving path is answered from the
@@ -93,12 +93,11 @@ that caller wait. The per-book check runs in a **background goroutine** under
 the same shared lock every read takes, so it never blocks the listing that
 scheduled it.
 
-!!! note "The first gate is a book-listing gate"
-    Only book listings are refused while the initial cache is still being built.
-    A folder listing takes the shared lock without that check, so a request that
-    arrives during initial construction performs its own full scan and answers
-    `200`, slowly, rather than `503`. Everything after that first gate is
-    identical for both.
+!!! note "The first gate covers both listings"
+    Book and folder listings both check readiness before taking the shared
+    lock. While the initial cache is still being built, either one is answered
+    `503` with `SHELF_INITIALIZING` and `Retry-After: 3` rather than starting a
+    scan of its own.
 
 ### Metadata changes with unchanged timestamps
 
@@ -596,6 +595,7 @@ What changes:
 | `app/scan-cache.json` | Written at startup and shutdown | Never written; an existing one is still read |
 | `app/book-cache-*.json` | Written when `book_cache_writer_id` is set | Never written; the ID is ignored |
 | `app/fingerprint-cache.json` | Written by the source fingerprint task | Never written; the task is refused with 409, an existing one is still read |
+| `app/page-hash-cache.json` | Written by the comic page hash task | Never written; the task is refused with 409, an existing one is still read |
 | Creating, editing, moving, deleting | Allowed | Refused with HTTP 409 before anything is touched |
 
 What that costs:

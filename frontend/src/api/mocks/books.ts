@@ -7,6 +7,7 @@ import type {
   TrashedBook
 } from '@/types/book';
 import { registerMockTaskChain } from './taskchains';
+import type { ComicOverlapReport } from '@/api/books';
 import type { BookBatchRequest, BookBatchResult, RefreshContentStatsResult } from '@/types/task';
 import { normalizeFolderPath } from '@/utils/folders';
 
@@ -420,6 +421,18 @@ export function mockStartFingerprintSources(_force = false): string {
     title: 'Build fingerprints',
     total: mockBooks.length
   });
+}
+
+export function mockStartHashComicPages(): string {
+  return registerMockTaskChain({
+    name: 'hash_comic_pages',
+    title: 'Hash comic pages',
+    total: mockBooks.length
+  });
+}
+
+export function mockComicOverlaps(): ComicOverlapReport {
+  return { total: 0, hashed: 0, missing: 0, overlaps: [] };
 }
 
 export function mockTransferBook(

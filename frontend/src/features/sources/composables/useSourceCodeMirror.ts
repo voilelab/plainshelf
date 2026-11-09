@@ -210,15 +210,15 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.strong, fontWeight: '700' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: tags.quote, color: '#4b5c72', fontStyle: 'italic' },
-  { tag: [tags.link, tags.url], color: '#1f6feb' },
-  { tag: tags.monospace, color: '#9d174d' },
+  { tag: tags.quote, color: 'var(--syntax-quote)', fontStyle: 'italic' },
+  { tag: [tags.link, tags.url], color: 'var(--accent)' },
+  { tag: tags.monospace, color: 'var(--syntax-code)' },
   { tag: [tags.processingInstruction, tags.contentSeparator, tags.escape, tags.character],
-    color: '#94a3b8' },
-  { tag: [tags.tagName, tags.angleBracket], color: '#0f766e' },
-  { tag: tags.attributeName, color: '#a16207' },
-  { tag: tags.attributeValue, color: '#b45309' },
-  { tag: tags.comment, color: '#94a3b8', fontStyle: 'italic' }
+    color: 'var(--syntax-meta)' },
+  { tag: [tags.tagName, tags.angleBracket], color: 'var(--warning)' },
+  { tag: tags.attributeName, color: 'var(--syntax-attribute)' },
+  { tag: tags.attributeValue, color: 'var(--syntax-value)' },
+  { tag: tags.comment, color: 'var(--syntax-meta)', fontStyle: 'italic' }
 ]);
 
 const markdownExtension: Extension = [
@@ -229,7 +229,7 @@ const markdownExtension: Extension = [
 const editorTheme = EditorView.theme({
   '&': {
     height: '100%',
-    backgroundColor: '#fff',
+    backgroundColor: 'var(--surface)',
     color: 'var(--text)',
     fontSize: '16px'
   },
@@ -250,10 +250,10 @@ const editorTheme = EditorView.theme({
     opacity: '0.38'
   },
   '.cm-searchMatch': {
-    backgroundColor: '#fde68a'
+    backgroundColor: 'var(--search-match)'
   },
   '.cm-searchMatch-selected': {
-    backgroundColor: '#fb923c'
+    backgroundColor: 'var(--search-match-current)'
   }
 });
 

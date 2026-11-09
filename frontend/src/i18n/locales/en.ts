@@ -373,6 +373,14 @@ const en = {
       description:
         'The language of the interface. This preference is stored only on this device.'
     },
+    theme: {
+      title: 'Appearance',
+      label: 'Theme',
+      description: 'Light or dark interface colors. System follows your device setting. Stored only on this device.',
+      system: 'System',
+      light: 'Light',
+      dark: 'Dark'
+    },
     tabs: {
       general: 'General',
       reading: 'Reading',
@@ -552,13 +560,23 @@ const en = {
   maintenance: {
     duplicateContent: 'Duplicate Content',
     duplicates: {
-      description: 'Maintenance view for books with identical content.',
+      description: 'Maintenance view for books with identical content, and comics that share almost every page.',
       scanning: 'Scanning duplicate content groups...',
       empty: 'No duplicate content found.',
       emptyHint: 'Your library looks clean.',
       loadFailed: 'Failed to load duplicate content',
       groupTitle: 'Duplicate Group #{index}',
       groupSummary: '{count} books share identical content',
+      overlapTitle: 'Possible Duplicate #{index}',
+      overlapSummary: '{shared} pages in common; {a} has {extraA} more, {b} has {extraB} more',
+      comicHash: {
+        missingNote: '{missing} of {total} comics have no page hashes yet and are left out',
+        allHashed: 'All {total} comics have page hashes',
+        build: 'Hash comic pages',
+        building: 'Hashing… {percent}%',
+        failed: 'Could not hash comic pages.',
+        readOnly: 'A read-only shelf cannot hash comic pages.'
+      },
       open: 'Open',
       delete: 'Delete',
       deleting: 'Deleting...',
@@ -666,6 +684,30 @@ const en = {
     import: 'Import ▾',
     importFromFiles: 'Import from files',
     newEmptyBook: 'New empty book',
+    backdrop: {
+      button: 'Background',
+      title: 'Shelf background',
+      hint: 'Shown behind the sidebar on this device only, so you can tell shelves apart at a glance. Nothing is written to the shelf.',
+      colors: 'Background colors',
+      swatch: {
+        sage: 'Sage',
+        sky: 'Sky',
+        lavender: 'Lavender',
+        rose: 'Rose',
+        sand: 'Sand',
+        slate: 'Slate'
+      },
+      chooseImage: 'Choose image…',
+      replaceImage: 'Replace image…',
+      reset: 'Reset to default',
+      limit: 'Images up to {max} MB.',
+      done: 'Done',
+      close: 'Close shelf background',
+      notImage: 'That file is not an image.',
+      tooLarge: 'The image is larger than {max} MB. Choose a smaller one.',
+      quotaExceeded: 'This device has no room left to store the image. Choose a smaller one or clear another shelf\'s background.',
+      saveFailed: 'Could not save the background on this device.'
+    },
     empty: {
       noBooksFound: 'No books found for "{query}"{folderSuffix}.',
       noBooksInFolder: 'No books in {folder}.',
@@ -1108,14 +1150,21 @@ const en = {
     actionsLabel: 'Reader actions',
     decreaseFontSize: 'Decrease font size',
     increaseFontSize: 'Increase font size',
-    chooseFont: 'Choose reading font',
+    chooseFont: 'Choose reading font and theme',
     fontDialog: {
-      title: 'Reading font',
+      title: 'Reading font and theme',
       description: 'Changes apply immediately and are saved on this device.',
       optionsLabel: 'Available reading fonts',
       close: 'Close font selection',
       done: 'Done',
       sample: 'A quiet place to read, between mountains and sea.',
+      themeHeading: 'Reading theme',
+      themeOptionsLabel: 'Reading themes',
+      themes: {
+        light: 'Light',
+        sepia: 'Sepia',
+        dark: 'Dark'
+      },
       fonts: {
         system: {
           label: 'System serif',
@@ -1480,6 +1529,7 @@ const en = {
       direction: 'Reading direction',
       ltr: 'Left to right',
       rtl: 'Right to left',
+      ttb: 'Top to bottom (strip)',
       addAtEnd: 'Add pages at end',
       addAfter: 'Add pages after page {number}',
       count: '{count} pages',

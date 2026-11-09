@@ -360,6 +360,14 @@ const zhHant = {
       label: '介面語言',
       description: '介面顯示的語言。此偏好只保存在這台裝置。'
     },
+    theme: {
+      title: '外觀',
+      label: '主題',
+      description: '介面使用淺色或深色。「跟隨系統」會依裝置設定切換。此偏好只保存在這台裝置。',
+      system: '跟隨系統',
+      light: '淺色',
+      dark: '深色'
+    },
     tabs: {
       general: '一般',
       reading: '閱讀',
@@ -537,13 +545,23 @@ const zhHant = {
   maintenance: {
     duplicateContent: '重複內容',
     duplicates: {
-      description: '用來檢視內容完全相同的書籍。',
+      description: '用來檢視內容完全相同的書籍，以及幾乎每一頁都相同的漫畫。',
       scanning: '掃描重複內容群組中...',
       empty: '沒有發現重複內容。',
       emptyHint: '你的書庫很乾淨。',
       loadFailed: '載入重複內容失敗',
       groupTitle: '重複群組 #{index}',
       groupSummary: '{count} 本書的內容完全相同',
+      overlapTitle: '可能重複 #{index}',
+      overlapSummary: '有 {shared} 頁相同；「{a}」多 {extraA} 頁，「{b}」多 {extraB} 頁',
+      comicHash: {
+        missingNote: '{total} 本漫畫中有 {missing} 本還沒有頁面雜湊，暫不比對',
+        allHashed: '{total} 本漫畫都已有頁面雜湊',
+        build: '計算漫畫頁面雜湊',
+        building: '計算中… {percent}%',
+        failed: '無法計算漫畫頁面雜湊。',
+        readOnly: '唯讀書庫無法計算漫畫頁面雜湊。'
+      },
       open: '開啟',
       delete: '刪除',
       deleting: '刪除中...',
@@ -651,6 +669,30 @@ const zhHant = {
     import: '匯入 ▾',
     importFromFiles: '從檔案匯入',
     newEmptyBook: '建立空白書籍',
+    backdrop: {
+      button: '背景',
+      title: '書庫背景',
+      hint: '只在這台裝置的側欄後方顯示，切換書庫時一眼就能分辨。不會寫入書庫。',
+      colors: '背景顏色',
+      swatch: {
+        sage: '鼠尾草綠',
+        sky: '天空藍',
+        lavender: '薰衣草紫',
+        rose: '玫瑰粉',
+        sand: '沙色',
+        slate: '石板灰'
+      },
+      chooseImage: '選擇圖片…',
+      replaceImage: '更換圖片…',
+      reset: '恢復預設',
+      limit: '圖片上限 {max} MB。',
+      done: '完成',
+      close: '關閉書庫背景',
+      notImage: '這個檔案不是圖片。',
+      tooLarge: '圖片超過 {max} MB，請選擇較小的圖片。',
+      quotaExceeded: '這台裝置沒有空間儲存這張圖片。請選擇較小的圖片，或清除其他書庫的背景。',
+      saveFailed: '無法在這台裝置上儲存背景。'
+    },
     empty: {
       noBooksFound: '找不到「{query}」相關書籍{folderSuffix}。',
       noBooksInFolder: '{folder} 目前沒有書籍。',
@@ -1092,14 +1134,21 @@ const zhHant = {
     actionsLabel: '閱讀器操作',
     decreaseFontSize: '縮小字體',
     increaseFontSize: '放大字體',
-    chooseFont: '選擇閱讀字型',
+    chooseFont: '選擇閱讀字型與主題',
     fontDialog: {
-      title: '閱讀字型',
+      title: '閱讀字型與主題',
       description: '選擇後會立即套用，並保存在這台裝置上。',
       optionsLabel: '可用閱讀字型',
       close: '關閉字型選擇',
       done: '完成',
       sample: '山海之間，靜靜讀一本好書。',
+      themeHeading: '閱讀主題',
+      themeOptionsLabel: '閱讀主題',
+      themes: {
+        light: '淺色',
+        sepia: '米黃',
+        dark: '深色'
+      },
       fonts: {
         system: {
           label: '系統明體',
@@ -1463,6 +1512,7 @@ const zhHant = {
       direction: '翻頁方向',
       ltr: '由左到右',
       rtl: '由右到左',
+      ttb: '由上到下（條漫）',
       addAtEnd: '在最後加入頁面',
       addAfter: '在第 {number} 頁之後加入頁面',
       count: '共 {count} 頁',

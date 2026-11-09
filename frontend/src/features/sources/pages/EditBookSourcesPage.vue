@@ -139,7 +139,7 @@
           v-else-if="isImagesSource && activeSourceId"
           :book-id="bookId"
           :source-id="activeSourceId"
-          :initial-direction="activeSourceMeta?.page_direction === 'rtl' ? 'rtl' : 'ltr'"
+          :initial-direction="activeSourceMeta?.page_direction ?? 'ltr'"
           :writes-enabled="writesEnabled"
           :is-current="activeSourceId === book?.current_source"
           :setting-current="settingCurrent"
@@ -545,7 +545,7 @@ watch(
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
 }
 
 .source-editor-topbar {
@@ -555,7 +555,7 @@ watch(
   box-sizing: border-box;
   padding: 0 16px;
   border-bottom: 1px solid var(--border);
-  background: #f9fbfd;
+  background: var(--surface-subtle);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -593,11 +593,11 @@ watch(
 }
 
 .topbar-message.dirty {
-  color: #9a3412;
+  color: var(--warning-text);
 }
 
 .topbar-message.success {
-  color: #166534;
+  color: var(--success-text);
 }
 
 .mobile-pane-tabs {
@@ -654,12 +654,12 @@ watch(
 }
 
 .delete-error {
-  color: #b91c1c;
+  color: var(--danger-text);
   margin-top: 8px;
 }
 
 .delete-warning {
-  color: #92400e;
+  color: var(--warning-text);
   margin-top: 8px;
 }
 
@@ -689,7 +689,7 @@ watch(
   .mobile-pane-tabs {
     display: flex;
     border-bottom: 1px solid var(--border);
-    background: #f8fafc;
+    background: var(--surface-subtle);
   }
 
   .mobile-pane-tabs button {

@@ -1,4 +1,4 @@
-import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
+import type { BookTransferMode, ComicOverlapReport, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type { FolderChangeOptions, FolderMetaListing } from '@/api/folders';
 import type {
   BookmarkPayload,
@@ -52,6 +52,7 @@ export interface BookshelfReader {
   getDuplicateBookGroups(): Promise<string[][]>;
   getSimilarBookPairs(floor?: number, confirm?: boolean): Promise<SimilarBookPair[]>;
   getFingerprintStatus(): Promise<FingerprintStatus>;
+  getComicOverlaps(): Promise<ComicOverlapReport>;
   listTrashedBooks(): Promise<TrashedBookListing>;
 
   listFolders(): Promise<string[]>;
@@ -111,6 +112,7 @@ export interface BookshelfWriter {
   startBookBatch(request: BookBatchRequest): Promise<string>;
   refreshContentStats(): Promise<string>;
   startFingerprintSources(force?: boolean): Promise<string>;
+  startHashComicPages(): Promise<string>;
   getTaskChain(taskChainId: string): Promise<TaskChain>;
 
   createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta>;

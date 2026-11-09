@@ -57,6 +57,7 @@ export default defineConfig({
     // Unmounts whatever testing/mount.ts mounted, so no test file owns its own
     // teardown any more.
     setupFiles: ['./testing/setup.ts'],
+    css: { include: [/\/src\/styles\.css$/] },
     reporters: ['default', './scripts/slowest-tests-reporter.mjs']
   },
   server: {

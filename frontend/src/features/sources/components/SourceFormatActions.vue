@@ -38,7 +38,7 @@ const emit = defineEmits<{
   gap: 8px;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
-  background: #fffdf7;
+  background: var(--paper);
 }
 
 .format-badge {
@@ -46,8 +46,8 @@ const emit = defineEmits<{
   font-weight: 700;
   border-radius: 999px;
   padding: 3px 8px;
-  background: #e0f2fe;
-  color: #075985;
+  background: var(--info-soft);
+  color: var(--info-text);
 }
 
 </style>

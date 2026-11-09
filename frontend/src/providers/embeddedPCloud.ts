@@ -134,6 +134,7 @@ export class EmbeddedPCloudReader implements BookshelfReader {
   getDuplicateBookGroups = this.reader.getDuplicateBookGroups.bind(this.reader);
   getSimilarBookPairs = this.reader.getSimilarBookPairs.bind(this.reader);
   getFingerprintStatus = this.reader.getFingerprintStatus.bind(this.reader);
+  getComicOverlaps = this.reader.getComicOverlaps.bind(this.reader);
   listTrashedBooks = this.reader.listTrashedBooks.bind(this.reader);
   listFolders = this.reader.listFolders.bind(this.reader);
   listFolderMeta = this.reader.listFolderMeta.bind(this.reader);

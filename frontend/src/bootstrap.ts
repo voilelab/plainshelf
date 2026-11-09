@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
+import { initAppTheme } from '@/composables/useAppTheme';
 import { initAppZoom } from '@/composables/useAppZoom';
 import { reportUnhandledError } from '@/composables/useErrorIncident';
 import {
@@ -29,6 +30,7 @@ declare global {
 }
 
 export async function bootstrap(): Promise<void> {
+  initAppTheme();
   initAppZoom();
 
   if (isReaderRuntime()) {

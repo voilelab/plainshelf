@@ -79,6 +79,21 @@ func Mutate[T any](f *File, parse func(string) T, serialize func(T) (string, err
 	return next, nil
 }
 
+func MutateIf[T any](f *File, parse func(string) T, serialize func(T) (string, error), needed func(T) bool, fn func(T) T) (string, error) {
+	raw, err := f.Read()
+	if err != nil {
+		return "", err
+	}
+	if !needed(parse(raw)) {
+		return raw, nil
+	}
+	doc, err := Mutate(f, parse, serialize, fn)
+	if err != nil {
+		return "", err
+	}
+	return serialize(doc)
+}
+
 func (f *File) notReady() error {
 	return util.Errorf("%s storage is not ready", f.label)
 }

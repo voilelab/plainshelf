@@ -112,29 +112,14 @@ func (h *trashHandlers) lookupTrashedBook(w http.ResponseWriter, r *http.Request
 }
 
 func (h *trashHandlers) restoreTrashedBook(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := h.resolveShelf(w, r)
-	if !ok {
-		return
-	}
-
-	bookID, ok := resolveBookID(w, r)
-	if !ok {
-		return
-	}
-
-	if !h.lookupTrashedBook(w, r, shelfData, bookID) {
-		return
-	}
-
-	if err := shelfData.RestoreTrashedBook(bookID); err != nil {
-		h.writeErr(w, r, err, "failed to restore trashed book")
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	h.actOnTrashedBook(w, r, (*shelf.ShelfData).RestoreTrashedBook, "failed to restore trashed book")
 }
 
 func (h *trashHandlers) deleteTrashedBook(w http.ResponseWriter, r *http.Request) {
+	h.actOnTrashedBook(w, r, (*shelf.ShelfData).DeleteTrashedBook, "failed to permanently delete trashed book")
+}
+
+func (h *trashHandlers) actOnTrashedBook(w http.ResponseWriter, r *http.Request, act func(*shelf.ShelfData, string) error, failure string) {
 	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
@@ -149,8 +134,8 @@ func (h *trashHandlers) deleteTrashedBook(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := shelfData.DeleteTrashedBook(bookID); err != nil {
-		h.writeErr(w, r, err, "failed to permanently delete trashed book")
+	if err := act(shelfData, bookID); err != nil {
+		h.writeErr(w, r, err, failure)
 		return
 	}
 

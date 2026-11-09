@@ -355,6 +355,8 @@ func (h *bookHandlers) findDuplicateBooks(w http.ResponseWriter, r *http.Request
 			groups = append(groups, ids)
 		}
 	}
+	comics, _ := recordedComicPages(shelfData.OpenPageHashCache(), books)
+	groups = append(groups, exactComicGroups(comics)...)
 
 	h.writeJSON(w, http.StatusOK, groups)
 }

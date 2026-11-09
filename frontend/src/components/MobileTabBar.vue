@@ -56,7 +56,7 @@ function isActive(tab: MobileTab): boolean {
   bottom: 0;
   z-index: 30;
   display: flex;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgb(var(--surface-rgb) / 0.96);
   border-top: 1px solid var(--border);
   backdrop-filter: blur(8px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -64,7 +64,7 @@ function isActive(tab: MobileTab): boolean {
 
 .mobile-tab {
   align-items: center;
-  color: #64748b;
+  color: var(--muted);
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -76,7 +76,7 @@ function isActive(tab: MobileTab): boolean {
 }
 
 .mobile-tab.active {
-  color: #2563eb;
+  color: var(--accent);
 }
 
 .mobile-tab-icon {

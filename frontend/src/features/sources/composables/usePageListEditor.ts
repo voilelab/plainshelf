@@ -126,7 +126,7 @@ export function usePageListEditor(
     try {
       const meta = await bookshelfWriter().setSourcePageDirection(bookId(), sourceId(), next);
       if (request !== generation) return;
-      direction.value = meta.page_direction === 'rtl' ? 'rtl' : 'ltr';
+      direction.value = meta.page_direction ?? 'ltr';
       onChanged();
     } catch (cause) {
       if (request === generation) error.value = messageOf(cause, t('sources.pages.errors.direction'));

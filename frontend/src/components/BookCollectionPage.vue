@@ -293,7 +293,7 @@ onMounted(() => {
    viewport width as well used to hide it on tablets, leaving multi-select with
    no action to perform at all. Width now only tunes the layout. */
 .mobile-selection-actions {
-  background: color-mix(in srgb, #fff 94%, transparent);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
   border: 1px solid var(--border);
   border-radius: 14px;
   /* Sits above the mobile shell's bottom tab bar, which is fixed at the same
@@ -301,7 +301,7 @@ onMounted(() => {
      (the tab bar only exists on the mobile runtime, the same condition under
      which this bar renders). */
   bottom: calc(var(--mobile-tab-bar-height, 0px) + 12px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 10px 30px rgb(var(--shadow-rgb) / 0.18);
   display: flex;
   left: max(12px, env(safe-area-inset-left, 0px));
   margin-inline: auto;
@@ -334,7 +334,7 @@ onMounted(() => {
 
 .bookshelf-header {
   align-items: center;
-  border-bottom: 1px solid #e6ecf3;
+  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -445,7 +445,7 @@ onMounted(() => {
 }
 
 .view-mode-option[data-state="checked"] {
-  background: #f4f7fb;
+  background: var(--surface-subtle);
   color: color-mix(in srgb, var(--text) 88%, var(--accent));
 }
 </style>
