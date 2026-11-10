@@ -1,6 +1,6 @@
 cask "plainshelf" do
-  version "0.13.0"
-  sha256 "9d5bebf07d58b411f9fb81701fca809c382c805e8b0afda7ef0f1148f799b088"
+  version "0.14.0"
+  sha256 "9ea624d24b55d44b6712ccbc0c6ea876788c7cd764f45fe9f35fb68f6ecad984"
 
   url "https://github.com/voilelab/plainshelf/releases/download/v#{version}/plainshelf-desktop_v#{version}_darwin_arm64.zip"
   name "PlainShelf"
