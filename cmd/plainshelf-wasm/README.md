@@ -63,6 +63,7 @@ other takes over when it closes, a forwarding tab still shows covers, and
 nothing is lost across the handover or a reload. Then the forwarding tab
 exports through the Demo bar, adds a book, imports the export, and every tab
 reloads onto the exported shelf; a file that is not a shelf zip is refused.
+A CBZ then imports, and its temporary files never reach OPFS.
 Before that, the Demo bar offers to keep the storage and shows the browser's
 answer, and the **Browser storage** settings tab reports the same state.
 Last, a link straight to a route opens it.
@@ -72,7 +73,7 @@ Last, a link straight to a route opens it.
 | Piece | Role |
 |---|---|
 | `main.go` | Builds `server.App` (security `none`, lock mode `none`) and exposes `App.Handler()` as `plainshelfFetch(method, url, headers, body)` |
-| `web/memfs.js` | In-memory stand-in for the Node `fs` API that Go's `syscall/fs_js.go` calls |
+| `web/memfs.js` | In-memory stand-in for the Node `fs` API that Go's `syscall/fs_js.go` calls. It provides `/tmp` for `os.TempDir()`, which CBZ import unpacks into, and leaves it out of OPFS |
 | `web/opfs.js` | Restores the memfs tree from OPFS before Go starts, then writes changed paths back within 200 ms of a change, and tries once more on `pagehide` |
 | `web/opfs-writer.js` | Worker that writes each file with `createSyncAccessHandle`, which every engine with OPFS has; the main-thread `createWritable` only reached Safari in version 26 |
 | `web/sw.js` | Service worker, served as `plainshelf-sw.js` at the base. It relays `/api` requests that bypass `fetch` (`<img src>` covers, asset links) to the page's server over a `MessageChannel` |
@@ -134,6 +135,6 @@ Last, a link straight to a route opens it.
   reconciling the running server: the serving tab flushes to OPFS and announces
   it is going, and the others wait for that before reloading, or they would
   reload into the old server and see the shelf as it was before the import.
-- Only the shelf list, book creation, move, trash, zip export and import, and
-  the home page were exercised. EPUB import, the reader and the source editor
-  are untested here.
+- Only the shelf list, book creation, move, trash, zip export and import, CBZ
+  import, and the home page were exercised. EPUB import, the reader and the
+  source editor are untested here.

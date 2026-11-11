@@ -42,6 +42,9 @@
     return { type, mode, ino: nextIno++, data: new Uint8Array(0), size: 0, atimeMs: now, mtimeMs: now, ctimeMs: now };
   }
   nodes.set('/', newNode('dir', 0o755));
+  const TMP = '/tmp';
+  nodes.set(TMP, newNode('dir', 0o755));
+  const persisted = (p) => p !== TMP && !p.startsWith(TMP + '/');
 
   function lookup(p) {
     const n = nodes.get(norm(p));
@@ -259,7 +262,7 @@
     takeDirtyParentsFirst() {
       const out = [];
       for (const [path, n] of nodes) {
-        if (!dirty.has(n)) continue;
+        if (!dirty.has(n) || !persisted(path)) continue;
         out.push({ path, type: n.type, data: n.type === 'file' ? n.data.slice(0, n.size) : null });
       }
       dirty.clear();
