@@ -1,6 +1,6 @@
 import type { BookTransferMode } from './books';
 import { ApiError, buildShelfApiPath, fetchJson, isMockApiMode } from './client';
-import { FolderHttpError, FolderMetaConflictError } from './folderErrors';
+import { FolderHttpError, FolderMetaConflictError, FolderNotEmptyError } from './folderErrors';
 import { delay } from './mocks/latency';
 import {
   addMockFolder,
@@ -349,7 +349,7 @@ export async function moveFolder(
 export async function deleteFolder(folderPath: string): Promise<void> {
   const normalized = normalizeFolderPath(folderPath);
   if (!normalized || normalized === '/') {
-    throw new FolderHttpError('Cannot delete this folder because it is not empty.');
+    throw new FolderNotEmptyError([]);
   }
 
   const encodedPath = encodeFolderPath(normalized);
@@ -365,8 +365,8 @@ export async function deleteFolder(folderPath: string): Promise<void> {
       method: 'DELETE'
     });
   } catch (err) {
-    if (err instanceof ApiError && (err.status === 400 || err.status === 409)) {
-      throw new FolderHttpError('Cannot delete this folder because it is not empty.');
+    if (err instanceof ApiError && err.code === 'FOLDER_NOT_EMPTY') {
+      throw new FolderNotEmptyError(err.entries ?? []);
     }
 
     const message = err instanceof Error ? err.message : 'Failed to delete folder';

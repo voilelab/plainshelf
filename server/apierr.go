@@ -20,11 +20,15 @@ type apiError struct {
 	code string
 
 	retryAfter string
+
+	entries []string
 }
 
 const codeIgnoredFolderName = "IGNORED_FOLDER_NAME"
 
 const codeMalformedMetadata = "MALFORMED_METADATA"
+
+const codeFolderNotEmpty = "FOLDER_NOT_EMPTY"
 
 var apiErrorTable = []struct {
 	sentinel error
@@ -222,6 +226,8 @@ type apiErrorDetail struct {
 	Message string `json:"message"`
 
 	Incident string `json:"incident,omitempty"`
+
+	Entries []string `json:"entries,omitzero"`
 }
 
 func apiErrorFor(err error) (apiError, bool) {
@@ -239,6 +245,15 @@ func apiErrorFor(err error) (apiError, bool) {
 			code:    codeMalformedMetadata,
 			status:  http.StatusConflict,
 			message: malformedMetadataMessage(malformed),
+		}, true
+	}
+
+	if notEmpty, ok := errors.AsType[*shelf.FolderNotEmptyError](err); ok {
+		return apiError{
+			code:    codeFolderNotEmpty,
+			status:  http.StatusConflict,
+			message: "folder is not empty; remove what it still holds first",
+			entries: notEmpty.Entries,
 		}, true
 	}
 
@@ -274,7 +289,9 @@ func (c *apiCore) writeErrStatus(w http.ResponseWriter, r *http.Request, err err
 		if resp.retryAfter != "" {
 			w.Header().Set("Retry-After", resp.retryAfter)
 		}
-		c.writeErrBody(w, resp.status, resp.code, resp.message, incident)
+		c.writeJSON(w, resp.status, apiErrorBody{Error: apiErrorDetail{
+			Code: resp.code, Message: resp.message, Incident: incident, Entries: resp.entries,
+		}})
 		return
 	}
 

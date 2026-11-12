@@ -2,13 +2,28 @@ package shelf
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
+	"slices"
+	"strings"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
+
+var ErrFolderNotEmpty = util.NewError("folder is not empty")
+
+type FolderNotEmptyError struct {
+	Entries []string
+}
+
+func (e *FolderNotEmptyError) Error() string {
+	return fmt.Sprintf("%s: %s", ErrFolderNotEmpty, strings.Join(e.Entries, ", "))
+}
+
+func (e *FolderNotEmptyError) Unwrap() error { return ErrFolderNotEmpty }
 
 func (s *Shelf) GetAllFolders() ([]FolderPath, error) {
 	if !s.IsReady() {
@@ -87,8 +102,8 @@ func (s *Shelf) deleteFolder(folder FolderPath, dropMeta func([]byte) bool) erro
 		return util.Errorf("%w", err)
 	}
 
-	if !holdsOnlyFolderMeta(entries) {
-		return util.Errorf("cannot delete non-empty folder")
+	if blocking := folderContents(entries); len(blocking) > 0 {
+		return &FolderNotEmptyError{Entries: blocking}
 	}
 	if len(entries) > 0 && dropMeta != nil {
 		data, err := readFolderMetaFile(s.dbRoot, path.Join(folderPath, FolderMetaFile))
@@ -228,13 +243,18 @@ func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 	return nil
 }
 
-func holdsOnlyFolderMeta(entries []fs.DirEntry) bool {
+func folderContents(entries []fs.DirEntry) []string {
+	var names []string
 	for _, entry := range entries {
-		if entry.Name() != FolderMetaFile || entry.IsDir() {
-			return false
+		switch {
+		case entry.IsDir():
+			names = append(names, entry.Name()+"/")
+		case entry.Name() != FolderMetaFile:
+			names = append(names, entry.Name())
 		}
 	}
-	return true
+	slices.Sort(names)
+	return names
 }
 
 func removeFolderNonRecursively(root fsutil.FS, folderPath string, hasMeta bool) error {

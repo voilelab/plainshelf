@@ -9,6 +9,7 @@ export class ApiError extends Error {
   isTimeout: boolean;
   code?: string;
   incident?: string;
+  entries?: string[];
 
   constructor(
     message: string,
@@ -20,6 +21,7 @@ export class ApiError extends Error {
       isTimeout?: boolean;
       code?: string;
       incident?: string;
+      entries?: string[];
     }
   ) {
     super(message);
@@ -30,6 +32,7 @@ export class ApiError extends Error {
     this.isTimeout = options?.isTimeout ?? false;
     this.code = options?.code;
     this.incident = options?.incident;
+    this.entries = options?.entries;
 
     if (options?.cause !== undefined) {
       (this as Error & { cause?: unknown }).cause = options.cause;
@@ -199,13 +202,14 @@ const FETCH_TIMEOUT_MS = 30_000;
 const FETCH_STREAM_TIMEOUT_MS = 300_000;
 
 interface ApiErrorEnvelope {
-  error: { code?: unknown; message?: unknown; incident?: unknown };
+  error: { code?: unknown; message?: unknown; incident?: unknown; entries?: unknown };
 }
 
 function parseErrorEnvelope(raw: string): {
   code?: string;
   message?: string;
   incident?: string;
+  entries?: string[];
 } | null {
   if (!raw.startsWith('{')) return null;
 
@@ -225,7 +229,12 @@ function parseErrorEnvelope(raw: string): {
 
   const incident = typeof envelope.incident === 'string' ? envelope.incident : undefined;
 
-  return { code, message, incident };
+  const entries =
+    Array.isArray(envelope.entries) && envelope.entries.every((entry) => typeof entry === 'string')
+      ? (envelope.entries as string[])
+      : undefined;
+
+  return { code, message, incident, entries };
 }
 
 const REQUEST_ID_HEADER = 'X-Request-Id';
@@ -252,7 +261,8 @@ function apiErrorFrom(res: Response, raw: string): ApiError {
     statusText: res.statusText,
     url: res.url,
     code: envelope?.code,
-    incident
+    incident,
+    entries: envelope?.entries
   });
 }
 

@@ -197,6 +197,17 @@ describe('error responses', () => {
     expect(err.status).toBe(404);
   });
 
+  it('keeps the entries an envelope lists', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"FOLDER_NOT_EMPTY","message":"folder is not empty","entries":[".DS_Store","child/"]}}\n',
+        'application/json; charset=utf-8'
+      )
+    );
+
+    expect(err.entries).toEqual(['.DS_Store', 'child/']);
+  });
+
   it('falls back to the raw text for a plain-text refusal', async () => {
     const err = await failedRequest(errorResponse('shelf not found', 'text/plain; charset=utf-8'));
 
