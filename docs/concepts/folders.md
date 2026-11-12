@@ -34,8 +34,9 @@ appears after the next shelf scan. See
 
 ## Rules
 
-- A folder cannot be deleted while it still holds books. Move or delete the
-  books first. A folder holding nothing but its `folder.json` counts as empty,
+- A folder cannot be deleted while it still holds books or child folders.
+  Move or delete them first; the folder menu offers **Delete** only on a folder
+  that holds neither. A folder holding nothing but its `folder.json` counts as empty,
   and the file is deleted with it. Any other file counts, including ones
   PlainShelf never shows, such as `.DS_Store`, `Thumbs.db`, or a `.gitkeep`;
   the delete error lists what the folder still holds so you can remove it on
