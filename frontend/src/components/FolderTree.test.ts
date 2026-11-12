@@ -128,3 +128,21 @@ describe('FolderTree No folder row', () => {
     expect(labels(mount({ selected: '/' }).host)).toContain('No folder');
   });
 });
+
+describe('FolderTree Delete', () => {
+  const tree = [
+    { name: 'Parent', path: 'Parent', children: [{ name: 'Child', path: 'Parent/Child', children: [] }] },
+    { name: 'Occupied', path: 'Occupied', children: [] },
+    { name: 'Empty', path: 'Empty', children: [] }
+  ];
+
+  it.each([
+    ['Parent', false],
+    ['Occupied', false],
+    ['Empty', true]
+  ])('offers Delete on %s: %s', async (name, offered) => {
+    books.value = [inFolder('Occupied')];
+    const { host } = mount({ nodes: tree });
+    expect((await openMenu(row(host, name))).includes('Delete')).toBe(offered);
+  });
+});
