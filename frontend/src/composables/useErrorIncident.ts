@@ -16,9 +16,13 @@ export function reportUnhandledError(err: unknown, info: string): void {
   reportIncident(id);
 }
 
+export function isRefusalStatus(status: number | undefined): boolean {
+  return status !== undefined && status >= 400 && status < 500;
+}
+
 export function reportErrorIncident(err: unknown): void {
-  const incident = (err as { incident?: unknown } | null | undefined)?.incident;
-  if (typeof incident === 'string') {
+  const { incident, status } = (err ?? {}) as { incident?: unknown; status?: number };
+  if (typeof incident === 'string' && !isRefusalStatus(status)) {
     reportIncident(incident);
   }
 }

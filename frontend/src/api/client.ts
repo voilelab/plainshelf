@@ -1,4 +1,4 @@
-import { reportIncident } from '@/composables/useErrorIncident';
+import { isRefusalStatus, reportIncident } from '@/composables/useErrorIncident';
 import { isMobileRuntime } from '@/providers/runtime';
 import { getPreference, setPreference } from '@/storage/preferences';
 
@@ -244,7 +244,7 @@ function responseIncident(res: Response, fromEnvelope?: string): string | undefi
 }
 
 function reportResponseIncident(res: Response, incident?: string): void {
-  if (incident && !res.headers.has('Retry-After')) {
+  if (incident && !isRefusalStatus(res.status) && !res.headers.has('Retry-After')) {
     reportIncident(incident);
   }
 }
