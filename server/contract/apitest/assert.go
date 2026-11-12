@@ -127,9 +127,10 @@ func AssertMutationGated(t *testing.T, env *Env, method, url string, body []byte
 
 type ErrorEnvelope struct {
 	Error struct {
-		Code     string `json:"code"`
-		Message  string `json:"message"`
-		Incident string `json:"incident"`
+		Code     string   `json:"code"`
+		Message  string   `json:"message"`
+		Incident string   `json:"incident"`
+		Entries  []string `json:"entries"`
 	} `json:"error"`
 }
 

@@ -270,7 +270,7 @@ Two ways to live with that:
   PlainShelf's scanners look only at directories under `books/`, so such a file
   never shows up as a folder or a book — but it is still a file you did not put
   in your library, and while it is there PlainShelf refuses to delete that
-  folder, reporting `cannot delete non-empty folder`; remove the file first.
+  folder and names the file in the error; remove the file first.
   PlainShelf neither creates nor removes these files, and does not plan to:
   `books/` holds your files, not the app's.
 

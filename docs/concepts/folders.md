@@ -36,7 +36,10 @@ appears after the next shelf scan. See
 
 - A folder cannot be deleted while it still holds books. Move or delete the
   books first. A folder holding nothing but its `folder.json` counts as empty,
-  and the file is deleted with it.
+  and the file is deleted with it. Any other file counts, including ones
+  PlainShelf never shows, such as `.DS_Store`, `Thumbs.db`, or a `.gitkeep`;
+  the delete error lists what the folder still holds so you can remove it on
+  disk.
 - No folder may be named `folder.json`, in any letter case: that name belongs
   to the folder metadata file below.
 - A book belongs to exactly one folder, because it lives in exactly one

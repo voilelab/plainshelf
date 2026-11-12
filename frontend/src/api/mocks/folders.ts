@@ -1,4 +1,4 @@
-import { FolderHttpError, FolderMetaConflictError } from '../folderErrors';
+import { FolderHttpError, FolderMetaConflictError, FolderNotEmptyError } from '../folderErrors';
 import { mockBooks } from './books';
 import { normalizeFolderInput, normalizeFolderPath } from '@/utils/folders';
 
@@ -139,13 +139,15 @@ export function moveMockFolder(normalized: string, target: string, destination: 
 }
 
 export function deleteMockFolder(normalized: string): void {
-  const hasBooks = mockBooks.some((book) => pathFromFolders(book.folders) === normalized);
-  const hasChildren = getMockFolders().some(
-    (path) => path !== normalized && path.startsWith(`${normalized}/`)
-  );
+  const books = mockBooks
+    .filter((book) => pathFromFolders(book.folders) === normalized)
+    .map((book) => `${book.id}/`);
+  const children = getMockFolders()
+    .filter((path) => path.startsWith(`${normalized}/`) && !path.slice(normalized.length + 1).includes('/'))
+    .map((path) => `${path.slice(normalized.length + 1)}/`);
 
-  if (hasBooks || hasChildren) {
-    throw new FolderHttpError('Cannot delete this folder because it is not empty.');
+  if (books.length > 0 || children.length > 0) {
+    throw new FolderNotEmptyError([...books, ...children].sort());
   }
 
   mockFolders.delete(normalized);

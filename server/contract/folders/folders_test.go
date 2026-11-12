@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -35,6 +36,27 @@ func TestAPIFolderMoveAndRenameContract(t *testing.T) {
 
 	rec = env.Patch(apitest.ShelfURL("folders", "gamma", "renamed"), strings.NewReader(`{"name":"bad/name"}`))
 	apitest.AssertStatus(t, rec, http.StatusBadRequest)
+}
+
+func TestAPIDeleteFolderNotEmptyIs409(t *testing.T) {
+	env := apitest.New(t)
+
+	rec := env.Post(apitest.ShelfURL("folders", "stray"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
+	if err := os.WriteFile(filepath.Join(env.LibRoot, "books", "stray", ".DS_Store"), nil, 0o644); err != nil {
+		t.Fatalf("write .DS_Store: %v", err)
+	}
+	rec = env.Post(apitest.ShelfURL("folders", "stray", "child"), nil)
+	apitest.AssertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.Delete(apitest.ShelfURL("folders", "stray"))
+	apitest.AssertErrorEnvelope(t, rec, http.StatusConflict, "FOLDER_NOT_EMPTY",
+		"folder is not empty; remove what it still holds first")
+
+	got := apitest.DecodeJSON[apitest.ErrorEnvelope](t, rec)
+	if want := []string{".DS_Store", "child/"}; !slices.Equal(got.Error.Entries, want) {
+		t.Fatalf("entries = %q, want %q", got.Error.Entries, want)
+	}
 }
 
 func TestAPIInvalidFolderNameIs400(t *testing.T) {

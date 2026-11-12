@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { useServer } from './support/server';
 import { helloFixturePath, importBookAs } from './support/books';
 import {
@@ -110,7 +112,7 @@ test('renames a folder, keeping its icon and updating the tree and the active UR
 });
 
 test('only offers Delete for empty folders, and deleting removes it from the tree', async ({ page }) => {
-  const { baseUrl } = getServer();
+  const { baseUrl, shelfDir } = getServer();
 
   await page.goto(`${baseUrl}/books`);
 
@@ -124,11 +126,17 @@ test('only offers Delete for empty folders, and deleting removes it from the tre
   await page.keyboard.press('Escape');
 
   await addFolder(page, 'ftremovable');
+  const strayFile = path.join(shelfDir, 'books', 'ftremovable', '.DS_Store');
+  await fs.writeFile(strayFile, '');
   await openFolderContextMenu(page, 'ftremovable');
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
 
   const deleteDialog = page.getByRole('alertdialog', { name: 'Delete folder' });
   await expect(deleteDialog).toBeVisible();
+  await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(deleteDialog.getByRole('alert')).toContainText('• .DS_Store');
+
+  await fs.rm(strayFile);
   await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
 
   await expect(deleteDialog).not.toBeVisible();
