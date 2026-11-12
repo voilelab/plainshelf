@@ -41,7 +41,9 @@ whole operation.
 
 When a failure has a number, it is on screen: a small **Error reference**
 notice appears in the corner of the window with a **Copy** button, so a report
-can quote it without opening developer tools. A failure the interface raised on
+can quote it without opening developer tools. A refusal (an HTTP 4xx, such as
+deleting a folder that is not empty) raises no notice: the page already says
+what went wrong, and the number stays in the response for anyone who looks. A failure the interface raised on
 its own, such as a bug in a page or a pCloud shelf read, where there is no
 server to ask, is given a number of the same shape with a `c-` prefix. Nothing
 in a server log matches one of those, and the prefix is there to say so.
