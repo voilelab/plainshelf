@@ -64,7 +64,7 @@ schema v1, the first key in that file records the format version:
 | `language` | BCP-47 language tag |
 | `comments` | Free-form notes |
 | `star` | Rating, 0–5 |
-| `series` | The series this book belongs to, as `{"name": "Saga", "index": 2}`. Optional and omitted when the book is in no series. `name` must not be blank; `index` is the book's place in the series, a non-negative number that may be fractional, so `1.5` sorts a side story between volumes 1 and 2. A book belongs to at most one series. Set through the books API or by hand |
+| `series` | The series this book belongs to, as `{"name": "Saga", "index": 2}`. Optional and omitted when the book is in no series. `name` must not be blank; `index` is the book's place in the series, a non-negative number that may be fractional, so `1.5` sorts a side story between volumes 1 and 2. A book belongs to at most one series. Written by the metadata editor's **Series** fields, or by hand |
 | `nsfw` | Marks this one book as adult content. Optional and omitted when `false`, so most `book.json` files do not carry it. Written by the metadata editor's **Adult content** switch, or by hand. It can only add: a shelf may also mark a whole folder in [`shelf.json`](data-model.md#shelfjson), and `false` here does not take a book out of a marked folder. See [Marking a folder as adult content](folders.md#marking-a-folder-as-adult-content) |
 | `created_at` | Creation timestamp (RFC 3339) |
 | `updated_at` | Last modification timestamp (RFC 3339) |

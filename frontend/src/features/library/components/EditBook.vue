@@ -28,6 +28,35 @@
           <input v-model="publishedAtInput" class="input" type="date" />
         </label>
 
+        <fieldset class="field series-field">
+          <legend class="label">{{ t('libraryForms.editBook.series.label') }}</legend>
+          <div class="series-inputs">
+            <input
+              v-model="seriesName"
+              class="input series-name"
+              type="text"
+              :list="seriesListId"
+              :aria-label="t('libraryForms.editBook.series.nameLabel')"
+              :placeholder="t('libraryForms.editBook.series.namePlaceholder')"
+            />
+            <input
+              v-model="seriesIndexInput"
+              class="input series-index"
+              type="number"
+              min="0"
+              step="any"
+              inputmode="decimal"
+              :aria-label="t('libraryForms.editBook.series.indexLabel')"
+              :placeholder="t('libraryForms.editBook.series.indexPlaceholder')"
+            />
+          </div>
+          <datalist :id="seriesListId">
+            <option v-for="name in knownSeriesNames" :key="name" :value="name" />
+          </datalist>
+          <p class="field-help">{{ t('libraryForms.editBook.series.help') }}</p>
+          <p v-if="seriesError" class="error field-error">{{ seriesError }}</p>
+        </fieldset>
+
         <div class="field">
           <label class="nsfw-row" :for="nsfwSwitchId">
             <div>
@@ -163,7 +192,8 @@ import SafeHtml from '@/components/SafeHtml.vue';
 import IdentifierRows, { type IdentifierRow } from '@/features/library/components/IdentifierRows.vue';
 import StarRatingInput from '@/features/library/components/StarRatingInput.vue';
 import TagInput from '@/features/library/components/TagInput.vue';
-import type { Book, BookUpdateRequest } from '@/types/book';
+import { useBookStore } from '@/composables/useBookStore';
+import type { Book, BookSeries, BookUpdateRequest } from '@/types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
   LANGUAGE_VALUES,
@@ -236,6 +266,19 @@ const nsfwHelpText = computed(() => {
     : t('libraryForms.editBook.nsfw.fromFolder', { path: rule.path });
 });
 const identifierRows = ref<IdentifierRow[]>([]);
+const seriesName = ref('');
+const seriesIndexInput = ref('');
+const seriesListId = useId();
+const seriesProblem = ref<'' | 'nameRequired' | 'indexInvalid'>('');
+const seriesError = computed(() =>
+  seriesProblem.value ? t(`libraryForms.editBook.series.${seriesProblem.value}`) : ''
+);
+const { books: shelfBooks } = useBookStore();
+const knownSeriesNames = computed(() =>
+  [...new Set(shelfBooks.value.flatMap((book) => (book.series ? [book.series.name] : [])))].sort((a, b) =>
+    a.localeCompare(b, 'zh-Hant', { numeric: true })
+  )
+);
 const initialDraft = ref('');
 const languageSelectItems = computed(() =>
   languageSelectOptions().map((option) => ({
@@ -273,6 +316,9 @@ watch(
     star.value = normalizeStar(book.star);
     nsfw.value = book.nsfw === true;
     identifierRows.value = Object.entries(book.identifiers ?? {}).map(([key, value]) => ({ key, value }));
+    seriesName.value = book.series?.name ?? '';
+    seriesIndexInput.value = book.series ? String(book.series.index) : '';
+    seriesProblem.value = '';
     initialDraft.value = serializeDraft();
   },
   { immediate: true }
@@ -286,6 +332,10 @@ watch(languagePreset, (nextPreset) => {
   if (nextPreset !== CUSTOM_LANGUAGE_VALUE) {
     languageTagInvalid.value = false;
   }
+});
+
+watch([seriesName, seriesIndexInput], () => {
+  seriesProblem.value = '';
 });
 
 watch(customLanguage, () => {
@@ -318,14 +368,44 @@ function serializeDraft(): string {
     publishedAtInput: publishedAtInput.value,
     star: star.value,
     nsfw: nsfw.value,
-    identifierRows: identifierRows.value
+    identifierRows: identifierRows.value,
+    seriesName: seriesName.value,
+    seriesIndexInput: seriesIndexInput.value
   });
+}
+
+type SeriesDraft = { series: BookSeries | null } | { problem: 'nameRequired' | 'indexInvalid' };
+
+function readSeriesDraft(): SeriesDraft {
+  const name = seriesName.value.trim();
+  const rawIndex = String(seriesIndexInput.value).trim();
+  if (name === '') {
+    return rawIndex === '' ? { series: null } : { problem: 'nameRequired' };
+  }
+  const index = Number(rawIndex);
+  if (rawIndex === '' || !Number.isFinite(index) || index < 0) {
+    return { problem: 'indexInvalid' };
+  }
+  return { series: { name, index } };
+}
+
+function sameSeries(a: BookSeries | undefined, b: BookSeries | null): boolean {
+  if (!a || !b) {
+    return !a && !b;
+  }
+  return a.name === b.name && a.index === b.index;
 }
 
 function onSubmit(): void {
   const rawLanguage = languagePreset.value === CUSTOM_LANGUAGE_VALUE ? customLanguage.value : languagePreset.value;
   if (languagePreset.value === CUSTOM_LANGUAGE_VALUE && !isValidLanguageTag(rawLanguage)) {
     languageTagInvalid.value = true;
+    return;
+  }
+
+  const seriesDraft = readSeriesDraft();
+  if ('problem' in seriesDraft) {
+    seriesProblem.value = seriesDraft.problem;
     return;
   }
 
@@ -340,7 +420,8 @@ function onSubmit(): void {
     published_at: publishedAtInput.value || undefined,
     star: star.value,
     nsfw: nsfw.value,
-    identifiers: buildIdentifiersPayload()
+    identifiers: buildIdentifiersPayload(),
+    ...(sameSeries(props.book.series, seriesDraft.series) ? {} : { series: seriesDraft.series })
   });
 }
 
@@ -431,6 +512,18 @@ function toFormDateValue(rawValue?: string): string {
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+.series-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.series-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem;
+  gap: 8px;
 }
 
 .field-help {

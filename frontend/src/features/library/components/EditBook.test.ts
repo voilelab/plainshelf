@@ -9,6 +9,7 @@ vi.mock('./FolderBreadcrumb.vue', () => ({
 import BookDetail from './BookDetail.vue';
 import EditBook from './EditBook.vue';
 import { setLocale } from '@/i18n';
+import { useBookStore } from '@/composables/useBookStore';
 import type { Book, BookUpdateRequest } from '@/types/book';
 
 function book(comment: string, language?: string): Book {
@@ -353,5 +354,128 @@ describe('EditBook field widgets', () => {
     submit(host);
     await nextTick();
     expect(submitted[1]?.star).toBe(0);
+  });
+});
+
+describe('EditBook series', () => {
+  function mountBook(overrides: Partial<Book>): Mounted {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const submitted: BookUpdateRequest[] = [];
+    const dirtyChanges: boolean[] = [];
+
+    const app = createApp({
+      setup: () => () =>
+        h(EditBook, {
+          book: { id: 'book-1', title: '書名', authors: [], tags: [], folders: [], ...overrides },
+          saving: false,
+          onSubmit: (payload: BookUpdateRequest) => submitted.push(payload),
+          onDirtyChange: (dirty: boolean) => dirtyChanges.push(dirty)
+        })
+    });
+    app.mount(host);
+
+    const entry = { app, host, submitted, dirtyChanges };
+    mounted.push(entry);
+    return entry;
+  }
+
+  function input(host: HTMLElement, selector: string): HTMLInputElement {
+    const field = host.querySelector<HTMLInputElement>(selector);
+    if (!field) throw new Error(`Missing ${selector}`);
+    return field;
+  }
+
+  async function fill(host: HTMLElement, name: string, index: string): Promise<void> {
+    for (const [selector, value] of [['.series-name', name], ['.series-index', index]] as const) {
+      const field = input(host, selector);
+      field.value = value;
+      field.dispatchEvent(new Event('input'));
+    }
+    await nextTick();
+  }
+
+  async function submit(host: HTMLElement): Promise<void> {
+    host.querySelector<HTMLFormElement>('.edit-form')?.dispatchEvent(new Event('submit', { cancelable: true }));
+    await nextTick();
+  }
+
+  function seriesError(host: HTMLElement): string {
+    return host.querySelector('.series-field .field-error')?.textContent?.trim() ?? '';
+  }
+
+  it('fills the fields from the book and leaves series out when they are untouched', async () => {
+    setLocale('en');
+    const { host, submitted } = mountBook({ series: { name: 'Saga', index: 2 } });
+
+    expect(input(host, '.series-name').value).toBe('Saga');
+    expect(input(host, '.series-index').value).toBe('2');
+
+    await submit(host);
+
+    expect(submitted).toHaveLength(1);
+    expect('series' in submitted[0]).toBe(false);
+  });
+
+  it('submits a trimmed name and a fractional number', async () => {
+    setLocale('en');
+    const { host, submitted, dirtyChanges } = mountBook({});
+
+    await fill(host, '  Saga ', '1.5');
+    expect(dirtyChanges.at(-1)).toBe(true);
+    await submit(host);
+
+    expect(submitted[0].series).toEqual({ name: 'Saga', index: 1.5 });
+  });
+
+  it('submits null once the name and number are cleared', async () => {
+    setLocale('en');
+    const { host, submitted } = mountBook({ series: { name: 'Saga', index: 2 } });
+
+    await fill(host, '', '');
+    await submit(host);
+
+    expect(submitted[0].series).toBeNull();
+  });
+
+  it('suggests each series already on the shelf once', () => {
+    const { books } = useBookStore();
+    const shelfBook = (id: string, series?: Book['series']): Book =>
+      ({ id, title: id, authors: [], tags: [], folders: [], series });
+    books.value = [
+      shelfBook('a', { name: 'Saga', index: 2 }),
+      shelfBook('b'),
+      shelfBook('c', { name: 'Atlas', index: 1 }),
+      shelfBook('d', { name: 'Saga', index: 1 })
+    ];
+
+    try {
+      const { host } = mountBook({});
+      const listId = input(host, '.series-name').getAttribute('list');
+      const options = Array.from(host.querySelectorAll<HTMLOptionElement>(`datalist[id="${listId}"] option`));
+      expect(options.map((option) => option.value)).toEqual(['Atlas', 'Saga']);
+    } finally {
+      books.value = [];
+    }
+  });
+
+  it('refuses a number without a name, and a negative number', async () => {
+    setLocale('en');
+    const { host, submitted } = mountBook({});
+
+    await fill(host, '', '3');
+    await submit(host);
+    expect(submitted).toHaveLength(0);
+    expect(seriesError(host)).toBe('Enter a series name, or clear the number.');
+
+    await fill(host, 'Saga', '-1');
+    expect(seriesError(host)).toBe('');
+    await submit(host);
+    expect(submitted).toHaveLength(0);
+    expect(seriesError(host)).toBe("Enter a number of 0 or more for this book's place in the series.");
+
+    await fill(host, 'Saga', '');
+    await submit(host);
+    expect(submitted).toHaveLength(0);
   });
 });

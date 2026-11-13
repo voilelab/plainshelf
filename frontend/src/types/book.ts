@@ -25,6 +25,7 @@ export interface Book {
   star?: number;
   identifiers?: Record<string, string>;
   char_count?: number;
+  series?: BookSeries;
 
   nsfw?: boolean;
 
@@ -34,6 +35,11 @@ export interface Book {
   local_version?: string;
   remote_version?: string;
   downloaded_at?: BookTimestamp;
+}
+
+export interface BookSeries {
+  name: string;
+  index: number;
 }
 
 export interface NsfwFolderRule {
@@ -99,6 +105,7 @@ export interface BookUpdateRequest {
   identifiers?: Record<string, string>;
   format?: BookFormat;
   nsfw?: boolean;
+  series?: BookSeries | null;
 }
 
 export type EpubImportPreset = 'markdown' | 'plain';

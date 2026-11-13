@@ -3,6 +3,7 @@ import type {
   BookCreateRequest,
   BookContent,
   BookFormat,
+  BookSeries,
   BookUpdateRequest,
   NsfwFolderRule,
   PaginatedBooks,
@@ -56,6 +57,7 @@ interface BackendBookMeta {
   current_source?: string;
   star?: number;
   identifiers?: Record<string, string>;
+  series?: BookSeries;
   nsfw?: boolean;
 }
 
@@ -146,6 +148,7 @@ function transformBook(b: BackendBook): Book {
     star: b.meta.star ?? 0,
     identifiers: b.meta.identifiers,
     char_count: b.char_count,
+    series: b.meta.series,
     nsfw: b.meta.nsfw ?? false,
     download_state: b.download_state,
     downloaded_at: b.downloaded_at,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mockBooks, mockCopyBook, mockGetBook, mockGetBookContent } from './books';
+import { mockBooks, mockCopyBook, mockGetBook, mockGetBookContent, mockUpdateBook } from './books';
 
 describe('mock book listing shape', () => {
   it('carries a cover filename wherever it carries a cover_url', () => {
@@ -26,5 +26,13 @@ describe('mockCopyBook', () => {
     const copy = mockCopyBook('book-1', '');
 
     expect(mockGetBookContent(copy.id).content).toBe(original);
+  });
+});
+
+describe('mockUpdateBook series', () => {
+  it('sets a series, keeps it when the payload omits it, and clears it on null', () => {
+    expect(mockUpdateBook('book-2', { series: { name: 'Saga', index: 2 } }).series).toEqual({ name: 'Saga', index: 2 });
+    expect(mockUpdateBook('book-2', { title: 'Renamed' }).series).toEqual({ name: 'Saga', index: 2 });
+    expect(mockUpdateBook('book-2', { series: null }).series).toBeUndefined();
   });
 });

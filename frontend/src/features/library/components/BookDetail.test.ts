@@ -188,3 +188,23 @@ describe('BookDetail source facts', () => {
     expect(facts(host)).toEqual([['Size', '0 B']]);
   });
 });
+
+describe('BookDetail series', () => {
+  function quickFacts(host: HTMLElement): string[] {
+    return Array.from(host.querySelectorAll<HTMLElement>('.quick-fact')).map((fact) =>
+      `${fact.querySelector('dt')?.textContent?.trim()}: ${fact.querySelector('dd')?.textContent?.trim()}`
+    );
+  }
+
+  it('names the series and the book number among the quick facts', () => {
+    const host = mount({ book: { ...book(''), series: { name: 'Saga', index: 1.5 } } });
+
+    expect(quickFacts(host)).toContain('Series: Saga #1.5');
+  });
+
+  it('shows no series fact for a book outside any series', () => {
+    const host = mount({ book: book('') });
+
+    expect(quickFacts(host).some((fact) => fact.startsWith('Series'))).toBe(false);
+  });
+});
