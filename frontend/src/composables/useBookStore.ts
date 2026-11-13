@@ -6,6 +6,7 @@ import type { Book } from '@/types/book';
 import { t } from '@/i18n';
 
 const books = ref<Book[]>([]);
+const loaded = ref(false);
 const loading = ref(false);
 const error = ref('');
 const shelfInitializing = ref(false);
@@ -26,6 +27,7 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
   try {
     const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER);
     books.value = data.items;
+    loaded.value = true;
     initRetry.reset();
     shelfInitializing.value = false;
     shelfUnreachable.value = false;
@@ -53,6 +55,7 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
 export function useBookStore() {
   return {
     books,
+    loaded,
     loading,
     error,
     shelfInitializing,

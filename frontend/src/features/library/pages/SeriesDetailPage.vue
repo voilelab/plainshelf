@@ -19,7 +19,7 @@
     <BookCollectionPage
       :title="seriesName"
       :books="visibleBooks"
-      :loading="loading"
+      :loading="loading || (!loaded && !error && !shelfUnreachable)"
       :shelf-initializing="shelfInitializing"
       :shelf-unreachable="shelfUnreachable"
       :error="error"
@@ -68,7 +68,7 @@ const props = defineProps<{ name: string }>();
 
 const route = useRoute();
 const { t } = useI18n();
-const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
+const { books, loaded, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
 
 const seriesName = computed(() => props.name.trim());
 const seriesBooks = computed(() => booksInSeries(books.value, seriesName.value));
@@ -78,6 +78,7 @@ useDocumentTitle(() => [seriesName.value, t('series.title'), t('app.name')]);
 const { page, pageSize, visibleBooks, onPageChange, onPageSizeChange, PAGE_SIZE_OPTIONS } =
   useBookCollectionRoute({
     items: seriesBooks,
+    clampEnabled: loaded,
     buildQuery: (nextPage) => ({ ...route.query, page: String(nextPage) }) as Record<string, string>
   });
 

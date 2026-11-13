@@ -110,4 +110,16 @@ describe('useBookStore', () => {
     expect(listBooks).toHaveBeenCalledTimes(1);
     expect(shelfUnreachable.value).toBe(false);
   });
+
+  it('marks the books loaded only once a listing has arrived', async () => {
+    const { loaded, fetchBooks, initializing } = await freshStore();
+    listBooks.mockRejectedValueOnce(initializing()).mockResolvedValueOnce({ items: [] });
+
+    expect(loaded.value).toBe(false);
+    await fetchBooks();
+    expect(loaded.value).toBe(false);
+
+    await vi.runAllTimersAsync();
+    expect(loaded.value).toBe(true);
+  });
 });

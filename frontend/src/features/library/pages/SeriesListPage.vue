@@ -1,6 +1,6 @@
 <template>
   <div class="series-page">
-    <div v-if="loading" class="loading">
+    <div v-if="loading || (!loaded && !error && !shelfUnreachable)" class="loading">
       {{ shelfInitializing ? t('bookCollection.shelfInitializing') : t('bookCollection.loadingBooks') }}
     </div>
     <div v-else-if="shelfUnreachable || error" class="error" role="alert">
@@ -37,7 +37,7 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
-const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
+const { books, loaded, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
 
 const series = computed(() => summarizeSeries(books.value));
 

@@ -13,10 +13,12 @@ function book(title: string, series?: Book['series']): Book {
 }
 
 let mounted: { app: App; host: HTMLElement } | null = null;
+let activeRouter: ReturnType<typeof createRouter> | null = null;
 
-async function mountAt(path: string, books: Book[]): Promise<HTMLElement> {
+async function mountAt(path: string, books: Book[], loaded = true): Promise<HTMLElement> {
   setLocale('en');
   useBookStore().books.value = books;
+  useBookStore().loaded.value = loaded;
   const stub = defineComponent({ render: () => null });
   const router = createRouter({
     history: createMemoryHistory(),
@@ -28,6 +30,7 @@ async function mountAt(path: string, books: Book[]): Promise<HTMLElement> {
   });
   await router.push(path);
   await router.isReady();
+  activeRouter = router;
 
   const host = document.createElement('div');
   document.body.append(host);
@@ -44,6 +47,7 @@ afterEach(() => {
   mounted?.host.remove();
   mounted = null;
   useBookStore().books.value = [];
+  useBookStore().loaded.value = false;
 });
 
 const SHELF = [
@@ -90,5 +94,21 @@ describe('SeriesDetailPage', () => {
     const host = await mountAt('/series/Nothing', SHELF);
 
     expect(host.querySelector('.empty-state')?.textContent).toContain('No book on this shelf belongs to this series.');
+  });
+
+  it('keeps the page in the address and shows loading until the shelf has loaded', async () => {
+    const host = await mountAt('/series/Saga?page=3', [], false);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(activeRouter?.currentRoute.value.query.page).toBe('3');
+    expect(host.querySelector('.empty-state')).toBeNull();
+    expect(host.querySelector('.loading')).not.toBeNull();
+
+    useBookStore().books.value = Array.from({ length: 120 }, (_, i) => book(`Vol ${i}`, { name: 'Saga', index: i }));
+    useBookStore().loaded.value = true;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(activeRouter?.currentRoute.value.query.page).toBe('3');
+    expect(host.querySelector('.loading')).toBeNull();
   });
 });
