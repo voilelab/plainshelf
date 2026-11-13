@@ -360,6 +360,7 @@ export function useFolderManagement() {
       return;
     }
     folderOperationError.value = '';
+    const shelfID = getActiveShelfID();
 
     try {
       await moveFolder(payload.folderPath, payload.targetFolder, { confirm: confirmReveal });
@@ -370,7 +371,7 @@ export function useFolderManagement() {
         goToFolder(destination);
       }
       if (offerUndo) {
-        offerFolderMoveUndo(payload);
+        offerFolderMoveUndo(payload, shelfID);
       }
     } catch (err) {
       if (askToConfirmReveal(err, () => onMoveFolder(payload, true, offerUndo))) {
@@ -383,12 +384,11 @@ export function useFolderManagement() {
     }
   }
 
-  function offerFolderMoveUndo(payload: { folderPath: string; targetFolder: string }): void {
+  function offerFolderMoveUndo(payload: { folderPath: string; targetFolder: string }, shelfID: string): void {
     const reversal = folderMoveReversal(payload.folderPath, payload.targetFolder);
     if (!reversal) {
       return;
     }
-    const shelfID = getActiveShelfID();
     const message = reversal.targetName
       ? t('layout.moveFolder.moved', { name: reversal.name, target: reversal.targetName })
       : t('layout.moveFolder.movedToTop', { name: reversal.name });
