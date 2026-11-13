@@ -123,8 +123,61 @@ PLAINSHELF_VERSION_CODE=8001 \
 ./gradlew assembleDebug
 ```
 
-Without overrides, Gradle uses `0.0.0-dev` and version code `1`. Android
-release artifacts and signing are not part of the repository release workflow.
+Without overrides, Gradle uses `0.0.0-dev` and version code `1`.
+
+Every build packages only `arm64-v8a` native code (`abiFilters` in
+`app/build.gradle`), because the embedded server is bound for `android/arm64`
+alone. x86_64 emulators, most Chromebooks and 32-bit phones cannot install it.
+
+## Release builds
+
+The release workflow builds `assembleRelease` and attaches
+`plainshelf-android_<tag>_arm64.apk` to the GitHub Release
+([Releasing](releasing.md)). It differs from a local debug build in three ways.
+
+**Version code.** `scripts/resolve-version.sh android-code <tag>` derives it
+from the tag, so it rises with every release whichever branch the release is
+built on:
+
+```text
+MAJOR × 1,000,000 + MINOR × 10,000 + PATCH × 100 + slot
+```
+
+The slot is `99` for a stable tag and `N` for an `rcN` or `rc.N` prerelease
+(N from 1 to 98), so `v1.0.0-rc1` is `1000001` and `v1.0.0` is `1000099`.
+MINOR and PATCH must stay below 100. Any other prerelease, such as `beta.1`,
+has no code. Prepare release refuses such a tag, and a tag whose code is not
+above the latest release's (`v1.0.0-rc1` after `v1.0.0-rc.2`, or `rc2` after
+`rc10`, both newer by SemVer), instead of opening a release PR
+(`resolve-version.sh validate-next-android`).
+The commit count a local debug build uses is far below every release code, so
+a release always installs over one, once the signature matches.
+
+**Signing.** Android installs nothing unsigned and refuses an update signed by
+a different key. A debug build is signed with the build machine's own
+`~/.android/debug.keystore`, which differs from machine to machine and from
+one CI run to the next, so a debug APK cannot be upgraded to a release one: the
+user uninstalls first, which deletes local shelves unless the uninstall dialog
+keeps the app's data ([Uninstalling](#uninstalling)).
+
+A release APK is signed with one long-lived key. Gradle signs `release` builds
+when these variables are set, and leaves the APK unsigned otherwise:
+
+| Variable | Value |
+|---|---|
+| `PLAINSHELF_KEYSTORE_FILE` | path to the `.jks` keystore |
+| `PLAINSHELF_KEYSTORE_PASSWORD` | keystore password |
+| `PLAINSHELF_KEY_ALIAS` | key alias |
+| `PLAINSHELF_KEY_PASSWORD` | key password |
+
+The release workflow fills them from repository secrets; see
+[One-time setup](releasing.md#one-time-setup). The key cannot be replaced:
+losing it means no installed copy can ever be updated again, so keep the
+keystore and its passwords in at least two places outside the repository.
+`*.jks` and `*.keystore` are ignored under `frontend/android`.
+
+**Debuggable.** Debug builds are debuggable, which lets `adb shell run-as` read
+the app's private storage, local shelves included. Release builds are not.
 
 Open the project in Android Studio with:
 
