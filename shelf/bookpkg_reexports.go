@@ -5,6 +5,7 @@ import "github.com/voilelab/plainshelf/shelf/bookpkg"
 type (
 	Book             = bookpkg.Book
 	BookMeta         = bookpkg.BookMeta
+	BookSeries       = bookpkg.BookSeries
 	Source           = bookpkg.Source
 	SourceMeta       = bookpkg.SourceMeta
 	NewSourceOptions = bookpkg.NewSourceOptions
@@ -33,6 +34,7 @@ var (
 	ErrInvalidIdentifierKey           = bookpkg.ErrInvalidIdentifierKey
 	ErrInvalidStar                    = bookpkg.ErrInvalidStar
 	ErrInvalidLanguageTag             = bookpkg.ErrInvalidLanguageTag
+	ErrInvalidSeries                  = bookpkg.ErrInvalidSeries
 	ErrInvalidBookFormat              = bookpkg.ErrInvalidBookFormat
 	ErrUnsupportedBookSchemaVersion   = bookpkg.ErrUnsupportedBookSchemaVersion
 	ErrUnsupportedSourceSchemaVersion = bookpkg.ErrUnsupportedSourceSchemaVersion

@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -1640,5 +1642,100 @@ func TestSetMetaWritesHTMLCharactersLiterally(t *testing.T) {
 	}
 	if got := reopened.GetMeta().Title; got != title {
 		t.Errorf("Title did not round-trip: got %q, want %q", got, title)
+	}
+}
+
+func newSeriesTestBook(t *testing.T) (*Book, string) {
+	t.Helper()
+
+	tmpLib := t.TempDir()
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	t.Cleanup(func() { tmpRoot.Close() })
+
+	bookID := "test-book-series"
+	book, err := Create(fsutil.NewRootFS(tmpRoot), newLoggerForTest(), bookID, bookID, "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+	return book, filepath.Join(tmpLib, bookID, BookMetaFile)
+}
+
+func TestSetMetaRejectsInvalidSeries(t *testing.T) {
+	book, metaPath := newSeriesTestBook(t)
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read book.json: %v", err)
+	}
+
+	for _, series := range []BookSeries{
+		{Name: "", Index: 1},
+		{Name: " \t", Index: 1},
+		{Name: "Saga", Index: -1},
+		{Name: "Saga", Index: math.NaN()},
+		{Name: "Saga", Index: math.Inf(1)},
+	} {
+		meta := book.GetMeta()
+		meta.Series = &series
+		if err := book.SetMeta(meta); !errors.Is(err, ErrInvalidSeries) {
+			t.Errorf("series %+v: err = %v, want ErrInvalidSeries", series, err)
+		}
+	}
+
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("re-read book.json: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("rejected series writes changed book.json:\n%s", after)
+	}
+}
+
+func TestSetMetaSeriesRoundTrip(t *testing.T) {
+	book, metaPath := newSeriesTestBook(t)
+
+	for _, want := range []BookSeries{{Name: "Saga", Index: 0}, {Name: "Saga", Index: 1.5}} {
+		meta := book.GetMeta()
+		meta.Series = &want
+		if err := book.SetMeta(meta); err != nil {
+			t.Fatalf("series %+v: %v", want, err)
+		}
+
+		reread, err := readBookMeta(book.root, book.folderPath)
+		if err != nil {
+			t.Fatalf("readBookMeta: %v", err)
+		}
+		if reread.Series == nil || *reread.Series != want {
+			t.Fatalf("book.json series = %+v, want %+v", reread.Series, want)
+		}
+	}
+
+	meta := book.GetMeta()
+	meta.Series = nil
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("clear series: %v", err)
+	}
+	written, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read book.json: %v", err)
+	}
+	if bytes.Contains(written, []byte(`"series"`)) {
+		t.Errorf("cleared series still written:\n%s", written)
+	}
+}
+
+func TestGetMetaSeriesIsACopy(t *testing.T) {
+	book, _ := newSeriesTestBook(t)
+	meta := book.GetMeta()
+	meta.Series = &BookSeries{Name: "Saga", Index: 2}
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("SetMeta: %v", err)
+	}
+
+	book.GetMeta().Series.Index = 99
+	if got := book.GetMeta().Series.Index; got != 2 {
+		t.Errorf("series index = %v after mutating a returned copy, want 2", got)
 	}
 }

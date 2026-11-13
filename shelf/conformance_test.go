@@ -19,7 +19,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-const conformanceDatasetVersion = 6
+const conformanceDatasetVersion = 7
 
 const conformanceRoot = "testdata/conformance"
 
@@ -57,6 +57,7 @@ type conformanceBook struct {
 	Language            string              `json:"language"`
 	Comments            string              `json:"comments"`
 	Star                int                 `json:"star"`
+	Series              *BookSeries         `json:"series,omitzero"`
 	CreatedAt           string              `json:"created_at"`
 	UpdatedAt           string              `json:"updated_at"`
 	PublishedAt         string              `json:"published_at"`
@@ -365,6 +366,7 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 			Language:            meta.Language,
 			Comments:            meta.Comments,
 			Star:                meta.Star,
+			Series:              meta.Series,
 			CreatedAt:           formatConformanceTime(meta.CreatedAt),
 			UpdatedAt:           formatConformanceTime(meta.UpdatedAt),
 			PublishedAt:         formatConformanceDate(meta.PublishedAt),

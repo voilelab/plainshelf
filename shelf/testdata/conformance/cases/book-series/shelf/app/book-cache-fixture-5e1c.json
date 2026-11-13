@@ -1,0 +1,80 @@
+{
+  "schema_version": 2,
+  "writer_id": "fixture-5e1c",
+  "timestamp": 1772000000,
+  "generator": "plainshelf/0.0.0-fixture",
+  "folders": [
+    "/",
+    "Saga"
+  ],
+  "books": {
+    "p6v2mx9kq4zd8rnt": {
+      "path": "books/standalone.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "p6v2mx9kq4zd8rnt",
+        "title": "Standalone",
+        "cover": "",
+        "authors": [],
+        "language": "",
+        "comments": "",
+        "star": 0,
+        "current_source": ""
+      }
+    },
+    "s0d3kq8vm5xz7rnt": {
+      "path": "books/Saga/volume-0.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "s0d3kq8vm5xz7rnt",
+        "title": "Saga Prologue",
+        "cover": "",
+        "authors": [],
+        "language": "",
+        "comments": "",
+        "star": 0,
+        "series": {
+          "name": "Saga",
+          "index": 0
+        },
+        "current_source": ""
+      }
+    },
+    "s1k7qv3mz9xd2nrt": {
+      "path": "books/Saga/volume-1.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "s1k7qv3mz9xd2nrt",
+        "title": "Saga 1",
+        "cover": "",
+        "authors": [],
+        "language": "",
+        "comments": "",
+        "star": 0,
+        "series": {
+          "name": "Saga",
+          "index": 1
+        },
+        "current_source": ""
+      }
+    },
+    "s4m8xk2qv7zd9npt": {
+      "path": "books/Saga/side-story.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "s4m8xk2qv7zd9npt",
+        "title": "Saga Side Story",
+        "cover": "",
+        "authors": [],
+        "language": "",
+        "comments": "",
+        "star": 0,
+        "series": {
+          "name": "Saga",
+          "index": 1.5
+        },
+        "current_source": ""
+      }
+    }
+  }
+}

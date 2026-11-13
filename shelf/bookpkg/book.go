@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"math"
 	"path"
 	"slices"
 	"strings"
@@ -49,6 +50,8 @@ var ErrInvalidStar = util.NewError("star must be between 0 and 5")
 
 var ErrInvalidLanguageTag = util.NewError("language must be a BCP 47 tag")
 
+var ErrInvalidSeries = util.NewError("series needs a non-blank name and a finite, non-negative index")
+
 const (
 	BookFormatText     = shelfutil.BookFormatText
 	BookFormatMarkdown = shelfutil.BookFormatMarkdown
@@ -86,6 +89,9 @@ type BookMeta struct {
 	Comments    string            `json:"comments"`
 	Star        int               `json:"star"`
 
+	// Index may be fractional, so a side story can sit between two volumes.
+	Series *BookSeries `json:"series,omitzero"`
+
 	// NSFW is omitted when false, so a shelf that marks nothing writes exactly
 	// the book.json it wrote before.
 	//
@@ -100,6 +106,19 @@ type BookMeta struct {
 
 	// CurrentSource is managed by shelf; SetCurrentSource is the way in.
 	CurrentSource string `json:"current_source"`
+}
+
+type BookSeries struct {
+	Name  string  `json:"name"`
+	Index float64 `json:"index"`
+}
+
+func validSeries(series *BookSeries) bool {
+	if series == nil {
+		return true
+	}
+	return strings.TrimSpace(series.Name) != "" &&
+		!math.IsNaN(series.Index) && !math.IsInf(series.Index, 0) && series.Index >= 0
 }
 
 func (b *Book) IsStale() bool {
@@ -347,6 +366,10 @@ func cloneBookMeta(meta *BookMeta) *BookMeta {
 	metaCopy.Tags = slices.Clone(meta.Tags)
 	metaCopy.Authors = slices.Clone(meta.Authors)
 	metaCopy.Identifiers = maps.Clone(meta.Identifiers)
+	if meta.Series != nil {
+		series := *meta.Series
+		metaCopy.Series = &series
+	}
 	return &metaCopy
 }
 
@@ -377,6 +400,10 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	if meta.Star < MinStar || meta.Star > MaxStar {
 		return util.Errorf("%w: got %d", ErrInvalidStar, meta.Star)
+	}
+
+	if !validSeries(meta.Series) {
+		return util.Errorf("%w: got %+v", ErrInvalidSeries, *meta.Series)
 	}
 
 	if !shelfutil.ValidateBookFormat(meta.Format) {

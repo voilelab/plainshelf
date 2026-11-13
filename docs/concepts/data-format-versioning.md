@@ -64,6 +64,7 @@ schema v1, the first key in that file records the format version:
 | `language` | BCP-47 language tag |
 | `comments` | Free-form notes |
 | `star` | Rating, 0–5 |
+| `series` | The series this book belongs to, as `{"name": "Saga", "index": 2}`. Optional and omitted when the book is in no series. `name` must not be blank; `index` is the book's place in the series, a non-negative number that may be fractional, so `1.5` sorts a side story between volumes 1 and 2. A book belongs to at most one series. Set through the books API or by hand |
 | `nsfw` | Marks this one book as adult content. Optional and omitted when `false`, so most `book.json` files do not carry it. Written by the metadata editor's **Adult content** switch, or by hand. It can only add: a shelf may also mark a whole folder in [`shelf.json`](data-model.md#shelfjson), and `false` here does not take a book out of a marked folder. See [Marking a folder as adult content](folders.md#marking-a-folder-as-adult-content) |
 | `created_at` | Creation timestamp (RFC 3339) |
 | `updated_at` | Last modification timestamp (RFC 3339) |
@@ -402,7 +403,7 @@ alike. What counts as "next time" differs per file:
   marked. That is accepted rather than worked around, since the alternative
   would be passthrough, which none of these files does. It is one more reason to
   mark a whole folder in [`shelf.json`](data-model.md#shelfjson), which no build
-  rewrites at all.
+  rewrites at all. `series` is lost the same way, with no such fallback.
 - Source `meta.json` is rewritten by any change to that source: editing its
   comment, replacing its content, or a background hash repair.
   [`split_config`](#giving-a-legacy-source-chapters-again) is the worked
@@ -522,7 +523,7 @@ recomputed.
 #### What survives a write
 
 **Any top-level key outside the schema is gone after the next write to that
-book.** Add `"series": "The Tale of Genji"` or `"douban_id": "1770782"` next to
+book.** Add `"shelf_mark": "B-12"` or `"douban_id": "1770782"` next to
 `"title"` and it stays there — until something writes the file. Then the file is
 rebuilt from the known fields and your key is not one of them. There is no
 warning, no log line, and no copy of the previous file.
@@ -548,10 +549,11 @@ None of this is a reason to leave the file alone. These edits are safe:
 
 - **Changing the value of any field in the [schema table](#bookjson-schema-v1),
   within the type and range that table gives**: title, authors, tags,
-  identifiers, language, comments, star, published date. A value that fits is
+  identifiers, language, comments, star, series, published date. A value that fits is
   read back exactly as written. A value that does not is worse than a typo,
   because PlainShelf validates on write rather than on read: `"star": 6`, a
-  `language` that is not a BCP-47 tag, or a blank key in `identifiers` all load
+  `language` that is not a BCP-47 tag, a blank key in `identifiers`, or a
+  `series` with a blank name or a negative index all load
   fine, and then every later edit to that book is refused until you repair the
   file by hand. A `published_at` that is neither `YYYY-MM-DD` nor an RFC 3339
   timestamp is worse still: it fails at read time and makes the book unopenable,
@@ -569,8 +571,8 @@ somewhere PlainShelf never touches, not in an invented key:
 - **An external identifier belongs in `identifiers`.** Its keys are free-form,
   so `douban_id` goes there and survives every write. The book edit screen
   exposes it, so you do not have to hand-edit the file at all.
-- **A short note or a grouping belongs in `comments` or `tags`.** A series name
-  works as a tag today.
+- **A series belongs in `series`.** Any other short note or grouping belongs in
+  `comments` or `tags`.
 - **Anything larger belongs in a file of your own.** PlainShelf neither reads nor
   deletes files it does not know about, so a `notes.md` you drop in the
   `.bookpkg` directory itself travels with the book, including into `trash/`.

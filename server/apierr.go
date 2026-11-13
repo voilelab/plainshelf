@@ -49,6 +49,11 @@ var apiErrorTable = []struct {
 		status:  http.StatusBadRequest,
 		message: "language must be a BCP 47 tag",
 	}},
+	{shelf.ErrInvalidSeries, apiError{
+		code:    "INVALID_SERIES",
+		status:  http.StatusBadRequest,
+		message: "series needs a non-blank name and a finite, non-negative index",
+	}},
 	{shelf.ErrInvalidBookFormat, apiError{
 		code:    "INVALID_BOOK_FORMAT",
 		status:  http.StatusBadRequest,

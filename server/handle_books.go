@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"io"
 	"net/http"
@@ -68,6 +69,30 @@ type UpdateBookRequest struct {
 	Folder      *shelf.FolderPath  `json:"folder"`
 
 	NSFW *bool `json:"nsfw"`
+
+	Series jsontext.Value `json:"series"`
+}
+
+type seriesPatch struct {
+	set   bool
+	value *shelf.BookSeries
+}
+
+func decodeSeriesPatch(raw jsontext.Value) (seriesPatch, bool) {
+	if len(raw) == 0 {
+		return seriesPatch{}, true
+	}
+	if raw.Kind() == 'n' {
+		return seriesPatch{set: true}, true
+	}
+	var req struct {
+		Name  *string  `json:"name"`
+		Index *float64 `json:"index"`
+	}
+	if json.Unmarshal(raw, &req, json.RejectUnknownMembers(true)) != nil || req.Name == nil || req.Index == nil {
+		return seriesPatch{}, false
+	}
+	return seriesPatch{set: true, value: &shelf.BookSeries{Name: strings.TrimSpace(*req.Name), Index: *req.Index}}, true
 }
 
 func (h *bookHandlers) folderPath(shelfID, bookID string) (string, error) {
@@ -229,6 +254,11 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	if !decodeStrictJSON(w, r, &req) {
 		return
 	}
+	series, ok := decodeSeriesPatch(req.Series)
+	if !ok {
+		http.Error(w, "series must be null or an object with name and index", http.StatusBadRequest)
+		return
+	}
 
 	listing, ok := h.lookupVisibleBookListing(w, r, shelfData, bookID)
 	if !ok {
@@ -256,6 +286,9 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 
 	meta := *book.GetMeta()
 	applyBookPatch(&meta, &req)
+	if series.set {
+		meta.Series = series.value
+	}
 
 	if err := book.SetMeta(&meta); err != nil {
 		h.writeErr(w, r, err, "failed to update book metadata")
