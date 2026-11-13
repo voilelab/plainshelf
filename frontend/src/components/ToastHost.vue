@@ -9,6 +9,14 @@
       @update:open="onUpdateOpen(toast.id, $event)"
     >
       <ToastDescription class="reka-toast-message">{{ toast.message }}</ToastDescription>
+      <ToastAction
+        v-if="toast.action"
+        class="reka-toast-action"
+        :alt-text="toast.action.label"
+        @click="toast.action.run()"
+      >
+        {{ toast.action.label }}
+      </ToastAction>
       <ToastClose class="reka-toast-close" :aria-label="t('toast.dismiss')">✕</ToastClose>
     </ToastRoot>
     <ToastViewport class="reka-toast-viewport" />
@@ -16,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { ToastClose, ToastDescription, ToastProvider, ToastRoot, ToastViewport } from 'reka-ui';
+import { ToastAction, ToastClose, ToastDescription, ToastProvider, ToastRoot, ToastViewport } from 'reka-ui';
 import { useToasts } from '@/composables/useToasts';
 import { useI18n } from '@/i18n';
 

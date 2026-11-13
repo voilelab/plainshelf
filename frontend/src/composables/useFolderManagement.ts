@@ -13,6 +13,8 @@ import {
 import { FolderMetaConflictError, FolderNotEmptyError } from '@/api/folderErrors';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
+import { useToasts } from '@/composables/useToasts';
+import { getActiveShelfID } from '@/api/client';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { bookshelfWriter } from '@/providers';
@@ -62,6 +64,24 @@ export function movedFolderDestination(
   return current === folderPath ? movedPath : `${movedPath}${current.slice(folderPath.length)}`;
 }
 
+function folderMoveReversal(
+  folderPath: string,
+  targetFolder: string
+): { folderPath: string; targetFolder: string; name: string; targetName: string } | undefined {
+  const movedPath = movedFolderDestination(folderPath, folderPath, targetFolder);
+  if (movedPath === undefined) {
+    return undefined;
+  }
+  const segments = folderPath.split('/').filter(Boolean);
+  const parent = segments.slice(0, -1).join('/');
+  return {
+    folderPath: movedPath,
+    targetFolder: parent || '/',
+    name: segments[segments.length - 1] ?? '',
+    targetName: targetFolder.split('/').filter(Boolean).at(-1) ?? ''
+  };
+}
+
 export function createdFolderDestination(parentPath: string, name: string): string {
   return normalizeFolderPath(`${parentPath}/${name}`);
 }
@@ -75,6 +95,7 @@ export function useFolderManagement() {
   const { writesEnabled, writeDisabledMessageKey, outgoingCopyEnabled } = useWriteAccess();
   const readOnly = computed(() => !writesEnabled.value);
   const batchOperations = useBookBatchOperations();
+  const { showToast } = useToasts();
 
   const moveBookError = ref('');
   const showCreateFolderModal = ref(false);
@@ -331,7 +352,8 @@ export function useFolderManagement() {
 
   async function onMoveFolder(
     payload: { folderPath: string; targetFolder: string },
-    confirmReveal = false
+    confirmReveal = false,
+    offerUndo = true
   ): Promise<void> {
     if (readOnly.value) {
       folderOperationError.value = t(writeDisabledMessageKey.value);
@@ -347,14 +369,45 @@ export function useFolderManagement() {
       if (destination !== undefined) {
         goToFolder(destination);
       }
+      if (offerUndo) {
+        offerFolderMoveUndo(payload);
+      }
     } catch (err) {
-      if (askToConfirmReveal(err, () => onMoveFolder(payload, true))) {
+      if (askToConfirmReveal(err, () => onMoveFolder(payload, true, offerUndo))) {
         return;
       }
 
       const message = err instanceof Error ? err.message : '';
-      folderOperationError.value = message || t('layout.moveFolder.failed');
+      folderOperationError.value =
+        message || t(offerUndo ? 'layout.moveFolder.failed' : 'layout.moveFolder.undoFailed');
     }
+  }
+
+  function offerFolderMoveUndo(payload: { folderPath: string; targetFolder: string }): void {
+    const reversal = folderMoveReversal(payload.folderPath, payload.targetFolder);
+    if (!reversal) {
+      return;
+    }
+    const shelfID = getActiveShelfID();
+    const message = reversal.targetName
+      ? t('layout.moveFolder.moved', { name: reversal.name, target: reversal.targetName })
+      : t('layout.moveFolder.movedToTop', { name: reversal.name });
+    showToast(message, {
+      action: {
+        label: t('layout.moveFolder.undo'),
+        run: () => {
+          if (shelfID !== getActiveShelfID()) {
+            folderOperationError.value = t('layout.moveFolder.undoShelfChanged');
+            return;
+          }
+          void onMoveFolder(
+            { folderPath: reversal.folderPath, targetFolder: reversal.targetFolder },
+            false,
+            false
+          );
+        }
+      }
+    });
   }
 
   async function onOpenFolder(path: string): Promise<void> {

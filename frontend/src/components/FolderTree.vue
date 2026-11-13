@@ -1,18 +1,5 @@
 <template>
   <nav class="sidebar-nav-list" :aria-label="t('layout.foldersNavLabel')">
-    <button
-      v-if="!readOnly"
-      type="button"
-      class="folder-order-toggle"
-      :aria-pressed="sorting"
-      :disabled="savingOrder"
-      @click="sorting = !sorting"
-    >
-      {{
-        sorting ? t('layout.folderOrder.done') : t('layout.folderOrder.action')
-      }}
-    </button>
-    <p v-if="sorting" role="status">{{ t('layout.folderOrder.hint') }}</p>
     <p v-if="orderError" role="alert">{{ orderError }}</p>
     <ContextMenuRoot>
       <ContextMenuTrigger as-child :disabled="readOnly">
@@ -67,14 +54,17 @@
             v-bind="item.bind"
             as="div"
             class="sidebar-nav-item folder-node"
-            :class="{ active: isSelected(item.value), 'drop-target': dropTargetPath === item.value.path }"
-            :style="{ paddingLeft: `calc(8px + ${(item.level - 1) * 14}px)` }"
+            :class="[{ active: isSelected(item.value) }, dropClass(item.value)]"
+            :style="{
+              paddingLeft: `calc(8px + ${(item.level - 1) * 14}px)`,
+              '--drop-indent': `calc(32px + ${(item.level - 1) * 14}px)`
+            }"
             :draggable="canDragFolder()"
             @dragstart="(event: DragEvent) => onDragStart(event, item.value)"
             @drag="onDrag"
             @dragend="() => onDragEnd(item.value)"
-            @dragover.prevent="onDrag"
-            @dragenter.prevent="() => onDragEnter(item.value)"
+            @dragover.prevent="(event: DragEvent) => onDragOver(event, item.value)"
+            @dragenter.prevent="(event: DragEvent) => onDragOver(event, item.value)"
             @dragleave="(event: DragEvent) => onDragLeave(event, item.value)"
             @drop="(event: DragEvent) => onDrop(event, item.value)"
             @select="() => emit('select', item.value.path)"
@@ -99,30 +89,6 @@
               {{ item.value.name }}
             </button>
             <span class="sidebar-nav-count">{{ folderBookCount(item.value) }}</span>
-            <template v-if="sorting">
-              <button
-                type="button"
-                class="tree-toggle folder-order-step"
-                :aria-label="
-                  t('layout.folderOrder.up', { name: item.value.name })
-                "
-                :disabled="savingOrder || !orderNeighbor(item.value.path, -1)"
-                @click.stop="stepOrder(item.value.path, -1)"
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                class="tree-toggle folder-order-step"
-                :aria-label="
-                  t('layout.folderOrder.down', { name: item.value.name })
-                "
-                :disabled="savingOrder || !orderNeighbor(item.value.path, 1)"
-                @click.stop="stepOrder(item.value.path, 1)"
-              >
-                ↓
-              </button>
-            </template>
           </TreeItem>
         </ContextMenuTrigger>
         <ContextMenuPortal>
@@ -154,6 +120,19 @@
               class="reka-menu-item"
               @select="emit('change-icon', item.value.path)"
             >{{ t('layout.folderIcon.shortAction') }}</ContextMenuItem>
+            <template v-if="!readOnly && siblingsOf(item.value.path).length > 1">
+              <ContextMenuSeparator class="reka-menu-separator" />
+              <ContextMenuItem
+                class="reka-menu-item"
+                :disabled="savingOrder || !orderNeighbor(item.value.path, -1)"
+                @select="stepOrder(item.value.path, -1)"
+              >{{ t('layout.folderOrder.up') }}</ContextMenuItem>
+              <ContextMenuItem
+                class="reka-menu-item"
+                :disabled="savingOrder || !orderNeighbor(item.value.path, 1)"
+                @select="stepOrder(item.value.path, 1)"
+              >{{ t('layout.folderOrder.down') }}</ContextMenuItem>
+            </template>
             <ContextMenuItem
               v-if="showDeleteButton(item.value)"
               class="reka-menu-item danger"
@@ -183,6 +162,7 @@ import {
   ContextMenuItem,
   ContextMenuPortal,
   ContextMenuRoot,
+  ContextMenuSeparator,
   ContextMenuTrigger,
   TreeItem,
   TreeRoot
@@ -192,7 +172,7 @@ import type { FolderMeta } from '@/api/folders';
 import { useBookStore } from '@/composables/useBookStore';
 import { useI18n } from '@/i18n';
 import { getFolderPath, ROOT_FOLDER_FILTER } from '@/utils/folders';
-import { planFolderOrder } from '@/utils/folderOrder';
+import { planFolderOrder, type FolderOrderPlacement } from '@/utils/folderOrder';
 import { setFolderSortKey } from '@/api/folders';
 import { getActiveShelfID } from '@/api/client';
 import { useFolderStore } from '@/composables/useFolderStore';
@@ -227,12 +207,16 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const { folderMeta, folderMetaError, fetchFolders, error: folderLoadError } = useFolderStore();
-const sorting = ref(false);
 const savingOrder = ref(false);
 const orderError = ref('');
-const SORT_MIME = 'application/x-plainshelf-folder-sort';
+const FOLDER_MIME = 'application/x-plainshelf-folder-path';
+const REORDER_EDGE = 0.25;
+type FolderDropPlacement = FolderOrderPlacement | 'into';
+function parentOf(path: string): string {
+  return path.split('/').slice(0, -1).join('/');
+}
 function siblingsOf(path: string): string[] {
-  const parent = path.split('/').slice(0, -1).join('/');
+  const parent = parentOf(path);
   const nodes = parent
     ? (findNodeByPath(props.nodes, parent)?.children ?? [])
     : props.nodes;
@@ -245,19 +229,21 @@ function orderNeighbor(path: string, direction: number): string | undefined {
 function stepOrder(path: string, direction: number): void {
   const neighbor = orderNeighbor(path, direction);
   if (!neighbor) return;
-  void saveOrder(
-    direction < 0 ? path : neighbor,
-    direction < 0 ? neighbor : path
-  );
+  void saveOrder(path, neighbor, direction < 0 ? 'before' : 'after');
 }
-async function saveOrder(source: string, target: string): Promise<void> {
-  if (props.readOnly || savingOrder.value || !sorting.value) return;
+async function saveOrder(
+  source: string,
+  target: string,
+  placement: FolderOrderPlacement
+): Promise<void> {
+  if (props.readOnly || savingOrder.value) return;
   const shelfID = getActiveShelfID();
   const plan = planFolderOrder(
     siblingsOf(target),
     source,
     target,
-    folderMeta.value
+    folderMeta.value,
+    placement
   );
   if (!plan.length) return;
   savingOrder.value = true;
@@ -277,12 +263,6 @@ async function saveOrder(source: string, target: string): Promise<void> {
     savingOrder.value = false;
   }
 }
-watch(
-  () => props.readOnly,
-  (value) => {
-    if (value) sorting.value = false;
-  }
-);
 const { books } = useBookStore();
 
 const totalBookCount = computed(() => books.value.length);
@@ -361,7 +341,24 @@ function onDeleteFolder(node: FolderNode): void {
 
 const expanded = ref<string[]>([]);
 const isRootDropTarget = ref(false);
-const dropTargetPath = ref<string | null>(null);
+const dropIndicator = ref<{ path: string; placement: FolderDropPlacement } | null>(null);
+
+function dropClass(node: FolderNode): string | undefined {
+  if (dropIndicator.value?.path !== node.path) return undefined;
+  return dropIndicator.value.placement === 'into' ? 'drop-target' : `drop-${dropIndicator.value.placement}`;
+}
+
+function dropPlacement(event: DragEvent, node: FolderNode, source: string | undefined): FolderDropPlacement {
+  if (!source || source === node.path || parentOf(source) !== parentOf(node.path)) return 'into';
+  if (!(event.currentTarget instanceof Element)) return 'into';
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (rect.height <= 0) return 'into';
+  const offset = (event.clientY - rect.top) / rect.height;
+  if (offset < REORDER_EDGE) return 'before';
+  const showsChildren = hasChildren(node) && expanded.value.includes(node.path);
+  if (offset > 1 - REORDER_EDGE && !showsChildren) return 'after';
+  return 'into';
+}
 const dragFolder = ref<{ folderPath: string; folderName: string; x: number; y: number } | null>(null);
 
 function startDragFolder(payload: { folderPath: string; folderName: string; x: number; y: number }): void {
@@ -398,10 +395,7 @@ function onDragStart(event: DragEvent, node: FolderNode): void {
     return;
   }
 
-  event.dataTransfer?.setData(
-    sorting.value ? SORT_MIME : 'application/x-plainshelf-folder-path',
-    node.path
-  );
+  event.dataTransfer?.setData(FOLDER_MIME, node.path);
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
   }
@@ -414,14 +408,18 @@ function onDragStart(event: DragEvent, node: FolderNode): void {
 }
 
 function onDragEnd(node: FolderNode): void {
-  if (dropTargetPath.value === node.path) {
-    dropTargetPath.value = null;
+  if (dropIndicator.value?.path === node.path) {
+    dropIndicator.value = null;
   }
   endDragFolder();
 }
 
-function onDragEnter(node: FolderNode): void {
-  dropTargetPath.value = node.path;
+function onDragOver(event: DragEvent, node: FolderNode): void {
+  emitPointerPosition(event);
+  dropIndicator.value = {
+    path: node.path,
+    placement: dropPlacement(event, node, dragFolder.value?.folderPath)
+  };
 }
 
 function onDragLeave(event: DragEvent, node: FolderNode): void {
@@ -430,27 +428,25 @@ function onDragLeave(event: DragEvent, node: FolderNode): void {
   if (!(currentTarget instanceof Node) || (relatedTarget instanceof Node && currentTarget.contains(relatedTarget))) {
     return;
   }
-  if (dropTargetPath.value === node.path) {
-    dropTargetPath.value = null;
+  if (dropIndicator.value?.path === node.path) {
+    dropIndicator.value = null;
   }
 }
 
 function onDrop(event: DragEvent, node: FolderNode): void {
-  if (dropTargetPath.value === node.path) {
-    dropTargetPath.value = null;
-  }
+  dropIndicator.value = null;
   endDragFolder();
 
   if (props.readOnly) {
     return;
   }
 
-  const sortedPath = event.dataTransfer?.getData(SORT_MIME);
-  if (sortedPath) {
-    void saveOrder(sortedPath, node.path);
+  const folderPath = event.dataTransfer?.getData(FOLDER_MIME);
+  const placement = dropPlacement(event, node, folderPath);
+  if (folderPath && placement !== 'into') {
+    void saveOrder(folderPath, node.path, placement);
     return;
   }
-  if (sorting.value) return;
   const draggedBooks = readDraggedBookIDs(event.dataTransfer);
   if (draggedBooks.ids.length > 0) {
     emit('move-book', {
@@ -461,9 +457,6 @@ function onDrop(event: DragEvent, node: FolderNode): void {
     return;
   }
 
-  const folderPath = event.dataTransfer?.getData(
-    'application/x-plainshelf-folder-path'
-  );
   if (
     !folderPath ||
     folderPath === node.path ||
@@ -496,11 +489,7 @@ function onRootDragLeave(event: DragEvent): void {
 function onRootDrop(event: DragEvent): void {
   isRootDropTarget.value = false;
 
-  if (
-    props.readOnly ||
-    sorting.value ||
-    event.dataTransfer?.getData(SORT_MIME)
-  ) {
+  if (props.readOnly) {
     endDragFolder();
     return;
   }
@@ -515,9 +504,7 @@ function onRootDrop(event: DragEvent): void {
     return;
   }
 
-  const folderPath = event.dataTransfer?.getData(
-    'application/x-plainshelf-folder-path'
-  );
+  const folderPath = event.dataTransfer?.getData(FOLDER_MIME);
   if (folderPath) {
     emit('move-folder', { folderPath, targetFolder: '/' });
   }
@@ -574,19 +561,6 @@ watch(
 </script>
 
 <style scoped>
-.folder-order-toggle {
-  align-self: flex-start;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  padding: 4px 8px;
-}
-.folder-order-toggle[aria-pressed="true"] { background: var(--surface); }
-.folder-order-toggle:disabled,
-.folder-order-step:disabled { opacity: 0.5; cursor: default; }
 
 .folder-tree-root {
   display: flex;
@@ -610,6 +584,27 @@ watch(
 .folder-node {
   gap: 4px;
   padding-right: 4px;
+  position: relative;
+}
+
+.folder-node.drop-before::before,
+.folder-node.drop-after::after {
+  background: var(--accent);
+  border-radius: 2px;
+  content: '';
+  height: 2px;
+  left: var(--drop-indent);
+  pointer-events: none;
+  position: absolute;
+  right: 4px;
+}
+
+.folder-node.drop-before::before {
+  top: -2px;
+}
+
+.folder-node.drop-after::after {
+  bottom: -2px;
 }
 
 .folder-node :deep(.sidebar-nav-item-label) {

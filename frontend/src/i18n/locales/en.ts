@@ -91,11 +91,8 @@ const en = {
       admin: 'Toggle sidebar administration'
     },
     folderOrder: {
-      action: 'Reorder folders',
-      done: 'Finish reordering',
-      hint: 'Drag before a sibling, or use the up/down buttons. Folder locations stay the same.',
-      up: 'Move {name} up',
-      down: 'Move {name} down',
+      up: 'Move up',
+      down: 'Move down',
       failed:
         'Could not save the complete order. The saved order was reloaded; try the move again.',
       reloadFailed:
@@ -149,7 +146,12 @@ const en = {
       failed: 'Failed to rename folder'
     },
     moveFolder: {
-      failed: 'Failed to move folder. Drag a folder onto an existing target folder.'
+      failed: 'Failed to move folder. Drag a folder onto an existing target folder.',
+      moved: 'Moved “{name}” into “{target}”.',
+      movedToTop: 'Moved “{name}” to the top level.',
+      undo: 'Undo',
+      undoFailed: 'Could not move the folder back.',
+      undoShelfChanged: 'The folder was not moved back because another shelf is open now.'
     },
     folderReveal: {
       title: 'Make hidden content visible?',

@@ -607,6 +607,17 @@ a {
   background: var(--danger-soft);
 }
 
+.reka-menu-item[data-disabled] {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.reka-menu-separator {
+  background: var(--border);
+  height: 1px;
+  margin: 4px 6px;
+}
+
 .reka-tooltip {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -662,6 +673,23 @@ a {
   flex: 1;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.reka-toast-action {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.reka-toast-action:hover,
+.reka-toast-action:focus-visible {
+  background: var(--accent-tint);
 }
 
 .reka-toast-close {

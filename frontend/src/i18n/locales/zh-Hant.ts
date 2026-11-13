@@ -91,11 +91,8 @@ const zhHant = {
       admin: '切換側欄管理區塊'
     },
     folderOrder: {
-      action: '調整資料夾順序',
-      done: '完成排序',
-      hint: '拖曳到同層資料夾前方，或使用上下按鈕；資料夾位置不變。',
-      up: '將 {name} 往上排序',
-      down: '將 {name} 往下排序',
+      up: '上移',
+      down: '下移',
       failed: '未能儲存完整順序。已重新讀取儲存結果，請重試排序。',
       reloadFailed: '未能重新讀取儲存結果。請重新載入資料夾後再試。'
     },
@@ -146,7 +143,12 @@ const zhHant = {
       failed: '重新命名資料夾失敗'
     },
     moveFolder: {
-      failed: '移動資料夾失敗。請將資料夾拖曳到既有的目標資料夾上。'
+      failed: '移動資料夾失敗。請將資料夾拖曳到既有的目標資料夾上。',
+      moved: '已將「{name}」移入「{target}」。',
+      movedToTop: '已將「{name}」移到最上層。',
+      undo: '復原',
+      undoFailed: '無法把資料夾移回原處。',
+      undoShelfChanged: '目前開啟的是另一個書架，資料夾沒有移回原處。'
     },
     folderReveal: {
       title: '要讓隱藏的內容變成可見嗎？',
