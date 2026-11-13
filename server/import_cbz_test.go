@@ -113,7 +113,7 @@ func TestCBZFailuresLeaveNoBook(t *testing.T) {
 		{"backslash traversal", "path traversal", map[string][]byte{`a\..\bad.png`: png}},
 		{"zip bomb", "20 MiB", map[string][]byte{"bomb.png": make([]byte, (20<<20)+1)}},
 		{"pixels", "100 MP", map[string][]byte{"1.png": png, "2.png": huge}},
-		{"corrupt page", "invalid cbz image", map[string][]byte{"1.png": png, "2.jpg": []byte("broken")}},
+		{"corrupt page", "invalid image", map[string][]byte{"1.png": png, "2.jpg": []byte("broken")}},
 		{"malformed metadata", "invalid ComicInfo.xml", map[string][]byte{"1.png": png, "ComicInfo.xml": []byte("<ComicInfo>")}},
 		{"empty", "no supported images", map[string][]byte{"ComicInfo.xml": []byte("<ComicInfo/>")}},
 	} {
@@ -149,7 +149,7 @@ func TestCBZLocalImport(t *testing.T) {
 	if err := os.WriteFile(path, archive, 0600); err != nil {
 		t.Fatal(err)
 	}
-	book, err := app.handlers.imports.fromLocalPath("default_shelf", path, nil)
+	book, err := app.handlers.imports.fromLocalPath("default_shelf", path, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -262,8 +262,8 @@ func (app *App) Handler() http.Handler {
 	return app.security.Middleware(loggerHandler)
 }
 
-func (app *App) ImportFromLocalPath(shelfID string, localPath string, folderParts shelf.FolderPath) (*shelf.Book, error) {
-	return app.handlers.imports.fromLocalPath(shelfID, localPath, folderParts)
+func (app *App) ImportFromLocalPath(shelfID string, localPath string, folderParts shelf.FolderPath, strategy string) (*shelf.Book, error) {
+	return app.handlers.imports.fromLocalPath(shelfID, localPath, folderParts, strategy)
 }
 
 func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {

@@ -45,7 +45,7 @@ func TestAPIImportCBZFailure(t *testing.T) {
 	for _, tc := range []struct{ body, want string }{
 		{"not a zip", "not a readable cbz"},
 		{string(testutil.BuildCBZ(t, map[string][]byte{"../1.png": testutil.OnePixelPNG()})), "path traversal"},
-		{string(testutil.BuildCBZ(t, map[string][]byte{"1.jpg": []byte("broken")})), "invalid cbz image"},
+		{string(testutil.BuildCBZ(t, map[string][]byte{"1.jpg": []byte("broken")})), "invalid image"},
 	} {
 		rec := apitest.PostBookImport(t, env, apitest.BookUpload("book.cbz", "application/zip", tc.body))
 		apitest.AssertStatus(t, rec, http.StatusBadRequest)

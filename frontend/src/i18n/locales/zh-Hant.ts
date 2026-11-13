@@ -1406,6 +1406,8 @@ const zhHant = {
       convertTo: '轉換成',
       presetMarkdown: 'Markdown（章節標題）',
       presetPlain: '純文字',
+      presetImages: '漫畫頁面（圖片）',
+      imagesHint: '每張頁面圖片會變成一頁漫畫，並略過封面頁。只要有頁面含文字，匯入就會失敗。',
       plainHint:
         '純文字沒有章節導覽，也不支援 Markdown 圖片。日後仍可另外建立分章的 Markdown 來源，不會動到這份 TXT。',
       includeDescription: '正文開頭放入書籍簡介',

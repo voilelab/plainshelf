@@ -1423,6 +1423,9 @@ const en = {
       convertTo: 'Convert to',
       presetMarkdown: 'Markdown (chapter headings)',
       presetPlain: 'Plain text',
+      presetImages: 'Comic pages (images)',
+      imagesHint:
+        'Each page image becomes a comic page, and cover pages are skipped. Import fails if any page contains text.',
       plainHint:
         'Plain text has no chapter navigation or Markdown illustrations. You can create a chapterized Markdown source afterwards without changing this TXT source.',
       includeDescription: 'Put the book description at the start of the text',

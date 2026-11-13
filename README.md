@@ -28,7 +28,7 @@ deployment does and does not protect.
 ## What it does
 
 - Imports and reads plain text and Markdown books
-- Imports EPUB files by converting them to plain text or Markdown
+- Imports EPUB files by converting them to plain text, Markdown, or comic pages
 - Organizes books in nested, filesystem-backed folders
 - Keeps stable book IDs when titles or folders change
 - Supports covers, metadata, bookmarks, reading history, and reading stats

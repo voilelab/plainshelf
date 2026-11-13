@@ -100,8 +100,11 @@
           <p v-if="epubStrategy.preset === 'plain'" class="meta epub-hint">
             {{ t('libraryForms.importBook.plainHint') }}
           </p>
+          <p v-if="epubStrategy.preset === 'images'" class="meta epub-hint">
+            {{ t('libraryForms.importBook.imagesHint') }}
+          </p>
 
-          <label class="epub-checkbox">
+          <label v-if="epubStrategy.preset !== 'images'" class="epub-checkbox">
             <input
               type="checkbox"
               :checked="epubStrategy.include_description"
@@ -172,15 +175,16 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/file';
 import { getEpubImportStrategySetting } from '@/api/settings';
-import type { EpubImportPreset } from '@/types/book';
+import type { EpubUploadPreset } from '@/types/book';
 
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 
-const epubPresetOptions = computed<{ value: EpubImportPreset; label: string }[]>(() => [
+const epubPresetOptions = computed<{ value: EpubUploadPreset; label: string }[]>(() => [
   { value: 'markdown', label: t('libraryForms.importBook.presetMarkdown') },
-  { value: 'plain', label: t('libraryForms.importBook.presetPlain') }
+  { value: 'plain', label: t('libraryForms.importBook.presetPlain') },
+  { value: 'images', label: t('libraryForms.importBook.presetImages') }
 ]);
 
 function statusLabel(status: string): string {
@@ -213,6 +217,7 @@ const {
   success,
   error,
   epubStrategy,
+  pendingLocalPaths,
   progress,
   chapterSuggestion,
   convertingChapters,
@@ -220,8 +225,10 @@ const {
   setEpubStrategy,
   hasEpubFile,
   setBookFiles,
+  setLocalPaths,
   submitFiles,
   submitLocalPaths,
+  submitPendingLocalPaths,
   detectChapterConversion,
   applyChapterConversion,
   clearImportSelection,
@@ -235,7 +242,9 @@ const bookInput = ref<HTMLInputElement | null>(null);
 const isDropTarget = ref(false);
 const selectedFiles = ref<File[]>([]);
 
-const showEpubOptions = computed(() => selectedFiles.value.length > 0 && hasEpubFile());
+const showEpubOptions = computed(() =>
+  (selectedFiles.value.length > 0 || pendingLocalPaths.value.length > 0) && hasEpubFile()
+);
 
 const showProgress = computed(() => submitting.value && progress.value.total > 1);
 
@@ -254,7 +263,7 @@ function onBookFileChange(event: Event): void {
 }
 
 function onPresetSelect(value: AcceptableValue): void {
-  setEpubStrategy({ ...epubStrategy.value, preset: value as EpubImportPreset });
+  setEpubStrategy({ ...epubStrategy.value, preset: value as EpubUploadPreset });
 }
 
 function onIncludeDescriptionChange(event: Event): void {
@@ -374,12 +383,22 @@ function onDismissChapters(): void {
 }
 
 async function onSubmit(): Promise<void> {
+  if (pendingLocalPaths.value.length > 0) {
+    await finishImport(await submitPendingLocalPaths(props.currentFolderPath));
+    return;
+  }
   await finishImport(await submitFiles(props.currentFolderPath));
 }
 
 async function runLocalPathsImport(): Promise<void> {
   const paths = props.localPaths ?? [];
   if (paths.length === 0 || submitting.value) {
+    return;
+  }
+  if (paths.some((localPath) => /\.epub$/i.test(localPath))) {
+    selectedFiles.value = [];
+    clearFileInputs();
+    setLocalPaths(paths);
     return;
   }
   await finishImport(await submitLocalPaths(paths, props.currentFolderPath));

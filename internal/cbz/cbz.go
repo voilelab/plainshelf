@@ -97,13 +97,17 @@ func Open(r io.ReaderAt, size int64) (*Book, error) {
 		ext := path.Ext(entry.Name)
 		switch strings.ToLower(ext) {
 		case ".jpg", ".jpeg", ".png", ".webp", ".gif":
-			book.Pages = append(book.Pages, Page{Name: rand.Text() + ext, entry: entry})
+			book.Pages = append(book.Pages, NewPage(entry))
 		}
 	}
 	if len(book.Pages) == 0 {
 		return nil, fmt.Errorf("cbz contains no supported images")
 	}
 	return book, nil
+}
+
+func NewPage(entry *zip.File) Page {
+	return Page{Name: rand.Text() + path.Ext(entry.Name), entry: entry}
 }
 
 func (p Page) Read() ([]byte, error) {
@@ -113,10 +117,10 @@ func (p Page) Read() ([]byte, error) {
 	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("invalid cbz image %q: %w", p.entry.Name, err)
+		return nil, fmt.Errorf("invalid image %q: %w", p.entry.Name, err)
 	}
 	if config.Width <= 0 || config.Height <= 0 || uint64(config.Width) > maxPixels/uint64(config.Height) {
-		return nil, fmt.Errorf("cbz image %q exceeds 100 MP pixel limit", p.entry.Name)
+		return nil, fmt.Errorf("image %q exceeds 100 MP pixel limit", p.entry.Name)
 	}
 	return data, nil
 }

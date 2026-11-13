@@ -210,6 +210,53 @@ describe('useImportBook', () => {
     expect(book.progress.value.percentage).toBe(100);
   });
 
+  it('holds desktop EPUB paths until submit and sends the chosen strategy', async () => {
+    mocks.importBookFromLocalPath
+      .mockResolvedValueOnce({ id: 'id-comic', path: '/books/comic.epub' })
+      .mockResolvedValueOnce({ id: 'id-a', path: '/books/a.txt' });
+
+    const book = useImportBook();
+    book.setLocalPaths(['/books/comic.epub', '/books/a.txt']);
+    expect(book.hasEpubFile()).toBe(true);
+    expect(book.files.value.map((item) => item.status)).toEqual(['pending', 'pending']);
+    expect(mocks.importBookFromLocalPath).not.toHaveBeenCalled();
+
+    book.setEpubStrategy({ preset: 'images', include_description: true });
+    const result = await book.submitPendingLocalPaths('/comics');
+
+    expect(result?.successCount).toBe(2);
+    expect(mocks.importBookFromLocalPath).toHaveBeenNthCalledWith(
+      1,
+      '/books/comic.epub',
+      'comics',
+      JSON.stringify({ preset: 'images', include_description: true })
+    );
+    expect(mocks.importBookFromLocalPath).toHaveBeenNthCalledWith(2, '/books/a.txt', 'comics');
+  });
+
+  it('drops pending desktop paths when files are chosen instead', () => {
+    const book = useImportBook();
+    book.setLocalPaths(['/books/comic.epub']);
+    book.setBookFiles([bookFile('a.txt')]);
+
+    expect(book.pendingLocalPaths.value).toEqual([]);
+    expect(book.hasEpubFile()).toBe(false);
+  });
+
+  it('sends the images preset with an uploaded EPUB', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'comic' });
+    const book = useImportBook();
+    book.setBookFiles([new File(['zip'], 'comic.epub', { type: 'application/epub+zip' })]);
+    book.setEpubStrategy({ preset: 'images', include_description: true });
+
+    await book.submitFiles('/');
+
+    expect(mocks.importBook).toHaveBeenCalledWith(expect.objectContaining({
+      title: '',
+      strategy: { preset: 'images', include_description: true }
+    }));
+  });
+
   it('reports a per-file desktop import error as a failed unit', async () => {
     mocks.importBookFromLocalPath
       .mockResolvedValueOnce({ id: 'id-a', path: '/books/a.txt' })

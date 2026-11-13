@@ -13,6 +13,8 @@ const (
 	PresetMarkdown Preset = "markdown"
 
 	PresetPlain Preset = "plain"
+
+	PresetImages Preset = "images"
 )
 
 type Strategy struct {
@@ -29,11 +31,18 @@ func DefaultStrategy() Strategy {
 
 func (s Strategy) Validate() error {
 	switch s.Preset {
-	case PresetMarkdown, PresetPlain:
+	case PresetMarkdown, PresetPlain, PresetImages:
 		return nil
 	default:
 		return util.Errorf("unknown epub import preset: %q", string(s.Preset))
 	}
+}
+
+func (s Strategy) ValidateDefault() error {
+	if s.Preset == PresetImages {
+		return util.Errorf("epub import preset %q applies to a single import and cannot be the default", string(s.Preset))
+	}
+	return s.Validate()
 }
 
 func (s Strategy) Normalized() Strategy {

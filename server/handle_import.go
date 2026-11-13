@@ -306,7 +306,7 @@ func (h *importHandlers) writeImportedBook(w http.ResponseWriter, shelfData *she
 	h.writeJSON(w, http.StatusCreated, newBookResponse(shelfData, newBook.GetMeta(), folderParts))
 }
 
-func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderParts shelf.FolderPath) (*shelf.Book, error) {
+func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderParts shelf.FolderPath, rawStrategy string) (*shelf.Book, error) {
 	cleanPath, err := validateLocalImportPath(localPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -329,12 +329,16 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderP
 	defer fp.Close()
 
 	if isEPUBExt(strings.ToLower(filepath.Ext(cleanPath))) {
+		strategy, _, err := parseImportStrategy(rawStrategy, h.settings.epubImportStrategy())
+		if err != nil {
+			return nil, err
+		}
 		info, err := fp.Stat()
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 
-		return h.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", folderParts, h.settings.epubImportStrategy())
+		return h.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", folderParts, strategy)
 	}
 
 	if strings.EqualFold(filepath.Ext(cleanPath), ".cbz") {

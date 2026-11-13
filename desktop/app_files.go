@@ -88,13 +88,13 @@ func normalizeFolderParts(folderParts []string) shelf.FolderPath {
 	return normalizedParts
 }
 
-func (a *DesktopApp) ImportBookFromLocalPath(shelfID string, localPath string, folderParts []string) (DesktopImportBookResult, error) {
+func (a *DesktopApp) ImportBookFromLocalPath(shelfID string, localPath string, folderParts []string, strategy string) (DesktopImportBookResult, error) {
 	if a.app == nil {
 		return DesktopImportBookResult{}, util.NewError("desktop backend app instance is nil")
 	}
 
 	result := DesktopImportBookResult{Path: localPath}
-	book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizeFolderParts(folderParts))
+	book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizeFolderParts(folderParts), strategy)
 	if err != nil {
 		result.Error = err.Error()
 		return result, nil

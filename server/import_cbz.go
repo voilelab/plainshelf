@@ -20,22 +20,6 @@ func (h *importHandlers) importCBZ(data *shelf.ShelfData, r io.ReaderAt, size in
 	if err != nil {
 		return nil, &cbzInputError{err}
 	}
-	dir, err := os.MkdirTemp("", "plainshelf-cbz-")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(dir)
-	names := make([]string, 0, len(parsed.Pages))
-	for _, page := range parsed.Pages {
-		image, err := page.Read()
-		if err != nil {
-			return nil, &cbzInputError{err}
-		}
-		if err := os.WriteFile(filepath.Join(dir, page.Name), image, 0600); err != nil {
-			return nil, err
-		}
-		names = append(names, page.Name)
-	}
 	title = strings.TrimSpace(title)
 	if title == "" || strings.EqualFold(title, filename) || strings.EqualFold(title, deriveTitleFromFilename(filename)) {
 		title = parsed.Title
@@ -43,8 +27,41 @@ func (h *importHandlers) importCBZ(data *shelf.ShelfData, r io.ReaderAt, size in
 			title = deriveTitleFromFilename(filename)
 		}
 	}
-	return data.NewBookWith(folders, title, func(book *shelf.Book) error {
-		source, err := book.NewSourceWithOptions(strings.NewReader(strings.Join(names, "\n")+"\n"), shelf.NewSourceOptions{Format: shelf.BookFormatImages, PageDirection: parsed.Direction})
+	book := imagesBook{
+		title:     title,
+		direction: parsed.Direction,
+		pages:     parsed.Pages,
+		setMeta:   func(meta *shelf.BookMeta) { meta.Authors = parsed.Authors },
+	}
+	return book.create(data, folders, func(err error) error { return &cbzInputError{err} })
+}
+
+type imagesBook struct {
+	title     string
+	direction string
+	pages     []cbz.Page
+	setMeta   func(*shelf.BookMeta)
+}
+
+func (b imagesBook) create(data *shelf.ShelfData, folders shelf.FolderPath, inputErr func(error) error) (*shelf.Book, error) {
+	dir, err := os.MkdirTemp("", "plainshelf-pages-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	names := make([]string, 0, len(b.pages))
+	for _, page := range b.pages {
+		image, err := page.Read()
+		if err != nil {
+			return nil, inputErr(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, page.Name), image, 0600); err != nil {
+			return nil, err
+		}
+		names = append(names, page.Name)
+	}
+	return data.NewBookWith(folders, b.title, func(book *shelf.Book) error {
+		source, err := book.NewSourceWithOptions(strings.NewReader(strings.Join(names, "\n")+"\n"), shelf.NewSourceOptions{Format: shelf.BookFormatImages, PageDirection: b.direction})
 		if err != nil {
 			return err
 		}
@@ -66,7 +83,7 @@ func (h *importHandlers) importCBZ(data *shelf.ShelfData, r io.ReaderAt, size in
 			return err
 		}
 		meta := book.GetMeta()
-		meta.Authors = parsed.Authors
+		b.setMeta(meta)
 		return book.SetMeta(meta)
 	})
 }
