@@ -181,7 +181,14 @@ const quickFacts = computed<DetailRow[]>(() => {
   const rows: DetailRow[] = [];
   const format = props.book.format?.trim();
   const language = props.book.language?.trim();
+  const series = props.book.series;
 
+  if (series) {
+    rows.push({
+      label: t('bookDetail.fields.series'),
+      value: t('bookDetail.seriesValue', { name: series.name, index: String(series.index) })
+    });
+  }
   if (format) {
     rows.push({ label: t('bookDetail.fields.format'), value: format.toUpperCase() });
   }

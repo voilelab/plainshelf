@@ -19,6 +19,7 @@ vi.mock('./client', async () => {
 
 const { ApiError } = await import('./client');
 const {
+  updateBook,
   transferBook,
   startFingerprintSources,
   getSimilarBookPairs,
@@ -159,5 +160,29 @@ describe('startFingerprintSources', () => {
     fetchJsonMock.mockRejectedValueOnce(new ApiError('boom', { status: 500 }));
 
     await expect(startFingerprintSources(true)).rejects.toThrow('boom');
+  });
+});
+
+describe('updateBook series', () => {
+  beforeEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  function backendBook(series?: { name: string; index: number }) {
+    return {
+      meta: { id: 'book-1', title: 'Saga', authors: [], language: '', format: 'txt', cover: '', series },
+      folder: []
+    };
+  }
+
+  it('sends series null to clear it and reads the series the server returns', async () => {
+    fetchJsonMock.mockResolvedValueOnce(backendBook());
+    const cleared = await updateBook('book-1', { series: null });
+    expect(JSON.parse((fetchJsonMock.mock.calls[0][1] as { body: string }).body)).toEqual({ series: null });
+    expect(cleared.series).toBeUndefined();
+
+    fetchJsonMock.mockResolvedValueOnce(backendBook({ name: 'Saga', index: 1.5 }));
+    const set = await updateBook('book-1', { series: { name: 'Saga', index: 1.5 } });
+    expect(set.series).toEqual({ name: 'Saga', index: 1.5 });
   });
 });

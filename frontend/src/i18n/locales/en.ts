@@ -784,6 +784,7 @@ const en = {
     root: 'All books',
     folderPath: 'Book folder path',
     ratingLabel: 'Rated {rating} stars',
+    seriesValue: '{name} #{index}',
     emptyDetails: 'No additional details are available for this book.',
     sections: {
       publication: 'Publication',
@@ -799,6 +800,7 @@ const en = {
       format: 'Format',
       language: 'Language',
       publishedAt: 'Published',
+      series: 'Series',
       tags: 'Tags',
       lines: 'Lines',
       characters: 'Characters',
@@ -1368,6 +1370,16 @@ const en = {
           'Marked by the folder rule "{path}" in shelf.json: {reason}. Edit that file to change it, or move the book out of the folder.'
       },
       publishedAt: 'Published At',
+      series: {
+        label: 'Series',
+        nameLabel: 'Series name',
+        namePlaceholder: 'Series name',
+        indexLabel: 'Number in series',
+        indexPlaceholder: 'No.',
+        help: 'Pick an existing series to keep the spelling consistent. A number like 1.5 places a side story between volumes. Clear the name to remove the book from its series.',
+        nameRequired: 'Enter a series name, or clear the number.',
+        indexInvalid: 'Enter a number of 0 or more for this book\'s place in the series.'
+      },
       languageLabel: 'Language',
       starRating: 'Star rating',
       starValueOne: '1 star',

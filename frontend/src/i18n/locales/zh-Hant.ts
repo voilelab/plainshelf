@@ -769,6 +769,7 @@ const zhHant = {
     root: '所有書籍',
     folderPath: '書籍所在資料夾',
     ratingLabel: '評分 {rating} 顆星',
+    seriesValue: '{name} 第 {index} 集',
     emptyDetails: '這本書目前沒有其他詳細資料。',
     sections: {
       publication: '出版資訊',
@@ -784,6 +785,7 @@ const zhHant = {
       format: '格式',
       language: '語言',
       publishedAt: '出版日期',
+      series: '系列',
       tags: '標籤',
       lines: '行數',
       characters: '字數',
@@ -1352,6 +1354,16 @@ const zhHant = {
           '由 shelf.json 的資料夾規則「{path}」標記：{reason}。要更動請編輯該檔案，或把這本書移出該資料夾。'
       },
       publishedAt: '出版日期',
+      series: {
+        label: '系列',
+        nameLabel: '系列名稱',
+        namePlaceholder: '系列名稱',
+        indexLabel: '集數',
+        indexPlaceholder: '集數',
+        help: '從既有系列挑選可避免同一系列出現不同寫法。集數可填 1.5 這類小數，把外傳排在兩集之間。清空名稱即移出系列。',
+        nameRequired: '請填系列名稱，或清空集數。',
+        indexInvalid: '請填 0 以上的數字作為這本書在系列中的集數。'
+      },
       languageLabel: '語言',
       starRating: '星等',
       starValueOne: '1 星',
