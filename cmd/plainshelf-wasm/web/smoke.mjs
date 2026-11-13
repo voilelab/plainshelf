@@ -51,6 +51,41 @@ function zipEntryNames(buf) {
   return names;
 }
 
+function storedZip(name, data) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  let crc = 0xffffffff;
+  for (const b of data) crc = crcTable[(crc ^ b) & 255] ^ (crc >>> 8);
+  crc = (crc ^ 0xffffffff) >>> 0;
+  const fileName = Buffer.from(name);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt32LE(crc, 14);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(fileName.length, 26);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt32LE(crc, 16);
+  central.writeUInt32LE(data.length, 20);
+  central.writeUInt32LE(data.length, 24);
+  central.writeUInt16LE(fileName.length, 28);
+  const localSize = local.length + fileName.length + data.length;
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length + fileName.length, 12);
+  end.writeUInt32LE(localSize, 16);
+  return Buffer.concat([local, fileName, data, central, fileName, end]);
+}
+
 let failed = false;
 function check(name, ok, detail = '') {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
@@ -315,6 +350,25 @@ const badImport = await tabC.evaluate(async () => (await window.plainshelfReques
   method: 'PUT', url: '/_demo/shelf.zip', headers: {}, body: new TextEncoder().encode('not a zip'),
 })).status);
 check('a file that is not a shelf zip is refused', badImport === 400, `status ${badImport}`);
+
+const onePixelPNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+const cbz = storedZip('001.png', onePixelPNG);
+const cbzImport = await tabC.evaluate(async (bytes) => {
+  const form = new FormData();
+  form.append('file', new File([new Uint8Array(bytes)], 'comic.cbz'));
+  const r = await fetch('/api/shelves/demo/books/import', { method: 'POST', body: form });
+  return { status: r.status, text: await r.text() };
+}, [...cbz]);
+check('a CBZ imports', cbzImport.status === 201, `status ${cbzImport.status} ${cbzImport.text.slice(0, 120)}`);
+await settleWriteBehind(tabC);
+const opfsTop = await tabC.evaluate(async () => {
+  if (!navigator.storage?.getDirectory) return [];
+  const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('plainshelf-demo', { create: true });
+  const names = [];
+  for await (const name of root.keys()) names.push(name);
+  return names;
+});
+persisted('the CBZ import leaves no temp files in OPFS', !opfsTop.includes('tmp'), JSON.stringify(opfsTop));
 
 const tabD = await context.newPage();
 const linked = await tabD.goto(`${app}trash`);

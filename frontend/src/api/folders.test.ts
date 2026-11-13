@@ -15,7 +15,31 @@ vi.mock('./client', async () => {
 });
 
 const { ApiError } = await import('./client');
-const { createFolder, getFolderMeta, moveFolder, renameFolder, setFolderIcon, transferFolder } = await import('./folders');
+const { createFolder, deleteFolder, getFolderMeta, moveFolder, renameFolder, setFolderIcon, transferFolder } = await import('./folders');
+
+describe('deleteFolder', () => {
+  it('raises FolderNotEmptyError with the entries the server lists', async () => {
+    fetchJsonMock.mockRejectedValueOnce(
+      new ApiError('folder is not empty', { status: 409, code: 'FOLDER_NOT_EMPTY', entries: ['.DS_Store'] })
+    );
+
+    await expect(deleteFolder('Fiction')).rejects.toMatchObject({
+      name: 'FolderNotEmptyError',
+      entries: ['.DS_Store']
+    });
+  });
+
+  it('passes through other conflicts instead of calling them not empty', async () => {
+    fetchJsonMock.mockRejectedValueOnce(
+      new ApiError('shelf is opened read-only', { status: 409, code: 'SHELF_READ_ONLY' })
+    );
+
+    await expect(deleteFolder('Fiction')).rejects.toMatchObject({
+      name: 'Error',
+      message: 'shelf is opened read-only'
+    });
+  });
+});
 
 describe('transferFolder', () => {
   it('posts the source and target folders as segment arrays and returns the chain id', async () => {

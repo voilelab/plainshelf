@@ -128,7 +128,10 @@ const zhHant = {
       shortAction: '刪除',
       description: '若資料夾內仍有書籍或子資料夾，刪除會失敗。',
       failed: '刪除資料夾失敗',
-      notEmpty: '此資料夾尚未清空，無法刪除。\n請先移出書籍並刪除子資料夾。'
+      notEmpty: '此資料夾尚未清空，無法刪除。\n請先移出書籍並刪除子資料夾。',
+      notEmptyEntries:
+        '此資料夾尚未清空，無法刪除。裡面還有：\n{entries}\nPlainShelf 不會顯示的項目（例如 .DS_Store）需要到磁碟上的書架資料夾中手動刪除。',
+      moreEntries: '…還有 {count} 項'
     },
     renameFolder: {
       shortAction: '改名',

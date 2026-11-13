@@ -67,6 +67,13 @@ describe('surfaceError', () => {
     expect(incident.value).toBe('K7MQ4XZB');
   });
 
+  it('returns the message but publishes nothing for a 4xx refusal', () => {
+    const err = Object.assign(new Error('folder is not empty'), { incident: 'K7MQ4XZB', status: 409 });
+
+    expect(surfaceError(err)).toBe('folder is not empty');
+    expect(incident.value).toBe('');
+  });
+
   it('returns the message and publishes nothing without a reference', () => {
     expect(surfaceError(new Error('boom'))).toBe('boom');
     expect(incident.value).toBe('');

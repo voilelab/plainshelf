@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -134,6 +136,40 @@ func TestShelfDeleteFolder(t *testing.T) {
 
 	if err := shelf.DeleteFolder(FolderPath{"missing"}); err == nil {
 		t.Fatal("DeleteFolder accepted a missing layer")
+	}
+}
+
+func TestDeleteFolderListsBlockingEntries(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	if err := shelf.NewFolder(FolderPath{}, "Looks Empty"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
+	}
+	dir := filepath.Join(libRoot, booksFolder, "Looks Empty")
+	for _, name := range []string{"Thumbs.db", ".DS_Store", FolderMetaFile} {
+		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatalf("mkdir .git: %v", err)
+	}
+
+	err := shelf.DeleteFolder(FolderPath{"Looks Empty"})
+	notEmpty, ok := errors.AsType[*FolderNotEmptyError](err)
+	if !ok {
+		t.Fatalf("DeleteFolder error = %v, want *FolderNotEmptyError", err)
+	}
+	if !errors.Is(err, ErrFolderNotEmpty) {
+		t.Errorf("error %v does not match ErrFolderNotEmpty", err)
+	}
+	want := []string{".DS_Store", ".git/", "Thumbs.db"}
+	if !slices.Equal(notEmpty.Entries, want) {
+		t.Errorf("Entries = %q, want %q, without folder.json", notEmpty.Entries, want)
+	}
+	if _, err := os.Stat(filepath.Join(dir, FolderMetaFile)); err != nil {
+		t.Errorf("refused delete touched folder.json: %v", err)
 	}
 }
 

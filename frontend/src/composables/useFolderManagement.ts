@@ -10,7 +10,7 @@ import {
   renameFolder,
   setFolderIcon
 } from '@/api/folders';
-import { FolderMetaConflictError } from '@/api/folderErrors';
+import { FolderMetaConflictError, FolderNotEmptyError } from '@/api/folderErrors';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
@@ -24,6 +24,7 @@ import {
   normalizeFolderPath
 } from '@/utils/folders';
 import { useI18n } from '@/i18n';
+import { splitListedEntries } from '@/utils/listedEntries';
 import { useBookBatchOperations } from '@/composables/useBookBatchOperations';
 import type { Book } from '@/types/book';
 
@@ -543,6 +544,18 @@ export function useFolderManagement() {
     deleteFolderError.value = '';
   }
 
+  function folderNotEmptyMessage(entries: string[]): string {
+    if (entries.length === 0) {
+      return t('layout.deleteFolder.notEmpty');
+    }
+    const { shown, hidden } = splitListedEntries(entries);
+    const lines = shown.map((entry) => `• ${entry}`);
+    if (hidden > 0) {
+      lines.push(t('layout.deleteFolder.moreEntries', { count: hidden }));
+    }
+    return t('layout.deleteFolder.notEmptyEntries', { entries: lines.join('\n') });
+  }
+
   async function confirmDeleteFolder(): Promise<void> {
     const path = pendingDeleteFolderPath.value;
     if (!path || deletingFolderMap.value[path]) {
@@ -566,8 +579,8 @@ export function useFolderManagement() {
       pendingDeleteFolderPath.value = '';
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
-      if (message === 'Cannot delete this folder because it is not empty.') {
-        deleteFolderError.value = t('layout.deleteFolder.notEmpty');
+      if (err instanceof FolderNotEmptyError) {
+        deleteFolderError.value = folderNotEmptyMessage(err.entries);
       } else if (message) {
         deleteFolderError.value = message;
       } else {

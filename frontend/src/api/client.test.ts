@@ -197,6 +197,17 @@ describe('error responses', () => {
     expect(err.status).toBe(404);
   });
 
+  it('keeps the entries an envelope lists', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"FOLDER_NOT_EMPTY","message":"folder is not empty","entries":[".DS_Store","child/"]}}\n',
+        'application/json; charset=utf-8'
+      )
+    );
+
+    expect(err.entries).toEqual(['.DS_Store', 'child/']);
+  });
+
   it('falls back to the raw text for a plain-text refusal', async () => {
     const err = await failedRequest(errorResponse('shelf not found', 'text/plain; charset=utf-8'));
 
@@ -246,16 +257,29 @@ describe('error responses', () => {
     expect(shownIncident.value).toBe('K7MQ4XZB');
   });
 
-  it('falls back to the request-ID header for a plain-text refusal', async () => {
+  it('falls back to the request-ID header for a plain-text failure', async () => {
     const err = await failedRequest(
-      errorResponse('shelf not found', 'text/plain; charset=utf-8', 404, {
+      errorResponse('could not read cover', 'text/plain; charset=utf-8', 500, {
         'X-Request-Id': 'ABCD2345'
       })
     );
 
-    expect(err.message).toBe('shelf not found');
+    expect(err.message).toBe('could not read cover');
     expect(err.incident).toBe('ABCD2345');
     expect(shownIncident.value).toBe('ABCD2345');
+  });
+
+  it('keeps but does not raise the reference of a 4xx refusal', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"FOLDER_NOT_EMPTY","message":"folder is not empty","incident":"K7MQ4XZB"}}',
+        'application/json; charset=utf-8',
+        409
+      )
+    );
+
+    expect(err.incident).toBe('K7MQ4XZB');
+    expect(shownIncident.value).toBe('');
   });
 
   it('leaves the incident unset when neither the body nor the header names one', async () => {

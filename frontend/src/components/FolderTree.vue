@@ -340,7 +340,7 @@ function canChangeIcon(node: FolderNode): boolean {
 }
 
 function showDeleteButton(node: FolderNode): boolean {
-  return !props.readOnly && folderBookCount(node) === 0;
+  return !props.readOnly && folderBookCount(node) === 0 && node.children.length === 0;
 }
 
 function canDragFolder(): boolean {
