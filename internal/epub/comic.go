@@ -3,7 +3,6 @@ package epub
 import (
 	"archive/zip"
 	"bytes"
-	"errors"
 	"io"
 	"path"
 	"strings"
@@ -105,10 +104,7 @@ func readComicDocuments(opened *epubPackage) ([]comicDocument, error) {
 		docPath := resolveHref(opened.baseDir, item.Href)
 		data, err := readZipEntryLimit(opened.files, docPath, maxDocumentBytes)
 		if err != nil {
-			if errors.Is(err, errZipEntryTooLarge) {
-				return nil, util.Errorf("failed to read spine document %q: %w", docPath, err)
-			}
-			continue
+			return nil, util.Errorf("failed to read spine document %q: %w", docPath, err)
 		}
 		total += int64(len(data))
 		if total > maxTotalBytes {

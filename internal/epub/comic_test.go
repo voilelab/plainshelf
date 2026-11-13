@@ -127,6 +127,20 @@ func TestParseComicRejects(t *testing.T) {
 	}
 }
 
+func TestParseComicRejectsMissingSpineDoc(t *testing.T) {
+	entries := comicEntries(t, "", `<img src="p1.png"/>`, `<img src="p2.png"/>`)
+	var kept []zipEntry
+	for _, entry := range entries {
+		if entry.name != "OEBPS/b.xhtml" {
+			kept = append(kept, entry)
+		}
+	}
+	_, err := parseComicEntries(t, kept)
+	if err == nil || !strings.Contains(err.Error(), `"OEBPS/b.xhtml"`) {
+		t.Fatalf("err = %v, want the missing page named", err)
+	}
+}
+
 func TestStrategyImagesIsNotADefault(t *testing.T) {
 	if err := (Strategy{Preset: PresetImages}).Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want images accepted for one import", err)

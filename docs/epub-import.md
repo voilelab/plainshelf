@@ -158,8 +158,8 @@ CBZ. Each page image becomes a page of an `images` source, the same layout a
   the [CBZ limits](cbz-import.md#limits): 20 MiB and 100 million pixels per
   image, and at most 2,000 pages.
 
-The import fails, and creates no book, when any page document contains text, a
-page image is missing or is not `.jpg`, `.jpeg`, `.png`, `.webp`, or `.gif`, or
+The import fails, and creates no book, when any page document cannot be read
+or contains text, a page image is missing or is not `.jpg`, `.jpeg`, `.png`, `.webp`, or `.gif`, or
 no page has an image. The error names the page. Import a book with text as
 Markdown instead.
 
