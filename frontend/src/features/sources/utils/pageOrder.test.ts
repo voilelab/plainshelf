@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { insertionIndex, movePage } from './pageOrder';
+import { dropDestination, insertionIndex, movePage } from './pageOrder';
 
 describe('movePage', () => {
   it('moves a page forward and backward', () => {
@@ -25,5 +25,21 @@ describe('insertionIndex', () => {
     expect(insertionIndex(2, 3)).toBe(3);
     expect(insertionIndex(null, 3)).toBe(3);
     expect(insertionIndex(7, 3)).toBe(3);
+  });
+});
+
+describe('dropDestination', () => {
+  it('lands before or after the target whichever way the page travels', () => {
+    expect(dropDestination(8, 2, 'before')).toBe(2);
+    expect(dropDestination(8, 2, 'after')).toBe(3);
+    expect(dropDestination(2, 8, 'before')).toBe(7);
+    expect(dropDestination(2, 8, 'after')).toBe(8);
+  });
+
+  it('stays in place when dropped beside itself', () => {
+    expect(dropDestination(3, 3, 'before')).toBe(3);
+    expect(dropDestination(3, 3, 'after')).toBe(3);
+    expect(dropDestination(3, 4, 'before')).toBe(3);
+    expect(dropDestination(3, 2, 'after')).toBe(3);
   });
 });

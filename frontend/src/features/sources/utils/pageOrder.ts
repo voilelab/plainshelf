@@ -10,3 +10,10 @@ export function insertionIndex(selectedIndex: number | null, length: number): nu
   if (selectedIndex === null || selectedIndex < 0 || selectedIndex >= length) return length;
   return selectedIndex + 1;
 }
+
+export type PageDropSide = 'before' | 'after';
+
+export function dropDestination(from: number, target: number, side: PageDropSide): number {
+  const slot = side === 'after' ? target + 1 : target;
+  return slot > from ? slot - 1 : slot;
+}

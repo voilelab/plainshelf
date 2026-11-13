@@ -65,8 +65,11 @@ package. Both paths preserve page order and reading direction offline.
 Open the book's sources editor and select an `images` source to see its pages
 as a grid of thumbnails. Every change saves at once:
 
-- Drag a page, or use its arrow buttons, to move it. Only `source.txt` is
-  rewritten; no image is renamed.
+- Drag a page onto the left or right half of another page to place it before
+  or after that page; a line marks where it lands. Each page's arrow buttons
+  move it one place and appear when the pointer is over the page, it has
+  keyboard focus, or it is selected (always, on a touch screen). Only
+  `source.txt` is rewritten; no image is renamed.
 - Choose **Add pages** to upload one or more images. They go after the selected
   page, or at the end when no page is selected, and each is stored under a new
   random name in its original format.
