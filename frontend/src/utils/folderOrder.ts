@@ -1,10 +1,13 @@
 import type { FolderMetadata } from './folders';
 
+export type FolderOrderPlacement = 'before' | 'after';
+
 export function planFolderOrder(
   siblings: string[],
   source: string,
   target: string,
-  metadata: FolderMetadata
+  metadata: FolderMetadata,
+  placement: FolderOrderPlacement = 'before'
 ): { path: string; key: number; version: string }[] {
   if (
     source === target ||
@@ -16,7 +19,8 @@ export function planFolderOrder(
   if (siblings.some((path) => path === '/' || parent(path) !== parent(source)))
     return [];
   const next = siblings.filter((path) => path !== source);
-  next.splice(next.indexOf(target), 0, source);
+  next.splice(next.indexOf(target) + (placement === 'after' ? 1 : 0), 0, source);
+  if (next.every((path, i) => path === siblings[i])) return [];
   const keys = siblings.map((path) => metadata[path]?.sort_key);
   const strict = keys.every(
     (key, i) =>

@@ -58,4 +58,16 @@ describe('folder ordering', () => {
     ).toHaveLength(2);
     expect(planFolderOrder(['x/a', 'x/b'], 'a', 'x/b', {})).toEqual([]);
   });
+  it('places a folder after the target and plans nothing when the order stays', () => {
+    const meta = {
+      a: { version: 'a', sort_key: 0 },
+      b: { version: 'b', sort_key: 10 },
+      c: { version: 'c', sort_key: 20 }
+    };
+    expect(planFolderOrder(['a', 'b', 'c'], 'a', 'c', meta, 'after')).toEqual([
+      { path: 'a', key: 1044, version: 'a' }
+    ]);
+    expect(planFolderOrder(['a', 'b', 'c'], 'a', 'b', meta, 'before')).toEqual([]);
+    expect(planFolderOrder(['a', 'b', 'c'], 'b', 'a', meta, 'after')).toEqual([]);
+  });
 });

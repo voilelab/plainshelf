@@ -30,9 +30,8 @@ test('creates a nested folder level by level and filters books by exact folder',
 
   await addFolder(page, 'ftorder-a');
   await addFolder(page, 'ftorder-b');
-  await page.getByRole('button', { name: 'Reorder folders', exact: true }).click();
-  await page.getByRole('button', { name: 'Move ftorder-b up', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Finish reordering', exact: true })).toBeEnabled();
+  await openFolderContextMenu(page, 'ftorder-b');
+  await page.getByRole('menuitem', { name: 'Move up', exact: true }).click();
   const orderLabels = () => page.locator('.folder-node > .sidebar-nav-item-label').allTextContents();
   await expect.poll(async () => {
     const labels = (await orderLabels()).map(label => label.trim());
@@ -143,7 +142,7 @@ test('only offers Delete for empty folders, and deleting removes it from the tre
   await expect(folderRow(page, 'ftremovable')).toHaveCount(0);
 });
 
-test('moves a book into a folder via drag and drop', async ({ page }) => {
+test('drags books and folders onto folders, and undoes a folder move', async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
@@ -182,4 +181,24 @@ test('moves a book into a folder via drag and drop', async ({ page }) => {
   await expect(
     page.locator('.book-card-view').getByRole('heading', { name: 'ft-dnd-book', exact: true })
   ).toBeVisible();
+
+  await addFolder(page, 'ftdrag-a');
+  await addFolder(page, 'ftdrag-b');
+  const orderLabels = async () =>
+    (await page.locator('.folder-node > .sidebar-nav-item-label').allTextContents()).map((label) => label.trim());
+
+  await folderRow(page, 'ftdrag-b').dragTo(folderRow(page, 'ftdrag-a'), { targetPosition: { x: 60, y: 2 } });
+  await expect.poll(async () => {
+    const labels = await orderLabels();
+    return labels.indexOf('ftdrag-b') < labels.indexOf('ftdrag-a');
+  }).toBe(true);
+
+  await folderRow(page, 'ftdrag-b').dragTo(folderRow(page, 'ftdrag-a'), { targetPosition: { x: 60, y: 16 } });
+  const notice = page.locator('.reka-toast').filter({ hasText: 'Moved “ftdrag-b” into “ftdrag-a”.' });
+  await expect(notice).toBeVisible();
+  await expect(folderRow(page, 'ftdrag-b')).toHaveAttribute('aria-level', '2');
+
+  await notice.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(folderRow(page, 'ftdrag-b')).toHaveAttribute('aria-level', '1');
+  await expect(notice).toHaveCount(0);
 });

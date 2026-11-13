@@ -31,6 +31,15 @@ describe('useToasts', () => {
     expect(toasts.value).toHaveLength(2);
   });
 
+  it('keeps the action a toast offers', () => {
+    const { showToast, toasts } = useToasts();
+    const run = () => undefined;
+
+    showToast('Moved', { action: { label: 'Undo', run } });
+
+    expect(toasts.value[0]?.action).toEqual({ label: 'Undo', run });
+  });
+
   it('dismisses only the toast asked for', () => {
     const { showToast, dismissToast, toasts } = useToasts();
     const first = showToast('first');
