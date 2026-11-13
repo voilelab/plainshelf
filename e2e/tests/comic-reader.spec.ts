@@ -136,7 +136,15 @@ test('reads ltr and rtl comics, restores page progress, sizes pages, and edits p
   await expect(cells.nth(1)).toContainText('Missing page');
   const before = await assetStats();
 
-  await cells.nth(2).dragTo(cells.nth(0));
+  await cells.nth(2).dragTo(cells.nth(0), { targetPosition: { x: 8, y: 40 } });
+  await expect.poll(readList).toBe('random-a.png\nrandom-z.png\nlost.png\n');
+  const rightHalf = async (index: number) => {
+    const box = await cells.nth(index).boundingBox();
+    return { x: (box?.width ?? 16) - 8, y: 40 };
+  };
+  await cells.nth(0).dragTo(cells.nth(1), { targetPosition: await rightHalf(1) });
+  await expect.poll(readList).toBe('random-z.png\nrandom-a.png\nlost.png\n');
+  await cells.nth(1).dragTo(cells.nth(0), { targetPosition: { x: 8, y: 40 } });
   await expect.poll(readList).toBe('random-a.png\nrandom-z.png\nlost.png\n');
   expect(await assetStats()).toEqual(before);
 

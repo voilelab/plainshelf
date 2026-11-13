@@ -60,13 +60,16 @@
           v-for="(page, index) in pageList.pages"
           :key="`${index}:${page.name}`"
           class="page-cell"
-          :class="{ selected: selectedIndex === index, missing: page.missing, 'drop-target': dropIndex === index }"
+          :class="[
+            { selected: selectedIndex === index, missing: page.missing, dragging: dragIndex === index },
+            drop?.index === index ? `drop-${drop.side}` : undefined
+          ]"
           :draggable="canEdit"
           :data-page-name="page.name"
           @dragstart="onDragStart(index, $event)"
-          @dragover.prevent="dropIndex = index"
-          @dragleave="dropIndex = dropIndex === index ? null : dropIndex"
-          @drop.prevent="onDrop(index)"
+          @dragover.prevent="onDragOver(index, $event)"
+          @dragleave="onDragLeave(index, $event)"
+          @drop.prevent="onDrop(index, $event)"
           @dragend="clearDrag"
         >
           <button
@@ -119,6 +122,7 @@ import PageThumb from '@/features/sources/components/PageThumb.vue';
 import { usePageListEditor } from '@/features/sources/composables/usePageListEditor';
 import { useI18n } from '@/i18n';
 import { isPageDirection, type PageDirection } from '@/types/source';
+import { dropDestination, type PageDropSide } from '@/features/sources/utils/pageOrder';
 
 const props = defineProps<{
   bookId: string;
@@ -139,7 +143,7 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const scrollEl = ref<HTMLElement | null>(null);
 const pendingDelete = ref<{ name: string; missing: boolean } | null>(null);
 const dragIndex = ref<number | null>(null);
-const dropIndex = ref<number | null>(null);
+const drop = ref<{ index: number; side: PageDropSide } | null>(null);
 
 const {
   pageList,
@@ -197,15 +201,33 @@ function onDragStart(index: number, event: DragEvent): void {
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 }
 
-async function onDrop(index: number): Promise<void> {
+function dropSide(event: DragEvent): PageDropSide {
+  if (!(event.currentTarget instanceof Element)) return 'before';
+  const rect = event.currentTarget.getBoundingClientRect();
+  return event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+}
+
+function onDragOver(index: number, event: DragEvent): void {
+  if (dragIndex.value === null) return;
+  drop.value = { index, side: dropSide(event) };
+}
+
+function onDragLeave(index: number, event: DragEvent): void {
+  const cell = event.currentTarget;
+  if (cell instanceof Node && event.relatedTarget instanceof Node && cell.contains(event.relatedTarget)) return;
+  if (drop.value?.index === index) drop.value = null;
+}
+
+async function onDrop(index: number, event: DragEvent): Promise<void> {
   const from = dragIndex.value;
+  const side = dropSide(event);
   clearDrag();
-  if (from !== null) await reorder(from, index);
+  if (from !== null) await reorder(from, dropDestination(from, index, side));
 }
 
 function clearDrag(): void {
   dragIndex.value = null;
-  dropIndex.value = null;
+  drop.value = null;
 }
 
 watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true });
@@ -290,6 +312,7 @@ watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true }
 }
 
 .page-cell {
+  position: relative;
   display: grid;
   gap: 6px;
   padding: 6px;
@@ -303,9 +326,28 @@ watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true }
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-.page-cell.drop-target {
-  border-style: dashed;
-  border-color: var(--accent);
+.page-cell.dragging {
+  opacity: 0.4;
+}
+
+.page-cell.drop-before::before,
+.page-cell.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.page-cell.drop-before::before {
+  left: -8px;
+}
+
+.page-cell.drop-after::after {
+  right: -8px;
 }
 
 .page-cell.missing {
@@ -323,6 +365,17 @@ watch(() => [props.bookId, props.sourceId] as const, reload, { immediate: true }
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+@media (hover: hover) {
+  .page-grid[data-testid='page-grid'] .page-actions .icon-button {
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .page-grid[data-testid='page-grid'] .page-cell:is(:hover, :focus-within, .selected) .icon-button {
+    opacity: 1;
+  }
 }
 
 .page-number {
