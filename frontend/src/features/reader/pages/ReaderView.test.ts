@@ -179,7 +179,7 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve));
 }
 
-function press(key: 'ArrowLeft' | 'ArrowRight'): KeyboardEvent {
+function press(key: 'ArrowLeft' | 'ArrowRight' | 'Escape'): KeyboardEvent {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
   document.dispatchEvent(event);
   return event;
@@ -357,4 +357,53 @@ it('reverses comic arrow keys for rtl while retaining page boundaries', async ()
   reader.currentSectionIndex.value = 2;
   press('ArrowLeft');
   expect(reader.goNextSection).toHaveBeenCalledOnce();
+});
+
+describe('ReaderView Escape key', () => {
+  it('returns to the book detail page', async () => {
+    mount();
+    await flush();
+
+    const event = press('Escape');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(router.replace).toHaveBeenCalledWith('/books/book-1');
+  });
+
+  it('is ignored in the standalone reader', async () => {
+    runtime.reader = true;
+    mount();
+    await flush();
+
+    const event = press('Escape');
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
+  });
+
+  it('leaves Escape to an open modal', async () => {
+    const host = mount();
+    await flush();
+    host.querySelector<HTMLButtonElement>('.open-chapter')!.click();
+    await flush();
+
+    press('Escape');
+
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
+  });
+
+  it('is ignored while a text field has focus', async () => {
+    const host = mount();
+    await flush();
+    const input = document.createElement('input');
+    host.append(input);
+    input.focus();
+
+    press('Escape');
+
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
+  });
 });
