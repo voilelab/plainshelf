@@ -57,6 +57,15 @@ func TestAPIErrorsAnswerAJSONEnvelopeContract(t *testing.T) {
 			message: "star must be between 0 and 5",
 		},
 		{
+			name:    "blank series name",
+			method:  http.MethodPatch,
+			path:    apitest.BookURL(book.Meta.ID),
+			body:    `{"series":{"name":" ","index":1}}`,
+			status:  http.StatusBadRequest,
+			code:    "INVALID_SERIES",
+			message: "series needs a non-blank name and a finite, non-negative index",
+		},
+		{
 			name:    "invalid folder name",
 			method:  http.MethodPost,
 			path:    apitest.ShelfURL("folders", "bad%2F..%2Fesc"),

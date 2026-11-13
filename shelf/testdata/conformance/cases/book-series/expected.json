@@ -1,0 +1,135 @@
+{
+  "folders": [
+    "/",
+    "Saga"
+  ],
+  "folder_meta": {},
+  "books": [
+    {
+      "path": "books/Saga/side-story.bookpkg",
+      "folders": [
+        "Saga"
+      ],
+      "id": "s4m8xk2qv7zd9npt",
+      "title": "Saga Side Story",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
+      "star": 0,
+      "series": {
+        "name": "Saga",
+        "index": 1.5
+      },
+      "created_at": "",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    },
+    {
+      "path": "books/Saga/volume-0.bookpkg",
+      "folders": [
+        "Saga"
+      ],
+      "id": "s0d3kq8vm5xz7rnt",
+      "title": "Saga Prologue",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
+      "star": 0,
+      "series": {
+        "name": "Saga",
+        "index": 0
+      },
+      "created_at": "",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    },
+    {
+      "path": "books/Saga/volume-1.bookpkg",
+      "folders": [
+        "Saga"
+      ],
+      "id": "s1k7qv3mz9xd2nrt",
+      "title": "Saga 1",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
+      "star": 0,
+      "series": {
+        "name": "Saga",
+        "index": 1
+      },
+      "created_at": "",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    },
+    {
+      "path": "books/standalone.bookpkg",
+      "folders": [],
+      "id": "p6v2mx9kq4zd8rnt",
+      "title": "Standalone",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "identifiers": {},
+      "language": "",
+      "comments": "",
+      "star": 0,
+      "created_at": "",
+      "updated_at": "",
+      "published_at": "",
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "nsfw": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    }
+  ],
+  "book_caches": [
+    {
+      "name": "book-cache-fixture-5e1c.json",
+      "usable": true,
+      "book_ids": [
+        "p6v2mx9kq4zd8rnt",
+        "s0d3kq8vm5xz7rnt",
+        "s1k7qv3mz9xd2nrt",
+        "s4m8xk2qv7zd9npt"
+      ]
+    }
+  ]
+}

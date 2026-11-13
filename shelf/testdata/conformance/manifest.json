@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "cases": [
     {
       "name": "plain-book",
@@ -64,6 +64,10 @@
     {
       "name": "images-source-ttb",
       "covers": "A current images source whose page_direction is ttb, reserved for vertical-scroll strip comics: it reads as written."
+    },
+    {
+      "name": "book-series",
+      "covers": "book.json carrying series with whole, fractional and zero index beside a book without one, read the same from the walk and from a book cache that carries it. The key is additive: a book without it reads exactly as before."
     }
   ]
 }

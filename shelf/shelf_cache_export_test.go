@@ -37,6 +37,7 @@ func TestBookCacheExportDuringBookWrites(t *testing.T) {
 	meta.Tags = []string{"Concurrent"}
 	meta.Authors = []string{"Concurrent"}
 	meta.Identifiers = map[string]string{"test": "Concurrent"}
+	meta.Series = &BookSeries{Name: "Concurrent", Index: 1}
 	if err := book.SetMeta(meta); err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +52,7 @@ func TestBookCacheExportDuringBookWrites(t *testing.T) {
 			meta.Tags[0] = meta.Title
 			meta.Authors[0] = meta.Title
 			meta.Identifiers["test"] = meta.Title
+			meta.Series.Name = meta.Title
 			if err := book.SetMeta(meta); err != nil {
 				t.Error(err)
 				return
@@ -59,6 +61,7 @@ func TestBookCacheExportDuringBookWrites(t *testing.T) {
 			meta.Tags[0] = "Unpublished"
 			meta.Authors[0] = "Unpublished"
 			meta.Identifiers["test"] = "Unpublished"
+			meta.Series.Name = "Unpublished"
 			if err := book.SetCurrentSource(source.ID()); err != nil {
 				t.Error(err)
 				return
@@ -77,7 +80,7 @@ func TestBookCacheExportDuringBookWrites(t *testing.T) {
 				return
 			}
 			meta := s.collectExportSnapshot(testWriterID).Books[bookID].Meta
-			if meta.Title != meta.Tags[0] || meta.Title != meta.Authors[0] || meta.Title != meta.Identifiers["test"] {
+			if meta.Title != meta.Tags[0] || meta.Title != meta.Authors[0] || meta.Title != meta.Identifiers["test"] || meta.Title != meta.Series.Name {
 				t.Errorf("inconsistent metadata snapshot: %+v", meta)
 			}
 		}
@@ -90,7 +93,7 @@ func TestBookCacheExportDuringBookWrites(t *testing.T) {
 	}
 	cache := waitForBookCacheExport(t, libRoot, testWriterID)
 	got := cache.Books[bookID].Meta
-	if got.Title != "Revision 31" || got.CurrentSource != source.ID() || got.Cover != "cover.png" {
+	if got.Title != "Revision 31" || got.CurrentSource != source.ID() || got.Cover != "cover.png" || got.Series == nil || got.Series.Name != "Revision 31" {
 		t.Fatalf("export missed the final write: %+v", got)
 	}
 }

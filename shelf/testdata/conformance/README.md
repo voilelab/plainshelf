@@ -53,7 +53,7 @@ of the shelf observes:
 | `folder_meta` | `Shelf.ReadFolderMeta` |
 | `books[].path` | `Book.FolderPath` |
 | `books[].folders` | `BookListing.Folders` |
-| `books[].id`, `title`, `format`, `authors`, `tags`, `identifiers`, `language`, `comments`, `star`, `created_at`, `updated_at`, `published_at`, `cover` | `Book.GetMeta` |
+| `books[].id`, `title`, `format`, `authors`, `tags`, `identifiers`, `language`, `comments`, `star`, `series`, `created_at`, `updated_at`, `published_at`, `cover` | `Book.GetMeta` |
 | `books[].cover_present` | `Book.OpenCover` |
 | `books[].schema_version_on_disk` | `readBookMeta` |
 | `books[].read_only` | `Book.EnsureWritable` |
@@ -97,6 +97,8 @@ Conventions of the recorded reading:
   (`DisplayIcon`, `""` for the default), `icon_on_disk` the member as written,
   and `read_only` that a write would be refused for the file's content.
 - An absent value is recorded as `""`, `0`, `[]` or `{}` rather than `null`.
+  `series` is the exception: a book without one omits the key, because an
+  empty object would read as a series with a blank name.
 - Timestamps are recorded exactly as PlainShelf writes them: `created_at` and
   `updated_at` in RFC 3339 (`2026-03-15T08:30:00Z`), `published_at` as a date
   (`2026-03-15`). Go parses these into a `time.Time` and writes them back, so
