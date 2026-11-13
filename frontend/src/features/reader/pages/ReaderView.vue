@@ -210,7 +210,6 @@ function onDocumentKeydown(event: KeyboardEvent): void {
     if (!showBackNavigation || event.defaultPrevented) {
       return;
     }
-    // A Wails window on macOS leaves native fullscreen on an Escape the page does not handle.
     event.preventDefault();
     goBack();
     return;
