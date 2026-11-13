@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { createApp, h, nextTick, type App } from 'vue';
+import { createApp, defineComponent, h, nextTick, type App } from 'vue';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./FolderBreadcrumb.vue', () => ({
@@ -56,6 +57,7 @@ function mountDetail(comment: string): HTMLElement {
   document.body.append(host);
 
   const app = createApp({ setup: () => () => h(BookDetail, { book: book(comment) }) });
+  app.use(createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: defineComponent({ render: () => null }) }] }));
   app.mount(host);
   mounted.push({ app, host, submitted: [], dirtyChanges: [] });
   return host;

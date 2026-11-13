@@ -16,6 +16,8 @@ const BookDetailPage = () => import('@/features/library/pages/BookDetailPage.vue
 const DuplicateContentPage = () => import('@/features/maintenance/pages/DuplicateContentPage.vue');
 const SimilarContentPage = () => import('@/features/maintenance/pages/SimilarContentPage.vue');
 const ReadHistoryPage = () => import('@/pages/ReadHistoryPage.vue');
+const SeriesListPage = () => import('@/features/library/pages/SeriesListPage.vue');
+const SeriesDetailPage = () => import('@/features/library/pages/SeriesDetailPage.vue');
 const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
 const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
 const AdminLogsPage = () => import('@/features/settings/pages/AdminLogsPage.vue');
@@ -32,6 +34,8 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'book-sources-edit',
   'reader',
   'read-history',
+  'series-list',
+  'series-detail',
   'trash',
   'downloads',
   'admin-logs',
@@ -93,6 +97,17 @@ const router = createRouter({
           path: 'similar',
           name: 'similar-content',
           component: SimilarContentPage
+        },
+        {
+          path: 'series',
+          name: 'series-list',
+          component: SeriesListPage
+        },
+        {
+          path: 'series/:name',
+          name: 'series-detail',
+          component: SeriesDetailPage,
+          props: true
         },
         {
           path: 'read-history',

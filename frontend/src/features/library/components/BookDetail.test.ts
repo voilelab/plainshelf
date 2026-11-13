@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { createApp, h, type App } from 'vue';
+import { createApp, defineComponent, h, type App } from 'vue';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./FolderBreadcrumb.vue', () => ({
@@ -31,7 +32,16 @@ function mount(props: MountProps): HTMLElement {
   const host = document.createElement('div');
   document.body.append(host);
 
+  const stub = defineComponent({ render: () => null });
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: stub },
+      { path: '/series/:name', name: 'series-detail', component: stub }
+    ]
+  });
   const app = createApp({ setup: () => () => h(BookDetail, props) });
+  app.use(router);
   app.mount(host);
   mounted = { app, host };
   return host;
@@ -200,6 +210,8 @@ describe('BookDetail series', () => {
     const host = mount({ book: { ...book(''), series: { name: 'Saga', index: 1.5 } } });
 
     expect(quickFacts(host)).toContain('Series: Saga #1.5');
+    const link = host.querySelector<HTMLAnchorElement>('.quick-fact a');
+    expect(link?.getAttribute('href')).toBe('/series/Saga');
   });
 
   it('shows no series fact for a book outside any series', () => {

@@ -220,6 +220,7 @@ const zhHant = {
     dashboard: '首頁',
     library: '書庫',
     recentlyRead: '最近閱讀',
+    series: '系列',
     trash: '垃圾桶',
     downloads: '已下載',
     adminLogs: '日誌',
@@ -1022,6 +1023,15 @@ const zhHant = {
     cancel: '取消',
     busy: '刪除中...',
     question: '確定刪除「{itemName}」？'
+  },
+  series: {
+    title: '系列',
+    count: '{count} 個系列',
+    bookCountOne: '1 本',
+    bookCountMany: '{count} 本',
+    empty: '還沒有系列。在書籍資料裡填上系列名稱與集數，書就會出現在這裡。',
+    detailEmpty: '這個書架上沒有屬於這個系列的書。',
+    backToAll: '所有系列'
   },
   readHistory: {
     title: '最近閱讀',

@@ -22,7 +22,10 @@
       <dl v-if="quickFacts.length > 0" class="quick-facts">
         <div v-for="fact in quickFacts" :key="fact.label" class="quick-fact">
           <dt>{{ fact.label }}</dt>
-          <dd>{{ fact.value }}</dd>
+          <dd>
+            <RouterLink v-if="fact.to" :to="fact.to" class="quick-fact-link">{{ fact.value }}</RouterLink>
+            <template v-else>{{ fact.value }}</template>
+          </dd>
         </div>
       </dl>
     </header>
@@ -106,6 +109,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import type { RouteLocationRaw } from 'vue-router';
 import FolderBreadcrumb from './FolderBreadcrumb.vue';
 import BookNsfwBadge from '@/components/BookNsfwBadge.vue';
 import SafeHtml from '@/components/SafeHtml.vue';
@@ -159,6 +163,7 @@ interface DetailRow {
   label: string;
   value: string;
   className?: string;
+  to?: RouteLocationRaw;
 }
 
 type NoteRow =
@@ -186,7 +191,8 @@ const quickFacts = computed<DetailRow[]>(() => {
   if (series) {
     rows.push({
       label: t('bookDetail.fields.series'),
-      value: t('bookDetail.seriesValue', { name: series.name, index: String(series.index) })
+      value: t('bookDetail.seriesValue', { name: series.name, index: String(series.index) }),
+      to: { name: 'series-detail', params: { name: series.name } }
     });
   }
   if (format) {
@@ -350,6 +356,17 @@ const hasDetailSections = computed(() =>
 .quick-fact dt,
 .quick-fact dd {
   margin: 0;
+}
+
+.quick-fact-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--muted-soft);
+  text-underline-offset: 2px;
+}
+
+.quick-fact-link:hover {
+  color: var(--accent);
 }
 
 .quick-fact dt {
