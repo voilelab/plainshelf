@@ -68,7 +68,7 @@ func TestEPUBBookTitle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := epubBookTitle(tt.supplied, tt.filename, tt.parsed); got != tt.want {
+			if got := epubBookTitle(tt.supplied, tt.filename, tt.parsed.Title); got != tt.want {
 				t.Errorf("epubBookTitle(%q, %q) = %q, want %q", tt.supplied, tt.filename, got, tt.want)
 			}
 		})

@@ -33,7 +33,11 @@ export interface PlatformCapabilities {
     removeShelf(id: string): Promise<void>;
   };
   openLocalBookFiles?(): Promise<string[] | null>;
-  importBookFromLocalPath?(path: string, folder: string): Promise<DesktopImportBookResult | null>;
+  importBookFromLocalPath?(
+    path: string,
+    folder: string,
+    epubStrategy?: string
+  ): Promise<DesktopImportBookResult | null>;
   notifyImportFinished?(title: string, body: string): Promise<void>;
   openFolder?(path: string): Promise<void>;
   openBookFolder?(id: string): Promise<void>;

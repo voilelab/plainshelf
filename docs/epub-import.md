@@ -99,8 +99,8 @@ file rewrites the note.
 
 ## Choosing the layout
 
-The import dialog offers two layouts once an EPUB is selected. The choice
-decides both how the text is written and the format the book is stored as.
+The import dialog offers three layouts once an EPUB is selected. The choice
+decides both how the content is written and the format the book is stored as.
 
 ### Markdown (default)
 
@@ -139,6 +139,32 @@ The layout decides the text itself, not just how it is read. After a plain-text
 import, use the source editor to create a chapterized Markdown source; the
 original TXT source stays intact.
 
+### Comic pages (images)
+
+For an EPUB made of page images, such as a comic that calibre converted from a
+CBZ. Each page image becomes a page of an `images` source, the same layout a
+[CBZ import](cbz-import.md) produces, and the book opens in the comic reader.
+
+- Pages follow the reading order. Every image a page document shows becomes a
+  page, and an image shown twice is kept once.
+- Cover pages are skipped: the page the `<guide>` marks as the cover, and a
+  calibre title page (`<meta name="calibre:cover" content="true">`), which
+  repeats the first page. A book made only of cover pages keeps them. The first
+  remaining page becomes the book cover.
+- `page-progression-direction="rtl"` on the spine sets right-to-left reading.
+- Title, authors, language, description, identifiers, and published date are
+  read as for the other layouts. Nothing is written into the text.
+- Page images keep their original bytes and extension. They are checked with
+  the [CBZ limits](cbz-import.md#limits): 20 MiB and 100 million pixels per
+  image, and at most 2,000 pages.
+
+The import fails, and creates no book, when any page document cannot be read
+or contains text, a page image is missing or is not `.jpg`, `.jpeg`, `.png`, `.webp`, or `.gif`, or
+no page has an image. The error names the page. Import a book with text as
+Markdown instead.
+
+This layout applies to one import only and cannot be the default.
+
 ### Description in the text
 
 The book description is always saved to the book's metadata. This option
@@ -149,14 +175,15 @@ additionally writes it at the start of the text, before the first chapter.
 Import options chosen in the dialog apply to that batch only. To change the
 default, open **Settings → Import & covers**.
 
-The default also governs imports that never open the dialog — notably the
-desktop app's file picker, which imports immediately.
+The desktop app's file picker imports other files immediately. When the
+selection includes an EPUB, the dialog shows the layout options first and
+imports when you choose **Import**.
 
 The default can be seeded from the server config file:
 
 ```yaml
 epub_import_strategy:
-  preset: markdown        # or: plain
+  preset: markdown        # or: plain; images cannot be the default
   include_description: true
 ```
 

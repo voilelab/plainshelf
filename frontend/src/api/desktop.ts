@@ -88,7 +88,8 @@ interface DesktopAppBinding {
   ImportBookFromLocalPath: (
     shelfID: string,
     localPath: string,
-    folderParts: string[]
+    folderParts: string[],
+    epubStrategy: string
   ) => Promise<DesktopImportBookResult>;
   OpenShelfDirectory: () => Promise<string>;
   OpenShelfInFinder: (shelfID: string) => Promise<void>;
@@ -263,7 +264,8 @@ export function onDesktopLANShareChanged(
 
 export async function importDesktopBookFromLocalPath(
   localPath: string,
-  folderPath: string
+  folderPath: string,
+  epubStrategy = ''
 ): Promise<DesktopImportBookResult | null> {
   if (!inDesktopApp()) {
     return null;
@@ -273,7 +275,8 @@ export async function importDesktopBookFromLocalPath(
     'ImportBookFromLocalPath',
     getActiveShelfID(),
     localPath,
-    normalizeFolderParts(folderPath)
+    normalizeFolderParts(folderPath),
+    epubStrategy
   );
 }
 

@@ -67,7 +67,14 @@ type Options struct {
 	KeepImages bool
 }
 
-func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
+type epubPackage struct {
+	files    map[string]*zip.File
+	pkg      opfPackage
+	baseDir  string
+	manifest map[string]opfItem
+}
+
+func openPackage(r io.ReaderAt, size int64) (*epubPackage, error) {
 	zr, err := zip.NewReader(r, size)
 	if err != nil {
 		return nil, util.Errorf("not a readable epub archive: %w", err)
@@ -99,6 +106,16 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 	for _, item := range pkg.Manifest.Items {
 		manifest[item.ID] = item
 	}
+
+	return &epubPackage{files: files, pkg: pkg, baseDir: baseDir, manifest: manifest}, nil
+}
+
+func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
+	opened, err := openPackage(r, size)
+	if err != nil {
+		return nil, err
+	}
+	files, pkg, baseDir, manifest := opened.files, opened.pkg, opened.baseDir, opened.manifest
 
 	book := &Book{
 		Title:       firstNonEmpty(pkg.Metadata.Titles),
@@ -471,9 +488,18 @@ type opfPackage struct {
 		Items []opfItem `xml:"item"`
 	} `xml:"manifest"`
 	Spine struct {
-		TOC      string       `xml:"toc,attr"`
-		ItemRefs []opfItemRef `xml:"itemref"`
+		TOC                      string       `xml:"toc,attr"`
+		PageProgressionDirection string       `xml:"page-progression-direction,attr"`
+		ItemRefs                 []opfItemRef `xml:"itemref"`
 	} `xml:"spine"`
+	Guide struct {
+		References []opfReference `xml:"reference"`
+	} `xml:"guide"`
+}
+
+type opfReference struct {
+	Type string `xml:"type,attr"`
+	Href string `xml:"href,attr"`
 }
 
 type opfMetadata struct {

@@ -10,7 +10,7 @@ import {
   textToMarkdownByRegex
 } from '@/features/sources/utils/sourceConversions';
 import { notifyImportFinished } from '@/utils/importNotification';
-import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy } from '@/types/book';
+import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubUploadStrategy } from '@/types/book';
 
 const bookExtPattern = /\.(txt|md|epub|cbz)$/i;
 const epubExtPattern = /\.epub$/i;
@@ -74,7 +74,8 @@ export function useImportBook() {
   const cancelRequested = ref(false);
   const success = ref('');
   const error = ref('');
-  const epubStrategy = ref<EpubImportStrategy>({ ...DEFAULT_EPUB_IMPORT_STRATEGY });
+  const epubStrategy = ref<EpubUploadStrategy>({ ...DEFAULT_EPUB_IMPORT_STRATEGY });
+  const pendingLocalPaths = ref<string[]>([]);
   const chapterSuggestion = ref<ChapterConversionSuggestion | null>(null);
   const convertingChapters = ref(false);
   const chapterConversionError = ref('');
@@ -103,12 +104,13 @@ export function useImportBook() {
     };
   });
 
-  function setEpubStrategy(next: EpubImportStrategy): void {
+  function setEpubStrategy(next: EpubUploadStrategy): void {
     epubStrategy.value = { ...next };
   }
 
   function hasEpubFile(): boolean {
-    return bookFiles.value.some((file) => epubExtPattern.test(file.name));
+    return bookFiles.value.some((file) => epubExtPattern.test(file.name)) ||
+      pendingLocalPaths.value.some((localPath) => epubExtPattern.test(localPath));
   }
 
   function toImportFileStates(units: ImportUnit[]): ImportFileState[] {
@@ -131,6 +133,7 @@ export function useImportBook() {
 
   function clearImportSelection(): void {
     bookFiles.value = [];
+    pendingLocalPaths.value = [];
     files.value = [];
     submitting.value = false;
     cancelRequested.value = false;
@@ -138,7 +141,17 @@ export function useImportBook() {
 
   function setBookFiles(nextFiles: File[]): void {
     bookFiles.value = nextFiles;
+    pendingLocalPaths.value = [];
     files.value = toImportFileStates(buildFileUnits(nextFiles));
+    success.value = '';
+    error.value = '';
+    clearChapterSuggestion();
+  }
+
+  function setLocalPaths(localPaths: string[]): void {
+    bookFiles.value = [];
+    pendingLocalPaths.value = [...localPaths];
+    files.value = toImportFileStates(buildLocalPathUnits(localPaths));
     success.value = '';
     error.value = '';
     clearChapterSuggestion();
@@ -264,7 +277,10 @@ export function useImportBook() {
     const folder = normalizeImportFolderPath(currentFolderPath);
     return async (unit) => {
       bookshelfWriter();
-      const result = (await getPlatformCapabilities().importBookFromLocalPath?.(unit.localPath, folder)) ?? null;
+      const importFromPath = getPlatformCapabilities().importBookFromLocalPath;
+      const result = epubExtPattern.test(unit.filename)
+        ? await importFromPath?.(unit.localPath, folder, JSON.stringify(epubStrategy.value))
+        : await importFromPath?.(unit.localPath, folder);
       if (result?.error) {
         throw new Error(result.error);
       }
@@ -403,6 +419,10 @@ export function useImportBook() {
     return submit(buildLocalPathUnits(localPaths), createLocalPathExecutor(currentFolderPath));
   }
 
+  async function submitPendingLocalPaths(currentFolderPath?: string): Promise<ImportSubmitResult | null> {
+    return submitLocalPaths(pendingLocalPaths.value, currentFolderPath);
+  }
+
   function abort(): void {
     if (!submitting.value) {
       return;
@@ -419,6 +439,7 @@ export function useImportBook() {
     success,
     error,
     epubStrategy,
+    pendingLocalPaths,
     progress,
     chapterSuggestion,
     convertingChapters,
@@ -426,9 +447,11 @@ export function useImportBook() {
     setEpubStrategy,
     hasEpubFile,
     setBookFiles,
+    setLocalPaths,
     submit,
     submitFiles,
     submitLocalPaths,
+    submitPendingLocalPaths,
     detectChapterConversion,
     applyChapterConversion,
     dismissChapterSuggestion,

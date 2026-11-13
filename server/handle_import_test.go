@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/testutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -207,12 +208,41 @@ func TestImportLocalPathStripsExtension(t *testing.T) {
 		t.Fatalf("write source book: %v", err)
 	}
 
-	book, err := app.ImportFromLocalPath("default_shelf", srcPath, nil)
+	book, err := app.ImportFromLocalPath("default_shelf", srcPath, nil, "")
 	if err != nil {
 		t.Fatalf("ImportFromLocalPath returned error: %v", err)
 	}
 	if got := book.GetMeta().Title; got != "遮天" {
 		t.Fatalf("title = %q, want 遮天", got)
+	}
+}
+
+func TestImportLocalPathEPUBStrategy(t *testing.T) {
+	app := newTestApp(t)
+
+	srcPath := filepath.Join(t.TempDir(), "comic.epub")
+	if err := os.WriteFile(srcPath, testutil.BuildComicTestEPUB(t, 2), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	book, err := app.ImportFromLocalPath("default_shelf", srcPath, nil, `{"preset":"images","include_description":true}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := book.GetMeta().Format; got != shelf.BookFormatImages {
+		t.Fatalf("format = %q, want images", got)
+	}
+
+	if _, err := app.ImportFromLocalPath("default_shelf", srcPath, nil, `{"preset":"custom"}`); err == nil {
+		t.Fatal("unknown preset was accepted")
+	}
+
+	book, err = app.ImportFromLocalPath("default_shelf", srcPath, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := book.GetMeta().Format; got != shelf.BookFormatMarkdown {
+		t.Fatalf("format without a strategy = %q, want the markdown default", got)
 	}
 }
 

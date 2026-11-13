@@ -131,7 +131,7 @@ func TestImportLocalPathReturnsBookID(t *testing.T) {
 		t.Fatalf("write source book: %v", err)
 	}
 
-	result, err := desktopApp.ImportBookFromLocalPath(shelfID, srcPath, nil)
+	result, err := desktopApp.ImportBookFromLocalPath(shelfID, srcPath, nil, "")
 	if err != nil {
 		t.Fatalf("ImportBookFromLocalPath returned error: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestImportLocalPathReportsFailure(t *testing.T) {
 	desktopApp := startedDesktopAppWithShelf(t, shelfID)
 
 	missingPath := filepath.Join(t.TempDir(), "does-not-exist.txt")
-	result, err := desktopApp.ImportBookFromLocalPath(shelfID, missingPath, nil)
+	result, err := desktopApp.ImportBookFromLocalPath(shelfID, missingPath, nil, "")
 	if err != nil {
 		t.Fatalf("ImportBookFromLocalPath returned a Go error for a bad path: %v", err)
 	}

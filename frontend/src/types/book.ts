@@ -103,6 +103,8 @@ export interface BookUpdateRequest {
 
 export type EpubImportPreset = 'markdown' | 'plain';
 
+export type EpubUploadPreset = EpubImportPreset | 'images';
+
 export interface EpubImportStrategy {
   preset: EpubImportPreset;
   include_description: boolean;
@@ -115,11 +117,15 @@ export const DEFAULT_EPUB_IMPORT_STRATEGY: EpubImportStrategy = {
   include_description: true
 };
 
+export interface EpubUploadStrategy extends Omit<EpubImportStrategy, 'preset'> {
+  preset: EpubUploadPreset;
+}
+
 export interface BookCreateRequest {
   title: string;
   folder?: string;
   file: File;
-  strategy?: EpubImportStrategy;
+  strategy?: EpubUploadStrategy;
 }
 
 export interface PaginatedBooks {

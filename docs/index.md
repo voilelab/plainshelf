@@ -64,9 +64,9 @@ that is a read-only storage backend, not sync: nothing is written back and no
 other client is aware of it.
 
 EPUB is an import format, not a storage format. An imported EPUB is converted to
-plain text or Markdown and stored like any other book; the original `.epub` is
-not retained. What survives the conversion, illustrations included, is in [EPUB
-import](epub-import.md).
+plain text or Markdown, or, for an image-only comic, to an images source, and
+stored like any other book; the original `.epub` is not retained. What survives
+the conversion, illustrations included, is in [EPUB import](epub-import.md).
 
 [CBZ import](cbz-import.md) extracts images without retaining the archive.
 An images source stores its ordered page list as text and its original images

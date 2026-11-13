@@ -12,8 +12,9 @@ The Go server embeds a Vue frontend and is also used by Wails desktop and experi
 - PDF, comic archives other than CBZ, DRM, OCR, multi-user accounts, cloud
   sync, public sharing, and plugins are outside the current scope unless the
   user changes it.
-- EPUB is an import format only: it is converted to text/Markdown at import and
-  the original file is not stored. Do not add EPUB rendering or storage.
+- EPUB is an import format only: it is converted to text/Markdown at import, or
+  to an `images` source when the user picks comic pages, and the original file
+  is not stored. Do not add EPUB rendering or storage.
 - CBZ is an import format only, the same way: it is unpacked into an `images`
   source and the archive is not stored. Pages keep their original image type;
   do not transcode them.

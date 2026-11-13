@@ -43,9 +43,10 @@ class WailsPlatform {
 
   importBookFromLocalPath(
     localPath: string,
-    folderPath: string
+    folderPath: string,
+    epubStrategy?: string
   ): Promise<DesktopImportBookResult | null> {
-    return importDesktopBookFromLocalPath(localPath, folderPath);
+    return importDesktopBookFromLocalPath(localPath, folderPath, epubStrategy);
   }
 
   openDesktopFolder(folderPath: string): Promise<void> {

@@ -63,7 +63,7 @@ func (h *settingHandlers) deleteShowNSFW(w http.ResponseWriter, r *http.Request)
 }
 
 func validateAPIImportStrategy(strategy epub.Strategy) (string, error) {
-	if err := strategy.Validate(); err != nil {
+	if err := strategy.ValidateDefault(); err != nil {
 		return fmt.Sprintf("unsupported epub import preset: %q", strategy.Preset), util.Errorf("%w", err)
 	}
 	return "", nil

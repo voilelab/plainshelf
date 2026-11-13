@@ -172,7 +172,7 @@ func (s *settings) epubImportStrategy() epub.Strategy {
 	}
 
 	if s.conf.EPUBImportStrategy != nil {
-		if strategy := s.conf.EPUBImportStrategy.Normalized(); strategy.Validate() == nil {
+		if strategy := s.conf.EPUBImportStrategy.Normalized(); strategy.ValidateDefault() == nil {
 			return strategy
 		}
 		s.Error("epubImportStrategy: invalid configured strategy", "preset", s.conf.EPUBImportStrategy.Preset)
@@ -182,7 +182,7 @@ func (s *settings) epubImportStrategy() epub.Strategy {
 }
 
 func validateStrategyWithDefaults(strategy epub.Strategy) error {
-	return strategy.Normalized().Validate()
+	return strategy.Normalized().ValidateDefault()
 }
 
 func (s *settings) readShowNSFW() bool {

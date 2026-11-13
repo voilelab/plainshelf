@@ -459,7 +459,7 @@ See [EPUB import](../epub-import.md) for what each one produces.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
-| `preset` | string | `markdown` | Output layout. `markdown` writes headings and keeps inline emphasis, storing the book as `md`. `plain` writes bare title lines and stores it as `txt`. Any other value is rejected and the built-in default is used. |
+| `preset` | string | `markdown` | Output layout. `markdown` writes headings and keeps inline emphasis, storing the book as `md`. `plain` writes bare title lines and stores it as `txt`. Any other value, including the import-only `images`, is rejected and the built-in default is used. |
 | `include_description` | bool | `true` when the section is absent | Also write the book description at the top of the text. It is always saved to the book's metadata regardless. |
 | `keep_images` | bool | `true` | Store the EPUB's illustrations beside the text and link them. Ignored by the `plain` preset, whose output would show the link markup literally. |
 

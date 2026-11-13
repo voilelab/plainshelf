@@ -65,6 +65,7 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 
 	for _, body := range []string{
 		`{"preset":"custom"}`,
+		`{"preset":"images","include_description":true}`,
 		`{"include_description":true}`,
 		`{"preset":"plain","template":"x"}`,
 		`not json`,

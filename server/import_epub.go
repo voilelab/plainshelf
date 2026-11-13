@@ -43,12 +43,12 @@ func parseImportStrategy(raw string, fallback epub.Strategy) (epub.Strategy, str
 	return inheritOptionalImportFields(strategy, fallback), "", nil
 }
 
-func epubBookTitle(supplied, filename string, parsed *epub.Book) string {
+func epubBookTitle(supplied, filename, parsedTitle string) string {
 	supplied = strings.TrimSpace(supplied)
 	if !titleLooksLikeFilename(supplied, filename) {
 		return supplied
 	}
-	if title := strings.TrimSpace(parsed.Title); title != "" {
+	if title := strings.TrimSpace(parsedTitle); title != "" {
 		return title
 	}
 	if supplied != "" {
@@ -174,6 +174,9 @@ func (h *importHandlers) importEPUB(
 	folderParts shelf.FolderPath,
 	strategy epub.Strategy,
 ) (*shelf.Book, error) {
+	if strategy.Preset == epub.PresetImages {
+		return h.importEPUBComic(shelfData, r, size, filename, suppliedTitle, folderParts)
+	}
 
 	parsed, err := epub.Parse(r, size, strategy.ParseOptions())
 	if err != nil {
@@ -181,7 +184,7 @@ func (h *importHandlers) importEPUB(
 	}
 
 	rendered := epub.Render(parsed, strategy)
-	title := epubBookTitle(suppliedTitle, filename, parsed)
+	title := epubBookTitle(suppliedTitle, filename, parsed.Title)
 
 	book, err := shelfData.NewBookWith(folderParts, title, h.initEPUBBook(parsed, rendered))
 	if err != nil {
@@ -189,6 +192,36 @@ func (h *importHandlers) importEPUB(
 	}
 
 	return book, nil
+}
+
+func (h *importHandlers) importEPUBComic(
+	shelfData *shelf.ShelfData,
+	r io.ReaderAt,
+	size int64,
+	filename string,
+	suppliedTitle string,
+	folderParts shelf.FolderPath,
+) (*shelf.Book, error) {
+	parsed, err := epub.ParseComic(r, size)
+	if err != nil {
+		return nil, &epubInputError{cause: err}
+	}
+
+	book := imagesBook{
+		title:     epubBookTitle(suppliedTitle, filename, parsed.Title),
+		direction: parsed.Direction,
+		pages:     parsed.Pages,
+		setMeta: func(meta *shelf.BookMeta) {
+			meta.Authors = parsed.Authors
+			meta.Comments = parsed.Description
+			meta.Identifiers = parsed.Identifiers
+			meta.Language = parsed.Language
+			if published, ok := parseEPUBDate(parsed.PublishedAt); ok {
+				meta.PublishedAt = published
+			}
+		},
+	}
+	return book.create(shelfData, folderParts, func(err error) error { return &epubInputError{cause: err} })
 }
 
 func inheritOptionalImportFields(strategy, fallback epub.Strategy) epub.Strategy {

@@ -295,7 +295,7 @@ export function mockImportBook(payload: BookCreateRequest): Book {
     .filter((segment) => segment.length > 0) ?? [];
 
   const isEpub = /\.epub$/i.test(payload.file.name);
-  const epubFormat = payload.strategy?.preset === 'plain' ? 'txt' : 'md';
+  const epubFormat = { markdown: 'md', plain: 'txt', images: 'images' }[payload.strategy?.preset ?? 'markdown'];
 
   const created: Book = {
     id,
