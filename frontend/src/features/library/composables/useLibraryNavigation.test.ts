@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BookSortKey, SortOrder } from './useBooksSort';
 import { setLocale } from '@/i18n';
 import { useLibraryNavigation } from './useLibraryNavigation';
+import { getStoredBookSort, getStoredSortOrder } from './useBooksSort';
 
 function setup(folder: string | undefined, page = 1) {
   const pushBooksQuery = vi.fn(() => Promise.resolve());
@@ -47,6 +48,16 @@ describe('useLibraryNavigation', () => {
 
     nav.toggleOrder();
     expect(pushBooksQuery).toHaveBeenLastCalledWith({ folder: 'x', page: 1, sort: 'updated_at', order: 'asc' });
+  });
+
+  it('stores the chosen sort and order', () => {
+    const { nav } = setup('x', 1);
+
+    nav.onSortSelectChange('title');
+    expect(getStoredBookSort()).toBe('title');
+
+    nav.toggleOrder();
+    expect(getStoredSortOrder()).toBe('asc');
   });
 
   it('titles the top level as No folder', () => {

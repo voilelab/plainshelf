@@ -10,8 +10,10 @@ import {
   searchFilter
 } from '@/utils/bookFilters/registry';
 import {
-  ORDER_OPTIONS,
-  SORT_OPTIONS,
+  getStoredBookSort,
+  getStoredSortOrder,
+  isBookSortKey,
+  isSortOrder,
   type BookSortKey,
   type SortOrder
 } from './useBooksSort';
@@ -27,14 +29,6 @@ type BooksQueryInput = {
 
 type RouterNavigationResult = Promise<void | NavigationFailure | undefined>;
 
-function isBookSortKey(value: string): value is BookSortKey {
-  return (SORT_OPTIONS as readonly string[]).includes(value);
-}
-
-function isSortOrder(value: string): value is SortOrder {
-  return (ORDER_OPTIONS as readonly string[]).includes(value);
-}
-
 function toFolderPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
   const raw = toSingleQueryValue(value);
   if (!raw) {
@@ -47,18 +41,12 @@ function toFolderPath(value: LocationQueryValue | LocationQueryValue[] | undefin
 
 function toBookSort(value: LocationQueryValue | LocationQueryValue[] | undefined): BookSortKey {
   const raw = toSingleQueryValue(value);
-  if (!raw) {
-    return 'updated_at';
-  }
-  return isBookSortKey(raw) ? raw : 'updated_at';
+  return isBookSortKey(raw) ? raw : getStoredBookSort();
 }
 
 function toSortOrder(value: LocationQueryValue | LocationQueryValue[] | undefined): SortOrder {
   const raw = toSingleQueryValue(value);
-  if (!raw) {
-    return 'desc';
-  }
-  return isSortOrder(raw) ? raw : 'desc';
+  return isSortOrder(raw) ? raw : getStoredSortOrder();
 }
 
 function queryValueEquals(
