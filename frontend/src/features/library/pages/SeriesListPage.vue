@@ -20,6 +20,12 @@
       <ul v-else class="series-list">
         <li v-for="entry in series" :key="entry.name">
           <RouterLink class="series-row" :to="seriesRoute(entry.name)">
+            <BookCoverImg
+              class="series-cover"
+              :book-id="entry.coverBook.id"
+              :cover-url="entry.coverBook.cover_url"
+              alt=""
+            />
             <span class="series-name">{{ entry.name }}</span>
             <span class="series-books">{{ entry.count === 1 ? t('series.bookCountOne') : t('series.bookCountMany', { count: entry.count }) }}</span>
           </RouterLink>
@@ -31,6 +37,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import BookCoverImg from '@/components/BookCoverImg.vue';
 import { summarizeSeries } from '@/features/library/utils/series';
 import { useBookStore } from '@/composables/useBookStore';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
@@ -77,7 +84,7 @@ function seriesRoute(name: string) {
 
 .series-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
@@ -93,7 +100,18 @@ function seriesRoute(name: string) {
   border-color: var(--accent);
 }
 
+.series-cover {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 64px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface-sunken);
+}
+
 .series-name {
+  flex: 1 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
   font-weight: 600;

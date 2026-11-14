@@ -15,7 +15,7 @@ describe('summarizeSeries', () => {
         book('c'),
         book('d', { name: 'Saga 2', index: 2 }),
         book('e', { name: 'Atlas', index: 1 })
-      ])
+      ]).map(({ name, count }) => ({ name, count }))
     ).toEqual([
       { name: 'Atlas', count: 1 },
       { name: 'Saga 2', count: 2 },
@@ -35,6 +35,23 @@ describe('summarizeSeries', () => {
 
   it('is empty for a shelf with no series', () => {
     expect(summarizeSeries([book('a'), book('b')])).toEqual([]);
+  });
+
+  it('takes the cover of the lowest-numbered book that has one', () => {
+    const covered = (title: string, index: number): Book => ({
+      ...book(title, { name: 'Saga', index }),
+      cover_url: `/covers/${title}`
+    });
+
+    const [summary] = summarizeSeries([covered('Vol 3', 3), book('Vol 1', { name: 'Saga', index: 1 }), covered('Vol 2', 2)]);
+
+    expect(summary.coverBook.title).toBe('Vol 2');
+  });
+
+  it('falls back to the first book when none has a cover', () => {
+    const [summary] = summarizeSeries([book('Vol 2', { name: 'Saga', index: 2 }), book('Vol 1', { name: 'Saga', index: 1 })]);
+
+    expect(summary.coverBook.title).toBe('Vol 1');
   });
 });
 
