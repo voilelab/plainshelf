@@ -69,6 +69,14 @@ describe('SeriesListPage', () => {
     expect(rows.map((row) => row.getAttribute('href'))).toEqual(['/series/Atlas', '/series/Saga']);
   });
 
+  it('shows a cover thumbnail on every series row', async () => {
+    const host = await mountAt('/series', SHELF);
+
+    const covers = Array.from(host.querySelectorAll<HTMLImageElement>('.series-row img.series-cover'));
+    expect(covers).toHaveLength(2);
+    expect(covers.every((img) => img.getAttribute('src'))).toBe(true);
+  });
+
   it('explains how to start a series on a shelf without one', async () => {
     const host = await mountAt('/series', [book('Loose')]);
 
