@@ -18,6 +18,7 @@ import IconLayoutGrid from '~icons/tabler/layout-grid';
 import IconListDetails from '~icons/tabler/list-details';
 import IconMenu2 from '~icons/tabler/menu-2';
 import IconSettings from '~icons/tabler/settings';
+import IconStack2 from '~icons/tabler/stack-2';
 import IconTrash from '~icons/tabler/trash';
 import IconVersions from '~icons/tabler/versions';
 
@@ -25,6 +26,7 @@ export const ICONS = {
   dashboard: IconLayoutDashboard,
   library: IconBooks,
   'recently-read': IconHistory,
+  series: IconStack2,
   'duplicate-content': IconCopy,
   'similar-content': IconVersions,
   trash: IconTrash,

@@ -170,6 +170,15 @@
                 <span>{{ t('layout.recentlyRead') }}</span>
               </RouterLink>
               <RouterLink
+                v-if="!isMobileShell"
+                to="/series"
+                class="sidebar-nav-item"
+                :class="{ active: onSeriesRoute }"
+              >
+                <SidebarNavIcon name="series" />
+                <span>{{ t('layout.series') }}</span>
+              </RouterLink>
+              <RouterLink
                 v-if="libraryEditingAvailable"
                 to="/trash"
                 class="sidebar-nav-item"
@@ -509,11 +518,13 @@ const readOnlyBannerKey = computed(() => {
   return null;
 });
 const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
+const onSeriesRoute = computed(() => route.name === 'series-list' || route.name === 'series-detail');
 const railNavItems = computed<SidebarRailItem[]>(() => {
   const items: SidebarRailItem[] = [];
   if (hasActiveShelf.value) {
     items.push({ to: '/home', icon: 'dashboard', label: t('layout.dashboard') });
     items.push({ to: '/read-history', icon: 'recently-read', label: t('layout.recentlyRead') });
+    items.push({ to: '/series', icon: 'series', label: t('layout.series') });
     if (libraryEditingAvailable.value) {
       items.push({ to: '/trash', icon: 'trash', label: t('layout.trash') });
     }
@@ -557,6 +568,8 @@ const ROUTE_LOCATION_LABEL_KEYS: Record<string, string> = {
   home: 'layout.dashboard',
   library: 'layout.library',
   'read-history': 'layout.recentlyRead',
+  'series-list': 'layout.series',
+  'series-detail': 'layout.series',
   trash: 'layout.trash',
   downloads: 'layout.downloads',
   'admin-logs': 'layout.adminLogs',

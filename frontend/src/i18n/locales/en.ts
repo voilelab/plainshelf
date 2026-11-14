@@ -227,6 +227,7 @@ const en = {
     dashboard: 'Home',
     library: 'Library',
     recentlyRead: 'Recently Read',
+    series: 'Series',
     trash: 'Trash',
     downloads: 'Downloads',
     adminLogs: 'Logs',
@@ -1038,6 +1039,15 @@ const en = {
     cancel: 'Cancel',
     busy: 'Deleting...',
     question: 'Delete {itemName}?'
+  },
+  series: {
+    title: 'Series',
+    count: '{count} series',
+    bookCountOne: '1 book',
+    bookCountMany: '{count} books',
+    empty: 'No series yet. Set a series name and number in a book\'s details to group it here.',
+    detailEmpty: 'No book on this shelf belongs to this series.',
+    backToAll: 'All series'
   },
   readHistory: {
     title: 'Recently Read',
