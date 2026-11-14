@@ -19,13 +19,14 @@ export interface Task {
   result?: unknown;
 }
 
-export type BookBatchOperation = 'move' | 'trash';
+export type BookBatchOperation = 'move' | 'trash' | 'set_series';
 
 export type BookBatchFailureCode =
   | 'not_found'
   | 'unsupported_schema'
   | 'move_failed'
-  | 'trash_failed';
+  | 'trash_failed'
+  | 'set_series_failed';
 
 interface BookBatchFailure {
   book_id: string;
@@ -43,13 +44,16 @@ export interface BookBatchRequest {
   operation: BookBatchOperation;
   book_ids: string[];
   target_folder?: string[];
+  series_name?: string;
+  start_index?: number;
+  clear?: boolean;
 }
 
 export function isBookBatchResult(value: unknown): value is BookBatchResult {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<BookBatchResult>;
   return (
-    (candidate.operation === 'move' || candidate.operation === 'trash') &&
+    (candidate.operation === 'move' || candidate.operation === 'trash' || candidate.operation === 'set_series') &&
     typeof candidate.total === 'number' &&
     Array.isArray(candidate.succeeded_ids) &&
     Array.isArray(candidate.failures)

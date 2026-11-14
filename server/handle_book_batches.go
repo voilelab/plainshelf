@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"strings"
 
@@ -21,6 +22,32 @@ type bookBatchRequest struct {
 	Operation    string           `json:"operation"`
 	BookIDs      []string         `json:"book_ids"`
 	TargetFolder shelf.FolderPath `json:"target_folder"`
+	SeriesName   *string          `json:"series_name"`
+	StartIndex   *float64         `json:"start_index"`
+	Clear        bool             `json:"clear"`
+}
+
+func (r *bookBatchRequest) hasSeriesFields() bool {
+	return r.SeriesName != nil || r.StartIndex != nil || r.Clear
+}
+
+func (r *bookBatchRequest) seriesSpec(count int) (task.BookBatchSeries, error) {
+	if r.TargetFolder != nil {
+		return task.BookBatchSeries{}, errors.New("target_folder is only valid for move")
+	}
+	if r.Clear {
+		if r.SeriesName != nil || r.StartIndex != nil {
+			return task.BookBatchSeries{}, errors.New("clear excludes series_name and start_index")
+		}
+		return task.BookBatchSeries{Clear: true}, nil
+	}
+	if r.SeriesName == nil || strings.TrimSpace(*r.SeriesName) == "" {
+		return task.BookBatchSeries{}, errors.New("series_name must not be blank")
+	}
+	if r.StartIndex == nil || *r.StartIndex < 0 || math.IsInf(*r.StartIndex+float64(count-1), 0) {
+		return task.BookBatchSeries{}, errors.New("start_index must be a finite, non-negative number")
+	}
+	return task.BookBatchSeries{Name: strings.TrimSpace(*r.SeriesName), StartIndex: *r.StartIndex}, nil
 }
 
 func normalizeBookBatchIDs(ids []string) ([]string, error) {
@@ -61,7 +88,9 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	request.Operation = strings.TrimSpace(request.Operation)
-	if request.Operation != task.BookBatchOperationMove && request.Operation != task.BookBatchOperationTrash {
+	switch request.Operation {
+	case task.BookBatchOperationMove, task.BookBatchOperationTrash, task.BookBatchOperationSetSeries:
+	default:
 		http.Error(w, "invalid operation", http.StatusBadRequest)
 		return
 	}
@@ -70,7 +99,17 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if request.Operation == task.BookBatchOperationMove {
+	var series task.BookBatchSeries
+	if request.Operation == task.BookBatchOperationSetSeries {
+		series, err = request.seriesSpec(len(ids))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else if request.hasSeriesFields() {
+		http.Error(w, "series fields are only valid for set_series", http.StatusBadRequest)
+		return
+	} else if request.Operation == task.BookBatchOperationMove {
 		if request.TargetFolder == nil {
 			http.Error(w, "target_folder is required for move", http.StatusBadRequest)
 			return
@@ -91,6 +130,11 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.submitTaskChain(w, r,
-		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, h.requestLogger(r), request.Operation, ids, request.TargetFolder, visible),
+		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, h.requestLogger(r), task.BookBatchSpec{
+			Operation:    request.Operation,
+			BookIDs:      ids,
+			TargetFolder: request.TargetFolder,
+			Series:       series,
+		}, visible),
 		"failed to schedule book batch task")
 }

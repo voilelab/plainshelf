@@ -513,7 +513,7 @@ export function mockStartBookBatch(request: BookBatchRequest): string {
 
   return registerMockTaskChain({
     name: 'book_batch',
-    title: request.operation === 'move' ? 'Move books' : 'Move books to trash',
+    title: { move: 'Move books', trash: 'Move books to trash', set_series: 'Set book series' }[request.operation],
     total: ids.length,
     onItem: (index) => {
       const id = ids[index];
@@ -525,6 +525,9 @@ export function mockStartBookBatch(request: BookBatchRequest): string {
       if (request.operation === 'move') {
         book.folders = [...(request.target_folder ?? [])];
         book.updated_at = new Date().toISOString();
+      } else if (request.operation === 'set_series') {
+        if (request.clear) delete book.series;
+        else book.series = { name: (request.series_name ?? '').trim(), index: (request.start_index ?? 0) + index };
       } else {
         mockDeleteBook(id);
       }

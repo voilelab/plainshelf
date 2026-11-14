@@ -33,3 +33,33 @@ test('selects the current page and moves the selected books through a task chain
   await expect(page.getByRole('heading', { name: 'ms-move-hello', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ms-move-another', exact: true })).toBeVisible();
 });
+
+test('sets one series on the selected books, numbered in title order', async ({ page }) => {
+  const { baseUrl } = getServer();
+
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'ms-series 10');
+  await importBookAs(page, anotherFixturePath, 'ms-series 2');
+  await importBookAs(page, helloFixturePath, 'ms-series 1');
+
+  for (const title of ['ms-series 10', 'ms-series 2', 'ms-series 1']) {
+    await page.getByLabel(`Select ${title}`, { exact: true }).check({ force: true });
+  }
+  const selectionToolbar = page.getByRole('toolbar', { name: 'Selected books actions' });
+  await selectionToolbar.getByRole('button', { name: 'Set series', exact: true }).click();
+
+  const seriesDialog = page.getByRole('dialog', { name: 'Set series for selected books' });
+  await seriesDialog.getByLabel('Series name').fill('ms-saga');
+  await seriesDialog.getByLabel('Starting number').fill('5');
+  await seriesDialog.getByRole('button', { name: 'Apply to 3 books', exact: true }).click();
+
+  const progressDialog = page.getByRole('dialog', { name: 'Set series for selected books' });
+  await expect(progressDialog.getByText('3 books completed.')).toBeVisible();
+  await progressDialog.getByRole('button', { name: 'Close', exact: true }).click();
+
+  for (const [title, index] of [['ms-series 1', 5], ['ms-series 2', 6], ['ms-series 10', 7]] as const) {
+    await page.goto(`${baseUrl}/books`);
+    await page.locator('.book-list-row').getByRole('heading', { name: title, exact: true }).click();
+    await expect(page.getByText(`ms-saga #${index}`, { exact: true })).toBeVisible();
+  }
+});

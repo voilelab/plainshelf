@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Book } from '@/types/book';
-import { booksInSeries, summarizeSeries } from './series';
+import { booksInSeries, orderForNumbering, summarizeSeries } from './series';
 
 function book(title: string, series?: Book['series']): Book {
   return { id: title, title, authors: [], tags: [], folders: [], series };
@@ -64,5 +64,15 @@ describe('booksInSeries', () => {
 
     expect(booksInSeries(books, ' Saga ').map((b) => b.title)).toEqual(['a']);
     expect(booksInSeries(books, 'Sag')).toEqual([]);
+  });
+});
+
+describe('orderForNumbering', () => {
+  it('orders titles naturally, so 10 comes after 2', () => {
+    expect(orderForNumbering([book('xxx 10'), book('xxx 2'), book('xxx 1')]).map((b) => b.title)).toEqual([
+      'xxx 1',
+      'xxx 2',
+      'xxx 10'
+    ]);
   });
 });

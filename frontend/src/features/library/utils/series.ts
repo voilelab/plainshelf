@@ -20,6 +20,10 @@ export function summarizeSeries(books: readonly Book[]): SeriesSummary[] {
     .sort((a, b) => collator.compare(a.name, b.name));
 }
 
+export function orderForNumbering<T extends Pick<Book, 'title'>>(books: readonly T[]): T[] {
+  return [...books].sort((a, b) => collator.compare(a.title, b.title));
+}
+
 export function booksInSeries(books: readonly Book[], name: string): Book[] {
   const wanted = name.trim();
   return books
