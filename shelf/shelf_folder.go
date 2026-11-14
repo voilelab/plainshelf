@@ -254,7 +254,10 @@ func isDisposableEntry(entry fs.DirEntry) bool {
 		return false
 	}
 	name := entry.Name()
-	return name == FolderMetaFile || slices.ContainsFunc(osMetadataFiles, func(junk string) bool {
+	if name == FolderMetaFile {
+		return true
+	}
+	return entry.Type().IsRegular() && slices.ContainsFunc(osMetadataFiles, func(junk string) bool {
 		return strings.EqualFold(name, junk)
 	})
 }

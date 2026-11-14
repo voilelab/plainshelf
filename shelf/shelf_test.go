@@ -198,6 +198,25 @@ func TestDeleteFolderDropsOSMetadata(t *testing.T) {
 	}
 }
 
+func TestDeleteFolderKeepsOSNamedSymlink(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	if err := shelf.NewFolder(FolderPath{}, "Linked"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
+	}
+	dir := filepath.Join(libRoot, booksFolder, "Linked")
+	if err := os.Symlink(t.TempDir(), filepath.Join(dir, ".DS_Store")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	err := shelf.DeleteFolder(FolderPath{"Linked"})
+	notEmpty, ok := errors.AsType[*FolderNotEmptyError](err)
+	if !ok || !slices.Equal(notEmpty.Entries, []string{".DS_Store"}) {
+		t.Fatalf("DeleteFolder error = %v, want the symlink listed as blocking", err)
+	}
+}
+
 func TestPruneFolderDropsOSMetadata(t *testing.T) {
 	libRoot := t.TempDir()
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
