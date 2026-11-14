@@ -43,8 +43,8 @@ func TestAPIDeleteFolderNotEmptyIs409(t *testing.T) {
 
 	rec := env.Post(apitest.ShelfURL("folders", "stray"), nil)
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
-	if err := os.WriteFile(filepath.Join(env.LibRoot, "books", "stray", ".DS_Store"), nil, 0o644); err != nil {
-		t.Fatalf("write .DS_Store: %v", err)
+	if err := os.WriteFile(filepath.Join(env.LibRoot, "books", "stray", ".gitkeep"), nil, 0o644); err != nil {
+		t.Fatalf("write .gitkeep: %v", err)
 	}
 	rec = env.Post(apitest.ShelfURL("folders", "stray", "child"), nil)
 	apitest.AssertStatus(t, rec, http.StatusNoContent)
@@ -54,7 +54,7 @@ func TestAPIDeleteFolderNotEmptyIs409(t *testing.T) {
 		"folder is not empty; remove what it still holds first")
 
 	got := apitest.DecodeJSON[apitest.ErrorEnvelope](t, rec)
-	if want := []string{".DS_Store", "child/"}; !slices.Equal(got.Error.Entries, want) {
+	if want := []string{".gitkeep", "child/"}; !slices.Equal(got.Error.Entries, want) {
 		t.Fatalf("entries = %q, want %q", got.Error.Entries, want)
 	}
 }

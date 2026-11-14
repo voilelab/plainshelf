@@ -125,7 +125,7 @@ test('only offers Delete for empty folders, and deleting removes it from the tre
   await page.keyboard.press('Escape');
 
   await addFolder(page, 'ftremovable');
-  const strayFile = path.join(shelfDir, 'books', 'ftremovable', '.DS_Store');
+  const strayFile = path.join(shelfDir, 'books', 'ftremovable', '.gitkeep');
   await fs.writeFile(strayFile, '');
   await openFolderContextMenu(page, 'ftremovable');
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
@@ -133,7 +133,7 @@ test('only offers Delete for empty folders, and deleting removes it from the tre
   const deleteDialog = page.getByRole('alertdialog', { name: 'Delete folder' });
   await expect(deleteDialog).toBeVisible();
   await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
-  await expect(deleteDialog.getByRole('alert')).toContainText('• .DS_Store');
+  await expect(deleteDialog.getByRole('alert')).toContainText('• .gitkeep');
 
   await fs.rm(strayFile);
   await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
