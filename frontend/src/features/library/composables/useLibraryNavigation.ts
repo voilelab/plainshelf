@@ -3,7 +3,7 @@ import type { AcceptableValue } from 'reka-ui';
 import { normalizeFolderPath, ROOT_FOLDER_FILTER } from '@/utils/folders';
 import { useI18n } from '@/i18n';
 import type { useBooksRouteQuery } from './useBooksRouteQuery';
-import { SORT_OPTIONS, type BookSortKey, type SortOrder } from './useBooksSort';
+import { SORT_OPTIONS, storeBooksSort, type BookSortKey, type SortOrder } from './useBooksSort';
 
 interface LibraryRouteQuery {
   selectedFolder: Readonly<Ref<string | undefined>>;
@@ -76,6 +76,7 @@ export function useLibraryNavigation(query: LibraryRouteQuery, setPageSize: (siz
   }
 
   function onSortChange(nextSort: BookSortKey): void {
+    storeBooksSort(nextSort, sortOrder.value);
     if (nextSort === sortBy.value && page.value === 1) {
       return;
     }
@@ -109,6 +110,7 @@ export function useLibraryNavigation(query: LibraryRouteQuery, setPageSize: (siz
   }
 
   function onOrderChange(nextOrder: SortOrder): void {
+    storeBooksSort(sortBy.value, nextOrder);
     if (nextOrder === sortOrder.value && page.value === 1) {
       return;
     }

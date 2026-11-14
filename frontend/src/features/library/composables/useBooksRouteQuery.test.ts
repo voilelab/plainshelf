@@ -12,6 +12,8 @@ vi.mock('vue-router', () => ({
 }));
 
 const { useBooksRouteQuery } = await import('./useBooksRouteQuery');
+const { setPreference } = await import('@/storage/preferences');
+const { storeBooksSort } = await import('./useBooksSort');
 
 function setQuery(query: LocationQuery): void {
   route.query = query;
@@ -21,6 +23,28 @@ beforeEach(() => {
   push.mockReset();
   replace.mockReset();
   setQuery({});
+  setPreference('plainshelf.books.sort', null);
+  setPreference('plainshelf.books.order', null);
+});
+
+describe('sort defaults', () => {
+  it('is newest update first before any choice is stored', () => {
+    const { sortBy, sortOrder } = useBooksRouteQuery();
+    expect([sortBy.value, sortOrder.value]).toEqual(['updated_at', 'desc']);
+  });
+
+  it('uses the stored choice when the URL has none', () => {
+    storeBooksSort('title', 'asc');
+    const { sortBy, sortOrder } = useBooksRouteQuery();
+    expect([sortBy.value, sortOrder.value]).toEqual(['title', 'asc']);
+  });
+
+  it('prefers the URL over the stored choice', () => {
+    storeBooksSort('title', 'asc');
+    setQuery({ sort: 'created_at', order: 'desc' });
+    const { sortBy, sortOrder } = useBooksRouteQuery();
+    expect([sortBy.value, sortOrder.value]).toEqual(['created_at', 'desc']);
+  });
 });
 
 describe('charCountRange', () => {

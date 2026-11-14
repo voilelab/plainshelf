@@ -1,11 +1,38 @@
 import { computed, type Ref } from 'vue';
 import type { Book } from '@/types/book';
+import { getPreference, setPreference } from '@/storage/preferences';
 
 export const SORT_OPTIONS = ['created_at', 'updated_at', 'title'] as const;
-export const ORDER_OPTIONS = ['asc', 'desc'] as const;
+const ORDER_OPTIONS = ['asc', 'desc'] as const;
 
 export type BookSortKey = (typeof SORT_OPTIONS)[number];
 export type SortOrder = (typeof ORDER_OPTIONS)[number];
+
+const SORT_STORAGE_KEY = 'plainshelf.books.sort';
+const ORDER_STORAGE_KEY = 'plainshelf.books.order';
+
+export function isBookSortKey(value: string | null | undefined): value is BookSortKey {
+  return (SORT_OPTIONS as readonly (string | null | undefined)[]).includes(value);
+}
+
+export function isSortOrder(value: string | null | undefined): value is SortOrder {
+  return (ORDER_OPTIONS as readonly (string | null | undefined)[]).includes(value);
+}
+
+export function getStoredBookSort(): BookSortKey {
+  const value = getPreference(SORT_STORAGE_KEY);
+  return isBookSortKey(value) ? value : 'updated_at';
+}
+
+export function getStoredSortOrder(): SortOrder {
+  const value = getPreference(ORDER_STORAGE_KEY);
+  return isSortOrder(value) ? value : 'desc';
+}
+
+export function storeBooksSort(sort: BookSortKey, order: SortOrder): void {
+  setPreference(SORT_STORAGE_KEY, sort);
+  setPreference(ORDER_STORAGE_KEY, order);
+}
 
 function toTimestampValue(value: string | undefined): number {
   if (!value) {
