@@ -127,7 +127,7 @@ const zhHant = {
       failed: '刪除資料夾失敗',
       notEmpty: '此資料夾尚未清空，無法刪除。\n請先移出書籍並刪除子資料夾。',
       notEmptyEntries:
-        '此資料夾尚未清空，無法刪除。裡面還有：\n{entries}\nPlainShelf 不會顯示的項目（例如 .DS_Store）需要到磁碟上的書架資料夾中手動刪除。',
+        '此資料夾尚未清空，無法刪除。裡面還有：\n{entries}\nPlainShelf 不會顯示的項目（例如 .gitkeep）需要到磁碟上的書架資料夾中手動刪除。',
       moreEntries: '…還有 {count} 項'
     },
     renameFolder: {

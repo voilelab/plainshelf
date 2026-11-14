@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"io/fs"
 	"log"
 	"os"
 	"path"
@@ -147,7 +148,7 @@ func TestDeleteFolderListsBlockingEntries(t *testing.T) {
 		t.Fatalf("NewFolder: %v", err)
 	}
 	dir := filepath.Join(libRoot, booksFolder, "Looks Empty")
-	for _, name := range []string{"Thumbs.db", ".DS_Store", FolderMetaFile} {
+	for _, name := range []string{"Thumbs.db", ".DS_Store", ".gitkeep", FolderMetaFile} {
 		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o644); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
@@ -164,12 +165,75 @@ func TestDeleteFolderListsBlockingEntries(t *testing.T) {
 	if !errors.Is(err, ErrFolderNotEmpty) {
 		t.Errorf("error %v does not match ErrFolderNotEmpty", err)
 	}
-	want := []string{".DS_Store", ".git/", "Thumbs.db"}
+	want := []string{".git/", ".gitkeep"}
 	if !slices.Equal(notEmpty.Entries, want) {
-		t.Errorf("Entries = %q, want %q, without folder.json", notEmpty.Entries, want)
+		t.Errorf("Entries = %q, want %q, without folder.json or OS metadata", notEmpty.Entries, want)
 	}
-	if _, err := os.Stat(filepath.Join(dir, FolderMetaFile)); err != nil {
-		t.Errorf("refused delete touched folder.json: %v", err)
+	for _, name := range []string{FolderMetaFile, ".DS_Store", "Thumbs.db"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("refused delete touched %s: %v", name, err)
+		}
+	}
+}
+
+func TestDeleteFolderDropsOSMetadata(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	if err := shelf.NewFolder(FolderPath{}, "Junk Only"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
+	}
+	dir := filepath.Join(libRoot, booksFolder, "Junk Only")
+	for _, name := range []string{".DS_Store", "thumbs.db", "Desktop.ini", FolderMetaFile} {
+		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	if err := shelf.DeleteFolder(FolderPath{"Junk Only"}); err != nil {
+		t.Fatalf("DeleteFolder: %v", err)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("folder still exists after delete: %v", err)
+	}
+}
+
+func TestDeleteFolderKeepsOSNamedSymlink(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	if err := shelf.NewFolder(FolderPath{}, "Linked"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
+	}
+	dir := filepath.Join(libRoot, booksFolder, "Linked")
+	if err := os.Symlink(t.TempDir(), filepath.Join(dir, ".DS_Store")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	err := shelf.DeleteFolder(FolderPath{"Linked"})
+	notEmpty, ok := errors.AsType[*FolderNotEmptyError](err)
+	if !ok || !slices.Equal(notEmpty.Entries, []string{".DS_Store"}) {
+		t.Fatalf("DeleteFolder error = %v, want the symlink listed as blocking", err)
+	}
+}
+
+func TestPruneFolderDropsOSMetadata(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	if err := shelf.NewFolder(FolderPath{}, "Moved"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
+	}
+	dir := filepath.Join(libRoot, booksFolder, "Moved")
+	if err := os.WriteFile(filepath.Join(dir, ".DS_Store"), nil, 0o644); err != nil {
+		t.Fatalf("write .DS_Store: %v", err)
+	}
+
+	if err := shelf.PruneFolder(FolderPath{"Moved"}, ""); err != nil {
+		t.Fatalf("PruneFolder: %v", err)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("folder still exists after prune: %v", err)
 	}
 }
 

@@ -105,14 +105,14 @@ func (s *Shelf) deleteFolder(folder FolderPath, dropMeta func([]byte) bool) erro
 	if blocking := folderContents(entries); len(blocking) > 0 {
 		return &FolderNotEmptyError{Entries: blocking}
 	}
-	if len(entries) > 0 && dropMeta != nil {
+	if dropMeta != nil && slices.ContainsFunc(entries, isFolderMetaEntry) {
 		data, err := readFolderMetaFile(s.dbRoot, path.Join(folderPath, FolderMetaFile))
 		if err != nil || !dropMeta(data) {
 			return util.Errorf("cannot delete a folder whose folder.json was not carried")
 		}
 	}
 
-	if err := removeFolderNonRecursively(root, folderPath, len(entries) > 0); err != nil {
+	if err := removeFolderNonRecursively(root, folderPath, entries); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -243,13 +243,32 @@ func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 	return nil
 }
 
+var osMetadataFiles = []string{".DS_Store", "Thumbs.db", "desktop.ini"}
+
+func isFolderMetaEntry(entry fs.DirEntry) bool {
+	return !entry.IsDir() && entry.Name() == FolderMetaFile
+}
+
+func isDisposableEntry(entry fs.DirEntry) bool {
+	if entry.IsDir() {
+		return false
+	}
+	name := entry.Name()
+	if name == FolderMetaFile {
+		return true
+	}
+	return entry.Type().IsRegular() && slices.ContainsFunc(osMetadataFiles, func(junk string) bool {
+		return strings.EqualFold(name, junk)
+	})
+}
+
 func folderContents(entries []fs.DirEntry) []string {
 	var names []string
 	for _, entry := range entries {
 		switch {
 		case entry.IsDir():
 			names = append(names, entry.Name()+"/")
-		case entry.Name() != FolderMetaFile:
+		case !isDisposableEntry(entry):
 			names = append(names, entry.Name())
 		}
 	}
@@ -257,9 +276,9 @@ func folderContents(entries []fs.DirEntry) []string {
 	return names
 }
 
-func removeFolderNonRecursively(root fsutil.FS, folderPath string, hasMeta bool) error {
-	if hasMeta {
-		if err := root.Remove(path.Join(folderPath, FolderMetaFile)); err != nil {
+func removeFolderNonRecursively(root fsutil.FS, folderPath string, disposable []fs.DirEntry) error {
+	for _, entry := range disposable {
+		if err := root.Remove(path.Join(folderPath, entry.Name())); err != nil {
 			return util.Errorf("%w", err)
 		}
 	}

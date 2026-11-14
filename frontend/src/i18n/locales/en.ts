@@ -130,7 +130,7 @@ const en = {
       notEmpty:
         'Cannot delete this folder because it is not empty.\nMove books out and delete child folders first.',
       notEmptyEntries:
-        'Cannot delete this folder because it still holds:\n{entries}\nItems PlainShelf does not show, such as .DS_Store, must be removed from the shelf folder on disk.',
+        'Cannot delete this folder because it still holds:\n{entries}\nItems PlainShelf does not show, such as .gitkeep, must be removed from the shelf folder on disk.',
       moreEntries: '…and {count} more'
     },
     renameFolder: {
