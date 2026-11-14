@@ -986,6 +986,17 @@ const zhHant = {
       confirmMove: '移動 {count} 本',
       confirmMoveOne: '移動 1 本',
       moving: '移動中…',
+      seriesAction: '設定系列',
+      seriesTitle: '設定已選書籍的系列',
+      seriesName: '系列名稱',
+      seriesNamePlaceholder: '例如：魔戒',
+      seriesStartIndex: '起始集數',
+      seriesHelp: '依書名順序編號，每本加 1。',
+      seriesClear: '移除這些書的系列',
+      seriesNameRequired: '請輸入系列名稱。',
+      seriesStartInvalid: '起始集數必須是 0 以上。',
+      confirmSeries: '套用到 {count} 本',
+      confirmSeriesOne: '套用到 1 本',
       trashTitle: '將已選書籍移到垃圾桶',
       trashQuestion: '確定將已選的 {count} 本書移到垃圾桶嗎？',
       trashDescription: '之後仍可從垃圾桶還原這些書籍。',
@@ -1005,6 +1016,7 @@ const zhHant = {
         unsupported_schema: '書籍由較新的 PlainShelf 版本建立',
         move_failed: '無法移動書籍',
         trash_failed: '無法將書籍移到垃圾桶',
+        set_series_failed: '無法更新書籍的系列',
         download_failed: '無法下載書籍'
       }
     }

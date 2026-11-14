@@ -6,6 +6,8 @@ import { useBookSelection } from '@/composables/useBookSelection';
 import { useBookBatchOperations } from '@/composables/useBookBatchOperations';
 import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import { retrySelection, runDownloadBatch } from '@/features/library/utils/downloadBatch';
+import { orderForNumbering } from '@/features/library/utils/series';
+import type { SeriesBatchDraft } from '@/features/library/components/SetSeriesModal.vue';
 import { useI18n } from '@/i18n';
 import { getBookshelfProvider } from '@/providers';
 
@@ -26,6 +28,7 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
   const batchOperations = useBookBatchOperations();
   const moveBooksModalOpen = ref(false);
   const trashBooksModalOpen = ref(false);
+  const setSeriesModalOpen = ref(false);
   const downloadBatchOpen = ref(false);
   const downloadBatchRunning = ref(false);
   const downloadBatchPercentage = ref(0);
@@ -88,6 +91,16 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
 
   function openBatchTrash(): void {
     if (!isMobileEnv.value && selection.active.value && !readOnly.value) trashBooksModalOpen.value = true;
+  }
+
+  function openBatchSetSeries(): void {
+    if (!isMobileEnv.value && selection.active.value && !readOnly.value) setSeriesModalOpen.value = true;
+  }
+
+  function submitBatchSetSeries(draft: SeriesBatchDraft): void {
+    setSeriesModalOpen.value = false;
+    const ids = orderForNumbering(selectedBooks()).map((book) => book.id);
+    void batchOperations.startSetSeries(ids, draft, selectedTitles());
   }
 
   function submitBatchMove(targetFolder: string): void {
@@ -195,6 +208,7 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
     selectionEnabled,
     moveBooksModalOpen,
     trashBooksModalOpen,
+    setSeriesModalOpen,
     downloadBatchOpen,
     downloadBatchRunning,
     downloadBatchPercentage,
@@ -206,8 +220,10 @@ export function useLibrarySelection(options: LibrarySelectionOptions) {
     selectVisibleBooks,
     openBatchMove,
     openBatchTrash,
+    openBatchSetSeries,
     submitBatchMove,
     submitBatchTrash,
+    submitBatchSetSeries,
     startBatchDownload,
     closeDownloadBatch
   };

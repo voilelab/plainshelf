@@ -14,6 +14,14 @@
       @cancel="moveBooksModalOpen = false"
       @submit="submitBatchMove"
     />
+    <SetSeriesModal
+      :open="setSeriesModalOpen"
+      :count="selection.count.value"
+      :known-names="knownSeriesNames"
+      :busy="batchOperations.running.value"
+      @cancel="setSeriesModalOpen = false"
+      @submit="submitBatchSetSeries"
+    />
     <ConfirmModal
       :open="trashBooksModalOpen"
       :title="t('bookCollection.selection.trashTitle')"
@@ -86,6 +94,7 @@
       @select-all="selectVisibleBooks"
       @batch-move="openBatchMove"
       @batch-delete="openBatchTrash"
+      @batch-set-series="openBatchSetSeries"
       @batch-download="startBatchDownload"
       @edit="openMetadataEditor"
       @read="goRead"
@@ -273,6 +282,8 @@ import MetaEditorModal from '@/features/library/components/MetaEditorModal.vue';
 import NewEmptyBookModal from '@/features/library/components/NewEmptyBookModal.vue';
 import ShelfBackdropModal from '@/features/library/components/ShelfBackdropModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
+import SetSeriesModal from '@/features/library/components/SetSeriesModal.vue';
+import { summarizeSeries } from '@/features/library/utils/series';
 import FilterPanel from '@/features/library/components/FilterPanel.vue';
 import ActiveFilterChips from '@/features/library/components/ActiveFilterChips.vue';
 import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
@@ -417,6 +428,7 @@ const {
   selectionEnabled,
   moveBooksModalOpen,
   trashBooksModalOpen,
+  setSeriesModalOpen,
   downloadBatchOpen,
   downloadBatchRunning,
   downloadBatchPercentage,
@@ -428,11 +440,14 @@ const {
   selectVisibleBooks,
   openBatchMove,
   openBatchTrash,
+  openBatchSetSeries,
   submitBatchMove,
   submitBatchTrash,
+  submitBatchSetSeries,
   startBatchDownload,
   closeDownloadBatch
 } = useLibrarySelection({ books, visibleBookIds, isMobileEnv, readOnly, openDetail, reloadBooks });
+const knownSeriesNames = computed(() => summarizeSeries(books.value).map((series) => series.name));
 
 const {
   isNewEmptyBookModalOpen,

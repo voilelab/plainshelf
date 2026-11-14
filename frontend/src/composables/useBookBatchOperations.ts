@@ -2,11 +2,13 @@ import { computed, ref } from 'vue';
 import { bookshelfWriter } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
-import { isBookBatchResult, isTerminalTaskStatus, type BookBatchOperation, type BookBatchResult, type TaskChain, type TaskStatus } from '@/types/task';
+import { isBookBatchResult, isTerminalTaskStatus, type BookBatchOperation, type BookBatchRequest, type BookBatchResult, type TaskChain, type TaskStatus } from '@/types/task';
+import type { BookSeries } from '@/types/book';
 import { t } from '@/i18n';
 
 const POLL_INTERVAL_MS = 500;
 const open = ref(false);
+const operation = ref<BookBatchOperation>('move');
 const submitting = ref(false);
 const chain = ref<TaskChain | null>(null);
 const status = ref<TaskStatus>('pending');
@@ -57,9 +59,12 @@ async function poll(id: string): Promise<void> {
   }
 }
 
-async function start(operation: BookBatchOperation, bookIds: string[], titles: Record<string, string>, targetFolder?: string[]): Promise<void> {
+type BatchFields = Omit<BookBatchRequest, 'operation' | 'book_ids'>;
+
+async function start(kind: BookBatchOperation, bookIds: string[], titles: Record<string, string>, fields: BatchFields = {}): Promise<void> {
   if (running.value || bookIds.length === 0) return;
   stopTimer();
+  operation.value = kind;
   open.value = true;
   submitting.value = true;
   chain.value = null;
@@ -71,9 +76,9 @@ async function start(operation: BookBatchOperation, bookIds: string[], titles: R
 
   try {
     const id = await bookshelfWriter().startBookBatch({
-      operation,
+      operation: kind,
       book_ids: [...new Set(bookIds)],
-      ...(operation === 'move' ? { target_folder: targetFolder ?? [] } : {})
+      ...fields
     });
     chain.value = { id, name: 'book_batch', title: '', status: 'pending', percentage: 0, tasks: [] };
     timer = setTimeout(() => void poll(id), POLL_INTERVAL_MS);
@@ -95,6 +100,7 @@ function close(): void {
 export function useBookBatchOperations() {
   return {
     open,
+    operation,
     chain,
     status,
     percentage,
@@ -105,7 +111,9 @@ export function useBookBatchOperations() {
     result,
     lastResult,
     completionVersion,
-    startMove: (bookIds: string[], targetFolder: string[], titles: Record<string, string>) => start('move', bookIds, titles, targetFolder),
+    startMove: (bookIds: string[], targetFolder: string[], titles: Record<string, string>) => start('move', bookIds, titles, { target_folder: targetFolder }),
+    startSetSeries: (orderedIds: string[], series: Pick<BookSeries, 'name'> & { startIndex: number } | null, titles: Record<string, string>) =>
+      start('set_series', orderedIds, titles, series ? { series_name: series.name, start_index: series.startIndex } : { clear: true }),
     startTrash: (bookIds: string[], titles: Record<string, string>) => start('trash', bookIds, titles),
     close
   };

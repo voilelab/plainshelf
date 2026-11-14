@@ -17,9 +17,30 @@ import (
 const BookBatchTaskName = "book_batch"
 
 const (
-	BookBatchOperationMove  = "move"
-	BookBatchOperationTrash = "trash"
+	BookBatchOperationMove      = "move"
+	BookBatchOperationTrash     = "trash"
+	BookBatchOperationSetSeries = "set_series"
 )
+
+type BookBatchSeries struct {
+	Name       string
+	StartIndex float64
+	Clear      bool
+}
+
+func (s BookBatchSeries) forPosition(position int) *shelf.BookSeries {
+	if s.Clear {
+		return nil
+	}
+	return &shelf.BookSeries{Name: s.Name, Index: s.StartIndex + float64(position)}
+}
+
+type BookBatchSpec struct {
+	Operation    string
+	BookIDs      []string
+	TargetFolder shelf.FolderPath
+	Series       BookBatchSeries
+}
 
 type bookBatchFailure struct {
 	BookID string `json:"book_id"`
@@ -40,6 +61,7 @@ type bookBatchTask struct {
 	operation    string
 	bookIDs      []string
 	targetFolder shelf.FolderPath
+	series       BookBatchSeries
 
 	visible VisibleBooks
 
@@ -48,18 +70,19 @@ type bookBatchTask struct {
 	result   BookBatchResult
 }
 
-func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath, visible VisibleBooks) *bookBatchTask {
+func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, spec BookBatchSpec, visible VisibleBooks) *bookBatchTask {
 	return &bookBatchTask{
 		shelfID:      shelfID,
 		shelf:        s,
 		logger:       logger,
-		operation:    operation,
-		bookIDs:      slices.Clone(bookIDs),
-		targetFolder: slices.Clone(targetFolder),
+		operation:    spec.Operation,
+		bookIDs:      slices.Clone(spec.BookIDs),
+		targetFolder: slices.Clone(spec.TargetFolder),
+		series:       spec.Series,
 		visible:      visible,
 		result: BookBatchResult{
-			Operation:    operation,
-			Total:        len(bookIDs),
+			Operation:    spec.Operation,
+			Total:        len(spec.BookIDs),
 			SucceededIDs: []string{},
 			Failures:     []bookBatchFailure{},
 		},
@@ -71,10 +94,14 @@ func (t *bookBatchTask) Name() string {
 }
 
 func (t *bookBatchTask) Title() string {
-	if t.operation == BookBatchOperationMove {
+	switch t.operation {
+	case BookBatchOperationMove:
 		return "Move books"
+	case BookBatchOperationSetSeries:
+		return "Set book series"
+	default:
+		return "Move books to trash"
 	}
-	return "Move books to trash"
 }
 
 func (t *bookBatchTask) Description() string {
@@ -83,9 +110,15 @@ func (t *bookBatchTask) Description() string {
 	t.mu.Unlock()
 
 	_, total := t.progress.Counts()
-	description := "moved " + strconv.Itoa(succeeded) + " of " + strconv.Itoa(total) + " books to trash"
-	if t.operation == BookBatchOperationMove {
-		description = "moved " + strconv.Itoa(succeeded) + " of " + strconv.Itoa(total) + " books"
+	counts := strconv.Itoa(succeeded) + " of " + strconv.Itoa(total) + " books"
+	var description string
+	switch t.operation {
+	case BookBatchOperationMove:
+		description = "moved " + counts
+	case BookBatchOperationSetSeries:
+		description = "updated " + counts
+	default:
+		description = "moved " + counts + " to trash"
 	}
 	if failed > 0 {
 		description += ", " + strconv.Itoa(failed) + " failed"
@@ -162,7 +195,7 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 	t.progress.SetTotal(len(t.bookIDs))
 	t.progress.SetStatus(taskutil.StatusRunning)
 
-	for _, bookID := range t.bookIDs {
+	for position, bookID := range t.bookIDs {
 		if err := ctx.Err(); err != nil {
 			t.progress.SetStatus(t.interruptedStatus())
 			return util.Errorf("%w", err)
@@ -189,6 +222,8 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 			}
 		case BookBatchOperationTrash:
 			err = t.shelf.DeleteBook(bookID)
+		case BookBatchOperationSetSeries:
+			err = t.setSeries(bookID, t.series.forPosition(position))
 		}
 
 		if err != nil {
@@ -203,11 +238,24 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath, visible VisibleBooks) *taskutil.TaskChain {
-	keyIDs := slices.Clone(bookIDs)
+func (t *bookBatchTask) setSeries(bookID string, series *shelf.BookSeries) error {
+	book, err := t.shelf.GetBook(bookID)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	meta := book.GetMeta()
+	meta.Series = series
+	if err := book.SetMeta(meta); err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
+}
+
+func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, spec BookBatchSpec, visible VisibleBooks) *taskutil.TaskChain {
+	keyIDs := slices.Clone(spec.BookIDs)
 	slices.Sort(keyIDs)
-	key := strings.Join([]string{BookBatchTaskName, shelfID, operation, targetFolder.String(), strings.Join(keyIDs, ",")}, ":")
-	task := newBookBatchTask(shelfID, s, logger, operation, bookIDs, targetFolder, visible)
+	key := strings.Join([]string{BookBatchTaskName, shelfID, spec.Operation, spec.TargetFolder.String(), strings.Join(keyIDs, ",")}, ":")
+	task := newBookBatchTask(shelfID, s, logger, spec, visible)
 	return &taskutil.TaskChain{
 		Key:         key,
 		Name:        BookBatchTaskName,

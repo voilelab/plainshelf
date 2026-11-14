@@ -60,6 +60,9 @@
               <button type="button" class="button" :disabled="selectionBusy" @click="emit('batch-move')">
                 {{ t('bookCollection.selection.move') }}
               </button>
+              <button type="button" class="button" :disabled="selectionBusy" @click="emit('batch-set-series')">
+                {{ t('bookCollection.selection.seriesAction') }}
+              </button>
               <button type="button" class="button danger" :disabled="selectionBusy" @click="emit('batch-delete')">
                 {{ t('bookCollection.selection.trash') }}
               </button>
@@ -212,6 +215,7 @@ const emit = defineEmits<{
   (event: 'select-all'): void;
   (event: 'batch-move'): void;
   (event: 'batch-delete'): void;
+  (event: 'batch-set-series'): void;
   (event: 'batch-download'): void;
   (event: 'edit', id: string): void;
   (event: 'read', id: string): void;

@@ -1002,6 +1002,17 @@ const en = {
       confirmMove: 'Move {count} books',
       confirmMoveOne: 'Move 1 book',
       moving: 'Moving...',
+      seriesAction: 'Set series',
+      seriesTitle: 'Set series for selected books',
+      seriesName: 'Series name',
+      seriesNamePlaceholder: 'e.g. The Expanse',
+      seriesStartIndex: 'Starting number',
+      seriesHelp: 'Books are numbered in title order, adding 1 for each book.',
+      seriesClear: 'Remove series from these books',
+      seriesNameRequired: 'Enter a series name.',
+      seriesStartInvalid: 'Starting number must be 0 or more.',
+      confirmSeries: 'Apply to {count} books',
+      confirmSeriesOne: 'Apply to 1 book',
       trashTitle: 'Move selected books to trash',
       trashQuestion: 'Move {count} selected books to the trash?',
       trashDescription: 'You can restore these books later from Trash.',
@@ -1021,6 +1032,7 @@ const en = {
         unsupported_schema: 'Book was created by a newer PlainShelf version',
         move_failed: 'Could not move the book',
         trash_failed: 'Could not move the book to trash',
+        set_series_failed: 'Could not update the book series',
         download_failed: 'Could not download the book'
       }
     }
