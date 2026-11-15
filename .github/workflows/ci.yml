@@ -412,6 +412,7 @@ jobs:
           name: plainshelf-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 7
 
   android-lib:
     name: Android Go library
