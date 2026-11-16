@@ -26,7 +26,7 @@ needs a secret gets it.
 
 | | Local shelf | Virtual shelf |
 |---|---|---|
-| Source | A directory the engine can open as a path: a server or desktop path, the Android app's private directory, the wasm demo's OPFS tree | A remote file tree: pCloud, another PlainShelf's [read-only export](#open-decisions), any WebDAV server |
+| Source | A directory the engine can open as a path: a server or desktop path, the Android app's private directory, the wasm demo's OPFS tree | A remote file tree: pCloud, another PlainShelf's [read-only export](../reference/configuration.md#dav_export), any WebDAV server |
 | Writes | Read-write, or `read_only: true` | Always read-only |
 | Opened by | `os.OpenRoot`, atomic writes, the shelf lock | A remote read-only `fsutil.ReadFS` that reads `app/book-cache-*.json` instead of walking every book |
 | Offline | Already local | Books can be downloaded to a device-local offline layer outside the shelf |
@@ -135,7 +135,7 @@ app_conf:
         username: reader
         credential: env:PLAINSHELF_NAS_PASSWORD
 
-    # pCloud (see "Open decisions": refused on the server and desktop for now).
+    # pCloud (Android only; see "Availability by client").
     - id: cloud
       source:
         type: pcloud
@@ -160,6 +160,12 @@ app_conf:
 
 A field that does not belong to the declared `type` fails startup instead of
 being ignored, so a typo cannot silently open the wrong thing.
+
+`plainshelf` is the `webdav` client with the export's token convention: another
+PlainShelf is read through its read-only
+[WebDAV export](../reference/configuration.md#dav_export), not its HTTP API. The
+Android app's `server` entry, which uses the full API, stays until virtual
+shelves replace it.
 
 ### Rules
 
@@ -372,6 +378,11 @@ authorization uses the authorized account's user ID.
 A source a client cannot open fails that shelf at startup with an error naming
 the type, never by falling back to another source.
 
+`pcloud` is refused on the server and desktop because pCloud is in scope only as
+the Android client's read-only backend (see
+[Project boundaries](../index.md#project-boundaries)). The format already
+expresses it, so lifting that limit needs no format change.
+
 The wasm demo fetches through the browser, so it can read another PlainShelf's
 export only when the export lists the demo's origin in
 [`dav_export.allowed_origins`](../reference/configuration.md#browser-access),
@@ -379,26 +390,6 @@ and only from a demo page served over plain HTTP: the export has no TLS, and a
 browser blocks an `https://` page from reading `http://` as mixed content. The
 published demo is served over HTTPS, so in practice this means a demo hosted on
 the LAN. Its shelf list is fixed today, so no demo reads a remote shelf yet.
-
----
-
-## Open decisions
-
-- **pCloud on the server and desktop.** The format can express it, but
-  `AGENTS.md` currently limits pCloud to the Android client. Until that product
-  decision changes, the server and desktop refuse `type: pcloud` at startup. No
-  format change is needed to lift it.
-- **CORS on the export.** Settled: off by default, and on only for
-  the origins `dav_export.allowed_origins` lists by name. A wildcard is refused,
-  because the token is a bearer token in a header: with `*`, any web page that
-  learned it could read every exported shelf. No credentials mode, since no
-  cookie is involved. The preflight is answered without the token and carries
-  nothing from the shelf. Mixed content limits the benefit to a demo served over
-  plain HTTP; export TLS is a separate decision.
-- **PlainShelf as a source.** Settled: another PlainShelf is reached through its
-  read-only WebDAV export, and `plainshelf` is the same client as `webdav` with
-  the export's token convention. The Android app's existing full-API connection
-  stays until virtual shelves replace it.
 
 ---
 
