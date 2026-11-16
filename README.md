@@ -19,7 +19,7 @@ deployment does and does not protect.
 > [Backup and restore](docs/backup-and-restore.md) and
 > [Data format versioning](docs/concepts/data-format-versioning.md).
 
-![PlainShelf library preview](image.png)
+![PlainShelf library in card view, with nested folders in the sidebar](image.png)
 
 ## What it does
 
