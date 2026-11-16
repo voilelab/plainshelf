@@ -17,7 +17,7 @@ deployment does and does not protect.
 > **Before 1.0:** until `1.0.0-rc1` freezes the on-disk format, an upgrade can
 > still change it. Back up your shelf before upgrading; see
 > [Backup and restore](docs/backup-and-restore.md) and
-> [Data format versioning](docs/concepts/data-format-versioning.md).
+> [Compatibility policy](docs/concepts/compatibility-policy.md).
 
 ![PlainShelf library in card view, with nested folders in the sidebar](image.png)
 

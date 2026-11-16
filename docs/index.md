@@ -10,7 +10,7 @@ adds a web interface, desktop integration, and an experimental Android client.
     The on-disk format freezes at `1.0.0-rc1`; until that release it can still
     change, and APIs and UI behavior stay changeable after it. Keep a current
     backup of the shelf and application store, especially before upgrades. See
-    [Data format versioning](concepts/data-format-versioning.md) for what the
+    [Compatibility policy](concepts/compatibility-policy.md) for what the
     on-disk format does and does not guarantee.
 
 ## Choose a path
@@ -50,7 +50,8 @@ pCloud, another device's LAN share, or its own local storage.
   and the shelf fit together, and what reading state is kept off the shelf.
 - [Data model](concepts/data-model.md) explains what is stored under a shelf.
 - [Data format versioning](concepts/data-format-versioning.md) explains the
-  on-disk schema version and the compatibility policy.
+  on-disk schema versions, and [Compatibility policy](concepts/compatibility-policy.md)
+  what they promise before and after the `1.0.0-rc1` freeze.
 - [Folders](concepts/folders.md) explains the nested folder hierarchy.
 - [Shelf cache and disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.

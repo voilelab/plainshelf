@@ -143,7 +143,7 @@ book. Each installation writes its own file, named after an ID generated on
 first start, so several machines sharing a shelf do not overwrite each other; a
 file no installation has refreshed for 30 days is removed. Deleting them is
 safe: they are rebuilt, and a client that finds none simply scans instead. See
-[Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache).
+[Shelf cache and disk I/O](exported-book-cache.md).
 
 `scan-cache.json` records the modification time of each directory under `books/`
 alongside the entries found there, so a scan can skip listing the folders that

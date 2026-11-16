@@ -81,7 +81,7 @@ place of pCloud.
 
 See [Offline copies](concepts/shelf-sources.md#offline-copies) and [Folder
 metadata freshness on remote
-shelves](concepts/shelf-cache-and-io.md#folder-metadata-freshness-on-remote-shelves).
+shelves](concepts/exported-book-cache.md#folder-metadata-freshness-on-remote-shelves).
 
 ---
 

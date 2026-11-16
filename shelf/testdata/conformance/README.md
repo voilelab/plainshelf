@@ -107,7 +107,7 @@ Conventions of the recorded reading:
 ## The shelf trees are append-only from `1.0.0-rc1`
 
 The on-disk format freezes at `1.0.0-rc1` (see
-[Compatibility policy](../../../docs/concepts/data-format-versioning.md#compatibility-policy)),
+[Compatibility policy](../../../docs/concepts/compatibility-policy.md)),
 and this dataset is where that freeze is checkable rather than only stated. So
 the two halves of a case are governed differently:
 
