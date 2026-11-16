@@ -27,8 +27,13 @@ app, with nothing to install and nothing uploaded.
    accepts is listed in the
    [Configuration reference](reference/configuration.md).
 
+On a phone, the [Android app](android-app.md) reads a shelf from a server,
+pCloud, another device's LAN share, or its own local storage.
+
 ### Run and maintain it
 
+- [Docker](development/docker.md) covers the container image's defaults and
+  custom configuration.
 - [Deployment and threat model](deployment-and-threat-model.md) covers what
   each deployment protects and what `local_token` does not.
 - [Backup and restore](backup-and-restore.md) covers what to copy, what a
@@ -48,17 +53,16 @@ app, with nothing to install and nothing uploaded.
   cache freshness, and network-filesystem tuning.
 - [Shelf sources and credentials](concepts/shelf-sources.md) is the design for
   local and virtual shelves and how a source gets its credential.
-- [Shelf and platform capabilities](concepts/platform-capabilities.md) is the
-  design for what the server reports about each shelf and what each client
-  platform provides.
 
 ### Contribute
 
 - [Local Development Setup](development/setup.md)
 - [Android Development](development/android.md)
-- [Docker](development/docker.md)
 - [Testing levels](development/testing-levels.md)
 - [Releasing](development/releasing.md)
+- Design records:
+  [Shelf and platform capabilities](development/design/platform-capabilities.md)
+  and [Desktop LAN sharing](development/design/desktop-lan-sharing.md)
 
 ## Project boundaries
 
@@ -66,7 +70,7 @@ PlainShelf prioritizes readable local files, stable internal IDs, backup-friendl
 storage, and a focused reading experience. PDF, CBR/CB7 archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are not part of the
 current scope. The Android client can read a shelf held on pCloud
-([Android Development](development/android.md#read-a-shelf-from-pcloud)), but
+([Android Development](android-app.md#read-a-shelf-from-pcloud)), but
 that is a read-only storage backend, not sync: nothing is written back and no
 other client is aware of it.
 

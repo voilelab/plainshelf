@@ -82,7 +82,7 @@ Embedded pCloud/WebDAV entries use Go downloads directly; local shelves are not 
 
 | Field | Meaning |
 |---|---|
-| `kind` | `local` or `virtual`, as defined in [Two kinds of shelf](shelf-sources.md#two-kinds-of-shelf). |
+| `kind` | `local` or `virtual`, as defined in [Two kinds of shelf](../../concepts/shelf-sources.md#two-kinds-of-shelf). |
 | `capabilities.rescan` | The shelf can be rescanned on request (`POST /api/shelves/{id}/scans`). |
 | `capabilities.download` | Books can be downloaded to the device's offline layer. The engine reports true for a virtual shelf and false for a local one, which is already local. A client that keeps its own offline copy overrides it (see [the remote-server connection](#the-remote-server-connection-stays-a-wrapper)). |
 | `capabilities.fingerprint` | Fingerprints and similar-book pairs are available. False on a virtual shelf: computing them reads every source, a request per book. |
@@ -116,7 +116,7 @@ The mode query does not wait for the pCloud shelf to open.
 
 The fields live in `server/contract/shelves`, beside `ShelfInfo`
 (`server/handle_shelf.go`). The source configuration itself is never part of the
-response, as [the source design](shelf-sources.md#rules) requires.
+response, as [the source design](../../concepts/shelf-sources.md#rules) requires.
 
 ---
 
@@ -174,7 +174,7 @@ in one place instead of spread over the provider.
 | wasm demo | absent in the shared app; the host toolbar manages the engine | absent | `window.open` |
 
 **None of this goes over the HTTP API.** Shelf management stays a host
-capability, as [Who holds the shelf list](shelf-sources.md#who-holds-the-shelf-list)
+capability, as [Who holds the shelf list](../../concepts/shelf-sources.md#who-holds-the-shelf-list)
 requires: `server.App`'s handler has no shelf-management route, so "can this
 client manage shelves" is answered by whether `shelves` is present, never by a
 server field.
@@ -207,7 +207,7 @@ and also that `@wailsio/runtime` is only ever imported dynamically from here.
 
 The Android app can still connect to another PlainShelf server's full API, as
 it does today. That connection is client-side state, not a shelf source (see
-[Compatibility](shelf-sources.md#compatibility)), and its offline downloads
+[Compatibility](../../concepts/shelf-sources.md#compatibility)), and its offline downloads
 remain the job of `MobileBookshelfProvider` wrapping a `ServerBookshelfProvider`.
 
 In the Android shell (`frontend/src/shells/mobile/index.ts`), only remote-server

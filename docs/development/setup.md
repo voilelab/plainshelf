@@ -198,12 +198,19 @@ progress and closes only that book; closing the last window quits the reader.
 
 The Android client is experimental and reuses the Vue frontend through
 Capacitor. It reads from a PlainShelf server or straight from a shelf folder on
-pCloud. See [Android Development](android.md) for connection modes, setup, and
-device networking.
+pCloud. See [Android Development](android.md) to build and run it, and
+[Android app](../android-app.md) for its shelf sources and setup.
 
 ## Docker image
 
-See [Docker](docker.md) to build and run the repository's container image.
+Build the container image from the repository root:
+
+```bash
+docker build -t plainshelf .
+```
+
+Run it as [Docker](docker.md) describes, with `plainshelf` in place of the
+published image name.
 
 ## Repository layout
 

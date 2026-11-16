@@ -1,15 +1,10 @@
 # Docker
 
 PlainShelf ships an Ubuntu 24.04-based container image that bundles the server
-and the embedded frontend.
-
-## Build the image
-
-From the repository root:
-
-```bash
-docker build -t plainshelf .
-```
+and the embedded frontend. Tagged releases publish it as
+`ghcr.io/voilelab/plainshelf`; see [Installation](../installation.md#option-3-docker)
+for the available tags. To build it from source, see
+[Local Development Setup](setup.md#docker-image).
 
 ## Run the container
 
@@ -21,7 +16,7 @@ docker run --rm \
   --name plainshelf \
   -p 127.0.0.1:20000:20000 \
   -v plainshelf-data:/data \
-  plainshelf
+  ghcr.io/voilelab/plainshelf:latest
 ```
 
 !!! warning "Keep it local — `local_token` is not a boundary for an exposed port"
@@ -72,7 +67,7 @@ docker run --rm \
   -p 127.0.0.1:20000:20000 \
   -v plainshelf-data:/data \
   -v "$PWD/path/to/config.yaml:/etc/plainshelf/config.yaml:ro" \
-  plainshelf
+  ghcr.io/voilelab/plainshelf:latest
 ```
 
 ## Health check

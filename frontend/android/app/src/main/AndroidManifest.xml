@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!--
       hasFragileUserData: on Android 10+ uninstalling offers to keep the app's
-      data, which holds every local shelf (docs/development/android.md).
+      data, which holds every local shelf (docs/android-app.md).
     -->
     <application
         android:allowBackup="true"

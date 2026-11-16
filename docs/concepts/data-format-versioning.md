@@ -462,7 +462,7 @@ only the fields this page documents.
   the losing half of this, since it never rewrites a book, but it can still be
   built against an older schema than the shelf and show stale or missing fields
   (see [What a version mismatch costs a remote
-  shelf](#what-a-version-mismatch-costs-a-remote-shelf)). [Hand-editing
+  shelf](shelf-cache-and-io.md#what-a-version-mismatch-costs-a-remote-shelf)). [Hand-editing
   `book.json`](#hand-editing-bookjson) below says which edits do survive.
 - Reading a book whose `schema_version` is higher than the build supports is
   best-effort. Fields may be missing or misinterpreted, and the displayed
@@ -672,152 +672,6 @@ upgrade PlainShelf to modify it
 
 ---
 
-## Fingerprint cache
-
-`app/fingerprint-cache.json`, the cache behind the
-[Similar Books](../finding-similar-books.md) page, also carries a
-`schema_version` — but it is versioned the opposite way to everything above,
-because it is rebuildable cache rather than your data.
-
-The file records both its `schema_version` and an `algo` block naming the exact
-rules its fingerprints were produced under (the text normalization, the shingle
-size, the hash, and how many hashes each fingerprint keeps). When a build meets a
-`schema_version` it does not read, **or** an `algo` block that does not match the
-rules it fingerprints by, it throws the whole file away and rebuilds it. There is
-no migration and, deliberately, no field-level salvage: changing how text is
-normalized invalidates every fingerprint built on top of it, so keeping "the
-parts that did not change" would mean trusting entries nobody can vouch for.
-
-That is the right trade only because the file is a cache. Discarding it costs
-one recomputation (the next similarity build reads the sources again) and never
-loses anything, which is exactly what the migration promises above exist to
-avoid for `books/` and `trash/`. See [the `app/` directory](data-model.md#app)
-for what the file holds.
-
-The file has two levels of key:
-
-- **index**, `{book_id}/{source_id}` to the size, mtime and MD5 of that
-  `source.txt`. One stat decides whether the record still describes the file, so
-  an unchanged source is answered without being opened. It is keyed on the book
-  ID rather than the path, so a retitle or a move between folders keeps the
-  fingerprint. When two machines' records disagree, the one first observed later
-  (`seen_at`) wins, not the newer mtime: restoring a source from a backup gives
-  new content an older mtime.
-- **entries**, the MD5 of `source.txt` to the fingerprint of that content. An
-  entry is never updated, only added, so two copies of a book share one and
-  merging two machines' files is a set union that cannot conflict.
-
-It lives under `app/` rather than in `book.json` or `meta.json` because a
-fingerprint belongs to a source's content, an entry is about 1.4 kB of base64,
-and a change of rules invalidates every fingerprint at once: one file to delete
-here, a full-library rewrite there.
-
-Saving merges what the run learned into the file on disk and writes it
-atomically. It is not a transaction: under `lock_mode: none` two simultaneous
-saves can both replace the same older file, which costs a later recomputation
-and never a wrong answer, because entries are keyed by content. Saving also
-drops records for books that are gone, but not a record for a source deleted
-from a book that still exists (deciding that would need a listing per book);
-such a record is about 1.5 kB and is never served.
-
-!!! note "Building fingerprints can write one source file"
-    The Similar Books page reads like pure analysis, but building fingerprints
-    has one write side effect on `books/`. When it reads a source whose stored
-    `md5_hash` no longer matches the source's actual bytes (content changed
-    outside PlainShelf, or an older import that recorded a different hash), it
-    corrects that source's `meta.json` in place (`Source.RepairContentHash`). It deliberately leaves the
-    UI-visible line and character counts at their stale values rather than
-    recomputing them, but the write still rebuilds the whole file from the
-    fields PlainShelf knows, so, like any `meta.json` write, it drops top-level
-    keys outside that set. It goes through the same write refusal as any other
-    write, so it never touches a read-only shelf or a source whose schema
-    version is newer than this build.
-
----
-
-## Page hash cache
-
-`app/page-hash-cache.json`, the cache behind comic duplicate detection on the
-Duplicate Content page, is versioned the same throw-away way as the fingerprint
-cache. It records a `schema_version` and the page hash it uses (`"hash":
-"md5"`); a build that reads either differently discards the whole file, and the
-next hashing run reads every page again.
-
-`sources` maps `{book_id}/{source_id}` to two things:
-
-- `list_md5`, the `md5_hash` of the `source.txt` page list the record was built
-  from. The Duplicate Content page uses a record only while the source's current
-  `md5_hash` still equals it, so adding, removing or reordering pages takes that
-  comic out of the comparison until it is hashed again, without a stat per page.
-- `pages`, each listed page's asset name to its size, mtime and MD5. The hashing
-  task stats every page and reads only those whose size or mtime changed. A page
-  written within the last two seconds is stored without an mtime, so the next
-  run reads it again instead of trusting a stat that could still change.
-
-A comic whose page list names an image that is missing gets no record: an
-incomplete page set could match a shorter comic exactly. The task reports it as
-failed with `missing_pages`.
-
-Saving starts from the file on disk and replaces only the records this run
-recomputed, so a concurrent run's newer records survive. It also drops
-records for books that are gone, and writes atomically only when the bytes
-differ. It writes nothing under `books/`.
-
----
-
-## The exported book cache
-
-`app/book-cache-{writer-id}.json` carries a `schema_version` too
-(`BookCacheSchemaVersion` in `shelf/shelf_cache_export.go`), and like the fingerprint
-cache it is versioned the throw-away way: there is no migration path, and a
-reader that meets a version it does not recognize discards the whole file and
-falls back to walking the shelf.
-
-The server and desktop app export the file so that a shelf opened from a remote,
-read-only source such as the Android app's pCloud shelf does not have to be
-walked book by book. It is also where such a reader learns which books are
-[adult content](folders.md#marking-a-folder-as-adult-content): each entry
-carries the finished `nsfw` answer, and `current_source_md5`, which tells an
-offline copy that a source's text changed; `folder_meta` carries each folder's
-icon. Being a cache, such a field is an ordinary addition. Nothing here is
-frozen, and a reader that does not know it simply does not read it. [Shelf cache
-and disk I/O](shelf-cache-and-io.md#the-exported-book-cache) describes what the
-file holds and when it is written; this section adds only what happens when its
-version does not match.
-
-### One reader
-
-Every shelf is read by the Go shelf, including the Android app's pCloud shelf,
-which the app opens in its embedded Go server (`shelf.NewShelfFromFS` over
-`internal/pcloud`). The frontend parses none of the format: it once
-carried a second, TypeScript reader, kept in step with Go only by the shared
-fixture in `shelf/testdata/conformance/`. A format change is therefore made in
-Go alone, and `BookCacheSchemaVersion` and `book.json`'s version have no
-hand-maintained copy elsewhere.
-
-### What a version mismatch costs a remote shelf
-
-A cache whose `schema_version` the reader does not know is no cache at all
-(`newestExportedBookCache` skips it): a half-understood payload would surface as
-a silently truncated library rather than the cache miss it really is.
-
-That refusal is safe but not free. Without a usable exported file, a pCloud
-shelf is walked, which reads each book's `book.json` over the network in place
-of the single download the cache would have been. Nothing is wrong and nothing
-is lost, but on a metered or high-latency connection that is a real performance
-cliff, and it is the everyday shape of "the server upgraded, the phone did not":
-a build that raises `BookCacheSchemaVersion` starts exporting a file the older
-app declines, until that app is updated too.
-
-This is the one sense in which "deleting the book cache is safe" needs a
-qualifier. From the server's side it is exactly as safe as the caches above: the
-next export rebuilds it, and [Data model](data-model.md#app) says as much. From
-a remote reader's side, deleting or invalidating it is the difference between
-one download and a full per-book walk — still safe, still never an error, but no
-longer free.
-
----
-
 ## Shelf layout changes are not versioned
 
 Every marker above versions the *contents of a file*. None of them versions the
@@ -940,7 +794,7 @@ versioned files into three kinds:
   away on a mismatch like the caches above, but read on another device (the
   Android app's pCloud shelf, possibly built from an older release), so a
   mismatch has a real cost there even though it is never an error. See [The
-  exported book cache](#the-exported-book-cache).
+  exported book cache](shelf-cache-and-io.md#when-its-version-does-not-match).
 
 | Path | Versioned? | Kind |
 |---|---|---|
@@ -950,8 +804,8 @@ versioned files into three kinds:
 | `books/**/folder.json` | Yes — `schema_version`; written member by member, so unknown members survive a write — see [`folder.json` schema v1](#folderjson-schema-v1) | User data |
 | `app/scan-cache.json` | Yes — `schema_version` (`schemaVersion` in `shelf/scancache/scancache.go`); v2 added the kept files such as `folder.json`, so a v1 snapshot is not reused; no migration, discarded and rebuilt on any mismatch, unlike `books/` and `trash/` which are upgraded in place | Local cache |
 | `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) | Local cache |
-| `app/page-hash-cache.json` | Yes — `schema_version` and a `hash` name, discarded and rebuilt on any mismatch, never migrated — see [Page hash cache](#page-hash-cache) | Local cache |
-| `app/book-cache-{writer-id}.json` | Yes — `schema_version` (`BookCacheSchemaVersion`); v2 renamed `layers` to `folders`; no migration, discarded and rebuilt on any mismatch, but read across devices — see [The exported book cache](#the-exported-book-cache) | Cross-device contract |
+| `app/page-hash-cache.json` | Yes — `schema_version` and a `hash` name, discarded and rebuilt on any mismatch, never migrated — see [Page hash cache](similarity-fingerprints.md#page-hash-cache) | Local cache |
+| `app/book-cache-{writer-id}.json` | Yes — `schema_version` (`BookCacheSchemaVersion`); v2 renamed `layers` to `folders`; no migration, discarded and rebuilt on any mismatch, but read across devices — see [The exported book cache](shelf-cache-and-io.md#when-its-version-does-not-match) | Cross-device contract |
 | `shelf.json` | Yes — `schema_version` versions this file's own contents; optional, never written by PlainShelf, and a higher version is still read for the fields this build knows. It carries no statement about the shelf's layout — see [`shelf.json` is not that manifest](#shelfjson-is-not-that-manifest) | User settings |
 | `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version. This is a decision, not an oversight — see [Shelf layout changes are not versioned](#shelf-layout-changes-are-not-versioned) | — |
 | Application store | No | — |

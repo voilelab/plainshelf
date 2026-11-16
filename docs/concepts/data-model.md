@@ -162,8 +162,8 @@ library at roughly 1.5 KB per source, so on a big shelf it reaches a few
 megabytes and you will notice it in a backup. Deleting it is safe: the next time
 you build fingerprints, the ones that are gone are simply read and computed
 again. It is also discarded and rebuilt whenever the similarity algorithm
-changes. See [Data format
-versioning](data-format-versioning.md#fingerprint-cache).
+changes. See [Similarity
+fingerprints](similarity-fingerprints.md#fingerprint-cache).
 
 `page-hash-cache.json` stores the MD5 of every comic page, so the [Duplicate
 Content](../finding-similar-books.md#duplicate-comics) page can compare comics
@@ -171,8 +171,8 @@ by their images without reading them. Like the fingerprint cache it is one
 shared file keyed by book and source ID, and each page record keeps the image's
 size and modification time, so the next hashing run reads only pages that
 changed. Deleting it is safe: comics drop out of duplicate detection until you
-hash their pages again. See [Data format
-versioning](data-format-versioning.md#page-hash-cache).
+hash their pages again. See [Page hash
+cache](similarity-fingerprints.md#page-hash-cache).
 
 Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is
 reading-time history from before it moved onto each device; nothing reads it any
