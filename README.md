@@ -29,16 +29,17 @@ deployment does and does not protect.
 
 - Imports and reads plain text and Markdown books
 - Imports EPUB files by converting them to plain text, Markdown, or comic pages
+- Imports CBZ comics as ordered image pages and reads them one page at a time
 - Organizes books in nested, filesystem-backed folders
 - Keeps stable book IDs when titles or folders change
 - Supports covers, metadata, bookmarks, reading history, and reading stats
 - Runs as a local server, a macOS desktop app, or an experimental Android client
   that reads from a server or straight from a shelf folder on pCloud
 
-PlainShelf is not a Calibre replacement. PDF, comic archives, DRM, OCR,
-multi-user accounts, cloud sync, public sharing, and plugins are outside the
-current scope. The Android client can read a shelf held on pCloud, but that is a
-read-only storage backend, not sync: nothing is written back.
+PlainShelf is not a Calibre replacement. PDF, comic archives other than CBZ,
+DRM, OCR, multi-user accounts, cloud sync, public sharing, and plugins are
+outside the current scope. The Android client can read a shelf held on pCloud,
+but that is a read-only storage backend, not sync: nothing is written back.
 
 EPUB is an import format, not a storage format: the text is extracted and stored
 as an ordinary plain-text or Markdown book, and the original `.epub` is not kept.
@@ -84,7 +85,9 @@ in the [development guide](docs/development/setup.md).
 - [Getting started](docs/getting-started.md)
 - [Local shelf configuration](docs/configuring-local-shelf.md)
 - [SMB shelf configuration](docs/configuring-smb-shelf.md)
+- [EPUB import](docs/epub-import.md) and [CBZ import](docs/cbz-import.md)
 - [Deployment and threat model](docs/deployment-and-threat-model.md)
+- [Backup and restore](docs/backup-and-restore.md)
 - [Data model](docs/concepts/data-model.md)
 - [Known issues](docs/known-issue.md)
 
