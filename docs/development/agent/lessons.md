@@ -220,7 +220,7 @@ Read the relevant section before working in that area. Add entries according to
   now reads as absent, and `setMeta` rewrites `book.json` whole, so the next
   save drops it; that is accepted, and a planned unknown-member passthrough is
   what changes it. Proposing a compatibility layer here has already been
-  rejected once. (`docs/concepts/data-format-versioning.md`)
+  rejected once. (`docs/concepts/compatibility-policy.md`)
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
   preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
   error propagation. See `docs/concepts/shelf-cache-and-io.md`.

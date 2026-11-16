@@ -195,7 +195,7 @@ that has fallen behind costs a few requests rather than showing stale metadata.
 The file is refreshed automatically, but on the machine that owns the shelf, not
 on the phone. If books were just added and the phone should see them now, use
 **Settings → Shelves → Mobile book cache → Update now** there first. See
-[Shelf cache and disk I/O](concepts/shelf-cache-and-io.md#the-exported-book-cache).
+[Shelf cache and disk I/O](concepts/exported-book-cache.md).
 
 A shelf kept on pCloud with no PlainShelf server anywhere has no such file, and
 the app scans as described above.

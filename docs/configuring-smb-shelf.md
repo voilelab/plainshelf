@@ -22,9 +22,9 @@ shelf `lib_root` at the mounted directory.
 
 An SMB or NAS shelf is a local filesystem shelf whose files happen to sit on a
 network mount. PlainShelf reads and writes it exactly as it does a local shelf,
-so everything the on-disk format guarantees still holds — see [Data format
-versioning](concepts/data-format-versioning.md) for what the format promises
-across upgrades. What a network mount does *not* add is any coordination or
+so everything the on-disk format guarantees still holds — see [Compatibility
+policy](concepts/compatibility-policy.md) for what the format promises across
+upgrades. What a network mount does *not* add is any coordination or
 change notification on top of that filesystem, so four things are not
 guaranteed, whatever you set the intervals to:
 

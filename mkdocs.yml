@@ -54,7 +54,9 @@ nav:
       - Architecture: concepts/architecture.md
       - Data model: concepts/data-model.md
       - Data format versioning: concepts/data-format-versioning.md
+      - Compatibility policy: concepts/compatibility-policy.md
       - Shelf cache and disk I/O: concepts/shelf-cache-and-io.md
+      - Exported book cache: concepts/exported-book-cache.md
       - Folders: concepts/folders.md
       - Shelf sources and credentials: concepts/shelf-sources.md
       - Similarity fingerprints: concepts/similarity-fingerprints.md

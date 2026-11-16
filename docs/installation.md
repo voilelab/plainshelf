@@ -220,20 +220,6 @@ For custom configuration and the bundled defaults, see the
 
 ## Upgrading
 
-!!! warning "v0.8 reading history and reading time do not carry into v0.9.0 or later"
-    Starting with v0.9.0, PlainShelf keeps these records per-device. v0.8's
-    server-side values are not migrated and no longer appear after upgrading.
-    PlainShelf provides no export, import, or recovery path for them. See
-    [v0.8 reading-data breaking change](concepts/data-format-versioning.md#v08-reading-data-breaking-change)
-    for details.
-
-!!! warning "Reading progress does not carry into v0.10.0 or later"
-    v0.10.0 changed the per-device reading-progress file to a timestamped format
-    so that the desktop app and the standalone reader can reconcile concurrent
-    writes. The older format is not migrated: on first run of v0.10.0 or later,
-    web and desktop books start at the beginning again on that device. Android's
-    per-book progress files are unaffected.
-
 1. Stop the running server (or `docker stop plainshelf`).
 2. Download/pull the new version using the steps above.
 3. Restart against the **same** data and config.

@@ -9,7 +9,7 @@
     settings and resolve `host:`. The `1.0.0-rc1` freeze does not cover the
     `source` block or credential references: it covers the shelf's on-disk
     user data only (see [What the freeze
-    covers](data-format-versioning.md#what-the-freeze-covers)). The separate
+    covers](compatibility-policy.md#what-the-freeze-covers)). The separate
     [platform interface](../development/design/platform-capabilities.md#the-platform-interface)
     remains planned.
 
@@ -67,7 +67,7 @@ instead of failing.
 
 A copy records the book's version when it was taken: its `book.json` plus the
 current source's `current_source_md5` from the
-[exported book cache](shelf-cache-and-io.md#the-exported-book-cache). When the
+[exported book cache](exported-book-cache.md). When the
 listing later shows a different version, the book reports `update_available`;
 the copy is replaced only when the user downloads it again.
 
