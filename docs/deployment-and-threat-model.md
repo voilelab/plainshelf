@@ -92,6 +92,12 @@ Two things to get right on this tier:
   so on a network where you do not trust every device, this setting is not the
   control you want — the network boundary is.
 
+Every device on this tier talks to the one server process, so they share one
+in-memory shelf cache and never disagree about the library. A change made to the
+shelf folder outside PlainShelf still waits for the next scan; **Update book
+list** pressed on any device refreshes what all of them see. See [Shelf cache
+limitations](known-issue.md#shelf-cache-limitations).
+
 !!! warning "Do not reach for `mode: none`"
     `mode: none` on a non-loopback address disables the token and the origin
     checks entirely, and any website open in any browser on that network can
