@@ -127,18 +127,9 @@ match paths that exist inside the container.
 
 ## Backup guidance
 
-The shelf is plain files, so backing it up is a directory copy:
-
-1. Stop PlainShelf or make sure no imports, edits, moves, or deletes are
-   running.
-2. Back up the entire `lib_root` directory.
-3. Back up `store_path` if you want to preserve server settings. Back up client
-   profiles separately for reading progress, history, and time.
-
-Do not back up only individual `.bookpkg` folders unless you intentionally want
-a partial library backup.
-
-[Backup and restore](backup-and-restore.md) has the full procedure for each
+Back up the whole `lib_root` directory, not individual `.bookpkg` folders, and
+`store_path`, with PlainShelf stopped.
+[Backup and restore](backup-and-restore.md) has the procedure for each
 installation, what a shelf-only copy leaves behind, and how to restore.
 
 ## Open a shelf read-only

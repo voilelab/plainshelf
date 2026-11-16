@@ -69,37 +69,8 @@ Open the library, choose **Import**, and select a `.txt`, `.md`, `.epub` or `.cb
 You can then edit its metadata, add a cover, place it in a folder, and open the
 reader.
 
-In the macOS desktop app you can select or drop several files at once, and
-switch to another app while they import. When an import of two or more books, or
-an import of shelves from another device's LAN share, finishes while PlainShelf
-is in the background, macOS shows a notification with how many were added and
-how many failed; clicking it brings PlainShelf back. macOS asks for permission
-the first time, and if you decline, imports carry on without notifications. Turn
-them off under **Settings → Import & covers → Notify when an import finishes**.
-
-The book detail page shows the current source's size, including `source.txt`
-and all files in its `assets/` directory. Other sources, metadata and the cover
-are excluded. Images sources show their listed page count instead of line and
-character counts. Size is measured when opening the detail page, including on
-read-only shelves; if it cannot be measured, the size row is hidden.
-
-A Markdown book's detail page also lists the chapters its source splits into,
-the same H2 headings the reader navigates by. Selecting one opens the reader at
-that chapter instead of your last position. Plain text has no chapters, so the
-list is absent there.
-
-On the Android app and narrow browser screens, the reader uses an immersive
-layout: tap the center of the page to show or hide its controls, swipe left for
-the next chapter, and swipe right for the previous chapter. Vertical swipes
-continue to scroll within the current chapter. These gestures are shown once the
-first time you open a book; the **?** button in the reader's controls brings the
-reminder back at any time.
-
-The library's search box matches titles, authors, tags and comments. It ignores
-case, accents and full-width or half-width forms, treats katakana as hiragana,
-and matches Traditional Chinese, Simplified Chinese and Japanese shinjitai or
-kyujitai forms of the same character, so `红楼梦` finds `紅樓夢`. Name separators
-such as `·` and `・` match a space. It does not search book contents.
+[Library and reader](library-and-reader.md) covers importing several files at
+once, the book detail page, search, and the reader's touch gestures.
 
 An EPUB is converted to text as it is imported; see
 [EPUB import](epub-import.md) for what is kept, what is dropped, and how to
@@ -114,17 +85,14 @@ ID. See [Data model](concepts/data-model.md) for the on-disk layout.
 
 ## 4. Back up before experimenting
 
-The on-disk format freezes at `1.0.0-rc1`. Until that release it can still change
-between releases, so upgrading a v0.x shelf may require a fresh start for some
-data; see
-[Compatibility policy](concepts/data-format-versioning.md#compatibility-policy).
-Back up both the configured shelf and application store before upgrades or
-manual filesystem edits. Stop write activity first so the backup captures a
-consistent state.
+Until `1.0.0-rc1` an upgrade can still change the on-disk format. Back up the
+shelf and the application store before upgrading or editing files by hand;
+[Backup and restore](backup-and-restore.md) has the steps.
 
 ## Next steps
 
 - [Installation and upgrades](installation.md)
+- [Library and reader](library-and-reader.md)
 - [Local shelf configuration](configuring-local-shelf.md)
 - [SMB shelf configuration](configuring-smb-shelf.md)
 - [Known issues](known-issue.md)

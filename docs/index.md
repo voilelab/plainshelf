@@ -21,7 +21,8 @@ app, with nothing to install and nothing uploaded.
 1. [Install a release](installation.md) with Homebrew, a server archive, or Docker.
 2. [Start a library](getting-started.md) and import a TXT or Markdown book.
    [EPUB import](epub-import.md) and [CBZ import](cbz-import.md) cover how those
-   files are converted.
+   files are converted, and [Library and reader](library-and-reader.md) covers
+   search, the book detail page and the reader.
 3. Configure a [local shelf](configuring-local-shelf.md), or review the
    best-effort [SMB setup](configuring-smb-shelf.md). Every key the config file
    accepts is listed in the
@@ -70,7 +71,7 @@ PlainShelf prioritizes readable local files, stable internal IDs, backup-friendl
 storage, and a focused reading experience. PDF, CBR/CB7 archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are not part of the
 current scope. The Android client can read a shelf held on pCloud
-([Android Development](android-app.md#read-a-shelf-from-pcloud)), but
+([Android app](android-app.md#read-a-shelf-from-pcloud)), but
 that is a read-only storage backend, not sync: nothing is written back and no
 other client is aware of it.
 

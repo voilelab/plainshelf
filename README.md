@@ -14,14 +14,10 @@ remote sources you configure. See
 [Deployment and threat model](docs/deployment-and-threat-model.md) for what each
 deployment does and does not protect.
 
-> **Before 1.0:** the on-disk format freezes at `1.0.0-rc1` — from that release
-> on, the shelf's user-data files take only backward-compatible changes. Until
-> then a 0.x upgrade can still change them, and the HTTP API and UI stay
-> changeable either way. Back up your shelf before upgrading — see
-> [Backup and restore](docs/backup-and-restore.md) for what to copy and how to
-> put it back, and
-> [Data format versioning](docs/concepts/data-format-versioning.md) for what the
-> on-disk format does and does not guarantee.
+> **Before 1.0:** until `1.0.0-rc1` freezes the on-disk format, an upgrade can
+> still change it. Back up your shelf before upgrading; see
+> [Backup and restore](docs/backup-and-restore.md) and
+> [Data format versioning](docs/concepts/data-format-versioning.md).
 
 ![PlainShelf library preview](image.png)
 
@@ -36,15 +32,9 @@ deployment does and does not protect.
 - Runs as a local server, a macOS desktop app, or an experimental Android client
   that reads from a server or straight from a shelf folder on pCloud
 
-PlainShelf is not a Calibre replacement. PDF, comic archives other than CBZ,
-DRM, OCR, multi-user accounts, cloud sync, public sharing, and plugins are
-outside the current scope. The Android client can read a shelf held on pCloud,
-but that is a read-only storage backend, not sync: nothing is written back.
-
-EPUB is an import format, not a storage format: the text is extracted and stored
-as an ordinary plain-text or Markdown book, and the original `.epub` is not kept.
-[EPUB import](docs/epub-import.md) covers what survives the conversion, including
-the illustrations a Markdown import keeps.
+PlainShelf is not a Calibre replacement. EPUB and CBZ are import formats, not
+storage formats, and the pCloud support is read-only storage, not sync. See
+[Project boundaries](docs/index.md#project-boundaries) for what is out of scope.
 
 ## Try it
 

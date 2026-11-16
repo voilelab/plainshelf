@@ -547,10 +547,7 @@ reason a copy made within one shelf gets a new ID.
 ## Backing up a shelf
 
 Because it is all plain files, the shelf can be inspected with any file manager
-or text editor and copied with `cp -a` or `rsync`. Committing it to Git is *not*
-an equivalent option: Git does not track empty directories, so a folder holding
-no book is not in the commit and is not there after a checkout. See [Git does
-not back up empty
-folders](../backup-and-restore.md#git-does-not-back-up-empty-folders), and
-[Backup and restore](../backup-and-restore.md) for what a complete backup
-covers.
+or text editor and copied with `cp -a` or `rsync`. [Backup and
+restore](../backup-and-restore.md) covers what a complete backup includes, and
+why [Git is not an equivalent
+option](../backup-and-restore.md#git-does-not-back-up-empty-folders).

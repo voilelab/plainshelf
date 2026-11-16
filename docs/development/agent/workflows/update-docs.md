@@ -12,6 +12,7 @@ shared [maintenance policy](../maintenance.md) instead.
 | Documentation paths and product boundaries | `docs/index.md` |
 | Release installation and upgrades | `docs/installation.md` |
 | First library after installation | `docs/getting-started.md` |
+| Library search, book detail page, and reader behavior | `docs/library-and-reader.md` |
 | Local and SMB storage configuration | `docs/configuring-*.md` |
 | Android app shelf sources and setup | `docs/android-app.md` |
 | Running the container image | `docs/development/docker.md` (path fixed: the app's security banner links to it) |
