@@ -37,6 +37,7 @@ nav:
   - Using PlainShelf:
       - EPUB import: epub-import.md
       - CBZ import: cbz-import.md
+      - Library and reader: library-and-reader.md
       - Finding similar books: finding-similar-books.md
       - Android app: android-app.md
   - Shelves and configuration:
