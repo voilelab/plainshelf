@@ -303,20 +303,6 @@ how to put it back. Two points matter specifically for an upgrade:
   See [What a shelf-only backup
   loses](../backup-and-restore.md#what-a-shelf-only-backup-loses).
 
-## v0.8 reading-data breaking change
-
-!!! warning "v0.8 reading data does not carry into v0.9.0 or later"
-    Starting with v0.9.0, PlainShelf keeps a new, empty reading history and
-    reading-time record on each device. Web and desktop reading progress also
-    starts at zero instead of importing v0.8's server-side bookmarks. Existing
-    Android progress was already on-device and remains available. The old
-    server-side history, dashboard activity, and bookmarks are not migrated or
-    read by v0.9.0 or any later release. This is an intentional pre-1.0 breaking
-    change.
-
-PlainShelf provides no export, import, or recovery path for these values.
-Upgrade from v0.8 only if you accept that they will no longer be accessible.
-
 ## Restoring from a backup
 
 [Backup and restore](../backup-and-restore.md#restoring) has the steps for the

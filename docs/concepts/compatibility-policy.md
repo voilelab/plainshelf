@@ -12,8 +12,7 @@ series is still unstable, and everything from `1.0.0-rc1` on is covered.
 
 During the v0.x series the on-disk format may still change in breaking ways
 between releases. Such changes are announced in the release notes, under
-*Breaking changes*, by a pull request labelled `breaking` — v0.8's reading data
-([below](data-format-versioning.md#v08-reading-data-breaking-change)) is one of them. That marker is
+*Breaking changes*, by a pull request labelled `breaking`. That marker is
 retired for the on-disk format at `1.0.0-rc1`: from the freeze on there is no such change left to
 announce, so a new one appearing would be a bug rather than a documented break.
 Concretely, for a shelf you are running on a 0.x build today:
@@ -23,7 +22,7 @@ Concretely, for a shelf you are running on a 0.x build today:
   build to reading an earlier one's shelf unchanged.
 - **No data migration is promised.** PlainShelf does not undertake to carry 0.x
   data forward across a breaking change. Where it drops data it says so in the
-  release notes, as it did for v0.8's server-side reading history and reading time.
+  release notes.
 - **The refusal to write a newer format already protects you.** This is the one
   guarantee that holds today rather than at the freeze: PlainShelf will not
   write a `book.json`, source `meta.json`, or `trash.json` whose on-disk
@@ -78,9 +77,8 @@ exclusions are deliberate:
   [Backup and restore](../backup-and-restore.md#reading-progress-history-and-time)
   says where each one lives.
 
-Releases before the freeze are not covered either: v0.8's server-side reading
-history and reading time, in particular, are a documented breaking change, not
-data the freeze undertakes to migrate.
+Releases before the freeze are not covered either: data a 0.x release dropped
+in a documented breaking change is not data the freeze undertakes to migrate.
 
 ### What backward compatible means
 
