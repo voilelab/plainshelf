@@ -36,18 +36,8 @@ force one with the button. Until that scan the stale reading stands — though t
 file itself is served correctly when something asks for it, since covers and
 source text are read from disk, never cached.
 
-On a single desktop machine those two limits are the whole story. The setups
-below each add something to them.
-
-### One server, several personal devices (Tailscale and similar)
-
-This means one shelf server process on one machine, with your own devices
-reaching that same server over the network.
-
-There is only one server process, so there is one authoritative in-memory cache
-and no divergence between clients to reason about. External changes to the
-library folder are still discovered on the timer above, and **Update book list**
-pressed on any device refreshes what all of them see.
+On a single machine, or one server that several of your devices reach, those
+two limits are the whole story. The setups below each add something to them.
 
 ### A shelf inside a sync folder (Dropbox, Google Drive, Syncthing, iCloud)
 
