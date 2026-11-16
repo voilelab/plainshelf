@@ -19,14 +19,22 @@ To look around first, [try the demo](try-the-demo.md) in your browser: the full
 app, with nothing to install and nothing uploaded.
 
 1. [Install a release](installation.md) with Homebrew, a server archive, or Docker.
-2. [Start a library](getting-started.md) and import a TXT, Markdown or EPUB book.
+2. [Start a library](getting-started.md) and import a TXT or Markdown book.
+   [EPUB import](epub-import.md) and [CBZ import](cbz-import.md) cover how those
+   files are converted.
 3. Configure a [local shelf](configuring-local-shelf.md), or review the
    best-effort [SMB setup](configuring-smb-shelf.md). Every key the config file
    accepts is listed in the
    [Configuration reference](reference/configuration.md).
-4. Review [EPUB import](epub-import.md) for how EPUB files are converted.
-5. Review [Logs](logs.md) for reading the application log and for how long it
-   is kept.
+
+### Run and maintain it
+
+- [Deployment and threat model](deployment-and-threat-model.md) covers what
+  each deployment protects and what `local_token` does not.
+- [Backup and restore](backup-and-restore.md) covers what to copy, what a
+  shelf-only copy leaves behind, and how to put a backup back.
+- [Logs](logs.md) covers reading the application log and how long it is kept.
+- [Known issues](known-issue.md) lists current limitations.
 
 ### Understand the storage model
 
@@ -35,8 +43,6 @@ app, with nothing to install and nothing uploaded.
 - [Data model](concepts/data-model.md) explains what is stored under a shelf.
 - [Data format versioning](concepts/data-format-versioning.md) explains the
   on-disk schema version and the compatibility policy.
-- [Backup and restore](backup-and-restore.md) covers what to copy, what a
-  shelf-only copy leaves behind, and how to put a backup back.
 - [Folders](concepts/folders.md) explains the nested folder hierarchy.
 - [Shelf cache and disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.
@@ -51,7 +57,8 @@ app, with nothing to install and nothing uploaded.
 - [Local Development Setup](development/setup.md)
 - [Android Development](development/android.md)
 - [Docker](development/docker.md)
-- [Known issues](known-issue.md)
+- [Testing levels](development/testing-levels.md)
+- [Releasing](development/releasing.md)
 
 ## Project boundaries
 
@@ -70,20 +77,4 @@ the conversion, illustrations included, is in [EPUB import](epub-import.md).
 
 [CBZ import](cbz-import.md) extracts images without retaining the archive.
 An images source stores its ordered page list as text and its original images
-as separate assets. Comic reading in the UI is not available yet.
-
-## Repository map
-
-```text
-cmd/plainshelf-srv/  server entry point
-cmd/plainshelf-wasm/ browser-only demo: the server compiled to WebAssembly
-shelf/               filesystem-backed library core
-server/              HTTP API and server runtime
-frontend/            Vue web UI and Capacitor Android project
-desktop/             Wails desktop client
-reader/              Wails standalone .bookpkg reader
-mobile/              embedded server bound for the Android app
-internal/            shared internal Go packages
-e2e/                 Playwright end-to-end tests
-docs/                user and contributor documentation
-```
+as separate assets, and the book opens in the comic reader.

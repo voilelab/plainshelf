@@ -205,6 +205,22 @@ device networking.
 
 See [Docker](docker.md) to build and run the repository's container image.
 
+## Repository layout
+
+```text
+cmd/plainshelf-srv/  server entry point
+cmd/plainshelf-wasm/ browser-only demo: the server compiled to WebAssembly
+shelf/               filesystem-backed library core
+server/              HTTP API and server runtime
+frontend/            Vue web UI and Capacitor Android project
+desktop/             Wails desktop client
+reader/              Wails standalone .bookpkg reader
+mobile/              embedded server bound for the Android app
+internal/            shared internal Go packages
+e2e/                 Playwright end-to-end tests
+docs/                user and contributor documentation
+```
+
 ## Code style
 
 - Format Go with `gofmt` and keep `go test` green.

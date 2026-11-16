@@ -30,19 +30,23 @@ exclude_docs: |
 
 nav:
   - Home: index.md
-  - Try the demo: try-the-demo.md
-  - Installation: installation.md
-  - Getting started: getting-started.md
-  - EPUB import: epub-import.md
-  - CBZ import: cbz-import.md
-  - Finding similar books: finding-similar-books.md
-  - Logs: logs.md
-  - Backup & restore: backup-and-restore.md
-  - Deployment & threat model: deployment-and-threat-model.md
-  - Configuration:
-      - Configuration reference: reference/configuration.md
+  - Get started:
+      - Try the demo: try-the-demo.md
+      - Installation: installation.md
+      - Getting started: getting-started.md
+  - Using PlainShelf:
+      - EPUB import: epub-import.md
+      - CBZ import: cbz-import.md
+      - Finding similar books: finding-similar-books.md
+  - Shelves and configuration:
       - Local shelf file source: configuring-local-shelf.md
       - SMB shelf file source: configuring-smb-shelf.md
+      - Configuration reference: reference/configuration.md
+  - Running PlainShelf:
+      - Deployment & threat model: deployment-and-threat-model.md
+      - Backup & restore: backup-and-restore.md
+      - Logs: logs.md
+      - Known issues: known-issue.md
   - Concepts:
       - Architecture: concepts/architecture.md
       - Data model: concepts/data-model.md
@@ -59,7 +63,6 @@ nav:
       - Testing Levels: development/testing-levels.md
       - Mutation Testing: development/mutation-testing.md
       - Releasing: development/releasing.md
-  - Known issues: known-issue.md
 
 # A missing in-page anchor is only INFO by default, which --strict lets through.
 validation:
