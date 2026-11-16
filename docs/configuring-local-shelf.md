@@ -232,7 +232,7 @@ not erase files a device has already downloaded. Saved enabled settings can
 start the listener again on restart, so switch sharing off when finished.
 
 For the alternatives, scope and security tradeoffs, see the
-[desktop LAN sharing decision record](deployment-and-threat-model.md#desktop-lan-sharing-decision-record).
+[desktop LAN sharing decision record](development/design/desktop-lan-sharing.md).
 
 ### The QR code
 
@@ -288,7 +288,7 @@ The share publisher's existing `lan_share.token` storage is separate from
 imported credentials. For Android, use **Add a shelf → Scan a QR code to add them all**,
 then preview and confirm the shelves. The Android reader uses this same parser and import
 semantics, with tokens in Android Keystore; see
-[Android QR import](development/android.md#scan-a-lan-share-qr-code) for camera
+[Android QR import](android-app.md#scan-a-lan-share-qr-code) for camera
 permissions, results and device verification.
 
 The first time it is turned on, the operating system's firewall may ask whether

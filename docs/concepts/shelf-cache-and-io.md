@@ -506,16 +506,55 @@ An installation removes another's file only after 30 days without an update —
 long enough that a machine switched off for a holiday keeps its entry. Files it
 cannot parse are never removed, so anything else under `app/` is left alone.
 
+### When its version does not match
+
+The file carries a `schema_version` (`BookCacheSchemaVersion` in
+`shelf/shelf_cache_export.go`), versioned the throw-away way, like the
+[fingerprint cache](similarity-fingerprints.md#fingerprint-cache): there is no
+migration path, and a reader that meets a version it does not recognize
+discards the whole file and falls back to walking the shelf. A new field such as
+`nsfw` or `current_source_md5` is an ordinary addition. Nothing here is frozen,
+and a reader that does not know a field simply does not read it.
+
+#### One reader
+
+Every shelf is read by the Go shelf, including the Android app's pCloud shelf,
+which the app opens in its embedded Go server (`shelf.NewShelfFromFS` over
+`internal/pcloud`). The frontend parses none of the format: it once
+carried a second, TypeScript reader, kept in step with Go only by the shared
+fixture in `shelf/testdata/conformance/`. A format change is therefore made in
+Go alone, and `BookCacheSchemaVersion` and `book.json`'s version have no
+hand-maintained copy elsewhere.
+
+#### What a version mismatch costs a remote shelf
+
+A cache whose `schema_version` the reader does not know is no cache at all
+(`newestExportedBookCache` skips it): a half-understood payload would surface as
+a silently truncated library rather than the cache miss it really is.
+
+That refusal is safe but not free. Without a usable exported file, a pCloud
+shelf is walked, which reads each book's `book.json` over the network in place
+of the single download the cache would have been. Nothing is wrong and nothing
+is lost, but on a metered or high-latency connection that is a real performance
+cliff, and it is the everyday shape of "the server upgraded, the phone did not":
+a build that raises `BookCacheSchemaVersion` starts exporting a file the older
+app declines, until that app is updated too.
+
+This is the one sense in which "deleting the book cache is safe" needs a
+qualifier. From the server's side it is exactly as safe as the other caches under `app/`: the
+next export rebuilds it, and [Data model](data-model.md#app) says as much. From
+a remote reader's side, deleting or invalidating it is the difference between
+one download and a full per-book walk — still safe, still never an error, but no
+longer free.
+
 ### Notes
 
 - The file is disposable. Delete it and it comes back; a client that finds none,
   or one it cannot read, falls back to scanning the shelf.
 - Its `schema_version` is a cross-device contract: the phone reader rejects a
   file whose version it does not match exactly and walks the shelf book by book
-  instead — safe, but a per-book request cliff over pCloud, not free. [Data
-  format versioning](data-format-versioning.md#the-exported-book-cache) covers
-  what a mismatch costs and why the version is duplicated on the TypeScript
-  side.
+  instead — safe, but a per-book request cliff over pCloud, not free. See
+  [What a version mismatch costs a remote shelf](#what-a-version-mismatch-costs-a-remote-shelf).
 - It contains what `book.json` already contains, plus the computed `nsfw` and
   `current_source_md5` above.
   If your shelf is private, it is no more revealing than the shelf itself — but

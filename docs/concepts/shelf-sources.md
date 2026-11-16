@@ -10,7 +10,7 @@
     `source` block or credential references: it covers the shelf's on-disk
     user data only (see [What the freeze
     covers](data-format-versioning.md#what-the-freeze-covers)). The separate
-    [platform interface](platform-capabilities.md#the-platform-interface)
+    [platform interface](../development/design/platform-capabilities.md#the-platform-interface)
     remains planned.
 
 A shelf is opened from a **source**: where its files are and how PlainShelf
@@ -176,7 +176,7 @@ being ignored, so a typo cannot silently open the wrong thing.
   since every listing is a network request.
 - **The source never reaches the HTTP API.** `GET /api/shelves` returns shelf
   identity and capability fields, but neither `lib_root` nor `source`. See
-  [Shelf and platform capabilities](platform-capabilities.md#shelf-capabilities).
+  [Shelf and platform capabilities](../development/design/platform-capabilities.md#shelf-capabilities).
 
 ### From a LAN share QR code
 
@@ -279,7 +279,7 @@ API response.
 pCloud's `poll_token` flow needs no redirect URI and no app secret. Its only
 platform-specific step is opening the authorization URL in the system browser,
 which the host currently provides through its browser binding; the planned
-[platform interface](platform-capabilities.md#the-platform-interface) will take it over. Generating the
+[platform interface](../development/design/platform-capabilities.md#the-platform-interface) will take it over. Generating the
 `request_id`, polling both regional hosts and recording `host` and `user_id`
 still run in TypeScript; the resulting token is written to the platform's
 secret store through the host, and the shelf entry stores only `host:<entryID>`.

@@ -177,7 +177,7 @@ shelf on another.
 You do not need this section to use the page. It records the settings the
 comparison uses, in one place, so that **if any of them ever change, this is the
 paragraph to update** (along with the cache-invalidation note in
-[Data format versioning](concepts/data-format-versioning.md#fingerprint-cache),
+[Fingerprint cache](concepts/similarity-fingerprints.md#fingerprint-cache),
 since changing any of these discards and rebuilds the fingerprint cache).
 
 Before two texts are compared they are **normalized** to the characters that

@@ -48,7 +48,7 @@ shelves are read-only storage backends, and nothing is written back to them.
 The app also retains a mode that connects to an external PlainShelf server's
 full API over HTTP. Like the desktop app, Android can explicitly open a
 separate read-only LAN share for selected local shelves; see
-[Android development](../development/android.md).
+[Android app](../android-app.md).
 
 ### The security boundary
 

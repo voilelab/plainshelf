@@ -13,7 +13,10 @@ shared [maintenance policy](../maintenance.md) instead.
 | Release installation and upgrades | `docs/installation.md` |
 | First library after installation | `docs/getting-started.md` |
 | Local and SMB storage configuration | `docs/configuring-*.md` |
+| Android app shelf sources and setup | `docs/android-app.md` |
+| Running the container image | `docs/development/docker.md` (path fixed: the app's security banner links to it) |
 | Durable storage/architecture concepts | `docs/concepts/*.md` |
+| Design records for internal interfaces and decisions | `docs/development/design/*.md` |
 | Source, desktop, Android, and Docker development | `docs/development/*.md` |
 | Current limitations | `docs/known-issue.md` |
 | Site navigation | `mkdocs.yml` |

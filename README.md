@@ -86,6 +86,7 @@ in the [development guide](docs/development/setup.md).
 - [Local shelf configuration](docs/configuring-local-shelf.md)
 - [SMB shelf configuration](docs/configuring-smb-shelf.md)
 - [EPUB import](docs/epub-import.md) and [CBZ import](docs/cbz-import.md)
+- [Android app](docs/android-app.md)
 - [Deployment and threat model](docs/deployment-and-threat-model.md)
 - [Backup and restore](docs/backup-and-restore.md)
 - [Data model](docs/concepts/data-model.md)

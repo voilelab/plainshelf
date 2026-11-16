@@ -38,11 +38,13 @@ nav:
       - EPUB import: epub-import.md
       - CBZ import: cbz-import.md
       - Finding similar books: finding-similar-books.md
+      - Android app: android-app.md
   - Shelves and configuration:
       - Local shelf file source: configuring-local-shelf.md
       - SMB shelf file source: configuring-smb-shelf.md
       - Configuration reference: reference/configuration.md
   - Running PlainShelf:
+      - Docker: development/docker.md
       - Deployment & threat model: deployment-and-threat-model.md
       - Backup & restore: backup-and-restore.md
       - Logs: logs.md
@@ -54,15 +56,16 @@ nav:
       - Shelf cache and disk I/O: concepts/shelf-cache-and-io.md
       - Folders: concepts/folders.md
       - Shelf sources and credentials: concepts/shelf-sources.md
-      - Shelf and platform capabilities: concepts/platform-capabilities.md
       - Similarity fingerprints: concepts/similarity-fingerprints.md
   - Development:
       - Local Setup: development/setup.md
       - Android: development/android.md
-      - Docker: development/docker.md
       - Testing Levels: development/testing-levels.md
       - Mutation Testing: development/mutation-testing.md
       - Releasing: development/releasing.md
+      - Design records:
+          - Shelf and platform capabilities: development/design/platform-capabilities.md
+          - Desktop LAN sharing: development/design/desktop-lan-sharing.md
 
 # A missing in-page anchor is only INFO by default, which --strict lets through.
 validation:
