@@ -27,7 +27,7 @@ not equally important or equally replaceable:
 | What | Where it lives | Holds | If you lose it |
 |---|---|---|---|
 | **Shelf directory** | `lib_root` in the config file | `books/` (your library), `trash/` (deleted books not yet emptied), and the optional [`shelf.json`](concepts/data-model.md#shelfjson) (this shelf's ignored directories and adult-content folders). `app/` is rebuildable cache. | Your books are gone. Nothing rebuilds them. Without `shelf.json` the shelf goes back to the built-in defaults. |
-| **Application store** | `app_conf.store_path` | A settings database: cover-to-JPG conversion, the EPUB import preset, log retention, and whether books marked as adult content are shown. Under `offline/`, each [virtual shelf](concepts/shelf-sources.md#offline-copies)'s last listing and downloaded books. | Settings with a config key return to the value in your config file, or to the built-in default. Adult content goes back to hidden, because that setting has no config key. Downloaded books and the saved listing are gone; while the source is reachable you can download the books again. |
+| **Application store** | `app_conf.store_path` | `settings.json`: cover-to-JPG conversion, the EPUB import preset, log retention, whether books marked as adult content are shown, and the book-cache writer ID. Under `offline/`, each [virtual shelf](concepts/shelf-sources.md#offline-copies)'s last listing and downloaded books. | Settings with a config key return to the value in your config file, or to the built-in default. Adult content goes back to hidden, because that setting has no config key. Downloaded books and the saved listing are gone; while the source is reachable you can download the books again. |
 | **Config file** | wherever you pass `-conf` | Shelf list and each shelf's `source` block, bind address, security mode, log settings. A `credential` here is a reference, not the secret. | You reconfigure by hand — and until you do, PlainShelf does not know where your shelf is. |
 | **Credential secrets** | the environment, a secret file, the OS keychain, or Android Keystore; see [Credentials](#credentials-are-backed-up-separately) | The passwords and tokens that virtual shelves sign in with. | A virtual shelf cannot open its source until you supply the secret again. |
 | **Client device data** | the browser profile, the desktop app's data directory, or the phone | Reading progress, read history, reading time. **Not on the server.** | Every book reopens at the beginning on that device. |
@@ -36,6 +36,29 @@ Only the shelf directory is irreplaceable, and it is what most people picture
 when they hear "back up the shelf". Downloaded books in the store can become
 irreplaceable too: if a virtual shelf's source is gone for good, its offline
 directory holds the only copy of the books you downloaded from it.
+
+### Upgrading from the database-backed settings store
+
+Server and desktop builds now use `settings.json`, the same format as Android
+and the browser demo. Older Badger settings are not imported automatically;
+the old database files are left untouched, and the first start after the
+upgrade logs a warning naming the store path. Before upgrading, record your
+cover-conversion, EPUB import, log-retention, and adult-content settings, then
+apply them again after the upgrade. Settings otherwise fall back to their
+configured or built-in defaults, and adult content is hidden. The app generates
+a new book-cache writer ID when one is absent from `settings.json`.
+
+Books, reading progress, and offline copies do not move during this change.
+Keep the old store backup if you need to return to an older release. Existing
+Android and browser-demo `settings.json` files continue to work.
+
+The JSON file stores setting values as base64-encoded byte strings. Stop the app
+before restoring it or editing it by hand. Native builds hold an exclusive lock
+on `settings.json.lock` until the store closes; the browser demo relies on its
+single serving tab instead. Each save is flushed to disk before it replaces the
+file. If `settings.json` is still unreadable, for example after a disk fault,
+startup fails rather than silently resetting settings; move the file aside to
+start with defaults.
 
 ### Do they have to be from the same moment?
 
@@ -403,8 +426,7 @@ Restoring **in place**, over a store directory a running process still holds,
 fails like this:
 
 ```text
-Error starting plainshelf-srv: … store.New: Cannot acquire directory lock on
-"/path/to/store". Another process is using this Badger database.
+Error starting plainshelf-srv: … settings store is already open: /path/to/store
 ```
 
 That is the correct behavior, not a corrupted backup. Stop the other process,

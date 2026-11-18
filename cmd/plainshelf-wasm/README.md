@@ -82,13 +82,13 @@ Last, a link straight to a route opens it.
 | `web/serve.mjs` | Local static server with the SPA fallback, or the site's `404.html` like GitHub Pages, used by `run-wasm-demo` and `smoke.mjs` |
 | `web/deep-link.js` | Added to a host's `404.html` for a demo under a path; sends a demo route back to the demo as `?demo-route=` |
 | `web/boot.js` | Elects one serving tab per origin with a Web Lock; that tab starts the wasm, the others forward to it over a `BroadcastChannel`. Answers same-origin `/api/*` and `/health` fetches and relayed requests; `window.plainshelfRequest(r)` does the same without `fetch`, and an optional `window.plainshelfSeed(serve)` runs before the serving tab answers. `window.plainshelfDemo` asks the browser to keep the storage (`navigator.storage.persist()`); its presence is how the app shows the demo-only **Browser storage** settings tab |
-| `server/store/db_json.go` | The settings store as one JSON file instead of badger, whose files are mmapped, which js/wasm cannot do (Android uses it too). The file persists through OPFS like the shelf |
+| `server/store/db_json.go` | The shared settings store as one JSON file, persisting through OPFS like the shelf. The browser uses its single serving tab instead of the native file lock |
 | `frontend/web_noembed.go` | Empty `WebFS`: the static host serves the frontend, so it is not embedded twice (the Android library shares it) |
 
 ## Findings
 
 - The wasm is 14.1 MB, 3.7 MB gzipped, and is ready in under a second in
-  headless chromium. Leaving badger out of the browser build halved it.
+  headless chromium.
 - Covers load through `<img src>`, which the `fetch` patch never sees, so
   `sw.js` relays them to the page that runs the server; the worker cannot run
   the wasm itself, since it would hold a second, separate shelf. On a first
