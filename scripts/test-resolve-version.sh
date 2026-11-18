@@ -26,6 +26,19 @@ expect native v01.2.3 0.0.0
 expect android-name v0.8.0-beta.1 0.8.0-beta.1
 expect android-name v0.7.0-138-gabcdef 0.7.0-138-gabcdef
 expect android-name dev 0.0.0-dev
+expect android-code v0.14.0 140099
+expect android-code v1.0.0-rc1 1000001
+expect android-code v1.0.0-rc.2 1000002
+expect android-code v1.0.0 1000099
+expect android-code v1.0.1 1000199
+expect android-code v2000.99.99 2000999999
+
+for invalid in dev v1.0.0-beta.1 v1.0.0-rc0 v1.0.0-rc99 v1.0.0-rc01 v1.0.0-rc v1.0.0-rc1.1 v1.100.0 v1.0.100 v2001.0.0; do
+  if "$resolver" android-code "$invalid" >/dev/null 2>&1; then
+    echo "android-code accepted '$invalid'" >&2
+    exit 1
+  fi
+done
 
 for valid in v0.8.0 v0.8.0-beta.1 v1.2.3-rc.2; do
   "$resolver" validate-tag "$valid"
@@ -90,7 +103,24 @@ for stale in v0.8.0 v0.7.0 v0.8.0-beta.2 v0.7.9 dev; do
   fi
 done
 
+for next in v0.8.1 v1.0.0-rc1; do
+  if ! (cd "$temp_repo" && "$resolver" validate-next-android "$next" >/dev/null 2>&1); then
+    echo "validate-next-android rejected '$next' after v0.8.0" >&2
+    exit 1
+  fi
+done
+
 git -C "$temp_repo" tag v1.0.0-rc.2
+for stale in v1.0.0-rc1 v1.0.0-rc.2 v1.0.0-beta.9; do
+  if (cd "$temp_repo" && "$resolver" validate-next-android "$stale" >/dev/null 2>&1); then
+    echo "validate-next-android accepted '$stale' after v1.0.0-rc.2" >&2
+    exit 1
+  fi
+done
+if ! (cd "$temp_repo" && "$resolver" validate-next-android v1.0.0-rc3 >/dev/null 2>&1); then
+  echo "validate-next-android rejected 'v1.0.0-rc3' after v1.0.0-rc.2" >&2
+  exit 1
+fi
 for next in v1.0.0-rc.10 v1.0.0-rc.2.1 v1.0.0-rcx v1.0.0; do
   if ! (cd "$temp_repo" && "$resolver" validate-next "$next" >/dev/null 2>&1); then
     echo "validate-next rejected '$next' after v1.0.0-rc.2" >&2

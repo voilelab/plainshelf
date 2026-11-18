@@ -9,7 +9,7 @@ tag is created on the PR's merge commit, never pushed by hand.
 | 1 | you | Run **Prepare release** from the Actions tab with the tag, e.g. `v0.11.0` |
 | 2 | `prepare-release.yml` | Opens the release PR `release-prep/<tag>` → `release/<major>.x` |
 | 3 | you | Review and merge the release PR with a merge commit |
-| 4 | `publish-release.yml` | Builds, tags the merge commit, publishes the Release and Docker image; for a stable tag, opens the cask bump PR |
+| 4 | `publish-release.yml` | Builds, tags the merge commit, publishes the Release, Android APK and Docker image; for a stable tag, opens the cask bump PR |
 | 5 | you | For a stable release, merge the cask bump PR into `dev` |
 
 ## What Prepare release checks
@@ -18,6 +18,10 @@ It stops before creating anything when:
 
 - the tag is not `vMAJOR.MINOR.PATCH[-prerelease]`, already exists, or is not
   newer than the latest release tag (`scripts/resolve-version.sh validate-next`);
+- the tag has no Android version code (a prerelease other than `rcN` or
+  `rc.N`, or a MINOR or PATCH of 100 or more), or its code is not above the
+  latest release tag's (`scripts/resolve-version.sh validate-next-android`;
+  [Release builds](android.md#release-builds));
 - `ci.yml` on `dev`'s current commit, or the latest completed nightly on `dev`,
   is not green (a CI run still in progress, as right after a merge, is waited
   for);
@@ -36,8 +40,8 @@ and fails before building if the PR was not merged with a merge commit, the tag
 belongs on a different `release/*` branch, or the tag already exists. It then
 calls `release.yml`, which:
 
-1. builds the server tarballs, the macOS desktop and reader apps, and the Docker
-   image from the merge commit;
+1. builds the server tarballs, the macOS desktop and reader apps, the signed
+   Android arm64 APK, and the Docker image from the merge commit;
 2. creates the tag and the GitHub Release on that commit, with `SHA256SUMS`
    attached; a tag with a `-` is marked as a prerelease. The notes are
    GitHub's list of pull requests merged since the previous release tag by
@@ -62,7 +66,8 @@ commits, so the next release PR merges cleanly as long as each one is merged
 with a merge commit.
 
 A manual run of **Release** (`release.yml`) builds every artifact from the chosen
-ref and publishes nothing.
+ref and publishes nothing. Its APK is unsigned when the signing secrets are not
+available to the run.
 
 ## Release notes labels
 
@@ -91,6 +96,19 @@ a breaking feature carries both `breaking` and `feature`.
 - **Ruleset on `release/*`:** require a pull request, allow only the *merge*
   merge method, and block deletion. Do not restrict creation: Prepare release
   creates a new `release/<major>.x` itself.
+- **Android signing key:** generate the release keystore once and keep it
+  outside the repository; [Release builds](android.md#release-builds) explains
+  why it can never change.
+
+  ```bash
+  keytool -genkeypair -v -keystore plainshelf-release.jks -alias plainshelf \
+    -keyalg RSA -keysize 4096 -validity 36500
+  base64 -w0 plainshelf-release.jks   # macOS: base64 -i plainshelf-release.jks
+  ```
+
+  Add four repository secrets: `ANDROID_KEYSTORE_BASE64` (that output),
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
+  Publish release fails before building the APK without them.
 - **Labels:** create the six labels above; the check and the release notes
   match their names exactly.
 - **Branch protection on `dev`:** make `Release notes label` a required check.

@@ -22,6 +22,15 @@ on:
         required: false
         default: false
         type: boolean
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
 
 permissions:
   contents: read
@@ -36,6 +45,8 @@ jobs:
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       native_version: ${{ steps.resolve.outputs.native_version }}
+      android_name: ${{ steps.resolve.outputs.android_name }}
+      android_code: ${{ steps.resolve.outputs.android_code }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -56,10 +67,20 @@ jobs:
 
           version=$(./scripts/resolve-version.sh display "$raw_version")
           native_version=$(./scripts/resolve-version.sh native "$raw_version")
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "native_version=${native_version}" >> "$GITHUB_OUTPUT"
+          android_name=$(./scripts/resolve-version.sh android-name "$raw_version")
+          if ! android_code=$(./scripts/resolve-version.sh android-code "$raw_version"); then
+            [ "$PUBLISH" != "true" ] || exit 1
+            android_code=1
+          fi
+          {
+            echo "version=${version}"
+            echo "native_version=${native_version}"
+            echo "android_name=${android_name}"
+            echo "android_code=${android_code}"
+          } >> "$GITHUB_OUTPUT"
           echo "Resolved version: ${version}"
           echo "Native version: ${native_version}"
+          echo "Android version: ${android_name} (${android_code})"
 
   frontend:
     name: Build frontend
@@ -322,6 +343,150 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  android-lib:
+    name: Build Android Go library
+    needs: [frontend, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build and measure the library
+        run: ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME" ./scripts/build-android-lib.sh build/android-lib
+
+      - name: Upload library
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-lib
+          path: build/android-lib/plainshelf.aar
+          if-no-files-found: error
+
+  android:
+    name: Build Android arm64 APK
+    needs: [prepare, frontend, android-lib]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Download Android Go library
+        uses: actions/download-artifact@v8
+        with:
+          name: android-lib
+          path: frontend/android/app/libs
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Sync the web build into the Android project
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PUBLISH: ${{ inputs.publish == true }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [ "$PUBLISH" = "true" ]; then
+              echo "::error::ANDROID_KEYSTORE_BASE64 is not set; a published APK must be signed"
+              exit 1
+            fi
+            echo "No signing keystore; building an unsigned APK"
+            exit 0
+          fi
+          keystore="$RUNNER_TEMP/release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$keystore"
+          echo "PLAINSHELF_KEYSTORE_FILE=${keystore}" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        working-directory: frontend/android
+        env:
+          PLAINSHELF_VERSION_NAME: ${{ needs.prepare.outputs.android_name }}
+          PLAINSHELF_VERSION_CODE: ${{ needs.prepare.outputs.android_code }}
+          PLAINSHELF_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          PLAINSHELF_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          PLAINSHELF_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Verify and package APK
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          ANDROID_NAME: ${{ needs.prepare.outputs.android_name }}
+          ANDROID_CODE: ${{ needs.prepare.outputs.android_code }}
+        run: |
+          set -euo pipefail
+          build_tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          apk_dir=frontend/android/app/build/outputs/apk/release
+          name="plainshelf-android_${VERSION}_arm64"
+          if [ -n "${PLAINSHELF_KEYSTORE_FILE:-}" ]; then
+            apk="${apk_dir}/app-release.apk"
+            "$build_tools/apksigner" verify --print-certs "$apk"
+          else
+            apk="${apk_dir}/app-release-unsigned.apk"
+            name="${name}-unsigned"
+          fi
+
+          badging=$("$build_tools/aapt2" dump badging "$apk")
+          grep -q "^package: name='lab.voile.plainshelf' versionCode='${ANDROID_CODE}' versionName='${ANDROID_NAME}'" <<<"$badging"
+          test "$(sed -n "s/^native-code: //p" <<<"$badging")" = "'arm64-v8a'"
+
+          mkdir -p out
+          cp "$apk" "out/${name}.apk"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: plainshelf-android-arm64
+          path: out/*
+          if-no-files-found: error
+
   docker:
     name: Build and push Docker image
     needs: [prepare, test, release]
@@ -372,7 +537,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [prepare, binaries, desktop-mac, reader-mac]
+    needs: [prepare, binaries, desktop-mac, reader-mac, android]
     if: inputs.publish
     runs-on: ubuntu-24.04
     permissions:

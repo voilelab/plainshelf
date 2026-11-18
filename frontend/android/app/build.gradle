@@ -15,6 +15,8 @@ if (plainshelfVersionName.trim().isEmpty()) {
     throw new GradleException('PLAINSHELF_VERSION_NAME must not be empty')
 }
 
+def releaseKeystore = System.getenv('PLAINSHELF_KEYSTORE_FILE')
+
 android {
     namespace "lab.voile.plainshelf"
     compileSdk rootProject.ext.compileSdkVersion
@@ -25,14 +27,30 @@ android {
         versionCode plainshelfVersionCode
         versionName plainshelfVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseKeystore) {
+            release {
+                storeFile file(releaseKeystore)
+                storePassword System.getenv('PLAINSHELF_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('PLAINSHELF_KEY_ALIAS')
+                keyPassword System.getenv('PLAINSHELF_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseKeystore) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
