@@ -196,7 +196,7 @@ can.
 | `logger` | [logger block](#logger-blocks) | see below | The application log: API requests, imports, background tasks. |
 | `shelves` | list | empty | The shelves this server serves. See [`shelves[]`](#shelves). |
 | `worker` | mapping | all defaults | Background task queue. See [`worker`](#app_confworker). |
-| `store_path` | string | none (required) | Directory for the application store: a Badger DB of server settings, plus virtual shelves' offline copies under `offline/`. Created if missing; an empty value fails startup. |
+| `store_path` | string | none (required) | Directory for the application store: `settings.json` for server settings, plus virtual shelves' offline copies under `offline/`. Created if missing; an empty value fails startup. |
 | `cover_to_jpg` | bool | `false` | Convert every cover PlainShelf stores to JPEG — both uploads and covers extracted from an EPUB — instead of keeping the original encoding. It also makes the upload endpoint accept image types it otherwise rejects. Overridden by a value saved from **Settings**. |
 | `epub_import_strategy` | mapping | built-in default | Default EPUB conversion options. See [`epub_import_strategy`](#app_confepub_import_strategy). |
 | `read_only` | bool | `false` | Serve every shelf read-only, whatever each shelf's own `read_only` says. Mutating API requests are refused with 403 before they reach a shelf; the one exception is the rescan, which only reads. |

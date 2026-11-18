@@ -113,9 +113,8 @@ for the steps on the phone.
   importability the same in the demo and the app.
 - Shelves live under `<files dir>/local-shelves/shelves/<id>/` with
   `lock_mode: none`, their list in `<files dir>/local-shelves/shelves.json`.
-  On `android` the settings store is the JSON file the wasm build uses rather
-  than badger, and the frontend is not embedded in the library, since the APK
-  already carries it.
+  The settings store uses `settings.json` on every platform. The frontend is
+  not embedded in the Android library, since the APK already carries it.
 - The embedded Go runtime sets `TMPDIR` to
   `<files dir>/local-shelves/tmp/` before opening shelves. Batch illustration
   archives are spooled there and removed after the response; Android's default
