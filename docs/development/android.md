@@ -86,7 +86,7 @@ a different key. A debug build is signed with the build machine's own
 `~/.android/debug.keystore`, which differs from machine to machine and from
 one CI run to the next, so a debug APK cannot be upgraded to a release one: the
 user uninstalls first, which deletes local shelves unless the uninstall dialog
-keeps the app's data ([Uninstalling](#uninstalling)).
+keeps the app's data ([Uninstalling](../android-app.md#uninstalling)).
 
 A release APK is signed with one long-lived key. Gradle signs `release` builds
 when these variables are set, and leaves the APK unsigned otherwise:

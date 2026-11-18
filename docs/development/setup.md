@@ -8,15 +8,12 @@ installation, see [Installation](../installation.md).
 | Tool | Version | Purpose |
 |---|---:|---|
 | Go | 1.27.4 or newer | server, core library, desktop backend |
-| Node.js | 22.18+ or 24.11+, below 26 | frontend and end-to-end tests |
+| Node.js | 22.22.2+ (22.x) or 24.15.0+ (24.x) | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
 | zsh | recent | shell used by the `justfile` |
 
-The floor comes from Babel 8, which the mutation-testing dev dependency pulls
-in. Its `engines` field accepts Node.js 22 from 22.18 and Node.js 24 from 24.11,
-so Node.js 23 and early 24 releases are out too; outside that range `npm ci`
-warns, and fails outright where npm engine enforcement is on.
+These minimum versions come from jsdom's Node.js requirements.
 
 Node.js has a ceiling as well as a floor. From Node.js 26 the runtime defines
 its own experimental `localStorage` global, which leaves `window.localStorage`
@@ -114,9 +111,8 @@ pCloud shelf included, and `shelf/testdata/conformance/` pins what it reads. A
 change to how a shelf is read belongs in that dataset; the dataset's own README
 explains the contract.
 
-[Mutation testing](mutation-testing.md) is available for the reader's helpers and
-the shared Markdown modules as an on-demand check of how much the unit tests
-actually verify. It is not part of the checks above.
+See the [mutation testing pilot results](mutation-testing.md) for the historical
+reader and Markdown measurements.
 
 Dependency vulnerability scanning is CI-only and not in the table either.
 `govulncheck ./...` runs in each of the three Go modules under both `GOOS=linux`

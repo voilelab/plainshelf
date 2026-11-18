@@ -5,53 +5,12 @@ testing asks the sharper question directly: it introduces small breaking changes
 into the implementation ("mutants") and reports the ones no test noticed. Every
 surviving mutant marks behavior that is executed but not verified.
 
-This page describes the pilot configuration. It covers
-`frontend/src/features/reader/utils/` and the shared Markdown and safe-HTML
-modules that were split out of it — `markdownAssetImages.ts`,
-`markdownChapters.ts`, `markdownLineSyntax.ts`, `renderMarkdownBlocks.ts` and
-`safeHtml.ts`, all under `frontend/src/utils/`. It is **not** wired into CI and
-has no score threshold.
+PlainShelf retired the local Stryker pilot after moving to Vitest 5. With
+Vitest 5.0.0, the runner reported only 10 of 62 mutants killed in
+`markdownLineSyntax.ts`, down from 59 under Vitest 4.1.11, and reported known
+kills as survivors. The pilot never ran in CI.
 
-## Run it
-
-> **On hold until the runner supports Vitest 5.**
-> `@stryker-mutator/vitest-runner@10.0.0` accepts any `vitest >= 2.0.0` as a
-> peer, but it does not work with Vitest 5: a mutant a test kills is still
-> reported as survived. On `markdownLineSyntax.ts` the same run kills 59 of 62
-> mutants under Vitest 4.1.11 and 10 of 62 under Vitest 5.0.0, and
-> `--logLevel debug` dies in the runner's own config dump with `Converting
-> circular structure to JSON`. Every number on this page was measured under
-> Vitest 4; a run made today reports scores that are wrong, not merely lower.
-
-```bash
-npm --prefix frontend ci
-npm --prefix frontend run test:mutation
-```
-
-Stryker instruments through Babel 8, which needs Node.js 22.18 or newer. That is
-the floor recorded in the [setup prerequisites](setup.md#prerequisites), because
-`npm ci` installs the dependency whether or not the mutation run is used.
-
-The run takes roughly three minutes and writes
-`frontend/reports/mutation/mutation.html` (a browsable report) plus
-`mutation.json`. Both are ignored by Git.
-
-Line coverage for the same files, for comparison:
-
-```bash
-npm --prefix frontend exec -- vitest run --coverage \
-  --coverage.provider=v8 \
-  --coverage.include='src/features/reader/utils/**' \
-  --coverage.include='src/utils/markdown*.ts' \
-  --coverage.include='src/utils/renderMarkdownBlocks.ts' \
-  --coverage.include='src/utils/safeHtml.ts' \
-  --coverage.exclude='**/*.test.ts' --coverage.all
-```
-
-Configuration lives in `frontend/stryker.conf.json`, and `internal/repocheck`
-fails when its `mutate` list names a file this page does not. Widening `mutate`
-to the whole frontend is not practical: the pilot scope already costs minutes
-per run.
+The results and survivor dispositions below record the Vitest 4 runs.
 
 ## Reading a survivor
 
@@ -95,7 +54,7 @@ files (Node 22,
 `concurrency: 2`, `coverageAnalysis: perTest`, 753 mutants, ~3 minutes per run).
 "Before" is the state the pilot found; "after" is the current run.
 `comicPageSize.ts`, `estimateBlockHeight.ts` and `sectionDeepLink.ts` joined the
-reader utils after the pilot: they are in `mutate` but have no measurement here.
+reader utils after the pilot: the pilot recorded no measurements for them.
 
 | File | Line coverage before → after | Mutation score before → after |
 |---|---|---|
