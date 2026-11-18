@@ -448,5 +448,5 @@ is still alive — a job killed by `timeout-minutes` leaves no stack at all.
 - `docs/development/agent/judgment.md` holds the minimum checks per area — which
   commands to run, as opposed to which level to write at.
 - `docs/development/agent/lessons.md` holds the verified traps per level.
-- [Mutation testing](mutation-testing.md) asks the next question down: given a
-  test at the right level, does it actually check anything?
+- The [mutation testing pilot](mutation-testing.md) records gaps found in the
+  reader and Markdown unit tests.
