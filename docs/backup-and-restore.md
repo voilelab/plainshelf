@@ -41,7 +41,8 @@ directory holds the only copy of the books you downloaded from it.
 
 Server and desktop builds now use `settings.json`, the same format as Android
 and the browser demo. Older Badger settings are not imported automatically;
-the old database files are left untouched. Before upgrading, record your
+the old database files are left untouched, and the first start after the
+upgrade logs a warning naming the store path. Before upgrading, record your
 cover-conversion, EPUB import, log-retention, and adult-content settings, then
 apply them again after the upgrade. Settings otherwise fall back to their
 configured or built-in defaults, and adult content is hidden. The app generates
@@ -54,7 +55,10 @@ Android and browser-demo `settings.json` files continue to work.
 The JSON file stores setting values as base64-encoded byte strings. Stop the app
 before restoring it or editing it by hand. Native builds hold an exclusive lock
 on `settings.json.lock` until the store closes; the browser demo relies on its
-single serving tab instead.
+single serving tab instead. Each save is flushed to disk before it replaces the
+file. If `settings.json` is still unreadable, for example after a disk fault,
+startup fails rather than silently resetting settings; move the file aside to
+start with defaults.
 
 ### Do they have to be from the same moment?
 

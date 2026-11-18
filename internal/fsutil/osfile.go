@@ -21,6 +21,14 @@ func ReadTextFile(path string) (string, error) {
 }
 
 func WriteTextFileAtomic(path, tempPattern, text string) error {
+	return writeTextFileAtomic(path, tempPattern, text, false)
+}
+
+func WriteTextFileDurable(path, tempPattern, text string) error {
+	return writeTextFileAtomic(path, tempPattern, text, true)
+}
+
+func writeTextFileAtomic(path, tempPattern, text string, durable bool) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return util.Errorf("%w", err)
@@ -41,6 +49,13 @@ func WriteTextFileAtomic(path, tempPattern, text string) error {
 		tmp.Close()
 		os.Remove(tmpPath)
 		return util.Errorf("%w", err)
+	}
+	if durable {
+		if err := tmp.Sync(); err != nil {
+			tmp.Close()
+			os.Remove(tmpPath)
+			return util.Errorf("%w", err)
+		}
 	}
 	if err := tmp.Close(); err != nil {
 		os.Remove(tmpPath)

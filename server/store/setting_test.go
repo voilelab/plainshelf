@@ -255,3 +255,26 @@ func TestSettingsConcurrentWrites(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsDetectBadgerStore(t *testing.T) {
+	if newTestDB(t).HasUnimportedBadger() {
+		t.Fatal("empty store reported Badger files")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, badgerManifest), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	db := newTestDBAt(t, dir)
+	if !db.HasUnimportedBadger() {
+		t.Fatal("Badger store without settings.json not reported")
+	}
+	if err := db.SetSetting("key", []byte("value")); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if newTestDBAt(t, dir).HasUnimportedBadger() {
+		t.Fatal("Badger store reported after settings.json exists")
+	}
+}

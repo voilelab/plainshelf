@@ -74,6 +74,10 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
+	if storeDB.HasUnimportedBadger() {
+		logger.Warn("legacy Badger settings were not imported; reapply them in Settings, see docs/backup-and-restore.md", "store_path", conf.StorePath)
+	}
+
 	settingsSvc := &settings{Logger: logger, db: storeDB, conf: conf}
 	settingsSvc.applyLogRetention()
 

@@ -19,9 +19,13 @@ type DB struct {
 	settings map[string][]byte
 	unlock   func() error
 	closed   bool
+	badger   bool
 }
 
-const settingsFile = "settings.json"
+const (
+	settingsFile   = "settings.json"
+	badgerManifest = "MANIFEST"
+)
 
 func New(dbPath string) (*DB, error) {
 	unlock, err := lockStore(dbPath)
@@ -32,6 +36,8 @@ func New(dbPath string) (*DB, error) {
 	db.unlock = unlock
 	bs, err := os.ReadFile(db.path)
 	if errors.Is(err, fs.ErrNotExist) {
+		_, statErr := os.Stat(filepath.Join(dbPath, badgerManifest))
+		db.badger = statErr == nil
 		return db, nil
 	}
 	if err != nil {
@@ -61,6 +67,8 @@ func (db *DB) Close() error {
 	db.closed = true
 	return nil
 }
+
+func (db *DB) HasUnimportedBadger() bool { return db.badger }
 
 var errClosed = util.NewError("settings store is closed")
 
@@ -116,7 +124,7 @@ func (db *DB) save() error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	if err := fsutil.WriteTextFileAtomic(db.path, "settings-*.json", string(bs)); err != nil {
+	if err := fsutil.WriteTextFileDurable(db.path, "settings-*.json", string(bs)); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil
