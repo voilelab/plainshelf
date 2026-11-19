@@ -32,6 +32,7 @@ runs:
         time sudo apt-get -o Dir::Cache::archives="$archives" \
           -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
           libgtk-4-dev libwebkitgtk-6.0-dev
+        sudo apt-get -o Dir::Cache::archives="$archives" autoclean
 
     - name: Save downloaded APT packages
       if: steps.cache.outputs.cache-hit != 'true'
