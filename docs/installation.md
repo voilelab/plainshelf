@@ -252,3 +252,22 @@ Because PlainShelf keeps data in human-readable files, back up your shelf and
 application store directories before upgrading across breaking changes. See
 [Backup and restore](backup-and-restore.md) for what to copy, what a shelf-only
 copy leaves behind, and how to roll back to an older release.
+
+### Mixing versions
+
+Upgrade every PlainShelf that writes to the same shelf together: for example a
+NAS server and a desktop app pointed at the same share. An older build does not
+know formats added after its release, and a released build cannot be changed.
+
+Comics are the case you are most likely to hit. A comic is a book whose source
+holds page images (`format: "images"`), which builds before v0.13.0 do not know.
+On a comic, such a build:
+
+- shows the source as plain text: a list of image file names instead of pages;
+- refuses every edit to the book's details, such as title, authors or tags, with
+  `format must be "txt" or "md"`.
+
+The newer build still reads and edits the comic normally. Upgrade the older
+build to fix it, and until then do not edit comics from it. The general rule,
+and what else an older build can drop when it writes to a newer shelf, is in
+[Running two versions against one shelf](concepts/data-format-versioning.md#running-two-versions-against-one-shelf).
