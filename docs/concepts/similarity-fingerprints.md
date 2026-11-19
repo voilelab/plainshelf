@@ -122,10 +122,12 @@ next hashing run reads every page again.
 
 `sources` maps `{book_id}/{source_id}` to two things:
 
-- `list_md5`, the `md5_hash` of the `source.txt` page list the record was built
-  from. The Duplicate Content page uses a record only while the source's current
-  `md5_hash` still equals it, so adding, removing or reordering pages takes that
-  comic out of the comparison until it is hashed again, without a stat per page.
+- `list_md5`, the MD5 of the `source.txt` page list the record was built from.
+  The Duplicate Content page reads each comic's page list and uses a record only
+  while that list still hashes to it, so adding, removing or reordering pages
+  takes the comic out of the comparison until it is hashed again, without a stat
+  per page. It hashes the list itself rather than trusting `md5_hash` in
+  `meta.json`, which an edit made outside PlainShelf leaves unchanged.
 - `pages`, each listed page's asset name to its size, mtime and MD5. The hashing
   task stats every page and reads only those whose size or mtime changed. A page
   written within the last two seconds is stored without an mtime, so the next

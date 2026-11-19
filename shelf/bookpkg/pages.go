@@ -51,11 +51,7 @@ func (r *Source) Pages() (*PageList, error) {
 		return nil, util.Errorf("%w", ErrNotImageSource)
 	}
 
-	content, err := r.readPageList()
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	md5Hash, err := hashutil.MD5Hash(bytes.NewReader(content))
+	content, md5Hash, err := r.hashedPageList()
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -84,6 +80,29 @@ func (r *Source) Pages() (*PageList, error) {
 	return list, nil
 }
 
+func (r *Source) PageListMD5() (string, error) {
+	if r.meta.Format != BookFormatImages {
+		return "", util.Errorf("%w", ErrNotImageSource)
+	}
+	_, md5Hash, err := r.hashedPageList()
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return md5Hash, nil
+}
+
+func (r *Source) hashedPageList() ([]byte, string, error) {
+	content, err := r.readPageList()
+	if err != nil {
+		return nil, "", util.Errorf("%w", err)
+	}
+	md5Hash, err := hashutil.MD5Hash(bytes.NewReader(content))
+	if err != nil {
+		return nil, "", util.Errorf("%w", err)
+	}
+	return content, md5Hash, nil
+}
+
 func (r *Source) readPageList() ([]byte, error) {
 	content, err := r.ReadContent()
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -99,11 +118,7 @@ func (r *Source) editablePageNames(baseMD5 string) ([]string, error) {
 	if err := r.EnsureWritable(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	content, err := r.readPageList()
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	md5Hash, err := hashutil.MD5Hash(bytes.NewReader(content))
+	content, md5Hash, err := r.hashedPageList()
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

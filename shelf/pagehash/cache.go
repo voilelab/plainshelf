@@ -104,12 +104,17 @@ func (c *Cache) Stats() Stats {
 	return c.stats
 }
 
-func (c *Cache) Recorded(bookID, sourceID, listMD5 string) ([]string, bool) {
+func (c *Cache) Recorded(bookID string, source *bookpkg.Source) ([]string, bool) {
+	listMD5, err := source.PageListMD5()
+	if err != nil {
+		return nil, false
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	entry, ok := c.sources[sourceKey(bookID, sourceID)]
-	if !ok || listMD5 == "" || entry.ListMD5 != listMD5 {
+	entry, ok := c.sources[sourceKey(bookID, source.ID())]
+	if !ok || entry.ListMD5 != listMD5 {
 		return nil, false
 	}
 	return distinctHashes(entry.Pages), true
@@ -144,7 +149,7 @@ func (c *Cache) Resolve(bookID string, source *bookpkg.Source) ([]string, error)
 	}
 
 	c.mu.Lock()
-	c.sources[key] = sourceEntry{ListMD5: source.GetMeta().MD5Hash, Pages: pages}
+	c.sources[key] = sourceEntry{ListMD5: list.MD5Hash, Pages: pages}
 	c.touched[key] = struct{}{}
 	c.mu.Unlock()
 	return distinctHashes(pages), nil
