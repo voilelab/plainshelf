@@ -306,7 +306,10 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 For schema-versioned sources, `sources/{source-id}/meta.json` records `format`
 as `txt`, `md` or `images` (see [Image sources](#image-sources)).
 `book.json.format` is only a compatibility mirror of the current source for
-older clients. Readers resolve format in this order:
+older clients. Switching the current source updates it; a metadata edit cannot,
+and the API refuses one with `BOOK_FORMAT_READ_ONLY` unless the current source is
+a legacy source, which has no `format` of its own. Readers resolve format in this
+order:
 
 1. current source `meta.json.format`;
 2. legacy `book.json.format`;

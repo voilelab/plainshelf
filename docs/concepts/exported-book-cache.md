@@ -38,8 +38,8 @@ not `book.json`, so without it a client holding an
 changed without reading every source. It is omitted when unknown.
 
 An entry carries `current_source_format` only when the current source's
-`format` differs from the `format` mirrored in `book.json`, which a metadata
-edit can change on its own. A remote reader uses it to tell an
+`format` differs from the `format` mirrored in `book.json`, which an older
+client or a hand edit can leave behind. A remote reader uses it to tell an
 [images source](data-model.md#image-sources) from a text one, and falls back to
 the mirror when it is absent, so a shelf whose mirrors agree exports the bytes
 it did before the field existed.

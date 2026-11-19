@@ -187,39 +187,86 @@ func TestAPIUpdateBookBadBodyBeforeNotFound(t *testing.T) {
 	apitest.PatchBook(t, env, "book-missing", `{"title":"Fine"}`, http.StatusNotFound)
 }
 
-func TestAPIUpdateBookFormatContract(t *testing.T) {
-	env := apitest.New(t)
-	created := apitest.ImportTextBook(t, env, "Format Book", "", "format.txt", "# Notes\n\nhello")
-	bookID := created.Meta.ID
+const formatReadOnlyMessage = "format follows the current source; switch the current source to change it"
 
-	if created.Meta.Format != "txt" {
-		t.Fatalf("imported format = %q, want txt", created.Meta.Format)
+func TestAPIUpdateBookFormatReadOnly(t *testing.T) {
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Format Book", "shelved", "format.txt", "# Notes\n\nhello")
+	bookID := created.Meta.ID
+	metaPath := env.BookMetaPath(t, bookID)
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read book.json: %v", err)
 	}
 
-	rec := env.Get(apitest.BookURL(bookID, "content"))
-	apitest.AssertStatus(t, rec, http.StatusOK)
-	contentBefore := rec.Body.String()
+	for _, body := range []string{
+		`{"format":"md"}`,
+		`{"format":"txt"}`,
+		`{"format":"epub"}`,
+		`{"title":"Renamed","format":"md"}`,
+		`{"folder":["moved"],"format":"md"}`,
+	} {
+		rec := apitest.PatchBook(t, env, bookID, body, http.StatusBadRequest)
+		apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest, "BOOK_FORMAT_READ_ONLY", formatReadOnlyMessage)
+	}
+
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("book.json moved or vanished after a rejected PATCH: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("book.json = %s, want it unwritten at %s", after, before)
+	}
+
+	updated := patchBookOK(t, env, bookID, `{"title":"Format Book Renamed","tags":["kept"]}`)
+	if updated.Meta.Title != "Format Book Renamed" || len(updated.Meta.Tags) != 1 || updated.Meta.Format != "txt" {
+		t.Fatalf("meta = %#v, want title and tags applied and format txt", updated.Meta)
+	}
+	if strings.Join(updated.Folder, "/") != "shelved" {
+		t.Fatalf("folder = %#v, want shelved", updated.Folder)
+	}
+}
+
+func stripCurrentSourceFormat(t *testing.T, env *apitest.Env, bookID string) {
+	t.Helper()
+
+	bookDir := filepath.Dir(env.BookMetaPath(t, bookID))
+	metaPath := filepath.Join(bookDir, shelf.SourcesFolder, env.CurrentSourceID(t, bookID), shelf.SourceMetaFile)
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read source meta: %v", err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		t.Fatalf("decode source meta: %v", err)
+	}
+	delete(meta, "format")
+	delete(meta, "schema_version")
+	updated, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatalf("encode source meta: %v", err)
+	}
+	if err := os.WriteFile(metaPath, updated, 0o644); err != nil {
+		t.Fatalf("write source meta: %v", err)
+	}
+	apitest.AssertStatus(t, env.Post(apitest.ScansURL(), nil), http.StatusOK)
+}
+
+func TestAPIUpdateBookFormatLegacySource(t *testing.T) {
+	env := apitest.New(t)
+	created := apitest.ImportTextBook(t, env, "Legacy Book", "", "legacy.txt", "# Notes\n\nhello")
+	bookID := created.Meta.ID
+	stripCurrentSourceFormat(t, env, bookID)
 
 	if updated := patchBookOK(t, env, bookID, `{"format":"md"}`); updated.Meta.Format != "md" {
-		t.Fatalf("format = %q, want md in the PATCH response", updated.Meta.Format)
+		t.Fatalf("format = %q, want md on a legacy current source", updated.Meta.Format)
 	}
-
 	if fetched := apitest.GetJSON[server.Book](t, env, apitest.BookURL(bookID)); fetched.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md after GET", fetched.Meta.Format)
 	}
 
-	rec = env.Get(apitest.BookURL(bookID, "content"))
-	apitest.AssertStatus(t, rec, http.StatusOK)
-	if got := rec.Body.String(); got != contentBefore {
-		t.Fatalf("content = %q, want it unchanged at %q", got, contentBefore)
-	}
-
-	apitest.PatchBook(t, env, bookID, `{"format":"epub"}`, http.StatusBadRequest)
-
-	untouched := patchBookOK(t, env, bookID, `{"title":"Format Book Renamed"}`)
-	if untouched.Meta.Format != "md" {
-		t.Fatalf("format = %q, want md left alone when the PATCH omits it", untouched.Meta.Format)
-	}
+	rec := apitest.PatchBook(t, env, bookID, `{"format":"epub"}`, http.StatusBadRequest)
+	apitest.AssertErrorEnvelope(t, rec, http.StatusBadRequest, "INVALID_BOOK_FORMAT", `format must be "txt", "md" or "images"`)
 
 	if reverted := patchBookOK(t, env, bookID, `{"format":"txt"}`); reverted.Meta.Format != "txt" {
 		t.Fatalf("format = %q, want txt after switching back", reverted.Meta.Format)
