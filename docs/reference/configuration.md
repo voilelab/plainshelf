@@ -63,8 +63,10 @@ Durations use Go syntax: `60s`, `5m`, `1h30m`.
 On SIGINT or SIGTERM the server stops accepting connections and gives requests
 still in flight 5 seconds to finish, then closes them. The `dav_export`
 listener shuts down at the same time, within the same 5 seconds. The server then
-stops background tasks, saves each shelf's caches and closes the settings store,
-which takes longer on an SMB or pCloud shelf.
+stops background tasks, cancels shelf scans and refreshes between folders or
+books, saves completed caches, and closes the settings store. Shutdown still
+waits for any filesystem operation already in progress, which can take longer
+on an SMB or pCloud shelf.
 
 `addr` is also read by the security check: it must be a loopback address unless
 `app_conf.security.mode` is set explicitly. See

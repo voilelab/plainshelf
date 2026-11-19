@@ -38,7 +38,7 @@ func scannedBookIDs(t *testing.T, s *Shelf) []string {
 	t.Helper()
 
 	var found []string
-	if _, err := s.iterateShelfTree(nil, nil, func(b *Book) bool {
+	if err := s.iterateShelfTree(t.Context(), s.scanCache.NewWalk(), nil, nil, func(b *Book) bool {
 		found = append(found, b.ID())
 		return true
 	}); err != nil {

@@ -120,7 +120,7 @@ func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 
 	var found []string
-	if _, err := shelf.iterateShelfTree(nil, nil, func(b *Book) bool {
+	if err := shelf.iterateShelfTree(t.Context(), shelf.scanCache.NewWalk(), nil, nil, func(b *Book) bool {
 		found = append(found, b.ID())
 		return true
 	}); err != nil {

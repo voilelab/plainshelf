@@ -46,7 +46,7 @@ func openShelf(t *testing.T, conf *ShelfConf) *Shelf {
 func mustScan(t *testing.T, s *Shelf) scanStats {
 	t.Helper()
 
-	if err := s.scanToBookCache(); err != nil {
+	if err := s.scanToBookCache(t.Context()); err != nil {
 		t.Fatalf("scanToBookCache: %v", err)
 	}
 	return s.scanCache.LastStats()

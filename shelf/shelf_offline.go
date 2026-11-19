@@ -2,6 +2,7 @@ package shelf
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
@@ -378,15 +379,15 @@ func (s *Shelf) walkRoot() fsutil.ReadFS {
 	return s.dbRoot
 }
 
-func (s *Shelf) afterRemoteListing() {
+func (s *Shelf) afterRemoteListing(ctx context.Context) {
 	if s.offline == nil {
 		return
 	}
-	s.reconcileDownloads()
-	s.saveOfflineSnapshot()
+	s.reconcileDownloads(ctx)
+	s.saveOfflineSnapshot(ctx)
 }
 
-func (s *Shelf) reconcileDownloads() {
+func (s *Shelf) reconcileDownloads(ctx context.Context) {
 	if s.offline == nil {
 		return
 	}
@@ -395,6 +396,10 @@ func (s *Shelf) reconcileDownloads() {
 	pathOf := make(map[string]string, len(s.bookCache.cache))
 	idAt := make(map[string]string, len(s.bookCache.cache))
 	for bookID, entry := range s.bookCache.cache {
+		if ctx.Err() != nil {
+			s.bookCache.RUnlock()
+			return
+		}
 		pathOf[bookID] = entry.path
 		idAt[entry.path] = bookID
 	}
@@ -403,16 +408,20 @@ func (s *Shelf) reconcileDownloads() {
 	o := s.offline
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.byPath = make(map[string]string, len(o.downloads))
+	byPath := make(map[string]string, len(o.downloads))
 	for bookID, record := range o.downloads {
+		if ctx.Err() != nil {
+			return
+		}
 		if listedPath, ok := pathOf[bookID]; ok && listedPath != record.Path {
 			continue
 		}
 		if other, ok := idAt[record.Path]; ok && other != bookID {
 			continue
 		}
-		o.byPath[record.Path] = bookID
+		byPath[record.Path] = bookID
 	}
+	o.byPath = byPath
 }
 
 func (s *Shelf) CanDownload() bool {
@@ -587,12 +596,15 @@ func (s *Shelf) downloadFor(bookID string, record offlineDownload) Download {
 	return download
 }
 
-func (s *Shelf) saveOfflineSnapshot() {
+func (s *Shelf) saveOfflineSnapshot(ctx context.Context) {
 	if s.offline == nil {
 		return
 	}
 
-	listing := s.collectExportSnapshot("offline")
+	listing, err := s.collectExportSnapshot(ctx, "offline")
+	if err != nil || ctx.Err() != nil {
+		return
+	}
 	if err := s.offline.saveSnapshot(&listing); err != nil {
 		s.Warn("failed to save the offline snapshot", "error", err)
 	}

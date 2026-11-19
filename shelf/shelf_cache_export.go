@@ -1,9 +1,11 @@
 package shelf
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
+	"errors"
 	"path"
 	"slices"
 	"strings"
@@ -134,8 +136,8 @@ func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 		return
 	}
 
-	s.startBookCacheWork(&s.bookCache.exporting, func() {
-		if err := s.exportBookCache(false); err != nil {
+	s.startBookCacheWork(&s.bookCache.exporting, func(ctx context.Context) {
+		if err := s.exportBookCache(ctx, false); err != nil && !errors.Is(err, context.Canceled) {
 			s.Warn("failed to export the book cache", "error", err)
 		}
 	})
@@ -163,7 +165,7 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 	}
 	s.shelfLock.Unlock()
 
-	if err := s.exportBookCache(true); err != nil {
+	if err := s.exportBookCache(context.Background(), true); err != nil {
 		return time.Time{}, util.Errorf("%w", err)
 	}
 
@@ -172,7 +174,7 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 	return s.bookCache.lastScanStart, nil
 }
 
-func (s *Shelf) exportBookCache(force bool) error {
+func (s *Shelf) exportBookCache(ctx context.Context, force bool) error {
 	if !s.exportEnabled() {
 		return nil
 	}
@@ -185,7 +187,10 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.exportMu.Lock()
 	defer s.exportMu.Unlock()
 
-	payload := s.collectExportSnapshot(s.bookCacheWriterID)
+	payload, err := s.collectExportSnapshot(ctx, s.bookCacheWriterID)
+	if err != nil {
+		return err
+	}
 
 	digest, err := bookCacheDigest(&payload)
 	if err != nil {
@@ -208,6 +213,9 @@ func (s *Shelf) exportBookCache(force bool) error {
 		return util.Errorf("%w", err)
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	target := path.Join(appFolder, s.bookCacheFileName())
 	if err := fsutil.WriteFileAtomic(root, target, data); err != nil {
 		return util.Errorf("%w", err)
@@ -220,13 +228,17 @@ func (s *Shelf) exportBookCache(force bool) error {
 
 	s.Debug("exported book cache", "path", target, "books", len(payload.Books), "folders", len(payload.Folders))
 
-	s.pruneStaleBookCaches(root)
+	s.pruneStaleBookCaches(ctx, root)
 	return nil
 }
 
-func (s *Shelf) collectExportSnapshot(writerID string) BookCacheFile {
+func (s *Shelf) collectExportSnapshot(ctx context.Context, writerID string) (BookCacheFile, error) {
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
+	books, err := s.collectExportBooksLocked(ctx)
+	if err != nil {
+		return BookCacheFile{}, err
+	}
 	return BookCacheFile{
 		SchemaVersion: BookCacheSchemaVersion,
 		WriterID:      writerID,
@@ -234,8 +246,8 @@ func (s *Shelf) collectExportSnapshot(writerID string) BookCacheFile {
 		Generator:     "plainshelf/" + version.Version,
 		Folders:       s.collectExportFoldersLocked(),
 		FolderMeta:    s.collectExportFolderMetaLocked(),
-		Books:         s.collectExportBooksLocked(),
-	}
+		Books:         books,
+	}, nil
 }
 
 func (s *Shelf) collectExportFolders() []string {
@@ -274,9 +286,12 @@ func (s *Shelf) collectExportFolderMetaLocked() map[string]BookCacheFolderMeta {
 	return metas
 }
 
-func (s *Shelf) collectExportBooksLocked() map[string]BookCacheEntry {
+func (s *Shelf) collectExportBooksLocked(ctx context.Context) (map[string]BookCacheEntry, error) {
 	books := make(map[string]BookCacheEntry, len(s.bookCache.cache))
 	for bookID, entry := range s.bookCache.cache {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		meta := entry.book.GetMeta()
 		books[bookID] = BookCacheEntry{
 			Path:                entry.path,
@@ -286,7 +301,7 @@ func (s *Shelf) collectExportBooksLocked() map[string]BookCacheEntry {
 			CurrentSourceFormat: formatUnlessMirrored(entry.sourceFormat, meta.Format),
 		}
 	}
-	return books
+	return books, ctx.Err()
 }
 
 // bookCacheDigest fingerprints the exportable content of the shelf. Marshalling
@@ -308,7 +323,10 @@ func bookCacheDigest(cache *BookCacheFile) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func (s *Shelf) pruneStaleBookCaches(root fsutil.FS) {
+func (s *Shelf) pruneStaleBookCaches(ctx context.Context, root fsutil.FS) {
+	if ctx.Err() != nil {
+		return
+	}
 	entries, err := s.dbRoot.ReadDir(appFolder)
 	if err != nil {
 		s.Warn("failed to list the app folder while pruning book caches", "error", err)
@@ -319,6 +337,9 @@ func (s *Shelf) pruneStaleBookCaches(root fsutil.FS) {
 	own := s.bookCacheFileName()
 
 	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return
+		}
 		name := entry.Name()
 		if entry.IsDir() || name == own {
 			continue

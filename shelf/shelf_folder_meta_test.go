@@ -281,6 +281,7 @@ func TestReadFolderMetaWarnsOncePerProblem(t *testing.T) {
 }
 
 func countWarnings(s *Shelf) *atomic.Int64 {
+	s.background.Wait()
 	counter := &warnCounter{}
 	s.Logger.Logger = slog.New(counter)
 	return &counter.n

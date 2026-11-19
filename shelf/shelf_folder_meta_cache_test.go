@@ -290,7 +290,7 @@ func TestRemoteFolderMetaReexport(t *testing.T) {
 	for _, icon := range []string{"rocket", "moon", ""} {
 		cache.FolderMeta = map[string]BookCacheFolderMeta{"Fiction": {Icon: icon}}
 		writeRawBookCache(t, libRoot, name, cache)
-		if err := s.refreshRemoteBookCache(nil); err != nil {
+		if err := s.refreshRemoteBookCache(t.Context(), nil); err != nil {
 			t.Fatal(err)
 		}
 		want := map[string]string{}
@@ -325,7 +325,7 @@ func TestFolderMetaSurvivesOfflineSnapshot(t *testing.T) {
 
 	s, source, counter := openOffline(t, libRoot, offlineDir, true)
 	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction": "rocket"})
-	if err := s.refreshRemoteBookCache(nil); err != nil {
+	if err := s.refreshRemoteBookCache(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction": "rocket"})
@@ -333,7 +333,7 @@ func TestFolderMetaSurvivesOfflineSnapshot(t *testing.T) {
 	cache.FolderMeta["Fiction"] = BookCacheFolderMeta{Icon: "moon"}
 	writeRawBookCache(t, libRoot, name, cache)
 	source.down.Store(false)
-	if err := s.refreshRemoteBookCache(nil); err != nil {
+	if err := s.refreshRemoteBookCache(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	assertIcons(t, listedIcons(t, s), map[string]string{"Fiction": "moon"})
@@ -367,7 +367,7 @@ func TestFolderMetaExportChanges(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := s.exportBookCache(false); err != nil {
+		if err := s.exportBookCache(t.Context(), false); err != nil {
 			t.Fatal(err)
 		}
 		after, err := os.Stat(filePath)
@@ -379,7 +379,7 @@ func TestFolderMetaExportChanges(t *testing.T) {
 	if err := s.SetFolderIcon(FolderPath{"book"}, "moon", meta.Version); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.exportBookCache(false); err != nil {
+	if err := s.exportBookCache(t.Context(), false); err != nil {
 		t.Fatal(err)
 	}
 	cache, err := readBookCacheFileAt(filePath)
@@ -424,7 +424,10 @@ func TestExportSnapshotKeepsOneScanGeneration(t *testing.T) {
 	}()
 	defer func() { close(stop); <-done }()
 	for range 2000 {
-		cache := s.collectExportSnapshot(testWriterID)
+		cache, err := s.collectExportSnapshot(t.Context(), testWriterID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		name, icon := "First", "book"
 		if cache.Timestamp == 2 {
 			name, icon = "Second", "moon"
@@ -467,7 +470,7 @@ func TestFolderMetaRemoteListingIO(t *testing.T) {
 	if len(warm) != 0 {
 		t.Fatalf("warm listings made remote calls: %v", warm)
 	}
-	if err := remote.refreshRemoteBookCache(nil); err != nil {
+	if err := remote.refreshRemoteBookCache(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	refresh := counter.take()
