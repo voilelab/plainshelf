@@ -8,8 +8,3 @@ interface ImportMetaEnv {
 interface ImportMeta {
 	readonly env: ImportMetaEnv;
 }
-
-declare module 'opencc-js/dict/*' {
-	const dict: string;
-	export default dict;
-}

@@ -2,7 +2,8 @@ Library search character tables (bundled in every build)
 
 PlainShelf folds Traditional Chinese, Simplified Chinese and Japanese
 shinjitai/kyujitai characters for library search using two character tables
-from opencc-js 1.4.2 (TSCharacters, JPShinjitaiCharacters).
+from opencc-js 1.4.2 (TSCharacters, JPShinjitaiCharacters), copied from
+dist/esm-lib/dict into frontend/src/utils/vendor/opencc.
 https://www.npmjs.com/package/opencc-js/v/1.4.2
 
 The tables are generated from opencc-data, which derives from OpenCC
