@@ -507,7 +507,9 @@ To go back to an older release:
 4. Start the older release.
 
 Restoring is required, not optional: downgrading the binary alone leaves the
-newer on-disk data in place, and the older build will refuse to write it.
+newer on-disk data in place, and the older build will refuse to write it. The
+same applies to keeping one older build next to an upgraded one; see
+[Mixing versions](installation.md#mixing-versions).
 
 Restore the whole shelf, not the books you think were touched. An upgrade
 changes more than book files: simply opening a shelf with a build newer than the
