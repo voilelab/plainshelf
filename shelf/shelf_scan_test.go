@@ -43,7 +43,7 @@ func TestIterateShelfTreeFollowsSymlinks(t *testing.T) {
 	}
 
 	var visited []string
-	if _, err := shelf.iterateShelfTree(nil, nil, func(b *Book) bool {
+	if err := shelf.iterateShelfTree(t.Context(), shelf.scanCache.NewWalk(), nil, nil, func(b *Book) bool {
 		visited = append(visited, b.PackagePath())
 		return true
 	}); err != nil {
@@ -77,7 +77,7 @@ func TestShelfTreeFollowsSymlinkedFolder(t *testing.T) {
 	}
 
 	var visited []string
-	if _, err := shelf.iterateShelfTree(func(ls FolderPath) bool {
+	if err := shelf.iterateShelfTree(t.Context(), shelf.scanCache.NewWalk(), func(ls FolderPath) bool {
 		visited = append(visited, strings.Join(ls, "/"))
 		return true
 	}, nil, nil); err != nil {
@@ -108,7 +108,7 @@ func TestIterateShelfTreeIgnoresFiles(t *testing.T) {
 	}
 
 	count := 0
-	if _, err := shelf.iterateShelfTree(nil, nil, func(b *Book) bool {
+	if err := shelf.iterateShelfTree(t.Context(), shelf.scanCache.NewWalk(), nil, nil, func(b *Book) bool {
 		count++
 		return true
 	}); err != nil {

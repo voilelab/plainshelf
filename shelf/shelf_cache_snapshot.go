@@ -2,6 +2,7 @@ package shelf
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"math"
 	"os"
@@ -15,20 +16,23 @@ import (
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
-func (s *Shelf) refreshRemoteBookCache(withoutExport func() error) error {
-	err := s.refreshRemoteFromSource(withoutExport)
+func (s *Shelf) refreshRemoteBookCache(ctx context.Context, withoutExport func(context.Context) error) error {
+	err := s.refreshRemoteFromSource(ctx, withoutExport)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if err == nil {
-		s.afterRemoteListing()
+		s.afterRemoteListing(ctx)
 		return nil
 	}
-	if errors.Is(err, fsutil.ErrSourceUnavailable) && s.listFromOfflineSnapshot() {
+	if errors.Is(err, fsutil.ErrSourceUnavailable) && s.listFromOfflineSnapshot(ctx) {
 		s.Warn("shelf source is unavailable; listing from the offline snapshot", "error", err)
 		return nil
 	}
 	return err
 }
 
-func (s *Shelf) listFromOfflineSnapshot() bool {
+func (s *Shelf) listFromOfflineSnapshot(ctx context.Context) bool {
 	if s.offline == nil {
 		return false
 	}
@@ -45,7 +49,10 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	if snapshot == nil {
 		return false
 	}
-	entries, folders, folderMeta, err := s.bookCacheSnapshot(snapshot)
+	entries, folders, folderMeta, err := s.bookCacheSnapshot(ctx, snapshot)
+	if ctx.Err() != nil {
+		return false
+	}
 	if err != nil {
 		s.Warn("ignoring an unusable offline snapshot", "error", err)
 		return false
@@ -60,20 +67,20 @@ func (s *Shelf) listFromOfflineSnapshot() bool {
 	s.bookCache.forgetAppliedExportDigestLocked()
 	s.bookCache.Unlock()
 
-	s.reconcileDownloads()
+	s.reconcileDownloads(ctx)
 	return true
 }
 
-func (s *Shelf) openWithoutExport() error {
-	if s.listFromOfflineSnapshot() {
+func (s *Shelf) openWithoutExport(ctx context.Context) error {
+	if s.listFromOfflineSnapshot(ctx) {
 		s.Debug("listed the shelf from the offline snapshot; a rescan walks the source")
 		return nil
 	}
-	return s.scanToBookCache()
+	return s.scanToBookCache(ctx)
 }
 
-func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
-	cache, name, err := s.newestExportedBookCache()
+func (s *Shelf) refreshRemoteFromSource(ctx context.Context, withoutExport func(context.Context) error) error {
+	cache, name, err := s.newestExportedBookCache(ctx)
 	if err != nil {
 		s.markRemoteRefreshAttempt()
 		return err
@@ -81,7 +88,7 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 	if cache == nil {
 		s.markRemoteRefreshAttempt()
 		if withoutExport != nil {
-			return withoutExport()
+			return withoutExport(ctx)
 		}
 		return nil
 	}
@@ -102,12 +109,15 @@ func (s *Shelf) refreshRemoteFromSource(withoutExport func() error) error {
 		return nil
 	}
 
-	entries, folders, folderMeta, err := s.bookCacheSnapshot(cache)
+	entries, folders, folderMeta, err := s.bookCacheSnapshot(ctx, cache)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if err != nil {
 		s.Warn("ignoring an unusable exported book cache", "file", name, "error", err)
 		s.markRemoteRefreshAttempt()
 		if withoutExport != nil {
-			return withoutExport()
+			return withoutExport(ctx)
 		}
 		return nil
 	}
@@ -140,7 +150,10 @@ func exportIsNotNewer(takenAt, current time.Time, digest, applied string) bool {
 	return !current.IsZero() && (takenAt.Before(current) || (takenAt.Equal(current) && digest == applied))
 }
 
-func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {
+func (s *Shelf) newestExportedBookCache(ctx context.Context) (*BookCacheFile, string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
 	entries, err := s.dbRoot.ReadDir(appFolder)
 	if err != nil {
 		if errors.Is(err, fsutil.ErrSourceUnavailable) {
@@ -155,6 +168,9 @@ func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {
 	var best *BookCacheFile
 	var bestName string
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, "", err
+		}
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasPrefix(name, bookCacheFilePrefix) || !strings.HasSuffix(name, bookCacheFileSuffix) {
 			continue
@@ -173,9 +189,12 @@ func (s *Shelf) newestExportedBookCache() (*BookCacheFile, string, error) {
 	return best, bestName, nil
 }
 
-func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCacheEntry, []FolderPath, map[string]FolderMeta, error) {
+func (s *Shelf) bookCacheSnapshot(ctx context.Context, cache *BookCacheFile) (map[string]*bookIDCacheEntry, []FolderPath, map[string]FolderMeta, error) {
 	entries := make(map[string]*bookIDCacheEntry, len(cache.Books))
 	for bookID, entry := range cache.Books {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, nil, err
+		}
 		if entry.Meta == nil || entry.Meta.ID != bookID {
 			return nil, nil, nil, util.Errorf("entry %q does not carry its own book ID", bookID)
 		}
@@ -188,6 +207,9 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 
 	folders := make([]FolderPath, 0, len(cache.Folders))
 	for _, name := range cache.Folders {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, nil, err
+		}
 		if name == "/" {
 			folders = append(folders, FolderPath{})
 			continue
@@ -201,6 +223,9 @@ func (s *Shelf) bookCacheSnapshot(cache *BookCacheFile) (map[string]*bookIDCache
 
 	folderMeta := make(map[string]FolderMeta, len(cache.FolderMeta))
 	for name, meta := range cache.FolderMeta {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, nil, err
+		}
 		if name == "/" || meta == (BookCacheFolderMeta{}) || !slices.Contains(cache.Folders, name) {
 			continue
 		}

@@ -2,6 +2,8 @@ package shelf
 
 import (
 	"cmp"
+	"context"
+	"errors"
 	"maps"
 	"slices"
 	"sync"
@@ -122,33 +124,33 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 		if !force && time.Since(lastFullScan) < scanInterval {
 			return nil
 		}
-		var withoutExport func() error
+		var withoutExport func(context.Context) error
 		if force {
 			withoutExport = s.scanToBookCache
 		}
-		return s.refreshRemoteBookCache(withoutExport)
+		return s.refreshRemoteBookCache(context.Background(), withoutExport)
 	}
 
 	if !force && !treeDirty && time.Since(lastFullScan) < scanInterval {
-		s.onlyRefreshBooksInCache()
-		return nil
+		return s.onlyRefreshBooksInCache(context.Background())
 	}
 
-	err := s.scanToBookCache()
+	err := s.scanToBookCache(context.Background())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil
 }
 
-func (s *Shelf) scanToBookCache() error {
+func (s *Shelf) scanToBookCache(ctx context.Context) error {
 	cache := make(map[string]*bookIDCacheEntry)
 
 	scanStart := time.Now()
 
 	var folders, metaFolders []FolderPath
 
-	stats, err := s.iterateShelfTree(func(ls FolderPath) bool {
+	walk := s.scanCache.NewWalk()
+	err := s.iterateShelfTree(ctx, walk, func(ls FolderPath) bool {
 		folders = append(folders, ls)
 		return true
 	}, func(folder FolderPath) {
@@ -162,25 +164,28 @@ func (s *Shelf) scanToBookCache() error {
 		return true
 	})
 	if err != nil {
+		walk.Abandon()
 		return util.Errorf("%w", err)
 	}
 
 	sortFolders(folders)
 
-	folderMeta, err := s.readFolderMetaForScan(s.walkRoot(), metaFolders)
+	folderMeta, err := s.readFolderMetaForScan(ctx, s.walkRoot(), metaFolders)
 	if err != nil {
+		walk.Abandon()
 		return util.Errorf("%w", err)
 	}
-
-	s.Debug("completed a full shelf scan",
-		"books", len(cache), "folders", len(folders),
-		"dirs", stats.Dirs, "listed_dirs", stats.ReadDirs, "reused_dirs", stats.ReusedDirs,
-		"duration", stats.Duration)
 
 	s.bookCache.Lock()
 	for bookID, entry := range cache {
 		cache[bookID] = keepNewerCharCount(entry, s.bookCache.cache[bookID])
 	}
+	if err := ctx.Err(); err != nil {
+		s.bookCache.Unlock()
+		walk.Abandon()
+		return err
+	}
+	stats := walk.Install()
 	s.bookCache.cache = cache
 	s.bookCache.folders = folders
 	s.bookCache.folderMeta = folderMeta
@@ -189,13 +194,18 @@ func (s *Shelf) scanToBookCache() error {
 	s.bookCache.lastScanStart = scanStart
 	s.bookCache.Unlock()
 
-	if s.remote {
-		s.afterRemoteListing()
+	s.Debug("completed a full shelf scan",
+		"books", len(cache), "folders", len(folders),
+		"dirs", stats.Dirs, "listed_dirs", stats.ReadDirs, "reused_dirs", stats.ReusedDirs,
+		"duration", stats.Duration)
+
+	if s.remote && ctx.Err() == nil {
+		s.afterRemoteListing(ctx)
 	}
 	return nil
 }
 
-func (s *Shelf) onlyRefreshBooksInCache() {
+func (s *Shelf) onlyRefreshBooksInCache(ctx context.Context) error {
 	s.bookCache.RLock()
 	snapshot := maps.Clone(s.bookCache.cache)
 	s.bookCache.RUnlock()
@@ -204,6 +214,9 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 	var removed []string
 
 	for bookID, cacheEntry := range snapshot {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if !cacheEntry.book.IsStale() {
 			continue
 		}
@@ -225,6 +238,10 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 	}
 
 	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for bookID, entry := range refreshed {
 		s.bookCache.cache[bookID] = keepNewerCharCount(entry, s.bookCache.cache[bookID])
 	}
@@ -232,7 +249,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 		delete(s.bookCache.cache, bookID)
 	}
 	s.bookCache.lastBookCheck = time.Now()
-	s.bookCache.Unlock()
+	return nil
 }
 
 func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
@@ -263,18 +280,27 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 		return
 	}
 
-	s.startBookCacheWork(&s.bookCache.refreshing, func() {
-		if err := s.shelfLock.RLock(); err != nil {
-			s.Warn("background book check skipped: failed to acquire lock", "error", err)
+	s.startBookCacheWork(&s.bookCache.refreshing, func(ctx context.Context) {
+		if ctx.Err() != nil {
+			return
+		}
+		lock := s.shelfLock.RLock
+		if flock, ok := s.shelfLock.(*flockLock); ok {
+			lock = func() error { return flock.rlockContext(ctx) }
+		}
+		if err := lock(); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				s.Warn("background book check skipped: failed to acquire lock", "error", err)
+			}
 			return
 		}
 		defer s.shelfLock.Unlock()
 
-		s.onlyRefreshBooksInCache()
+		_ = s.onlyRefreshBooksInCache(ctx)
 	})
 }
 
-func (s *Shelf) startBookCacheWork(inProgress *bool, work func()) {
+func (s *Shelf) startBookCacheWork(inProgress *bool, work func(context.Context)) {
 	s.bookCache.Lock()
 	if *inProgress {
 		s.bookCache.Unlock()
@@ -288,9 +314,9 @@ func (s *Shelf) startBookCacheWork(inProgress *bool, work func()) {
 		*inProgress = false
 		s.bookCache.Unlock()
 	}
-	if !s.goBackground(func() {
+	if !s.goBackground(func(ctx context.Context) {
 		defer done()
-		work()
+		work(ctx)
 	}) {
 		done()
 	}

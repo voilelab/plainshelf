@@ -61,9 +61,11 @@ type Shelf struct {
 	bookCacheInterval time.Duration
 	exportMu          sync.Mutex
 
-	backgroundMu sync.Mutex
-	background   sync.WaitGroup
-	closing      bool
+	backgroundCtx    context.Context
+	cancelBackground context.CancelFunc
+	backgroundMu     sync.Mutex
+	background       sync.WaitGroup
+	closing          bool
 
 	remote bool
 
@@ -316,8 +318,9 @@ func startShelf(conf *ShelfConf, settings *shelfSettings, dbRoot fsutil.ReadFS, 
 	}
 
 	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "remote", remote, "scan_interval", settings.scanInterval, "book_check_interval", settings.bookCheckInterval, "lock_timeout", settings.lockTimeout)
-	s.goBackground(func() {
-		if err := s.initCache(); err != nil {
+	s.backgroundCtx, s.cancelBackground = context.WithCancel(context.Background())
+	s.goBackground(func(ctx context.Context) {
+		if err := s.initCache(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			s.Error("failed to initialize shelf cache", "error", err)
 		}
 	})
@@ -391,12 +394,12 @@ func (s *Shelf) LocalFiles() (fsutil.ReadFS, bool) {
 	return fsutil.ReadOnly(s.dbRoot), true
 }
 
-func (s *Shelf) initCache() error {
+func (s *Shelf) initCache(ctx context.Context) error {
 	var err error
 	if s.remote {
-		err = s.refreshRemoteBookCache(s.openWithoutExport)
+		err = s.refreshRemoteBookCache(ctx, s.openWithoutExport)
 	} else {
-		err = s.scanToBookCache()
+		err = s.scanToBookCache(ctx)
 	}
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
@@ -412,14 +415,16 @@ func (s *Shelf) initCache() error {
 	close(s.readyCh)
 	s.Debug("shelf cache initialized")
 
-	if s.exportEnabled() {
-		if err := s.exportBookCache(false); err != nil {
+	if s.exportEnabled() && ctx.Err() == nil {
+		if err := s.exportBookCache(ctx, false); err != nil && !errors.Is(err, context.Canceled) {
 			s.Warn("failed to export the book cache after the initial scan", "error", err)
 		}
 	}
 
-	if err := s.scanCache.Save(); err != nil {
-		s.Warn("failed to write the directory scan cache after the initial scan", "error", err)
+	if ctx.Err() == nil {
+		if err := s.scanCache.Save(); err != nil {
+			s.Warn("failed to write the directory scan cache after the initial scan", "error", err)
+		}
 	}
 
 	return nil
@@ -445,20 +450,20 @@ func (s *Shelf) retryInitSoon() {
 	if time.Since(time.Unix(0, s.lastInitTryUnixNano.Load())) < initRetryInterval {
 		return
 	}
-	s.goBackground(func() {
+	s.goBackground(func(ctx context.Context) {
 		if !s.initRetryMu.TryLock() {
 			return
 		}
 		defer s.initRetryMu.Unlock()
 		if !s.IsReady() {
-			_ = s.retryInit()
+			_ = s.retryInit(ctx)
 		}
 	})
 }
 
-func (s *Shelf) retryInit() error {
+func (s *Shelf) retryInit(ctx context.Context) error {
 	s.lastInitTryUnixNano.Store(time.Now().UnixNano())
-	err := s.refreshRemoteBookCache(s.openWithoutExport)
+	err := s.refreshRemoteBookCache(ctx, s.openWithoutExport)
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
 		s.initErr.Store(&wrapped)
@@ -535,7 +540,7 @@ func validateBookCacheWriterID(writerID string) error {
 	return nil
 }
 
-func (s *Shelf) goBackground(fn func()) bool {
+func (s *Shelf) goBackground(fn func(context.Context)) bool {
 	s.backgroundMu.Lock()
 	defer s.backgroundMu.Unlock()
 
@@ -549,7 +554,7 @@ func (s *Shelf) goBackground(fn func()) bool {
 				s.Error("background work panicked", "panic", r, "stack", string(debug.Stack()))
 			}
 		}()
-		fn()
+		fn(s.backgroundCtx)
 	})
 	return true
 }
@@ -557,6 +562,7 @@ func (s *Shelf) goBackground(fn func()) bool {
 func (s *Shelf) stopBackground() {
 	s.backgroundMu.Lock()
 	s.closing = true
+	s.cancelBackground()
 	s.backgroundMu.Unlock()
 
 	s.background.Wait()
@@ -567,8 +573,8 @@ func (s *Shelf) Close() error {
 
 	errs := []error{}
 
-	if s.exportEnabled() {
-		if err := s.exportBookCache(false); err != nil {
+	if s.exportEnabled() && s.IsReady() {
+		if err := s.exportBookCache(context.Background(), false); err != nil {
 			s.Warn("failed to export the book cache while closing", "error", err)
 		}
 	}

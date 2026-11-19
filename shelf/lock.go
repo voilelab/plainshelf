@@ -73,8 +73,15 @@ func (l *flockLock) RLock() error {
 	if l.timeout == 0 {
 		return l.fl.RLock()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), l.timeout)
-	defer cancel()
+	return l.rlockContext(context.Background())
+}
+
+func (l *flockLock) rlockContext(ctx context.Context) error {
+	if l.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, l.timeout)
+		defer cancel()
+	}
 	locked, err := l.fl.TryRLockContext(ctx, lockRetryDelay)
 	if err != nil {
 		return util.Errorf("%w: %w", ErrShelfLockTimeout, err)

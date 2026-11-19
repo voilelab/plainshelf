@@ -75,11 +75,16 @@ func TestBookCacheExportDuringBookWrites(t *testing.T) {
 	workers.Go(func() {
 		<-start
 		for range 32 {
-			if err := s.exportBookCache(false); err != nil {
+			if err := s.exportBookCache(t.Context(), false); err != nil {
 				t.Error(err)
 				return
 			}
-			meta := s.collectExportSnapshot(testWriterID).Books[bookID].Meta
+			snapshot, err := s.collectExportSnapshot(t.Context(), testWriterID)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			meta := snapshot.Books[bookID].Meta
 			if meta.Title != meta.Tags[0] || meta.Title != meta.Authors[0] || meta.Title != meta.Identifiers["test"] || meta.Title != meta.Series.Name {
 				t.Errorf("inconsistent metadata snapshot: %+v", meta)
 			}
@@ -88,7 +93,7 @@ func TestBookCacheExportDuringBookWrites(t *testing.T) {
 	close(start)
 	workers.Wait()
 
-	if err := s.exportBookCache(false); err != nil {
+	if err := s.exportBookCache(t.Context(), false); err != nil {
 		t.Fatal(err)
 	}
 	cache := waitForBookCacheExport(t, libRoot, testWriterID)
@@ -255,7 +260,7 @@ func TestBookCacheExportSkipsUnchangedContent(t *testing.T) {
 	}
 	shiftModTime(t, filePath, -time.Hour)
 
-	if err := shelf.exportBookCache(false); err != nil {
+	if err := shelf.exportBookCache(t.Context(), false); err != nil {
 		t.Fatalf("exportBookCache: %v", err)
 	}
 	after, err := os.Stat(filePath)
@@ -269,7 +274,7 @@ func TestBookCacheExportSkipsUnchangedContent(t *testing.T) {
 	if _, err := shelf.NewBook(nil, "Added Later"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
-	if err := shelf.exportBookCache(false); err != nil {
+	if err := shelf.exportBookCache(t.Context(), false); err != nil {
 		t.Fatalf("exportBookCache: %v", err)
 	}
 	cache, err := readBookCacheFileAt(filePath)
@@ -311,7 +316,7 @@ func TestBookCacheExportStableAcrossMapOrder(t *testing.T) {
 			t.Fatalf("Stat: %v", err)
 		}
 
-		if err := shelf.exportBookCache(false); err != nil {
+		if err := shelf.exportBookCache(t.Context(), false); err != nil {
 			t.Fatalf("exportBookCache: %v", err)
 		}
 
@@ -331,7 +336,7 @@ func TestBookCacheExportStableAcrossMapOrder(t *testing.T) {
 		}
 	}
 
-	if err := shelf.exportBookCache(true); err != nil {
+	if err := shelf.exportBookCache(t.Context(), true); err != nil {
 		t.Fatalf("exportBookCache(force): %v", err)
 	}
 	forced, err := os.ReadFile(filePath)
@@ -624,7 +629,11 @@ func TestBookCacheExportCarriesSourceMD5(t *testing.T) {
 		t.Fatalf("UpdateContent: %v", err)
 	}
 	s.RefreshBookCharCount(book.ID())
-	if got := s.collectExportSnapshot(testWriterID).Books[book.ID()].CurrentSourceMD5; got == want || got == "" {
+	snapshot, err := s.collectExportSnapshot(t.Context(), testWriterID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := snapshot.Books[book.ID()].CurrentSourceMD5; got == want || got == "" {
 		t.Errorf("current_source_md5 after an edit = %q, want a new hash", got)
 	}
 }

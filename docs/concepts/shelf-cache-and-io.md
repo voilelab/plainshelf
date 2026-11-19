@@ -196,9 +196,9 @@ What it deliberately does not do:
   newer build. The worst case is a scan that costs what it cost before.
 
 The file is written after the first scan of a process and again at shutdown, not
-after every scan — a shelf whose folders are not changing produces the same
-record every time, and an identical record is not rewritten. Pressing **Update
-book list** still writes nothing.
+after every scan. PlainShelf skips identical records. If shutdown interrupts
+the initial scan, the next startup scans the shelf again using any previously
+saved directory cache. Pressing **Update book list** still writes nothing.
 
 ---
 

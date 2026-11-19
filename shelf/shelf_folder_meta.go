@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -331,9 +332,12 @@ func (s *Shelf) cacheFolderMeta(folder FolderPath, meta FolderMeta) {
 	s.bookCache.folderMeta[folder.String()] = meta
 }
 
-func (s *Shelf) readFolderMetaForScan(root fsutil.ReadFS, folders []FolderPath) (map[string]FolderMeta, error) {
+func (s *Shelf) readFolderMetaForScan(ctx context.Context, root fsutil.ReadFS, folders []FolderPath) (map[string]FolderMeta, error) {
 	metas := make(map[string]FolderMeta, len(folders))
 	for _, folder := range folders {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		meta, err := s.loadFolderMeta(root, folder)
 		if err != nil {
 			return nil, util.Errorf("%w", err)

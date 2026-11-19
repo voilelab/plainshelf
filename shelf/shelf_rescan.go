@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"context"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -41,7 +42,7 @@ func (s *Shelf) rescan(rateLimited bool) (RescanResult, error) {
 		s.initRetryMu.Lock()
 		var err error
 		if !s.IsReady() {
-			err = s.retryInit()
+			err = s.retryInit(context.Background())
 		}
 		s.initRetryMu.Unlock()
 		if err != nil {
@@ -66,7 +67,7 @@ func (s *Shelf) rescan(rateLimited bool) (RescanResult, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	if err := s.scanToBookCache(); err != nil {
+	if err := s.scanToBookCache(context.Background()); err != nil {
 		return RescanResult{}, util.Errorf("%w", err)
 	}
 

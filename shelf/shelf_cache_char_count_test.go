@@ -146,7 +146,7 @@ func TestScanFillsCharCountsFromTheShelf(t *testing.T) {
 
 	book := newBookWithContent(t, s, "Scanned", "abcde")
 
-	if err := s.scanToBookCache(); err != nil {
+	if err := s.scanToBookCache(t.Context()); err != nil {
 		t.Fatalf("scanToBookCache: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestScanKeepsLaterCharCount(t *testing.T) {
 	s.bookCache.cache[book.ID()] = &refreshed
 	s.bookCache.Unlock()
 
-	if err := s.scanToBookCache(); err != nil {
+	if err := s.scanToBookCache(t.Context()); err != nil {
 		t.Fatalf("scanToBookCache: %v", err)
 	}
 

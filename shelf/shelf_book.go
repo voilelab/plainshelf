@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -270,7 +271,7 @@ func bookFolderPath(folderPath string) FolderPath {
 	return strings.Split(path.Dir(folderPath), "/")[1:]
 }
 
-func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onFolderMeta func(FolderPath), onBook func(*Book) bool) (scanStats, error) {
+func (s *Shelf) iterateShelfTree(ctx context.Context, walk *scancache.Walk, onFolder func(FolderPath) bool, onFolderMeta func(FolderPath), onBook func(*Book) bool) error {
 	skipAll := false
 
 	root := s.walkRoot()
@@ -290,12 +291,10 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onFolderMeta fu
 		return false
 	}
 
-	walk := s.scanCache.NewWalk()
-
 	var dfsFunc func(string, *scancache.DirChild, bool)
 
 	dfsFunc = func(pth string, child *scancache.DirChild, parentListingReused bool) {
-		if skipAll {
+		if skipAll || ctx.Err() != nil {
 			return
 		}
 
@@ -367,23 +366,23 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onFolderMeta fu
 		}
 
 		for i := range children {
+			if skipAll || ctx.Err() != nil {
+				break
+			}
 			fullPath := path.Join(pth, children[i].Name)
 			dfsFunc(fullPath, &children[i], childrenTrusted)
 		}
 	}
 
 	dfsFunc(booksFolder, nil, true)
-	var stats scanStats
-	if skipAll {
-		stats = walk.Abandon()
-	} else {
-		stats = walk.Install()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if unavailable != nil {
-		return stats, util.Errorf("%w", unavailable)
+		return util.Errorf("%w", unavailable)
 	}
 	if notAShelf {
-		return stats, util.Errorf("%w", ErrNotAShelf)
+		return util.Errorf("%w", ErrNotAShelf)
 	}
-	return stats, nil
+	return nil
 }
