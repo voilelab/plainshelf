@@ -111,6 +111,7 @@ func MainService(confPath string) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+	defer func() { _ = ln.Close() }()
 	serveErr := make(chan error, 2)
 	go func() {
 		rootLogger.Info("Starting http server on", "addr", conf.ServerConf.Addr)
