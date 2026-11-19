@@ -219,7 +219,7 @@ Source artwork lives in `frontend/assets/`. After changing it, regenerate the
 Android assets from the `frontend` directory:
 
 ```bash
-npx capacitor-assets generate --android
+npx @capacitor/assets@3.0.5 generate --android
 ```
 
 ## QR scanner dependency and permissions

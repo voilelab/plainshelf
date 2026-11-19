@@ -12,9 +12,6 @@ Read the relevant section before working in that area. Add entries according to
   assets it was compiled with until restarted. Keep `//go:embed all:dist`; plain
   `dist/*` silently omits underscore-prefixed Rolldown chunks and produces a
   white-screen SPA. (`frontend/web.go`)
-- **Restricted dependency installs:** if `sharp` cannot download libvips, use
-  `npm --prefix frontend ci --ignore-scripts` for web-only work. Do not use that
-  install for Capacitor asset generation.
 - **Cold end-to-end startup:** the first `go run` may exceed the e2e server wait
   while downloading/building modules; build the frontend and run `go build ./...`
   once before diagnosing a timeout as a test failure.
