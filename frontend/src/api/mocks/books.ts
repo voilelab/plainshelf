@@ -243,7 +243,6 @@ export function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   if (payload.star !== undefined) book.star = payload.star;
   if (payload.published_at !== undefined) book.published_at = payload.published_at;
   if (payload.identifiers !== undefined) book.identifiers = payload.identifiers;
-  if (payload.format !== undefined) book.format = payload.format;
   if (payload.nsfw !== undefined) book.nsfw = payload.nsfw;
   if (payload.series === null) delete book.series;
   else if (payload.series !== undefined) book.series = { ...payload.series };
