@@ -1,5 +1,5 @@
-import jpShinjitaiCharacters from 'opencc-js/dict/JPShinjitaiCharacters';
-import tsCharacters from 'opencc-js/dict/TSCharacters';
+import jpShinjitaiCharacters from './vendor/opencc/JPShinjitaiCharacters';
+import tsCharacters from './vendor/opencc/TSCharacters';
 
 type CharMap = Map<string, string>;
 
