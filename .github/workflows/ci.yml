@@ -138,7 +138,7 @@ jobs:
 
       - name: Install Wails v3 Linux dependencies
         if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true' || needs.frontend.outputs.reader == 'true'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+        uses: ./.github/actions/setup-wails-linux
 
       - name: Lint desktop module
         if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true'
@@ -221,7 +221,7 @@ jobs:
 
       - name: Install Wails v3 Linux dependencies
         if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true' || needs.frontend.outputs.reader == 'true'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+        uses: ./.github/actions/setup-wails-linux
 
       - name: Run desktop tests
         if: needs.frontend.outputs.go == 'true' || needs.frontend.outputs.desktop == 'true'
@@ -507,7 +507,7 @@ jobs:
 
       - name: Install Wails v3 Linux dependencies
         if: ${{ !cancelled() }}
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+        uses: ./.github/actions/setup-wails-linux
 
       - name: Scan desktop module (linux)
         if: ${{ !cancelled() }}

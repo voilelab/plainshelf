@@ -1,0 +1,42 @@
+name: Install Wails v3 Linux dependencies
+description: Install GTK4 and WebKitGTK development packages on Ubuntu 24.04
+runs:
+  using: composite
+  steps:
+    - name: Prepare APT archive cache
+      id: archives
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/wails-apt-archives"
+        echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore downloaded APT packages
+      id: cache
+      uses: actions/cache/restore@v5
+      env:
+        SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+      with:
+        path: ${{ runner.temp }}/wails-apt-archives/*.deb
+        key: wails-apt-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-wails-linux/action.yml') }}-${{ steps.archives.outputs.week }}
+        restore-keys: wails-apt-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-wails-linux/action.yml') }}-
+
+    - name: Update APT indexes
+      shell: bash
+      run: time sudo apt-get update
+
+    - name: Install GTK4 and WebKitGTK development packages
+      shell: bash
+      run: |
+        archives="$RUNNER_TEMP/wails-apt-archives"
+        trap 'sudo rm -rf -- "$archives/partial"' EXIT
+        time sudo apt-get -o Dir::Cache::archives="$archives" \
+          -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends \
+          libgtk-4-dev libwebkitgtk-6.0-dev
+        sudo apt-get -o Dir::Cache::archives="$archives" autoclean
+
+    - name: Save downloaded APT packages
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ runner.temp }}/wails-apt-archives/*.deb
+        key: ${{ steps.cache.outputs.cache-primary-key }}
