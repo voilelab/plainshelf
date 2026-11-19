@@ -59,6 +59,11 @@ var apiErrorTable = []struct {
 		status:  http.StatusBadRequest,
 		message: `format must be "txt", "md" or "images"`,
 	}},
+	{errBookFormatReadOnly, apiError{
+		code:    "BOOK_FORMAT_READ_ONLY",
+		status:  http.StatusBadRequest,
+		message: "format follows the current source; switch the current source to change it",
+	}},
 	{shelf.ErrIgnoredFolderName, apiError{
 		code:    codeIgnoredFolderName,
 		status:  http.StatusBadRequest,

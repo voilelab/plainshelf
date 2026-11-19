@@ -66,9 +66,7 @@ The boundary, export, style-contract, license, version-resolver, CI change detec
 Go library jobs are not gates yet.
 
 `just` uses `zsh`. If either is unavailable, run the underlying commands from
-the `justfile`. In restricted environments where `sharp` cannot download its
-optional binary, `npm --prefix frontend ci --ignore-scripts` is sufficient for
-web builds; do not use it for Capacitor asset generation.
+the `justfile`.
 
 ## Working rules
 

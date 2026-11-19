@@ -272,6 +272,13 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Format != nil {
+		if err := ensureFormatPatchable(book); err != nil {
+			h.writeErr(w, r, err, "failed to update book metadata")
+			return
+		}
+	}
+
 	if req.Folder != nil {
 		moveTo := append(shelf.FolderPath(nil), (*req.Folder)...)
 		movedBook, err := shelfData.MoveBook(bookID, moveTo)
@@ -296,6 +303,19 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeJSON(w, http.StatusOK, newBookResponse(shelfData, &meta, folder))
+}
+
+var errBookFormatReadOnly = util.NewError("format follows the current source; switch the current source to change it")
+
+func ensureFormatPatchable(book *shelf.Book) error {
+	source, err := book.ResolveCurrentSource()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	if source.GetMeta().Format != "" {
+		return util.Errorf("%w", errBookFormatReadOnly)
+	}
+	return nil
 }
 
 func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {

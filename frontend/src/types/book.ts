@@ -103,7 +103,6 @@ export interface BookUpdateRequest {
   published_at?: string;
   star?: number;
   identifiers?: Record<string, string>;
-  format?: BookFormat;
   nsfw?: boolean;
   series?: BookSeries | null;
 }

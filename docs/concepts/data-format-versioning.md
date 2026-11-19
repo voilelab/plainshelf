@@ -152,8 +152,9 @@ source untouched, so nothing about the original is lost. Making that new source
 the book's current source also switches `book.json`'s compatibility `format` to
 `md`; pointing the book back at the legacy source restores its text but not that
 format mirror, so correct the book's `format` back to `txt` as well if you want
-it read as plain text again. This per-source conversion is the only supported
-way to re-chapter a legacy source. There is no batch or in-place upgrade, and a
+it read as plain text again. That edit is accepted only while the current source
+is a legacy one; for any other source the format follows the source. This
+per-source conversion is the only supported way to re-chapter a legacy source. There is no batch or in-place upgrade, and a
 one-off migration tool that once did this shelf-wide has been removed.
 
 Two fields survive in older `meta.json` files and no longer do anything:
