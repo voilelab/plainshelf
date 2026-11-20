@@ -105,19 +105,22 @@ func (c *Cache) Stats() Stats {
 }
 
 func (c *Cache) Recorded(bookID string, source *bookpkg.Source) ([]string, bool) {
-	listMD5, err := source.PageListMD5()
-	if err != nil {
-		return nil, false
-	}
-
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	entry, ok := c.sources[sourceKey(bookID, source.ID())]
-	if !ok || entry.ListMD5 != listMD5 {
+	var hashes []string
+	if ok {
+		hashes = distinctHashes(entry.Pages)
+	}
+	c.mu.Unlock()
+	if !ok {
 		return nil, false
 	}
-	return distinctHashes(entry.Pages), true
+
+	listMD5, err := source.PageListMD5()
+	if err != nil || entry.ListMD5 != listMD5 {
+		return nil, false
+	}
+	return hashes, true
 }
 
 func (c *Cache) Resolve(bookID string, source *bookpkg.Source) ([]string, error) {
