@@ -1,0 +1,5 @@
+name = "reader-progress"
+defaultTargets = ["ReaderProgress"]
+
+[[lean_lib]]
+name = "ReaderProgress"
