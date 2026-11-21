@@ -1,0 +1,9 @@
+name = "formal"
+defaultTargets = ["Formal", "vectors"]
+
+[[lean_lib]]
+name = "Formal"
+
+[[lean_exe]]
+name = "vectors"
+root = "Vectors"

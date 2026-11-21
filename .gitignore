@@ -28,4 +28,4 @@ site/
 shelf/testdata/lib/app/scan-cache.json
 
 # Lean build output
-formal/*/.lake/
+formal/.lake/
