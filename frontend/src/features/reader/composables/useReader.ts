@@ -6,6 +6,12 @@ import { resolveReadingFormat } from '@/utils/bookFormat';
 import { buildMarkdownH2Sections } from '@/utils/markdownChapters';
 import type { SourcePage } from '@/types/source';
 import { comicReadingPercent } from '@/utils/comicProgress';
+import {
+  measureReadingBlocks,
+  offsetAtScroll,
+  scrollAtOffset,
+  type MeasuredReadingBlocks
+} from '@/features/reader/utils/readingPosition';
 import type { ReaderSection, ReadingProgress } from '@/types/book';
 import { t } from '@/i18n';
 
@@ -26,6 +32,34 @@ function buildSingleSection(content: string): ReaderSection[] {
       text: content
     }
   ];
+}
+
+const SCROLL_SETTLE_PASSES = 3;
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
+    else setTimeout(resolve, 16);
+  });
+}
+
+async function nextLayout(): Promise<void> {
+  await nextFrame();
+  await nextFrame();
+  await nextTick();
+}
+
+function readBlockLayout(el: HTMLElement, length: number): MeasuredReadingBlocks | null {
+  const items = [...el.querySelectorAll<HTMLElement>('[data-window-index]')];
+  if (items.length === 0) return null;
+  const origin = el.getBoundingClientRect().top - el.scrollTop;
+  const rects = items.map((item) => item.getBoundingClientRect());
+  return measureReadingBlocks(
+    items.map((item) => Number(item.dataset.windowWeight)),
+    rects.map((rect) => rect.top - origin),
+    rects[rects.length - 1].bottom - origin,
+    length
+  );
 }
 
 function findSectionIndexByOffset(sections: ReaderSection[], offset: number): number {
@@ -66,6 +100,8 @@ export function useReader(bookID: () => string) {
   const currentOffset = ref(0);
   const readerRef = ref<HTMLDivElement | null>(null);
   let fetchGeneration = 0;
+  let scrollSyncGeneration = 0;
+  let syncingScroll = false;
 
   const {
     saveError,
@@ -117,6 +153,8 @@ export function useReader(bookID: () => string) {
 
   async function syncScrollToOffset(offset: number): Promise<void> {
     if (bookFormat.value === 'images') return;
+    const generation = ++scrollSyncGeneration;
+    syncingScroll = false;
     await nextTick();
 
     const section = currentSection.value;
@@ -137,8 +175,25 @@ export function useReader(bookID: () => string) {
     }
 
     const localOffset = Math.max(0, Math.min(sectionLength, offset - section.startOffset));
-    const ratio = localOffset / sectionLength;
-    el.scrollTop = Math.round(maxScrollTop * ratio);
+    if (!readBlockLayout(el, sectionLength)) {
+      el.scrollTop = Math.round(maxScrollTop * (localOffset / sectionLength));
+      return;
+    }
+
+    syncingScroll = true;
+    try {
+      for (let pass = 0; pass < SCROLL_SETTLE_PASSES; pass += 1) {
+        const layout = readBlockLayout(el, sectionLength);
+        if (!layout) break;
+        const target = Math.min(el.scrollHeight - el.clientHeight, scrollAtOffset(layout, localOffset));
+        if (pass > 0 && Math.abs(target - el.scrollTop) <= 1) break;
+        el.scrollTop = target;
+        await nextLayout();
+        if (generation !== scrollSyncGeneration) return;
+      }
+    } finally {
+      if (generation === scrollSyncGeneration) syncingScroll = false;
+    }
   }
 
   async function syncSectionAndScrollByOffset(offset: number): Promise<void> {
@@ -239,11 +294,14 @@ export function useReader(bookID: () => string) {
       return;
     }
 
-    const max = el.scrollHeight - el.clientHeight;
-    const ratio = max > 0 ? el.scrollTop / max : 0;
+    if (syncingScroll) return;
 
     const sectionLength = Math.max(0, section.endOffset - section.startOffset);
-    const localOffset = Math.round(sectionLength * ratio);
+    const layout = readBlockLayout(el, sectionLength);
+    const max = el.scrollHeight - el.clientHeight;
+    const localOffset = layout
+      ? offsetAtScroll(layout, el.scrollTop)
+      : Math.round(sectionLength * (max > 0 ? el.scrollTop / max : 0));
     const nextGlobalOffset = section.startOffset + localOffset;
     updateProgressByOffset(nextGlobalOffset);
   }

@@ -1,0 +1,9 @@
+name = "page-order"
+defaultTargets = ["page-order-vectors"]
+
+[[lean_lib]]
+name = "PageOrder"
+
+[[lean_exe]]
+name = "page-order-vectors"
+root = "PageOrder"

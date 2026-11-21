@@ -5,6 +5,7 @@
       :key="index"
       :ref="(el) => setWrapper(index, el)"
       :data-window-index="index"
+      :data-window-weight="weight?.(item, index)"
       class="reader-block-window-item"
       :style="active[index] ? undefined : { minHeight: `${heights[index]}px` }"
     >
@@ -20,9 +21,10 @@ const props = withDefaults(
   defineProps<{
     items: readonly TItem[];
     estimate?: (item: TItem, index: number) => number;
+    weight?: (item: TItem, index: number) => number;
     overscan?: number;
   }>(),
-  { estimate: undefined, overscan: 800 }
+  { estimate: undefined, weight: undefined, overscan: 800 }
 );
 
 const active = ref<boolean[]>([]);

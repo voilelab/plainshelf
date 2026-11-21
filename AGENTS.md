@@ -37,6 +37,7 @@ The Go server embeds a Vue frontend and is also used by Wails desktop and experi
 | `e2e/` | Playwright end-to-end tests |
 | `docs/` | user and contributor documentation |
 | `scripts/` | version and toolchain helpers called by `justfile` and CI |
+| `formal/` | Lean models and proofs of frontend logic |
 
 ## Commands
 
@@ -59,6 +60,8 @@ The Go build embeds `frontend/dist`; build the frontend before Go builds or test
 | All Go tests with frontend build | `just test-go` |
 | End-to-end tests | `just test-e2e` |
 | Wasm demo smoke | `just test-wasm-demo` |
+| Lean proofs (not in CI) | `lake build` in each `formal/*` directory |
+| Lean vectors | `(cd formal/page-order && lake exe page-order-vectors > ../../frontend/src/features/sources/utils/pageOrder.vectors.json)`, `(cd formal/reader-progress && lake exe reader-progress-vectors > ../../frontend/src/features/reader/utils/readingPosition.vectors.json)` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
 
 The boundary, export, style-contract, license, version-resolver, CI change detection, docs build (`mkdocs build

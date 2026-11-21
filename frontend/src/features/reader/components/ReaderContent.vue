@@ -7,6 +7,7 @@
           :key="blockWindowResetKey"
           :items="markdownBlocks"
           :estimate="estimateMarkdownBlockHeight"
+          :weight="markdownBlockWeight"
         >
           <template #default="{ item }">
             <ReaderSafeHtml
@@ -26,6 +27,7 @@
           :key="blockWindowResetKey"
           :items="sectionBlocks"
           :estimate="estimateTextBlockHeight"
+          :weight="textBlockWeight"
         >
           <template #default="{ item }">
             <component
@@ -52,7 +54,9 @@ import { renderMarkdownBlocks } from '@/utils/renderMarkdownBlocks';
 import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
 import {
   estimateMarkdownBlockHeight,
-  estimateTextBlockHeight
+  estimateTextBlockHeight,
+  markdownBlockWeight,
+  textBlockWeight
 } from '@/features/reader/utils/estimateBlockHeight';
 import type { ReaderSection } from '@/types/book';
 

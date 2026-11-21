@@ -33,3 +33,11 @@ export function estimateMarkdownBlockHeight(block: ReaderMarkdownBlock): number 
 export function estimateTextBlockHeight(block: ReaderTextBlock): number {
   return Math.max(wrappedProseHeight(block.text.length), PROSE_LINE_PX);
 }
+
+export function markdownBlockWeight(block: ReaderMarkdownBlock): number {
+  return block.html.replace(/<[^>]+>/g, '').length + block.images.length;
+}
+
+export function textBlockWeight(block: ReaderTextBlock): number {
+  return block.text.length;
+}
