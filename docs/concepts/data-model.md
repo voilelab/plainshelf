@@ -354,6 +354,36 @@ server serves the newest source the book does have and logs a warning. It does
 an explicit write may change it. A book with no source at all is reported as a
 missing source, not a server error.
 
+### Source statistics
+
+`sources/{source-id}/meta.json` also records three values measured from
+`source.txt`:
+
+| Field | Meaning |
+|---|---|
+| `md5_hash` | MD5 of `source.txt` |
+| `line_count` | Number of lines in `source.txt` |
+| `char_count` | Number of characters (runes) of text; `0` for an `images` source |
+
+They are a record of the last measurement, not a description that is kept
+true. PlainShelf measures and writes them whenever it writes the source itself:
+creating or importing it, saving it in the source editor, editing a comic's
+page list. Nothing else updates them. An edit made to `source.txt` outside
+PlainShelf, by hand or by a sync tool, leaves all three describing the old
+content, and a scan does not notice because it reads `meta.json` rather than
+measuring the text.
+
+Until the source is measured again, what reads these values reads the old
+ones: the character count on the library and detail pages, the Duplicate
+Content page's grouping of identical text, and the hash an offline copy
+compares to decide whether the text changed. **Update content stats** on the
+book's detail page measures the current source again and writes all three.
+Building [fingerprints](similarity-fingerprints.md) corrects `md5_hash` alone
+when it finds the stored value wrong.
+
+Comic duplicate detection does not depend on them: it hashes the page list
+itself each time.
+
 ### Source notes
 
 `sources/{source-id}/meta.json` carries a `comment`: a short note written

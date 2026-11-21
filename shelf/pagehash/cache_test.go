@@ -98,11 +98,15 @@ func (ts *testShelf) writePage(source *bookpkg.Source, page testPage) {
 type countingFS struct {
 	fsutil.FS
 	assetOpens atomic.Int64
+	listOpens  atomic.Int64
 }
 
 func (f *countingFS) Open(name string) (fs.File, error) {
 	if path.Base(path.Dir(name)) == bookpkg.SourceAssetsFolder {
 		f.assetOpens.Add(1)
+	}
+	if path.Base(name) == bookpkg.SourceFile {
+		f.listOpens.Add(1)
 	}
 	return f.FS.Open(name)
 }
@@ -199,13 +203,68 @@ func TestRecordedNeedsSamePageList(t *testing.T) {
 	source := ts.addComic("a", testPage{"001.jpg", "one"})
 	cache := ts.open(ts.base)
 	want := mustResolve(t, cache, "a", source)
-	listMD5 := source.GetMeta().MD5Hash
 
-	if got, ok := cache.Recorded("a", source.ID(), listMD5); !ok || !slices.Equal(got, want) {
+	if got, ok := cache.Recorded("a", source); !ok || !slices.Equal(got, want) {
 		t.Fatalf("Recorded = %v, %v; want %v", got, ok, want)
 	}
-	if _, ok := cache.Recorded("a", source.ID(), "other-list"); ok {
+	ts.writePage(source, testPage{"002.jpg", "two"})
+	if err := source.UpdateContent(strings.NewReader("002.jpg\n001.jpg\n")); err != nil {
+		t.Fatalf("UpdateContent: %v", err)
+	}
+	if _, ok := cache.Recorded("a", source); ok {
 		t.Fatal("Recorded answered for a page list it never hashed")
+	}
+}
+
+func TestRecordedSkipsUnhashedList(t *testing.T) {
+	ts := newTestShelf(t)
+	ts.addComic("a", testPage{"001.jpg", "one"})
+	ts.addComic("b", testPage{"001.jpg", "two"})
+	seed := ts.open(ts.base)
+	mustResolve(t, seed, "a", ts.reopenSource(ts.base, "a"))
+	if err := seed.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	counting := &countingFS{FS: ts.base}
+	cache := ts.open(counting)
+	a, b := ts.reopenSource(counting, "a"), ts.reopenSource(counting, "b")
+
+	if _, ok := cache.Recorded("b", b); ok {
+		t.Fatal("Recorded answered for a comic that was never hashed")
+	}
+	if n := counting.listOpens.Load(); n != 0 {
+		t.Fatalf("Recorded read %d page lists for a comic with no record, want 0", n)
+	}
+	if _, ok := cache.Recorded("a", a); !ok {
+		t.Fatal("Recorded missed a hashed comic")
+	}
+	if n := counting.listOpens.Load(); n != 1 {
+		t.Fatalf("Recorded read %d page lists for one hashed comic, want 1", n)
+	}
+}
+
+func TestRecordedSeesHandEditedList(t *testing.T) {
+	ts := newTestShelf(t)
+	source := ts.addComic("a", testPage{"001.jpg", "one"})
+	ts.writePage(source, testPage{"002.jpg", "two"})
+	cache := ts.open(ts.base)
+	mustResolve(t, cache, "a", source)
+
+	listPath := path.Join(ts.libRoot, source.FolderPath(), bookpkg.SourceFile)
+	if err := os.WriteFile(listPath, []byte("001.jpg\n002.jpg\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	edited := ts.reopenSource(ts.base, "a")
+
+	if got, ok := cache.Recorded("a", edited); ok {
+		t.Fatalf("Recorded = %v for a page list edited outside PlainShelf, whose meta.json still holds the old hash", got)
+	}
+	if got := mustResolve(t, cache, "a", edited); len(got) != 2 {
+		t.Fatalf("Resolve after the edit = %v, want both pages", got)
+	}
+	if _, ok := cache.Recorded("a", edited); !ok {
+		t.Fatal("Recorded missed the page list it just hashed")
 	}
 }
 
@@ -223,10 +282,10 @@ func TestSavePrunesDeletedBooks(t *testing.T) {
 	}
 
 	reopened := ts.open(ts.base)
-	if _, ok := reopened.Recorded("b", b.ID(), b.GetMeta().MD5Hash); ok {
+	if _, ok := reopened.Recorded("b", b); ok {
 		t.Fatal("a deleted book's page hashes survived Save")
 	}
-	if _, ok := reopened.Recorded("a", a.ID(), a.GetMeta().MD5Hash); !ok {
+	if _, ok := reopened.Recorded("a", a); !ok {
 		t.Fatal("a live book's page hashes were pruned")
 	}
 }
@@ -240,7 +299,7 @@ func TestOpenDiscardsOtherSchema(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	if _, ok := ts.open(ts.base).Recorded("a", source.ID(), source.GetMeta().MD5Hash); ok {
+	if _, ok := ts.open(ts.base).Recorded("a", source); ok {
 		t.Fatal("a cache file of another schema_version was read")
 	}
 }
@@ -258,7 +317,7 @@ func TestResolveRefusesMissingPages(t *testing.T) {
 	if _, err := cache.Resolve("a", source); !errors.Is(err, ErrMissingPages) {
 		t.Fatalf("Resolve = %v, want ErrMissingPages for a listed page with no image", err)
 	}
-	if _, ok := cache.Recorded("a", source.ID(), source.GetMeta().MD5Hash); ok {
+	if _, ok := cache.Recorded("a", source); ok {
 		t.Fatal("a comic with a missing page kept a recorded page set")
 	}
 }
@@ -286,7 +345,7 @@ func TestSaveKeepsNewerUntouchedRecords(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	got, ok := ts.open(ts.base).Recorded("b", b.ID(), b.GetMeta().MD5Hash)
+	got, ok := ts.open(ts.base).Recorded("b", b)
 	if !ok || !slices.Equal(got, want) {
 		t.Fatalf("Recorded(b) = %v, %v; want the other run's newer %v", got, ok, want)
 	}

@@ -130,9 +130,12 @@ a source's content, recomputes its statistics, or moves the current-source
 pointer refreshes that book's cached count before it answers. A count is
 therefore correct immediately after any change made through PlainShelf.
 
-A source edited outside PlainShelf is the exception, and behaves like every
-other external change: the new count appears after the next full scan, or
-immediately after **Update book list**.
+A source edited outside PlainShelf is the exception, and a scan does not cover
+it. The count is read from `meta.json`, not measured from `source.txt`, and an
+outside edit to `source.txt` leaves `meta.json` as it was, so neither the next
+full scan nor **Update book list** changes the number. **Update content stats**
+on the book's detail page measures the source again and writes the new count;
+see [Source statistics](data-model.md#source-statistics).
 
 ### Folder listing
 

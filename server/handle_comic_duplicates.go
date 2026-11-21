@@ -47,7 +47,7 @@ func recordedComicPages(cache *shelf.PageHashCache, books []shelf.BookListing) (
 		if err != nil {
 			continue
 		}
-		hashes, ok := cache.Recorded(book.ID(), source.ID(), source.GetMeta().MD5Hash)
+		hashes, ok := cache.Recorded(book.ID(), source)
 		if !ok {
 			continue
 		}
