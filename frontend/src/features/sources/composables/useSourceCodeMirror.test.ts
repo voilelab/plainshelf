@@ -5,6 +5,7 @@ import { EditorSelection, type EditorState } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 
 import { useSourceCodeMirror } from './useSourceCodeMirror';
+import offsetVectors from './sourceOffsets.vectors.json';
 import { insertChapterEdit } from '@/features/sources/utils/chapterEdits';
 import type {
   SourceDocumentEdit,
@@ -400,5 +401,36 @@ describe('useSourceCodeMirror CRLF coordinates', () => {
     expect(insertChapterEdit(content, start).replacement).toBe(
       '## Untitled chapter\r\n\r\n'
     );
+  });
+});
+
+describe('useSourceCodeMirror offsets match the Lean model', () => {
+  interface OffsetVector {
+    lines: [number, number][];
+    docToSource: number[];
+    sourceToDoc: number[];
+  }
+
+  const BREAKS = ['', '\n', '\r\n'];
+
+  function layoutText(lines: [number, number][]): string {
+    return lines.map(([len, brk], i) => 'abcdefgh'[i].repeat(len) + BREAKS[brk]).join('');
+  }
+
+  it.each(offsetVectors as OffsetVector[])('maps every position of $lines', async (vector) => {
+    const editor = await mount(layoutText(vector.lines));
+    const view = editor.editor.view.value!;
+
+    const published = vector.docToSource.map((_expected, pos) => {
+      view.dispatch({ selection: EditorSelection.cursor(pos) });
+      return editor.edits[editor.edits.length - 1]?.selectionStart;
+    });
+    expect(published).toEqual(vector.docToSource);
+
+    const placed = vector.sourceToDoc.map((_expected, offset) => {
+      editor.editor.focusAndSelect(offset, offset);
+      return editor.selection().from;
+    });
+    expect(placed).toEqual(vector.sourceToDoc);
   });
 });
