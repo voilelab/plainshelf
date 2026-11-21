@@ -16,8 +16,8 @@ def movePage (l : List α) (src dst : Nat) : List α :=
   else l
 
 def dropDestination (src target : Nat) (after : Bool) : Nat :=
-  let slot := if after then target + 1 else target
-  if slot > src then slot - 1 else slot
+  if after then (if target + 1 > src then target else target + 1)
+  else (if target > src then target - 1 else target)
 
 theorem length_removeAt (l : List α) (s : Nat) (h : s < l.length) :
     (removeAt l s).length = l.length - 1 := by
@@ -153,38 +153,67 @@ theorem dropDestination_lt (src target : Nat) (after : Bool) (n : Nat)
     (hs : src < n) (ht : target < n) :
     dropDestination src target after < n := by
   unfold dropDestination
-  cases after <;> simp only [] <;> split <;> omega
+  cases after <;> simp only [Bool.false_eq_true, ite_true, ite_false] <;> split <;> omega
+
+theorem movePage_self (l : List α) (s : Nat) : movePage l s s = l := by
+  simp [movePage]
+
+theorem getElem?_movePage (l : List α) (src dst k : Nat)
+    (hs : src < l.length) (hd : dst < l.length) (hne : src ≠ dst) :
+    (movePage l src dst)[k]? =
+      if k < dst then (removeAt l src)[k]?
+      else if k = dst then l[src]?
+      else (removeAt l src)[k - 1]? := by
+  have hlen := length_removeAt l src hs
+  unfold movePage
+  split
+  · rw [getElem?_insertAt _ _ _ _ (by omega), List.getElem?_eq_getElem hs]
+  · omega
+
+macro "finish_drop" : tactic => `(tactic| (
+  simp only [getElem?_removeAt]
+  refine ⟨by simp, ?_⟩
+  repeat' split
+  all_goals first | rfl | omega | (congr 1; omega) | (exfalso; simp_all)))
 
 theorem drop_lands_beside_target (l : List α) (src target : Nat) (after : Bool)
     (hs : src < l.length) (ht : target < l.length) (hne : src ≠ target) :
-    let d := dropDestination src target after
-    (movePage l src d)[d]? = l[src]? ∧
-      (movePage l src d)[if after then d - 1 else d + 1]? = l[target]? := by
-  intro d
-  have hd : d < l.length := dropDestination_lt src target after l.length hs ht
-  have hlen : (removeAt l src).length = l.length - 1 := length_removeAt l src hs
-  unfold movePage
-  by_cases hmove : src < l.length ∧ d < l.length ∧ src ≠ d
-  · rw [dif_pos hmove]
-    have hins : d ≤ (removeAt l src).length := by rw [hlen]; omega
-    constructor
-    · rw [getElem?_insertAt _ _ _ _ hins]
-      simp [List.getElem?_eq_getElem hs]
-    · rw [getElem?_insertAt _ _ _ _ hins]
-      cases after <;>
-        simp only [d, dropDestination] at hmove hins ⊢ <;>
-        split at hmove hins ⊢ <;>
-        simp only [if_true, if_false] at * <;>
-        split <;> (try split) <;> rw [getElem?_removeAt] <;> split <;>
-        first | rfl | (congr 1; omega) | omega
-  · rw [dif_neg hmove]
-    have hsd : src = d := by omega
-    constructor
-    · rw [← hsd]
-    · cases after <;>
-        simp only [d, dropDestination] at hsd ⊢ <;>
-        split at hsd ⊢ <;> simp only [if_true, if_false] at * <;>
-        first | (congr 1; omega) | omega
+    (movePage l src (dropDestination src target after))[dropDestination src target after]?
+        = l[src]? ∧
+      (movePage l src (dropDestination src target after))[
+          if after then dropDestination src target after - 1
+          else dropDestination src target after + 1]? = l[target]? := by
+  rcases Nat.lt_or_gt_of_ne hne with hlt | hgt
+  · cases after
+    · by_cases hadj : target = src + 1
+      · subst hadj
+        simp [dropDestination, movePage_self]
+      · have hd : dropDestination src target false = target - 1 := by
+          simp [dropDestination]; omega
+        rw [hd, getElem?_movePage l src _ _ hs (by omega) (by omega),
+          getElem?_movePage l src _ _ hs (by omega) (by omega),
+          ]
+        finish_drop
+    · have hd : dropDestination src target true = target := by
+        simp [dropDestination]; omega
+      rw [hd, getElem?_movePage l src _ _ hs ht hne,
+        getElem?_movePage l src _ _ hs ht hne, ]
+      finish_drop
+  · cases after
+    · have hd : dropDestination src target false = target := by
+        simp [dropDestination]; omega
+      rw [hd, getElem?_movePage l src _ _ hs ht hne,
+        getElem?_movePage l src _ _ hs ht hne, ]
+      finish_drop
+    · by_cases hadj : src = target + 1
+      · subst hadj
+        simp [dropDestination, movePage_self]
+      · have hd : dropDestination src target true = target + 1 := by
+          simp [dropDestination]; omega
+        rw [hd, getElem?_movePage l src _ _ hs (by omega) (by omega),
+          getElem?_movePage l src _ _ hs (by omega) (by omega),
+          ]
+        finish_drop
 
 def jsonList : List Nat → String
   | xs => "[" ++ ",".intercalate (xs.map toString) ++ "]"
