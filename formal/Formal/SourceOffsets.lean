@@ -1,3 +1,5 @@
+import Formal.Json
+
 namespace SourceOffsets
 
 structure Line where
@@ -253,17 +255,12 @@ def vectorLayouts : List (List Line) :=
    [⟨5, 2⟩, ⟨5, 1⟩, ⟨7, 0⟩],
    [⟨0, 1⟩, ⟨2, 2⟩, ⟨0, 2⟩, ⟨3, 1⟩, ⟨1, 0⟩]]
 
-def jsonNats (xs : List Nat) : String := "[" ++ ",".intercalate (xs.map toString) ++ "]"
-
 def vectorLine (lines : List Line) : String :=
   let layout := "[" ++ ",".intercalate (lines.map fun l => s!"[{l.len},{l.brk}]") ++ "]"
   let doc := (List.range (docLength lines + 1)).map (editorDocToSource lines)
   let src := (List.range (sourceLength lines + 1)).map (editorSourceToDoc lines)
-  s!"\{\"lines\":{layout},\"docToSource\":{jsonNats doc},\"sourceToDoc\":{jsonNats src}}"
+  s!"\{\"lines\":{layout},\"docToSource\":{Formal.natArray doc},\"sourceToDoc\":{Formal.natArray src}}"
 
-def main : IO Unit :=
-  IO.println ("[\n" ++ ",\n".intercalate (vectorLayouts.map vectorLine) ++ "\n]")
+def vectorsJson : String := Formal.jsonLines (vectorLayouts.map vectorLine)
 
 end SourceOffsets
-
-def main : IO Unit := SourceOffsets.main

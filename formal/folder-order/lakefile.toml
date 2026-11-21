@@ -1,9 +1,0 @@
-name = "folder-order"
-defaultTargets = ["folder-order-vectors"]
-
-[[lean_lib]]
-name = "FolderOrder"
-
-[[lean_exe]]
-name = "folder-order-vectors"
-root = "FolderOrder"

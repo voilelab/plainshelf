@@ -1,3 +1,5 @@
+import Formal.Json
+
 namespace FolderOrder
 
 def keyLt : Option Int → Option Int → Bool
@@ -277,9 +279,6 @@ def vectorLines : List String := Id.run do
             out := out ++ [s!"\{\"keys\":{keysJson},\"source\":{s},\"target\":{t},\"side\":\"{side}\",\"plan\":{planJson (plan sibs key s t after)}}"]
   return out
 
-def main : IO Unit :=
-  IO.println ("[\n" ++ ",\n".intercalate vectorLines ++ "\n]")
+def vectorsJson : String := Formal.jsonLines vectorLines
 
 end FolderOrder
-
-def main : IO Unit := FolderOrder.main

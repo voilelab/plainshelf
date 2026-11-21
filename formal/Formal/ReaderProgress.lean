@@ -1,3 +1,5 @@
+import Formal.Json
+
 namespace ReaderProgress
 
 def roundDiv (a b : Nat) : Nat := (2 * a + b) / (2 * b)
@@ -118,8 +120,6 @@ theorem linear_offset_skips_block :
         (saveLinear sampleChars sampleMeasured sampleViewport sampleScrollTop)).1 = 0 := by
   decide
 
-def jsonList (xs : List Nat) : String := "[" ++ ",".intercalate (xs.map toString) ++ "]"
-
 def vectorLayouts : List (List Nat × List Nat) :=
   [([400, 400, 400, 400, 400, 400], [400, 400, 2000, 400, 400, 400]),
    ([400, 400, 400, 400, 400, 400], [400, 400, 320, 400, 400, 400]),
@@ -133,16 +133,13 @@ def samples (total steps : Nat) : List Nat :=
 def vectorLines : List String := Id.run do
   let mut out : List String := []
   for (chars, heights) in vectorLayouts do
-    let layout := s!"\"chars\":{jsonList chars},\"heights\":{jsonList heights}"
+    let layout := s!"\"chars\":{Formal.natArray chars},\"heights\":{Formal.natArray heights}"
     for t in samples heights.sum 23 do
       out := out ++ [s!"\{\"kind\":\"save\",{layout},\"scrollTop\":{t},\"offset\":{savePiecewise chars heights t}}"]
     for o in samples chars.sum 17 do
       out := out ++ [s!"\{\"kind\":\"restore\",{layout},\"offset\":{o},\"scrollTop\":{restorePiecewise chars heights o}}"]
   return out
 
-def main : IO Unit :=
-  IO.println ("[\n" ++ ",\n".intercalate vectorLines ++ "\n]")
+def vectorsJson : String := Formal.jsonLines vectorLines
 
 end ReaderProgress
-
-def main : IO Unit := ReaderProgress.main
