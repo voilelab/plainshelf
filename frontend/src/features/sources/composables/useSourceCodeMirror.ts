@@ -97,6 +97,16 @@ function lineSeparatorOf(text: string): string {
   return mixed ? '\n' : '\r\n';
 }
 
+function lineBreakExtras(text: string): number[] {
+  const extras = [0];
+  let extra = 0;
+  for (const match of text.matchAll(/\r\n|\r|\n/g)) {
+    extra += match[0].length - 1;
+    extras.push(extra);
+  }
+  return extras;
+}
+
 function splitLines(text: string, separator: string): string[] {
   return separator === '\r\n' ? text.split('\r\n') : text.split(/\r\n?|\n/);
 }
@@ -288,6 +298,7 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   const phraseCompartment = new Compartment();
 
   let lineSeparator = '\n';
+  let sourceBreakExtras: number[] | null = null;
   let syncedDocument = '';
   let documentStale = false;
   let syncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -348,6 +359,7 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
 
   const updateListener = EditorView.updateListener.of((update) => {
     if (update.docChanged) {
+      sourceBreakExtras = null;
       documentStale = true;
       scheduleSync();
     } else if (update.selectionSet) {
@@ -385,6 +397,7 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
 
   function initialState(text: string): EditorState {
     lineSeparator = lineSeparatorOf(text);
+    trackSourceBreaks(text);
     const doc = Text.of(splitLines(text, lineSeparator));
     return EditorState.create({
       doc,
@@ -397,25 +410,38 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     return state.doc.sliceString(0, state.doc.length, lineSeparator);
   }
 
+  function trackSourceBreaks(text: string): void {
+    sourceBreakExtras = lineSeparator === '\n' && text.includes('\r') ? lineBreakExtras(text) : null;
+  }
+
+  function extraBeforeLine(line: number): number {
+    if (lineSeparator === '\r\n') return line - 1;
+    return sourceBreakExtras?.[line - 1] ?? 0;
+  }
+
+  function sourceDiffersFromDoc(): boolean {
+    return lineSeparator === '\r\n' || sourceBreakExtras !== null;
+  }
+
   function docPositionToSourceOffset(state: EditorState, pos: number): number {
     const clamped = Math.max(0, Math.min(state.doc.length, pos));
-    if (lineSeparator !== '\r\n') return clamped;
-    return clamped + state.doc.lineAt(clamped).number - 1;
+    if (!sourceDiffersFromDoc()) return clamped;
+    return clamped + extraBeforeLine(state.doc.lineAt(clamped).number);
   }
 
   function sourceOffsetToDocPosition(state: EditorState, offset: number): number {
     const doc = state.doc;
-    if (lineSeparator !== '\r\n') return Math.max(0, Math.min(doc.length, offset));
-    const clamped = Math.max(0, Math.min(doc.length + doc.lines - 1, offset));
+    if (!sourceDiffersFromDoc()) return Math.max(0, Math.min(doc.length, offset));
+    const clamped = Math.max(0, Math.min(doc.length + extraBeforeLine(doc.lines), offset));
     let low = 1;
     let high = doc.lines;
     while (low < high) {
       const mid = Math.ceil((low + high) / 2);
-      if (doc.line(mid).from + mid - 1 <= clamped) low = mid;
+      if (doc.line(mid).from + extraBeforeLine(mid) <= clamped) low = mid;
       else high = mid - 1;
     }
     const line = doc.line(low);
-    return Math.min(clamped - (low - 1), line.to);
+    return Math.min(clamped - extraBeforeLine(low), line.to);
   }
 
   function createView(host: HTMLElement): void {
@@ -450,6 +476,7 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     const current = view.value;
     if (!current) return;
     if (documentText(current.state) === text) {
+      trackSourceBreaks(text);
       syncedDocument = text;
       documentStale = false;
       return;
@@ -483,6 +510,7 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
         insert: Text.of(next.slice(start, nextEnd).split('\n'))
       }
     });
+    trackSourceBreaks(text);
     syncedDocument = text;
     documentStale = false;
     cancelScheduledSync();

@@ -45,11 +45,28 @@ def editorUsesCrlf : List Line → Bool
     | [] => true
     | _ => editorUsesCrlf (m :: rest))
 
+def hasWideBreak : List Line → Bool
+  | [] => false
+  | [_] => false
+  | l :: m :: rest => l.brk == 2 || hasWideBreak (m :: rest)
+
+def validBreaks : List Line → Prop
+  | [] => True
+  | [_] => True
+  | l :: m :: rest => (l.brk = 1 ∨ l.brk = 2) ∧ validBreaks (m :: rest)
+
+def identityDocToSource (lines : List Line) (p : Nat) : Nat := min p (docLength lines)
+def identitySourceToDoc (lines : List Line) (o : Nat) : Nat := min o (docLength lines)
+
 def editorDocToSource (lines : List Line) (p : Nat) : Nat :=
-  if editorUsesCrlf lines then crlfDocToSource lines p else min p (docLength lines)
+  if editorUsesCrlf lines then crlfDocToSource lines p
+  else if hasWideBreak lines then docToSource lines p
+  else identityDocToSource lines p
 
 def editorSourceToDoc (lines : List Line) (o : Nat) : Nat :=
-  if editorUsesCrlf lines then crlfSourceToDoc lines o else min o (docLength lines)
+  if editorUsesCrlf lines then crlfSourceToDoc lines o
+  else if hasWideBreak lines then sourceToDoc lines o
+  else identitySourceToDoc lines o
 
 theorem roundtrip_doc (lines : List Line) (p : Nat)
     (hbrk : ∀ l ∈ lines, 1 ≤ l.brk) :
@@ -159,6 +176,29 @@ theorem crlf_editor_matches (lines : List Line) (h : editorUsesCrlf lines = true
     crlfSourceToDoc]
   exact hb
 
+theorem narrow_breaks (lines : List Line) (h : validBreaks lines)
+    (hw : hasWideBreak lines = false) : breaksAre 1 lines := by
+  induction lines with
+  | nil => trivial
+  | cons l rest ih =>
+    cases rest with
+    | nil => trivial
+    | cons m rest =>
+      simp only [hasWideBreak, Bool.or_eq_false_iff, beq_eq_false_iff_ne] at hw
+      obtain ⟨hl, hrest⟩ := h
+      exact ⟨by omega, ih hrest hw.2⟩
+
+theorem narrow_lengths (lines : List Line) (h : breaksAre 1 lines) :
+    sourceLength lines = docLength lines := by
+  induction lines with
+  | nil => rfl
+  | cons l rest ih =>
+    cases rest with
+    | nil => rfl
+    | cons m rest =>
+      obtain ⟨hl, hrest⟩ := h
+      simp only [sourceLength, docLength, hl, ih hrest]
+
 theorem lf_identity (lines : List Line) (h : breaksAre 1 lines) (p : Nat)
     (hp : p ≤ docLength lines) :
     docToSource lines p = p ∧ sourceToDoc lines p = p := by
@@ -177,12 +217,31 @@ theorem lf_identity (lines : List Line) (h : breaksAre 1 lines) (p : Nat)
         simp only [docToSource, sourceToDoc, hle, ite_false, hl]
         split <;> constructor <;> omega
 
+theorem editor_matches (lines : List Line) (hvalid : validBreaks lines) :
+    (∀ p, p ≤ docLength lines → editorDocToSource lines p = docToSource lines p) ∧
+      (∀ o, o ≤ sourceLength lines → editorSourceToDoc lines o = sourceToDoc lines o) := by
+  by_cases hc : editorUsesCrlf lines = true
+  · exact ⟨fun p _ => (crlf_editor_matches lines hc p).1,
+      fun o _ => (crlf_editor_matches lines hc o).2⟩
+  · by_cases hw : hasWideBreak lines = true
+    · simp [editorDocToSource, editorSourceToDoc, hc, hw]
+    · have hn := narrow_breaks lines hvalid (by simpa using hw)
+      have hlen := narrow_lengths lines hn
+      refine ⟨fun p hp => ?_, fun o ho => ?_⟩
+      · simp only [editorDocToSource, hc, hw, Bool.false_eq_true, ite_false,
+          identityDocToSource, (lf_identity lines hn p hp).1]
+        omega
+      · rw [hlen] at ho
+        simp only [editorSourceToDoc, hc, hw, Bool.false_eq_true, ite_false,
+          identitySourceToDoc, (lf_identity lines hn o ho).2]
+        omega
+
 def mixedSample : List Line := [⟨5, 2⟩, ⟨5, 1⟩, ⟨7, 0⟩]
 
-theorem mixed_editor_drifts :
+theorem identity_drifts_on_mixed :
     editorUsesCrlf mixedSample = false ∧
-      docToSource mixedSample 6 = 7 ∧ editorDocToSource mixedSample 6 = 6 ∧
-      sourceToDoc mixedSample 7 = 6 ∧ editorSourceToDoc mixedSample 7 = 7 := by
+      docToSource mixedSample 6 = 7 ∧ identityDocToSource mixedSample 6 = 6 ∧
+      sourceToDoc mixedSample 7 = 6 ∧ identitySourceToDoc mixedSample 7 = 7 := by
   decide
 
 def vectorLayouts : List (List Line) :=
@@ -190,7 +249,9 @@ def vectorLayouts : List (List Line) :=
    [⟨0, 2⟩, ⟨4, 2⟩, ⟨0, 0⟩],
    [⟨6, 0⟩],
    [⟨3, 1⟩, ⟨0, 1⟩, ⟨5, 1⟩, ⟨2, 0⟩],
-   [⟨0, 1⟩, ⟨4, 1⟩, ⟨0, 0⟩]]
+   [⟨0, 1⟩, ⟨4, 1⟩, ⟨0, 0⟩],
+   [⟨5, 2⟩, ⟨5, 1⟩, ⟨7, 0⟩],
+   [⟨0, 1⟩, ⟨2, 2⟩, ⟨0, 2⟩, ⟨3, 1⟩, ⟨1, 0⟩]]
 
 def jsonNats (xs : List Nat) : String := "[" ++ ",".intercalate (xs.map toString) ++ "]"
 

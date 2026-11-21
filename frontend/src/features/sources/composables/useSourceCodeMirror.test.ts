@@ -6,7 +6,8 @@ import { ensureSyntaxTree } from '@codemirror/language';
 
 import { useSourceCodeMirror } from './useSourceCodeMirror';
 import offsetVectors from './sourceOffsets.vectors.json';
-import { insertChapterEdit } from '@/features/sources/utils/chapterEdits';
+import { insertChapterEdit, renameChapterEdit } from '@/features/sources/utils/chapterEdits';
+import { buildMarkdownEditorSections } from '@/utils/markdownChapters';
 import type {
   SourceDocumentEdit,
   SourceEditorViewRange,
@@ -357,6 +358,22 @@ describe('useSourceCodeMirror editing adapter', () => {
 });
 describe('useSourceCodeMirror CRLF coordinates', () => {
   const CRLF_CHAPTERS = CHAPTERS.replace(/\n/g, '\r\n');
+
+  it('renames a chapter in a source that mixes CRLF and LF before any edit', async () => {
+    const mixed = '# Book\r\n\r\n## One\nBody\r\n## Two\nMore\n';
+    const editor = await mount(mixed);
+    const heading = buildMarkdownEditorSections(mixed).find((section) => section.title === 'Two')!.heading!;
+    const edit = renameChapterEdit(mixed, heading, 'Renamed');
+
+    editor.editor.replaceRange(edit.start, edit.end, edit.replacement);
+    expect(editor.content()).toBe('# Book\n\n## One\nBody\n## Renamed\nMore\n');
+
+    const normalized = editor.content();
+    const one = buildMarkdownEditorSections(normalized).find((section) => section.title === 'One')!.heading!;
+    const second = renameChapterEdit(normalized, one, 'First');
+    editor.editor.replaceRange(second.start, second.end, second.replacement);
+    expect(editor.content()).toBe('# Book\n\n## First\nBody\n## Renamed\nMore\n');
+  });
 
   it('dims up to the chapter heading, not past it', async () => {
     const editor = await mount(CRLF_CHAPTERS);
