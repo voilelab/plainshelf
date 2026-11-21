@@ -121,7 +121,9 @@ Read the relevant section before working in that area. Add entries according to
   source-text offset and `useSourceCodeMirror` converts at its own edge; never
   hand a `markdownChapters` offset straight to a CodeMirror API, and cover a
   change here with a CRLF case, because an LF-only test cannot see the
-  difference. (`frontend/src/features/sources/composables/useSourceCodeMirror.test.ts`)
+  difference. A source mixing CRLF and LF is shown as LF but keeps its own
+  breaks until the first edit, so the conversion weighs each break; a
+  rename there once rewrote the wrong range (`formal/source-offsets`). (`frontend/src/features/sources/composables/useSourceCodeMirror.test.ts`)
 - **Dimming under highlighting:** a `Decoration.mark` that dims by `color` is
   overridden wherever syntax highlighting paints a nested span. Dim with
   `opacity`, which applies to the whole subtree.

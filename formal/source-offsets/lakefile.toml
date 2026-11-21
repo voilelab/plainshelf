@@ -1,0 +1,9 @@
+name = "source-offsets"
+defaultTargets = ["source-offsets-vectors"]
+
+[[lean_lib]]
+name = "SourceOffsets"
+
+[[lean_exe]]
+name = "source-offsets-vectors"
+root = "SourceOffsets"

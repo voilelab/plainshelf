@@ -5,7 +5,9 @@ import { EditorSelection, type EditorState } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 
 import { useSourceCodeMirror } from './useSourceCodeMirror';
-import { insertChapterEdit } from '@/features/sources/utils/chapterEdits';
+import offsetVectors from './sourceOffsets.vectors.json';
+import { insertChapterEdit, renameChapterEdit } from '@/features/sources/utils/chapterEdits';
+import { buildMarkdownEditorSections } from '@/utils/markdownChapters';
 import type {
   SourceDocumentEdit,
   SourceEditorViewRange,
@@ -357,6 +359,22 @@ describe('useSourceCodeMirror editing adapter', () => {
 describe('useSourceCodeMirror CRLF coordinates', () => {
   const CRLF_CHAPTERS = CHAPTERS.replace(/\n/g, '\r\n');
 
+  it('renames a chapter in a source that mixes CRLF and LF before any edit', async () => {
+    const mixed = '# Book\r\n\r\n## One\nBody\r\n## Two\nMore\n';
+    const editor = await mount(mixed);
+    const heading = buildMarkdownEditorSections(mixed).find((section) => section.title === 'Two')!.heading!;
+    const edit = renameChapterEdit(mixed, heading, 'Renamed');
+
+    editor.editor.replaceRange(edit.start, edit.end, edit.replacement);
+    expect(editor.content()).toBe('# Book\n\n## One\nBody\n## Renamed\nMore\n');
+
+    const normalized = editor.content();
+    const one = buildMarkdownEditorSections(normalized).find((section) => section.title === 'One')!.heading!;
+    const second = renameChapterEdit(normalized, one, 'First');
+    editor.editor.replaceRange(second.start, second.end, second.replacement);
+    expect(editor.content()).toBe('# Book\n\n## First\nBody\n## Renamed\nMore\n');
+  });
+
   it('dims up to the chapter heading, not past it', async () => {
     const editor = await mount(CRLF_CHAPTERS);
     await editor.setViewRange({
@@ -400,5 +418,36 @@ describe('useSourceCodeMirror CRLF coordinates', () => {
     expect(insertChapterEdit(content, start).replacement).toBe(
       '## Untitled chapter\r\n\r\n'
     );
+  });
+});
+
+describe('useSourceCodeMirror offsets match the Lean model', () => {
+  interface OffsetVector {
+    lines: [number, number][];
+    docToSource: number[];
+    sourceToDoc: number[];
+  }
+
+  const BREAKS = ['', '\n', '\r\n'];
+
+  function layoutText(lines: [number, number][]): string {
+    return lines.map(([len, brk], i) => 'abcdefgh'[i].repeat(len) + BREAKS[brk]).join('');
+  }
+
+  it.each(offsetVectors as OffsetVector[])('maps every position of $lines', async (vector) => {
+    const editor = await mount(layoutText(vector.lines));
+    const view = editor.editor.view.value!;
+
+    const published = vector.docToSource.map((_expected, pos) => {
+      view.dispatch({ selection: EditorSelection.cursor(pos) });
+      return editor.edits[editor.edits.length - 1]?.selectionStart;
+    });
+    expect(published).toEqual(vector.docToSource);
+
+    const placed = vector.sourceToDoc.map((_expected, offset) => {
+      editor.editor.focusAndSelect(offset, offset);
+      return editor.selection().from;
+    });
+    expect(placed).toEqual(vector.sourceToDoc);
   });
 });
