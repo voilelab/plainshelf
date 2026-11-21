@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -326,5 +327,61 @@ describe('useReader comics', () => {
     await reader.fetchReaderData();
     expect(reader.sections.value).toEqual([]);
     expect(reader.progress.value).toMatchObject({ char_offset: 0, percent: 0 });
+  });
+});
+
+describe('useReader reading position', () => {
+  const paragraph = 'x'.repeat(400);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getBook.mockResolvedValue({ id: 'book-1', title: 'Book', format: 'txt', current_source: '' });
+    mocks.getBookContent.mockResolvedValue({ content: Array(6).fill(paragraph).join('\n\n') });
+    mocks.getReadProgress.mockResolvedValue({ char_offset: 0, percent: 0 });
+    mocks.addReadHistory.mockResolvedValue(undefined);
+    mocks.saveReadProgress.mockResolvedValue(undefined);
+  });
+
+  function blockWindow(heights: { current: number[] }): HTMLDivElement {
+    const el = document.createElement('div');
+    let scrollTop = 0;
+    Object.defineProperty(el, 'scrollTop', { get: () => scrollTop, set: (value: number) => { scrollTop = value; } });
+    Object.defineProperty(el, 'clientHeight', { get: () => 800 });
+    Object.defineProperty(el, 'scrollHeight', { get: () => heights.current.reduce((sum, h) => sum + h, 0) });
+    el.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+    for (let i = 0; i < 6; i += 1) {
+      const item = document.createElement('div');
+      item.dataset.windowIndex = String(i);
+      item.dataset.windowWeight = String(paragraph.length);
+      item.getBoundingClientRect = () => {
+        const top = heights.current.slice(0, i).reduce((sum, h) => sum + h, 0) - scrollTop;
+        return { top, bottom: top + heights.current[i] } as DOMRect;
+      };
+      el.append(item);
+    }
+    return el;
+  }
+
+  function blockAt(heights: number[], y: number): number {
+    let top = 0;
+    return heights.findIndex((h) => (top += h) > y);
+  }
+
+  it('reopens on the saved block after estimated heights replace measured ones', async () => {
+    const measured = [400, 400, 2000, 400, 400, 400];
+    const estimated = [400, 400, 320, 400, 400, 400];
+    const heights = { current: measured };
+    const el = blockWindow(heights);
+    const reader = useReader(() => 'book-1');
+    await reader.fetchReaderData();
+    reader.readerRef.value = el;
+
+    el.scrollTop = 400;
+    reader.onScroll();
+    heights.current = estimated;
+    el.scrollTop = 0;
+    await reader.syncCurrentScroll();
+
+    expect(blockAt(estimated, el.scrollTop), `restored scrollTop ${el.scrollTop}`).toBe(1);
   });
 });

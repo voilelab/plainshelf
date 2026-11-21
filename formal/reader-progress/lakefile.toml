@@ -1,5 +1,9 @@
 name = "reader-progress"
-defaultTargets = ["ReaderProgress"]
+defaultTargets = ["reader-progress-vectors"]
 
 [[lean_lib]]
 name = "ReaderProgress"
+
+[[lean_exe]]
+name = "reader-progress-vectors"
+root = "ReaderProgress"

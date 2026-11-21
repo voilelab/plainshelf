@@ -118,4 +118,31 @@ theorem linear_offset_skips_block :
         (saveLinear sampleChars sampleMeasured sampleViewport sampleScrollTop)).1 = 0 := by
   decide
 
+def jsonList (xs : List Nat) : String := "[" ++ ",".intercalate (xs.map toString) ++ "]"
+
+def vectorLayouts : List (List Nat × List Nat) :=
+  [([400, 400, 400, 400, 400, 400], [400, 400, 2000, 400, 400, 400]),
+   ([400, 400, 400, 400, 400, 400], [400, 400, 320, 400, 400, 400]),
+   ([1, 7, 30, 2], [50, 13, 90, 500]),
+   ([1200, 80, 600, 30, 200], [700, 38, 320, 38, 120]),
+   ([5], [1000])]
+
+def samples (total steps : Nat) : List Nat :=
+  ((List.range steps).map (fun k => k * total / steps)).eraseDups
+
+def vectorLines : List String := Id.run do
+  let mut out : List String := []
+  for (chars, heights) in vectorLayouts do
+    let layout := s!"\"chars\":{jsonList chars},\"heights\":{jsonList heights}"
+    for t in samples heights.sum 23 do
+      out := out ++ [s!"\{\"kind\":\"save\",{layout},\"scrollTop\":{t},\"offset\":{savePiecewise chars heights t}}"]
+    for o in samples chars.sum 17 do
+      out := out ++ [s!"\{\"kind\":\"restore\",{layout},\"offset\":{o},\"scrollTop\":{restorePiecewise chars heights o}}"]
+  return out
+
+def main : IO Unit :=
+  IO.println ("[\n" ++ ",\n".intercalate vectorLines ++ "\n]")
+
 end ReaderProgress
+
+def main : IO Unit := ReaderProgress.main
