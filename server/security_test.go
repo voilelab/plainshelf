@@ -295,6 +295,8 @@ func TestAllowedHostsReachUIAndAPI(t *testing.T) {
 		{"tier b name is case-insensitive", tierB, "", "NAS.local:20000", true},
 		{"tier b name wrong port", tierB, "", "nas.local:8080", false},
 		{"tier b https default port", tierB, "", "books.example.org", true},
+		{"tier b https explicit default port", tierB, "", "books.example.org:443", true},
+		{"tier b https other port", tierB, "", "books.example.org:80", false},
 		{"listen host", nil, "shelfbox.lan:20000", "shelfbox.lan:20000", true},
 		{"listen host other port", nil, "shelfbox.lan:20000", "shelfbox.lan:8080", true},
 		{"wildcard listen adds nothing", nil, "0.0.0.0:20000", "evil.example:20000", false},

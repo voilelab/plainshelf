@@ -63,8 +63,9 @@ func NewSecurity(conf *SecurityConf) (*Security, error) {
 			return nil, util.Errorf("invalid security allowed_origin %q: %w", origin, err)
 		}
 		sec.allowedOrigins[normalized] = struct{}{}
-		_, host, _ := strings.Cut(normalized, "://")
-		sec.allowedHosts[host] = struct{}{}
+		for _, host := range originHostForms(normalized) {
+			sec.allowedHosts[host] = struct{}{}
+		}
 	}
 
 	if confValue.Mode == SecurityModeLocalToken {
@@ -127,6 +128,18 @@ func ValidateSecurityForListenAddr(conf *SecurityConf, listenAddr string) error 
 
 func (sec *Security) InsecureNetworkExposure(listenAddr string) bool {
 	return sec != nil && sec.conf.Mode == SecurityModeNone && !isLoopbackListenAddr(listenAddr)
+}
+
+func originHostForms(normalizedOrigin string) []string {
+	scheme, host, _ := strings.Cut(normalizedOrigin, "://")
+	if _, _, err := net.SplitHostPort(host); err == nil {
+		return []string{host}
+	}
+	defaultPort := map[string]string{"http": "80", "https": "443"}[scheme]
+	if defaultPort == "" {
+		return []string{host}
+	}
+	return []string{host, net.JoinHostPort(strings.Trim(host, "[]"), defaultPort)}
 }
 
 func (sec *Security) AllowListenHost(listenAddr string) {
