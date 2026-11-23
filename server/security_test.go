@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -228,5 +229,116 @@ func TestLogAPIGatedBesideScanExemption(t *testing.T) {
 		if !app.security.requiresToken(req) {
 			t.Errorf("requiresToken(POST %q) = false, want true", path)
 		}
+	}
+}
+
+func TestForeignHostIsMisdirected(t *testing.T) {
+	app := newTestAppWithSecurity(t, nil)
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		token  bool
+	}{
+		{"index", http.MethodGet, "/", false},
+		{"spa route", http.MethodGet, "/books/some-book", false},
+		{"static file", http.MethodGet, "/favicon.ico", false},
+		{"shelf read", http.MethodGet, "/api/shelves/default_shelf/books", false},
+		{"logs with token", http.MethodGet, "/api/logs", true},
+		{"health", http.MethodGet, "/health", false},
+		{"preflight", http.MethodOptions, "/api/shelves/default_shelf/books", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req.Host = "evil.example:20000"
+			if tc.token {
+				req.Header.Set(app.SecurityTokenHeader(), app.SecurityToken())
+			}
+			rec := httptest.NewRecorder()
+			app.Handler().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusMisdirectedRequest {
+				t.Fatalf("status = %d, want 421", rec.Code)
+			}
+			if strings.Contains(rec.Body.String(), app.SecurityToken()) {
+				t.Fatal("response leaked the local token")
+			}
+		})
+	}
+}
+
+func TestAllowedHostsReachUIAndAPI(t *testing.T) {
+	tierB := &SecurityConf{
+		Mode:                        SecurityModeLocalToken,
+		ProtectRead:                 true,
+		AllowMissingOriginWithToken: new(true),
+		AllowedOrigins:              []string{"http://nas.local:20000", "https://books.example.org"},
+	}
+
+	cases := []struct {
+		name   string
+		conf   *SecurityConf
+		listen string
+		host   string
+		want   bool
+	}{
+		{"loopback ip", nil, "", "127.0.0.1:20000", true},
+		{"localhost", nil, "", "localhost:20000", true},
+		{"localhost other port", nil, "", "localhost:5173", true},
+		{"ipv6 loopback", nil, "", "[::1]:20000", true},
+		{"lan ip", nil, "", "192.168.1.10:20000", true},
+		{"default origins skip names", nil, "", "nas.local:20000", false},
+		{"tier b name", tierB, "", "nas.local:20000", true},
+		{"tier b name is case-insensitive", tierB, "", "NAS.local:20000", true},
+		{"tier b name wrong port", tierB, "", "nas.local:8080", false},
+		{"tier b https default port", tierB, "", "books.example.org", true},
+		{"listen host", nil, "shelfbox.lan:20000", "shelfbox.lan:20000", true},
+		{"listen host other port", nil, "shelfbox.lan:20000", "shelfbox.lan:8080", true},
+		{"wildcard listen adds nothing", nil, "0.0.0.0:20000", "evil.example:20000", false},
+		{"empty host", nil, "", "", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := newTestAppWithSecurity(t, tc.conf)
+			if tc.listen != "" {
+				app.AllowListenHost(tc.listen)
+			}
+
+			for _, req := range []*http.Request{
+				httptest.NewRequest(http.MethodGet, "/", nil),
+				httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil),
+				httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/scans", nil),
+			} {
+				req.Host = tc.host
+				req.Header.Set(app.SecurityTokenHeader(), app.SecurityToken())
+				rec := httptest.NewRecorder()
+				app.Handler().ServeHTTP(rec, req)
+
+				if got := rec.Code != http.StatusMisdirectedRequest; got != tc.want {
+					t.Fatalf("%s %s with Host %q: status %d, allowed = %v, want %v",
+						req.Method, req.URL.Path, tc.host, rec.Code, got, tc.want)
+				}
+				if tc.want && rec.Code >= 400 {
+					t.Fatalf("%s %s with Host %q: status %d, want success", req.Method, req.URL.Path, tc.host, rec.Code)
+				}
+			}
+		})
+	}
+}
+
+func TestSecurityNoneIgnoresHost(t *testing.T) {
+	app := newTestAppWithSecurity(t, &SecurityConf{Mode: SecurityModeNone})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil)
+	req.Host = "evil.example:20000"
+	rec := httptest.NewRecorder()
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 }

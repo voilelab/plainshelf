@@ -87,7 +87,11 @@ token is needed only when the server sets `protect_read: true`, which requires
 one for reads as well. The token does not enable editing, because the client
 rejects write requests regardless. The app uses Capacitor's native HTTP bridge,
 so plain-HTTP API requests do not require adding the app origin to
-`allowed_origins`. See
+`allowed_origins`. A server URL with a host name rather than an IP address, such
+as `http://nas.local:20000`, does need that name in the server's
+`allowed_origins`, or every request gets `421`; see [DNS rebinding and the
+`Host` check](deployment-and-threat-model.md#dns-rebinding-and-the-host-check).
+See
 [what `local_token` protects](deployment-and-threat-model.md#exactly-which-requests-need-the-token)
 for the full list of what the token gates.
 

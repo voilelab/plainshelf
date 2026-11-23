@@ -129,8 +129,8 @@ not the API; see [the read-only WebDAV export](#the-read-only-webdav-export). Wh
 
 - The **desktop app** runs the same server in-process with `security.mode: none`
   hard-coded (`desktop/app.go`). Under `none` the middleware returns before the
-  token check, the origin allowlist and CORS (`server/security.go`), so its API
-  has no token and no origin check. The static browser-hardening headers
+  `Host` check, the token check, the origin allowlist and CORS
+  (`server/security.go`), so its API has no token and no origin check. The static browser-hardening headers
   (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`) are still set.
 - The **standalone reader** does not go through `server/security.go` at all. It
   serves its own `readerapi` handler from the Wails asset server
@@ -212,6 +212,38 @@ reading or writing your shelf. What it defends is narrower and still worth havin
 Read `mode: local_token` as "CSRF protection for a machine you already control,"
 never as "a login." When you need a login, that is Tier C, and it is not built
 yet.
+
+### DNS rebinding and the `Host` check
+
+The same-origin policy compares names, not addresses. A page at
+`http://evil.example:20000` can point `evil.example` at `127.0.0.1` once it has
+loaded, and from then on its requests reach your PlainShelf while the browser
+still treats them as same-origin: they carry no foreign `Origin`, and the page
+can read the answers. Without a further check it could read every book and
+reading record, and load `index.html` to take the token and read `/api/logs`
+too. Chrome asks for permission before a public page reaches a local address;
+Firefox and Safari do not.
+
+What gives the attack away is the `Host` header, which still names the
+attacker's domain. So under `local_token` every request, the UI and static
+files included, must carry a `Host` the server recognises, and any other is
+answered `421 Misdirected Request` before the page or the token is sent
+(`server/security.go`). Allowed are:
+
+- any IP address, on any port: a rebinding attack needs a domain name of its own;
+- `localhost`, on any port;
+- the host name in `server_conf.addr`, when it is a name rather than an address;
+- the host and port of each entry in `allowed_origins`.
+
+So a name you open the UI or point the Android app at must be in
+`allowed_origins` (or be the name in `server_conf.addr`), the same list that
+writes already needed; with only an IP address, nothing changes. Behind a
+reverse proxy, the proxy either forwards the public name, which is in
+`allowed_origins` for the UI to write anyway, or sends its upstream address,
+which is an IP or `localhost`. `mode: none` skips this check along with the
+others, which leaves the desktop app's in-process server unaffected. The
+read-only WebDAV export is a separate listener behind its own bearer token, and
+does not check `Host`.
 
 ### Exactly which requests need the token
 

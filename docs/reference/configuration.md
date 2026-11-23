@@ -251,7 +251,10 @@ The default `allowed_origins` in `local_token` mode:
 Listing any origin of your own **replaces** this list rather than adding to it,
 so include the loopback entries you still need. Open the UI on a different host
 port, a LAN address or a domain name and that exact origin has to be listed, or
-the origin check rejects writes.
+the origin check rejects writes. A host name that is neither in this list nor in
+`server_conf.addr` is refused for every request, reads included, with `421`;
+see [DNS rebinding and the `Host`
+check](../deployment-and-threat-model.md#dns-rebinding-and-the-host-check).
 
 `mode` values:
 

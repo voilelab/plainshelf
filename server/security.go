@@ -37,6 +37,8 @@ type Security struct {
 	conf           SecurityConf
 	token          string
 	allowedOrigins map[string]struct{}
+	allowedHosts   map[string]struct{}
+	allowedNames   map[string]struct{}
 }
 
 func NewSecurity(conf *SecurityConf) (*Security, error) {
@@ -51,6 +53,8 @@ func NewSecurity(conf *SecurityConf) (*Security, error) {
 	sec := &Security{
 		conf:           confValue,
 		allowedOrigins: make(map[string]struct{}, len(confValue.AllowedOrigins)),
+		allowedHosts:   make(map[string]struct{}, len(confValue.AllowedOrigins)),
+		allowedNames:   map[string]struct{}{"localhost": {}},
 	}
 
 	for _, origin := range confValue.AllowedOrigins {
@@ -59,6 +63,8 @@ func NewSecurity(conf *SecurityConf) (*Security, error) {
 			return nil, util.Errorf("invalid security allowed_origin %q: %w", origin, err)
 		}
 		sec.allowedOrigins[normalized] = struct{}{}
+		_, host, _ := strings.Cut(normalized, "://")
+		sec.allowedHosts[host] = struct{}{}
 	}
 
 	if confValue.Mode == SecurityModeLocalToken {
@@ -123,6 +129,41 @@ func (sec *Security) InsecureNetworkExposure(listenAddr string) bool {
 	return sec != nil && sec.conf.Mode == SecurityModeNone && !isLoopbackListenAddr(listenAddr)
 }
 
+func (sec *Security) AllowListenHost(listenAddr string) {
+	if sec == nil {
+		return
+	}
+	host, _, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		host = listenAddr
+	}
+	host = strings.ToLower(strings.Trim(strings.TrimSpace(host), "[]"))
+	if host == "" || net.ParseIP(host) != nil {
+		return
+	}
+	sec.allowedNames[host] = struct{}{}
+}
+
+func (sec *Security) isAllowedHost(hostHeader string) bool {
+	hostHeader = strings.ToLower(strings.TrimSpace(hostHeader))
+	if hostHeader == "" {
+		return false
+	}
+	if _, ok := sec.allowedHosts[hostHeader]; ok {
+		return true
+	}
+	name, _, err := net.SplitHostPort(hostHeader)
+	if err != nil {
+		name = hostHeader
+	}
+	name = strings.Trim(name, "[]")
+	if net.ParseIP(name) != nil {
+		return true
+	}
+	_, ok := sec.allowedNames[name]
+	return ok
+}
+
 func isLoopbackListenAddr(addr string) bool {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -148,6 +189,11 @@ func (sec *Security) Middleware(next http.Handler) http.Handler {
 
 		if sec == nil || sec.conf.Mode == SecurityModeNone {
 			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !sec.isAllowedHost(r.Host) {
+			http.Error(w, "misdirected request", http.StatusMisdirectedRequest)
 			return
 		}
 
