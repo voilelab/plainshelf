@@ -87,6 +87,7 @@ func MainService(confPath string) error {
 	rootLogger.Info("Create App...done")
 
 	app.SetInsecureNetworkWarning(app.security.InsecureNetworkExposure(conf.ServerConf.Addr))
+	app.AllowListenHost(conf.ServerConf.Addr)
 
 	rootLogger.Info("Start App...")
 	err = app.Start()

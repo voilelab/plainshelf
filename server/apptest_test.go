@@ -6,6 +6,8 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+const httptestHost = "example.com"
+
 func newTestApp(t *testing.T) *App {
 	t.Helper()
 	return newTestAppWithSecurity(t, nil)
@@ -33,6 +35,8 @@ func newTestAppWithSecurity(t *testing.T, security *SecurityConf) *App {
 			t.Fatalf("Close app: %v", err)
 		}
 	})
+
+	app.AllowListenHost(httptestHost)
 
 	if err := app.Start(); err != nil {
 		t.Fatalf("Start app: %v", err)

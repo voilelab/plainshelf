@@ -119,6 +119,8 @@ type Env struct {
 	LibRoot string
 }
 
+const httptestHost = "example.com"
+
 func New(t *testing.T, opts ...Option) *Env {
 	t.Helper()
 
@@ -146,6 +148,8 @@ func NewUnstarted(t *testing.T, opts ...Option) *Env {
 			t.Fatalf("Close app: %v", err)
 		}
 	})
+
+	app.AllowListenHost(httptestHost)
 
 	return &Env{App: app, handler: app.Handler(), LibRoot: conf.Shelves[0].LibRoot}
 }

@@ -54,7 +54,8 @@ The image uses `docker/config.yaml`, which:
 different host port (for example `-p 127.0.0.1:8080:20000`), a LAN IP (for
 example a NAS), or a custom domain, add that exact origin to
 `app_conf.security.allowed_origins` in a mounted config or the Origin check will
-reject writes. Choose `mode: "none"` only when an authentication boundary
+reject writes. A domain or LAN host name that is not listed is refused outright,
+reads included, with `421`. Choose `mode: "none"` only when an authentication boundary
 (reverse proxy auth or a VPN edge) already sits in front of the container.
 
 ## Custom configuration

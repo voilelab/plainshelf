@@ -144,6 +144,10 @@ func (app *App) Conf() *AppConf {
 	return app.conf
 }
 
+func (app *App) AllowListenHost(listenAddr string) {
+	app.security.AllowListenHost(listenAddr)
+}
+
 func (app *App) SetInsecureNetworkWarning(v bool) {
 	if app == nil || app.handlers == nil || app.handlers.spa == nil {
 		return

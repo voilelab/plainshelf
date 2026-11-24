@@ -151,6 +151,7 @@ func fingerprintTestApp(t *testing.T, libRoot string) *App {
 			t.Fatalf("Close app: %v", err)
 		}
 	})
+	app.AllowListenHost(httptestHost)
 	if err := app.Start(); err != nil {
 		t.Fatalf("Start app: %v", err)
 	}
