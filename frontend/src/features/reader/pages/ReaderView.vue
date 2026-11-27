@@ -6,8 +6,10 @@
     :pages="pages" :index="currentSectionIndex" :direction="pageDirection"
     :percent="progress?.percent ?? 0" :loading="loading" :error="error" :save-error="saveError"
     :show-back-navigation="showBackNavigation"
+    :can-set-cover="writesEnabled" :setting-cover="settingCover" :cover-status="coverStatus"
     @back="goBack" @retry="loadBookAndApplySectionDeepLink"
     @previous="goPrevSection" @next="goNextSection" @select="goToSection"
+    @set-cover="setCurrentPageAsCover"
   />
   <DesktopReaderView
     v-else-if="!isMobileReader"
@@ -99,6 +101,8 @@ import DesktopReaderView from '@/features/reader/components/DesktopReaderView.vu
 import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
 import MobileReaderView from '@/features/reader/components/MobileReaderView.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { setCoverFromPage } from '@/composables/setCoverFromPage';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useSafeBackNavigation } from '@/composables/useSafeBackNavigation';
 import { useReader } from '@/features/reader/composables/useReader';
 import { useMobileReaderPresentation } from '@/features/reader/composables/useReaderPresentation';
@@ -161,6 +165,26 @@ const {
 } = useReaderSettings(defaultFontSize);
 const { t } = useI18n();
 const readingHeartbeat = useReadingHeartbeat(() => id.value);
+const { writesEnabled } = useWriteAccess();
+const settingCover = ref(false);
+const coverStatus = ref('');
+
+async function setCurrentPageAsCover(): Promise<void> {
+  const page = pages.value[currentSectionIndex.value];
+  if (!page || page.missing || settingCover.value) return;
+  settingCover.value = true;
+  coverStatus.value = '';
+  try {
+    await setCoverFromPage(id.value, currentSourceId.value, page.name);
+    coverStatus.value = t('reader.comic.coverSet', { page: currentSectionIndex.value + 1 });
+  } catch (err) {
+    coverStatus.value = err instanceof Error
+      ? t('bookDetail.cover.uploadFailedWithReason', { reason: err.message })
+      : t('bookDetail.cover.uploadFailed');
+  } finally {
+    settingCover.value = false;
+  }
+}
 
 const readerStyleVars = computed(() => ({
   '--reader-font-size': `${fontSize.value}px`,

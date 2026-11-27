@@ -24,6 +24,13 @@ the same H2 headings the reader navigates by. Selecting one opens the reader at
 that chapter instead of your last position. Plain text has no chapters, so the
 list is absent there.
 
+When the current source is an images source, **Cover options → Choose from
+pages** shows its pages and makes the one you pick the book cover. The comic
+reader's **Set as cover** button does the same for the page on screen. The page
+image is copied into the book's cover file, so later edits to the pages, or
+deleting the source, leave the cover as it is. **Settings → Import & covers →
+Convert uploaded covers to JPG** applies here as it does to an uploaded cover.
+
 ## Reading on a phone or narrow screen
 
 On the Android app and narrow browser screens, the reader uses an immersive

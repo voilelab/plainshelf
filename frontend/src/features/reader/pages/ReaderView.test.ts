@@ -84,6 +84,14 @@ vi.mock('@/features/reader/composables/useReadingHeartbeat', () => ({
   useReadingHeartbeat: () => ({ start: vi.fn(), stop: vi.fn() })
 }));
 
+vi.mock('@/composables/useWriteAccess', () => ({
+  useWriteAccess: () => ({ writesEnabled: ref(false) })
+}));
+
+vi.mock('@/composables/setCoverFromPage', () => ({
+  setCoverFromPage: vi.fn()
+}));
+
 vi.mock('@/composables/useDocumentTitle', () => ({
   useDocumentTitle: vi.fn()
 }));

@@ -923,6 +923,11 @@ const en = {
       confirmTitle: 'Update book cover?',
       confirmQuestion: 'Use this image as the new book cover?',
       confirm: 'Update cover',
+      fromPage: {
+        open: 'Choose from pages',
+        title: 'Choose a page as cover',
+        missing: 'Missing'
+      },
       generator: {
         title: 'Generate cover',
         close: 'Close cover generator',
@@ -1168,6 +1173,8 @@ const en = {
       zoomIn: 'Zoom in',
       zoomOut: 'Zoom out',
       resetZoom: 'Zoom {zoom}%, reset to 100%',
+      setCover: 'Set as cover',
+      coverSet: 'Page {page} is now the cover.',
     },
     title: 'Reader',
     progress: 'Progress: {percent}%',

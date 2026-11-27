@@ -907,6 +907,11 @@ const zhHant = {
       confirmTitle: '更新書籍封面？',
       confirmQuestion: '要使用這張圖片更新書籍封面嗎？',
       confirm: '更新封面',
+      fromPage: {
+        open: '從頁面選擇',
+        title: '選擇一頁作為封面',
+        missing: '遺失'
+      },
       generator: {
         title: '產生封面',
         close: '關閉產生封面對話框',
@@ -1152,6 +1157,8 @@ const zhHant = {
       zoomIn: '放大',
       zoomOut: '縮小',
       resetZoom: '縮放 {zoom}%，重設為 100%',
+      setCover: '設為封面',
+      coverSet: '已將第 {page} 頁設為封面。',
     },
     title: '閱讀器',
     progress: '進度：{percent}%',

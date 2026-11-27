@@ -8,6 +8,15 @@
       @close="showGenerateModal = false"
       @saved="onGeneratedCoverSaved"
     />
+    <PickPageCoverModal
+      v-if="pageSourceId && pages"
+      :open="showPagePicker && !readOnly"
+      :book-id="bookId"
+      :source-id="pageSourceId"
+      :pages="pages"
+      @close="showPagePicker = false"
+      @saved="onPageCoverSaved"
+    />
     <ConfirmModal
       :open="showDropConfirmModal && !readOnly"
       :title="t('bookDetail.cover.confirmTitle')"
@@ -73,6 +82,15 @@
             <button class="button cover-btn" type="button" :disabled="coverBusy" @click="showGenerateModal = true">
               {{ t('bookDetail.cover.generate') }}
             </button>
+            <button
+              v-if="pageSourceId && pages"
+              class="button cover-btn"
+              type="button"
+              :disabled="coverBusy || !pages.length"
+              @click="showPagePicker = true"
+            >
+              {{ t('bookDetail.cover.fromPage.open') }}
+            </button>
           </div>
         </CollapsibleContent>
       </CollapsibleRoot>
@@ -88,7 +106,9 @@ import { bookshelfWriter } from '@/providers';
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import GenerateCoverModal from './GenerateCoverModal.vue';
+import PickPageCoverModal from './PickPageCoverModal.vue';
 import { useI18n } from '@/i18n';
+import type { SourcePage } from '@/types/source';
 
 const props = defineProps<{
   bookId: string;
@@ -96,6 +116,8 @@ const props = defineProps<{
   authors?: string[];
   coverUrl?: string;
   readOnly?: boolean;
+  pageSourceId?: string;
+  pages?: SourcePage[];
 }>();
 
 const emit = defineEmits<{
@@ -113,6 +135,7 @@ const coverStatus = ref('');
 const coverError = ref(false);
 const coverCacheKey = ref<number | undefined>(undefined);
 const showGenerateModal = ref(false);
+const showPagePicker = ref(false);
 const showCoverOptions = ref(false);
 const showDropConfirmModal = ref(false);
 const isDragOver = ref(false);
@@ -311,6 +334,11 @@ async function removeCover(): Promise<void> {
     coverBusy.value = false;
     coverBusyAction.value = '';
   }
+}
+
+function onPageCoverSaved(): void {
+  showPagePicker.value = false;
+  onGeneratedCoverSaved();
 }
 
 function onGeneratedCoverSaved(): void {
