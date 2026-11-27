@@ -14,6 +14,10 @@ vi.mock('./GenerateCoverModal.vue', () => ({
   default: defineComponent({ name: 'GenerateCoverModalStub', setup: () => () => null })
 }));
 
+vi.mock('./PickPageCoverModal.vue', () => ({
+  default: defineComponent({ name: 'PickPageCoverModalStub', setup: () => () => null })
+}));
+
 vi.mock('@/components/ConfirmModal.vue', () => ({
   default: defineComponent({ name: 'ConfirmModalStub', setup: () => () => null })
 }));
@@ -22,11 +26,11 @@ import BookCover from './BookCover.vue';
 
 const mounted: { app: App; host: HTMLElement }[] = [];
 
-function mount(): HTMLElement {
+function mount(extra: Record<string, unknown> = {}): HTMLElement {
   const host = document.createElement('div');
   document.body.append(host);
   const app = createApp({
-    setup: () => () => h(BookCover, { bookId: 'book-1', title: '書名', authors: [] })
+    setup: () => () => h(BookCover, { bookId: 'book-1', title: '書名', authors: [], ...extra })
   });
   app.mount(host);
   mounted.push({ app, host });
@@ -71,5 +75,23 @@ describe('BookCover options tray', () => {
     expect(opened!.hasAttribute('hidden')).toBe(false);
     expect(opened!.querySelectorAll('.cover-btn')).toHaveLength(3);
     expect(toggle(host).getAttribute('aria-expanded')).toBe('true');
+  });
+});
+
+describe('BookCover page picker button', () => {
+  it('is offered only for an images source', () => {
+    const plain = mount();
+    expect(plain.querySelectorAll('.cover-btn')).toHaveLength(3);
+
+    const comic = mount({ pageSourceId: 'pages', pages: [{ name: 'p-1.png', missing: false }] });
+    const buttons = comic.querySelectorAll<HTMLButtonElement>('.cover-btn');
+    expect(buttons).toHaveLength(4);
+    expect(buttons[3].disabled).toBe(false);
+  });
+
+  it('is disabled when the source has no pages', () => {
+    const host = mount({ pageSourceId: 'pages', pages: [] });
+    const buttons = host.querySelectorAll<HTMLButtonElement>('.cover-btn');
+    expect(buttons[3].disabled).toBe(true);
   });
 });

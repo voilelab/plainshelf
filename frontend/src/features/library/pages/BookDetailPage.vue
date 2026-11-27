@@ -110,6 +110,8 @@
             :authors="book.authors"
             :cover-url="book.cover_url"
             :read-only="readOnly"
+            :page-source-id="currentSource?.page_list ? currentSource.id : ''"
+            :pages="currentSource?.page_list?.pages"
             @cover-changed="onCoverChanged"
           />
         </div>

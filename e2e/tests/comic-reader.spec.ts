@@ -45,7 +45,7 @@ async function writeComic(shelfDir: string, id: string, direction: string, liste
   return bookDir;
 }
 
-test('reads ltr and rtl comics, restores page progress, sizes pages, and edits pages touching only source.txt and one image', { tag: '@smoke' }, async ({ page }) => {
+test('reads ltr and rtl comics, restores page progress, sizes pages, edits pages touching only source.txt and one image, and copies a page into the cover', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl, shelfDir } = getServer();
   await page.goto(`${baseUrl}/books`);
   await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
@@ -164,4 +164,23 @@ test('reads ltr and rtl comics, restores page progress, sizes pages, and edits p
 
   await page.goto(`${baseUrl}/reader/comicltr`);
   await expect(page.locator('.comic-count')).toHaveText(/\/ 3$/);
+
+  const ltrBookDir = path.join(shelfDir, 'books', 'comicltr.bookpkg');
+  await page.getByRole('slider', { name: 'Choose page' }).fill('0');
+  await expect(page.locator('.comic-count')).toHaveText('1 / 3');
+  await page.getByRole('button', { name: 'Set as cover', exact: true }).click();
+  await expect(page.getByText('Page 1 is now the cover.')).toBeVisible();
+  expect(await fs.readFile(path.join(ltrBookDir, 'cover.png'))).toEqual(await fs.readFile(path.join(assetsDir, 'random-a.png')));
+
+  await page.goto(`${baseUrl}/books/comicltr`);
+  await page.getByRole('button', { name: 'Cover options' }).click();
+  await page.getByRole('button', { name: 'Choose from pages', exact: true }).click();
+  const picker = page.getByRole('dialog', { name: 'Choose a page as cover' });
+  await expect(picker.getByRole('button', { name: 'Page 3', exact: true })).toBeDisabled();
+  await picker.getByRole('button', { name: 'Page 2', exact: true }).click();
+  const coverWrite = page.waitForResponse((response) => response.request().method() === 'PUT' && response.url().endsWith('/books/comicltr/cover'));
+  await picker.getByRole('button', { name: 'Update cover', exact: true }).click();
+  expect((await coverWrite).status()).toBe(204);
+  await expect(picker).toBeHidden();
+  expect(await fs.readFile(path.join(ltrBookDir, 'cover.png'))).toEqual(await fs.readFile(path.join(assetsDir, added)));
 });

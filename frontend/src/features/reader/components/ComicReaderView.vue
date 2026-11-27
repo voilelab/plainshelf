@@ -12,8 +12,18 @@
         <button class="button comic-zoom" type="button" :aria-label="t('reader.comic.resetZoom', { zoom })" @click="resetZoom">{{ zoom }}%</button>
         <button class="button" type="button" :disabled="zoom >= COMIC_ZOOM_MAX" :aria-label="t('reader.comic.zoomIn')" @click="zoomIn">+</button>
       </div>
+      <button
+        v-if="canSetCover"
+        class="button"
+        type="button"
+        :disabled="loading || !!error || settingCover || displayedIndex !== index || !pages[index] || pages[index].missing"
+        @click="emit('set-cover', displayedIndex)"
+      >
+        {{ settingCover ? t('bookDetail.cover.uploading') : t('reader.comic.setCover') }}
+      </button>
     </header>
     <p v-if="saveError" role="status">{{ t('reader.autosaveFailed') }}</p>
+    <p v-if="coverStatus" class="comic-cover-status" role="status">{{ coverStatus }}</p>
     <div v-if="loading" class="comic-status" role="status">{{ t('reader.loadingContent') }}</div>
     <div v-else-if="error" class="comic-status" role="alert">
       <p>{{ error }}</p>
@@ -74,9 +84,9 @@ import { useI18n } from '@/i18n';
 const props = defineProps<{
   bookId: string; sourceId: string; title: string; pages: SourcePage[]; index: number;
   direction: 'ltr' | 'rtl'; percent: number; loading: boolean; error: string; saveError: string;
-  showBackNavigation: boolean;
+  showBackNavigation: boolean; canSetCover?: boolean; settingCover?: boolean; coverStatus?: string;
 }>();
-const emit = defineEmits<{ back: []; retry: []; previous: []; next: []; select: [index: number] }>();
+const emit = defineEmits<{ back: []; retry: []; previous: []; next: []; select: [index: number]; 'set-cover': [index: number] }>();
 const { t } = useI18n();
 const viewport = ref<HTMLElement | null>(null);
 const displayedIndex = ref(props.index);
@@ -208,6 +218,7 @@ function onTouchEnd(event: TouchEvent): void {
 .comic-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
 .comic-toolbar strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comic-count { white-space: nowrap; }
+.comic-cover-status { margin: 0; padding: 0 12px; font-size: 0.85rem; }
 .comic-viewport { flex: 1; min-height: 0; display: grid; overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y pinch-zoom; }
 .comic-size { display: flex; align-items: center; gap: 4px; }
 .comic-size .input { width: auto; padding: 6px 8px; }
