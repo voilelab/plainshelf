@@ -169,14 +169,14 @@ const { writesEnabled } = useWriteAccess();
 const settingCover = ref(false);
 const coverStatus = ref('');
 
-async function setCurrentPageAsCover(): Promise<void> {
-  const page = pages.value[currentSectionIndex.value];
+async function setCurrentPageAsCover(index: number): Promise<void> {
+  const page = pages.value[index];
   if (!page || page.missing || settingCover.value) return;
   settingCover.value = true;
   coverStatus.value = '';
   try {
     await setCoverFromPage(id.value, currentSourceId.value, page.name);
-    coverStatus.value = t('reader.comic.coverSet', { page: currentSectionIndex.value + 1 });
+    coverStatus.value = t('reader.comic.coverSet', { page: index + 1 });
   } catch (err) {
     coverStatus.value = err instanceof Error
       ? t('bookDetail.cover.uploadFailedWithReason', { reason: err.message })

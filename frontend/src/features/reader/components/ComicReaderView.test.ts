@@ -223,10 +223,37 @@ describe('ComicReaderView', () => {
     state.canSetCover = true;
     await nextTick();
     coverButton()!.click();
-    expect(setCover).toHaveBeenCalledTimes(1);
+    expect(setCover).toHaveBeenCalledWith(0);
 
     state.index = 1;
     await nextTick();
     expect(coverButton()!.disabled).toBe(true);
+  });
+
+  it('keeps set-cover disabled until the target page is on screen', async () => {
+    const pages = [{ name: 'a.png', missing: false }, { name: 'b.png', missing: false }];
+    const setCover = vi.fn();
+    const state = reactive({ index: 0 });
+    const view = mount(ComicReaderView, { props: () => ({
+      bookId: 'comic', sourceId: 'pages', title: 'Comic', pages, index: state.index,
+      direction: 'ltr', percent: 0, loading: false, error: '', saveError: '', showBackNavigation: true,
+      canSetCover: true, onSetCover: setCover
+    }) });
+    await settle();
+    loadPage(view.host, 'Page 1');
+    await nextTick();
+    const coverButton = () => [...view.host.querySelectorAll<HTMLButtonElement>('.comic-toolbar .button')]
+      .find((button) => button.textContent?.trim() === 'Set as cover')!;
+    expect(coverButton().disabled).toBe(false);
+
+    state.index = 1;
+    await nextTick();
+    expect(coverButton().disabled).toBe(true);
+
+    await settle();
+    loadPage(view.host, 'Page 2');
+    await nextTick();
+    coverButton().click();
+    expect(setCover).toHaveBeenCalledWith(1);
   });
 });

@@ -16,8 +16,8 @@
         v-if="canSetCover"
         class="button"
         type="button"
-        :disabled="loading || !!error || settingCover || !pages[index] || pages[index].missing"
-        @click="emit('set-cover')"
+        :disabled="loading || !!error || settingCover || displayedIndex !== index || !pages[index] || pages[index].missing"
+        @click="emit('set-cover', displayedIndex)"
       >
         {{ settingCover ? t('bookDetail.cover.uploading') : t('reader.comic.setCover') }}
       </button>
@@ -86,7 +86,7 @@ const props = defineProps<{
   direction: 'ltr' | 'rtl'; percent: number; loading: boolean; error: string; saveError: string;
   showBackNavigation: boolean; canSetCover?: boolean; settingCover?: boolean; coverStatus?: string;
 }>();
-const emit = defineEmits<{ back: []; retry: []; previous: []; next: []; select: [index: number]; 'set-cover': [] }>();
+const emit = defineEmits<{ back: []; retry: []; previous: []; next: []; select: [index: number]; 'set-cover': [index: number] }>();
 const { t } = useI18n();
 const viewport = ref<HTMLElement | null>(null);
 const displayedIndex = ref(props.index);
